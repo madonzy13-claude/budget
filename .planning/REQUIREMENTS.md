@@ -23,11 +23,16 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **TENT-01**: User can create a family workspace
 - [ ] **TENT-02**: Family owner can invite members by email
 - [ ] **TENT-03**: Family member roles enforced: owner, member
-- [ ] **TENT-04**: Each user has a personal budget visible only to them, plus shared family budget visible to all members
+- [ ] **TENT-04**: User can belong to multiple workspaces; each workspace is either `PRIVATE` (single-member, owner-only) or `SHARED` (multi-member, invitable); data visibility scoped to workspaces user has actively selected (TENT-12)
 - [ ] **TENT-05**: Owner can transfer ownership; cannot leave as last owner
-- [ ] **TENT-06**: Member can leave family; their personal data stays in their personal workspace
+- [ ] **TENT-06**: Member can leave a SHARED workspace; that workspace is unaffected for remaining members; user's PRIVATE workspaces remain intact
 - [ ] **TENT-07**: Tenant isolation enforced at DB layer (Postgres RLS, app role has no BYPASSRLS, FORCE ROW LEVEL SECURITY on all user-data tables)
 - [ ] **TENT-08**: Background jobs run with same RLS context as HTTP (worker role has no BYPASSRLS; jobs carry tenantId)
+- [ ] **TENT-09**: User can create new PRIVATE workspaces ad-hoc (no upper bound); user can be invited to / join multiple SHARED workspaces (no upper bound)
+- [ ] **TENT-10**: Workspace has explicit `kind` enum (`PRIVATE` | `SHARED`); PRIVATE has exactly one member (owner); SHARED has 2+ members and supports invite flow
+- [ ] **TENT-11**: Workspace has `default_currency` (ISO-4217) set at creation; immutable post-creation
+- [ ] **TENT-12**: User has persisted "active workspaces" multi-select filter; default = empty (user picks explicitly first time); restored across sessions; UI = checkbox list grouped by kind
+- [ ] **TENT-13**: SHARED workspace owner can configure per-member global contribution shares (decimal % per member, sum = 100%); audit-tracked; storage + edit UI ships in Phase 1, contribution math in Phase 2
 
 ### Money & Currencies (MONY)
 
@@ -39,6 +44,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **MONY-06**: Ledger row stores `(amount_orig, currency_orig, amount_default, currency_default, fx_rate, fx_rate_date, fx_provider)`
 - [ ] **MONY-07**: Money columns use `NUMERIC(19,4)` (or `NUMERIC(38,18)` for crypto); float types banned by lint rule
 - [ ] **MONY-08**: FX provider abstraction (port) allows adding providers without touching domain
+- [ ] **MONY-09**: User has personal `display_currency` setting (ISO-4217) separate from any workspace's default-currency; cross-workspace dashboards/totals convert via FX to user's display_currency; per-workspace views still use that workspace's own default-currency
 
 ### Accounts (ACCT)
 
@@ -56,6 +62,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **BDGT-05**: User can edit limits any time; changes audit-tracked
 - [ ] **BDGT-06**: User can archive categories (preserves history, hides from new-expense pickers)
 - [ ] **BDGT-07**: User can create budget templates and apply to new months
+- [ ] **BDGT-08**: SHARED workspace supports per-category contribution share overrides (decimal % per member per category, sum = 100% per category); falls back to TENT-13 global shares when category has no override
 
 ### Expense Capture (EXPN)
 
@@ -71,6 +78,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **EXPN-10**: User can re-categorize transactions; bulk re-categorize supported
 - [ ] **EXPN-11**: All capture surfaces accept any currency (multi-currency-native)
 - [ ] **EXPN-12**: All mutating endpoints accept `Idempotency-Key` header (PWA offline → reconnect safety)
+- [ ] **EXPN-13**: Deposit-to-workspace-wallet (transfer-in / cash add) accepts any currency; UI shows FX-preview ("X CUR ≈ Y workspace-currency at rate Z, date D") before save; deposit recorded in workspace currency on ledger with original amount preserved (per MONY-06)
 
 ### Reserve System (RSRV) — opt-in
 
@@ -81,6 +89,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **RSRV-05**: End-of-month sweep is idempotent; period-scoped UNIQUE key prevents duplicate Tasks on retry
 - [ ] **RSRV-06**: Reserve insights surface balance per category, suggested top-ups, suggested withdrawals
 - [ ] **RSRV-07**: UI labels Reserve as "Logical reserve · cash sits in your bank · we suggest moves" (out of payments-regulation scope)
+- [ ] **RSRV-08**: SHARED workspace's reserve uses share-aware accounting; each member's logical reserve balance contribution derived from their (global TENT-13 or per-category BDGT-08) shares
 
 ### Cushion (CSHN) — opt-in
 
@@ -119,6 +128,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **TASK-04**: User can dismiss, snooze, or mark a Task done
 - [ ] **TASK-05**: Dismissed Tasks don't reappear unless underlying state changes
 - [ ] **TASK-06**: High-priority Tasks trigger web-push notification (per user preferences)
+- [ ] **TASK-07**: System emits "Contribution short" Task to a SHARED workspace member when their cumulative deposits to that workspace fall below their owed-share for the period (cumulative budget plan × member share)
+- [ ] **TASK-08**: System emits "Refund excess" Task when a SHARED workspace member's deposits exceed their owed-share for the period; Task includes suggested refund amount + recipient member
 
 ### Insights & Charts (INSI)
 
@@ -257,6 +268,11 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | TENT-06 | Phase 1 | Pending |
 | TENT-07 | Phase 1 | Pending |
 | TENT-08 | Phase 1 | Pending |
+| TENT-09 | Phase 1 | Pending |
+| TENT-10 | Phase 1 | Pending |
+| TENT-11 | Phase 1 | Pending |
+| TENT-12 | Phase 1 | Pending |
+| TENT-13 | Phase 1 | Pending |
 | MONY-01 | Phase 1 | Pending |
 | MONY-02 | Phase 1 | Pending |
 | MONY-03 | Phase 2 | Pending |
@@ -265,6 +281,7 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | MONY-06 | Phase 2 | Pending |
 | MONY-07 | Phase 1 | Pending |
 | MONY-08 | Phase 1 | Pending |
+| MONY-09 | Phase 1 | Pending |
 | ACCT-01 | Phase 2 | Pending |
 | ACCT-02 | Phase 2 | Pending |
 | ACCT-03 | Phase 2 | Pending |
@@ -276,6 +293,7 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | BDGT-05 | Phase 2 | Pending |
 | BDGT-06 | Phase 2 | Pending |
 | BDGT-07 | Phase 2 | Pending |
+| BDGT-08 | Phase 2 | Pending |
 | EXPN-01 | Phase 2 | Pending |
 | EXPN-02 | Phase 2 | Pending |
 | EXPN-03 | Phase 2 | Pending |
@@ -288,6 +306,7 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | EXPN-10 | Phase 2 | Pending |
 | EXPN-11 | Phase 2 | Pending |
 | EXPN-12 | Phase 2 | Pending |
+| EXPN-13 | Phase 2 | Pending |
 | RSRV-01 | Phase 3 | Pending |
 | RSRV-02 | Phase 3 | Pending |
 | RSRV-03 | Phase 3 | Pending |
@@ -295,6 +314,7 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | RSRV-05 | Phase 3 | Pending |
 | RSRV-06 | Phase 3 | Pending |
 | RSRV-07 | Phase 3 | Pending |
+| RSRV-08 | Phase 3 | Pending |
 | CSHN-01 | Phase 3 | Pending |
 | CSHN-02 | Phase 3 | Pending |
 | CSHN-03 | Phase 3 | Pending |
@@ -321,6 +341,8 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | TASK-04 | Phase 4 | Pending |
 | TASK-05 | Phase 4 | Pending |
 | TASK-06 | Phase 4 | Pending |
+| TASK-07 | Phase 4 | Pending |
+| TASK-08 | Phase 4 | Pending |
 | INSI-01 | Phase 4 | Pending |
 | INSI-02 | Phase 4 | Pending |
 | INSI-03 | Phase 4 | Pending |
@@ -372,21 +394,21 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 
 | Phase | Requirements Mapped |
 |-------|---------------------|
-| Phase 1 — Foundations | 37 |
-| Phase 2 — Budgeting & FX | 27 |
-| Phase 3 — Reserve, Investments, Cushion | 20 |
-| Phase 4 — Tasks, Insights, Notifications | 17 |
+| Phase 1 — Foundations | 43 |
+| Phase 2 — Budgeting & FX | 29 |
+| Phase 3 — Reserve, Investments, Cushion | 21 |
+| Phase 4 — Tasks, Insights, Notifications | 19 |
 | Phase 5 — Onboarding & Comparison | 17 |
 | Phase 6 — Launch Hardening | 8 |
-| **Total** | **126** |
+| **Total** | **138** |
 
 **Coverage:**
-- v1 requirements: 126 total (re-counted from category subtotals — original "110" line was a tally error in initial draft)
-- Mapped to phases: 126
+- v1 requirements: 138 total
+- Mapped to phases: 138
 - Unmapped: 0
 - v1.x requirements: 8 (deferred — appear in roadmap as "Deferred", not scheduled)
 - v2+ requirements: 9 (deferred — appear in roadmap as "Deferred", not scheduled)
 
 ---
 *Requirements defined: 2026-05-05*
-*Last updated: 2026-05-05 — traceability populated by /gsd-roadmap; coverage 126/126*
+*Last updated: 2026-05-05 — Phase 1 discuss-phase added share-aware multi-workspace reqs (TENT-09..13, MONY-09, BDGT-08, EXPN-13, RSRV-08, TASK-07, TASK-08); coverage 138/138*
