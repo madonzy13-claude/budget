@@ -1,0 +1,42 @@
+# docker-compose.override.yml.example
+# ─────────────────────────────────────────────────────────────────────────────
+# Developer-local overrides for docker compose.
+# Copy this file to docker-compose.override.yml to activate.
+# docker-compose.override.yml is git-ignored — never commit it.
+#
+# docker compose merges this file with docker-compose.yml automatically.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── API: mount source for hot-reload in dev ──────────────────────────────
+  # Enables live code reload without rebuilding the image.
+  # Uncomment if you prefer `bun --hot` inside the container.
+  # api:
+  #   volumes:
+  #     - ./apps/api/src:/app/apps/api/src:ro
+  #   command: ["bun", "--hot", "run", "src/server.ts"]
+
+  # ── Web: expose Next.js on a custom port ─────────────────────────────────
+  # Override the host port if 3000 conflicts with another service.
+  # web:
+  #   ports:
+  #     - "3002:3000"
+
+  # ── API: override log level ───────────────────────────────────────────────
+  # api:
+  #   environment:
+  #     LOG_LEVEL: debug
+
+  # ── DB: persist data to a local path instead of named volume ─────────────
+  # Useful if you want to inspect the data files directly.
+  # db:
+  #   volumes:
+  #     - ./tmp/postgres-data:/var/lib/postgresql/data
+  #     - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+  #     - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+
+  # ── Mailpit: change SMTP port if 1025 is blocked ─────────────────────────
+  # mailpit:
+  #   ports:
+  #     - "2525:1025"
+  #     - "8025:8025"
