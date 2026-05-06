@@ -5,3 +5,5 @@ export * from "./db/rls";
 export * from "./db/schemas";
 export * from "./db/roles";
 export * from "./db/expense-ledger";
+export * from "./audit/schema";
+export * from "./audit/writer";
