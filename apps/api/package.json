@@ -4,7 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "bun --hot run src/server.ts",
+    "start": "bun run src/server.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@budget/shared-kernel": "workspace:*",
+    "@budget/platform": "workspace:*",
+    "@budget/identity": "workspace:*",
+    "@budget/tenancy": "workspace:*",
+    "drizzle-orm": "latest",
+    "hono": "^4.12.16",
+    "@hono/zod-validator": "^0.7.6",
+    "zod": "^3.25.0",
+    "pino": "^9.0.0"
   }
 }
