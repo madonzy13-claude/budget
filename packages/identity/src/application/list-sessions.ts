@@ -12,7 +12,7 @@ export interface SessionInfo {
 }
 
 export async function listSessions(
-  deps: { auth: AuthInstance },
+  _deps: { auth: AuthInstance },
   _userId: UserId,
 ): Promise<SessionInfo[]> {
   // Better Auth's listSessions is session-token based (requires a session context).

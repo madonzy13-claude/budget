@@ -1,6 +1,6 @@
 // This file MUST NOT be imported directly by domain/application/ports layers.
 // Domain/application code accesses this only through the UserRepo port interface.
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { appPool, withUserContext } from "@budget/platform";
 import type { UserId } from "@budget/shared-kernel";
@@ -36,8 +36,10 @@ export class DrizzleUserRepo implements UserRepo {
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
       display_currency: row.displayCurrency,
-      preferred_llm_provider: row.preferredLlmProvider as LLMProviderName | null,
-      preferred_stt_provider: row.preferredSttProvider as STTProviderName | null,
+      preferred_llm_provider:
+        row.preferredLlmProvider as LLMProviderName | null,
+      preferred_stt_provider:
+        row.preferredSttProvider as STTProviderName | null,
     };
   }
 
@@ -45,10 +47,7 @@ export class DrizzleUserRepo implements UserRepo {
     // email lookup uses plain email text for now (Phase 6 drops to email_hash only)
     // We cannot use withUserContext here because we don't know the userId yet.
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, email));
+    const rows = await db.select().from(users).where(eq(users.email, email));
     if (!rows[0]) return null;
     const row = rows[0];
     return {
@@ -58,8 +57,10 @@ export class DrizzleUserRepo implements UserRepo {
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
       display_currency: row.displayCurrency,
-      preferred_llm_provider: row.preferredLlmProvider as LLMProviderName | null,
-      preferred_stt_provider: row.preferredSttProvider as STTProviderName | null,
+      preferred_llm_provider:
+        row.preferredLlmProvider as LLMProviderName | null,
+      preferred_stt_provider:
+        row.preferredSttProvider as STTProviderName | null,
     };
   }
 
