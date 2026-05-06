@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-08-web-app-surfaces-PLAN.md
-last_updated: "2026-05-06T21:07:00.000Z"
-last_activity: 2026-05-06 -- 01.08 web-app-surfaces complete
+stopped_at: Completed 01-09-docker-compose-stack-PLAN.md
+last_updated: "2026-05-06T21:30:00.000Z"
+last_activity: 2026-05-06 -- 01.09 docker-compose-stack complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 8
-  percent: 73
+  completed_plans: 9
+  percent: 82
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 1 of 6 (Foundations — executing)
-Plan: 9 of 11
-Status: Wave 2 complete — 01.08 web-app-surfaces done; 01.09 docker-compose-stack next
-Last activity: 2026-05-06 -- 01.08 web-app-surfaces complete
+Plan: 10 of 11
+Status: Wave 3 in progress — 01.09 docker-compose-stack done; 01.10 security-ci-gates next
+Last activity: 2026-05-06 -- 01.09 docker-compose-stack complete
 
-Progress: [███████░░░] 73%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
@@ -87,6 +87,9 @@ Recent decisions affecting current work:
 - 01.08: turbopack: false is invalid in Next.js 16 config (object expected, not boolean); Serwist requires --webpack build flag
 - 01.08: sessions-list receives empty array Phase 1; real session list wired Phase 2 (IDNT-04)
 - 01.08: proxy.ts (not middleware.ts) for next-intl routing — avoids next-intl pitfall 12
+- 01.09: API internal port is 4000; compose maps 3001:4000 (external:internal)
+- 01.09: comparison schema created Phase 1 but NOT granted to app_role/worker_role (reserved for comparison_role)
+- 01.09: seed-dev.ts uses HTTP API (not raw Drizzle) to exercise real auth flows (T-13)
 
 ### Pending Todos
 
@@ -109,6 +112,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-06T21:07:00.000Z
-Stopped at: Completed 01-08-web-app-surfaces-PLAN.md
+Last session: 2026-05-06T21:30:00.000Z
+Stopped at: Completed 01-09-docker-compose-stack-PLAN.md
 Resume file: None
