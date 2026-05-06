@@ -1,0 +1,14 @@
+{
+  "verify-email": {
+    "subject": "Zweryfikuj swoje konto Budget",
+    "body": "Kliknij, aby zweryfikować: {{url}}\n\nLink działa przez 24 godziny."
+  },
+  "reset-password": {
+    "subject": "Zresetuj hasło do Budget",
+    "body": "Kliknij, aby zresetować: {{url}}\n\nLink działa przez 30 minut."
+  },
+  "workspace-invite": {
+    "subject": "{{inviter}} zaprasza Cię do {{workspace}}",
+    "body": "Kliknij, aby zaakceptować: {{url}}"
+  }
+}
