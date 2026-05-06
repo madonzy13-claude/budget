@@ -8,6 +8,13 @@
       "when": 1778067595075,
       "tag": "0000_giant_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778097865563,
+      "tag": "0001_overjoyed_echo",
+      "breakpoints": true
     }
   ]
 }
