@@ -12,6 +12,7 @@ export * from "./outbox/writer";
 export * from "./outbox/dispatcher";
 export * from "./events/bus";
 export * from "./jobs/boss";
+export * from "./jobs/worker-handler";
 export * from "./crypto/user-keys-schema";
 export * from "./crypto/libsodium-key-store";
 export * from "./crypto/dek-context";
