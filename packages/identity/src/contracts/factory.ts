@@ -20,7 +20,8 @@ export function createIdentityModule(opts: CreateIdentityOptions): IdentityModul
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { DrizzleUserRepo } = require('../adapters/persistence/user-repo') as typeof import('../adapters/persistence/user-repo');
   return {
-    auth: createAuth(opts),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    auth: createAuth(opts as any),
     userRepo: new DrizzleUserRepo(),
   };
 }
