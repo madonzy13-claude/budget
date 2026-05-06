@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-06-tenancy-context-PLAN.md
-last_updated: "2026-05-06T20:05:00.000Z"
-last_activity: 2026-05-06 -- 01.06 tenancy-context complete
+stopped_at: Completed 01-07-tenant-context-middleware-PLAN.md
+last_updated: "2026-05-06T20:20:00.000Z"
+last_activity: 2026-05-06 -- 01.07 tenant-context-middleware complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 6
-  percent: 55
+  completed_plans: 7
+  percent: 64
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 1 of 6 (Foundations — executing)
-Plan: 7 of 11
-Status: Wave 2 complete — 01.06 tenancy-context done; 01.07 tenant-guard middleware next
-Last activity: 2026-05-06 -- 01.06 tenancy-context complete
+Plan: 8 of 11
+Status: Wave 2 complete — 01.07 tenant-context-middleware done; 01.08 frontend-scaffold next
+Last activity: 2026-05-06 -- 01.07 tenant-context-middleware complete
 
-Progress: [█████░░░░░] 55%
+Progress: [██████░░░░] 64%
 
 ## Performance Metrics
 
@@ -80,6 +80,8 @@ Recent decisions affecting current work:
 - 01.06: test/helpers.ts pattern for cross-package test helpers (dep-cruiser only restricts src/ not test/ imports)
 - 01.06: PRIVATE-cap trigger PC-18 limitation documented — Phase 6 will harden with SELECT FOR UPDATE
 - 01.06: createTenancyModule uses lazy require() to keep contracts/ free of adapter imports (PC-15)
+- 01.07: PC-27 — withBootstrapUserContext is the dedicated bootstrap primitive for tenant-guard (not raw pool connect); avoids grep:no-pool-connect CI gate
+- 01.07: apps/\*_ cannot statically import packages/_/src/application — route handlers call auth.api directly using factory output
 
 ### Pending Todos
 
@@ -102,6 +104,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-06T20:05:00.000Z
-Stopped at: Completed 01-06-tenancy-context-PLAN.md
+Last session: 2026-05-06T20:20:00.000Z
+Stopped at: Completed 01-07-tenant-context-middleware-PLAN.md
 Resume file: None
