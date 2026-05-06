@@ -87,6 +87,23 @@ Ships Identity + Tenancy bounded contexts plus shared kernel and platform. **No*
 - Nanoid alphabet & length for public slugs
 - Specific Better-Auth plugin set (organization + admin + email-otp resend) — implementer decides exact version
 
+### Changelog (revision pass — 2026-05-06)
+
+These entries DOCUMENT carve-outs / extensions to the original D-NN decisions surfaced during Phase 1 plan-checker review. The original D-09 / D-27 / D-28 text above is preserved as written; this changelog records the additional primitives and conventions that downstream plans rely on. Carve-outs are minimal and bounded.
+
+- **CHG-2026-05-06-A — Extends D-09 (transaction primitives).** The transaction primitive set grows from one (`withTenantTx`) to FIVE, all defined in `packages/platform/src/db/tx.ts` (the SOLE call site of `.transaction(` repo-wide; PC-26 reconciled the canonical location to `packages/platform/src/db/tx.ts` — `tx.ts` is platform infrastructure, `db` is a leaf concern):
+  1. `withTenantTx(tenantId, userId, fn)` — single-tenant write; sets BOTH `app.tenant_ids` AND `app.current_user_id` GUCs in the same SET LOCAL pair (extended signature, was `(tenantId, fn)`).
+  2. `withTenantTxRead(tenantIds, userId, fn)` — multi-tenant read; same dual-GUC behavior.
+  3. `withUserContext(userId, fn)` — USER-scoped tx (sets ONLY `app.current_user_id`). Required for user-scoped tables (`shared_kernel.user_keys`, `identity.sessions`, `identity.accounts`, `identity.user_preferences`). Never use for tenant-scoped data. (Resolves the conflict where Better Auth user-creation hooks and DEK persistence touch tables that have no `tenant_id`.)
+  4. `withInfraTx(fn)` — INFRASTRUCTURE-ONLY carve-out (sets NEITHER GUC). Bounded use cases: outbox dispatcher, migration runner. NEVER call from tenant-scoped code paths.
+  5. `withBootstrapUserContext(userId, fn)` — BOOTSTRAP carve-out (PC-27). Identical mechanics to `withUserContext` (BEGIN + `SET LOCAL app.current_user_id` + body + COMMIT) but documented as the SOLE legitimate primitive used by `apps/api/src/middleware/tenant-guard.ts` to query `tenancy.workspace_members` BEFORE `app.tenant_ids` is set. Honors the `workspace_members_self` RLS policy keyed off `app.current_user_id` (Plan 06). Defined here so tenant-guard does not need to call raw `appPool().connect()`, keeping the PC-03 grep gate clean.
+
+  Documented invariant — CI grep gate enforces single non-test call site for `.transaction(` (PC-26: file-level `--exclude=tx.ts`; PC-28: also `--exclude-dir=test`). Underlying RLS rule from D-09 (no domain code opens `db.transaction(...)` directly) holds; the wrappers above replace what was previously one. [PC-03, PC-04, PC-07, PC-26, PC-27, PC-28]
+
+- **CHG-2026-05-06-B — Extends D-27 (cross-package imports).** D-27 says "only `contracts/**` is cross-package importable" — extended with the **factory surface convention**: every `packages/*/src/index.ts` re-exports a documented factory (`createIdentityModule`, `createTenancyModule`, `createPlatformModule`, etc.) defined under `packages/<ctx>/src/contracts/factory.ts`. Apps consume packages exclusively via the factory output (Better Auth instance, organization plugin, repos, etc.). The dep-cruiser rule `apps-only-public-package-surface` (Plan 00) enforces apps may import from `packages/*/src/index.ts` AND `packages/*/src/contracts/**`, but is BANNED from `packages/*/src/{domain,application,adapters,ports}/**`. The original D-27 contracts/** rule continues to govern cross-package imports between sibling packages. [PC-02, PC-15]
+
+- **CHG-2026-05-06-C — Refines D-28 (test infrastructure).** D-28's note "testcontainers is a v1.x option if isolation pain emerges" is exercised earlier than expected: Wave-1 + Wave-2 integration tests need a real DB at unit-test time, before the Wave-3 compose stack lands. Resolution: `packages/db/test/testcontainer.ts` exposes a `startTestcontainer()` helper (used in `beforeAll`) that boots a Postgres 17 container, creates the three NOBYPASSRLS roles and five schemas, runs drizzle migrations + post-migration.sql, and sets `DATABASE_URL_*` env vars. PC-28 adds `--exclude-dir=test` to the grep gates so testcontainer.ts is not flagged. PC-29: `bunx drizzle-kit generate` is owned by Plan 06's close-out task (the last Wave-2 plan) — earlier waves declare schema files but generation runs after all Phase-1 schemas exist. The testcontainer reads the generated migration files at TEST TIME (during `beforeAll`), so the order is: Plan 06 generates → Wave-2 + later integration tests run. Plan 09's compose stack remains the deployment artifact (Wave 3); it is no longer a Wave-2 test prerequisite. The "shared Compose test-db" hint in D-28 still applies for end-to-end smoke tests; testcontainers handles unit/integration tests within a single Bun process. [PC-06, PC-28, PC-29]
+
 </decisions>
 
 <canonical_refs>
@@ -174,3 +191,6 @@ Ships Identity + Tenancy bounded contexts plus shared kernel and platform. **No*
 
 *Phase: 1-Foundations*
 *Context gathered: 2026-05-05*
+*Revision pass: 2026-05-06 (changelog appended to <decisions>)*
+*Pass-2 cleanup: 2026-05-06 — CHG-2026-05-06-A path corrected to `packages/platform/src/db/tx.ts` per PC-26; CHG-2026-05-06-A grew to FIVE primitives (added withBootstrapUserContext per PC-27); CHG-2026-05-06-C now references PC-28 grep test exclude + PC-29 generate-migration ownership in Plan 06.*
+</content>
