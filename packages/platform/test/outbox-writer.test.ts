@@ -1,5 +1,4 @@
 import { test, expect, beforeAll } from "bun:test";
-import { sql } from "drizzle-orm";
 import { startTestcontainer } from "@budget/db/test/testcontainer";
 import { withTenantTx } from "../src/db/tx";
 import { writeOutbox } from "../src/outbox/writer";

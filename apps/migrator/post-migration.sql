@@ -21,9 +21,9 @@ ALTER TABLE budgeting.expense_ledger FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON shared_kernel.audit_history TO app_role, worker_role;
 ALTER TABLE shared_kernel.audit_history FORCE ROW LEVEL SECURITY;
 
--- Pitfall 10: shared_kernel.outbox is INFRASTRUCTURE — RLS is replaced by GRANT-based access control.
--- (Wired in Plan 3 — leave a comment marker for later append.)
--- BEGIN OUTBOX_GRANTS_MARKER
--- END OUTBOX_GRANTS_MARKER
+-- Plan 03: outbox (Pitfall 10 — NO RLS, GRANT-restricted access)
+GRANT INSERT ON shared_kernel.outbox TO app_role;
+GRANT SELECT, UPDATE ON shared_kernel.outbox TO worker_role;
+-- Intentionally no FORCE ROW LEVEL SECURITY on outbox — this is infrastructure, not domain data.
 
 -- Idempotent retries: every statement above is safe to re-run.

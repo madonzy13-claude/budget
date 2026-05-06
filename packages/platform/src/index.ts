@@ -7,3 +7,7 @@ export * from "./db/roles";
 export * from "./db/expense-ledger";
 export * from "./audit/schema";
 export * from "./audit/writer";
+export * from "./outbox/schema";
+export * from "./outbox/writer";
+export * from "./outbox/dispatcher";
+export * from "./events/bus";
