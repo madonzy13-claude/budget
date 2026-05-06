@@ -1,0 +1,46 @@
+# USER-DATA-TABLES.txt
+# Authoritative enumeration of user-data tables for tenant-leak CI gate (Plan 10).
+#
+# Format: <schema.table>  <SCOPE>  # comment
+#
+# SCOPE values:
+#   TENANT-SCOPED  - RLS policy keys off app.tenant_ids (uuid array)
+#   USER-SCOPED    - RLS policy keys off app.current_user_id (NOT app.tenant_ids)
+#   EXCLUDED       - Infrastructure table; intentionally outside RLS (see Pitfall 10)
+#
+# Tests 1 + 4 use this file at runtime. Parse rules:
+#   - Lines starting with # are comments — skip
+#   - Blank lines — skip
+#   - Token 1: schema.table
+#   - Token 2: TENANT-SCOPED | USER-SCOPED | EXCLUDED
+#
+# PC-12: USER-SCOPED tables use a different RLS predicate (app.current_user_id),
+#        so test 1 (no-GUC zero rows) asserts both GUCs absent → 0 rows, and also
+#        runs a cross-user filter sub-test using app.current_user_id only.
+# T-13 (green-washing): to validate this gate is real, flip app_role to BYPASSRLS in
+#        post-migration.sql and rerun — every TENANT-SCOPED and USER-SCOPED test must fail.
+
+# ============================================================
+# INCLUDED — must have FORCE ROW LEVEL SECURITY
+# ============================================================
+
+identity.users                            USER-SCOPED   # users_self_visible policy (app.current_user_id)
+identity.sessions                         USER-SCOPED   # sessions_owner_only policy (app.current_user_id)
+identity.accounts                         USER-SCOPED   # accounts_owner_only policy (app.current_user_id)
+identity.user_preferences                 USER-SCOPED   # user_preferences_owner_only policy (app.current_user_id)
+tenancy.workspaces                        TENANT-SCOPED # workspaces_tenant_isolation policy (app.tenant_ids)
+tenancy.workspace_members                 TENANT-SCOPED # workspace_members_tenant_isolation (+ workspace_members_self bootstrap, PC-01)
+tenancy.shared_workspace_member_shares    TENANT-SCOPED # shares_tenant_isolation policy (app.tenant_ids)
+shared_kernel.audit_history               TENANT-SCOPED # audit_history_tenant_isolation policy (app.tenant_ids)
+shared_kernel.user_keys                   USER-SCOPED   # PC-12: user_keys_owner_only keyed by app.current_user_id (NOT app.tenant_ids)
+budgeting.expense_ledger                  TENANT-SCOPED # expense_ledger_tenant_isolation policy (app.tenant_ids)
+
+# ============================================================
+# EXCLUDED — infrastructure, NOT under RLS (Pitfall 10)
+# ============================================================
+
+shared_kernel.outbox                      EXCLUDED      # Pitfall 10: GRANT-restricted infrastructure (app_role INSERT only, worker_role SELECT/UPDATE only); no FORCE RLS by design
+identity.verifications                    EXCLUDED      # token-keyed lookups; the token IS the credential; no row-level filtering needed
+tenancy.workspace_invitations             EXCLUDED      # token-keyed; same pattern as identity.verifications
+# pgboss.*                               EXCLUDED      # job queue infrastructure (separate pgboss schema)
+# drizzle.*                              EXCLUDED      # migration metadata (separate drizzle schema)
