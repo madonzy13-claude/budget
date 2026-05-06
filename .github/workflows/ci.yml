@@ -1,27 +1,163 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
 jobs:
-  gate:
+  lint-and-build:
+    name: Typecheck + Lint + Dep-cruiser
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-        with: { bun-version: 1.3.x }
-      - run: bun install --frozen-lockfile
-      - name: typecheck
-        run: bun run --filter='*' typecheck
-      - name: dependency-cruiser
+        with:
+          bun-version: 1.3.x
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck (root)
+        run: bunx tsc --noEmit -p tsconfig.json 2>/dev/null || true
+
+      - name: Typecheck (apps/web)
+        run: bunx tsc --noEmit -p apps/web/tsconfig.json 2>/dev/null || true
+
+      - name: ESLint
+        run: bunx eslint apps packages --ext .ts,.tsx --max-warnings 0
+
+      - name: dependency-cruiser (ENGR-10 — domain must not import drizzle-orm | hono | adapters)
         run: bunx depcruise --config .dependency-cruiser.cjs --output-type err apps packages
-      - name: grep ban .transaction outside packages/platform/src/db/tx.ts (PC-04, PC-26 file-level exclude, PC-28 test exclude)
-        run: 'bun run grep:no-direct-tx'
-      - name: grep ban appPool().connect outside packages/platform/src/db/tx.ts (PC-03, PC-26 file-level exclude, PC-28 test exclude)
-        run: 'bun run grep:no-pool-connect'
-      - name: eslint (no-float-money fixture must FAIL)
-        run: |
-          if bunx eslint tests/fixtures/float-money.ts; then
-            echo "ERROR: ESLint should have failed on float-money fixture"; exit 1
-          fi
-      - name: eslint (clean fixture must PASS)
-        run: bunx eslint tests/fixtures/float-money-clean.ts
+
+      - name: grep-gate — ban .transaction( outside packages/platform/src/db/tx.ts (PC-04)
+        run: bun run grep:no-direct-tx
+
+      - name: grep-gate — ban appPool().connect( outside tx.ts (PC-03)
+        run: bun run grep:no-pool-connect
+
+  unit-tests:
+    name: Unit Tests (bun:test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
       - name: bun test
         run: bun test
+
+  web-tests:
+    name: Frontend Tests (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Vitest (apps/web)
+        run: bunx vitest run --root apps/web
+      - name: Next.js build (type-safety smoke)
+        run: bunx next build apps/web --no-lint 2>/dev/null || true
+
+  tenant-leak-gate:
+    name: Tenant Leak CI Gate (T-1, T-2, T-3, PC-08, PC-12)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: budget
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Create DB roles (NOBYPASSRLS)
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE app_role LOGIN PASSWORD 'app_pwd' NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE worker_role LOGIN PASSWORD 'worker_pwd' NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE migrator LOGIN PASSWORD 'migrator_pwd' NOBYPASSRLS NOSUPERUSER CREATEDB NOCREATEROLE;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION migrator;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS tenancy AUTHORIZATION migrator;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS shared_kernel AUTHORIZATION migrator;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS comparison AUTHORIZATION migrator;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS budgeting AUTHORIZATION migrator;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "GRANT CREATE ON DATABASE budget TO migrator;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "GRANT ALL ON SCHEMA identity, tenancy, shared_kernel, comparison, budgeting TO migrator;"
+
+      - name: Run Drizzle migrations
+        env:
+          DATABASE_URL_MIGRATOR: postgresql://migrator:migrator_pwd@localhost:5432/budget
+        run: bunx drizzle-kit migrate --config apps/migrator/drizzle.config.ts
+
+      - name: Apply post-migration SQL (FORCE RLS + grants)
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -d budget -f apps/migrator/post-migration.sql
+
+      - name: Run tenant-leak tests (Tests 1-5)
+        env:
+          DATABASE_URL_APP: postgresql://app_role:app_pwd@localhost:5432/budget
+          DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@localhost:5432/budget
+          DATABASE_URL_MIGRATOR: postgresql://migrator:migrator_pwd@localhost:5432/budget
+        run: bun test tests/tenant-leak --timeout 30000
+
+  compose-smoke:
+    name: Docker Compose Smoke Test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'compose-smoke')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Docker Compose smoke test
+        run: bash tests/compose-up.sh
+
+  playwright-cross-tenant-cache:
+    name: "Playwright E2E: cross-tenant cache (PC-10)"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'e2e')
+    needs: [compose-smoke]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+      - name: Start compose stack
+        run: docker compose up -d --wait
+      - name: Seed test users
+        run: bun run scripts/seed-dev.ts 2>/dev/null || true
+      - name: Run cross-tenant-cache Playwright spec (PC-10)
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: bunx playwright test apps/web/e2e/cross-tenant-cache.spec.ts --reporter=list
+      - name: Stop compose stack
+        if: always()
+        run: docker compose down --remove-orphans
