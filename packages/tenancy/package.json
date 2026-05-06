@@ -4,9 +4,24 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@budget/shared-kernel": "workspace:*",
+    "@budget/platform": "workspace:*",
+    "@budget/identity": "workspace:*",
+    "big.js": "^7.0.1",
+    "nanoid": "^3.3.12",
+    "better-auth": "^1.6.9",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@budget/db": "workspace:*",
+    "@types/big.js": "^6.2.2"
   }
 }
