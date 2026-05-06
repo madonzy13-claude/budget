@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 executing — Wave 0
-last_updated: "2026-05-06T11:09:00.000Z"
-last_activity: 2026-05-06 -- Phase 01 execution started
+stopped_at: Completed 01-05-identity-context-PLAN.md
+last_updated: "2026-05-06T19:45:00.000Z"
+last_activity: 2026-05-06 -- 01.05 identity-context complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 0
-  percent: 0
+  completed_plans: 5
+  percent: 45
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 1 of 6 (Foundations — executing)
-Plan: 3 of 11
-Status: Executing Wave 1 — 01.03 audit-and-outbox (sequential)
-Last activity: 2026-05-06 -- 01.02 db-rls-skeleton complete
+Plan: 6 of 11
+Status: Wave 2 complete — 01.05 identity-context done; 01.06 tenancy next
+Last activity: 2026-05-06 -- 01.05 identity-context complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████░░░░░░] 45%
 
 ## Performance Metrics
 
@@ -72,6 +72,10 @@ Recent decisions affecting current work:
 - Phase 1: dependency-cruiser CI rule — `domain/` cannot import `drizzle-orm`, Hono, AI SDK, or `adapters/`
 - Phase 5: LLM bounded to Onboarding adapter only; Tasks generators are deterministic
 - Phase 5: Comparison gated behind DPIA + k-anonymity floor (k≥20, tenant-policy-configurable)
+- 01.05: better-auth/adapters/drizzle ships inside better-auth 1.6+ (no @better-auth/drizzle-adapter package)
+- 01.05: listSessions is session-context-based in Better Auth; server-side list returns []; UI uses BA client
+- 01.05: DEK insert in user.create.after is best-effort (PC-09); Phase 6 adds reconciliation worker
+- 01.05: Plain email column kept in identity.users for Phase 1 Better Auth compatibility; Phase 6 drops it
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-05T19:30:10.255Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundations/01-CONTEXT.md
+Last session: 2026-05-06T19:45:00.000Z
+Stopped at: Completed 01-05-identity-context-PLAN.md
+Resume file: None
