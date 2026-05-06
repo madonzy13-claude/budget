@@ -1,0 +1,221 @@
+{
+  "auth": {
+    "signup": {
+      "heading": "Utwórz konto Budget",
+      "subtitle": "Jedno konto, wiele budżetów — prywatnych i wspólnych.",
+      "cta": "Utwórz konto",
+      "locale": {
+        "label": "Język wyświetlania",
+        "helper": "Możesz to zmienić w dowolnym momencie w ustawieniach."
+      }
+    },
+    "signin": {
+      "heading": "Witaj ponownie",
+      "cta": "Zaloguj się",
+      "forgot": "Nie pamiętasz hasła?"
+    },
+    "reset": {
+      "request": {
+        "heading": "Zresetuj swoje hasło",
+        "body": "Podaj adres e-mail swojego konta. Wyślemy Ci link. Link działa przez 30 minut.",
+        "cta": "Wyślij link do resetowania",
+        "success": "Jeśli ten e-mail jest zarejestrowany, link do resetowania jest już w drodze. Sprawdź skrzynkę odbiorczą."
+      },
+      "consume": {
+        "heading": "Wybierz nowe hasło",
+        "cta": "Zresetuj hasło"
+      },
+      "expired": "Ten link do resetowania wygasł. Poproś o nowy — są ważne przez 30 minut."
+    },
+    "verify": {
+      "banner": {
+        "heading": "Zweryfikuj swój e-mail, aby kontynuować",
+        "body": "Wysłaliśmy link na adres {email}. Tworzenie obszarów roboczych i zaproszenia zostaną odblokowane po weryfikacji.",
+        "resend": "Wyślij e-mail ponownie",
+        "cooldown": "Możesz wysłać ponownie za {seconds}s."
+      }
+    },
+    "email": {
+      "label": "Adres e-mail",
+      "placeholder": "ty@przykład.pl"
+    },
+    "password": {
+      "label": "Hasło",
+      "new_label": "Nowe hasło"
+    },
+    "name": {
+      "label": "Imię i nazwisko",
+      "placeholder": "Twoje imię"
+    },
+    "loading": "Logowanie...",
+    "signup_loading": "Tworzenie konta...",
+    "reset_loading": "Wysyłanie linku...",
+    "no_account": "Nie masz konta?",
+    "have_account": "Masz już konto?",
+    "signup_link": "Zarejestruj się",
+    "signin_link": "Zaloguj się"
+  },
+  "settings": {
+    "heading": "Ustawienia",
+    "sessions": {
+      "tab": "Sesje",
+      "heading": "Aktywne sesje",
+      "empty": "To jest Twoja jedyna aktywna sesja.",
+      "col": {
+        "device": "Urządzenie",
+        "last_active": "Ostatnia aktywność",
+        "status": "Status"
+      },
+      "current_badge": "Bieżąca",
+      "revoke": {
+        "label": "Wyloguj tę sesję",
+        "confirm": {
+          "title": "Wylogować tę sesję?",
+          "body": "Zalogowane urządzenie na {device} zostanie natychmiast wylogowane.",
+          "cta": "Wyloguj"
+        }
+      }
+    },
+    "display_currency": {
+      "label": "Waluta wyświetlania",
+      "helper": "Używana do wyświetlania sum w wielu obszarach roboczych. Każdy obszar roboczy zachowuje własną walutę dla swoich danych.",
+      "tab": "Waluta wyświetlania"
+    },
+    "locale": {
+      "label": "Język wyświetlania",
+      "tab": "Język"
+    },
+    "providers": {
+      "tab": "Dostawcy",
+      "llm": {
+        "label": "Asystent AI",
+        "helper": "Używany przez kreator konfiguracji budżetu i analizy."
+      },
+      "stt": {
+        "label": "Wprowadzanie głosowe",
+        "helper": "Używane do rejestrowania wydatków przez mowę."
+      }
+    },
+    "save": "Zapisz zmiany",
+    "save_success": "Ustawienia zapisane."
+  },
+  "workspaces": {
+    "empty": {
+      "heading": "Utwórz swój pierwszy obszar roboczy",
+      "body": "Obszar roboczy zawiera jeden budżet. Utwórz prywatny dla siebie lub wspólny do planowania z rodziną.",
+      "cta": "Utwórz obszar roboczy"
+    },
+    "create": {
+      "heading": "Nowy obszar roboczy",
+      "name": {
+        "label": "Nazwa obszaru roboczego",
+        "placeholder": "np. Budżet rodzinny"
+      },
+      "kind": {
+        "label": "Typ obszaru roboczego",
+        "private": "Prywatny — tylko ja",
+        "shared": "Wspólny — zaproś rodzinę"
+      },
+      "currency": {
+        "label": "Domyślna waluta",
+        "helper": "To ustawienie jest trwałe — każdy wpis w tym obszarze roboczym jest rozliczany w tej walucie.",
+        "placeholder": "Wyszukaj walutę..."
+      },
+      "cta": "Utwórz obszar roboczy",
+      "success": "Obszar roboczy \"{name}\" został utworzony."
+    },
+    "switcher": {
+      "label": "Aktywne obszary robocze",
+      "helper": "Wybierz obszary robocze, które chcesz widzieć. Zapamiętamy to.",
+      "group": {
+        "private": "Prywatne budżety",
+        "shared": "Wspólne budżety"
+      },
+      "first_pick": "Wybierz co najmniej jeden obszar roboczy, aby rozpocząć.",
+      "select_all": "Zaznacz wszystkie",
+      "active_count": "{count, plural, one {# obszar roboczy} few {# obszary robocze} many {# obszarów roboczych} other {# obszarów roboczych}}"
+    },
+    "verify_required": "Najpierw zweryfikuj swój e-mail, aby tworzyć obszary robocze lub dołączać do nich.",
+    "list": {
+      "heading": "Moje obszary robocze",
+      "manage": "Zarządzaj"
+    }
+  },
+  "workspace": {
+    "shares": {
+      "heading": "Udziały w wkładzie",
+      "body": "Ustaw, jaka część budżetu tego obszaru roboczego jest odpowiedzialnością każdego członka. Udziały muszą sumować się do 100%.",
+      "col": {
+        "member": "Członek",
+        "percentage": "Udział"
+      },
+      "total": {
+        "label": "Suma: {percentage}%",
+        "ok": "Suma: 100% — wszystko dobrze.",
+        "error": "Suma musi wynosić 100%. Obecnie {percentage}%."
+      },
+      "save": "Zapisz udziały",
+      "save_success": "Udziały w wkładzie zaktualizowane.",
+      "audit_hint": "Każda zmiana jest rejestrowana."
+    },
+    "invite": {
+      "heading": "Zaproś członka",
+      "email": {
+        "label": "Adres e-mail"
+      },
+      "cta": "Wyślij zaproszenie",
+      "success": "Zaproszenie wysłane do {email}.",
+      "error": {
+        "already_member": "{email} jest już członkiem tego obszaru roboczego."
+      }
+    },
+    "leave": {
+      "confirm": {
+        "title": "Opuścić \"{name}\"?",
+        "body": "Utracisz dostęp do danych tego obszaru roboczego. Właściciel może ponownie Cię zaprosić.",
+        "cta": "Opuść obszar roboczy"
+      }
+    },
+    "transfer": {
+      "confirm": {
+        "title": "Przenieść własność \"{name}\"?",
+        "body": "Staniesz się zwykłym członkiem. Nowy właściciel będzie miał pełną kontrolę.",
+        "cta": "Przenieś własność"
+      }
+    },
+    "settings": {
+      "tab": "Ustawienia",
+      "members_tab": "Członkowie",
+      "shares_tab": "Udziały"
+    }
+  },
+  "state": {
+    "empty": {
+      "heading": "Nic tu jeszcze nie ma",
+      "body": "Gdy {action}, pojawi się tutaj."
+    },
+    "error": {
+      "generic": "Coś poszło nie tak. Spróbuj ponownie — jeśli problem się powtarza, odśwież stronę.",
+      "network": "Jesteś offline. Zmiany zostaną ponownie przesłane, gdy będziesz z powrotem online.",
+      "field": "{field}: {message}"
+    },
+    "loading": "Ładowanie..."
+  },
+  "nav": {
+    "dashboard": "Pulpit",
+    "workspaces": "Obszary robocze",
+    "settings": "Ustawienia",
+    "onboarding": "Rozpocznij",
+    "sign_out": "Wyloguj się"
+  },
+  "onboarding": {
+    "heading": "Skonfiguruj swój pierwszy obszar roboczy",
+    "subtitle": "Prawie gotowe. Utwórz obszar roboczy, aby zacząć śledzić budżet.",
+    "step_workspace": "Utwórz obszar roboczy"
+  },
+  "dashboard": {
+    "heading": "Pulpit",
+    "no_workspaces": "Nie wybrano żadnych aktywnych obszarów roboczych. Użyj przełącznika obszarów roboczych, aby wybrać co najmniej jeden.",
+    "totals_in": "Sumy w {currency}"
+  }
+}

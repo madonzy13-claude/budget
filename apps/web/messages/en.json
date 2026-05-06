@@ -1,0 +1,221 @@
+{
+  "auth": {
+    "signup": {
+      "heading": "Create your Budget account",
+      "subtitle": "One account, multiple budgets — private and shared.",
+      "cta": "Create account",
+      "locale": {
+        "label": "Display language",
+        "helper": "You can change this anytime in settings."
+      }
+    },
+    "signin": {
+      "heading": "Welcome back",
+      "cta": "Sign in",
+      "forgot": "Forgot your password?"
+    },
+    "reset": {
+      "request": {
+        "heading": "Reset your password",
+        "body": "Enter your account email. We'll send you a link. The link works for 30 minutes.",
+        "cta": "Send reset link",
+        "success": "If that email is registered, a reset link is on its way. Check your inbox."
+      },
+      "consume": {
+        "heading": "Choose a new password",
+        "cta": "Reset password"
+      },
+      "expired": "This reset link has expired. Request a new one — they're valid for 30 minutes."
+    },
+    "verify": {
+      "banner": {
+        "heading": "Verify your email to continue",
+        "body": "We sent a link to {email}. Workspace creation and invitations unlock once you verify.",
+        "resend": "Resend email",
+        "cooldown": "You can resend in {seconds}s."
+      }
+    },
+    "email": {
+      "label": "Email address",
+      "placeholder": "you@example.com"
+    },
+    "password": {
+      "label": "Password",
+      "new_label": "New password"
+    },
+    "name": {
+      "label": "Full name",
+      "placeholder": "Your name"
+    },
+    "loading": "Signing in...",
+    "signup_loading": "Creating account...",
+    "reset_loading": "Sending link...",
+    "no_account": "Don't have an account?",
+    "have_account": "Already have an account?",
+    "signup_link": "Sign up",
+    "signin_link": "Sign in"
+  },
+  "settings": {
+    "heading": "Settings",
+    "sessions": {
+      "tab": "Sessions",
+      "heading": "Active sessions",
+      "empty": "This is your only active session.",
+      "col": {
+        "device": "Device",
+        "last_active": "Last active",
+        "status": "Status"
+      },
+      "current_badge": "Current",
+      "revoke": {
+        "label": "Sign out this session",
+        "confirm": {
+          "title": "Sign out this session?",
+          "body": "The signed-in device on {device} will be signed out immediately.",
+          "cta": "Sign out"
+        }
+      }
+    },
+    "display_currency": {
+      "label": "Display currency",
+      "helper": "Used to show totals across multiple workspaces. Each workspace keeps its own currency for its own data.",
+      "tab": "Display currency"
+    },
+    "locale": {
+      "label": "Display language",
+      "tab": "Language"
+    },
+    "providers": {
+      "tab": "Providers",
+      "llm": {
+        "label": "AI assistant",
+        "helper": "Used for the budget setup wizard and insights."
+      },
+      "stt": {
+        "label": "Voice input",
+        "helper": "Used for voice-to-text expense capture."
+      }
+    },
+    "save": "Save changes",
+    "save_success": "Settings saved."
+  },
+  "workspaces": {
+    "empty": {
+      "heading": "Create your first workspace",
+      "body": "A workspace holds one budget. Make a private one for yourself, or a shared one to plan with family.",
+      "cta": "Create workspace"
+    },
+    "create": {
+      "heading": "New workspace",
+      "name": {
+        "label": "Workspace name",
+        "placeholder": "e.g. Family budget"
+      },
+      "kind": {
+        "label": "Workspace type",
+        "private": "Private — just me",
+        "shared": "Shared — invite family"
+      },
+      "currency": {
+        "label": "Default currency",
+        "helper": "This is permanent — every entry in this workspace settles in this currency.",
+        "placeholder": "Search currency..."
+      },
+      "cta": "Create workspace",
+      "success": "Workspace \"{name}\" created."
+    },
+    "switcher": {
+      "label": "Active workspaces",
+      "helper": "Pick the workspaces you want to see. We'll remember this.",
+      "group": {
+        "private": "Private budgets",
+        "shared": "Shared budgets"
+      },
+      "first_pick": "Pick at least one workspace to start.",
+      "select_all": "Select all",
+      "active_count": "{count, plural, one {# workspace} other {# workspaces}}"
+    },
+    "verify_required": "Verify your email first to create or join a workspace.",
+    "list": {
+      "heading": "My workspaces",
+      "manage": "Manage"
+    }
+  },
+  "workspace": {
+    "shares": {
+      "heading": "Contribution shares",
+      "body": "Set what portion of this workspace's budget each member is responsible for. Shares must add up to 100%.",
+      "col": {
+        "member": "Member",
+        "percentage": "Share"
+      },
+      "total": {
+        "label": "Total: {percentage}%",
+        "ok": "Total: 100% — looks good.",
+        "error": "Total must equal 100%. Currently {percentage}%."
+      },
+      "save": "Save shares",
+      "save_success": "Contribution shares updated.",
+      "audit_hint": "Every change is logged."
+    },
+    "invite": {
+      "heading": "Invite a member",
+      "email": {
+        "label": "Email address"
+      },
+      "cta": "Send invitation",
+      "success": "Invitation sent to {email}.",
+      "error": {
+        "already_member": "{email} is already a member of this workspace."
+      }
+    },
+    "leave": {
+      "confirm": {
+        "title": "Leave \"{name}\"?",
+        "body": "You'll lose access to this workspace's data. The owner can re-invite you later.",
+        "cta": "Leave workspace"
+      }
+    },
+    "transfer": {
+      "confirm": {
+        "title": "Transfer ownership of \"{name}\"?",
+        "body": "You will become a regular member. The new owner will have full control.",
+        "cta": "Transfer ownership"
+      }
+    },
+    "settings": {
+      "tab": "Settings",
+      "members_tab": "Members",
+      "shares_tab": "Shares"
+    }
+  },
+  "state": {
+    "empty": {
+      "heading": "Nothing here yet",
+      "body": "Once you {action}, it'll show up here."
+    },
+    "error": {
+      "generic": "Something went wrong. Try again — if it keeps happening, refresh the page.",
+      "network": "You're offline. Changes will retry once you're back online.",
+      "field": "{field}: {message}"
+    },
+    "loading": "Loading..."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "workspaces": "Workspaces",
+    "settings": "Settings",
+    "onboarding": "Get started",
+    "sign_out": "Sign out"
+  },
+  "onboarding": {
+    "heading": "Set up your first workspace",
+    "subtitle": "You're almost ready. Create a workspace to start tracking your budget.",
+    "step_workspace": "Create workspace"
+  },
+  "dashboard": {
+    "heading": "Dashboard",
+    "no_workspaces": "No active workspaces selected. Use the workspace switcher to pick at least one.",
+    "totals_in": "Totals shown in {currency}"
+  }
+}
