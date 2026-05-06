@@ -1,0 +1,19 @@
+[install]
+registry = "https://registry.npmjs.org/"
+
+[test]
+coverage = true
+coverageThreshold = 0.80
+# PC-23: narrow 80% threshold to domain code only — adapter/application/contract/port layers
+# are integration-tested separately and are not the locus of business invariants.
+coveragePathIgnorePatterns = [
+  "test/",
+  "node_modules/",
+  "dist/",
+  "apps/",
+  "packages/*/src/adapters/",
+  "packages/*/src/application/",
+  "packages/*/src/contracts/",
+  "packages/*/src/ports/"
+]
+coverageReporter = ["text", "lcov"]
