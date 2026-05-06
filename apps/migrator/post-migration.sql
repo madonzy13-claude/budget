@@ -26,4 +26,10 @@ GRANT INSERT ON shared_kernel.outbox TO app_role;
 GRANT SELECT, UPDATE ON shared_kernel.outbox TO worker_role;
 -- Intentionally no FORCE ROW LEVEL SECURITY on outbox — this is infrastructure, not domain data.
 
+-- Plan 04: user_keys (D-16 — crypto-shredding key store)
+-- PC-12: user-scoped (RLS keyed by app.current_user_id), NOT tenant-scoped
+GRANT SELECT, INSERT, UPDATE ON shared_kernel.user_keys TO app_role;
+GRANT SELECT ON shared_kernel.user_keys TO worker_role;
+ALTER TABLE shared_kernel.user_keys FORCE ROW LEVEL SECURITY;
+
 -- Idempotent retries: every statement above is safe to re-run.
