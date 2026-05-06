@@ -32,4 +32,17 @@ GRANT SELECT, INSERT, UPDATE ON shared_kernel.user_keys TO app_role;
 GRANT SELECT ON shared_kernel.user_keys TO worker_role;
 ALTER TABLE shared_kernel.user_keys FORCE ROW LEVEL SECURITY;
 
+-- Plan 05: identity schema
+GRANT SELECT, INSERT, UPDATE, DELETE ON identity.users, identity.sessions, identity.accounts TO app_role;
+GRANT SELECT ON identity.users, identity.sessions, identity.accounts TO worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON identity.verifications TO app_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON identity.user_preferences TO app_role;
+GRANT SELECT ON identity.user_preferences TO worker_role;
+
+ALTER TABLE identity.users FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity.sessions FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity.accounts FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity.user_preferences FORCE ROW LEVEL SECURITY;
+-- identity.verifications: NO RLS (token-keyed lookups; token IS the credential).
+
 -- Idempotent retries: every statement above is safe to re-run.

@@ -7,7 +7,14 @@ export default defineConfig({
   dialect: "postgresql",
   out: "../../drizzle",
   // Plans 3, 5, 6 extend this to an array as more table files appear.
-  schema: ["../../packages/platform/src/db/expense-ledger.ts"],
+  schema: [
+    "../../packages/platform/src/db/expense-ledger.ts",
+    "../../packages/platform/src/audit/schema.ts",
+    "../../packages/platform/src/outbox/schema.ts",
+    "../../packages/platform/src/crypto/user-keys-schema.ts",
+    "../../packages/identity/src/adapters/persistence/schema.ts",
+    "../../packages/identity/src/adapters/persistence/user-preferences.ts",
+  ],
   dbCredentials: { url },
   casing: "snake_case",
 });
