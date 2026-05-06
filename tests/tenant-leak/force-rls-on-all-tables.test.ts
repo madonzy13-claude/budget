@@ -1,7 +1,7 @@
 /**
  * Test 4 (T-1): pg_class confirms FORCE ROW LEVEL SECURITY on every user-data table.
  *
- * Connects as migrator (NOT withTenantTx — T-13 proof).
+ * Connects as migrator via raw pg.Client (T-13 proof — bypasses app layer).
  * Reads INCLUDED tables from USER-DATA-TABLES.txt at runtime.
  * Asserts relrowsecurity=true AND relforcerowsecurity=true for every INCLUDED table.
  *

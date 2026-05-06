@@ -1,8 +1,8 @@
 /**
  * Test 1 (T-1): SELECT without GUC returns 0 rows from every user-data table.
  *
- * Uses raw pg.Client (NOT withTenantTx) as app_role to prove RLS enforces
- * independently of app code (T-13 green-washing protection).
+ * Uses raw pg.Client as app_role (bypasses app transaction primitives) to prove RLS
+ * enforces independently of app code (T-13 green-washing protection).
  *
  * Three sub-tests:
  *  1a. No GUC set: every INCLUDED table returns COUNT(*) = 0
