@@ -14,6 +14,8 @@ export default defineConfig({
     "../../packages/platform/src/crypto/user-keys-schema.ts",
     "../../packages/identity/src/adapters/persistence/schema.ts",
     "../../packages/identity/src/adapters/persistence/user-preferences.ts",
+    "../../packages/tenancy/src/adapters/persistence/schema.ts",
+    "../../packages/tenancy/src/adapters/persistence/shares-schema.ts",
   ],
   dbCredentials: { url },
   casing: "snake_case",
