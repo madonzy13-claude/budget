@@ -1,0 +1,115 @@
+{
+  "id": "05d1df8c-c8d1-44c7-ac8e-28c14013667c",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "budgeting.expense_ledger": {
+      "name": "expense_ledger",
+      "schema": "budgeting",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_orig": {
+          "name": "amount_orig",
+          "type": "numeric(19, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_orig": {
+          "name": "currency_orig",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_default": {
+          "name": "amount_default",
+          "type": "numeric(19, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_default": {
+          "name": "currency_default",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_rate": {
+          "name": "fx_rate",
+          "type": "numeric(19, 8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_rate_date": {
+          "name": "fx_rate_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fx_provider": {
+          "name": "fx_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corrects_id": {
+          "name": "corrects_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corrected_by_id": {
+          "name": "corrected_by_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "expense_ledger_tenant_isolation": {
+          "name": "expense_ledger_tenant_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": ["app_role", "worker_role"],
+          "using": "\"budgeting\".\"expense_ledger\".\"tenant_id\" = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])",
+          "withCheck": "\"budgeting\".\"expense_ledger\".\"tenant_id\" = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
