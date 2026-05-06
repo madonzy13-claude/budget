@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-05-identity-context-PLAN.md
-last_updated: "2026-05-06T19:45:00.000Z"
-last_activity: 2026-05-06 -- 01.05 identity-context complete
+stopped_at: Completed 01-06-tenancy-context-PLAN.md
+last_updated: "2026-05-06T20:05:00.000Z"
+last_activity: 2026-05-06 -- 01.06 tenancy-context complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 5
-  percent: 45
+  completed_plans: 6
+  percent: 55
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 1 of 6 (Foundations — executing)
-Plan: 6 of 11
-Status: Wave 2 complete — 01.05 identity-context done; 01.06 tenancy next
-Last activity: 2026-05-06 -- 01.05 identity-context complete
+Plan: 7 of 11
+Status: Wave 2 complete — 01.06 tenancy-context done; 01.07 tenant-guard middleware next
+Last activity: 2026-05-06 -- 01.06 tenancy-context complete
 
-Progress: [████░░░░░░] 45%
+Progress: [█████░░░░░] 55%
 
 ## Performance Metrics
 
@@ -76,6 +76,10 @@ Recent decisions affecting current work:
 - 01.05: listSessions is session-context-based in Better Auth; server-side list returns []; UI uses BA client
 - 01.05: DEK insert in user.create.after is best-effort (PC-09); Phase 6 adds reconciliation worker
 - 01.05: Plain email column kept in identity.users for Phase 1 Better Auth compatibility; Phase 6 drops it
+- 01.06: DrizzleWorkspaceRepo.findById/listMembers use withInfraTx (bootstrap carve-out); no user context at lookup time
+- 01.06: test/helpers.ts pattern for cross-package test helpers (dep-cruiser only restricts src/ not test/ imports)
+- 01.06: PRIVATE-cap trigger PC-18 limitation documented — Phase 6 will harden with SELECT FOR UPDATE
+- 01.06: createTenancyModule uses lazy require() to keep contracts/ free of adapter imports (PC-15)
 
 ### Pending Todos
 
@@ -98,6 +102,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-06T19:45:00.000Z
-Stopped at: Completed 01-05-identity-context-PLAN.md
+Last session: 2026-05-06T20:05:00.000Z
+Stopped at: Completed 01-06-tenancy-context-PLAN.md
 Resume file: None
