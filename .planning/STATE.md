@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-07-tenant-context-middleware-PLAN.md
-last_updated: "2026-05-06T20:20:00.000Z"
-last_activity: 2026-05-06 -- 01.07 tenant-context-middleware complete
+stopped_at: Completed 01-08-web-app-surfaces-PLAN.md
+last_updated: "2026-05-06T21:07:00.000Z"
+last_activity: 2026-05-06 -- 01.08 web-app-surfaces complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 11
-  completed_plans: 7
-  percent: 64
+  completed_plans: 8
+  percent: 73
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 1 of 6 (Foundations — executing)
-Plan: 8 of 11
-Status: Wave 2 complete — 01.07 tenant-context-middleware done; 01.08 frontend-scaffold next
-Last activity: 2026-05-06 -- 01.07 tenant-context-middleware complete
+Plan: 9 of 11
+Status: Wave 2 complete — 01.08 web-app-surfaces done; 01.09 docker-compose-stack next
+Last activity: 2026-05-06 -- 01.08 web-app-surfaces complete
 
-Progress: [██████░░░░] 64%
+Progress: [███████░░░] 73%
 
 ## Performance Metrics
 
@@ -82,6 +82,11 @@ Recent decisions affecting current work:
 - 01.06: createTenancyModule uses lazy require() to keep contracts/ free of adapter imports (PC-15)
 - 01.07: PC-27 — withBootstrapUserContext is the dedicated bootstrap primitive for tenant-guard (not raw pool connect); avoids grep:no-pool-connect CI gate
 - 01.07: apps/\*_ cannot statically import packages/_/src/application — route handlers call auth.api directly using factory output
+- 01.08: AppType imported via local shim (api-type.d.ts) not directly from apps/api to prevent pre-existing Hono context type errors cascading
+- 01.08: Tailwind v4 uses @import not @tailwind directives; @apply with CSS variable utilities unsupported in @layer base
+- 01.08: turbopack: false is invalid in Next.js 16 config (object expected, not boolean); Serwist requires --webpack build flag
+- 01.08: sessions-list receives empty array Phase 1; real session list wired Phase 2 (IDNT-04)
+- 01.08: proxy.ts (not middleware.ts) for next-intl routing — avoids next-intl pitfall 12
 
 ### Pending Todos
 
@@ -104,6 +109,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-06T20:20:00.000Z
-Stopped at: Completed 01-07-tenant-context-middleware-PLAN.md
+Last session: 2026-05-06T21:07:00.000Z
+Stopped at: Completed 01-08-web-app-surfaces-PLAN.md
 Resume file: None

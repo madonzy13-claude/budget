@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 3. Tenant-leak CI test fails closed: a request without a tenant GUC returns zero rows from any user-data table; a worker job omitting `tenantId` errors before any DB read; app and worker DB roles have no `BYPASSRLS`; `FORCE ROW LEVEL SECURITY` is set on every user-data table
 4. `docker compose up` brings up web + api + worker + db locally; migrations apply via a separate DB role with a migration-lock; the `domain/` layer is enforced by dependency-cruiser to import nothing from `drizzle-orm`, Hono, AI SDK, or any `adapters/`
 5. Shared kernel exposes `Money(amount, currency)` (Dinero v2 + big.js for crypto, NUMERIC(19,4) columns, lint rule banning float arithmetic on money), `Clock` port, `Result<T, E>`, `TenantId`, `UserId`; `audit_history` table is queryable for any non-ledger entity; transactional outbox writes survive a worker restart without duplicate dispatch
-   **Plans**: 00 (monorepo-scaffold) ✓, 01 (shared-kernel) ✓, 02 (platform-infra) ✓, 03 (audit-and-outbox) ✓, 04 (identity-context) ✓, 05 (identity-context pt2) ✓, 06 (tenancy-context) ✓, 07 (tenant-context-middleware) ✓, 08 (frontend-scaffold) pending, 09 (docker-compose) pending, 10 (ci-smoke) pending
+   **Plans**: 00 (monorepo-scaffold) ✓, 01 (shared-kernel) ✓, 02 (platform-infra) ✓, 03 (audit-and-outbox) ✓, 04 (identity-context) ✓, 05 (identity-context pt2) ✓, 06 (tenancy-context) ✓, 07 (tenant-context-middleware) ✓, 08 (web-app-surfaces) ✓, 09 (docker-compose) pending, 10 (ci-smoke) pending
 
 ### Phase 2: Budgeting & FX
 
