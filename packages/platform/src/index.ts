@@ -11,3 +11,4 @@ export * from "./outbox/schema";
 export * from "./outbox/writer";
 export * from "./outbox/dispatcher";
 export * from "./events/bus";
+export * from "./jobs/boss";
