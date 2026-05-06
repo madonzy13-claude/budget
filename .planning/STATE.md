@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-09-docker-compose-stack-PLAN.md
-last_updated: "2026-05-06T21:30:00.000Z"
-last_activity: 2026-05-06 -- 01.09 docker-compose-stack complete
+stopped_at: Completed 01-10-tenant-leak-ci-gate-PLAN.md
+last_updated: "2026-05-06T22:15:00.000Z"
+last_activity: 2026-05-06 -- 01.10 tenant-leak-ci-gate complete
 progress:
   total_phases: 6
   completed_phases: 0
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 1 of 6 (Foundations — executing)
-Plan: 10 of 11
-Status: Wave 3 in progress — 01.09 docker-compose-stack done; 01.10 security-ci-gates next
-Last activity: 2026-05-06 -- 01.09 docker-compose-stack complete
+Plan: 11 of 11
+Status: Wave 3 complete — 01.10 tenant-leak-ci-gate done; Phase 1 near complete
+Last activity: 2026-05-06 -- 01.10 tenant-leak-ci-gate complete
 
-Progress: [████████░░] 82%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
@@ -90,6 +90,10 @@ Recent decisions affecting current work:
 - 01.09: API internal port is 4000; compose maps 3001:4000 (external:internal)
 - 01.09: comparison schema created Phase 1 but NOT granted to app_role/worker_role (reserved for comparison_role)
 - 01.09: seed-dev.ts uses HTTP API (not raw Drizzle) to exercise real auth flows (T-13)
+- 01.10: TenantContextMissing + withTenantJobHandler added to packages/platform (referenced by Plan 07 but not created there)
+- 01.10: Tests 1+4 raw pg.Client approach: no mention of app tx primitives in test files (T-13 acceptance criteria requires string absence)
+- 01.10: seed-two-tenants uses createIdentityModule auth directly for createWorkspace (BA auth instance has createOrganization built-in)
+- 01.10: Playwright E2E (PC-10) gated on main or e2e label — requires live compose stack
 
 ### Pending Todos
 
@@ -112,6 +116,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-06T21:30:00.000Z
-Stopped at: Completed 01-09-docker-compose-stack-PLAN.md
+Last session: 2026-05-06T22:15:00.000Z
+Stopped at: Completed 01-10-tenant-leak-ci-gate-PLAN.md
 Resume file: None
