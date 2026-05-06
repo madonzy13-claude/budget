@@ -1,0 +1,125 @@
+# T-12 mitigation: All secret values are ${VAR} references only.
+# Real values live in .env (git-ignored). .env.example ships safe placeholders.
+# drizzle-kit push is NEVER used — migrator always runs drizzle-kit migrate.
+
+services:
+  # ─── Postgres 17 ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: budget
+      # PC-19: password env vars forwarded to 00-roles.sh for NOBYPASSRLS role creation (T-3)
+      APP_ROLE_PASSWORD: ${APP_ROLE_PASSWORD}
+      WORKER_ROLE_PASSWORD: ${WORKER_ROLE_PASSWORD}
+      MIGRATOR_ROLE_PASSWORD: ${MIGRATOR_ROLE_PASSWORD}
+    volumes:
+      - budget_db_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d budget"]
+      interval: 2s
+      timeout: 1s
+      retries: 30
+      start_period: 5s
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  # ─── Migrator (one-shot) ──────────────────────────────────────────────────────
+  # D-18: runs drizzle-kit migrate (NEVER push) + post-migration.sql
+  # Uses pg_advisory_lock to prevent concurrent runs (Pitfall 1).
+  migrator:
+    build:
+      context: .
+      dockerfile: apps/migrator/Dockerfile
+    restart: "no"
+    environment:
+      DATABASE_URL_MIGRATOR: ${DATABASE_URL_MIGRATOR}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ─── API (Hono / Bun) ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL_APP: ${DATABASE_URL_APP}
+      DATABASE_URL_WORKER: ${DATABASE_URL_WORKER}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      BUDGET_KEK: ${BUDGET_KEK}
+      APP_URL: ${APP_URL}
+      # mailpit captures SMTP in dev so emails are visible at http://localhost:8025
+      EMAIL_SMTP_HOST: mailpit
+      EMAIL_SMTP_PORT: "1025"
+      OTEL_SERVICE_NAME: api
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "3001:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ─── Web (Next.js) ────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:3000/en/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ─── Worker (pg-boss background jobs) ────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL_WORKER: ${DATABASE_URL_WORKER}
+      BUDGET_KEK: ${BUDGET_KEK}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+
+  # ─── Mailpit (dev SMTP capture) ───────────────────────────────────────────────
+  # SMTP on 1025, web UI on http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  budget_db_data:
+    name: budget_db_data
