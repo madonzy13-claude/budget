@@ -1,0 +1,27 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.x }
+      - run: bun install --frozen-lockfile
+      - name: typecheck
+        run: bun run --filter='*' typecheck
+      - name: dependency-cruiser
+        run: bunx depcruise --config .dependency-cruiser.cjs --output-type err apps packages
+      - name: grep ban .transaction outside packages/platform/src/db/tx.ts (PC-04, PC-26 file-level exclude, PC-28 test exclude)
+        run: 'bun run grep:no-direct-tx'
+      - name: grep ban appPool().connect outside packages/platform/src/db/tx.ts (PC-03, PC-26 file-level exclude, PC-28 test exclude)
+        run: 'bun run grep:no-pool-connect'
+      - name: eslint (no-float-money fixture must FAIL)
+        run: |
+          if bunx eslint tests/fixtures/float-money.ts; then
+            echo "ERROR: ESLint should have failed on float-money fixture"; exit 1
+          fi
+      - name: eslint (clean fixture must PASS)
+        run: bunx eslint tests/fixtures/float-money-clean.ts
+      - name: bun test
+        run: bun test
