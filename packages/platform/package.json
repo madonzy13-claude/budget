@@ -4,9 +4,21 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@budget/shared-kernel": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@budget/db": "workspace:*",
+    "drizzle-kit": "^0.31.10",
+    "@types/pg": "^8.11.0"
   }
 }

@@ -3,6 +3,8 @@ registry = "https://registry.npmjs.org/"
 
 [test]
 coverage = true
+# Integration tests use testcontainers which need extra time to start Postgres
+timeout = 30000
 coverageThreshold = 0.80
 # PC-23: narrow 80% threshold to domain code only — adapter/application/contract/port layers
 # are integration-tested separately and are not the locus of business invariants.

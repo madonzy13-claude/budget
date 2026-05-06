@@ -4,7 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun test",
+    "migrate": "bun run src/migrate.ts",
+    "generate": "drizzle-kit generate --config=drizzle.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@budget/platform": "workspace:*",
+    "@budget/shared-kernel": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "@types/pg": "^8.11.0"
   }
 }
