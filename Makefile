@@ -4,9 +4,9 @@ ENV ?= dev
 ENV_FILE_LOCAL := $(shell test -f .env.local && echo "--env-file .env.local")
 COMPOSE := docker compose --env-file .env $(ENV_FILE_LOCAL)
 
-.PHONY: dev dev-build stop down destroy logs ps build \
+.PHONY: dev dev-build stop down destroy logs ps build restart \
         migrate seed shell-db \
-        test test-watch test-e2e ci-gate \
+        test test-watch test-e2e test-clean ci-gate \
         lint typecheck fmt \
         secrets secrets-set help
 
@@ -33,6 +33,9 @@ logs: ## Follow all service logs
 logs-%: ## Follow one service: make logs-api
 	$(COMPOSE) logs -f $*
 
+restart-%: ## Recreate one service (picks up .env changes): make restart-api
+	infisical run --env=$(ENV) -- $(COMPOSE) up -d $*
+
 ps: ## Show service status
 	$(COMPOSE) ps
 
@@ -58,14 +61,27 @@ test: ## Run backend unit tests
 test-watch: ## Run tests in watch mode
 	bun test --watch
 
-test-e2e: ## Run Playwright E2E tests against running stack
-	PLAYWRIGHT_BASE_URL=$${PLAYWRIGHT_BASE_URL:-http://localhost:3000} bunx playwright test
+# Resolve PLAYWRIGHT_BASE_URL from APP_URL (.env.local first, then .env). This
+# matches the canonical user-visible host and catches origin/cookie/RLS edge
+# cases that don't manifest on localhost. Override by exporting PLAYWRIGHT_BASE_URL.
+PLAYWRIGHT_BASE_URL_RESOLVED := $(or \
+  $(PLAYWRIGHT_BASE_URL), \
+  $(shell test -f .env.local && grep -E '^APP_URL=' .env.local | head -1 | cut -d= -f2-), \
+  $(shell test -f .env && grep -E '^APP_URL=' .env | head -1 | cut -d= -f2-), \
+  http://localhost:3000)
 
-test-e2e-ui: ## Run Playwright E2E tests with UI
-	PLAYWRIGHT_BASE_URL=$${PLAYWRIGHT_BASE_URL:-http://localhost:3000} bunx playwright test --ui
+test-e2e: ## Run Playwright E2E tests against running stack (uses APP_URL from .env.local)
+	PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx bddgen && PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx playwright test
+
+test-e2e-ui: ## Run Playwright E2E tests with UI (uses APP_URL from .env.local)
+	PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx bddgen && PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx playwright test --ui
 
 ci-gate: ## Run tenant-leak CI gate (needs local postgres)
 	bun run test:ci-gate
+
+test-clean: ## Remove leaked test postgres containers (orphans from killed test runs)
+	@docker ps -aq --filter "label=budget-testcontainer=1" | xargs -r docker rm -f
+	@echo "leaked testcontainers removed"
 
 # ── Code quality ──────────────────────────────────────────────────────────────
 

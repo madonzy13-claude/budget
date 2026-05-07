@@ -1,6 +1,13 @@
 import { defineConfig } from "@playwright/test";
+import { defineBddConfig } from "playwright-bdd";
+
+const testDir = defineBddConfig({
+  features: "tests/e2e/features/**/*.feature",
+  steps: ["tests/e2e/steps/**/*.ts", "tests/e2e/fixtures/**/*.ts"],
+});
+
 export default defineConfig({
-  testDir: "./tests/e2e",
+  testDir,
   timeout: 30000,
   use: {
     baseURL: process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000",
