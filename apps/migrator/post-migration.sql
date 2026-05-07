@@ -1,8 +1,6 @@
--- D-18: app + worker + migrator roles must NOT bypass RLS.
--- Roles are CREATEd by infra (docker-compose init or production provisioning); we ALTER here.
-ALTER ROLE app_role NOBYPASSRLS NOSUPERUSER;
-ALTER ROLE worker_role NOBYPASSRLS NOSUPERUSER;
-ALTER ROLE migrator NOBYPASSRLS NOSUPERUSER;
+-- D-18: NOBYPASSRLS enforced at role creation time in infra/postgres/init/00-roles.sh.
+-- ALTER ROLE removed from here — migrator role is NOSUPERUSER and cannot ALTER ROLEs.
+-- Roles are created with NOBYPASSRLS NOSUPERUSER by the init script (superuser context).
 
 -- Schema USAGE grants (D-17). identity + tenancy + shared_kernel + budgeting for app_role + worker_role;
 -- comparison reserved for comparison_role (Phase 5).

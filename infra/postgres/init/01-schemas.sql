@@ -7,8 +7,9 @@
 CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION migrator;
 CREATE SCHEMA IF NOT EXISTS tenancy AUTHORIZATION migrator;
 CREATE SCHEMA IF NOT EXISTS shared_kernel AUTHORIZATION migrator;
+CREATE SCHEMA IF NOT EXISTS budgeting AUTHORIZATION migrator;
 CREATE SCHEMA IF NOT EXISTS comparison AUTHORIZATION migrator;
 
 -- Set default search_path to include all bounded-context schemas.
 -- Services should always qualify schema names explicitly; this is a convenience fallback.
-ALTER DATABASE budget SET search_path TO public, identity, tenancy, shared_kernel;
+ALTER DATABASE budget SET search_path TO public, identity, tenancy, shared_kernel, budgeting;
