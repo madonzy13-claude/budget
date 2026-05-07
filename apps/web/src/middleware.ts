@@ -6,7 +6,8 @@ export default createMiddleware(routing);
 export const config = {
   // Match all pathnames except for:
   // - /api/* routes (handled by API server)
+  // - /auth/* routes (proxied to Better Auth API server)
   // - /_next/* (Next.js internals)
   // - /.*\.* (static files with extension, e.g. favicon.ico)
-  matcher: ["/((?!api|_next|.*\\..*).*)"],
+  matcher: ["/((?!api|auth|_next|.*\\..*).*)"],
 };

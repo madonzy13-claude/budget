@@ -43,6 +43,41 @@ ALTER TABLE identity.accounts FORCE ROW LEVEL SECURITY;
 ALTER TABLE identity.user_preferences FORCE ROW LEVEL SECURITY;
 -- identity.verifications: NO RLS (token-keyed lookups; token IS the credential).
 
+-- Plan 05: BEFORE INSERT triggers on identity tables.
+-- Problem: Better Auth does INSERT ... RETURNING but app.current_user_id GUC is not set.
+-- With FORCE RLS, RETURNING SELECT applies users_self_visible USING (id = GUC). Without GUC,
+-- RETURNING raises 42501 instead of returning 0 rows. Fix: set the GUC transaction-locally
+-- so the RETURNING clause sees the new row. Each trigger sets the user context before insert.
+CREATE OR REPLACE FUNCTION identity.users_set_context_on_insert() RETURNS trigger AS $$
+BEGIN
+  PERFORM set_config('app.current_user_id', NEW.id::text, true);
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS users_insert_set_context ON identity.users;
+CREATE TRIGGER users_insert_set_context
+  BEFORE INSERT ON identity.users
+  FOR EACH ROW EXECUTE FUNCTION identity.users_set_context_on_insert();
+
+CREATE OR REPLACE FUNCTION identity.accounts_set_context_on_insert() RETURNS trigger AS $$
+BEGIN
+  PERFORM set_config('app.current_user_id', NEW.user_id::text, true);
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS accounts_insert_set_context ON identity.accounts;
+CREATE TRIGGER accounts_insert_set_context
+  BEFORE INSERT ON identity.accounts
+  FOR EACH ROW EXECUTE FUNCTION identity.accounts_set_context_on_insert();
+
+CREATE OR REPLACE FUNCTION identity.sessions_set_context_on_insert() RETURNS trigger AS $$
+BEGIN
+  PERFORM set_config('app.current_user_id', NEW.user_id::text, true);
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS sessions_insert_set_context ON identity.sessions;
+CREATE TRIGGER sessions_insert_set_context
+  BEFORE INSERT ON identity.sessions
+  FOR EACH ROW EXECUTE FUNCTION identity.sessions_set_context_on_insert();
+
 -- Idempotent retries: every statement above is safe to re-run.
 
 -- Plan 06: tenancy schema

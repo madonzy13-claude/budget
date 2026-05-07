@@ -15,6 +15,27 @@
       "when": 1778097865563,
       "tag": "0001_overjoyed_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778153366827,
+      "tag": "0002_add_insert_open_rls_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778154491022,
+      "tag": "0003_gifted_martin_li",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778155305234,
+      "tag": "0004_lame_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

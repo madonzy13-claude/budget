@@ -29,17 +29,6 @@ import {
 import { signUp } from "@/lib/auth-client";
 import { locales, localeNames } from "@/lib/locales";
 
-const signUpSchema = z.object({
-  name: z.string().min(1, "Name is required."),
-  email: z
-    .string()
-    .email("Email isn't a valid address. Check the format and try again."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
-  locale: z.string(),
-});
-
-type SignUpValues = z.infer<typeof signUpSchema>;
-
 interface SignUpFormProps {
   defaultLocale: string;
 }
@@ -48,6 +37,15 @@ export function SignUpForm({ defaultLocale }: SignUpFormProps) {
   const t = useTranslations("auth");
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const signUpSchema = z.object({
+    name: z.string().min(1, t("validation.name_required")),
+    email: z.string().email(t("validation.email_invalid")),
+    password: z.string().min(8, t("validation.password_min_length")),
+    locale: z.string(),
+  });
+
+  type SignUpValues = z.infer<typeof signUpSchema>;
 
   const form = useForm<SignUpValues>({
     resolver: zodResolver(signUpSchema),

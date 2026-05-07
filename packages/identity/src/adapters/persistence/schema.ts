@@ -34,7 +34,7 @@ export const users = identity.table(
   {
     id: uuid("id").primaryKey(),
     email: text("email").notNull(),
-    emailHash: bytea("email_hash").notNull(),
+    emailHash: bytea("email_hash"),
     emailEncrypted: bytea("email_encrypted"),
     emailNonce: bytea("email_nonce"),
     emailVerified: boolean("email_verified").default(false).notNull(),
@@ -55,6 +55,13 @@ export const users = identity.table(
   },
   (t) => [
     uniqueIndex("users_email_hash_uq").on(t.emailHash),
+    // Server inserts during sign-up have no GUC yet; permissive OR means true wins.
+    pgPolicy("users_insert_open", {
+      as: "permissive",
+      for: "insert",
+      to: [appRole, workerRole],
+      withCheck: sql`true`,
+    }),
     pgPolicy("users_self_visible", {
       as: "permissive",
       for: "all",
@@ -77,8 +84,17 @@ export const sessions = identity.table(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (t) => [
+    pgPolicy("sessions_insert_open", {
+      as: "permissive",
+      for: "insert",
+      to: [appRole, workerRole],
+      withCheck: sql`true`,
+    }),
     pgPolicy("sessions_owner_only", {
       as: "permissive",
       for: "all",
@@ -115,6 +131,12 @@ export const accounts = identity.table(
       .notNull(),
   },
   (t) => [
+    pgPolicy("accounts_insert_open", {
+      as: "permissive",
+      for: "insert",
+      to: [appRole, workerRole],
+      withCheck: sql`true`,
+    }),
     pgPolicy("accounts_owner_only", {
       as: "permissive",
       for: "all",
@@ -125,12 +147,25 @@ export const accounts = identity.table(
   ],
 );
 
-export const verifications = identity.table("verifications", {
-  id: text("id").primaryKey(),
-  identifier: text("identifier").notNull(),
-  value: text("value").notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const verifications = identity.table(
+  "verifications",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  () => [
+    // Verifications are short-lived tokens managed server-side; no user context required.
+    pgPolicy("verifications_server_access", {
+      as: "permissive",
+      for: "all",
+      to: [appRole, workerRole],
+      using: sql`true`,
+      withCheck: sql`true`,
+    }),
+  ],
+);

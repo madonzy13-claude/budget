@@ -1,4 +1,5 @@
 <!-- GSD:project-start source:PROJECT.md -->
+
 ## Project
 
 **Budget — Family Budgeting & Wealth Tracker**
@@ -25,243 +26,299 @@ Web app that replaces an advanced personal Excel budget with a multi-tenant SaaS
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:research/STACK.md -->
+
 ## Technology Stack
 
 ## TL;DR — The Stack in One Table
-| Layer | Pick | Confidence | One-line rationale |
-|---|---|---|---|
-| Runtime | Bun 1.2.x | HIGH | Already locked. Native TS, fast install, fast boot. |
-| HTTP framework | **Hono v4.12+** | HIGH | Bun-fast, runtime-agnostic (Node fallback if needed), Zod-OpenAPI + RPC client built-in. |
-| Frontend framework | Next.js 16 (App Router) | HIGH | Already locked. App Router + Server Components mature in 2026. |
-| Frontend↔Backend wire | **Hono RPC + Zod schemas** (not tRPC) | HIGH | Hono RPC gives same end-to-end TS as tRPC, no extra layer. tRPC wins on Next-only, loses when API is a separate Bun service. |
-| ORM | **Drizzle ORM (latest stable)** | HIGH | First-class RLS support via `pgPolicy()`, SQL-like, hexagonal-friendly. Prisma has no native RLS. |
-| Migrations | **drizzle-kit** (Atlas only if multi-ORM later) | HIGH | Tight integration; Atlas is overkill for single-stack v1. |
-| Auth | **Better Auth (latest)** | HIGH | Lucia is deprecated since March 2025. Better Auth is the de-facto successor. Drizzle adapter, multi-session, organizations plugin → maps to "family workspace". |
-| Validation | **Zod v3** | HIGH | Industry default, integrates with Hono, Drizzle, Better Auth, Vercel AI SDK. |
-| Money | **Dinero.js v2** | HIGH | Purpose-built `Money(amount, currency)` value object — exactly the constraint. |
-| Decimals (crypto only) | big.js | HIGH | Dinero's own FAQ recommends big.js for crypto precision. |
-| Date/time | **Temporal API via `temporal-polyfill`** | MEDIUM-HIGH | TC39 Stage 4 March 2026, native in Chrome 144 / FF 139. Right primitive for a finance app handling FX historical dates and TZ-correct month boundaries. |
-| Jobs / scheduler | **pg-boss** (primary) + node-cron-style triggers via pg-boss schedules | HIGH | Already running Postgres → no Redis to operate. Exactly-once via `SKIP LOCKED`. Right scale for v1. |
-| i18n | **next-intl (latest)** | HIGH | Purpose-built for Next.js App Router + Server Components. EN/PL/UK out of the box. |
-| LLM SDK | **Vercel AI SDK Core** (`ai` + `@ai-sdk/anthropic` + `@ai-sdk/groq`) | HIGH | Provider-pluggable by design — matches the ports/adapters constraint exactly. |
-| STT | Browser Web Speech API + **groq-sdk** (Whisper-large-v3 on Groq) | HIGH | Already locked, both behind a `SpeechToText` port. |
-| FX | Frankfurter (already locked) behind `FxProvider` port | HIGH | Constraint pinned. |
-| Stocks/ETF feed | **Twelve Data** (free 800/day, paid path clean) | MEDIUM-HIGH | Better free tier than Alpha Vantage (25/day) and unified stock+forex+crypto API. |
-| Crypto feed | **CoinGecko Public API** | HIGH | Free tier covers 14k+ assets; standard SaaS choice. |
-| Gold feed | **metals.dev** (primary) / GoldAPI.io fallback | MEDIUM | Both have 100/mo free; metals.dev has cleaner DX and historical endpoint. |
-| Email | **Resend** (v1) → reassess at >50k/mo | HIGH | Best DX, React Email components, 3k/mo free, $20/50k. |
-| Web push | **web-push** npm + manual VAPID | HIGH | Provider-free, standard pattern in 2026. |
-| PWA tooling | **Serwist** (`@serwist/next`) | HIGH | next-pwa is unmaintained (>2y); Serwist is its 2026 successor and supports App Router. |
-| Test runner (backend) | **bun:test** | HIGH | Backend is pure TS on Bun → 3-10x faster than Vitest, native TS, native coverage. |
-| Test runner (frontend) | **Vitest 4.x** + happy-dom | HIGH | Bun:test still has gaps for React Testing Library. Vitest is the default for component tests in 2026. |
-| E2E | **Playwright** | HIGH | Industry default for PWA + SSR Next.js E2E. |
-| Component testing | **@testing-library/react** under Vitest | HIGH | Same standard for a decade; aligns with TDD. |
-| Logging | **pino 9.x** (JSON, stdout) | HIGH | Fastest Node logger; first-class OTel correlation. |
-| Tracing | **OpenTelemetry SDK** (auto-instrumentation) | HIGH | Vendor-neutral; export to anything (Jaeger, Tempo, Datadog, Honeycomb). |
-| Errors | **Sentry** (`@sentry/node` + `@sentry/nextjs`) | HIGH | OTel-native since v8; standard SaaS error tracking. |
-| Container | Docker (locked) | HIGH | Compose for dev, multi-stage Bun image for prod. |
+
+| Layer                  | Pick                                                                   | Confidence  | One-line rationale                                                                                                                                              |
+| ---------------------- | ---------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime                | Bun 1.2.x                                                              | HIGH        | Already locked. Native TS, fast install, fast boot.                                                                                                             |
+| HTTP framework         | **Hono v4.12+**                                                        | HIGH        | Bun-fast, runtime-agnostic (Node fallback if needed), Zod-OpenAPI + RPC client built-in.                                                                        |
+| Frontend framework     | Next.js 16 (App Router)                                                | HIGH        | Already locked. App Router + Server Components mature in 2026.                                                                                                  |
+| Frontend↔Backend wire  | **Hono RPC + Zod schemas** (not tRPC)                                  | HIGH        | Hono RPC gives same end-to-end TS as tRPC, no extra layer. tRPC wins on Next-only, loses when API is a separate Bun service.                                    |
+| ORM                    | **Drizzle ORM (latest stable)**                                        | HIGH        | First-class RLS support via `pgPolicy()`, SQL-like, hexagonal-friendly. Prisma has no native RLS.                                                               |
+| Migrations             | **drizzle-kit** (Atlas only if multi-ORM later)                        | HIGH        | Tight integration; Atlas is overkill for single-stack v1.                                                                                                       |
+| Auth                   | **Better Auth (latest)**                                               | HIGH        | Lucia is deprecated since March 2025. Better Auth is the de-facto successor. Drizzle adapter, multi-session, organizations plugin → maps to "family workspace". |
+| Validation             | **Zod v3**                                                             | HIGH        | Industry default, integrates with Hono, Drizzle, Better Auth, Vercel AI SDK.                                                                                    |
+| Money                  | **Dinero.js v2**                                                       | HIGH        | Purpose-built `Money(amount, currency)` value object — exactly the constraint.                                                                                  |
+| Decimals (crypto only) | big.js                                                                 | HIGH        | Dinero's own FAQ recommends big.js for crypto precision.                                                                                                        |
+| Date/time              | **Temporal API via `temporal-polyfill`**                               | MEDIUM-HIGH | TC39 Stage 4 March 2026, native in Chrome 144 / FF 139. Right primitive for a finance app handling FX historical dates and TZ-correct month boundaries.         |
+| Jobs / scheduler       | **pg-boss** (primary) + node-cron-style triggers via pg-boss schedules | HIGH        | Already running Postgres → no Redis to operate. Exactly-once via `SKIP LOCKED`. Right scale for v1.                                                             |
+| i18n                   | **next-intl (latest)**                                                 | HIGH        | Purpose-built for Next.js App Router + Server Components. EN/PL/UK out of the box.                                                                              |
+| LLM SDK                | **Vercel AI SDK Core** (`ai` + `@ai-sdk/anthropic` + `@ai-sdk/groq`)   | HIGH        | Provider-pluggable by design — matches the ports/adapters constraint exactly.                                                                                   |
+| STT                    | Browser Web Speech API + **groq-sdk** (Whisper-large-v3 on Groq)       | HIGH        | Already locked, both behind a `SpeechToText` port.                                                                                                              |
+| FX                     | Frankfurter (already locked) behind `FxProvider` port                  | HIGH        | Constraint pinned.                                                                                                                                              |
+| Stocks/ETF feed        | **Twelve Data** (free 800/day, paid path clean)                        | MEDIUM-HIGH | Better free tier than Alpha Vantage (25/day) and unified stock+forex+crypto API.                                                                                |
+| Crypto feed            | **CoinGecko Public API**                                               | HIGH        | Free tier covers 14k+ assets; standard SaaS choice.                                                                                                             |
+| Gold feed              | **metals.dev** (primary) / GoldAPI.io fallback                         | MEDIUM      | Both have 100/mo free; metals.dev has cleaner DX and historical endpoint.                                                                                       |
+| Email                  | **Resend** (v1) → reassess at >50k/mo                                  | HIGH        | Best DX, React Email components, 3k/mo free, $20/50k.                                                                                                           |
+| Web push               | **web-push** npm + manual VAPID                                        | HIGH        | Provider-free, standard pattern in 2026.                                                                                                                        |
+| PWA tooling            | **Serwist** (`@serwist/next`)                                          | HIGH        | next-pwa is unmaintained (>2y); Serwist is its 2026 successor and supports App Router.                                                                          |
+| Test runner (backend)  | **bun:test**                                                           | HIGH        | Backend is pure TS on Bun → 3-10x faster than Vitest, native TS, native coverage.                                                                               |
+| Test runner (frontend) | **Vitest 4.x** + happy-dom                                             | HIGH        | Bun:test still has gaps for React Testing Library. Vitest is the default for component tests in 2026.                                                           |
+| E2E                    | **Playwright**                                                         | HIGH        | Industry default for PWA + SSR Next.js E2E.                                                                                                                     |
+| Component testing      | **@testing-library/react** under Vitest                                | HIGH        | Same standard for a decade; aligns with TDD.                                                                                                                    |
+| Logging                | **pino 9.x** (JSON, stdout)                                            | HIGH        | Fastest Node logger; first-class OTel correlation.                                                                                                              |
+| Tracing                | **OpenTelemetry SDK** (auto-instrumentation)                           | HIGH        | Vendor-neutral; export to anything (Jaeger, Tempo, Datadog, Honeycomb).                                                                                         |
+| Errors                 | **Sentry** (`@sentry/node` + `@sentry/nextjs`)                         | HIGH        | OTel-native since v8; standard SaaS error tracking.                                                                                                             |
+| Container              | Docker (locked)                                                        | HIGH        | Compose for dev, multi-stage Bun image for prod.                                                                                                                |
+
 ## Core Technologies (Detail)
+
 ### Hono v4 — HTTP framework
-| Field | Value |
-|---|---|
-| Version | `hono@^4.12.16` (April 2026) |
-| Confidence | HIGH |
+
+| Field      | Value                        |
+| ---------- | ---------------------------- |
+| Version    | `hono@^4.12.16` (April 2026) |
+| Confidence | HIGH                         |
+
 ### Drizzle ORM — Postgres access
-| Field | Value |
-|---|---|
-| Version | `drizzle-orm` latest stable (with `drizzle-kit` for migrations) |
-| Confidence | HIGH |
+
+| Field      | Value                                                           |
+| ---------- | --------------------------------------------------------------- |
+| Version    | `drizzle-orm` latest stable (with `drizzle-kit` for migrations) |
+| Confidence | HIGH                                                            |
+
 - Drizzle types and queries live ONLY in `src/<context>/adapters/persistence/`.
 - Domain entities are plain classes with no Drizzle imports.
 - Repositories are domain-defined interfaces; Drizzle implementations satisfy them.
 - The `Money` value object converts to/from `{ amount_cents BIGINT, currency CHAR(3) }` columns at the adapter boundary — never inside the domain.
+
 ### Better Auth — Self-hosted auth
-| Field | Value |
-|---|---|
-| Version | `better-auth` latest stable (1.4+ has Drizzle joins) |
-| Confidence | HIGH |
+
+| Field      | Value                                                |
+| ---------- | ---------------------------------------------------- |
+| Version    | `better-auth` latest stable (1.4+ has Drizzle joins) |
+| Confidence | HIGH                                                 |
+
 ### Validation: Zod v3
+
 - Hono request validation (`@hono/zod-validator`)
 - OpenAPI generation (`@hono/zod-openapi`)
 - Drizzle schema → Zod inference (`drizzle-zod`)
 - Vercel AI SDK structured output schemas
 - Better Auth plugin schemas
+
 ### Money: Dinero.js v2
-| Field | Value |
-|---|---|
-| Version | `dinero.js@^2` |
-| Confidence | HIGH |
-- `Money` is a domain value object. Dinero is an *implementation detail* sitting behind it.
+
+| Field      | Value          |
+| ---------- | -------------- |
+| Version    | `dinero.js@^2` |
+| Confidence | HIGH           |
+
+- `Money` is a domain value object. Dinero is an _implementation detail_ sitting behind it.
 - `Money.add()`, `Money.convertTo(rate)` are domain methods that delegate to Dinero internally.
 - This shields the domain so the day Temporal-Money-style native primitive ships, we swap one file.
+
 ### Date/time: Temporal API (with polyfill in 2026)
-| Field | Value |
-|---|---|
-| Version | `temporal-polyfill@latest` (~20KB gzip) |
-| Confidence | MEDIUM-HIGH |
-- FX rate as-of *date* (not datetime) — `Temporal.PlainDate`
+
+| Field      | Value                                   |
+| ---------- | --------------------------------------- |
+| Version    | `temporal-polyfill@latest` (~20KB gzip) |
+| Confidence | MEDIUM-HIGH                             |
+
+- FX rate as-of _date_ (not datetime) — `Temporal.PlainDate`
 - Month-end reserve sweeps in user's timezone — `Temporal.ZonedDateTime`
 - Investment historical snapshots — TZ-aware without DST bugs
+
 ### Jobs: pg-boss
-| Field | Value |
-|---|---|
-| Version | `pg-boss@^10` (latest stable) |
-| Confidence | HIGH |
+
+| Field      | Value                         |
+| ---------- | ----------------------------- |
+| Version    | `pg-boss@^10` (latest stable) |
+| Confidence | HIGH                          |
+
 ### LLM: Vercel AI SDK Core
-| Field | Value |
-|---|---|
-| Version | `ai@^4` + `@ai-sdk/anthropic` + `@ai-sdk/groq` |
-| Confidence | HIGH |
+
+| Field      | Value                                          |
+| ---------- | ---------------------------------------------- |
+| Version    | `ai@^4` + `@ai-sdk/anthropic` + `@ai-sdk/groq` |
+| Confidence | HIGH                                           |
+
 - `generateObject({ schema: zodSchema })` for structured Task output (the wizard's whole job)
 - Streaming UX to Next.js out of the box
 - Provider-level telemetry hooks (OTel-compatible)
+
 ### Frontend↔Backend: Hono RPC (NOT tRPC)
-| Field | Value |
-|---|---|
-| Confidence | HIGH |
-- (a) running tRPC *inside* Hono → two routers, two schema systems, doubled mental model, OR
+
+| Field      | Value |
+| ---------- | ----- |
+| Confidence | HIGH  |
+
+- (a) running tRPC _inside_ Hono → two routers, two schema systems, doubled mental model, OR
 - (b) running tRPC inside Next.js Route Handlers → backend is then split between Bun service and Next.js, kills the bounded-context separation
+
 ### i18n: next-intl
-| Field | Value |
-|---|---|
-| Version | `next-intl` latest |
-| Confidence | HIGH |
+
+| Field      | Value              |
+| ---------- | ------------------ |
+| Version    | `next-intl` latest |
+| Confidence | HIGH               |
+
 ### PWA: Serwist (`@serwist/next`)
-| Field | Value |
-|---|---|
-| Version | `@serwist/next` latest |
-| Confidence | HIGH |
+
+| Field      | Value                  |
+| ---------- | ---------------------- |
+| Version    | `@serwist/next` latest |
+| Confidence | HIGH                   |
+
 ### Investment price feeds
-| Asset class | Provider | Confidence |
-|---|---|---|
-| Stocks / ETFs | **Twelve Data** (free 800/day, $79/mo paid) | MEDIUM-HIGH |
-| Crypto | **CoinGecko Public API** (free, paid plan exists) | HIGH |
-| Gold | **metals.dev** primary, **GoldAPI.io** fallback | MEDIUM |
-| Real estate / bonds | Manual snapshots only | HIGH |
+
+| Asset class         | Provider                                          | Confidence  |
+| ------------------- | ------------------------------------------------- | ----------- |
+| Stocks / ETFs       | **Twelve Data** (free 800/day, $79/mo paid)       | MEDIUM-HIGH |
+| Crypto              | **CoinGecko Public API** (free, paid plan exists) | HIGH        |
+| Gold                | **metals.dev** primary, **GoldAPI.io** fallback   | MEDIUM      |
+| Real estate / bonds | Manual snapshots only                             | HIGH        |
+
 ### Email: Resend
-| Field | Value |
-|---|---|
-| Version | `resend@^4` |
-| Confidence | HIGH |
+
+| Field      | Value       |
+| ---------- | ----------- |
+| Version    | `resend@^4` |
+| Confidence | HIGH        |
+
 ### Observability: pino + OpenTelemetry + Sentry
+
 - **`pino@9`** — fastest Node logger, JSON output, child loggers per request for `tenantId` / `userId` correlation.
 - **`@opentelemetry/sdk-node`** with auto-instrumentations — vendor-neutral; export to Jaeger or Tempo or Honeycomb later.
 - **`@sentry/node`** + **`@sentry/nextjs`** — Sentry v8+ is OTel-native, so traces correlate. Use for errors and performance.
+
 ## Supporting Libraries
-| Library | Version | Purpose | When to use |
-|---|---|---|---|
-| `drizzle-zod` | latest | Drizzle schema → Zod | Auto-derive DTOs from DB schema |
-| `@hono/zod-validator` | latest | Hono middleware | Per-route request validation |
-| `@hono/zod-openapi` | ^1.3 | OpenAPI generation | All public endpoints |
-| `bcrypt` (or `argon2`) | latest | Password hashing | Better Auth uses one of these under the hood; configure |
-| `jose` | latest | JWT/JWS if needed (e.g. webhook signatures) | Skip if Better Auth covers all session needs |
-| `nanoid` | ^5 | Tenant/family/category IDs | Public-facing IDs (don't expose serial PKs) |
-| `react-email` | latest | Email templates as JSX | Transactional + alert emails |
-| `lucide-react` | latest | Icon set | Standard for shadcn/Tailwind stack |
-| `tailwindcss@4` | ^4 | Styling | Industry default for Next.js dashboards |
-| `shadcn/ui` (copied components, not npm) | n/a | Component library | Owned components + Tailwind primitives |
-| `@tanstack/react-query` | ^5 | Client cache for non-RSC data | If client components fetch outside RSC boundary |
-| `recharts` or `visx` | latest | Charts (insights page) | recharts simpler; visx more flexible — pick recharts v1 |
+
+| Library                                  | Version | Purpose                                     | When to use                                             |
+| ---------------------------------------- | ------- | ------------------------------------------- | ------------------------------------------------------- |
+| `drizzle-zod`                            | latest  | Drizzle schema → Zod                        | Auto-derive DTOs from DB schema                         |
+| `@hono/zod-validator`                    | latest  | Hono middleware                             | Per-route request validation                            |
+| `@hono/zod-openapi`                      | ^1.3    | OpenAPI generation                          | All public endpoints                                    |
+| `bcrypt` (or `argon2`)                   | latest  | Password hashing                            | Better Auth uses one of these under the hood; configure |
+| `jose`                                   | latest  | JWT/JWS if needed (e.g. webhook signatures) | Skip if Better Auth covers all session needs            |
+| `nanoid`                                 | ^5      | Tenant/family/category IDs                  | Public-facing IDs (don't expose serial PKs)             |
+| `react-email`                            | latest  | Email templates as JSX                      | Transactional + alert emails                            |
+| `lucide-react`                           | latest  | Icon set                                    | Standard for shadcn/Tailwind stack                      |
+| `tailwindcss@4`                          | ^4      | Styling                                     | Industry default for Next.js dashboards                 |
+| `shadcn/ui` (copied components, not npm) | n/a     | Component library                           | Owned components + Tailwind primitives                  |
+| `@tanstack/react-query`                  | ^5      | Client cache for non-RSC data               | If client components fetch outside RSC boundary         |
+| `recharts` or `visx`                     | latest  | Charts (insights page)                      | recharts simpler; visx more flexible — pick recharts v1 |
+
 ## Development Tools
-| Tool | Purpose | Notes |
-|---|---|---|
-| `bun` 1.2.x | Runtime + package manager + test runner (backend) | Already locked. Use `bun install`, `bun run`, `bun test`. |
-| `vitest` 4.x | Frontend test runner | App Router + RTL + happy-dom |
-| `@testing-library/react` | React component tests | Standard with Vitest |
-| `playwright` | E2E | Especially for PWA install + push notification flows |
-| `eslint` 9 (flat config) + `@typescript-eslint` | Lint | Airbnb-style or strict-type-checked preset |
-| `prettier` 3 | Format | Standard |
-| `tsx` (or just `bun run`) | Script runner | Bun handles TS scripts natively — `tsx` rarely needed |
-| `husky` + `lint-staged` | Git hooks | TDD discipline — block commits on failing tests |
-| `docker` + `docker-compose` | Local stack | postgres + api (Bun) + web (Next) + worker |
+
+| Tool                                            | Purpose                                           | Notes                                                     |
+| ----------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
+| `bun` 1.2.x                                     | Runtime + package manager + test runner (backend) | Already locked. Use `bun install`, `bun run`, `bun test`. |
+| `vitest` 4.x                                    | Frontend test runner                              | App Router + RTL + happy-dom                              |
+| `@testing-library/react`                        | React component tests                             | Standard with Vitest                                      |
+| `playwright`                                    | E2E                                               | Especially for PWA install + push notification flows      |
+| `eslint` 9 (flat config) + `@typescript-eslint` | Lint                                              | Airbnb-style or strict-type-checked preset                |
+| `prettier` 3                                    | Format                                            | Standard                                                  |
+| `tsx` (or just `bun run`)                       | Script runner                                     | Bun handles TS scripts natively — `tsx` rarely needed     |
+| `husky` + `lint-staged`                         | Git hooks                                         | TDD discipline — block commits on failing tests           |
+| `docker` + `docker-compose`                     | Local stack                                       | postgres + api (Bun) + web (Next) + worker                |
+
 ## Installation (representative; pin actual versions during scaffolding)
+
 # Backend (Bun service)
+
 # bun:test is built-in
+
 # Frontend (Next.js app)
+
 ## Alternatives Considered (the honest table)
-| Recommended | Alternative | When alternative wins |
-|---|---|---|
-| Hono | Elysia | Pure-Bun shop with no Node fallback worry, want max raw RPS, OK with smaller community |
-| Hono RPC | tRPC | Backend collapses into Next.js Route Handlers (then tRPC is friendlier than Hono inside Next) |
-| Drizzle | Prisma | Team has deep Prisma experience and is willing to write raw SQL for RLS policies (we are not) |
-| Drizzle | Kysely | You want a query builder only and own your schema source-of-truth in raw SQL files |
-| Better Auth | Clerk / Auth0 | You can absorb per-MAU pricing and want fewer auth UI flows to build (constraint says no) |
-| Better Auth | NextAuth/Auth.js | Backend was Next.js Route Handlers only (it isn't — Bun service) |
-| pg-boss | BullMQ | >1k jobs/sec or need streams/pub-sub patterns |
-| pg-boss | Inngest / Trigger.dev | Workflows are multi-step durable processes with human-in-the-loop |
-| Vercel AI SDK | Direct provider SDKs | Pinning to one provider forever (we are not — pluggability is a constraint) |
-| next-intl | i18next | Existing i18next translation memory + pipeline you can't migrate |
-| next-intl | Lingui | Bundle size is critical; willing to add Babel/SWC plugin |
-| Dinero v2 | currency.js | UI-only formatting with no server-side math (we have server-side math) |
-| Temporal polyfill | date-fns v4 | Team unfamiliar with Temporal and v1 is time-pressured (acceptable v1 fallback, migrate to Temporal in v2) |
-| Twelve Data | Alpha Vantage | Already have Alpha Vantage premium account |
-| Twelve Data | Polygon.io / Finnhub | Need >800/day on free tier or specific data (Finnhub has 60/min free) |
-| Resend | Postmark | Deliverability is mission-critical from day one (e.g. password reset SLA) |
-| Resend | AWS SES | >500k/mo and cost dominates DX |
-| bun:test (backend) | Vitest | Need jsdom-style mocking that bun:test doesn't yet support; or you want one runner everywhere |
-| Vitest (frontend) | bun:test | bun:test catches up to RTL support (track this — could collapse to one runner later) |
-| Serwist | next-pwa | Don't (next-pwa is unmaintained) |
-| Serwist | manual SW + Workbox | Want full control and don't mind boilerplate |
+
+| Recommended        | Alternative           | When alternative wins                                                                                      |
+| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Hono               | Elysia                | Pure-Bun shop with no Node fallback worry, want max raw RPS, OK with smaller community                     |
+| Hono RPC           | tRPC                  | Backend collapses into Next.js Route Handlers (then tRPC is friendlier than Hono inside Next)              |
+| Drizzle            | Prisma                | Team has deep Prisma experience and is willing to write raw SQL for RLS policies (we are not)              |
+| Drizzle            | Kysely                | You want a query builder only and own your schema source-of-truth in raw SQL files                         |
+| Better Auth        | Clerk / Auth0         | You can absorb per-MAU pricing and want fewer auth UI flows to build (constraint says no)                  |
+| Better Auth        | NextAuth/Auth.js      | Backend was Next.js Route Handlers only (it isn't — Bun service)                                           |
+| pg-boss            | BullMQ                | >1k jobs/sec or need streams/pub-sub patterns                                                              |
+| pg-boss            | Inngest / Trigger.dev | Workflows are multi-step durable processes with human-in-the-loop                                          |
+| Vercel AI SDK      | Direct provider SDKs  | Pinning to one provider forever (we are not — pluggability is a constraint)                                |
+| next-intl          | i18next               | Existing i18next translation memory + pipeline you can't migrate                                           |
+| next-intl          | Lingui                | Bundle size is critical; willing to add Babel/SWC plugin                                                   |
+| Dinero v2          | currency.js           | UI-only formatting with no server-side math (we have server-side math)                                     |
+| Temporal polyfill  | date-fns v4           | Team unfamiliar with Temporal and v1 is time-pressured (acceptable v1 fallback, migrate to Temporal in v2) |
+| Twelve Data        | Alpha Vantage         | Already have Alpha Vantage premium account                                                                 |
+| Twelve Data        | Polygon.io / Finnhub  | Need >800/day on free tier or specific data (Finnhub has 60/min free)                                      |
+| Resend             | Postmark              | Deliverability is mission-critical from day one (e.g. password reset SLA)                                  |
+| Resend             | AWS SES               | >500k/mo and cost dominates DX                                                                             |
+| bun:test (backend) | Vitest                | Need jsdom-style mocking that bun:test doesn't yet support; or you want one runner everywhere              |
+| Vitest (frontend)  | bun:test              | bun:test catches up to RTL support (track this — could collapse to one runner later)                       |
+| Serwist            | next-pwa              | Don't (next-pwa is unmaintained)                                                                           |
+| Serwist            | manual SW + Workbox   | Want full control and don't mind boilerplate                                                               |
+
 ## What NOT to Use
-| Avoid | Why | Use instead |
-|---|---|---|
-| **Lucia auth** | Deprecated since March 2025; author closed maintenance | Better Auth |
-| **next-pwa** | Unmaintained >2 years; doesn't track Next.js App Router properly | Serwist |
-| **Prisma for RLS-heavy multi-tenant** | No native RLS; raw SQL escape hatch fights ORM | Drizzle |
-| **NestJS** | Decorator/DI heavy; fights hexagonal composition; cold-start cost on Bun | Hono + manual composition |
-| **Sequelize / TypeORM** | Older generation, weaker TS, slower roadmap | Drizzle |
-| **Yup / Joi / io-ts** | Zod is the ecosystem standard; everything integrates with it | Zod |
-| **moment.js** | Maintenance-mode since 2020; mutable; large | Temporal API (or date-fns v4 as fallback) |
-| **dayjs** | Mutable defaults; weaker semantics for finance | Temporal API |
-| **Express** | Slower than Hono; older middleware patterns; not designed for Bun | Hono |
-| **Redux Toolkit** | RSC + React Query covers state needs in 2026 Next.js | Server Components + React Query for client cache |
-| **node-cron in-process** | Loses jobs on deploy; no persistence, no retries | pg-boss schedules |
-| **NodeMailer with raw SMTP** | DIY deliverability nightmare for SaaS | Resend / Postmark / SES |
-| **SendGrid** | Pricing & deliverability regressions reported in 2026 | Resend (v1), Postmark (deliverability-critical) |
-| **iron-session** | Lower-level than Better Auth; rebuilds adjacent features by hand | Better Auth |
-| **Auth0 / Clerk for v1** | Per-MAU pricing kills SaaS margins on a budgeting product | Better Auth (constraint) |
-| **Float for money** | Floating-point arithmetic in finance = production incident | Dinero.js v2 (+ big.js for crypto) |
-| **GraphQL (Apollo) for internal API** | Schema overhead unjustified with one client | Hono RPC + OpenAPI |
-| **Knex** | Older, weaker types, no schema-as-source | Drizzle (or Kysely if you only want a builder) |
+
+| Avoid                                 | Why                                                                      | Use instead                                      |
+| ------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
+| **Lucia auth**                        | Deprecated since March 2025; author closed maintenance                   | Better Auth                                      |
+| **next-pwa**                          | Unmaintained >2 years; doesn't track Next.js App Router properly         | Serwist                                          |
+| **Prisma for RLS-heavy multi-tenant** | No native RLS; raw SQL escape hatch fights ORM                           | Drizzle                                          |
+| **NestJS**                            | Decorator/DI heavy; fights hexagonal composition; cold-start cost on Bun | Hono + manual composition                        |
+| **Sequelize / TypeORM**               | Older generation, weaker TS, slower roadmap                              | Drizzle                                          |
+| **Yup / Joi / io-ts**                 | Zod is the ecosystem standard; everything integrates with it             | Zod                                              |
+| **moment.js**                         | Maintenance-mode since 2020; mutable; large                              | Temporal API (or date-fns v4 as fallback)        |
+| **dayjs**                             | Mutable defaults; weaker semantics for finance                           | Temporal API                                     |
+| **Express**                           | Slower than Hono; older middleware patterns; not designed for Bun        | Hono                                             |
+| **Redux Toolkit**                     | RSC + React Query covers state needs in 2026 Next.js                     | Server Components + React Query for client cache |
+| **node-cron in-process**              | Loses jobs on deploy; no persistence, no retries                         | pg-boss schedules                                |
+| **NodeMailer with raw SMTP**          | DIY deliverability nightmare for SaaS                                    | Resend / Postmark / SES                          |
+| **SendGrid**                          | Pricing & deliverability regressions reported in 2026                    | Resend (v1), Postmark (deliverability-critical)  |
+| **iron-session**                      | Lower-level than Better Auth; rebuilds adjacent features by hand         | Better Auth                                      |
+| **Auth0 / Clerk for v1**              | Per-MAU pricing kills SaaS margins on a budgeting product                | Better Auth (constraint)                         |
+| **Float for money**                   | Floating-point arithmetic in finance = production incident               | Dinero.js v2 (+ big.js for crypto)               |
+| **GraphQL (Apollo) for internal API** | Schema overhead unjustified with one client                              | Hono RPC + OpenAPI                               |
+| **Knex**                              | Older, weaker types, no schema-as-source                                 | Drizzle (or Kysely if you only want a builder)   |
+
 ## Stack Patterns by Variant
+
 - Add a connection pool keyed by tenant (PgBouncer with prepared-statement pinning) OR
 - Move to schema-per-tenant (Drizzle supports this with the `drizzle-multitenant` toolkit) OR
 - Sharded Postgres (e.g. Citus / pg_partman by tenant_id)
-- *Don't* preempt — RLS + tenant_id covers v1 comfortably.
-- Layer Inngest or Trigger.dev *on top of* pg-boss (not replace) — reserve sweep stays on pg-boss; complex flows go to Inngest.
+- _Don't_ preempt — RLS + tenant_id covers v1 comfortably.
+- Layer Inngest or Trigger.dev _on top of_ pg-boss (not replace) — reserve sweep stays on pg-boss; complex flows go to Inngest.
 - AI SDK's `streamText` with `experimental_telemetry` lets us measure per-tenant token cost.
 - Gate to Groq (10-50x cheaper for open models) for the wizard's high-volume turns.
 - Add Dexie / IndexedDB on the client + a "pending mutation" queue replayed when online.
 - Serwist already covers offline reads.
+
 ## Version Compatibility Notes
-| Package A | Compatible with | Notes |
-|---|---|---|
-| Bun 1.2.x | Hono 4.12+ | Verified; Hono is a tier-1 Bun citizen |
-| Bun 1.2.x | Drizzle latest | Verified — Bun is a documented runtime |
-| Drizzle latest | Better Auth 1.4+ | Drizzle adapter requires `experimental.joins: true` for full functionality |
-| Next.js 16 | Serwist | Requires Webpack for build (Turbopack incompatible as of May 2026) |
-| Next.js 16 | next-intl | Full App Router + RSC support |
-| pg-boss 10.x | Postgres 13+ | `SKIP LOCKED` requires PG 9.5+ — comfortably supported |
-| Vercel AI SDK 4.x | Anthropic / Groq | `@ai-sdk/anthropic` and `@ai-sdk/groq` track upstream model releases |
-| Temporal polyfill | All runtimes | `globalThis.Temporal` shim; verify browser support per target |
-| `hc` (Hono client) | Next.js Server Actions | Works inside Server Components and Server Actions both |
+
+| Package A          | Compatible with        | Notes                                                                      |
+| ------------------ | ---------------------- | -------------------------------------------------------------------------- |
+| Bun 1.2.x          | Hono 4.12+             | Verified; Hono is a tier-1 Bun citizen                                     |
+| Bun 1.2.x          | Drizzle latest         | Verified — Bun is a documented runtime                                     |
+| Drizzle latest     | Better Auth 1.4+       | Drizzle adapter requires `experimental.joins: true` for full functionality |
+| Next.js 16         | Serwist                | Requires Webpack for build (Turbopack incompatible as of May 2026)         |
+| Next.js 16         | next-intl              | Full App Router + RSC support                                              |
+| pg-boss 10.x       | Postgres 13+           | `SKIP LOCKED` requires PG 9.5+ — comfortably supported                     |
+| Vercel AI SDK 4.x  | Anthropic / Groq       | `@ai-sdk/anthropic` and `@ai-sdk/groq` track upstream model releases       |
+| Temporal polyfill  | All runtimes           | `globalThis.Temporal` shim; verify browser support per target              |
+| `hc` (Hono client) | Next.js Server Actions | Works inside Server Components and Server Actions both                     |
+
 ## How the Stack Maps to the DDD Bounded Contexts
-| Bounded Context | Owns (domain) | Adapter libraries |
-|---|---|---|
-| **Identity** | User, Credential, Session, Language | Better Auth + Drizzle (auth tables) |
-| **Tenancy** | FamilyWorkspace, Membership, Role | Drizzle + RLS policies + Better Auth `organization` plugin |
-| **Budgeting** | Category, BudgetPeriod, Limit, CushionLimit | Drizzle (read/write) + Dinero.js (Money) |
-| **Expense Capture** | Expense (ledger entry), CaptureSource | Drizzle + Hono (form), `@ai-sdk/groq` (Whisper STT), browser Web Speech (frontend) |
-| **Reserves** | ReserveBalance, ReserveMove (Task) | Drizzle + pg-boss (month-end sweep job) |
-| **Cushion** | CushionTarget, Holding | Drizzle + Dinero (target valuation) |
-| **Investments** | Position, Snapshot, AssetClass | Drizzle + `PriceProvider` port (Twelve Data, CoinGecko, metals.dev impls) |
-| **Tasks** | Task, TaskStatus | Drizzle + pg-boss (Task generators run on schedules) |
-| **Insights** | TimeSeries, Aggregation | Drizzle (read-replica eventually) + recharts on frontend |
-| **Comparison** | AnonymizedAggregate, ConsentToken | Drizzle (separate schema, no tenant_id) + pg-boss (nightly aggregation job) |
-| **Notifications** | NotificationChannel, NotificationPreference | Resend (email port), `web-push` (push port), pg-boss (delivery worker) |
-| **Onboarding** | WizardSession, WizardOutput | Vercel AI SDK + Zod schemas for `generateObject` |
-| **FX** | ExchangeRate (historical) | `FxProvider` port → Frankfurter impl + pg-boss (daily fetch job) |
+
+| Bounded Context     | Owns (domain)                               | Adapter libraries                                                                  |
+| ------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Identity**        | User, Credential, Session, Language         | Better Auth + Drizzle (auth tables)                                                |
+| **Tenancy**         | FamilyWorkspace, Membership, Role           | Drizzle + RLS policies + Better Auth `organization` plugin                         |
+| **Budgeting**       | Category, BudgetPeriod, Limit, CushionLimit | Drizzle (read/write) + Dinero.js (Money)                                           |
+| **Expense Capture** | Expense (ledger entry), CaptureSource       | Drizzle + Hono (form), `@ai-sdk/groq` (Whisper STT), browser Web Speech (frontend) |
+| **Reserves**        | ReserveBalance, ReserveMove (Task)          | Drizzle + pg-boss (month-end sweep job)                                            |
+| **Cushion**         | CushionTarget, Holding                      | Drizzle + Dinero (target valuation)                                                |
+| **Investments**     | Position, Snapshot, AssetClass              | Drizzle + `PriceProvider` port (Twelve Data, CoinGecko, metals.dev impls)          |
+| **Tasks**           | Task, TaskStatus                            | Drizzle + pg-boss (Task generators run on schedules)                               |
+| **Insights**        | TimeSeries, Aggregation                     | Drizzle (read-replica eventually) + recharts on frontend                           |
+| **Comparison**      | AnonymizedAggregate, ConsentToken           | Drizzle (separate schema, no tenant_id) + pg-boss (nightly aggregation job)        |
+| **Notifications**   | NotificationChannel, NotificationPreference | Resend (email port), `web-push` (push port), pg-boss (delivery worker)             |
+| **Onboarding**      | WizardSession, WizardOutput                 | Vercel AI SDK + Zod schemas for `generateObject`                                   |
+| **FX**              | ExchangeRate (historical)                   | `FxProvider` port → Frankfurter impl + pg-boss (daily fetch job)                   |
+
 ## Sources
+
 - [Hono v4 docs + RPC + Zod-OpenAPI](https://hono.dev/docs/guides/rpc) — verified version & features
 - [Drizzle ORM RLS docs](https://orm.drizzle.team/docs/rls) — `pgPolicy()` / `crudPolicy()` confirmed
 - [Better Auth Drizzle adapter](https://better-auth.com/docs/adapters/drizzle) — version 1.4+ joins
@@ -291,41 +348,89 @@ Web app that replaces an advanced personal Excel budget with a multi-tenant SaaS
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
+
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
+### Testing — TDD First (MANDATORY)
+
+**Rule: Write the failing test before writing implementation. No exceptions.**
+
+Claude must run tests itself before asking the user to manually test anything. Use Playwright for UI flows; only escalate to the user for final confirmation.
+
+#### Test Types and Tools
+
+| Type                    | Tool                     | Location           | Coverage target               |
+| ----------------------- | ------------------------ | ------------------ | ----------------------------- |
+| Unit (domain)           | `bun:test`               | `packages/*/test/` | 80% on domain code (enforced) |
+| Component               | Vitest + RTL + happy-dom | `apps/web/test/`   | All interactive components    |
+| Integration (routes/DB) | `bun:test`               | `apps/api/test/`   | All HTTP routes + DB adapters |
+| E2E (user flows)        | Playwright               | `tests/e2e/`       | Every user-facing flow        |
+
+#### Non-negotiable Rules
+
+1. **TDD cycle**: red → green → refactor. Test first, always.
+2. **Claude tests before user tests**: run `make test` or `make test-e2e` and verify passing before asking the user to click anything.
+3. **No DB mocking in integration tests** — always use real Postgres (Docker or testcontainers).
+4. **E2E covers golden path + main error cases** for every user-facing flow (sign-up, sign-in, workspace CRUD, invite, shares, settings).
+5. **BDD naming**: `describe('Sign Up') > test('creates account and shows verification banner')`.
+6. **Playwright base URL** from `PLAYWRIGHT_BASE_URL` env var (defaults `http://localhost:3000`). Run against live Docker stack.
+7. **Coverage threshold**: 80% on domain code enforced in `bunfig.toml` — do not lower it.
+8. **Every API route** gets at least one integration test in `apps/api/test/routes/`.
+
+#### Running Tests
+
+```bash
+make test          # bun:test — backend unit + integration
+make test-e2e      # Playwright E2E against running stack
+make ci-gate       # tenant-leak CI gate (6 security tests)
+cd apps/web && bun run test   # Vitest component tests
+```
+
+For E2E against Tailscale dev host:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://claude-code.tail4b2401.ts.net make test-e2e
+```
+
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
+
 ## Architecture
 
 Architecture not yet mapped. Follow existing patterns found in the codebase.
+
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->
+
 ## Project Skills
 
 No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with a `SKILL.md` index file.
+
 <!-- GSD:skills-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
+
 ## GSD Workflow Enforcement
 
 Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
 
 Use these entry points:
+
 - `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
 - `/gsd-debug` for investigation and bug fixing
 - `/gsd-execute-phase` for planned phase work
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+
 <!-- GSD:workflow-end -->
 
-
-
 <!-- GSD:profile-start -->
+
 ## Developer Profile
 
 > Profile not yet configured. Run `/gsd-profile-user` to generate your developer profile.
 > This section is managed by `generate-claude-profile` -- do not edit manually.
+
 <!-- GSD:profile-end -->

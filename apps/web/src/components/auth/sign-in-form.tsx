@@ -20,15 +20,6 @@ import {
 } from "@/components/ui/form";
 import { signIn } from "@/lib/auth-client";
 
-const signInSchema = z.object({
-  email: z
-    .string()
-    .email("Email isn't a valid address. Check the format and try again."),
-  password: z.string().min(1, "Password is required."),
-});
-
-type SignInValues = z.infer<typeof signInSchema>;
-
 interface SignInFormProps {
   locale: string;
 }
@@ -37,6 +28,13 @@ export function SignInForm({ locale }: SignInFormProps) {
   const t = useTranslations("auth");
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const signInSchema = z.object({
+    email: z.string().email(t("validation.email_invalid")),
+    password: z.string().min(1, t("validation.password_required")),
+  });
+
+  type SignInValues = z.infer<typeof signInSchema>;
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),

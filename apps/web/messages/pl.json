@@ -37,7 +37,7 @@
     },
     "email": {
       "label": "Adres e-mail",
-      "placeholder": "ty@przykład.pl"
+      "placeholder": "you@example.com"
     },
     "password": {
       "label": "Hasło",
@@ -46,6 +46,12 @@
     "name": {
       "label": "Imię i nazwisko",
       "placeholder": "Twoje imię"
+    },
+    "validation": {
+      "email_invalid": "Adres e-mail jest nieprawidłowy. Sprawdź format i spróbuj ponownie.",
+      "password_required": "Hasło jest wymagane.",
+      "password_min_length": "Hasło musi mieć co najmniej 8 znaków.",
+      "name_required": "Imię i nazwisko jest wymagane."
     },
     "loading": "Logowanie...",
     "signup_loading": "Tworzenie konta...",

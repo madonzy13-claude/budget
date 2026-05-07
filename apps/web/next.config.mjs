@@ -16,6 +16,19 @@ const nextConfig = {
   // Next.js 16 defaults to Turbopack. To build with Webpack, use: next build --webpack
   // CI grep gate requires: turbopack: false
   // turbopack: false -- do not use Turbopack (use --webpack build flag instead)
+  async rewrites() {
+    const apiBase = process.env["API_INTERNAL_URL"] ?? "http://api:4000";
+    return [
+      {
+        source: "/auth/:path*",
+        destination: `${apiBase}/auth/:path*`,
+      },
+      {
+        source: "/api/:path*",
+        destination: `${apiBase}/:path*`,
+      },
+    ];
+  },
 };
 
 export default withSerwist(withNextIntl(nextConfig));

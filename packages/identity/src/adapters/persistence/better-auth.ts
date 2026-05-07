@@ -7,6 +7,7 @@ import { sql } from "drizzle-orm";
 import { appPool, LibsodiumKeyStore, withUserContext } from "@budget/platform";
 import { loadEnv, UserId } from "@budget/shared-kernel";
 import type { EmailSender } from "@budget/shared-kernel";
+import { users, sessions, accounts, verifications } from "./schema";
 
 export interface CreateAuthOptions {
   emailSender: EmailSender;
@@ -21,9 +22,22 @@ export function createAuth(opts: CreateAuthOptions) {
     database: drizzleAdapter(db, {
       provider: "pg",
       usePlural: false,
+      schema: {
+        user: users,
+        session: sessions,
+        account: accounts,
+        verification: verifications,
+      },
     }),
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
+    basePath: "/auth",
+    trustedOrigins: [
+      env.APP_URL,
+      ...(env.TRUSTED_ORIGINS?.split(",")
+        .map((o) => o.trim())
+        .filter(Boolean) ?? []),
+    ],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false, // D-13 grace login
@@ -58,46 +72,54 @@ export function createAuth(opts: CreateAuthOptions) {
           required: true,
           defaultValue: "en",
         },
-        display_currency: {
+        displayCurrency: {
           type: "string",
           input: true,
           required: true,
           defaultValue: "USD",
         },
-        preferred_llm_provider: {
+        preferredLlmProvider: {
           type: "string",
           input: true,
           required: false,
         },
-        preferred_stt_provider: {
+        preferredSttProvider: {
           type: "string",
           input: true,
           required: false,
         },
       },
     },
-    // D-16 wiring: hash email at create-before; generate DEK at create-after via withUserContext (PC-03).
+    // D-16 wiring: email hash + DEK written in create-after via withUserContext (PC-03).
+    // email_hash cannot be set in create-before because Better Auth's Drizzle adapter only
+    // includes fields it knows about (core + additionalFields) — bytea fields from the schema
+    // are silently dropped from the INSERT payload. We set it via UPDATE in the after hook
+    // where withUserContext has already established the user context GUC.
     databaseHooks: {
       user: {
         create: {
           before: async (user) => {
-            const hash = await opts.keyStore.emailHash(user.email);
-            // Return extended user data with email_hash
-            // Better Auth merges this into the INSERT
             return {
-              data: { ...user, email_hash: Buffer.from(hash) } as typeof user,
+              data: {
+                ...user,
+                id: crypto.randomUUID(),
+              } as typeof user,
             };
           },
           // PC-03: use withUserContext (Plan 02 Task 2) — raw pool.connect() is forbidden here (CI gate)
           // PC-09: best-effort write; user row commits before this hook fires. A reconciliation
           // worker (Phase 6) detects users with no user_keys row and back-fills.
           after: async (user) => {
-            const wrapped = await opts.keyStore.generateUserDek(
-              user.id as never,
-            );
+            const [hash, wrapped] = await Promise.all([
+              opts.keyStore.emailHash(user.email as string),
+              opts.keyStore.generateUserDek(user.id as never),
+            ]);
             const r = await withUserContext(
               UserId(user.id as string),
               async (tx) => {
+                await tx.execute(sql`
+                  UPDATE identity.users SET email_hash = ${Buffer.from(hash)} WHERE id = ${user.id}::uuid
+                `);
                 await tx.execute(sql`
                   INSERT INTO shared_kernel.user_keys (user_id, cipher_dek, nonce)
                   VALUES (${user.id}, ${Buffer.from(wrapped.cipherDek)}, ${Buffer.from(wrapped.nonce)})
@@ -107,10 +129,8 @@ export function createAuth(opts: CreateAuthOptions) {
             );
             if (r.isErr()) {
               // Log but do NOT throw — Phase 6 reconciliation backstop covers the gap.
-              // Throwing here would orphan the already-committed user row and Better Auth
-              // would surface a confusing error after a successful sign-up.
               console.error(
-                "[identity] DEK insert failed for user",
+                "[identity] post-create setup failed for user",
                 user.id,
                 r.error,
               );

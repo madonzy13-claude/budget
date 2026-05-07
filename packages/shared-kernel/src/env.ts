@@ -13,6 +13,7 @@ const schema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url(),
   APP_URL: z.string().url(),
+  TRUSTED_ORIGINS: z.string().optional(),
   REGION: z.string().default("eu-central-1"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });

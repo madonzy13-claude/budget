@@ -1,0 +1,1 @@
+ALTER TABLE "identity"."users" ALTER COLUMN "email_hash" DROP NOT NULL;

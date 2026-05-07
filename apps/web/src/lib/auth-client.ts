@@ -4,7 +4,8 @@ import { createAuthClient } from "better-auth/client";
 // T-10: SameSite=Lax cookie + CSRF header on POST/PUT/PATCH/DELETE.
 // The Better Auth client handles CSRF token injection automatically.
 export const authClient = createAuthClient({
-  baseURL: process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001",
+  // No baseURL: Better Auth auto-detects window.location.origin.
+  // /api/auth/* is proxied server-side to the API container via next.config rewrites.
 });
 
 export const { signIn, signUp, signOut, useSession, sendVerificationEmail } =

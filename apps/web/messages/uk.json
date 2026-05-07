@@ -37,7 +37,7 @@
     },
     "email": {
       "label": "Електронна адреса",
-      "placeholder": "ви@приклад.ua"
+      "placeholder": "you@example.com"
     },
     "password": {
       "label": "Пароль",
@@ -46,6 +46,12 @@
     "name": {
       "label": "Повне ім'я",
       "placeholder": "Ваше ім'я"
+    },
+    "validation": {
+      "email_invalid": "Адреса електронної пошти недійсна. Перевірте формат і спробуйте знову.",
+      "password_required": "Пароль є обов'язковим.",
+      "password_min_length": "Пароль має містити щонайменше 8 символів.",
+      "name_required": "Ім'я є обов'язковим."
     },
     "loading": "Вхід...",
     "signup_loading": "Створення облікового запису...",

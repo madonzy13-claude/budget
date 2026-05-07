@@ -47,6 +47,12 @@
       "label": "Full name",
       "placeholder": "Your name"
     },
+    "validation": {
+      "email_invalid": "Email isn't a valid address. Check the format and try again.",
+      "password_required": "Password is required.",
+      "password_min_length": "Password must be at least 8 characters.",
+      "name_required": "Name is required."
+    },
     "loading": "Signing in...",
     "signup_loading": "Creating account...",
     "reset_loading": "Sending link...",

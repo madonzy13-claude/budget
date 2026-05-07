@@ -8,15 +8,18 @@ import type { AppType } from "@/types/api-type";
 
 type AnyApi = any;
 
-export const api: AnyApi = hc<AppType>(
-  process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001",
-  {
-    fetch: (input: RequestInfo | URL, init?: RequestInit) =>
-      fetch(input, {
-        ...init,
-        credentials: "include",
-      }),
-  },
-);
+// Server-side: use internal Docker URL; browser: same-origin via Next.js rewrite /api/*
+const _apiBase =
+  typeof window !== "undefined"
+    ? ""
+    : (process.env["API_INTERNAL_URL"] ?? "http://api:4000");
+
+export const api: AnyApi = hc<AppType>(_apiBase, {
+  fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+    fetch(input, {
+      ...init,
+      credentials: "include",
+    }),
+});
 
 export type { AppType };

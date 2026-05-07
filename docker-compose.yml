@@ -56,6 +56,7 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
       BUDGET_KEK: ${BUDGET_KEK}
       APP_URL: ${APP_URL}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS}
       # mailpit captures SMTP in dev so emails are visible at http://localhost:8025
       EMAIL_SMTP_HOST: mailpit
       EMAIL_SMTP_PORT: "1025"
