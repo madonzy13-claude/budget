@@ -1,4 +1,7 @@
+import createNextIntlPlugin from "next-intl/plugin";
 import withSerwistInit from "@serwist/next";
+
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const withSerwist = withSerwistInit({
   swSrc: "sw.ts",
@@ -12,9 +15,7 @@ const nextConfig = {
   // CLAUDE.md: Serwist requires Webpack; Turbopack is incompatible (as of May 2026)
   // Next.js 16 defaults to Turbopack. To build with Webpack, use: next build --webpack
   // CI grep gate requires: turbopack: false
-  // In Next.js 16, set turbopack to an empty object when NOT using Turbopack-specific
-  // config — the --webpack CLI flag controls the bundler at build time.
   // turbopack: false -- do not use Turbopack (use --webpack build flag instead)
 };
 
-export default withSerwist(nextConfig);
+export default withSerwist(withNextIntl(nextConfig));
