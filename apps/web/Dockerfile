@@ -15,6 +15,8 @@ COPY apps/web/package.json ./apps/web/
 COPY packages/ ./packages/
 COPY apps/api/package.json ./apps/api/
 COPY apps/api/src/ ./apps/api/src/
+COPY apps/worker/package.json ./apps/worker/
+COPY apps/migrator/package.json ./apps/migrator/
 
 # Install all dependencies
 RUN bun install --frozen-lockfile
@@ -33,7 +35,7 @@ ENV NEXT_PUBLIC_API_URL=http://localhost:3001
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=$GIT_COMMIT
 
-RUN bunx next build apps/web
+RUN cd apps/web && bunx next build
 
 # Stage 3: Runtime
 FROM oven/bun:1.3-slim AS runtime
