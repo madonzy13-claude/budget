@@ -284,6 +284,13 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: "1"
         run: bunx bddgen && bunx playwright test --reporter=list
+      - name: Diagnostic — api/web container logs on failure
+        if: failure()
+        run: |
+          for svc in api web worker; do
+            echo "=== logs: $svc ==="
+            docker compose logs --no-color --tail=200 "$svc" 2>&1
+          done
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
