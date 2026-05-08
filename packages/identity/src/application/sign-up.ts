@@ -21,7 +21,7 @@ export async function signUp(
         password: input.password,
         name: input.name,
         locale: input.locale,
-        display_currency: input.displayCurrency,
+        displayCurrency: input.displayCurrency,
       },
     });
     return ok({ userId: r.user.id });
