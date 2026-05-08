@@ -53,7 +53,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/node": "latest",
-    "typescript": "^5.6.0",
+    "typescript": "^6.0.3",
     "postcss": "latest",
     "@vitejs/plugin-react": "latest"
   }
