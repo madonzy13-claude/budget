@@ -1,13 +1,24 @@
 name: CI
+
 on:
-  push:
-    branches: ["**"]
   pull_request:
-    branches: ["**"]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
 
 jobs:
-  lint-and-build:
-    name: Typecheck + Lint + Dep-cruiser
+  lint:
+    name: Lint (ESLint + Prettier)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,27 +27,52 @@ jobs:
           bun-version: 1.3.x
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Typecheck (root)
-        run: bunx tsc --noEmit -p tsconfig.json 2>/dev/null || true
-
-      - name: Typecheck (apps/web)
-        run: bunx tsc --noEmit -p apps/web/tsconfig.json 2>/dev/null || true
-
       - name: ESLint
         run: bunx eslint apps packages --ext .ts,.tsx --max-warnings 0
+      - name: Prettier
+        run: bunx prettier --check "apps/**/*.{ts,tsx}" "packages/**/*.{ts,tsx}" "tests/**/*.ts"
 
-      - name: dependency-cruiser (ENGR-10 — domain must not import drizzle-orm | hono | adapters)
+  typecheck:
+    name: Typecheck (workspaces)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck all workspaces
+        run: bun run typecheck
+
+  depcheck:
+    name: dependency-cruiser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: dependency-cruiser
         run: bunx depcruise --config .dependency-cruiser.cjs --output-type err apps packages
 
-      - name: grep-gate — ban .transaction( outside packages/platform/src/db/tx.ts (PC-04)
+  grep-gates:
+    name: Grep gates (PC-03, PC-04)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - name: ban .transaction( outside tx.ts (PC-04)
         run: bun run grep:no-direct-tx
-
-      - name: grep-gate — ban appPool().connect( outside tx.ts (PC-03)
+      - name: ban appPool().connect( outside tx.ts (PC-03)
         run: bun run grep:no-pool-connect
 
   unit-tests:
-    name: Unit Tests (bun:test)
+    name: Unit tests (bun:test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,9 +83,16 @@ jobs:
         run: bun install --frozen-lockfile
       - name: bun test
         run: bun test
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-bun
+          path: coverage/
+          if-no-files-found: ignore
 
   web-tests:
-    name: Frontend Tests (Vitest)
+    name: Web tests (Vitest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,13 +104,11 @@ jobs:
           node-version: "20"
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Vitest (apps/web)
+      - name: Vitest
         run: bunx vitest run --root apps/web
-      - name: Next.js build (type-safety smoke)
-        run: bunx next build apps/web --no-lint 2>/dev/null || true
 
   tenant-leak-gate:
-    name: Tenant Leak CI Gate (T-1, T-2, T-3, PC-08, PC-12)
+    name: Tenant leak gate (T-1, T-2, T-3, PC-08, PC-12)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -76,8 +117,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
           POSTGRES_DB: budget
-        ports:
-          - 5432:5432
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -90,28 +130,19 @@ jobs:
           bun-version: 1.3.x
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
       - name: Create DB roles (NOBYPASSRLS)
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE app_role LOGIN PASSWORD 'app_pwd' NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE worker_role LOGIN PASSWORD 'worker_pwd' NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE migrator LOGIN PASSWORD 'migrator_pwd' NOBYPASSRLS NOSUPERUSER CREATEDB NOCREATEROLE;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION migrator;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS tenancy AUTHORIZATION migrator;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS shared_kernel AUTHORIZATION migrator;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS comparison AUTHORIZATION migrator;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE SCHEMA IF NOT EXISTS budgeting AUTHORIZATION migrator;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE migrator LOGIN PASSWORD 'migrator_pwd' NOBYPASSRLS NOCREATEROLE;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE app_role LOGIN PASSWORD 'app_pwd' NOBYPASSRLS NOCREATEROLE;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "CREATE ROLE worker_role LOGIN PASSWORD 'worker_pwd' NOBYPASSRLS NOCREATEROLE;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "GRANT ALL ON SCHEMA public TO migrator;"
           PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "GRANT CREATE ON DATABASE budget TO migrator;"
-          PGPASSWORD=postgres psql -h localhost -U postgres -d budget -c "GRANT ALL ON SCHEMA identity, tenancy, shared_kernel, comparison, budgeting TO migrator;"
-
       - name: Run Drizzle migrations
         env:
           DATABASE_URL_MIGRATOR: postgresql://migrator:migrator_pwd@localhost:5432/budget
         run: bunx drizzle-kit migrate --config apps/migrator/drizzle.config.ts
-
-      - name: Apply post-migration SQL (FORCE RLS + grants)
+      - name: Apply post-migration SQL
         run: PGPASSWORD=postgres psql -h localhost -U postgres -d budget -f apps/migrator/post-migration.sql
-
       - name: Run tenant-leak tests (Tests 1-5)
         env:
           DATABASE_URL_APP: postgresql://app_role:app_pwd@localhost:5432/budget
@@ -120,9 +151,8 @@ jobs:
         run: bun test tests/tenant-leak --timeout 30000
 
   compose-smoke:
-    name: Docker Compose Smoke Test
+    name: Compose smoke (prod-only)
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'compose-smoke')
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -130,14 +160,50 @@ jobs:
           bun-version: 1.3.x
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Docker Compose smoke test
-        run: bash tests/compose-up.sh
+      - name: Generate test .env from CI placeholders
+        run: |
+          cat > .env <<EOF
+          POSTGRES_PASSWORD=postgres
+          APP_ROLE_PASSWORD=app_pwd
+          WORKER_ROLE_PASSWORD=worker_pwd
+          MIGRATOR_ROLE_PASSWORD=migrator_pwd
+          DATABASE_URL_APP=postgresql://app_role:app_pwd@db:5432/budget
+          DATABASE_URL_WORKER=postgresql://worker_role:worker_pwd@db:5432/budget
+          DATABASE_URL_MIGRATOR=postgresql://migrator:migrator_pwd@db:5432/budget
+          BUDGET_KEK=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          BETTER_AUTH_SECRET=ci-test-secret-must-be-at-least-32-characters-long
+          BETTER_AUTH_URL=http://localhost:3000
+          APP_URL=http://localhost:3000
+          TRUSTED_ORIGINS=http://localhost:3000
+          SMTP_HOST=
+          SMTP_PORT=0
+          SMTP_FROM=
+          SMTP_USER=
+          SMTP_PASS=
+          REGION=ci
+          LOG_LEVEL=info
+          EOF
+      - name: Build prod-only stack
+        run: docker compose -f docker-compose.yml build
+      - name: Start prod-only stack and wait for health
+        run: docker compose -f docker-compose.yml up -d --wait
+      - name: Verify mailpit is NOT in this stack
+        run: |
+          if docker compose -f docker-compose.yml ps --services | grep -qx mailpit; then
+            echo "FAIL: mailpit must not be in prod compose"
+            exit 1
+          fi
+      - name: Curl healthchecks
+        run: |
+          curl -f http://localhost:3000/en/health
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v --remove-orphans
 
-  playwright-cross-tenant-cache:
-    name: "Playwright E2E: cross-tenant cache (PC-10)"
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'e2e')
+  e2e:
+    name: E2E (Playwright BDD)
     needs: [compose-smoke]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -150,14 +216,89 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
-      - name: Start compose stack
+      - name: Generate test .env (with mailpit for dev override)
+        run: |
+          cat > .env <<EOF
+          POSTGRES_PASSWORD=postgres
+          APP_ROLE_PASSWORD=app_pwd
+          WORKER_ROLE_PASSWORD=worker_pwd
+          MIGRATOR_ROLE_PASSWORD=migrator_pwd
+          DATABASE_URL_APP=postgresql://app_role:app_pwd@db:5432/budget
+          DATABASE_URL_WORKER=postgresql://worker_role:worker_pwd@db:5432/budget
+          DATABASE_URL_MIGRATOR=postgresql://migrator:migrator_pwd@db:5432/budget
+          BUDGET_KEK=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          BETTER_AUTH_SECRET=ci-test-secret-must-be-at-least-32-characters-long
+          BETTER_AUTH_URL=http://localhost:3000
+          APP_URL=http://localhost:3000
+          TRUSTED_ORIGINS=http://localhost:3000
+          REGION=ci
+          LOG_LEVEL=info
+          EOF
+      - name: Start full dev stack (compose with override = mailpit included)
         run: docker compose up -d --wait
-      - name: Seed test users
-        run: bun run scripts/seed-dev.ts 2>/dev/null || true
-      - name: Run cross-tenant-cache Playwright spec (PC-10)
+      - name: Run Playwright BDD
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
-        run: bunx playwright test apps/web/e2e/cross-tenant-cache.spec.ts --reporter=list
-      - name: Stop compose stack
+          CI: "1"
+        run: bunx bddgen && bunx playwright test --reporter=list
+      - name: Upload Playwright report
         if: always()
-        run: docker compose down --remove-orphans
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+      - name: Tear down
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  codeql:
+    name: CodeQL (SAST)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
+
+  gitleaks:
+    name: Gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  bun-audit:
+    name: Bun audit (HIGH+)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: bun pm audit (root)
+        run: bun pm audit --audit-level=high
+
+  dockerfile-lint:
+    name: hadolint (Dockerfile lint)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, web, worker, migrator]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: apps/${{ matrix.service }}/Dockerfile
+          failure-threshold: error
