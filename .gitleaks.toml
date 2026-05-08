@@ -1,0 +1,25 @@
+# Gitleaks configuration — extends the default ruleset with project-specific
+# allowlist for known-safe CI placeholder values.
+#
+# CI workflows generate a .env from heredoc literals. Those literals are
+# placeholders (not real secrets) but trigger generic-high-entropy rules.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "CI placeholder values committed in workflow YAML"
+regexes = [
+  # 32-char placeholder used as BETTER_AUTH_SECRET in CI
+  '''ci-test-secret-must-be-at-least-32-characters-long''',
+  # All-A base64 placeholder used as BUDGET_KEK in CI
+  '''A{30,}=''',
+]
+paths = [
+  # Lockfiles often hash entropy that triggers false positives
+  '''bun\.lock''',
+  '''package-lock\.json''',
+  # Test fixtures embed placeholder credentials
+  '''tests/.*\.feature$''',
+  '''tests/.*fixtures/.*\.ts$''',
+]
