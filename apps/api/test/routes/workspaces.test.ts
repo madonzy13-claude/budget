@@ -25,18 +25,24 @@ mock.module("@budget/platform", () => ({
   }),
   libsodiumReady: async () => {},
   LibsodiumKeyStore: class {},
-  withUserContext: async (_id: unknown, fn: (tx: unknown) => Promise<unknown>) => {
+  withUserContext: async (
+    _id: unknown,
+    fn: (tx: unknown) => Promise<unknown>,
+  ) => {
     const { ok } = await import("@budget/shared-kernel");
     return ok(await fn({}));
   },
-  withTenantTx: async (_id: unknown, _uid: unknown, fn: (tx: unknown) => Promise<unknown>) => {
+  withTenantTx: async (
+    _id: unknown,
+    _uid: unknown,
+    fn: (tx: unknown) => Promise<unknown>,
+  ) => {
     const { ok } = await import("@budget/shared-kernel");
     return ok(await fn({}));
   },
 }));
 
 const { workspacesRoutesFactory } = await import("../../src/routes/workspaces");
-const { tenantGuard } = await import("../../src/middleware/tenant-guard");
 
 function buildApp(session: unknown) {
   const app = new Hono();
@@ -75,7 +81,14 @@ function buildApp(session: unknown) {
         findById: async () => null,
         updateLocale: async () => {},
       },
-      auth: { api: { createOrganization: async (opts: any) => ({ id: "new-ws-id", ...opts.body }) } },
+      auth: {
+        api: {
+          createOrganization: async (opts: any) => ({
+            id: "new-ws-id",
+            ...opts.body,
+          }),
+        },
+      },
     },
     _mockCreate: mockCreate,
   } as any;
