@@ -23,6 +23,9 @@ export function createOrganizationPlugin(deps: OrgDeps) {
           kind: { type: "string", input: true, required: true }, // D-02 TENT-10
           default_currency: { type: "string", input: true, required: true }, // D-04 TENT-11
           slug: { type: "string", input: true, required: true }, // public-facing nanoid
+          // Injected via beforeCreateOrganization hook — `input: false` means callers
+          // cannot pass it from the API; the hook overrides it from the session user.
+          owner_user_id: { type: "string", input: false, required: true },
         },
       },
       member: { modelName: "workspace_members" },
@@ -30,6 +33,31 @@ export function createOrganizationPlugin(deps: OrgDeps) {
     },
 
     organizationHooks: {
+      // tenancy.workspaces has columns owner_user_id (NOT NULL) and member_count
+      // (NOT NULL DEFAULT 1) that Better Auth's org plugin does not populate. Inject
+      // owner_user_id from the creating user; member_count uses its DB default.
+      beforeCreateOrganization: async ({ organization, user }) => {
+        return {
+          data: {
+            ...(organization as Record<string, unknown>),
+            owner_user_id: user.id,
+          },
+        };
+      },
+
+      // D-02: PRIVATE workspaces refuse invitations at creation time (the row should
+      // never exist). The PC-11 BEFORE INSERT trigger on workspace_members is the
+      // race-free wall; this hook stops the invitation up front so we don't generate
+      // an email for an invitation that can never be accepted.
+      beforeCreateInvitation: async ({ organization }) => {
+        const org = organization as unknown as { kind?: "PRIVATE" | "SHARED" };
+        if (org.kind === "PRIVATE") {
+          throw new Error(
+            "PRIVATE workspaces accept only the owner. Convert to SHARED first.",
+          );
+        }
+      },
+
       // D-02: PRIVATE rejects invites (app-layer defense in depth; PC-11 trigger is race-free wall)
       beforeAddMember: async ({ member, organization }) => {
         const org = organization as unknown as {

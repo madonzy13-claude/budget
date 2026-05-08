@@ -28,11 +28,28 @@ interface CurrencyPickerLabels {
   ukrainianHryvniaLabel: string;
 }
 
+interface WorkspacesLabels {
+  emptyCta: RegExp;
+  createNameLabel: RegExp;
+  createCurrencyLabel: RegExp;
+  createCta: RegExp;
+}
+
+interface SettingsLabels {
+  displayCurrencyTab: RegExp;
+  displayCurrencyLabel: RegExp;
+  localeTab: RegExp;
+  localeSelectLabel: RegExp;
+  localeOption: Record<"en" | "pl" | "uk", RegExp>;
+}
+
 interface LocaleLabels {
   signUp: SignUpLabels;
   signIn: SignInLabels;
   verifyEmailSubject: RegExp;
   currencyPicker: CurrencyPickerLabels;
+  workspaces: WorkspacesLabels;
+  settings: SettingsLabels;
 }
 
 export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
@@ -58,6 +75,23 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
       usDollarLabel: "US Dollar",
       ukrainianHryvniaLabel: "Ukrainian Hryvnia",
     },
+    workspaces: {
+      emptyCta: /create workspace/i,
+      createNameLabel: /workspace name/i,
+      createCurrencyLabel: /default currency/i,
+      createCta: /create workspace/i,
+    },
+    settings: {
+      displayCurrencyTab: /display currency/i,
+      displayCurrencyLabel: /display currency/i,
+      localeTab: /^language$/i,
+      localeSelectLabel: /display language/i,
+      localeOption: {
+        en: /english/i,
+        pl: /polski/i,
+        uk: /українська/i,
+      },
+    },
   },
   pl: {
     signUp: {
@@ -81,6 +115,23 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
       usDollarLabel: "Dolar amerykański",
       ukrainianHryvniaLabel: "Hrywna ukraińska",
     },
+    workspaces: {
+      emptyCta: /utwórz obszar roboczy/i,
+      createNameLabel: /nazwa obszaru roboczego/i,
+      createCurrencyLabel: /domyślna waluta/i,
+      createCta: /utwórz obszar roboczy/i,
+    },
+    settings: {
+      displayCurrencyTab: /waluta wyświetlania/i,
+      displayCurrencyLabel: /waluta wyświetlania/i,
+      localeTab: /język/i,
+      localeSelectLabel: /język wyświetlania/i,
+      localeOption: {
+        en: /english/i,
+        pl: /polski/i,
+        uk: /українська/i,
+      },
+    },
   },
   uk: {
     signUp: {
@@ -103,6 +154,23 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
       topCurrenciesHeader: /популярні валюти/i,
       usDollarLabel: "Долар США",
       ukrainianHryvniaLabel: "Українська гривня",
+    },
+    workspaces: {
+      emptyCta: /створити робочий простір/i,
+      createNameLabel: /назва робочого простору/i,
+      createCurrencyLabel: /типова валюта/i,
+      createCta: /створити робочий простір/i,
+    },
+    settings: {
+      displayCurrencyTab: /валюта відображення/i,
+      displayCurrencyLabel: /валюта відображення/i,
+      localeTab: /мова/i,
+      localeSelectLabel: /мова інтерфейсу/i,
+      localeOption: {
+        en: /english/i,
+        pl: /polski/i,
+        uk: /українська/i,
+      },
     },
   },
 };

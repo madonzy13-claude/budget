@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import { MailCheck } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -7,10 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SignInForm } from "@/components/auth/sign-in-form";
+import { BrandMark } from "@/components/common/brand-mark";
+import { SiteFooter } from "@/components/common/site-footer";
 
 interface SignInPageProps {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateMetadata({ params }: SignInPageProps) {
@@ -19,40 +24,73 @@ export async function generateMetadata({ params }: SignInPageProps) {
   return { title: t("heading") };
 }
 
-export default async function SignInPage({ params }: SignInPageProps) {
+export default async function SignInPage({
+  params,
+  searchParams,
+}: SignInPageProps) {
   const { locale } = await params;
+  const sp = await searchParams;
   const t = await getTranslations({ locale, namespace: "auth" });
+  const showVerifyPending = sp.verify === "pending";
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-semibold leading-9">
-              {t("signin.heading")}
-            </CardTitle>
-            <CardDescription>{t("have_account")} </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SignInForm locale={locale} />
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              <Link
-                href={`/${locale}/sign-up`}
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                {t("signup_link")}
-              </Link>
-              <span className="mx-2">·</span>
-              <Link
-                href={`/${locale}/reset-password`}
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                {t("signin.forgot")}
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+    <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)]">
+      <header className="border-b border-[var(--hairline-dark)]">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
+          <BrandMark href={`/${locale}`} />
+          <div className="text-nav-link text-[var(--muted-foreground)]">
+            <span className="num text-[13px] uppercase tracking-wide">
+              {locale.toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md">
+          {showVerifyPending && (
+            <Alert
+              variant="warning"
+              className="mb-6"
+              data-testid="verify-pending-banner"
+            >
+              <MailCheck />
+              <AlertTitle>{t("signin.verify_pending.title")}</AlertTitle>
+              <AlertDescription>
+                {t("signin.verify_pending.body")}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Card>
+            <CardHeader className="gap-2">
+              <CardTitle className="text-display-sm">
+                {t("signin.heading")}
+              </CardTitle>
+              <CardDescription>{t("have_account")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <SignInForm locale={locale} />
+              <div className="flex items-center justify-between text-sm text-[var(--muted-foreground)]">
+                <Link
+                  href={`/${locale}/sign-up`}
+                  className="font-medium text-[var(--on-dark)] underline-offset-4 hover:underline"
+                >
+                  {t("signup_link")}
+                </Link>
+                <Link
+                  href={`/${locale}/reset-password`}
+                  className="font-medium text-[var(--primary)] hover:text-[var(--primary-active)]"
+                >
+                  {t("signin.forgot")}
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }

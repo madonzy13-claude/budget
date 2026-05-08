@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
@@ -19,6 +20,8 @@ interface LocaleSelectProps {
 
 export function LocaleSelect({ initialLocale }: LocaleSelectProps) {
   const t = useTranslations("settings");
+  const router = useRouter();
+  const pathname = usePathname();
   const [locale, setLocale] = useState(initialLocale);
 
   const handleChange = async (newLocale: string) => {
@@ -32,6 +35,13 @@ export function LocaleSelect({ initialLocale }: LocaleSelectProps) {
         throw new Error("Failed to update locale");
       }
       toast.success(t("save_success"));
+      // Replace the leading /<locale>/ segment in the URL so the page
+      // re-renders with messages for the chosen language. Persistence is
+      // URL-driven; the DB row keeps the user's preference for any future
+      // session-aware redirects.
+      const next = pathname.replace(/^\/(en|pl|uk)/, `/${newLocale}`);
+      router.replace(next || `/${newLocale}`);
+      router.refresh();
     } catch {
       setLocale(previous);
       toast.error(

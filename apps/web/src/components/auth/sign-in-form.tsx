@@ -52,13 +52,23 @@ export function SignInForm({ locale }: SignInFormProps) {
     });
 
     if (result.error) {
-      setServerError(
-        result.error.message ??
-          t("signin.error_generic", {
-            defaultValue:
-              "Sign in failed. Check your credentials and try again.",
-          }),
-      );
+      const errAsRecord = result.error as unknown as Record<string, unknown>;
+      const code = typeof errAsRecord.code === "string" ? errAsRecord.code : "";
+      const message = (result.error.message ?? "").toLowerCase();
+      const isUnverified =
+        code === "EMAIL_NOT_VERIFIED" ||
+        message.includes("email not verified") ||
+        message.includes("verify your email");
+      const isInvalidCreds =
+        code === "INVALID_EMAIL_OR_PASSWORD" ||
+        code === "INVALID_CREDENTIALS" ||
+        message.includes("invalid email or password") ||
+        message.includes("invalid credentials");
+      let next: string;
+      if (isUnverified) next = t("signin.error_email_not_verified");
+      else if (isInvalidCreds) next = t("signin.error_invalid_credentials");
+      else next = result.error.message ?? t("signin.error_generic");
+      setServerError(next);
       return;
     }
 

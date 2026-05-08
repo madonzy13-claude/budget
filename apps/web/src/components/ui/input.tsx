@@ -1,6 +1,13 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Input — flat hairline-bordered field.
+ *
+ * surface-card-dark fill with hairline-dark border, blue focus ring, red
+ * aria-invalid border. Tokens live in global.css; this component reads
+ * them via CSS variables only.
+ */
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
@@ -9,7 +16,17 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm aria-invalid:border-destructive aria-invalid:ring-destructive/20",
+          "flex h-10 w-full min-w-0 px-3 py-2 text-sm",
+          "rounded-[var(--radius-md)] border border-[var(--input)]",
+          "bg-[color-mix(in_oklab,var(--card)_92%,transparent)]",
+          "text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]",
+          "transition-colors",
+          "focus-visible:border-[var(--info)] focus-visible:outline-none",
+          "focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--info)_45%,transparent)]",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          "aria-invalid:border-[var(--trading-down)]",
+          "aria-invalid:ring-2 aria-invalid:ring-[color-mix(in_oklab,var(--trading-down)_30%,transparent)]",
+          "file:border-0 file:bg-transparent file:text-sm file:font-medium",
           className,
         )}
         ref={ref}

@@ -11,7 +11,7 @@ type AnyApi = any;
 // Server-side: use internal Docker URL; browser: same-origin via Next.js rewrite /api/*
 const _apiBase =
   typeof window !== "undefined"
-    ? ""
+    ? "/api"
     : (process.env["API_INTERNAL_URL"] ?? "http://api:4000");
 
 export const api: AnyApi = hc<AppType>(_apiBase, {

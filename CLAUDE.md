@@ -368,6 +368,8 @@ Claude must run tests itself before asking the user to manually test anything. U
 
 #### Non-negotiable Rules
 
+0. **Bug reports imply missing tests**: When the user reports a bug, always start by writing a failing test that reproduces it — then fix. A bug without a test means the test suite has a gap; close it before touching implementation.
+
 1. **TDD cycle**: red → green → refactor. Test first, always.
 2. **Claude tests before user tests**: run `make test` or `make test-e2e` and verify passing before asking the user to click anything.
 3. **No DB mocking in integration tests** — always use real Postgres (Docker or testcontainers).
@@ -434,3 +436,14 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 > This section is managed by `generate-claude-profile` -- do not edit manually.
 
 <!-- GSD:profile-end -->
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)

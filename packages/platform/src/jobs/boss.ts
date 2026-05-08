@@ -1,11 +1,11 @@
 import { PgBoss } from "pg-boss";
-import { loadEnv } from "@budget/shared-kernel";
+import { loadWorkerEnv } from "@budget/shared-kernel";
 
 let boss: PgBoss | undefined;
 
 export async function getBoss(): Promise<PgBoss> {
   if (boss) return boss;
-  const env = loadEnv();
+  const env = loadWorkerEnv();
   boss = new PgBoss({
     connectionString: env.DATABASE_URL_WORKER,
     schema: "pgboss",

@@ -12,11 +12,13 @@
  * Returns { tenantA, tenantB, aliceId, bobId } for use in leak assertions.
  */
 import { createIdentityModule } from "@budget/identity";
+import { createTenancyModule } from "@budget/tenancy";
 import { signUp } from "@budget/identity/src/application/sign-up";
 import { createWorkspace } from "@budget/tenancy/src/application/create-workspace";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { sql } from "drizzle-orm";
+import { Pool } from "pg";
 
 export interface SeedResult {
   tenantA: TenantId;
@@ -30,11 +32,27 @@ const noopEmailSender = {
   send: async () => {},
 };
 
-// Stub key store (tests don't need real crypto keys)
+// Stub key store (tests don't need real crypto keys, but Better Auth's
+// post-create user hook calls keyStore.emailHash + keyStore.generateUserDek
+// to populate identity.users.email_hash + shared_kernel.user_keys).
+// emailHash MUST be deterministic-per-email so the users_email_hash_uq unique
+// index is satisfied across multiple seeded users.
+function deterministicHash(input: string): Uint8Array {
+  const out = new Uint8Array(32);
+  for (let i = 0; i < input.length; i++) {
+    out[i % 32] ^= input.charCodeAt(i);
+  }
+  return out;
+}
 const noopKeyStore = {
   deriveKey: async (_userId: string) => new Uint8Array(32),
   storeKey: async () => {},
   deleteKey: async () => {},
+  emailHash: async (email: string) => deterministicHash(email.toLowerCase()),
+  generateUserDek: async (_userId: string) => ({
+    cipherDek: new Uint8Array(64),
+    nonce: new Uint8Array(24),
+  }),
 };
 
 let cached: SeedResult | undefined;
@@ -50,6 +68,13 @@ let cached: SeedResult | undefined;
 export async function seedTwoTenants(): Promise<SeedResult> {
   if (cached) return cached;
 
+  const tenancyModule = createTenancyModule({
+    emailSender: noopEmailSender as Parameters<
+      typeof createTenancyModule
+    >[0]["emailSender"],
+    appUrl: "http://localhost:3000",
+  });
+
   const identityModule = createIdentityModule({
     emailSender: noopEmailSender as Parameters<
       typeof createIdentityModule
@@ -57,6 +82,8 @@ export async function seedTwoTenants(): Promise<SeedResult> {
     keyStore: noopKeyStore as Parameters<
       typeof createIdentityModule
     >[0]["keyStore"],
+    additionalPlugins: [tenancyModule.organizationPlugin],
+    additionalSchema: tenancyModule.betterAuthSchema,
   });
 
   // auth is the Better Auth instance; createWorkspace calls auth.api.createOrganization
@@ -86,7 +113,7 @@ export async function seedTwoTenants(): Promise<SeedResult> {
     { auth },
     {
       email: "bob@example.test",
-      password: "BobP@ss1",
+      password: "BobP@ssword1",
       name: "Bob Test",
       locale: "en",
       displayCurrency: "USD",
@@ -98,31 +125,29 @@ export async function seedTwoTenants(): Promise<SeedResult> {
     }
   }
 
-  // Retrieve user IDs via Better Auth admin API
-  const aliceUser = await (
-    auth as {
-      api: {
-        getUserByEmail: (opts: {
-          query: { email: string };
-        }) => Promise<{ id: string } | null>;
-      };
-    }
-  ).api.getUserByEmail({ query: { email: "alice@example.test" } });
-  const bobUser = await (
-    auth as {
-      api: {
-        getUserByEmail: (opts: {
-          query: { email: string };
-        }) => Promise<{ id: string } | null>;
-      };
-    }
-  ).api.getUserByEmail({ query: { email: "bob@example.test" } });
+  // Retrieve user IDs by raw SQL — Better Auth's stock API doesn't expose
+  // getUserByEmail without the admin plugin. PC-28 raw-client carve-out applies.
+  const adminPool = new Pool({
+    connectionString: process.env.DATABASE_URL_APP!,
+  });
+  const aliceRow = (
+    await adminPool.query<{ id: string }>(
+      "SELECT id FROM identity.users WHERE lower(email) = $1",
+      ["alice@example.test"],
+    )
+  ).rows[0];
+  const bobRow = (
+    await adminPool.query<{ id: string }>(
+      "SELECT id FROM identity.users WHERE lower(email) = $1",
+      ["bob@example.test"],
+    )
+  ).rows[0];
+  await adminPool.end();
+  if (!aliceRow?.id) throw new Error("alice user not found after signUp");
+  if (!bobRow?.id) throw new Error("bob user not found after signUp");
 
-  if (!aliceUser?.id) throw new Error("alice user not found after signUp");
-  if (!bobUser?.id) throw new Error("bob user not found after signUp");
-
-  const aliceId = UserId(aliceUser.id);
-  const bobId = UserId(bobUser.id);
+  const aliceId = UserId(aliceRow.id);
+  const bobId = UserId(bobRow.id);
 
   // Create tenantA: PRIVATE workspace owned by alice
   const wsAResult = await createWorkspace(

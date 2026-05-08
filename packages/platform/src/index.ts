@@ -16,3 +16,5 @@ export * from "./jobs/worker-handler";
 export * from "./crypto/user-keys-schema";
 export * from "./crypto/libsodium-key-store";
 export * from "./crypto/dek-context";
+export * from "./email/templates";
+export * from "./email/smtp-email-sender";

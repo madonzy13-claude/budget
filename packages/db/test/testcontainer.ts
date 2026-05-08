@@ -28,8 +28,37 @@ import { resetPools } from "@budget/platform";
  * Bun-native approach.
  */
 
+// Docker label applied to every test container so leaked containers can be
+// found and removed by tooling (`make test:clean`) and the signal handlers
+// installed below if a test process is killed before stopTestcontainer() runs.
+const TESTCONTAINER_LABEL = "budget-testcontainer=1";
+
 let bootedPromise: Promise<void> | undefined;
 let containerId: string | undefined;
+let signalHandlersInstalled = false;
+
+function installSignalHandlers(): void {
+  if (signalHandlersInstalled) return;
+  signalHandlersInstalled = true;
+  const cleanup = (signal: NodeJS.Signals) => {
+    if (containerId) {
+      const id = containerId;
+      containerId = undefined;
+      try {
+        Bun.spawnSync(["docker", "rm", "-f", id], {
+          stdout: "ignore",
+          stderr: "ignore",
+        });
+      } catch {
+        /* best effort */
+      }
+    }
+    process.exit(signal === "SIGINT" ? 130 : 143);
+  };
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+  process.on("SIGHUP", cleanup);
+}
 
 async function runCmd(cmd: string[]): Promise<string> {
   const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
@@ -52,6 +81,7 @@ export async function startTestcontainer(): Promise<{
   if (bootedPromise) {
     await bootedPromise;
   } else {
+    installSignalHandlers();
     bootedPromise = (async () => {
       // Start postgres:17-alpine container with a random port and built-in healthcheck
       containerId = await runCmd([
@@ -59,6 +89,8 @@ export async function startTestcontainer(): Promise<{
         "run",
         "--rm",
         "-d",
+        "--label",
+        TESTCONTAINER_LABEL,
         "-e",
         "POSTGRES_PASSWORD=postgres",
         "-e",
@@ -142,6 +174,12 @@ export async function startTestcontainer(): Promise<{
         await adminPool.query(
           `GRANT ALL ON SCHEMA identity, tenancy, shared_kernel, comparison, budgeting TO migrator`,
         );
+        // PG15+ revokes default CREATE on the public schema. Drizzle migrations
+        // generate types/tables in the public schema (e.g. audit_action enum,
+        // pg-boss queue tables in production), so the migrator role needs CREATE
+        // on it during testcontainer bootstrap. Production grants this in
+        // infra/postgres/init/02-grants.sql.
+        await adminPool.query(`GRANT ALL ON SCHEMA public TO migrator`);
       } finally {
         await adminPool.end();
       }

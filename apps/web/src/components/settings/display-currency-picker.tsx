@@ -16,6 +16,9 @@ interface DisplayCurrencyPickerProps {
  * On select, fires PUT /api/settings/display-currency mutation (MONY-09).
  * PC-16: asserted in test/display-currency-picker.test.tsx
  * i18n: settings.display_currency.helper, settings.display_currency.label
+ *
+ * The settings page is a server component that fetches the user's saved
+ * displayCurrency via getServerSession() and passes it as initialCurrency.
  */
 export function DisplayCurrencyPicker({
   initialCurrency,
@@ -54,10 +57,10 @@ export function DisplayCurrencyPicker({
           disabled={isSaving}
         />
         {isSaving && (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="h-4 w-4 animate-spin text-[var(--muted-foreground)]" />
         )}
       </div>
-      <p className="text-sm text-muted-foreground">{t("helper")}</p>
+      <p className="text-sm text-[var(--muted-foreground)]">{t("helper")}</p>
     </div>
   );
 }

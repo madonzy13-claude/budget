@@ -12,12 +12,11 @@ export default async function WorkspaceDetailPage({
   const { locale, id: workspaceId } = await params;
   const t = await getTranslations({ locale, namespace: "workspace" });
 
-  // Phase 1: skeleton tabs — populated in Phase 2+
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      <div className="mb-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="mt-2 h-4 w-32" />
+    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <div className="mb-8 space-y-3">
+        <Skeleton className="h-9 w-56" />
+        <Skeleton className="h-4 w-32" />
       </div>
 
       <Tabs defaultValue="members">
@@ -27,9 +26,8 @@ export default async function WorkspaceDetailPage({
           <TabsTrigger value="settings">{t("settings.tab")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="members" className="mt-6">
-          {/* Phase 2: member list with invite + leave/transfer flows */}
-          <p className="text-sm text-muted-foreground">
+        <TabsContent value="members">
+          <p className="text-sm text-[var(--muted-foreground)]">
             Workspace {workspaceId} — members list (Phase 2)
           </p>
           <div className="mt-4 space-y-3">
@@ -38,15 +36,14 @@ export default async function WorkspaceDetailPage({
           </div>
         </TabsContent>
 
-        <TabsContent value="shares" className="mt-6">
-          {/* Phase 2: shares editor with live sum enforcement */}
-          <p className="text-sm text-muted-foreground">
+        <TabsContent value="shares">
+          <p className="text-sm text-[var(--muted-foreground)]">
             Shares editor (Phase 2)
           </p>
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-6">
-          <p className="text-sm text-muted-foreground">
+        <TabsContent value="settings">
+          <p className="text-sm text-[var(--muted-foreground)]">
             Workspace settings (Phase 2)
           </p>
         </TabsContent>

@@ -21,8 +21,11 @@ export const workspaces = tenancy.table(
     slug: text("slug").notNull().unique(), // nanoid(12), public-facing per D-22
     name: text("name").notNull(),
     kind: workspaceKind("kind").notNull(), // D-02, TENT-10
-    defaultCurrency: text("default_currency").notNull(), // D-04, TENT-11 (immutable via post-migration trigger)
-    ownerUserId: uuid("owner_user_id").notNull(),
+    // Snake-case JS keys intentional: Better Auth org plugin's additionalFields
+    // are keyed `default_currency` / `owner_user_id`, and the Drizzle adapter
+    // looks up `schema.workspaces.<field>` directly when persisting org rows.
+    default_currency: text("default_currency").notNull(), // D-04, TENT-11 (immutable via post-migration trigger)
+    owner_user_id: uuid("owner_user_id").notNull(),
     memberCount: integer("member_count").notNull().default(1),
     metadata: text("metadata"), // Better Auth org metadata
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -44,7 +47,9 @@ export const workspaceMembers = tenancy.table(
   "workspace_members",
   {
     id: uuid("id").primaryKey(),
-    workspaceId: uuid("workspace_id")
+    // JS key matches Better Auth org plugin's member.organizationId field name;
+    // column name remains workspace_id.
+    organizationId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id),
     userId: uuid("user_id").notNull(),
@@ -58,8 +63,8 @@ export const workspaceMembers = tenancy.table(
       as: "permissive",
       for: "all",
       to: [appRole, workerRole],
-      using: sql`${t.workspaceId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
-      withCheck: sql`${t.workspaceId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
+      using: sql`${t.organizationId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
+      withCheck: sql`${t.organizationId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
     }),
     // PC-01: bootstrap-self policy. Required by Plan 07 tenant-guard which queries this table
     // BEFORE app.tenant_ids is set (chicken-and-egg: GUC is built FROM this query). User is
@@ -76,7 +81,8 @@ export const workspaceMembers = tenancy.table(
 /** Better Auth invitation table; modelName='workspace_invitations'. */
 export const workspaceInvitations = tenancy.table("workspace_invitations", {
   id: uuid("id").primaryKey(),
-  workspaceId: uuid("workspace_id")
+  // JS key matches Better Auth org plugin's invitation.organizationId field name.
+  organizationId: uuid("workspace_id")
     .notNull()
     .references(() => workspaces.id),
   email: text("email").notNull(),

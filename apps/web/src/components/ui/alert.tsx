@@ -2,16 +2,37 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/**
+ * Alert — full-bordered notice card. No side stripes (DESIGN.md absolute ban).
+ *
+ * Variants:
+ *   default      — neutral surface notice (verify-pending banners, soft hints)
+ *   destructive  — trading-down red, used only for blocking errors
+ *   warning      — brand yellow tint, used for verify-email / action-required
+ */
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
+  [
+    "relative w-full rounded-[var(--radius-lg)] border p-4 text-sm",
+    "[&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:size-4",
+    "[&>svg~*]:pl-7 [&>svg+div]:translate-y-[-2px]",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-background text-foreground",
-        destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
-        warning:
-          "border-[oklch(0.45_0.13_80)/50] bg-[oklch(0.96_0.05_95)] text-[oklch(0.45_0.13_80)] [&>svg]:text-[oklch(0.45_0.13_80)]",
+        default: [
+          "border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)]",
+          "[&>svg]:text-[var(--card-foreground)]",
+        ].join(" "),
+        destructive: [
+          "border-[color-mix(in_oklab,var(--trading-down)_50%,transparent)]",
+          "bg-[color-mix(in_oklab,var(--trading-down)_12%,var(--card))]",
+          "text-[var(--trading-down)] [&>svg]:text-[var(--trading-down)]",
+        ].join(" "),
+        warning: [
+          "border-[color-mix(in_oklab,var(--primary)_45%,transparent)]",
+          "bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))]",
+          "text-[var(--primary)] [&>svg]:text-[var(--primary)]",
+        ].join(" "),
       },
     },
     defaultVariants: {
@@ -34,12 +55,12 @@ const Alert = React.forwardRef<
 Alert.displayName = "Alert";
 
 const AlertTitle = React.forwardRef<
-  HTMLParagraphElement,
+  HTMLHeadingElement,
   React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
   <h5
     ref={ref}
-    className={cn("mb-1 font-semibold leading-none tracking-tight", className)}
+    className={cn("mb-1 text-title-sm leading-tight", className)}
     {...props}
   />
 ));
@@ -51,7 +72,7 @@ const AlertDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("text-sm [&_p]:leading-relaxed", className)}
+    className={cn("text-sm leading-relaxed [&_p]:leading-relaxed", className)}
     {...props}
   />
 ));

@@ -7,12 +7,21 @@
       "locale": {
         "label": "Język wyświetlania",
         "helper": "Możesz to zmienić w dowolnym momencie w ustawieniach."
-      }
+      },
+      "error_email_in_use": "Konto z tym adresem e-mail już istnieje. Spróbuj się zalogować.",
+      "error_generic": "Nie udało się utworzyć konta. Spróbuj ponownie."
     },
     "signin": {
       "heading": "Witaj ponownie",
       "cta": "Zaloguj się",
-      "forgot": "Nie pamiętasz hasła?"
+      "forgot": "Nie pamiętasz hasła?",
+      "error_invalid_credentials": "Nieprawidłowy adres e-mail lub hasło.",
+      "error_email_not_verified": "Potwierdź swój adres e-mail przed zalogowaniem. Sprawdź skrzynkę odbiorczą i kliknij link.",
+      "error_generic": "Nie udało się zalogować. Sprawdź dane logowania i spróbuj ponownie.",
+      "verify_pending": {
+        "title": "Sprawdź skrzynkę odbiorczą",
+        "body": "Wysłaliśmy e-mail z linkiem weryfikacyjnym. Kliknij go, zanim się zalogujesz."
+      }
     },
     "reset": {
       "request": {
@@ -223,5 +232,23 @@
     "heading": "Pulpit",
     "no_workspaces": "Nie wybrano żadnych aktywnych obszarów roboczych. Użyj przełącznika obszarów roboczych, aby wybrać co najmniej jeden.",
     "totals_in": "Sumy w {currency}"
+  },
+  "currency": {
+    "picker": {
+      "placeholder": "Wyszukaj walutę...",
+      "aria_label": "Wybierz walutę",
+      "empty": "Nie znaleziono waluty.",
+      "heading": "Popularne waluty"
+    },
+    "names": {
+      "USD": "Dolar amerykański",
+      "EUR": "Euro",
+      "PLN": "Złoty polski",
+      "GBP": "Funt brytyjski",
+      "UAH": "Hrywna ukraińska",
+      "CHF": "Frank szwajcarski",
+      "NOK": "Korona norweska",
+      "SEK": "Korona szwedzka"
+    }
   }
 }

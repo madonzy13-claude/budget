@@ -6,13 +6,32 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { appPool, LibsodiumKeyStore, withUserContext } from "@budget/platform";
 import { loadEnv, UserId } from "@budget/shared-kernel";
-import type { EmailSender } from "@budget/shared-kernel";
+import type { EmailLocale, EmailSender } from "@budget/shared-kernel";
 import { users, sessions, accounts, verifications } from "./schema";
 
 export interface CreateAuthOptions {
   emailSender: EmailSender;
   keyStore: LibsodiumKeyStore;
   additionalPlugins?: BetterAuthOptions["plugins"];
+  additionalSchema?: Record<string, unknown>;
+}
+
+function pickLocale(value?: string): EmailLocale {
+  if (value === "pl" || value === "uk" || value === "en") return value;
+  return "en";
+}
+
+export function buildTrustedOrigins(
+  appUrl: string,
+  trustedOriginsEnv?: string,
+): string[] {
+  return [
+    appUrl,
+    ...(trustedOriginsEnv
+      ?.split(",")
+      .map((o) => o.trim())
+      .filter(Boolean) ?? []),
+  ];
 }
 
 export function createAuth(opts: CreateAuthOptions) {
@@ -27,27 +46,37 @@ export function createAuth(opts: CreateAuthOptions) {
         session: sessions,
         account: accounts,
         verification: verifications,
+        ...(opts.additionalSchema ?? {}),
       },
     }),
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     basePath: "/auth",
-    trustedOrigins: [
-      env.APP_URL,
-      ...(env.TRUSTED_ORIGINS?.split(",")
-        .map((o) => o.trim())
-        .filter(Boolean) ?? []),
-    ],
+    trustedOrigins: buildTrustedOrigins(env.APP_URL, env.TRUSTED_ORIGINS),
+    // All Better Auth-managed primary keys live in `uuid` columns (identity.users,
+    // tenancy.workspaces, tenancy.workspace_members, tenancy.workspace_invitations).
+    // Default IDs are 32-char nanoids which fail the uuid cast at INSERT — generate
+    // v4 UUIDs everywhere instead.
+    advanced: {
+      database: {
+        generateId: () => crypto.randomUUID(),
+      },
+    },
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false, // D-13 grace login
+      // Strict gate: user must click the verification link before any sign-in
+      // creates a session. autoSignIn is disabled so sign-up never returns a
+      // session cookie. After the user clicks the link, autoSignInAfterVerification
+      // (set below) issues the session.
+      requireEmailVerification: true,
       minPasswordLength: 10,
-      autoSignIn: true,
+      autoSignIn: false,
       sendResetPassword: async ({ user, url }) => {
         await opts.emailSender.send({
           to: user.email,
           template: "reset-password",
           vars: { url },
+          locale: pickLocale((user as { locale?: string }).locale),
         });
       },
       resetPasswordTokenExpiresIn: 1800,
@@ -58,6 +87,7 @@ export function createAuth(opts: CreateAuthOptions) {
           to: user.email,
           template: "verify-email",
           vars: { url },
+          locale: pickLocale((user as { locale?: string }).locale),
         });
       },
       sendOnSignUp: true,

@@ -71,7 +71,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const body = c.req.valid("json");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const auth = deps.identity.auth as any;
 
     try {
@@ -85,7 +85,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
           userId: session.user.id,
         },
       });
-      return c.json({ workspaceId: r2.id }, 201);
+      return c.json({ id: r2.id, name: body.name }, 201);
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
       if (/PRIVATE workspaces/.test(msg)) return c.json({ error: msg }, 409);
@@ -100,18 +100,25 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
 
     const { id: workspaceId } = c.req.param();
     const body = c.req.valid("json");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const auth = deps.identity.auth as any;
 
-    const r2 = await auth.api.createInvitation({
-      body: {
-        organizationId: workspaceId,
-        email: body.email,
-        role: body.role,
-        userId: session.user.id,
-      },
-    });
-    return c.json({ invitationId: r2.id }, 201);
+    try {
+      const r2 = await auth.api.createInvitation({
+        body: {
+          organizationId: workspaceId,
+          email: body.email,
+          role: body.role,
+          userId: session.user.id,
+        },
+        headers: c.req.raw.headers,
+      });
+      return c.json({ invitationId: r2.id }, 201);
+    } catch (e) {
+      const msg = (e as Error).message ?? "unknown";
+      if (/PRIVATE workspaces/.test(msg)) return c.json({ error: msg }, 409);
+      throw e;
+    }
   });
 
   // POST /workspaces/:id/leave — leave workspace
@@ -120,7 +127,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const { id: workspaceId } = c.req.param();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const auth = deps.identity.auth as any;
 
     try {
@@ -130,7 +137,8 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
       return c.json({ ok: true });
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
-      if (/Cannot leave as last owner/.test(msg)) return c.json({ error: msg }, 409);
+      if (/Cannot leave as last owner/.test(msg))
+        return c.json({ error: msg }, 409);
       throw e;
     }
   });
@@ -145,7 +153,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
 
       const { id: workspaceId } = c.req.param();
       const body = c.req.valid("json");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const auth = deps.identity.auth as any;
 
       await auth.api.transferOwnership({

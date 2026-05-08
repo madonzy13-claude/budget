@@ -47,21 +47,23 @@ function WorkspaceSwitcherContent({
     if (group.length === 0) return null;
     return (
       <div className="space-y-1">
-        <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="px-3 text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
           {heading}
         </p>
         {group.map((ws) => (
           <label
             key={ws.id}
-            className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50"
+            className="flex cursor-pointer items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 transition-colors hover:bg-[var(--surface-elevated-dark)]"
           >
             <Checkbox
               checked={activeIds.includes(ws.id)}
               onCheckedChange={() => onToggle(ws.id)}
               aria-label={`Toggle ${ws.name}`}
             />
-            <span className="flex-1 text-sm">{ws.name}</span>
-            <Badge variant="outline" className="text-xs font-mono">
+            <span className="flex-1 text-sm text-[var(--foreground)]">
+              {ws.name}
+            </span>
+            <Badge variant="outline" className="num text-[11px]">
               {ws.default_currency}
             </Badge>
           </label>
@@ -72,7 +74,7 @@ function WorkspaceSwitcherContent({
 
   if (workspaces.length === 0) {
     return (
-      <p className="px-3 py-4 text-sm text-muted-foreground">
+      <p className="px-3 py-4 text-sm text-[var(--muted-foreground)]">
         {t("first_pick")}
       </p>
     );
@@ -80,9 +82,11 @@ function WorkspaceSwitcherContent({
 
   return (
     <div className="space-y-4 py-2">
-      <div className="px-3">
-        <p className="text-sm font-semibold">{t("label")}</p>
-        <p className="text-xs text-muted-foreground">{t("helper")}</p>
+      <div className="px-3 space-y-1">
+        <p className="text-title-sm text-[var(--foreground)]">{t("label")}</p>
+        <p className="text-caption text-[var(--muted-foreground)]">
+          {t("helper")}
+        </p>
       </div>
       <Separator />
       {renderGroup(privateWs, t("group.private"))}
@@ -92,13 +96,6 @@ function WorkspaceSwitcherContent({
   );
 }
 
-/**
- * WorkspaceSwitcher
- * - Mobile (<640px): renders inside a Sheet (slide-over from left)
- * - Tablet+ (≥640px): renders inline in the left rail
- * - Each toggle PUTs the new active_workspace_ids array immediately (D-07, TENT-12)
- * - Optimistic UI: revert + toast on error
- */
 export function WorkspaceSwitcher({
   workspaces,
   initialActiveIds,
@@ -111,7 +108,6 @@ export function WorkspaceSwitcher({
   const persistActiveIds = useCallback(
     async (newIds: string[], previousIds: string[]) => {
       try {
-        // PUT /api/settings/active-workspaces — persists active_workspace_ids (D-07)
         const res = await api.settings["active-workspaces"].$put({
           json: { active_workspace_ids: newIds },
         });
@@ -120,7 +116,6 @@ export function WorkspaceSwitcher({
         }
         onActiveChange?.(newIds);
       } catch {
-        // Revert optimistic update
         setActiveIds(previousIds);
         toast.error(
           t("error_save", { defaultValue: "Failed to save. Try again." }),
@@ -136,8 +131,6 @@ export function WorkspaceSwitcher({
       const newIds = activeIds.includes(id)
         ? activeIds.filter((aid) => aid !== id)
         : [...activeIds, id];
-
-      // Optimistic update
       setActiveIds(newIds);
       void persistActiveIds(newIds, previousIds);
     },
@@ -148,7 +141,6 @@ export function WorkspaceSwitcher({
 
   return (
     <>
-      {/* Mobile trigger button (<640px) */}
       <Button
         variant="outline"
         size="sm"
@@ -160,10 +152,9 @@ export function WorkspaceSwitcher({
         <span>{t("active_count", { count: activeCount })}</span>
       </Button>
 
-      {/* Mobile Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-72 p-0">
-          <SheetHeader className="border-b p-4">
+          <SheetHeader className="border-b border-[var(--border)] p-4">
             <SheetTitle>{t("label")}</SheetTitle>
           </SheetHeader>
           <WorkspaceSwitcherContent
@@ -174,7 +165,6 @@ export function WorkspaceSwitcher({
         </SheetContent>
       </Sheet>
 
-      {/* Inline rail (≥640px) — 240px wide sidebar */}
       <div className="hidden w-60 shrink-0 sm:block">
         <WorkspaceSwitcherContent
           workspaces={workspaces}

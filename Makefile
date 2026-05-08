@@ -4,6 +4,13 @@ ENV ?= dev
 ENV_FILE_LOCAL := $(shell test -f .env.local && echo "--env-file .env.local")
 COMPOSE := docker compose --env-file .env $(ENV_FILE_LOCAL)
 
+# Wrap every compose / docker invocation in `infisical run` so the secrets-only
+# variables (POSTGRES_PASSWORD, BUDGET_KEK, BETTER_AUTH_SECRET, DATABASE_URL_*, …)
+# are injected as environment for compose's variable interpolation. Without this
+# the compose CLI prints "The X variable is not set. Defaulting to a blank string."
+# warnings on every command because those secrets live in Infisical, not .env.
+INFISICAL := infisical run --env=$(ENV) --
+
 .PHONY: dev dev-build stop down destroy logs ps build restart \
         migrate seed shell-db \
         test test-watch test-e2e test-clean ci-gate \
@@ -13,45 +20,45 @@ COMPOSE := docker compose --env-file .env $(ENV_FILE_LOCAL)
 # ── Stack ─────────────────────────────────────────────────────────────────────
 
 dev: ## Start full stack (secrets injected from Infisical)
-	infisical run --env=$(ENV) -- $(COMPOSE) up -d
+	$(INFISICAL) $(COMPOSE) up -d
 
 dev-build: ## Build images then start
-	infisical run --env=$(ENV) -- $(COMPOSE) up --build -d
+	$(INFISICAL) $(COMPOSE) up --build -d
 
 stop: ## Stop containers, preserve volumes
-	$(COMPOSE) stop
+	$(INFISICAL) $(COMPOSE) stop
 
 down: ## Remove containers, preserve volumes
-	$(COMPOSE) down
+	$(INFISICAL) $(COMPOSE) down
 
 destroy: ## Remove containers + volumes (full reset)
-	$(COMPOSE) down -v
+	$(INFISICAL) $(COMPOSE) down -v
 
 logs: ## Follow all service logs
-	$(COMPOSE) logs -f
+	$(INFISICAL) $(COMPOSE) logs -f
 
 logs-%: ## Follow one service: make logs-api
-	$(COMPOSE) logs -f $*
+	$(INFISICAL) $(COMPOSE) logs -f $*
 
 restart-%: ## Recreate one service (picks up .env changes): make restart-api
-	infisical run --env=$(ENV) -- $(COMPOSE) up -d $*
+	$(INFISICAL) $(COMPOSE) up -d $*
 
 ps: ## Show service status
-	$(COMPOSE) ps
+	$(INFISICAL) $(COMPOSE) ps
 
 build: ## Build images only (no start)
-	infisical run --env=$(ENV) -- $(COMPOSE) build
+	$(INFISICAL) $(COMPOSE) build
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
 migrate: ## Run migrator manually
-	infisical run --env=$(ENV) -- $(COMPOSE) run --rm migrator
+	$(INFISICAL) $(COMPOSE) run --rm migrator
 
 seed: ## Seed dev data via HTTP API
-	infisical run --env=$(ENV) -- bun run scripts/seed-dev.ts
+	$(INFISICAL) bun run scripts/seed-dev.ts
 
 shell-db: ## Open psql in db container
-	docker compose exec db psql -U postgres budget
+	$(INFISICAL) $(COMPOSE) exec db psql -U postgres budget
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 
@@ -77,10 +84,10 @@ test-e2e-ui: ## Run Playwright E2E tests with UI (uses APP_URL from .env.local)
 	PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx bddgen && PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx playwright test --ui
 
 ci-gate: ## Run tenant-leak CI gate (needs local postgres)
-	bun run test:ci-gate
+	$(INFISICAL) bun run test:ci-gate
 
 test-clean: ## Remove leaked test postgres containers (orphans from killed test runs)
-	@docker ps -aq --filter "label=budget-testcontainer=1" | xargs -r docker rm -f
+	@$(INFISICAL) sh -c 'docker ps -aq --filter "label=budget-testcontainer=1" | xargs -r docker rm -f'
 	@echo "leaked testcontainers removed"
 
 # ── Code quality ──────────────────────────────────────────────────────────────

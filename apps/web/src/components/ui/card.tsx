@@ -1,6 +1,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Card — DESIGN.md `markets-table-card` / `qr-promo-card` shape.
+ *
+ * surface-card-dark fill with hairline-dark border, rounded-xl, no shadow.
+ * Depth comes from the canvas-to-surface contrast, not from a drop shadow.
+ */
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -8,7 +14,8 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-xl border bg-card text-card-foreground shadow-sm",
+      "rounded-[var(--radius-xl)] border border-[var(--border)]",
+      "bg-[var(--card)] text-[var(--card-foreground)]",
       className,
     )}
     {...props}
@@ -22,7 +29,7 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    className={cn("flex flex-col gap-1 p-6", className)}
     {...props}
   />
 ));
@@ -34,7 +41,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("text-xl font-semibold leading-7", className)}
+    className={cn("text-title-lg text-[var(--card-foreground)]", className)}
     {...props}
   />
 ));
@@ -46,7 +53,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-sm text-[var(--muted-foreground)]", className)}
     {...props}
   />
 ));

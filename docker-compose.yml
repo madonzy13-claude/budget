@@ -58,8 +58,11 @@ services:
       APP_URL: ${APP_URL}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS}
       # mailpit captures SMTP in dev so emails are visible at http://localhost:8025
-      EMAIL_SMTP_HOST: mailpit
-      EMAIL_SMTP_PORT: "1025"
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@budget.local}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       OTEL_SERVICE_NAME: api
     depends_on:
       migrator:
@@ -68,8 +71,9 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
-    ports:
-      - "3001:4000"
+    # NOTE: api intentionally NOT published to host. Public access is via
+    # the web container (port 3000), which rewrites /auth/* and /api/auth/*
+    # to http://api:4000 over the internal docker network.
     healthcheck:
       test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 5s

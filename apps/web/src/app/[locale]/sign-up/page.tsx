@@ -8,6 +8,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SignUpForm } from "@/components/auth/sign-up-form";
+import { BrandMark } from "@/components/common/brand-mark";
+import { SiteFooter } from "@/components/common/site-footer";
 
 interface SignUpPageProps {
   params: Promise<{ locale: string }>;
@@ -24,29 +26,44 @@ export default async function SignUpPage({ params }: SignUpPageProps) {
   const t = await getTranslations({ locale, namespace: "auth" });
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-semibold leading-9">
-              {t("signup.heading")}
-            </CardTitle>
-            <CardDescription>{t("signup.subtitle")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SignUpForm defaultLocale={locale} />
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              {t("have_account")}{" "}
-              <Link
-                href={`/${locale}/sign-in`}
-                className="underline underline-offset-4 hover:text-foreground"
-              >
-                {t("signin_link")}
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+    <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)]">
+      <header className="border-b border-[var(--hairline-dark)]">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
+          <BrandMark href={`/${locale}`} />
+          <div className="text-nav-link text-[var(--muted-foreground)]">
+            <span className="num text-[13px] uppercase tracking-wide">
+              {locale.toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-start justify-center px-4 py-10 sm:items-center">
+        <div className="w-full max-w-md">
+          <Card>
+            <CardHeader className="gap-2">
+              <CardTitle className="text-display-sm">
+                {t("signup.heading")}
+              </CardTitle>
+              <CardDescription>{t("signup.subtitle")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <SignUpForm defaultLocale={locale} />
+              <p className="text-sm text-[var(--muted-foreground)]">
+                {t("have_account")}{" "}
+                <Link
+                  href={`/${locale}/sign-in`}
+                  className="font-medium text-[var(--on-dark)] underline-offset-4 hover:underline"
+                >
+                  {t("signin_link")}
+                </Link>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }

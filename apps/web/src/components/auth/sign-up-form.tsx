@@ -66,14 +66,30 @@ export function SignUpForm({ defaultLocale }: SignUpFormProps) {
       email: values.email,
       password: values.password,
       name: values.name,
-    });
+      // additionalFields on user — drives email locale and UI default
+      locale: values.locale,
+    } as Parameters<typeof signUp.email>[0]);
 
     if (result.error) {
-      setServerError(result.error.message ?? "Sign up failed. Try again.");
+      const errAsRecord = result.error as unknown as Record<string, unknown>;
+      const code = typeof errAsRecord.code === "string" ? errAsRecord.code : "";
+      const message = (result.error.message ?? "").toLowerCase();
+      const isDuplicate =
+        code === "USER_ALREADY_EXISTS" ||
+        code === "FAILED_TO_CREATE_USER" ||
+        message.includes("already exists") ||
+        message.includes("failed to create user");
+      setServerError(
+        isDuplicate
+          ? t("signup.error_email_in_use")
+          : (result.error.message ?? t("signup.error_generic")),
+      );
       return;
     }
 
-    router.push(`/${values.locale}/onboarding`);
+    // Email verification is required before sign-in (autoSignIn disabled).
+    // Land the user on /sign-in with a "check your inbox" banner.
+    router.push(`/${values.locale}/sign-in?verify=pending`);
     router.refresh();
   }
 

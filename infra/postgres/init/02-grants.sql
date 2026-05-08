@@ -28,3 +28,8 @@ GRANT USAGE ON SCHEMA comparison TO migrator;
 -- Postgres 15+ removed the default CREATE grant on public for non-superusers.
 GRANT USAGE ON SCHEMA public TO app_role, worker_role, migrator;
 GRANT CREATE ON SCHEMA public TO migrator;
+
+-- pg-boss runs `CREATE SCHEMA IF NOT EXISTS pgboss` on every start(); even when
+-- the schema already exists Postgres still evaluates CREATE on the database.
+-- Grant database-level CREATE so the worker can boot. NOBYPASSRLS still applies.
+GRANT CREATE ON DATABASE budget TO worker_role;

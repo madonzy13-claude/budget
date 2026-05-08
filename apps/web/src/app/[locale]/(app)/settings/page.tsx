@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SessionsList } from "@/components/settings/sessions-list";
 import { LocaleSelect } from "@/components/settings/locale-select";
 import { DisplayCurrencyPicker } from "@/components/settings/display-currency-picker";
+import { getServerSession } from "@/lib/server-session";
 import {
   Select,
   SelectContent,
@@ -15,7 +16,6 @@ interface SettingsPageProps {
   params: Promise<{ locale: string }>;
 }
 
-// Phase 1: hardcoded provider options; Phase 5 expands these
 const LLM_PROVIDERS = [
   { value: "anthropic", label: "Claude (Anthropic)" },
   { value: "groq", label: "Groq" },
@@ -29,13 +29,22 @@ const STT_PROVIDERS = [
 export default async function SettingsPage({ params }: SettingsPageProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "settings" });
+  const session = await getServerSession();
+  const initialDisplayCurrency = session?.user?.displayCurrency ?? undefined;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      <h1 className="mb-6 text-3xl font-semibold leading-9">{t("heading")}</h1>
+    <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <header className="mb-10 space-y-2">
+        <p className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
+          {t("eyebrow", { defaultValue: "Account" })}
+        </p>
+        <h1 className="text-display-sm text-[var(--on-dark)]">
+          {t("heading")}
+        </h1>
+      </header>
 
       <Tabs defaultValue="sessions">
-        <TabsList className="mb-6">
+        <TabsList>
           <TabsTrigger value="sessions">{t("sessions.tab")}</TabsTrigger>
           <TabsTrigger value="display_currency">
             {t("display_currency.tab")}
@@ -44,46 +53,42 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           <TabsTrigger value="providers">{t("providers.tab")}</TabsTrigger>
         </TabsList>
 
-        {/* Sessions tab — IDNT-04 */}
-        <TabsContent value="sessions" className="space-y-4">
-          <h2 className="text-xl font-semibold leading-7">
+        <TabsContent value="sessions" className="space-y-6">
+          <h2 className="text-title-md text-[var(--on-dark)]">
             {t("sessions.heading")}
           </h2>
-          {/* Phase 1: skeleton — real session data wired in Phase 2 */}
           <SessionsList sessions={[]} />
         </TabsContent>
 
-        {/* Display currency tab — MONY-09 */}
-        <TabsContent value="display_currency" className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold leading-7">
+        <TabsContent value="display_currency" className="space-y-6">
+          <div className="space-y-1">
+            <h2 className="text-title-md text-[var(--on-dark)]">
               {t("display_currency.label")}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
               {t("display_currency.helper")}
             </p>
           </div>
-          <DisplayCurrencyPicker />
+          {initialDisplayCurrency ? (
+            <DisplayCurrencyPicker initialCurrency={initialDisplayCurrency} />
+          ) : (
+            <DisplayCurrencyPicker />
+          )}
         </TabsContent>
 
-        {/* Language tab */}
-        <TabsContent value="locale" className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold leading-7">
-              {t("locale.label")}
-            </h2>
-          </div>
+        <TabsContent value="locale" className="space-y-6">
+          <h2 className="text-title-md text-[var(--on-dark)]">
+            {t("locale.label")}
+          </h2>
           <LocaleSelect initialLocale={locale} />
         </TabsContent>
 
-        {/* Providers tab — IDNT-07, IDNT-08 */}
-        <TabsContent value="providers" className="space-y-6">
-          {/* preferred_llm_provider */}
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold leading-7">
+        <TabsContent value="providers" className="space-y-10">
+          <section className="space-y-3">
+            <h2 className="text-title-md text-[var(--on-dark)]">
               {t("providers.llm.label")}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
               {t("providers.llm.helper")}
             </p>
             <Select defaultValue="anthropic">
@@ -98,14 +103,13 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </section>
 
-          {/* preferred_stt_provider */}
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold leading-7">
+          <section className="space-y-3">
+            <h2 className="text-title-md text-[var(--on-dark)]">
               {t("providers.stt.label")}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
               {t("providers.stt.helper")}
             </p>
             <Select defaultValue="browser">
@@ -120,9 +124,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </section>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[var(--muted-foreground)]">
             Phase 1 wires the picker only. STT and LLM adapters connect in Phase
             5.
           </p>

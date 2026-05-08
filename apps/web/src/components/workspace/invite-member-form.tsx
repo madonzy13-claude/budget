@@ -76,10 +76,12 @@ export function InviteMemberForm({ workspaceId }: InviteMemberFormProps) {
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-4"
+        className="space-y-5"
         noValidate
       >
-        <h2 className="text-xl font-semibold leading-7">{t("heading")}</h2>
+        <h2 className="text-title-md text-[var(--foreground)]">
+          {t("heading")}
+        </h2>
 
         {serverError && (
           <Alert variant="destructive">

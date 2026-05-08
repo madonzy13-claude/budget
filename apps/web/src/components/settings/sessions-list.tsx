@@ -43,7 +43,6 @@ interface SessionsListProps {
   sessions: SessionInfo[];
 }
 
-// i18n keys used: settings.sessions.revoke.confirm.title, settings.sessions.revoke.confirm.body, settings.sessions.revoke.confirm.cta
 export function SessionsList({ sessions }: SessionsListProps) {
   const t = useTranslations("settings.sessions");
   const [revokeTarget, setRevokeTarget] = useState<SessionInfo | null>(null);
@@ -63,7 +62,9 @@ export function SessionsList({ sessions }: SessionsListProps) {
   }, [revokeTarget]);
 
   if (activeSessions.length <= 1) {
-    return <p className="text-sm text-muted-foreground">{t("empty")}</p>;
+    return (
+      <p className="text-sm text-[var(--muted-foreground)]">{t("empty")}</p>
+    );
   }
 
   return (
@@ -80,10 +81,10 @@ export function SessionsList({ sessions }: SessionsListProps) {
         <TableBody>
           {activeSessions.map((session) => (
             <TableRow key={session.id}>
-              <TableCell className="font-medium">
+              <TableCell className="font-medium text-[var(--foreground)]">
                 {session.deviceInfo ?? "Unknown device"}
               </TableCell>
-              <TableCell className="text-muted-foreground">
+              <TableCell className="text-[var(--muted-foreground)]">
                 {session.lastActive}
               </TableCell>
               <TableCell>
@@ -98,7 +99,6 @@ export function SessionsList({ sessions }: SessionsListProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 min-h-[44px] min-w-[44px]"
                         aria-label={`Session options for ${session.deviceInfo ?? "this device"}`}
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -106,7 +106,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
+                        className="text-[var(--trading-down)] focus:text-[var(--trading-down)]"
                         onSelect={() => setRevokeTarget(session)}
                       >
                         {t("revoke.label")}
@@ -120,7 +120,6 @@ export function SessionsList({ sessions }: SessionsListProps) {
         </TableBody>
       </Table>
 
-      {/* AlertDialog confirm — ESC does NOT dismiss (destructive action) */}
       <AlertDialog
         open={!!revokeTarget}
         onOpenChange={(open) => {
@@ -139,7 +138,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-[var(--trading-down)] text-[var(--on-dark)] hover:bg-[color-mix(in_oklab,var(--trading-down)_85%,black)]"
               onClick={handleRevoke}
             >
               {t("revoke.confirm.cta")}

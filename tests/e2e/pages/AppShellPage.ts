@@ -12,7 +12,14 @@ export class AppShellPage {
   }
 
   async clickSignOut(): Promise<void> {
-    await this.signOutButton().click();
+    // SignOutButton triggers an async handler (fetch /api/auth/sign-out then
+    // router.push to /sign-in). Click() alone resolves before that promise
+    // settles, so subsequent steps may race with the in-flight cookie-clearing
+    // response. Wait for the post-sign-out redirect to land before returning.
+    await Promise.all([
+      this.page.waitForURL(/\/(en|pl|uk)\/sign-in(\?|$)/, { timeout: 10000 }),
+      this.signOutButton().click(),
+    ]);
   }
 
   async expectSignOutButtonVisible(): Promise<void> {

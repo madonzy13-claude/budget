@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: phase_complete
 stopped_at: Phase 1 complete — all 11 plans done
-last_updated: "2026-05-07T16:15:00.000Z"
-last_activity: 2026-05-07 -- Quick task 260507-m3x: E2E migration to Gherkin (32/32 green)
+last_updated: "2026-05-08T06:53:00.000Z"
+last_activity: 2026-05-08 -- Phase 1 UAT complete (10 pass / 2 issue / 0 pending; 12 tests; user confirmed)
 progress:
   total_phases: 6
   completed_phases: 1

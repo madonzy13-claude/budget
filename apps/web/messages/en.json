@@ -7,12 +7,21 @@
       "locale": {
         "label": "Display language",
         "helper": "You can change this anytime in settings."
-      }
+      },
+      "error_email_in_use": "An account already exists for this email. Try signing in instead.",
+      "error_generic": "Sign up failed. Try again."
     },
     "signin": {
       "heading": "Welcome back",
       "cta": "Sign in",
-      "forgot": "Forgot your password?"
+      "forgot": "Forgot your password?",
+      "error_invalid_credentials": "Invalid email or password.",
+      "error_email_not_verified": "Please verify your email address before signing in. Check your inbox for the link.",
+      "error_generic": "Sign in failed. Check your credentials and try again.",
+      "verify_pending": {
+        "title": "Check your inbox",
+        "body": "We sent a verification email to your address. Click the link before signing in."
+      }
     },
     "reset": {
       "request": {
@@ -223,5 +232,23 @@
     "heading": "Dashboard",
     "no_workspaces": "No active workspaces selected. Use the workspace switcher to pick at least one.",
     "totals_in": "Totals shown in {currency}"
+  },
+  "currency": {
+    "picker": {
+      "placeholder": "Search currency...",
+      "aria_label": "Select currency",
+      "empty": "No currency found.",
+      "heading": "Top currencies"
+    },
+    "names": {
+      "USD": "US Dollar",
+      "EUR": "Euro",
+      "PLN": "Polish Zloty",
+      "GBP": "British Pound",
+      "UAH": "Ukrainian Hryvnia",
+      "CHF": "Swiss Franc",
+      "NOK": "Norwegian Krone",
+      "SEK": "Swedish Krona"
+    }
   }
 }

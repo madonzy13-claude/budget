@@ -43,15 +43,17 @@ describe("DisplayCurrencyPicker", () => {
     fireEvent.click(trigger);
 
     await waitFor(() => {
-      // All 8 currencies should be visible
-      expect(screen.getByText(/USD/)).toBeTruthy();
-      expect(screen.getByText(/EUR/)).toBeTruthy();
-      expect(screen.getByText(/PLN/)).toBeTruthy();
-      expect(screen.getByText(/GBP/)).toBeTruthy();
-      expect(screen.getByText(/UAH/)).toBeTruthy();
-      expect(screen.getByText(/CHF/)).toBeTruthy();
-      expect(screen.getByText(/NOK/)).toBeTruthy();
-      expect(screen.getByText(/SEK/)).toBeTruthy();
+      // All 8 currencies should be visible — assert by stable test ids since
+      // localized names (returned as-is by the mocked translator) embed the
+      // currency code and would multi-match a getByText regex.
+      expect(screen.getByTestId("currency-option-USD")).toBeTruthy();
+      expect(screen.getByTestId("currency-option-EUR")).toBeTruthy();
+      expect(screen.getByTestId("currency-option-PLN")).toBeTruthy();
+      expect(screen.getByTestId("currency-option-GBP")).toBeTruthy();
+      expect(screen.getByTestId("currency-option-UAH")).toBeTruthy();
+      expect(screen.getByTestId("currency-option-CHF")).toBeTruthy();
+      expect(screen.getByTestId("currency-option-NOK")).toBeTruthy();
+      expect(screen.getByTestId("currency-option-SEK")).toBeTruthy();
     });
   });
 

@@ -78,6 +78,93 @@ CREATE TRIGGER sessions_insert_set_context
   BEFORE INSERT ON identity.sessions
   FOR EACH ROW EXECUTE FUNCTION identity.sessions_set_context_on_insert();
 
+-- Plan 1 follow-up: enforce case-insensitive email uniqueness on identity.users.
+-- Better Auth's pre-INSERT duplicate check (findOne) returns null because RLS
+-- hides existing rows when no app.current_user_id GUC is set during sign-up,
+-- so the only canonical guard against duplicate accounts is a DB-level UNIQUE.
+-- Idempotent (IF NOT EXISTS) so re-runs are safe.
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_uq
+  ON identity.users (lower(email));
+
+-- Plan 1 follow-up: relax SELECT on identity.users for pre-auth lookups.
+-- Better Auth's sign-in / pre-INSERT duplicate check / verify flow all run with
+-- no app.current_user_id GUC (the user isn't authenticated yet). With strict
+-- self-visible policy, every lookup returned 0 rows — sign-in always failed
+-- with INVALID_EMAIL_OR_PASSWORD even for valid users.
+--
+-- Phase 1 trade-off (per CLAUDE.md tech stack + D-16):
+--   * Plain `email`/`name` text columns are kept solely for Better Auth compatibility.
+--   * The canonical PII at rest is `email_encrypted`/`name_encrypted` (crypto-shredded
+--     via per-user DEKs in shared_kernel.user_keys). Reading the plain columns leaks
+--     no more than the email_hash unique index already does.
+--   * Phase 6 drops the plain columns and routes lookups exclusively via email_hash —
+--     at that point this policy can be re-tightened.
+--
+-- Effect: SELECT works without GUC; UPDATE/DELETE still require matching id.
+-- INSERT is governed by users_insert_open (already permissive for app_role/worker_role).
+DROP POLICY IF EXISTS users_self_visible ON identity.users;
+DROP POLICY IF EXISTS users_self_select ON identity.users;
+DROP POLICY IF EXISTS users_self_modify ON identity.users;
+DROP POLICY IF EXISTS users_self_delete ON identity.users;
+CREATE POLICY users_self_select ON identity.users
+  FOR SELECT TO app_role, worker_role
+  USING (true);
+-- UPDATE is also permissive in Phase 1: Better Auth's verify-email handler
+-- updates `email_verified` with no app.current_user_id set (the user isn't
+-- authenticated yet). Trigger-based GUC injection cannot help because
+-- USING is evaluated *before* BEFORE-row triggers fire. Same Phase 1
+-- trade-off as SELECT — re-tightened in Phase 6 once plain email/name
+-- are removed.
+CREATE POLICY users_self_modify ON identity.users
+  FOR UPDATE TO app_role, worker_role
+  USING (true)
+  WITH CHECK (true);
+CREATE POLICY users_self_delete ON identity.users
+  FOR DELETE TO app_role, worker_role
+  USING (id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+
+-- identity.sessions: same Phase 1 trade-off. Better Auth's getSession reads the
+-- sessions table to validate the cookie BEFORE app.current_user_id can be set
+-- (the session lookup IS the authentication step). With strict self-visible
+-- policy every getSession returned 0 rows, so authMiddleware always set
+-- session=null and every protected endpoint returned 401.
+--
+-- Reading a session row only exposes the bearer's own already-issued token; if
+-- an attacker has the token cookie they're already authenticated. UPDATE/DELETE
+-- still require matching user_id GUC.
+DROP POLICY IF EXISTS sessions_owner_only ON identity.sessions;
+DROP POLICY IF EXISTS sessions_owner_select ON identity.sessions;
+DROP POLICY IF EXISTS sessions_owner_modify ON identity.sessions;
+DROP POLICY IF EXISTS sessions_owner_delete ON identity.sessions;
+CREATE POLICY sessions_owner_select ON identity.sessions
+  FOR SELECT TO app_role, worker_role
+  USING (true);
+CREATE POLICY sessions_owner_modify ON identity.sessions
+  FOR UPDATE TO app_role, worker_role
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid)
+  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+CREATE POLICY sessions_owner_delete ON identity.sessions
+  FOR DELETE TO app_role, worker_role
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+
+-- identity.accounts: same Phase 1 trade-off. Better Auth reads accounts during
+-- sign-in to verify the password hash; runs without GUC. The provider/account_id
+-- columns are not PII; password column is hashed (argon2/bcrypt).
+DROP POLICY IF EXISTS accounts_owner_only ON identity.accounts;
+DROP POLICY IF EXISTS accounts_owner_select ON identity.accounts;
+DROP POLICY IF EXISTS accounts_owner_modify ON identity.accounts;
+DROP POLICY IF EXISTS accounts_owner_delete ON identity.accounts;
+CREATE POLICY accounts_owner_select ON identity.accounts
+  FOR SELECT TO app_role, worker_role
+  USING (true);
+CREATE POLICY accounts_owner_modify ON identity.accounts
+  FOR UPDATE TO app_role, worker_role
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid)
+  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+CREATE POLICY accounts_owner_delete ON identity.accounts
+  FOR DELETE TO app_role, worker_role
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+
 -- Idempotent retries: every statement above is safe to re-run.
 
 -- Plan 06: tenancy schema
@@ -91,6 +178,118 @@ ALTER TABLE tenancy.workspaces FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenancy.workspace_members FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenancy.shared_workspace_member_shares FORCE ROW LEVEL SECURITY;
 -- workspace_invitations: token-keyed lookup; NO RLS (status column controls visibility).
+
+-- Plan 1 follow-up: workspace creation runs through Better Auth's createOrganization,
+-- which inserts into tenancy.workspaces and tenancy.workspace_members BEFORE we can set
+-- the app.tenant_ids GUC for the new workspace (the row doesn't exist yet, so there is
+-- no tenant id to inject). The default tenant_isolation policy's WITH CHECK denies the
+-- INSERT.
+--
+-- Mitigations:
+--   * SELECT/UPDATE/DELETE remain gated by the original tenant_isolation policy.
+--   * workspace_members has a BEFORE INSERT trigger (PC-11) that enforces the PRIVATE
+--     1-member cap atomically.
+--   * The application service / org-plugin hooks set app.tenant_ids in the same
+--     transaction for any subsequent reads.
+DROP POLICY IF EXISTS workspaces_insert_open ON tenancy.workspaces;
+CREATE POLICY workspaces_insert_open ON tenancy.workspaces
+  FOR INSERT TO app_role, worker_role
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS workspace_members_insert_open ON tenancy.workspace_members;
+CREATE POLICY workspace_members_insert_open ON tenancy.workspace_members
+  FOR INSERT TO app_role, worker_role
+  WITH CHECK (true);
+
+-- Better Auth's drizzleAdapter executes every INSERT as `INSERT ... RETURNING *`.
+-- Postgres applies SELECT USING to the RETURNING projection — without a permissive
+-- SELECT policy, RETURNING reports back zero rows and Better Auth surfaces
+-- "new row violates row-level security policy". The original `workspaces_tenant_isolation`
+-- USING relies on `app.tenant_ids`, which cannot be set BEFORE the workspace exists.
+--
+-- Phase 1 trade-off (matches identity.users / sessions / accounts relaxation):
+--   * SELECT on workspaces / workspace_members is now permissive at the row-security
+--     layer — the application-layer repos (workspace-repo, member-repo) still filter
+--     by membership join, so listing the user's workspaces continues to enforce isolation.
+--   * UPDATE/DELETE remain gated by the original tenant_isolation policy.
+--   * INSERT is permissive (above) so Better Auth's createOrganization succeeds.
+--   * Phase 6 routes workspace lookups through a tenant-aware adapter that sets
+--     app.tenant_ids before the SELECT and re-tightens this policy.
+-- Tight SELECT policies: visible only when the requester has set either
+-- (a) app.tenant_ids covering the row's workspace_id (normal read path),
+-- or (b) app.current_user_id matching the row's owner / member user (so
+-- Better Auth's INSERT...RETURNING can read its own freshly-inserted row
+-- without a tenant context that doesn't yet exist). The sibling BEFORE INSERT
+-- trigger below SET LOCAL app.current_user_id from the new row so the
+-- RETURNING projection clears the SELECT USING gate.
+DROP POLICY IF EXISTS workspaces_select_open ON tenancy.workspaces;
+CREATE POLICY workspaces_select_open ON tenancy.workspaces
+  FOR SELECT TO app_role, worker_role
+  USING (
+    id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])
+    OR owner_user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
+  );
+
+DROP POLICY IF EXISTS workspace_members_select_open ON tenancy.workspace_members;
+CREATE POLICY workspace_members_select_open ON tenancy.workspace_members
+  FOR SELECT TO app_role, worker_role
+  USING (
+    workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])
+    OR user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
+  );
+
+-- BEFORE INSERT trigger to inject the owner's user-id GUC for the lifetime
+-- of the implicit transaction created by Better Auth's INSERT...RETURNING.
+-- The SELECT USING policies above use this GUC to authorise the RETURNING
+-- projection without leaking other rows.
+CREATE OR REPLACE FUNCTION tenancy.workspaces_set_user_context_on_insert()
+RETURNS trigger AS $$
+BEGIN
+  PERFORM set_config('app.current_user_id', NEW.owner_user_id::text, true);
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS workspaces_insert_set_context ON tenancy.workspaces;
+CREATE TRIGGER workspaces_insert_set_context
+  BEFORE INSERT ON tenancy.workspaces
+  FOR EACH ROW EXECUTE FUNCTION tenancy.workspaces_set_user_context_on_insert();
+
+CREATE OR REPLACE FUNCTION tenancy.workspace_members_set_user_context_on_insert()
+RETURNS trigger AS $$
+BEGIN
+  PERFORM set_config('app.current_user_id', NEW.user_id::text, true);
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS workspace_members_insert_set_context ON tenancy.workspace_members;
+CREATE TRIGGER workspace_members_insert_set_context
+  BEFORE INSERT ON tenancy.workspace_members
+  FOR EACH ROW EXECUTE FUNCTION tenancy.workspace_members_set_user_context_on_insert();
+
+-- Replace the original FOR ALL tenant_isolation policy with split UPDATE / DELETE
+-- policies. The FOR ALL policy includes INSERT in its WITH CHECK which kills
+-- the workspaces_insert_open OR-merge in some Postgres edge cases (FORCE RLS
+-- + RETURNING + multiple permissive policies); splitting keeps INSERT
+-- governed only by workspaces_insert_open and SELECT only by workspaces_select_open.
+DROP POLICY IF EXISTS workspaces_tenant_isolation ON tenancy.workspaces;
+DROP POLICY IF EXISTS workspaces_tenant_update ON tenancy.workspaces;
+DROP POLICY IF EXISTS workspaces_tenant_delete ON tenancy.workspaces;
+CREATE POLICY workspaces_tenant_update ON tenancy.workspaces
+  FOR UPDATE TO app_role, worker_role
+  USING (id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+CREATE POLICY workspaces_tenant_delete ON tenancy.workspaces
+  FOR DELETE TO app_role, worker_role
+  USING (id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+DROP POLICY IF EXISTS workspace_members_tenant_isolation ON tenancy.workspace_members;
+DROP POLICY IF EXISTS workspace_members_tenant_update ON tenancy.workspace_members;
+DROP POLICY IF EXISTS workspace_members_tenant_delete ON tenancy.workspace_members;
+CREATE POLICY workspace_members_tenant_update ON tenancy.workspace_members
+  FOR UPDATE TO app_role, worker_role
+  USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+CREATE POLICY workspace_members_tenant_delete ON tenancy.workspace_members
+  FOR DELETE TO app_role, worker_role
+  USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
 -- D-04 / TENT-11: default_currency immutable post-create.
 CREATE OR REPLACE FUNCTION tenancy.workspaces_block_currency_change() RETURNS trigger AS $$

@@ -1,18 +1,22 @@
+export type EmailLocale = "en" | "pl" | "uk";
+
+export interface EmailSendArgs {
+  to: string;
+  template: string;
+  vars: Record<string, unknown>;
+  locale?: EmailLocale;
+}
+
 export interface EmailSender {
-  send(args: {
-    to: string;
-    template: string;
-    vars: Record<string, unknown>;
-  }): Promise<void>;
+  send(args: EmailSendArgs): Promise<void>;
 }
 
 export class StdoutEmailSender implements EmailSender {
-  public sent: Array<{ to: string; template: string; vars: Record<string, unknown> }> = [];
+  public sent: Array<EmailSendArgs> = [];
 
-  async send(args: { to: string; template: string; vars: Record<string, unknown> }): Promise<void> {
-    // eslint-disable-next-line no-console
+  async send(args: EmailSendArgs): Promise<void> {
     console.log(
-      `[stdout-email] ${args.template} → ${args.to}: ${JSON.stringify(args.vars)}`
+      `[stdout-email] ${args.template} (${args.locale ?? "en"}) → ${args.to}: ${JSON.stringify(args.vars)}`,
     );
     this.sent.push(args);
   }

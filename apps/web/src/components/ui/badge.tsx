@@ -2,18 +2,30 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/**
+ * Badge — compact label chip.
+ *
+ * Default reuses brand yellow + black to mirror DESIGN.md trust-badge usage
+ * (small "No.1" call-outs). Secondary uses surface-elevated for muted chips
+ * like "current session". Trading variants carry the same green/red price
+ * semantics as the buttons — text-color only on transparent fill.
+ */
 const badgeVariants = cva(
-  "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  [
+    "inline-flex items-center gap-1 px-2.5 py-0.5",
+    "rounded-[var(--radius-sm)] text-xs font-semibold leading-tight",
+    "transition-colors",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive:
-          "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
-        outline: "text-foreground",
+        default: "bg-[var(--primary)] text-[var(--on-primary)]",
+        secondary: "bg-[var(--surface-elevated-dark)] text-[var(--on-dark)]",
+        outline:
+          "border border-[var(--border)] bg-transparent text-[var(--foreground)]",
+        destructive: "bg-[var(--trading-down)] text-[var(--on-dark)]",
+        tradingUp: "bg-transparent text-[var(--trading-up)]",
+        tradingDown: "bg-transparent text-[var(--trading-down)]",
       },
     },
     defaultVariants: {

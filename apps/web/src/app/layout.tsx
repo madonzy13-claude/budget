@@ -1,15 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, IBM_Plex_Sans } from "next/font/google";
 import "./global.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin", "latin-ext"],
+// Inter stands in for BinanceNova (humanist sans, weight 400–700).
+const inter = Inter({
+  variable: "--font-display",
+  subsets: ["latin", "latin-ext", "cyrillic"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin", "latin-ext"],
+// IBM Plex Sans stands in for BinancePlex (tabular numerals, finance-grade
+// proportions). Used for every monetary figure, percentage, stat counter.
+const plex = IBM_Plex_Sans({
+  variable: "--font-tabular",
+  subsets: ["latin", "latin-ext", "cyrillic"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -18,13 +25,13 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Budget",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#0b0e11",
   width: "device-width",
   initialScale: 1,
 };
@@ -37,7 +44,7 @@ export default function RootLayout({
   return (
     <html suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${inter.variable} ${plex.variable} font-sans antialiased`}
       >
         {children}
       </body>

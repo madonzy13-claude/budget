@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,17 +19,16 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-// UI-SPEC §Currency picker: top-8 deterministic list for Phase 1
-// Later phases will personalize based on user history
+// Phase 1: deterministic top-8 list. Personalization comes later.
 export const TOP_CURRENCIES = [
-  { code: "USD", name: "US Dollar", symbol: "$" },
-  { code: "EUR", name: "Euro", symbol: "€" },
-  { code: "PLN", name: "Polish Zloty", symbol: "zł" },
-  { code: "GBP", name: "British Pound", symbol: "£" },
-  { code: "UAH", name: "Ukrainian Hryvnia", symbol: "₴" },
-  { code: "CHF", name: "Swiss Franc", symbol: "Fr" },
-  { code: "NOK", name: "Norwegian Krone", symbol: "kr" },
-  { code: "SEK", name: "Swedish Krona", symbol: "kr" },
+  { code: "USD", symbol: "$" },
+  { code: "EUR", symbol: "€" },
+  { code: "PLN", symbol: "zł" },
+  { code: "GBP", symbol: "£" },
+  { code: "UAH", symbol: "₴" },
+  { code: "CHF", symbol: "Fr" },
+  { code: "NOK", symbol: "kr" },
+  { code: "SEK", symbol: "kr" },
 ] as const;
 
 export type CurrencyCode = (typeof TOP_CURRENCIES)[number]["code"];
@@ -41,16 +41,24 @@ interface CurrencyPickerProps {
   "aria-label"?: string;
 }
 
+/**
+ * Currency picker — combobox that pairs every code with its localized name
+ * and symbol. Code renders in tabular numerals using the brand-yellow tint
+ * so the chosen currency is the loudest token in any list it appears in.
+ */
 export function CurrencyPicker({
   value,
   onSelect,
-  placeholder = "Search currency...",
+  placeholder,
   disabled = false,
   "aria-label": ariaLabel,
 }: CurrencyPickerProps) {
+  const t = useTranslations("currency");
   const [open, setOpen] = useState(false);
+  const effectivePlaceholder = placeholder ?? t("picker.placeholder");
 
   const selected = TOP_CURRENCIES.find((c) => c.code === value);
+  const selectedName = selected ? t(`names.${selected.code}`) : "";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -59,55 +67,60 @@ export function CurrencyPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label={ariaLabel ?? "Select currency"}
-          className="w-full justify-between"
+          aria-label={ariaLabel ?? t("picker.aria_label")}
+          className="w-full justify-between font-normal"
           disabled={disabled}
         >
           {selected ? (
-            <span>
-              <span className="font-mono">{selected.code}</span>
-              {" — "}
-              {selected.name}
+            <span className="flex items-center gap-2">
+              <span className="num text-[var(--primary)]">{selected.code}</span>
+              <span className="text-[var(--muted-foreground)]">·</span>
+              <span>{selectedName}</span>
             </span>
           ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
+            <span className="text-[var(--muted-foreground)]">
+              {effectivePlaceholder}
+            </span>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
+      <PopoverContent className="w-[320px] p-0" align="start">
         <Command>
-          <CommandInput placeholder={placeholder} />
+          <CommandInput placeholder={effectivePlaceholder} />
           <CommandList>
-            <CommandEmpty>No currency found.</CommandEmpty>
-            <CommandGroup heading="Top currencies">
-              {TOP_CURRENCIES.map((currency) => (
-                <CommandItem
-                  key={currency.code}
-                  value={`${currency.code} ${currency.name}`}
-                  onSelect={() => {
-                    onSelect(currency.code);
-                    setOpen(false);
-                  }}
-                  data-testid={`currency-option-${currency.code}`}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === currency.code ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  <span className="font-mono text-primary">
-                    {currency.code}
-                  </span>
-                  <span className="ml-2 text-muted-foreground">
-                    {currency.name}
-                  </span>
-                  <span className="ml-auto font-mono text-sm">
-                    {currency.symbol}
-                  </span>
-                </CommandItem>
-              ))}
+            <CommandEmpty>{t("picker.empty")}</CommandEmpty>
+            <CommandGroup heading={t("picker.heading")}>
+              {TOP_CURRENCIES.map((currency) => {
+                const localizedName = t(`names.${currency.code}`);
+                return (
+                  <CommandItem
+                    key={currency.code}
+                    value={`${currency.code} ${localizedName}`}
+                    onSelect={() => {
+                      onSelect(currency.code);
+                      setOpen(false);
+                    }}
+                    data-testid={`currency-option-${currency.code}`}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4 text-[var(--primary)]",
+                        value === currency.code ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <span className="num text-[var(--primary)]">
+                      {currency.code}
+                    </span>
+                    <span className="ml-2 text-[var(--muted-foreground)]">
+                      {localizedName}
+                    </span>
+                    <span className="num ml-auto text-sm text-[var(--muted-foreground)]">
+                      {currency.symbol}
+                    </span>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>

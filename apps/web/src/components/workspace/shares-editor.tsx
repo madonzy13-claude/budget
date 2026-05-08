@@ -33,10 +33,6 @@ interface SharesEditorProps {
 const SHARE_SUM_TARGET = 100;
 const SHARE_SUM_TOLERANCE = 0.005;
 
-/**
- * Shares editor — sum=100 invariant enforced in UI (TENT-13, D-06)
- * Save disabled until total === 100.00 ± 0.005 AND form is dirty
- */
 export function SharesEditor({
   workspaceId,
   initialMembers,
@@ -94,10 +90,14 @@ export function SharesEditor({
   }, [canSave, workspaceId, members, t]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold leading-7">{t("heading")}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{t("body")}</p>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h2 className="text-title-md text-[var(--foreground)]">
+          {t("heading")}
+        </h2>
+        <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
+          {t("body")}
+        </p>
       </div>
 
       <Table>
@@ -113,9 +113,11 @@ export function SharesEditor({
           {members.map((member) => (
             <TableRow key={member.userId}>
               <TableCell>
-                <div>
-                  <p className="font-medium">{member.name}</p>
-                  <p className="text-xs text-muted-foreground">
+                <div className="space-y-0.5">
+                  <p className="font-medium text-[var(--foreground)]">
+                    {member.name}
+                  </p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
                     {member.email}
                   </p>
                 </div>
@@ -132,10 +134,10 @@ export function SharesEditor({
                     onChange={(e) =>
                       handleShareChange(member.userId, e.target.value)
                     }
-                    className="w-24 text-right font-mono tabular"
+                    className="num w-24 text-right"
                     aria-label={`${member.name} share percentage`}
                   />
-                  <span className="font-mono text-sm text-muted-foreground">
+                  <span className="num text-sm text-[var(--muted-foreground)]">
                     %
                   </span>
                 </div>
@@ -145,30 +147,28 @@ export function SharesEditor({
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell colSpan={1} className="font-medium">
-              {/* Running total in tfoot */}
-            </TableCell>
+            <TableCell colSpan={1} className="font-medium" />
             <TableCell className="text-right">
               <p
                 className={cn(
-                  "font-mono text-sm tabular",
-                  isValid ? "text-[oklch(0.4_0.13_145)]" : "text-destructive",
+                  "num text-sm",
+                  isValid
+                    ? "text-[var(--trading-up)]"
+                    : "text-[var(--trading-down)]",
                 )}
               >
                 {isValid
                   ? t("total.ok")
-                  : t("total.error", {
-                      percentage: total.toFixed(2),
-                    })}
+                  : t("total.error", { percentage: total.toFixed(2) })}
               </p>
             </TableCell>
           </TableRow>
         </TableFooter>
       </Table>
 
-      <div className="flex items-center justify-between">
-        <p className="flex items-center gap-1 text-sm text-muted-foreground">
-          <History className="h-3 w-3" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
+          <History className="h-3.5 w-3.5" />
           {t("audit_hint")}
         </p>
         <Button onClick={handleSave} disabled={!canSave || isSaving}>
