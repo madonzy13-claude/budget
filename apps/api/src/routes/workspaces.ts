@@ -103,6 +103,24 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
 
     const auth = deps.identity.auth as any;
 
+    console.log(
+      "[invite] DEBUG session.user.id=%s workspaceId=%s email=%s",
+      session.user.id,
+      workspaceId,
+      body.email,
+    );
+    // Diagnostic: query member row directly to see what's actually in DB
+    try {
+      const { appPool } = await import("@budget/platform");
+      const pool = appPool();
+      const members = await pool.query(
+        "SELECT user_id::text, role FROM tenancy.workspace_members WHERE workspace_id = $1",
+        [workspaceId],
+      );
+      console.log("[invite] DEBUG members in workspace:", members.rows);
+    } catch (e) {
+      console.log("[invite] DEBUG member-query failed:", (e as Error).message);
+    }
     try {
       const r2 = await auth.api.createInvitation({
         body: {
@@ -116,7 +134,6 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
       if (/PRIVATE workspaces/.test(msg)) return c.json({ error: msg }, 409);
-      // Re-throw with full diagnostic for non-PRIVATE errors so we can see them in logs
       console.error("[invite] createInvitation failed:", msg, e);
       throw e;
     }
