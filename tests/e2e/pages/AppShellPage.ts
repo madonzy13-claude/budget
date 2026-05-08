@@ -12,16 +12,17 @@ export class AppShellPage {
   }
 
   async clickSignOut(): Promise<void> {
-    // SignOutButton fires:  await signOut()  →  router.push('/sign-in')  →  router.refresh()
+    // SignOutButton:  await signOut()  →  router.push('/sign-in')  →  router.refresh()
     //
-    // The race: router.push() triggers a client-side URL change (resolving waitForURL)
-    // *before* the browser has finished processing the Set-Cookie header from the
-    // /api/auth/sign-out response.  In CI (slower network) the cookie removal can lag
-    // by tens of ms after the URL lands on /sign-in, so a subsequent page.goto('/workspaces')
-    // still sees the session cookie and the middleware does NOT redirect.
+    // Race: router.push() resolves the client-side URL change (and hence
+    // waitForURL) before the browser finishes processing Set-Cookie from
+    // POST /api/auth/sign-out. In CI a follow-up page.goto('/workspaces')
+    // can land BEFORE the cookie is actually cleared, leaving the user
+    // appearing authenticated to the middleware → no redirect → test fails.
     //
-    // Fix: wait for BOTH the /auth/sign-out network response (guarantees the browser has
-    // received and processed the cookie-clearing Set-Cookie) AND the URL change.
+    // Belt-and-suspenders: (a) wait for the network response, (b) wait for
+    // the URL change, then (c) poll the browser's cookie jar until the
+    // session cookie is verifiably gone.
     await Promise.all([
       this.page.waitForResponse(
         (res) =>
@@ -32,6 +33,16 @@ export class AppShellPage {
       this.page.waitForURL(/\/(en|pl|uk)\/sign-in(\?|$)/, { timeout: 10000 }),
       this.signOutButton().click(),
     ]);
+    await expect
+      .poll(
+        async () => {
+          const cookies = await this.page.context().cookies();
+          return cookies.find((c) => c.name === "better-auth.session_token")
+            ?.value;
+        },
+        { timeout: 5000 },
+      )
+      .toBeFalsy();
   }
 
   async expectSignOutButtonVisible(): Promise<void> {

@@ -21,5 +21,6 @@ ENV NODE_ENV=production
 COPY packages ./packages
 COPY apps/worker ./apps/worker
 WORKDIR /app/apps/worker
+USER bun
 HEALTHCHECK --interval=30s --timeout=10s CMD bun -e "process.exit(0)"
 CMD ["bun", "run", "src/worker.ts"]
