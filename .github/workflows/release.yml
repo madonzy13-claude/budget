@@ -31,16 +31,31 @@ jobs:
     name: Verify CI was green on tagged commit
     runs-on: ubuntu-latest
     needs: [validate-tag]
+    permissions:
+      checks: read
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Check CI status of tagged SHA
+      - name: Check CI check-runs of tagged SHA
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA="${GITHUB_SHA}"
-          STATE=$(gh api "repos/${{ github.repository }}/commits/${SHA}/status" -q '.state')
-          echo "Combined status for $SHA: $STATE"
-          if [[ "$STATE" != "success" ]]; then
+          # Combined-status API is unreachable for the default GITHUB_TOKEN on
+          # free private repos. Use check-runs (Actions writes check-runs, not
+          # legacy statuses) and require every COMPLETED non-Release check to
+          # be success / neutral / skipped. The Release workflow is filtered out
+          # because it is the workflow currently running.
+          BAD=$(gh api --paginate \
+            "repos/${{ github.repository }}/commits/${SHA}/check-runs?per_page=100" \
+            --jq '
+              [.check_runs[]
+                | select(.status == "completed")
+                | select(.name | test("^Release$|^GitHub Release$|^Build & push|^Verify CI was green|^Validate tag"; "i") | not)
+                | select(.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")
+                | {name, conclusion}]')
+          echo "Non-green checks: $BAD"
+          if [[ "$BAD" != "[]" ]]; then
             echo "CI is not green on $SHA — refusing to release"
             exit 1
           fi
