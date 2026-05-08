@@ -8,31 +8,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { sql } from "drizzle-orm";
 import type { BootedDeps } from "../boot";
 import { UserId } from "@budget/shared-kernel";
-
-// Application services — imported from package internals (they are NOT re-exported
-// from the package root, but apps may import them since dep-cruiser allows
-// packages/*/src/application access from apps). Wait — dep-cruiser BANS
-// apps/** → packages/*/src/application. So we must call through module-level
-// factory or use deps.tenancy / deps.identity interfaces.
-
-// Strategy: use dynamically-loaded application services via require at call time,
-// but the dep-cruiser check only bans STATIC module-level imports, not dynamic ones.
-// However, dynamic require would still import from src/application.
-//
-// Correct approach: Use the factory methods exposed on deps.tenancy/identity from
-// createTenancyModule/createIdentityModule, or expose the application services
-// via the factory output. Checking factory outputs for service methods...
-//
-// The factories only expose: workspaceRepo, memberShareRepo, organizationPlugin (tenancy)
-// and auth, userRepo (identity). The application services take repos as deps and call
-// the repos directly. We can call the application services inline here by importing
-// them — but the dep-cruiser rule bans it.
-//
-// Solution: wrap app service calls using the repos from factory output.
-// We implement the route handlers directly using deps.tenancy.workspaceRepo +
-// deps.tenancy.memberShareRepo + deps.identity.userRepo + auth-object.
 
 export function workspacesRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -86,24 +64,6 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
         },
         headers: c.req.raw.headers,
       });
-      // Workaround: Better Auth 1.6.9's createOrganization returns success
-      // without persisting the creator membership row in CI (works locally —
-      // root cause unclear, possibly a race between Better Auth's adapter
-      // INSERT and the surrounding tx). Backfill via direct INSERT only when
-      // missing.
-      const { appPool } = await import("@budget/platform");
-      const existing = await appPool().query(
-        `SELECT 1 FROM tenancy.workspace_members
-         WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
-        [r2.id, session.user.id],
-      );
-      if (existing.rowCount === 0) {
-        await appPool().query(
-          `INSERT INTO tenancy.workspace_members (id, workspace_id, user_id, role)
-           VALUES (gen_random_uuid(), $1, $2, 'owner')`,
-          [r2.id, session.user.id],
-        );
-      }
       return c.json({ id: r2.id, name: body.name }, 201);
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
@@ -114,6 +74,12 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
   });
 
   // POST /workspaces/:id/invitations — invite member
+  // Bypasses Better Auth's createInvitation: its findMemberByOrgId SELECT runs
+  // without app.current_user_id GUC and is filtered out by RLS in CI (app_role
+  // connection). We do the membership check ourselves through
+  // withBootstrapUserContext (which sets the GUC), then INSERT directly into
+  // tenancy.workspace_invitations (table has no RLS — token-keyed lookup) and
+  // dispatch the invitation email.
   r.post("/:id/invitations", zValidator("json", inviteSchema), async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
@@ -121,23 +87,87 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     const { id: workspaceId } = c.req.param();
     const body = c.req.valid("json");
 
-    const auth = deps.identity.auth as any;
+    const { withBootstrapUserContext, appPool } =
+      await import("@budget/platform");
+
+    const lookup = await withBootstrapUserContext(
+      UserId(session.user.id),
+      async (tx) => {
+        const result = await tx.execute(sql`
+          SELECT wm.role::text AS role, w.kind::text AS kind, w.name AS name
+            FROM tenancy.workspace_members wm
+            JOIN tenancy.workspaces w ON w.id = wm.workspace_id
+           WHERE wm.workspace_id = ${workspaceId}::uuid
+             AND wm.user_id = ${session.user.id}::uuid
+           LIMIT 1
+        `);
+        return result.rows[0] as
+          | { role: string; kind: string; name: string }
+          | undefined;
+      },
+    );
+
+    if (lookup.isErr()) {
+      console.error("[invite] lookup failed:", lookup.error);
+      return c.json({ error: "internal" }, 500);
+    }
+    if (!lookup.value) {
+      return c.json({ error: "Member not found" }, 404);
+    }
+    if (lookup.value.role !== "owner") {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    if (lookup.value.kind === "PRIVATE") {
+      return c.json(
+        {
+          error:
+            "PRIVATE workspaces accept only the owner. Convert to SHARED first.",
+        },
+        409,
+      );
+    }
+
+    const invitationId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     try {
-      const r2 = await auth.api.createInvitation({
-        body: {
-          organizationId: workspaceId,
-          email: body.email,
-          role: body.role,
-        },
-        headers: c.req.raw.headers,
-      });
-      return c.json({ invitationId: r2.id }, 201);
+      await appPool().query(
+        `INSERT INTO tenancy.workspace_invitations
+          (id, workspace_id, email, role, status, inviter_id, expires_at)
+         VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
+        [
+          invitationId,
+          workspaceId,
+          body.email,
+          body.role,
+          session.user.id,
+          expiresAt,
+        ],
+      );
     } catch (e) {
-      const msg = (e as Error).message ?? "unknown";
-      if (/PRIVATE workspaces/.test(msg)) return c.json({ error: msg }, 409);
+      console.error("[invite] insert failed:", (e as Error).message);
       throw e;
     }
+
+    try {
+      const inviterName =
+        ((session.user as { name?: string }).name ?? session.user.email) ||
+        "A workspace owner";
+      await deps.emailSender.send({
+        to: body.email,
+        template: "workspace-invite",
+        vars: {
+          url: `${deps.env.APP_URL}/accept-invitation/${invitationId}`,
+          workspace: lookup.value.name,
+          inviter: inviterName,
+        },
+      });
+    } catch (e) {
+      console.error("[invite] email send failed:", (e as Error).message);
+      // Email failure is not fatal — invitation row exists.
+    }
+
+    return c.json({ invitationId }, 201);
   });
 
   // POST /workspaces/:id/leave — leave workspace
