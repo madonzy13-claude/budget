@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const localRules = require('./eslint-rules/index.cjs');
 
 export default [
-  { ignores: ['node_modules/**', 'dist/**', '.next/**', 'coverage/**', 'playwright-report/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/coverage/**', '**/playwright-report/**', '**/.features-gen/**'] },
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: { parser: tsParser, parserOptions: { project: false, ecmaVersion: 2024, sourceType: 'module' } },
