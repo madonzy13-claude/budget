@@ -76,6 +76,11 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
 
     try {
       const slug = (await import("nanoid")).nanoid(12);
+      console.log(
+        "[create-ws] DEBUG session.user.id=%s kind=%s",
+        session.user.id,
+        body.kind,
+      );
       const r2 = await auth.api.createOrganization({
         body: {
           name: body.name,
@@ -84,11 +89,31 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
           default_currency: body.default_currency,
           userId: session.user.id,
         },
+        headers: c.req.raw.headers,
       });
+      console.log("[create-ws] DEBUG returned id=%s name=%s", r2.id, body.name);
+      // Diagnostic: query members for this org to see what got inserted
+      try {
+        const { appPool } = await import("@budget/platform");
+        const members = await appPool().query(
+          "SELECT user_id::text, role FROM tenancy.workspace_members WHERE workspace_id = $1",
+          [r2.id],
+        );
+        console.log(
+          "[create-ws] DEBUG members after createOrganization:",
+          members.rows,
+        );
+      } catch (e) {
+        console.log(
+          "[create-ws] DEBUG member-query failed:",
+          (e as Error).message,
+        );
+      }
       return c.json({ id: r2.id, name: body.name }, 201);
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
       if (/PRIVATE workspaces/.test(msg)) return c.json({ error: msg }, 409);
+      console.error("[create-ws] failed:", msg, e);
       throw e;
     }
   });
