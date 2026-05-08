@@ -10,7 +10,11 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { BootedDeps } from "../boot";
 import { UserId } from "@budget/shared-kernel";
-import type { Locale, LLMProviderName, STTProviderName } from "@budget/identity";
+import type {
+  Locale,
+  LLMProviderName,
+  STTProviderName,
+} from "@budget/identity";
 
 export function settingsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -67,17 +71,29 @@ export function settingsRoutesFactory(deps: BootedDeps) {
   });
 
   // PUT /settings/provider-prefs — update LLM/STT provider preferences
-  r.put("/provider-prefs", zValidator("json", providerPrefsSchema), async (c) => {
-    const session = c.get("session");
-    if (!session) return c.json({ error: "unauthorized" }, 401);
+  r.put(
+    "/provider-prefs",
+    zValidator("json", providerPrefsSchema),
+    async (c) => {
+      const session = c.get("session");
+      if (!session) return c.json({ error: "unauthorized" }, 401);
 
-    const body = c.req.valid("json");
-    const prefs: { llm?: LLMProviderName | null; stt?: STTProviderName | null } = {};
-    if (body.llm !== undefined) prefs.llm = body.llm as LLMProviderName | null;
-    if (body.stt !== undefined) prefs.stt = body.stt as STTProviderName | null;
-    await deps.identity.userRepo.updateProviderPrefs(UserId(session.user.id), prefs);
-    return c.json({ ok: true });
-  });
+      const body = c.req.valid("json");
+      const prefs: {
+        llm?: LLMProviderName | null;
+        stt?: STTProviderName | null;
+      } = {};
+      if (body.llm !== undefined)
+        prefs.llm = body.llm as LLMProviderName | null;
+      if (body.stt !== undefined)
+        prefs.stt = body.stt as STTProviderName | null;
+      await deps.identity.userRepo.updateProviderPrefs(
+        UserId(session.user.id),
+        prefs,
+      );
+      return c.json({ ok: true });
+    },
+  );
 
   // GET /settings/sessions — list active sessions
   r.get("/sessions", async (c) => {
@@ -85,7 +101,6 @@ export function settingsRoutesFactory(deps: BootedDeps) {
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     // Better Auth sessions are managed via auth API
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const auth = deps.identity.auth as any;
     try {
       const sessions = await auth.api.listSessions({
@@ -103,7 +118,6 @@ export function settingsRoutesFactory(deps: BootedDeps) {
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const { id: sessionId } = c.req.param();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const auth = deps.identity.auth as any;
     try {
       await auth.api.revokeSession({

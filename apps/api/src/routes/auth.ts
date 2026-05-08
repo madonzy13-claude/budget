@@ -8,7 +8,6 @@ import type { BootedDeps } from "../boot";
  */
 export function authRoutes(deps: BootedDeps) {
   const r = new Hono();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   r.all("/*", async (c) => (deps.identity.auth as any).handler(c.req.raw));
   return r;
 }
