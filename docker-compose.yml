@@ -57,20 +57,17 @@ services:
       BUDGET_KEK: ${BUDGET_KEK}
       APP_URL: ${APP_URL}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS}
-      # mailpit captures SMTP in dev so emails are visible at http://localhost:8025
-      SMTP_HOST: ${SMTP_HOST:-mailpit}
-      SMTP_PORT: ${SMTP_PORT:-1025}
-      SMTP_FROM: ${SMTP_FROM:-no-reply@budget.local}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
       OTEL_SERVICE_NAME: api
     depends_on:
       migrator:
         condition: service_completed_successfully
       db:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     # NOTE: api intentionally NOT published to host. Public access is via
     # the web container (port 3000), which rewrites /auth/* and /api/auth/*
     # to http://api:4000 over the internal docker network.
@@ -115,15 +112,6 @@ services:
         condition: service_completed_successfully
       db:
         condition: service_healthy
-
-  # ─── Mailpit (dev SMTP capture) ───────────────────────────────────────────────
-  # SMTP on 1025, web UI on http://localhost:8025
-  mailpit:
-    image: axllent/mailpit:latest
-    restart: unless-stopped
-    ports:
-      - "1025:1025"
-      - "8025:8025"
 
 volumes:
   budget_db_data:

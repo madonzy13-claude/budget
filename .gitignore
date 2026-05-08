@@ -7,5 +7,4 @@ coverage/
 .turbo/
 playwright-report/
 test-results/
-docker-compose.override.yml
 .features-gen/
