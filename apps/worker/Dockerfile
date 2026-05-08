@@ -12,12 +12,30 @@ COPY packages/identity/package.json packages/identity/
 COPY packages/platform/package.json packages/platform/
 COPY packages/shared-kernel/package.json packages/shared-kernel/
 COPY packages/tenancy/package.json packages/tenancy/
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --production
+# Strip dev-only transitive deps that ship Go binaries (esbuild / vite /
+# vitest / playwright) — bun --production keeps them in workspace mode.
+RUN rm -rf /app/node_modules/.bun/esbuild* \
+           /app/node_modules/.bun/@esbuild* \
+           /app/node_modules/.bun/@esbuild-kit* \
+           /app/node_modules/.bun/vite@* \
+           /app/node_modules/.bun/vitest@* \
+           /app/node_modules/.bun/@vitest* \
+           /app/node_modules/.bun/drizzle-kit@* \
+           /app/node_modules/.bun/playwright@* \
+           /app/node_modules/.bun/playwright-core@* \
+           /app/node_modules/.bun/@playwright* \
+           /app/node_modules/.bun/@rolldown*
 
 # Stage 2: runtime — start from deps to inherit all workspace node_modules, then overlay source
 FROM deps AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# Apply OS security upgrades (libssl3t64 etc.) available in the base
+# image's release pocket.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 COPY packages ./packages
 COPY apps/worker ./apps/worker
 WORKDIR /app/apps/worker

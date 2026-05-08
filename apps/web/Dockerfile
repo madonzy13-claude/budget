@@ -42,6 +42,12 @@ FROM oven/bun:1.3-slim AS runtime
 
 WORKDIR /app
 
+# Apply OS security upgrades (libssl3t64 etc.) available in the base
+# image's release pocket.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
