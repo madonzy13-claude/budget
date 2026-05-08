@@ -228,18 +228,9 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml down -v --remove-orphans
 
-  # E2E known-flaky in CI (passes 44/45 locally; CI hits 41/45 with retries=2).
-  # Failing scenarios are timing/environment-related, not real app bugs:
-  #   - Sign Out → protected routes redirect (cookie cleanup race)
-  #   - Email verification required → sign back in after sign-out
-  #   - Settings: display currency persists across reload (label render race)
-  #   - Invite member → API 201 (backend timing under sequential CI workers)
-  # Marked continue-on-error and excluded from required checks until the
-  # underlying flakes are addressed in a separate PR.
   e2e:
     name: E2E (Playwright BDD)
     needs: [compose-smoke]
-    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -304,24 +295,30 @@ jobs:
         if: always()
         run: docker compose down -v --remove-orphans
 
-  # CodeQL skipped on `if: false` until Code Scanning is enabled for the
-  # private repo (Settings → Security → Code scanning → Enable).
-  # When enabled, set `if: true` and add this job to required checks
-  # in scripts/setup/branch-protection.sh.
-  codeql:
-    name: CodeQL (SAST)
-    if: false
+  # Semgrep replaces CodeQL on free private repos (CodeQL needs GitHub
+  # Advanced Security, which is paid). Semgrep CI is free for private
+  # repos and covers the same SAST class.
+  semgrep:
+    name: Semgrep (SAST)
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      contents: read
-      actions: read
+    container:
+      image: returntocorp/semgrep
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-      - uses: github/codeql-action/analyze@v3
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config=p/typescript \
+            --config=p/javascript \
+            --config=p/owasp-top-ten \
+            --config=p/security-audit \
+            --error \
+            --severity=ERROR \
+            --exclude=node_modules \
+            --exclude=.next \
+            --exclude=dist \
+            --exclude=.features-gen \
+            --exclude=playwright-report
 
   gitleaks:
     name: Gitleaks (secret scan)

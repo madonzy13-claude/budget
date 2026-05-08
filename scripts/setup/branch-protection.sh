@@ -24,6 +24,8 @@ read -r -d '' BODY <<'JSON' || true
       { "context": "Web tests (Vitest)" },
       { "context": "Tenant leak gate (T-1, T-2, T-3, PC-08, PC-12)" },
       { "context": "Compose smoke (prod-only)" },
+      { "context": "E2E (Playwright BDD)" },
+      { "context": "Semgrep (SAST)" },
       { "context": "Gitleaks (secret scan)" },
       { "context": "Bun audit (HIGH+)" }
     ]
