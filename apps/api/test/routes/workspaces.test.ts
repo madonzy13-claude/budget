@@ -18,6 +18,7 @@ mock.module("@budget/platform", () => ({
     return ok(await fn(mockTx));
   },
   appPool: () => ({
+    query: async () => ({ rows: [], rowCount: 1 }),
     connect: async () => ({
       query: async () => ({ rows: [] }),
       release: () => {},

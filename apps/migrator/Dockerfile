@@ -22,4 +22,5 @@ COPY packages ./packages
 COPY drizzle ./drizzle
 COPY apps/migrator ./apps/migrator
 WORKDIR /app/apps/migrator
+USER bun
 CMD ["bun", "run", "src/migrate.ts"]

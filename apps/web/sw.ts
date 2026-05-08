@@ -14,12 +14,7 @@
  * - /api/settings/*  (user settings)
  */
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import {
-  NetworkOnly,
-  CacheFirst,
-  StaleWhileRevalidate,
-  Serwist,
-} from "serwist";
+import { NetworkOnly, CacheFirst, NetworkFirst, Serwist } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -52,12 +47,19 @@ const serwist = new Serwist({
         cacheName: "static-assets",
       }),
     },
-    // Next.js pages — stale while revalidate
+    // Next.js pages — NetworkFirst.
+    // T-9-extension: StaleWhileRevalidate served stale authenticated HTML across
+    // sign-in/sign-out boundaries (e.g. signed-out user could navigate to a
+    // previously-visited /workspaces and still see the cached page bypassing
+    // middleware). NetworkFirst forces every navigation to hit the server first
+    // (so middleware runs and middleware-driven redirects work), with the
+    // cache as an offline fallback only.
     {
       matcher: ({ request }: { request: Request }) =>
         request.mode === "navigate",
-      handler: new StaleWhileRevalidate({
+      handler: new NetworkFirst({
         cacheName: "pages",
+        networkTimeoutSeconds: 5,
       }),
     },
   ],

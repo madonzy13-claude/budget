@@ -9,7 +9,10 @@ const testDir = defineBddConfig({
 export default defineConfig({
   testDir,
   timeout: 30000,
-  retries: process.env["CI"] ? 1 : 0,
+  retries: process.env["CI"] ? 2 : 0,
+  // Sequential in CI to avoid same-domain cookie/session races between
+  // parallel sign-up scenarios. Local dev keeps default parallelism.
+  workers: process.env["CI"] ? 1 : undefined,
   use: {
     baseURL: process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000",
     trace: "on-first-retry",

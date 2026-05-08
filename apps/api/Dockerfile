@@ -21,6 +21,7 @@ ENV NODE_ENV=production
 COPY packages ./packages
 COPY apps/api ./apps/api
 WORKDIR /app/apps/api
+USER bun
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD bun -e "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["bun", "run", "src/server.ts"]

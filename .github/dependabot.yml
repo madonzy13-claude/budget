@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      types:
+        patterns: ["@types/*"]
+      eslint:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "@typescript-eslint/*"
+      drizzle:
+        patterns: ["drizzle-*"]
+      better-auth:
+        patterns:
+          - "better-auth"
+          - "@better-auth/*"
+      hono:
+        patterns:
+          - "hono"
+          - "@hono/*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/apps/api"
+      - "/apps/web"
+      - "/apps/worker"
+      - "/apps/migrator"
+    schedule:
+      interval: "weekly"
