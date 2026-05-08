@@ -8,3 +8,8 @@ coverage/
 playwright-report/
 test-results/
 .features-gen/
+
+# CI/CD prep additions (2026-05-08)
+.claude/
+graphify-out/
+**/tsconfig.tsbuildinfo
