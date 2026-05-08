@@ -40,8 +40,8 @@ function buildEmailSender(
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       from: env.SMTP_FROM,
-      user: env.SMTP_USER,
-      pass: env.SMTP_PASS,
+      ...(env.SMTP_USER !== undefined ? { user: env.SMTP_USER } : {}),
+      ...(env.SMTP_PASS !== undefined ? { pass: env.SMTP_PASS } : {}),
     });
   }
   logger.warn(
