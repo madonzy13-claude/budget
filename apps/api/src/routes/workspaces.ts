@@ -104,6 +104,10 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     const auth = deps.identity.auth as any;
 
     try {
+      // Server-side invocation (matches packages/tenancy/src/application/invite-member.ts).
+      // Pass userId in body — do NOT forward `headers`. With headers Better Auth resolves
+      // the inviter via session.activeOrganizationId, which is not set on a freshly
+      // created workspace (no setActiveOrganization round-trip), and the call rejects.
       const r2 = await auth.api.createInvitation({
         body: {
           organizationId: workspaceId,
@@ -111,7 +115,6 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
           role: body.role,
           userId: session.user.id,
         },
-        headers: c.req.raw.headers,
       });
       return c.json({ invitationId: r2.id }, 201);
     } catch (e) {
