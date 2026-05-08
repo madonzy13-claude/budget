@@ -76,11 +76,6 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
 
     try {
       const slug = (await import("nanoid")).nanoid(12);
-      console.log(
-        "[create-ws] DEBUG session.user.id=%s kind=%s",
-        session.user.id,
-        body.kind,
-      );
       const r2 = await auth.api.createOrganization({
         body: {
           name: body.name,
@@ -91,22 +86,22 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
         },
         headers: c.req.raw.headers,
       });
-      console.log("[create-ws] DEBUG returned id=%s name=%s", r2.id, body.name);
-      // Diagnostic: query members for this org to see what got inserted
-      try {
-        const { appPool } = await import("@budget/platform");
-        const members = await appPool().query(
-          "SELECT user_id::text, role FROM tenancy.workspace_members WHERE workspace_id = $1",
-          [r2.id],
-        );
-        console.log(
-          "[create-ws] DEBUG members after createOrganization:",
-          members.rows,
-        );
-      } catch (e) {
-        console.log(
-          "[create-ws] DEBUG member-query failed:",
-          (e as Error).message,
+      // Workaround: Better Auth 1.6.9's createOrganization returns success
+      // without persisting the creator membership row in CI (works locally —
+      // root cause unclear, possibly a race between Better Auth's adapter
+      // INSERT and the surrounding tx). Backfill via direct INSERT only when
+      // missing.
+      const { appPool } = await import("@budget/platform");
+      const existing = await appPool().query(
+        `SELECT 1 FROM tenancy.workspace_members
+         WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+        [r2.id, session.user.id],
+      );
+      if (existing.rowCount === 0) {
+        await appPool().query(
+          `INSERT INTO tenancy.workspace_members (id, workspace_id, user_id, role)
+           VALUES (gen_random_uuid(), $1, $2, 'owner')`,
+          [r2.id, session.user.id],
         );
       }
       return c.json({ id: r2.id, name: body.name }, 201);
@@ -128,24 +123,6 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
 
     const auth = deps.identity.auth as any;
 
-    console.log(
-      "[invite] DEBUG session.user.id=%s workspaceId=%s email=%s",
-      session.user.id,
-      workspaceId,
-      body.email,
-    );
-    // Diagnostic: query member row directly to see what's actually in DB
-    try {
-      const { appPool } = await import("@budget/platform");
-      const pool = appPool();
-      const members = await pool.query(
-        "SELECT user_id::text, role FROM tenancy.workspace_members WHERE workspace_id = $1",
-        [workspaceId],
-      );
-      console.log("[invite] DEBUG members in workspace:", members.rows);
-    } catch (e) {
-      console.log("[invite] DEBUG member-query failed:", (e as Error).message);
-    }
     try {
       const r2 = await auth.api.createInvitation({
         body: {
@@ -159,7 +136,6 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
       if (/PRIVATE workspaces/.test(msg)) return c.json({ error: msg }, 409);
-      console.error("[invite] createInvitation failed:", msg, e);
       throw e;
     }
   });
