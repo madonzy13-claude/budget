@@ -95,6 +95,20 @@ The following gray areas were not surfaced in discussion and are deliberately le
 - **Projections shape.** At least `budgeting.spending_by_category_month (workspace_id, category_id, month_start_date, normal_amount, cushion_amount, currency, updated_at)` updated synchronously inside the same transaction as ledger writes (ENGR-14). Reconciliation cron (pg-boss, hourly) compares the projection to a fresh aggregate-from-ledger and logs/repairs drift. CLI `bun run replay:budgeting` rebuilds projections from `expense_ledger` for a date range.
 - **EXPN-04, EXPN-05 (voice capture).** Phase 5 — do NOT ship in Phase 2. Even though listed in REQUIREMENTS.md under EXPN, the roadmap excludes them from Phase 2's requirement set (Phase 2 list is EXPN-01, -02, -03, -06, -07*, -08…-13; -04 and -05 are absent). *EXPN-07 dropped per D-01-c.
 
+### Architectural Defaults Ratified from RESEARCH.md (D-05)
+
+These nine items were surfaced as Open Questions in `02-RESEARCH.md` and ratified by the user before planner spawn. Treat as locked decisions; planner MUST honor.
+
+- **D-05-a — `corrected_by_id` column on `expense_ledger`:** DROP. Index `corrects_id` instead. "Latest view" derived as `WHERE id NOT IN (SELECT corrects_id FROM expense_ledger WHERE corrects_id IS NOT NULL)` (or equivalent LEFT JOIN / recursive CTE). Reason: column is REVOKE'd and cannot be UPDATEd; inverse derivation is correct and avoids a privilege carve-out.
+- **D-05-b — Phase-2 ledger column additions:** ALTER TABLE `expense_ledger` ADD COLUMN for `transaction_date`, `note`, `account_id`, `category_id`, `kind`, `transfer_group_id`. Phase 1 inserted no rows so no data-loss risk; preserves Phase 1 RLS + REVOKE policies.
+- **D-05-c — Idempotency-Key table location:** `shared_kernel.idempotency_keys`. Reusable across contexts; matches existing infra patterns. (Supersedes the `platform.idempotency_keys` mention in Claude's Discretion above.)
+- **D-05-d — Workspace budget mode (normal/cushion) history:** dedicated `budgeting.workspace_budget_mode_history` table. Mirrors `category_limits` effective-dated pattern; query-symmetric (point-in-time lookup).
+- **D-05-e — Account balance reconciliation:** store `current_balance Money` on `accounts` and update synchronously inside the ledger writer transaction. CLI `bun run reconcile:balances` is fallback only. Same write-path discipline as projections (ENGR-14).
+- **D-05-f — `expense_ledger` discriminator:** single table with `kind` CHECK constraint (`EXPENSE | INCOME | TRANSFER`). `transfer_group_id` links transfer pairs. Shared FTS, simpler queries, single audit trail.
+- **D-05-g — System user for cron-initiated writes:** seed `00000000-0000-0000-0000-000000000001` row in `identity.users` via Phase 2 migration. Use as `actor_user_id` for cron-driven inserts (recurring engine, projections reconciliation, FX cache writes). Audit history requires non-null `actor_user_id`.
+- **D-05-h — Currency allowlist bootstrap:** persist `budgeting.supported_currencies` from Frankfurter `GET /v2/currencies` at first migrator run (idempotent UPSERT). Crypto majors (BTC, ETH, USDT, USDC, BNB, SOL) seeded manually with `provider='internal'` for Phase 3.
+- **D-05-i — Recurring `cadence_anchor` for weekly:** store `cadence='WEEKLY'` plus `weekly_dow INT (0–6)` (Sun=0..Sat=6); compute next occurrence via Temporal `PlainDate.dayOfWeek`. Resolves "every Monday" vs "every 7 days" ambiguity.
+
 </decisions>
 
 <canonical_refs>
