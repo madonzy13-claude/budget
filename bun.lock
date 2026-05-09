@@ -115,6 +115,23 @@
         "pg-boss": "^12.18.2",
       },
     },
+    "packages/budgeting": {
+      "name": "@budget/budgeting",
+      "version": "0.0.0",
+      "dependencies": {
+        "@budget/platform": "workspace:*",
+        "@budget/shared-kernel": "workspace:*",
+        "big.js": "^7.0.1",
+        "drizzle-orm": "^0.45.2",
+        "neverthrow": "^8.0.0",
+        "temporal-polyfill": "^0.3.2",
+        "zod": "^3.25.0",
+      },
+      "devDependencies": {
+        "@types/big.js": "^6.2.2",
+        "typescript": "^5.6.0",
+      },
+    },
     "packages/crypto": {
       "name": "@budget/crypto",
       "version": "0.0.0",
@@ -225,6 +242,8 @@
     "@better-fetch/fetch": ["@better-fetch/fetch@1.1.21", "", {}, "sha512-/ImESw0sskqlVR94jB+5+Pxjf+xBwDZF/N5+y2/q4EqD7IARUTSpPfIo8uf39SYpCxyOCtbyYpUrZ3F/k0zT4A=="],
 
     "@budget/api": ["@budget/api@workspace:apps/api"],
+
+    "@budget/budgeting": ["@budget/budgeting@workspace:packages/budgeting"],
 
     "@budget/crypto": ["@budget/crypto@workspace:packages/crypto"],
 
@@ -1357,6 +1376,10 @@
     "tailwindcss": ["tailwindcss@4.2.4", "", {}, "sha512-HhKppgO81FQof5m6TEnuBWCZGgfRAWbaeOaGT00KOy/Pf/j6oUihdvBpA7ltCeAvZpFhW3j0PTclkxsd4IXYDA=="],
 
     "tapable": ["tapable@2.3.3", "", {}, "sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A=="],
+
+    "temporal-polyfill": ["temporal-polyfill@0.3.2", "", { "dependencies": { "temporal-spec": "0.3.1" } }, "sha512-TzHthD/heRK947GNiSu3Y5gSPpeUDH34+LESnfsq8bqpFhsB79HFBX8+Z834IVX68P3EUyRPZK5bL/1fh437Eg=="],
+
+    "temporal-spec": ["temporal-spec@0.3.1", "", {}, "sha512-B4TUhezh9knfSIMwt7RVggApDRJZo73uZdj8AacL2mZ8RP5KtLianh2MXxL06GN9ESYiIsiuoLQhgVfwe55Yhw=="],
 
     "thread-stream": ["thread-stream@3.1.0", "", { "dependencies": { "real-require": "^0.2.0" } }, "sha512-OqyPZ9u96VohAyMfJykzmivOrY2wfMSf3C5TtFJVgN+Hm6aj+voFhlK+kZEIv2FBh1X6Xp3DlnCOfEQ3B2J86A=="],
 

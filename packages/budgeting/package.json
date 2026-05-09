@@ -1,0 +1,30 @@
+{
+  "name": "@budget/budgeting",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./test/helpers": "./test/helpers.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@budget/shared-kernel": "workspace:*",
+    "@budget/platform": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "neverthrow": "^8.0.0",
+    "big.js": "^7.0.1",
+    "zod": "^3.25.0",
+    "temporal-polyfill": "^0.3.2"
+  },
+  "devDependencies": {
+    "@types/big.js": "^6.2.2",
+    "typescript": "^5.6.0"
+  }
+}
