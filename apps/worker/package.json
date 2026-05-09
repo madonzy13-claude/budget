@@ -11,6 +11,9 @@
   "dependencies": {
     "@budget/platform": "workspace:*",
     "@budget/shared-kernel": "workspace:*",
-    "pg-boss": "^12.18.2"
+    "@budget/budgeting": "workspace:*",
+    "pg-boss": "^12.18.2",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.0"
   }
 }

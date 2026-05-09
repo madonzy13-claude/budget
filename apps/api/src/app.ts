@@ -7,7 +7,7 @@
  * 3. authMiddleware (resolves session for all other routes)
  * 4. tenantGuard (resolves active_workspace_ids → tenantIds, sets GUC)
  * 5. i18nMiddleware (resolves locale from session)
- * 6. /workspaces/* and /settings/* routes
+ * 6. /workspaces/*, /settings/*, /fx/* routes
  * 7. /health (lightweight liveness probe)
  */
 import { Hono } from "hono";
@@ -18,6 +18,7 @@ import { i18nMiddleware } from "./middleware/i18n";
 import { authRoutes } from "./routes/auth";
 import { workspacesRoutesFactory } from "./routes/workspaces";
 import { settingsRoutesFactory } from "./routes/settings";
+import { createFxRoute } from "./routes/fx";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -37,6 +38,7 @@ export function createApp(deps: BootedDeps) {
   // 6. Domain routes
   app.route("/workspaces", workspacesRoutesFactory(deps));
   app.route("/settings", settingsRoutesFactory(deps));
+  app.route("/fx", createFxRoute(deps));
 
   // 7. Health probe
   app.get("/health", (c) =>

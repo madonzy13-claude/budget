@@ -30,6 +30,7 @@
       "name": "@budget/api",
       "version": "0.0.0",
       "dependencies": {
+        "@budget/budgeting": "workspace:*",
         "@budget/identity": "workspace:*",
         "@budget/platform": "workspace:*",
         "@budget/shared-kernel": "workspace:*",
@@ -110,8 +111,11 @@
       "name": "@budget/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@budget/budgeting": "workspace:*",
         "@budget/platform": "workspace:*",
         "@budget/shared-kernel": "workspace:*",
+        "drizzle-orm": "^0.45.2",
+        "pg": "^8.13.0",
         "pg-boss": "^12.18.2",
       },
     },

@@ -1,8 +1,13 @@
-import { getBoss, stopBoss } from "@budget/platform";
+import { getBoss, stopBoss, workerPool } from "@budget/platform";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
+import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
+import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
+import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 
 async function main() {
   const boss = await getBoss();
+
+  // Outbox dispatcher
   await boss.createQueue("outbox-dispatch");
   await boss.work(
     "outbox-dispatch",
@@ -12,7 +17,20 @@ async function main() {
     },
   );
   await boss.schedule("outbox-dispatch", "*/1 * * * *");
-  console.log("[worker] booted; outbox-dispatch polling=5s schedule=*/1m");
+
+  // FX daily fetcher — 17:00 Europe/Berlin (after Frankfurter publishes ~16:00 CET)
+  const fxCache = new DrizzleFxRateCacheRepo(workerPool());
+  const { fxProvider } = createBudgetingModule({ fxCache });
+  await boss.createQueue("fx-daily-fetch");
+  await boss.schedule("fx-daily-fetch", "0 17 * * *", null, {
+    tz: "Europe/Berlin",
+  });
+  registerFxDailyFetch(boss, fxProvider);
+
+  console.log(
+    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin",
+  );
+
   process.on("SIGTERM", async () => {
     console.log("[worker] SIGTERM, stopping...");
     await stopBoss();

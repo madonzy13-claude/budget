@@ -14,6 +14,7 @@
     "@budget/platform": "workspace:*",
     "@budget/identity": "workspace:*",
     "@budget/tenancy": "workspace:*",
+    "@budget/budgeting": "workspace:*",
     "drizzle-orm": "latest",
     "nanoid": "^5",
     "hono": "^4.12.16",
