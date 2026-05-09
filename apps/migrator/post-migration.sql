@@ -329,6 +329,14 @@ VALUES
   ('SOL', NULL, 'Solana', 'SOL', 'CRYPTO', 'internal')
 ON CONFLICT (iso_code) DO NOTHING;
 
+-- Plan 02-04: accounts + account_balance_adjustments
+ALTER TABLE budgeting.accounts FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.account_balance_adjustments FORCE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.accounts TO app_role, worker_role;
+GRANT SELECT, INSERT ON budgeting.account_balance_adjustments TO app_role, worker_role;
+-- balance_adjustments is append-only; no UPDATE/DELETE per T-2-04-04
+REVOKE UPDATE, DELETE ON budgeting.account_balance_adjustments FROM app_role, worker_role;
+
 -- D-04 / TENT-11: default_currency immutable post-create.
 CREATE OR REPLACE FUNCTION tenancy.workspaces_block_currency_change() RETURNS trigger AS $$
 BEGIN
