@@ -12,6 +12,7 @@ COPY packages/identity/package.json packages/identity/
 COPY packages/platform/package.json packages/platform/
 COPY packages/shared-kernel/package.json packages/shared-kernel/
 COPY packages/tenancy/package.json packages/tenancy/
+COPY packages/budgeting/package.json packages/budgeting/
 RUN bun install --frozen-lockfile --production
 # bun --production keeps dev-only transitive deps in workspace mode (drizzle-
 # kit / vite / vitest / playwright drag in esbuild Go binaries that flag
