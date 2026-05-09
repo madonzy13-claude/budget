@@ -40,18 +40,51 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 2: Budgeting & FX
 
-**Goal**: A user can model their household money: define accounts, define categories with both a normal and a cushion limit, capture expenses/income/transfers in any currency through a form, edit transactions via correction rows (original immutable), search/filter, split, and run recurring transactions — all on top of an append-only `expense_ledger` that stores original-and-default amounts plus the FX rate as of the transaction date, and behind an `Idempotency-Key` middleware so PWA offline-then-reconnect retries are safe.
+**Goal**: A user can model their household money: define accounts, define categories with both a normal and a cushion limit, capture expenses/income/transfers in any currency through a form, edit transactions via correction rows (original immutable), search/filter, and run recurring transactions — all on top of an append-only `expense_ledger` that stores original-and-default amounts plus the FX rate as of the transaction date, and behind an `Idempotency-Key` middleware so PWA offline-then-reconnect retries are safe.
 **Depends on**: Phase 1
-**Requirements**: MONY-03, MONY-04, MONY-05, MONY-06, ACCT-01, ACCT-02, ACCT-03, ACCT-04, BDGT-01, BDGT-02, BDGT-03, BDGT-04, BDGT-05, BDGT-06, BDGT-07, BDGT-08, EXPN-01, EXPN-02, EXPN-03, EXPN-06, EXPN-07, EXPN-08, EXPN-09, EXPN-10, EXPN-11, EXPN-12, EXPN-13, ENGR-09, ENGR-14
+**Requirements**: MONY-03, MONY-04, MONY-05, MONY-06, ACCT-01, ACCT-02, ACCT-03, ACCT-04, BDGT-01, BDGT-02, BDGT-03, BDGT-04, BDGT-05, BDGT-06, BDGT-07, BDGT-08, EXPN-01, EXPN-02, EXPN-03, EXPN-06, EXPN-08, EXPN-09, EXPN-10, EXPN-11, EXPN-12, EXPN-13, ENGR-09, ENGR-14
 **Success Criteria** (what must be TRUE):
 
 1. User can create accounts of every supported kind (cash, checking, savings, credit card, loan, investment) per personal/shared scope, set/update manual balances, archive accounts (history preserved), and view balance in both account currency and family default currency
 2. User can create categories per scope with a normal monthly limit and a separate cushion monthly limit, group them one level, edit limits with audit history visible in UI, archive categories, and apply a budget template to a new month
 3. User can capture an expense, income, or transfer via form in any currency on any date; the resulting `expense_ledger` row stores `(amount_orig, currency_orig, amount_default, currency_default, fx_rate, fx_rate_date, fx_provider)` with `fx_rate_stale=true` flag falling back to most-recent-prior rate when Frankfurter is unavailable; user cannot UPDATE or DELETE a ledger row at the SQL level
-4. User can edit a past transaction (creates a new correction row linking via `corrects_id`/`corrected_by_id`, original immutable), split one transaction across multiple categories, schedule recurring transactions that the engine generates at due date, search/filter by date/category/account/scope/text, and bulk re-categorize a set of transactions
+4. User can edit a past transaction (creates a new correction row linking via `corrects_id`; original immutable; latest-only view derived from `WHERE id NOT IN (SELECT corrects_id FROM expense_ledger WHERE corrects_id IS NOT NULL)` per D-05-a), schedule recurring transactions (PENDING-by-default per D-01-e — engine generates drafts requiring user Confirm/Edit-confirm/Skip) that the engine generates at due date, search/filter by date/category/account/scope/text, and bulk re-categorize a set of transactions
 5. Every mutating endpoint accepts an `Idempotency-Key` header; replaying the same key within 24h returns the cached response without producing a duplicate ledger row or duplicate outbox event; projections (e.g. spending-by-category-month) update in the same transaction as ledger writes and a reconciliation cron + replay-from-ledger command can rebuild them
-   **Plans**: TBD
+   **Plans**: 9 plans
    **UI hint**: yes
+
+Plans:
+
+- [ ] 02-01-PLAN.md — Money/Currency primitives, validateShares, Temporal helpers, supported_currencies bootstrap, test scaffolding
+- [ ] 02-02-PLAN.md — FrankfurterFxProvider adapter (ENGR-09 ACL), fx_rates cache, daily 17:00 CET pg-boss fetcher, GET /fx/rate route, schema push
+- [ ] 02-03-PLAN.md — Idempotency-Key middleware (shared_kernel.idempotency_keys per D-05-c), 24h TTL, hourly cleanup, cross-tenant + cross-user scope
+- [ ] 02-04-PLAN.md — Accounts CRUD + balance_adjustments + Hono routes + RHF form + Assets/Liabilities UI (ACCT-01..04)
+- [ ] 02-05-PLAN.md — Categories + effective-dated category_limits + budget_templates + share_overrides (sum-100 deferred trigger) + budget_mode_history (BDGT-01..08)
+- [ ] 02-06-PLAN.md — ALTER expense_ledger Phase-2 columns + DROP corrected_by_id + transaction-repo single-tx writer (ledger + balance + projection + outbox) + capture form (EXPN-01..03, -11, -13)
+- [ ] 02-07-PLAN.md — Edit-via-correction-row + getTransactionHistory + edit form + history panel (EXPN-06, -13)
+- [ ] 02-08-PLAN.md — Recurring rules + recurring_drafts (PENDING-by-default per D-01-e/f/g) + pg-boss engine + confirm/edit/skip use cases + drafts inbox UI (EXPN-08)
+- [ ] 02-09-PLAN.md — Search/filter (FTS plainto_tsquery + cursor) + bulk-recategorize + reconciliation cron + replay-budgeting CLI + UI (EXPN-09, -10, ENGR-14)
+
+**Wave structure** (serial — same-wave file-overlap check forces serialization since post-migration.sql, app.ts, boot.ts, contracts/factory.ts, i18n JSONs, e2e steps glue are touched by most plans):
+
+| Wave | Plan  | Notes                                                                                                  |
+| ---- | ----- | ------------------------------------------------------------------------------------------------------ |
+| 1    | 02-01 | Domain primitives, no deps                                                                             |
+| 2    | 02-02 | FX adapter (pushes fx_rates schema first)                                                              |
+| 3    | 02-03 | Idempotency middleware (writes app.ts middleware order — must follow 02-02's route mount)              |
+| 4    | 02-04 | Accounts (writes app.ts/boot.ts/post-migration.sql)                                                    |
+| 5    | 02-05 | Categories + limits + templates + shares + mode toggle                                                 |
+| 6    | 02-06 | Transaction writer + ALTER expense_ledger + projection schema                                          |
+| 7    | 02-07 | Edit-via-correction (extends 02-06 transaction-list)                                                   |
+| 8    | 02-08 | Recurring engine (writes recurring page route + i18n + factory + e2e steps glue — overlaps with 02-07) |
+| 9    | 02-09 | Search/filter/bulk + reconciliation cron + replay CLI                                                  |
+
+Serialization tradeoff: parallel speedup is forfeited because post-migration.sql, contracts/factory.ts, en/pl/uk.json, and the e2e step-glue file are shared edit targets. Refactoring those into per-plan partial files would unlock parallel execution in v1.x — out of scope for this phase.
+
+**Action items for `/gsd-transition`** (per CONTEXT.md D-01-c):
+
+- Move `EXPN-07` from Active → Out of Scope in `REQUIREMENTS.md` (one-transaction-one-category model). Already removed from Phase 2 requirement line above.
+- Add a new requirement (suggested ID `EXPN-14` or annotate EXPN-08) for "Pending recurring drafts inbox surface" per D-01-e.
 
 ### Phase 3: Reserve, Investments, Cushion
 
