@@ -820,36 +820,47 @@ All Phase 2 test files do not yet exist. Wave 0 tasks must create the test scaff
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All nine items below were ratified via CONTEXT.md D-05-a..i (see `02-CONTEXT.md` § "Architectural Defaults Ratified from RESEARCH.md (D-05)"). Treat as locked decisions; the original recommendations stand.
 
 1. **`corrected_by_id` column on `expense_ledger` — keep or drop?**
+   - **RESOLVED:** Drop the column; index `corrects_id` and derive latest-only via `WHERE id NOT IN (SELECT corrects_id FROM expense_ledger WHERE corrects_id IS NOT NULL)` (see CONTEXT.md D-05-a)
    - What we know: Phase 1 created the column but REVOKE'd UPDATE so it can never be set.
    - What's unclear: Is the planner expected to fix this with a column-level GRANT + trigger, or simplify by dropping the column and deriving the relation from the inverse `EXISTS (SELECT 1 WHERE corrects_id = this.id)`?
    - Recommendation: **Drop the column.** Index `corrects_id`. Latest-view query: `SELECT * WHERE id NOT IN (SELECT corrects_id FROM expense_ledger WHERE corrects_id IS NOT NULL)` (or use a recursive CTE / `LEFT JOIN ... WHERE c.id IS NULL`).
 
 2. **Schema for `budgeting.expense_ledger` is missing critical Phase-2 columns — `transaction_date`, `note`, `account_id`, `category_id`, `kind`, `transfer_group_id`. Are these added via ALTER, or is the table re-created?**
+   - **RESOLVED:** ADD COLUMN via Phase 2 migration; no data loss because Phase 1 inserted no rows (see CONTEXT.md D-05-b)
    - What we know: ALTER TABLE on append-only ledger is fine for ADD COLUMN (data preserved). But existing column shape was reviewed at MONY-06 and may have been intentionally minimal.
    - Recommendation: ADD COLUMN via Phase 2 migration. No data loss because Phase 1 did not INSERT.
 
 3. **Where does `idempotency_keys` live — `shared_kernel` or new `platform` schema?**
+   - **RESOLVED:** `shared_kernel.idempotency_keys` (supersedes the `platform.idempotency_keys` mention in Discretion notes) (see CONTEXT.md D-05-c)
    - Recommendation: **`shared_kernel.idempotency_keys`** — matches existing infra patterns and avoids new schema declaration.
 
 4. **`workspace_budget_mode` storage — two columns + history vs. dedicated history table?**
+   - **RESOLVED:** Dedicated `budgeting.workspace_budget_mode_history` table, mirroring the effective-dated `category_limits` pattern (see CONTEXT.md D-05-d)
    - Recommendation: **dedicated `budgeting.workspace_budget_mode_history`** (mirrors `category_limits` pattern, query-symmetric).
 
 5. **Balance reconciliation: store `current_balance` on `accounts` (synchronous update), compute on-demand from ledger sum, or both?**
+   - **RESOLVED:** Store `current_balance Money` on `accounts`, update synchronously inside the ledger writer transaction; `bun run reconcile:balances` CLI is fallback only (see CONTEXT.md D-05-e)
    - Recommendation: store + sync in same tx, with `bun run reconcile:balances` CLI as fallback. Same write-path discipline as projections.
 
 6. **`expense_ledger` discriminator: add `kind` column (EXPENSE/INCOME/TRANSFER) or split into two tables?**
+   - **RESOLVED:** Single table with `kind` CHECK constraint; `transfer_group_id` links transfer pairs (see CONTEXT.md D-05-f)
    - Recommendation: single table with `kind` CHECK constraint. Simpler queries, FTS shared, transfer_group_id links transfer pairs.
 
 7. **System user for cron-initiated writes:** should we seed a `system` user row in `identity.users` or use NULL `actor_user_id`?
+   - **RESOLVED:** Seed `00000000-0000-0000-0000-000000000001` row in `identity.users` via Phase 2 migration; use as `actor_user_id` for cron-driven inserts (see CONTEXT.md D-05-g)
    - Recommendation: seed via migration (`00000000-0000-0000-0000-000000000001`). Audit history requires non-null actor_user_id today.
 
 8. **Currency allowlist: bootstrap-fetch + persist, or hardcode?**
+   - **RESOLVED:** Persist `budgeting.supported_currencies` from Frankfurter `GET /v2/currencies` at first migrator run (idempotent UPSERT); seed crypto majors manually with `provider='internal'` (see CONTEXT.md D-05-h)
    - Recommendation: persist `budgeting.supported_currencies` from `GET /v2/currencies` at first migrator run (idempotent). Crypto majors (BTC, ETH, USDT, USDC, BNB, SOL) added manually with `provider='internal'` for Phase 3.
 
 9. **Recurring `cadence_anchor` semantics for weekly:** "every Monday" vs "every 7 days from anchor"?
+   - **RESOLVED:** Store `cadence='WEEKLY'` plus `weekly_dow INT (0–6)` (Sun=0..Sat=6); compute next occurrence via Temporal `PlainDate.dayOfWeek` (see CONTEXT.md D-05-i)
    - Recommendation: store `cadence='WEEKLY'` + `weekly_dow INT (0-6)` for Sun–Sat. Use Temporal `PlainDate.dayOfWeek`.
 
 ---
@@ -1208,9 +1219,9 @@ All recommendations in this RESEARCH.md comply with the above. Conflicts are lis
 | Effective-dated limits | MEDIUM | Domain edge cases need test coverage                               |
 | Recurring cadence math | MEDIUM | Temporal API edge cases (Feb-29)                                   |
 
-### Open Questions
+### Open Questions (RESOLVED)
 
-9 listed above (corrected_by_id resolution, ledger column extensions, idempotency schema location, budget-mode storage, balance reconciliation strategy, ledger-discriminator vs side-tables, system user seeding, currency allowlist source, weekly cadence anchor semantics). All recommendations included; planner accepts or contradicts.
+All 9 listed above were resolved by user ratification in CONTEXT.md D-05-a..i (corrected_by_id resolution, ledger column extensions, idempotency schema location, budget-mode storage, balance reconciliation strategy, ledger-discriminator vs side-tables, system user seeding, currency allowlist source, weekly cadence anchor semantics). All recommendations stand as the locked decisions.
 
 ### Ready for Planning
 
