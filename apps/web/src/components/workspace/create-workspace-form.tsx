@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,13 +26,11 @@ import { api } from "@/lib/api-client";
 
 type WorkspaceKind = "PRIVATE" | "SHARED";
 
-const createWorkspaceSchema = z.object({
-  name: z.string().min(1, "Workspace name is required.").max(100),
-  kind: z.enum(["PRIVATE", "SHARED"]),
-  default_currency: z.string().min(3, "Default currency is required.").max(3),
-});
-
-type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
+type CreateWorkspaceValues = {
+  name: string;
+  kind: WorkspaceKind;
+  default_currency: string;
+};
 
 interface CreateWorkspaceFormProps {
   locale?: string;
@@ -46,6 +44,22 @@ export function CreateWorkspaceForm({
   const t = useTranslations();
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const createWorkspaceSchema = useMemo(
+    () =>
+      z.object({
+        name: z
+          .string()
+          .min(1, t("workspaces.create.validation.name_required"))
+          .max(100),
+        kind: z.enum(["PRIVATE", "SHARED"]),
+        default_currency: z
+          .string()
+          .min(3, t("workspaces.create.validation.currency_required"))
+          .max(3),
+      }),
+    [t],
+  );
 
   const form = useForm<CreateWorkspaceValues>({
     resolver: zodResolver(createWorkspaceSchema),

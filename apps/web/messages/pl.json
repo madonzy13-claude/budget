@@ -71,6 +71,7 @@
     "signin_link": "Zaloguj się"
   },
   "settings": {
+    "eyebrow": "Konto",
     "heading": "Ustawienia",
     "sessions": {
       "tab": "Sesje",
@@ -82,23 +83,30 @@
         "status": "Status"
       },
       "current_badge": "Bieżąca",
+      "unknown_device": "Nieznane urządzenie",
       "revoke": {
         "label": "Wyloguj tę sesję",
         "confirm": {
           "title": "Wylogować tę sesję?",
           "body": "Zalogowane urządzenie na {device} zostanie natychmiast wylogowane.",
-          "cta": "Wyloguj"
+          "cta": "Wyloguj",
+          "cancel": "Anuluj"
         }
-      }
+      },
+      "success_revoke": "Sesja wylogowana.",
+      "error_revoke": "Nie udało się wylogować sesji. Spróbuj ponownie."
     },
     "display_currency": {
       "label": "Waluta wyświetlania",
       "helper": "Używana do wyświetlania sum w wielu obszarach roboczych. Każdy obszar roboczy zachowuje własną walutę dla swoich danych.",
-      "tab": "Waluta wyświetlania"
+      "tab": "Waluta wyświetlania",
+      "save_success": "Waluta wyświetlania zaktualizowana.",
+      "error_save": "Nie udało się zapisać waluty wyświetlania. Spróbuj ponownie."
     },
     "locale": {
       "label": "Język wyświetlania",
-      "tab": "Język"
+      "tab": "Język",
+      "error_save": "Nie udało się zapisać języka. Spróbuj ponownie."
     },
     "providers": {
       "tab": "Dostawcy",
@@ -116,6 +124,7 @@
   },
   "workspaces": {
     "empty": {
+      "eyebrow": "Zaczynamy",
       "heading": "Utwórz swój pierwszy obszar roboczy",
       "body": "Obszar roboczy zawiera jeden budżet. Utwórz prywatny dla siebie lub wspólny do planowania z rodziną.",
       "cta": "Utwórz obszar roboczy"
@@ -134,14 +143,19 @@
       "currency": {
         "label": "Domyślna waluta",
         "helper": "To ustawienie jest trwałe — każdy wpis w tym obszarze roboczym jest rozliczany w tej walucie.",
-        "placeholder": "Wyszukaj walutę..."
+        "placeholder": "Wybierz walutę"
       },
       "cta": "Utwórz obszar roboczy",
-      "success": "Obszar roboczy \"{name}\" został utworzony."
+      "success": "Obszar roboczy \"{name}\" został utworzony.",
+      "validation": {
+        "name_required": "Nazwa obszaru roboczego jest wymagana.",
+        "currency_required": "Domyślna waluta jest wymagana."
+      }
     },
     "switcher": {
       "label": "Aktywne obszary robocze",
       "helper": "Wybierz obszary robocze, które chcesz widzieć. Zapamiętamy to.",
+      "error_save": "Nie udało się zapisać. Spróbuj ponownie.",
       "group": {
         "private": "Prywatne budżety",
         "shared": "Wspólne budżety"
@@ -171,6 +185,8 @@
       },
       "save": "Zapisz udziały",
       "save_success": "Udziały w wkładzie zaktualizowane.",
+      "save_error": "Nie udało się zapisać udziałów. Spróbuj ponownie.",
+      "saving": "Zapisywanie...",
       "audit_hint": "Każda zmiana jest rejestrowana."
     },
     "invite": {
@@ -182,6 +198,9 @@
       "success": "Zaproszenie wysłane do {email}.",
       "error": {
         "already_member": "{email} jest już członkiem tego obszaru roboczego."
+      },
+      "validation": {
+        "email_invalid": "Adres e-mail jest nieprawidłowy. Sprawdź format i spróbuj ponownie."
       }
     },
     "leave": {
@@ -224,9 +243,11 @@
     "sign_out": "Wyloguj się"
   },
   "onboarding": {
+    "eyebrow": "Krok 1 z 3",
     "heading": "Skonfiguruj swój pierwszy obszar roboczy",
     "subtitle": "Prawie gotowe. Utwórz obszar roboczy, aby zacząć śledzić budżet.",
-    "step_workspace": "Utwórz obszar roboczy"
+    "step_workspace": "Utwórz obszar roboczy",
+    "step_workspace_helper": "Wybierz nazwę, zakres i domyślną walutę. Waluty nie można później zmienić."
   },
   "dashboard": {
     "heading": "Pulpit",

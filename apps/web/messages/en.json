@@ -71,6 +71,7 @@
     "signin_link": "Sign in"
   },
   "settings": {
+    "eyebrow": "Account",
     "heading": "Settings",
     "sessions": {
       "tab": "Sessions",
@@ -82,23 +83,30 @@
         "status": "Status"
       },
       "current_badge": "Current",
+      "unknown_device": "Unknown device",
       "revoke": {
         "label": "Sign out this session",
         "confirm": {
           "title": "Sign out this session?",
           "body": "The signed-in device on {device} will be signed out immediately.",
-          "cta": "Sign out"
+          "cta": "Sign out",
+          "cancel": "Cancel"
         }
-      }
+      },
+      "success_revoke": "Session signed out.",
+      "error_revoke": "Failed to sign out session. Try again."
     },
     "display_currency": {
       "label": "Display currency",
       "helper": "Used to show totals across multiple workspaces. Each workspace keeps its own currency for its own data.",
-      "tab": "Display currency"
+      "tab": "Display currency",
+      "save_success": "Display currency updated.",
+      "error_save": "Failed to save display currency. Try again."
     },
     "locale": {
       "label": "Display language",
-      "tab": "Language"
+      "tab": "Language",
+      "error_save": "Failed to save language. Try again."
     },
     "providers": {
       "tab": "Providers",
@@ -116,6 +124,7 @@
   },
   "workspaces": {
     "empty": {
+      "eyebrow": "Get started",
       "heading": "Create your first workspace",
       "body": "A workspace holds one budget. Make a private one for yourself, or a shared one to plan with family.",
       "cta": "Create workspace"
@@ -134,14 +143,19 @@
       "currency": {
         "label": "Default currency",
         "helper": "This is permanent — every entry in this workspace settles in this currency.",
-        "placeholder": "Search currency..."
+        "placeholder": "Select currency"
       },
       "cta": "Create workspace",
-      "success": "Workspace \"{name}\" created."
+      "success": "Workspace \"{name}\" created.",
+      "validation": {
+        "name_required": "Workspace name is required.",
+        "currency_required": "Default currency is required."
+      }
     },
     "switcher": {
       "label": "Active workspaces",
       "helper": "Pick the workspaces you want to see. We'll remember this.",
+      "error_save": "Failed to save. Try again.",
       "group": {
         "private": "Private budgets",
         "shared": "Shared budgets"
@@ -171,6 +185,8 @@
       },
       "save": "Save shares",
       "save_success": "Contribution shares updated.",
+      "save_error": "Failed to save shares. Try again.",
+      "saving": "Saving...",
       "audit_hint": "Every change is logged."
     },
     "invite": {
@@ -182,6 +198,9 @@
       "success": "Invitation sent to {email}.",
       "error": {
         "already_member": "{email} is already a member of this workspace."
+      },
+      "validation": {
+        "email_invalid": "Email isn't a valid address. Check the format and try again."
       }
     },
     "leave": {
@@ -224,9 +243,11 @@
     "sign_out": "Sign out"
   },
   "onboarding": {
+    "eyebrow": "Step 1 of 3",
     "heading": "Set up your first workspace",
     "subtitle": "You're almost ready. Create a workspace to start tracking your budget.",
-    "step_workspace": "Create workspace"
+    "step_workspace": "Create workspace",
+    "step_workspace_helper": "Pick a name, scope, and default currency. The currency is permanent."
   },
   "dashboard": {
     "heading": "Dashboard",

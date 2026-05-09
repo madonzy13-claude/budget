@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,13 +20,9 @@ import {
 } from "@/components/ui/form";
 import { api } from "@/lib/api-client";
 
-const inviteSchema = z.object({
-  email: z
-    .string()
-    .email("Email isn't a valid address. Check the format and try again."),
-});
-
-type InviteValues = z.infer<typeof inviteSchema>;
+type InviteValues = {
+  email: string;
+};
 
 interface InviteMemberFormProps {
   workspaceId: string;
@@ -34,7 +30,16 @@ interface InviteMemberFormProps {
 
 export function InviteMemberForm({ workspaceId }: InviteMemberFormProps) {
   const t = useTranslations("workspace.invite");
+  const tRoot = useTranslations();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const inviteSchema = useMemo(
+    () =>
+      z.object({
+        email: z.string().email(t("validation.email_invalid")),
+      }),
+    [t],
+  );
 
   const form = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
@@ -60,7 +65,7 @@ export function InviteMemberForm({ workspaceId }: InviteMemberFormProps) {
         if (err.code === "ALREADY_MEMBER") {
           setServerError(t("error.already_member", { email: values.email }));
         } else {
-          setServerError(err.message ?? "Failed to send invitation.");
+          setServerError(err.message ?? tRoot("state.error.generic"));
         }
         return;
       }
@@ -68,7 +73,7 @@ export function InviteMemberForm({ workspaceId }: InviteMemberFormProps) {
       toast.success(t("success", { email: values.email }));
       form.reset();
     } catch {
-      setServerError("Network error. Check your connection and try again.");
+      setServerError(tRoot("state.error.network"));
     }
   }
 
@@ -112,7 +117,7 @@ export function InviteMemberForm({ workspaceId }: InviteMemberFormProps) {
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sending...
+              {tRoot("state.loading")}
             </>
           ) : (
             t("cta")

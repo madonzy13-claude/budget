@@ -25,12 +25,6 @@ export class OnboardingPage {
     await this.currencyPickerTrigger().click();
   }
 
-  async expectTopCurrenciesHeader(): Promise<void> {
-    await expect(
-      this.page.getByText(this.labels.currencyPicker.topCurrenciesHeader),
-    ).toBeVisible();
-  }
-
   async expectCurrencyOption(label: string): Promise<void> {
     await expect(this.page.getByText(label)).toBeVisible();
   }

@@ -23,7 +23,6 @@ interface SignInLabels {
 
 interface CurrencyPickerLabels {
   triggerPlaceholder: RegExp;
-  topCurrenciesHeader: RegExp;
   usDollarLabel: string;
   ukrainianHryvniaLabel: string;
 }
@@ -70,8 +69,7 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
     },
     verifyEmailSubject: /verify/i,
     currencyPicker: {
-      triggerPlaceholder: /search currency/i,
-      topCurrenciesHeader: /top currencies/i,
+      triggerPlaceholder: /select currency/i,
       usDollarLabel: "US Dollar",
       ukrainianHryvniaLabel: "Ukrainian Hryvnia",
     },
@@ -110,8 +108,7 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
     },
     verifyEmailSubject: /Potwierdź swój adres e-mail/,
     currencyPicker: {
-      triggerPlaceholder: /wyszukaj walutę/i,
-      topCurrenciesHeader: /popularne waluty/i,
+      triggerPlaceholder: /wybierz walutę/i,
       usDollarLabel: "Dolar amerykański",
       ukrainianHryvniaLabel: "Hrywna ukraińska",
     },
@@ -150,8 +147,7 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
     },
     verifyEmailSubject: /Підтвердьте електронну адресу/,
     currencyPicker: {
-      triggerPlaceholder: /пошук валюти/i,
-      topCurrenciesHeader: /популярні валюти/i,
+      triggerPlaceholder: /виберіть валюту/i,
       usDollarLabel: "Долар США",
       ukrainianHryvniaLabel: "Українська гривня",
     },

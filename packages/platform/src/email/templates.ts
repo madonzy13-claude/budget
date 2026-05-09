@@ -22,8 +22,20 @@ export interface TemplateVars {
   [key: string]: unknown;
 }
 
-const FONT =
-  "font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#111;line-height:1.5;padding:24px;max-width:560px;margin:0 auto";
+// DESIGN.md tokens (Binance Dark) — keep in sync with apps/web/src/app/global.css
+const COLOR = {
+  canvasDark: "#0b0e11",
+  surfaceCardDark: "#1e2329",
+  hairlineOnDark: "#2b3139",
+  primary: "#fcd535",
+  onPrimary: "#181a20",
+  onDark: "#ffffff",
+  body: "#eaecef",
+  muted: "#707a8a",
+} as const;
+
+const FONT_STACK =
+  "Inter,BinanceNova,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
 
 function escapeHtml(value: string): string {
   return value
@@ -158,15 +170,48 @@ function htmlShell(
 ): string {
   const safeUrl = escapeHtml(url);
   return `<!doctype html>
-<html><body style="${FONT}">
-  <h2 style="margin:0 0 16px">${escapeHtml(heading)}</h2>
-  <p>${escapeHtml(body)}</p>
-  <p style="margin:24px 0">
-    <a href="${safeUrl}" style="background:#111;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;display:inline-block">${escapeHtml(cta)}</a>
-  </p>
-  <p style="font-size:13px;color:#666">${escapeHtml(pasteHint)}<br><code style="word-break:break-all">${safeUrl}</code></p>
-  <hr style="border:none;border-top:1px solid #eee;margin:32px 0">
-  <p style="font-size:12px;color:#999">${escapeHtml(footer)}</p>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>${escapeHtml(heading)}</title>
+</head>
+<body style="margin:0;padding:0;background:${COLOR.canvasDark};font-family:${FONT_STACK};color:${COLOR.body};-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLOR.canvasDark};padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+          <tr>
+            <td style="padding:0 0 24px 0;">
+              <span style="font-family:${FONT_STACK};font-size:20px;font-weight:700;letter-spacing:0.02em;color:${COLOR.primary};text-transform:uppercase;">Budget</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:${COLOR.surfaceCardDark};border-radius:12px;padding:32px;">
+              <h1 style="margin:0 0 16px 0;font-family:${FONT_STACK};font-size:24px;font-weight:600;line-height:1.3;color:${COLOR.onDark};">${escapeHtml(heading)}</h1>
+              <p style="margin:0 0 28px 0;font-size:14px;line-height:1.5;color:${COLOR.body};">${escapeHtml(body)}</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:${COLOR.primary};border-radius:6px;">
+                    <a href="${safeUrl}" style="display:inline-block;padding:12px 24px;font-family:${FONT_STACK};font-size:14px;font-weight:600;line-height:1;color:${COLOR.onPrimary};text-decoration:none;">${escapeHtml(cta)}</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:28px 0 0 0;font-size:13px;line-height:1.5;color:${COLOR.muted};">${escapeHtml(pasteHint)}</p>
+              <p style="margin:8px 0 0 0;font-size:13px;line-height:1.5;word-break:break-all;"><a href="${safeUrl}" style="color:${COLOR.primary};text-decoration:none;">${safeUrl}</a></p>
+              <hr style="border:none;border-top:1px solid ${COLOR.hairlineOnDark};margin:28px 0;">
+              <p style="margin:0;font-size:12px;line-height:1.4;color:${COLOR.muted};">${escapeHtml(footer)}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 0 0 0;font-size:12px;color:${COLOR.muted};text-align:center;">Budget — Family budgeting &amp; wealth tracker</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body></html>`;
 }
 
