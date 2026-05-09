@@ -19,6 +19,7 @@ import { authRoutes } from "./routes/auth";
 import { workspacesRoutesFactory } from "./routes/workspaces";
 import { settingsRoutesFactory } from "./routes/settings";
 import { createFxRoute } from "./routes/fx";
+import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -33,6 +34,7 @@ export function createApp(deps: BootedDeps) {
   // 3-5. Auth → tenant-guard → i18n pipeline for all other routes
   app.use(authMiddleware(deps));
   app.use(tenantGuard);
+  app.use(createIdempotencyMiddleware()); // Pitfall 2: AFTER tenantGuard, BEFORE routes
   app.use(i18nMiddleware);
 
   // 6. Domain routes
@@ -41,9 +43,7 @@ export function createApp(deps: BootedDeps) {
   app.route("/fx", createFxRoute(deps));
 
   // 7. Health probe
-  app.get("/health", (c) =>
-    c.json({ ok: true, region: deps.env.REGION }),
-  );
+  app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));
 
   return app;
 }
