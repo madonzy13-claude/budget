@@ -291,6 +291,33 @@ CREATE POLICY workspace_members_tenant_delete ON tenancy.workspace_members
   FOR DELETE TO app_role, worker_role
   USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
+-- Plan 02-02: fx_rates reference table (no RLS, GRANT-restricted)
+GRANT SELECT ON budgeting.fx_rates TO app_role, worker_role;
+GRANT INSERT, UPDATE ON budgeting.fx_rates TO worker_role;
+
+-- Plan 02-02: supported_currencies reference table (no RLS, GRANT-restricted)
+GRANT SELECT ON budgeting.supported_currencies TO app_role, worker_role;
+GRANT INSERT, UPDATE ON budgeting.supported_currencies TO worker_role;
+
+-- Plan 02-02: seed supported_currencies with 8 fiat + 6 crypto (idempotent)
+INSERT INTO budgeting.supported_currencies (iso_code, iso_numeric, name, symbol, kind, provider)
+VALUES
+  ('USD', 840, 'US Dollar', '$', 'FIAT', 'frankfurter-stub'),
+  ('EUR', 978, 'Euro', '€', 'FIAT', 'frankfurter-stub'),
+  ('PLN', 985, 'Polish Złoty', 'zł', 'FIAT', 'frankfurter-stub'),
+  ('UAH', 980, 'Ukrainian Hryvnia', '₴', 'FIAT', 'frankfurter-stub'),
+  ('GBP', 826, 'British Pound', '£', 'FIAT', 'frankfurter-stub'),
+  ('CHF', 756, 'Swiss Franc', 'Fr', 'FIAT', 'frankfurter-stub'),
+  ('JPY', 392, 'Japanese Yen', '¥', 'FIAT', 'frankfurter-stub'),
+  ('NOK', 578, 'Norwegian Krone', 'kr', 'FIAT', 'frankfurter-stub'),
+  ('BTC', NULL, 'Bitcoin', '₿', 'CRYPTO', 'internal'),
+  ('ETH', NULL, 'Ethereum', 'Ξ', 'CRYPTO', 'internal'),
+  ('USDT', NULL, 'Tether', 'USDT', 'CRYPTO', 'internal'),
+  ('USDC', NULL, 'USD Coin', 'USDC', 'CRYPTO', 'internal'),
+  ('BNB', NULL, 'Binance Coin', 'BNB', 'CRYPTO', 'internal'),
+  ('SOL', NULL, 'Solana', 'SOL', 'CRYPTO', 'internal')
+ON CONFLICT (iso_code) DO NOTHING;
+
 -- D-04 / TENT-11: default_currency immutable post-create.
 CREATE OR REPLACE FUNCTION tenancy.workspaces_block_currency_change() RETURNS trigger AS $$
 BEGIN

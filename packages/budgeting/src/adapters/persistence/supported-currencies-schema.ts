@@ -1,9 +1,9 @@
-import { char, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { budgeting } from "@budget/platform";
 
 /** Reference data — no RLS. GRANTs in apps/migrator/post-migration.sql. */
 export const supportedCurrencies = budgeting.table("supported_currencies", {
-  isoCode: char("iso_code", { length: 3 }).primaryKey(),
+  isoCode: varchar("iso_code", { length: 10 }).primaryKey(), // varchar(10): fiat ISO-4217 (3) + crypto (4-5 chars)
   isoNumeric: integer("iso_numeric"),
   name: text("name").notNull(),
   symbol: text("symbol"),

@@ -36,6 +36,20 @@
       "when": 1778155305234,
       "tag": "0004_lame_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778360075611,
+      "tag": "0005_daily_dust",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778360148712,
+      "tag": "0006_rainy_anita_blake",
+      "breakpoints": true
     }
   ]
 }
