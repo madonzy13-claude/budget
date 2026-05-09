@@ -1,10 +1,11 @@
 ---
 phase: 2
 slug: budgeting-fx
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-09
+reviewed_at: 2026-05-09T18:27:00Z
 ---
 
 # Phase 2 — UI Design Contract: Budgeting & FX
@@ -55,18 +56,23 @@ Exceptions:
 
 All type from DESIGN.md tokens. BinancePlex for every monetary/numeric value; BinanceNova for all copy.
 
-| Role           | Token            | Size | Weight | Line Height | Font        | Use                                                                          |
-| -------------- | ---------------- | ---- | ------ | ----------- | ----------- | ---------------------------------------------------------------------------- |
-| Page title     | `title-lg`       | 24px | 600    | 1.3         | BinanceNova | Screen/section headings (Accounts, Categories, Transactions)                 |
-| Section title  | `title-sm`       | 16px | 600    | 1.4         | BinanceNova | Card headers, drawer titles, group labels                                    |
-| Body           | `body-md`        | 14px | 400    | 1.5         | BinanceNova | Row labels, descriptions, form hints, empty state body                       |
-| Caption        | `caption`        | 12px | 500    | 1.4         | BinanceNova | FX freshness badge, "edited" badge, share-override badge, secondary metadata |
-| Button         | `button`         | 14px | 600    | 1           | BinanceNova | All CTA labels                                                               |
-| Amount display | `number-display` | 40px | 700    | 1.1         | BinancePlex | FX preview amount, deposit amount input                                      |
-| Amount md      | `number-md`      | 16px | 500    | 1.4         | BinancePlex | Transaction list amounts, account balance, category limit values             |
-| Amount sm      | `number-sm`      | 14px | 500    | 1.4         | BinancePlex | Budget bar spent/limit sub-labels, percentage shares, FX rate inline         |
+Phase 2 uses 4 sizes and 2 weights. Page titles use the same 16px/600 token as section titles — Phase 2 screen headings are compact enough that a 24px tier adds no hierarchy value over the card/drawer title context they appear in.
 
-Weights in use: 400 (body copy), 500 (numbers, nav, caption), 600 (titles, buttons), 700 (large amounts).
+| Role                   | Token            | Size | Weight | Line Height | Font        | Use                                                                                                                    |
+| ---------------------- | ---------------- | ---- | ------ | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Title (page + section) | `title-sm`       | 16px | 600    | 1.4         | BinanceNova | Screen headings, card headers, drawer titles, group labels (Accounts, Categories, Transactions, Edit history)          |
+| Body / button          | `body-md`        | 14px | 400    | 1.5         | BinanceNova | Row labels, descriptions, form hints, empty state body; buttons use 14px/600 (same size, heavier weight — see note)    |
+| Caption / meta         | `caption`        | 12px | 400    | 1.4         | BinanceNova | FX freshness badge, "edited" badge, share-override badge, secondary metadata, cadence badges, filter result counts     |
+| Amount display         | `number-display` | 40px | 600    | 1.1         | BinancePlex | Transaction capture amount input, FX preview converted amount — prominent numeric entry point (DESIGN.md `display-md`) |
+
+**Button weight note:** CTA labels use `body-md` size (14px) at weight 600. This is not a separate size — it is the same 14px token rendered at the heavier of the two declared weights.
+
+**Number tokens (use body-md size, weight 600, BinancePlex font):**
+
+- `number-md` — 16px/600/BinancePlex: transaction list amounts, account balance, category limit values (uses title-sm size)
+- `number-sm` — 14px/600/BinancePlex: budget bar spent/limit sub-labels, percentage shares, FX rate inline (uses body-md size)
+
+Weights in use: **400** (body copy, captions, metadata) · **600** (titles, buttons, all numeric values, amount display).
 
 ---
 
@@ -94,7 +100,7 @@ From DESIGN.md. Dark canvas is the primary surface for all product (transactiona
 
 **Accent (`primary` #FCD535) reserved for:**
 
-- "Save" / "Confirm" primary CTA button background
+- "Save" / "Confirm transaction" primary CTA button background
 - "Add Transaction" floating action button background
 - "Apply Template" button background
 - Active nav item indicator dot or underline
@@ -131,7 +137,7 @@ All components built from existing primitives in `apps/web/src/components/ui/`.
 **Background:** `surface-card-dark`
 **Fields:**
 
-- Amount input: `input` component, `number-display` typography (40px/700/BinancePlex), placeholder "0.00"
+- Amount input: `input` component, `number-display` typography (40px/600/BinancePlex), placeholder "0.00"
 - Currency picker: `select` component, inline after amount — shows ISO code + flag emoji
 - Date: `input` type=date, styled to dark canvas
 - Kind: `tabs` component with 3 tabs — Expense / Income / Transfer
@@ -143,7 +149,7 @@ All components built from existing primitives in `apps/web/src/components/ui/`.
 
 **Buttons:**
 
-- Primary: "Save Expense" / "Save Income" / "Save Transfer" — `button-primary` (yellow)
+- Primary: "Save expense" / "Save income" / "Save transfer" — `button-primary` (yellow)
 - Cancel: `button-tertiary-text`
 
 **Transfer special:**
@@ -180,8 +186,15 @@ All components built from existing primitives in `apps/web/src/components/ui/`.
 **Sections:** Assets (cash, checking, savings, investment) / Liabilities (credit card, loan) — `title-sm` group label
 **Account row:** account name `body-md` · currency · balance in `number-md`/BinancePlex (asset: `on-dark`; liability: `trading-down`)
 **Actions:** Edit icon (pencil), Archive icon (archive-box) — appear on row hover; `muted` color, 20px icon
+
+**Icon-only action accessibility contract:**
+
+- Edit button: `aria-label="Edit {account name}"` — executor must not omit
+- Archive button: `aria-label="Archive {account name}"` — executor must not omit
+- Both buttons: `role="button"`, minimum 44×44px touch target
+
 **"Adjust balance" action:** opens inline row with amount input + "Save adjustment" — records BALANCE_ADJUSTMENT ledger row
-**Add button:** "+ Add Account" — `button-secondary-on-dark` at bottom of card
+**Add button:** "+ Add account" — `button-secondary-on-dark` at bottom of card
 
 **Account detail / edit:**
 
@@ -194,7 +207,7 @@ All components built from existing primitives in `apps/web/src/components/ui/`.
 **Surface:** `card` container, grouped by category group
 **Category row:** icon + name `body-md` · normal limit `number-sm`/BinancePlex · cushion limit `number-sm`/BinancePlex (muted if same as normal) · budget bar (see above) · "override" badge if contribution shares differ from global
 **Expand row:** clicking row opens inline contribution shares editor (see below)
-**Edit icon:** opens edit `dialog`
+**Edit icon:** opens edit `dialog`; `aria-label="Edit {category name}"` required
 
 **Category edit dialog (480px):**
 
@@ -227,12 +240,12 @@ All components built from existing primitives in `apps/web/src/components/ui/`.
 
 - Rule name + amount + category — `body-md`
 - Due date — `caption`/`muted`; if overdue, date shown in `trading-down`
-- Three action buttons inline: "Confirm" (`button-primary` small 28px), "Edit & Confirm" (`button-secondary-on-dark` small), "Skip" (`button-tertiary-text`)
+- Three action buttons inline: "Confirm transaction" (`button-primary` small 28px), "Edit & confirm" (`button-secondary-on-dark` small), "Skip this period" (`button-tertiary-text`)
 - Skip triggers `alert-dialog`: "Skip {rule name} for {period}? This period will not be recorded." — Confirm / Cancel
 
 **Edit-and-confirm flow:**
 
-- Clicking "Edit & Confirm" opens the transaction capture `sheet` pre-filled with draft values
+- Clicking "Edit & confirm" opens the transaction capture `sheet` pre-filled with draft values
 - On save from sheet: inserts ledger row and deletes draft
 
 ### Recurring Rules Manager
@@ -261,7 +274,7 @@ All components built from existing primitives in `apps/web/src/components/ui/`.
 
 - Always visible on any transaction row or FX preview where `fx_rate_date < transaction_date`
 - Text: humanized age — "rate from Friday", "rate 2h 15m old", "rate 3 days old"
-- Style: `caption` (12px/500) text in `muted-strong`, pill background `surface-elevated-dark`, 4px border-radius, 4px vertical padding × 8px horizontal
+- Style: `caption` (12px/400) text in `muted-strong`, pill background `surface-elevated-dark`, 4px border-radius, 4px vertical padding × 8px horizontal
 - Icon: `info` circle, 12px, `info` blue color (#3b82f6)
 - No click action, no dismiss — purely informational
 
@@ -299,7 +312,7 @@ All components built from existing primitives in `apps/web/src/components/ui/`.
 | Save expense            | "Save expense"                   |
 | Save income             | "Save income"                    |
 | Save transfer           | "Save transfer"                  |
-| Confirm recurring draft | "Confirm"                        |
+| Confirm recurring draft | "Confirm transaction"            |
 | Edit-and-confirm draft  | "Edit & confirm"                 |
 | Skip draft              | "Skip this period"               |
 | Apply budget template   | "Apply to {Month YYYY}"          |
@@ -375,10 +388,10 @@ No inline delete without confirmation. All destructive triggers use `trading-dow
 
 ### Pending Drafts Confirmation Flow
 
-- Draft row shows three inline buttons (Confirm / Edit & Confirm / Skip)
-- Confirm: immediate POST to confirm endpoint; row animates out; badge count decrements
-- Edit & Confirm: opens transaction capture sheet pre-filled; saving from sheet confirms draft
-- Skip: opens `alert-dialog`; on confirm, row animates out; badge count decrements
+- Draft row shows three inline buttons (Confirm transaction / Edit & confirm / Skip this period)
+- Confirm transaction: immediate POST to confirm endpoint; row animates out; badge count decrements
+- Edit & confirm: opens transaction capture sheet pre-filled; saving from sheet confirms draft
+- Skip this period: opens `alert-dialog`; on confirm, row animates out; badge count decrements
 
 ### Budget Bar Update
 
