@@ -50,6 +50,13 @@
       "when": 1778360148712,
       "tag": "0006_rainy_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778361162996,
+      "tag": "0007_little_silverclaw",
+      "breakpoints": true
     }
   ]
 }

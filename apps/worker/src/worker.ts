@@ -1,6 +1,7 @@
 import { getBoss, stopBoss, workerPool } from "@budget/platform";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
+import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 
@@ -26,6 +27,11 @@ async function main() {
     tz: "Europe/Berlin",
   });
   registerFxDailyFetch(boss, fxProvider);
+
+  // Idempotency-key cleanup — hourly, deletes expired rows via worker_role + cleanup pgPolicy
+  await boss.createQueue("idempotency-cleanup");
+  await boss.schedule("idempotency-cleanup", "0 * * * *"); // hourly
+  registerIdempotencyCleanup(boss);
 
   console.log(
     "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin",

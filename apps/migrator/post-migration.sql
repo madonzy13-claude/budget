@@ -165,6 +165,17 @@ CREATE POLICY accounts_owner_delete ON identity.accounts
   FOR DELETE TO app_role, worker_role
   USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
 
+-- Plan 02-03: idempotency_keys (two-policy RLS — no separate cleanup role)
+-- Policy 1 (idempotency_keys_tenant_isolation) is declared in Drizzle schema (pgPolicy).
+-- Policy 2 (idempotency_keys_cleanup) is declared in Drizzle schema (pgPolicy).
+-- GRANTs: SELECT + INSERT for app_role + worker_role (request handling);
+--         DELETE for worker_role (cleanup job via idempotency_keys_cleanup policy).
+-- NO UPDATE: rows are write-once. Cleanup uses DELETE via the cleanup pgPolicy.
+GRANT SELECT, INSERT, DELETE ON shared_kernel.idempotency_keys TO app_role, worker_role;
+ALTER TABLE shared_kernel.idempotency_keys FORCE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idempotency_keys_expires_at_idx
+  ON shared_kernel.idempotency_keys (expires_at);
+
 -- Idempotent retries: every statement above is safe to re-run.
 
 -- Plan 06: tenancy schema

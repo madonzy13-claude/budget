@@ -18,6 +18,7 @@ export default defineConfig({
     "../../packages/tenancy/src/adapters/persistence/shares-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/supported-currencies-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/fx-rates-schema.ts",
+    "../../packages/platform/src/idempotency/schema.ts",
   ],
   dbCredentials: { url },
   casing: "snake_case",
