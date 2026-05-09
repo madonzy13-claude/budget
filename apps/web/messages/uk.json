@@ -254,6 +254,49 @@
     "no_workspaces": "Не вибрано жодного активного робочого простору. Використовуйте перемикач робочих просторів, щоб вибрати принаймні один.",
     "totals_in": "Підсумки у {currency}"
   },
+  "budgeting": {
+    "accounts": {
+      "title": "Рахунки",
+      "addButton": "Додати рахунок",
+      "form": {
+        "title": "Новий рахунок",
+        "nameLabel": "Назва рахунку",
+        "namePlaceholder": "напр. Готівковий гаманець",
+        "kindLabel": "Тип рахунку",
+        "scopeLabel": "Область",
+        "currencyLabel": "Валюта",
+        "currencyPlaceholder": "Виберіть валюту",
+        "saveButton": "Зберегти рахунок",
+        "cancelButton": "Скасувати"
+      },
+      "kinds": {
+        "CASH": "Готівка",
+        "CHECKING": "Розрахунковий",
+        "SAVINGS": "Ощадний",
+        "CREDIT_CARD": "Кредитна картка",
+        "LOAN": "Позика",
+        "INVESTMENT": "Інвестиція"
+      },
+      "scopes": {
+        "PERSONAL": "Особистий",
+        "SHARED": "Спільний"
+      },
+      "groups": {
+        "assets": "Активи",
+        "liabilities": "Пасиви"
+      },
+      "actions": {
+        "editAria": "Редагувати {name}",
+        "archiveAria": "Архівувати {name}",
+        "adjustBalance": "Скоригувати баланс"
+      },
+      "empty": "Рахунків ще немає. Додайте перший рахунок, щоб почати відстежувати фінанси.",
+      "balance": {
+        "in": "Баланс у {currency}",
+        "unavailable": "Курс недоступний"
+      }
+    }
+  },
   "currency": {
     "picker": {
       "placeholder": "Пошук валюти...",

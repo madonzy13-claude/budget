@@ -254,6 +254,49 @@
     "no_workspaces": "Nie wybrano żadnych aktywnych obszarów roboczych. Użyj przełącznika obszarów roboczych, aby wybrać co najmniej jeden.",
     "totals_in": "Sumy w {currency}"
   },
+  "budgeting": {
+    "accounts": {
+      "title": "Konta",
+      "addButton": "Dodaj konto",
+      "form": {
+        "title": "Nowe konto",
+        "nameLabel": "Nazwa konta",
+        "namePlaceholder": "np. Portfel gotówkowy",
+        "kindLabel": "Rodzaj konta",
+        "scopeLabel": "Zakres",
+        "currencyLabel": "Waluta",
+        "currencyPlaceholder": "Wybierz walutę",
+        "saveButton": "Zapisz konto",
+        "cancelButton": "Anuluj"
+      },
+      "kinds": {
+        "CASH": "Gotówka",
+        "CHECKING": "Konto rozliczeniowe",
+        "SAVINGS": "Oszczędnościowe",
+        "CREDIT_CARD": "Karta kredytowa",
+        "LOAN": "Pożyczka",
+        "INVESTMENT": "Inwestycja"
+      },
+      "scopes": {
+        "PERSONAL": "Osobiste",
+        "SHARED": "Wspólne"
+      },
+      "groups": {
+        "assets": "Aktywa",
+        "liabilities": "Pasywa"
+      },
+      "actions": {
+        "editAria": "Edytuj {name}",
+        "archiveAria": "Archiwizuj {name}",
+        "adjustBalance": "Dostosuj saldo"
+      },
+      "empty": "Brak kont. Dodaj pierwsze konto, aby zacząć śledzić swoje finanse.",
+      "balance": {
+        "in": "Saldo w {currency}",
+        "unavailable": "Kurs niedostępny"
+      }
+    }
+  },
   "currency": {
     "picker": {
       "placeholder": "Wyszukaj walutę...",

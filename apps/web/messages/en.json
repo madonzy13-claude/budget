@@ -254,6 +254,49 @@
     "no_workspaces": "No active workspaces selected. Use the workspace switcher to pick at least one.",
     "totals_in": "Totals shown in {currency}"
   },
+  "budgeting": {
+    "accounts": {
+      "title": "Accounts",
+      "addButton": "Add account",
+      "form": {
+        "title": "New account",
+        "nameLabel": "Account name",
+        "namePlaceholder": "e.g. Cash Wallet",
+        "kindLabel": "Account kind",
+        "scopeLabel": "Scope",
+        "currencyLabel": "Currency",
+        "currencyPlaceholder": "Select currency",
+        "saveButton": "Save account",
+        "cancelButton": "Cancel"
+      },
+      "kinds": {
+        "CASH": "Cash",
+        "CHECKING": "Checking",
+        "SAVINGS": "Savings",
+        "CREDIT_CARD": "Credit card",
+        "LOAN": "Loan",
+        "INVESTMENT": "Investment"
+      },
+      "scopes": {
+        "PERSONAL": "Personal",
+        "SHARED": "Shared"
+      },
+      "groups": {
+        "assets": "Assets",
+        "liabilities": "Liabilities"
+      },
+      "actions": {
+        "editAria": "Edit {name}",
+        "archiveAria": "Archive {name}",
+        "adjustBalance": "Adjust balance"
+      },
+      "empty": "No accounts yet. Add your first account to start tracking your money.",
+      "balance": {
+        "in": "Balance in {currency}",
+        "unavailable": "Rate unavailable"
+      }
+    }
+  },
   "currency": {
     "picker": {
       "placeholder": "Search currency...",
