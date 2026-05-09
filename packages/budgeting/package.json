@@ -10,8 +10,15 @@
     "./test/helpers": "./test/helpers.ts",
     "./src/adapters/fx/frankfurter": "./src/adapters/fx/frankfurter.ts",
     "./src/adapters/persistence/fx-rate-cache-repo": "./src/adapters/persistence/fx-rate-cache-repo.ts",
+    "./src/adapters/persistence/account-repo": "./src/adapters/persistence/account-repo.ts",
+    "./src/contracts/api": "./src/contracts/api.ts",
     "./src/contracts/factory": "./src/contracts/factory.ts",
-    "./src/ports/fx-rate-cache-repo": "./src/ports/fx-rate-cache-repo.ts"
+    "./src/ports/fx-rate-cache-repo": "./src/ports/fx-rate-cache-repo.ts",
+    "./src/application/create-account": "./src/application/create-account.ts",
+    "./src/application/archive-account": "./src/application/archive-account.ts",
+    "./src/application/adjust-account-balance": "./src/application/adjust-account-balance.ts",
+    "./src/application/list-accounts": "./src/application/list-accounts.ts",
+    "./src/application/find-account-by-id": "./src/application/find-account-by-id.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

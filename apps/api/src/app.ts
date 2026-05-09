@@ -19,6 +19,7 @@ import { authRoutes } from "./routes/auth";
 import { workspacesRoutesFactory } from "./routes/workspaces";
 import { settingsRoutesFactory } from "./routes/settings";
 import { createFxRoute } from "./routes/fx";
+import { createAccountsRoute } from "./routes/accounts";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import type { BootedDeps } from "./boot";
 
@@ -41,6 +42,7 @@ export function createApp(deps: BootedDeps) {
   app.route("/workspaces", workspacesRoutesFactory(deps));
   app.route("/settings", settingsRoutesFactory(deps));
   app.route("/fx", createFxRoute(deps));
+  app.route("/accounts", createAccountsRoute(deps));
 
   // 7. Health probe
   app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));
