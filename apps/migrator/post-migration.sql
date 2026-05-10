@@ -558,3 +558,46 @@ CREATE POLICY spending_projection_isolation ON budgeting.spending_by_category_mo
   USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 GRANT SELECT, INSERT, UPDATE ON budgeting.spending_by_category_month TO app_role, worker_role;
+
+-- ===== Plan 02-08: recurring_rules + recurring_drafts + system_user seed =====
+
+-- ENABLE + FORCE RLS on new tables (ENABLE done by Drizzle migration; FORCE done here)
+ALTER TABLE budgeting.recurring_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.recurring_rules FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.recurring_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.recurring_drafts FORCE ROW LEVEL SECURITY;
+
+-- RLS policies (idempotent — DROP IF EXISTS + re-CREATE)
+DROP POLICY IF EXISTS recurring_rules_tenant_isolation ON budgeting.recurring_rules;
+CREATE POLICY recurring_rules_tenant_isolation ON budgeting.recurring_rules
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+DROP POLICY IF EXISTS recurring_drafts_tenant_isolation ON budgeting.recurring_drafts;
+CREATE POLICY recurring_drafts_tenant_isolation ON budgeting.recurring_drafts
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+-- GRANTs
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_rules TO app_role, worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_drafts TO app_role, worker_role;
+
+-- D-05-g system user for cron-initiated writes (recurring engine, projection reconciliation)
+-- NOTE: identity.users has FORCE ROW LEVEL SECURITY and only app_role/worker_role have INSERT policies.
+-- The migrator (table owner) cannot insert directly due to FORCE RLS. The system user is seeded
+-- via the Docker init SQL (runs as postgres superuser) in infra/postgres/init/.
+-- In dev, run manually: docker exec budget-db-1 psql -U postgres -d budget -c "
+--   INSERT INTO identity.users (id,email,email_verified,name,locale,display_currency,created_at,updated_at)
+--   VALUES ('00000000-0000-0000-0000-000000000001','system@budget.local',true,'System','en','USD',now(),now())
+--   ON CONFLICT (id) DO NOTHING;"
+
+-- Indexes for engine scan
+CREATE INDEX IF NOT EXISTS recurring_rules_next_due_idx
+  ON budgeting.recurring_rules (next_due_date) WHERE active = true;
+CREATE INDEX IF NOT EXISTS recurring_drafts_pending_idx
+  ON budgeting.recurring_drafts (tenant_id, due_date DESC) WHERE status = 'PENDING';
+-- Index for D-01-d "regenerate future PENDING drafts" UPDATE in update-recurring-rule
+CREATE INDEX IF NOT EXISTS recurring_drafts_rule_pending_due_idx
+  ON budgeting.recurring_drafts (rule_id, due_date) WHERE status = 'PENDING';

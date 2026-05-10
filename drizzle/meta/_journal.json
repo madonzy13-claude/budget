@@ -78,6 +78,13 @@
       "when": 1778404800000,
       "tag": "0010_plan_02_06_ledger_projection",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778407200000,
+      "tag": "0011_plan_02_08_recurring",
+      "breakpoints": true
     }
   ]
 }

@@ -27,6 +27,8 @@ export default defineConfig({
     "../../packages/budgeting/src/adapters/persistence/workspace-budget-mode-history-schema.ts",
     "../../packages/platform/src/idempotency/schema.ts",
     "../../packages/budgeting/src/adapters/persistence/spending-projection-schema.ts",
+    "../../packages/budgeting/src/adapters/persistence/recurring-rules-schema.ts",
+    "../../packages/budgeting/src/adapters/persistence/recurring-drafts-schema.ts",
   ],
   dbCredentials: { url },
   casing: "snake_case",
