@@ -3,6 +3,7 @@ import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
 import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { registerRecurringEngine } from "./handlers/recurring-engine";
+import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 
@@ -39,8 +40,13 @@ async function main() {
   await boss.schedule("recurring-engine", "0 6 * * *"); // UTC, 5-placeholder format (Pitfall 9)
   registerRecurringEngine(boss);
 
+  // Budgeting reconciliation — hourly drift check on spending_by_category_month (Plan 02-09)
+  await boss.createQueue("budgeting-reconciliation");
+  await boss.schedule("budgeting-reconciliation", "0 * * * *"); // UTC hourly, 5-placeholder format
+  registerBudgetingReconciliation(boss);
+
   console.log(
-    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC",
+    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC",
   );
 
   process.on("SIGTERM", async () => {

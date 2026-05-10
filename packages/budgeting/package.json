@@ -60,7 +60,11 @@
     "./src/application/confirm-recurring-draft": "./src/application/confirm-recurring-draft.ts",
     "./src/application/edit-and-confirm-recurring-draft": "./src/application/edit-and-confirm-recurring-draft.ts",
     "./src/application/skip-recurring-draft": "./src/application/skip-recurring-draft.ts",
-    "./src/application/list-pending-drafts": "./src/application/list-pending-drafts.ts"
+    "./src/application/list-pending-drafts": "./src/application/list-pending-drafts.ts",
+    "./src/application/search-transactions": "./src/application/search-transactions.ts",
+    "./src/application/bulk-recategorize": "./src/application/bulk-recategorize.ts",
+    "./src/application/reconcile-projections": "./src/application/reconcile-projections.ts",
+    "./src/application/replay-projections": "./src/application/replay-projections.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

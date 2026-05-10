@@ -43,6 +43,8 @@ import { skipRecurringDraft } from "../application/skip-recurring-draft";
 import { listPendingDrafts } from "../application/list-pending-drafts";
 import { searchTransactions } from "../application/search-transactions";
 import { bulkRecategorize } from "../application/bulk-recategorize";
+import { reconcileProjections } from "../application/reconcile-projections";
+import { replayProjections } from "../application/replay-projections";
 import { withInfraTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
@@ -86,9 +88,11 @@ export interface BudgetingModule {
   listPendingDrafts: ReturnType<typeof listPendingDrafts>;
   recurringRuleRepo: DrizzleRecurringRuleRepo;
   recurringDraftRepo: DrizzleRecurringDraftRepo;
-  // Plan 02-09: search + bulk re-categorize
+  // Plan 02-09: search + bulk re-categorize + projection durability
   searchTransactions: ReturnType<typeof searchTransactions>;
   bulkRecategorize: ReturnType<typeof bulkRecategorize>;
+  reconcileProjections: ReturnType<typeof reconcileProjections>;
+  replayProjections: ReturnType<typeof replayProjections>;
 }
 
 /** Resolves workspace default_currency from tenancy.workspaces. */
@@ -175,5 +179,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     // Plan 02-09
     searchTransactions: searchTransactions(),
     bulkRecategorize: bulkRecategorize({ transactionRepo }),
+    reconcileProjections: reconcileProjections(),
+    replayProjections: replayProjections(),
   };
 }

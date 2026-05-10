@@ -339,6 +339,17 @@ GRANT SELECT, INSERT ON budgeting.account_balance_adjustments TO app_role, worke
 -- balance_adjustments is append-only; no UPDATE/DELETE per T-2-04-04
 REVOKE UPDATE, DELETE ON budgeting.account_balance_adjustments FROM app_role, worker_role;
 
+-- Plan 02-09: cron scan policy — worker_role can SELECT budgeting.accounts across ALL tenants
+-- WITHOUT app.tenant_ids set (so the budgeting-reconciliation engine's withInfraTx
+-- "SELECT DISTINCT tenant_id FROM budgeting.accounts" scan works). Per-tenant withTenantTx
+-- is still required for INSERT/UPDATE/DELETE because permissive policies OR-combine but the
+-- worker writes only happen inside withTenantTx(tenantId, SYSTEM_USER) where app.tenant_ids
+-- is set. Mirrors recurring_rules_worker_cron_scan (Plan 02-08).
+DROP POLICY IF EXISTS accounts_worker_cron_scan ON budgeting.accounts;
+CREATE POLICY accounts_worker_cron_scan ON budgeting.accounts
+  AS PERMISSIVE FOR SELECT TO worker_role
+  USING (true);
+
 -- D-04 / TENT-11: default_currency immutable post-create.
 CREATE OR REPLACE FUNCTION tenancy.workspaces_block_currency_change() RETURNS trigger AS $$
 BEGIN
@@ -558,6 +569,11 @@ CREATE POLICY spending_projection_isolation ON budgeting.spending_by_category_mo
   USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 GRANT SELECT, INSERT, UPDATE ON budgeting.spending_by_category_month TO app_role, worker_role;
+-- Plan 02-09: replay CLI + reconciliation worker rebuild projection rows; DELETE
+-- needed for replay's DELETE+INSERT atomic rebuild. Granted to BOTH roles since the
+-- reconciliation cron runs under app_role inside withTenantTx(SYSTEM_USER) — same
+-- pattern as recurring_rules above. Auto-repair path uses UPSERT (INSERT ... ON CONFLICT).
+GRANT DELETE ON budgeting.spending_by_category_month TO app_role, worker_role;
 
 -- ===== Plan 02-08: recurring_rules + recurring_drafts + system_user seed =====
 
