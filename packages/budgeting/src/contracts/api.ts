@@ -158,3 +158,71 @@ export interface BudgetModeDto {
   effectiveTo: string | null;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Transaction schemas (EXPN-01, -02, -03, -11, -13)
+// ---------------------------------------------------------------------------
+
+const fxPreviewSchema = z.object({
+  rate: z.string().regex(/^\d+(\.\d+)?$/),
+  fxRateDate: z.string(), // ISO date string 'YYYY-MM-DD' or ISO timestamp
+}).optional().nullable();
+
+export const createTransactionSchema = z.discriminatedUnion("kind", [
+  // EXPENSE
+  z.object({
+    kind: z.literal("EXPENSE"),
+    amountOrig: z.string().regex(/^\d+(\.\d{1,4})?$/).refine((v) => parseFloat(v) > 0, "amount must be positive"),
+    currencyOrig: z.string().regex(/^[A-Z0-9]{3,5}$/),
+    transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    accountId: z.string().uuid(),
+    categoryId: z.string().uuid().optional().nullable(),
+    note: z.string().max(500).optional().nullable(),
+    fxPreview: fxPreviewSchema,
+  }),
+  // INCOME
+  z.object({
+    kind: z.literal("INCOME"),
+    amountOrig: z.string().regex(/^\d+(\.\d{1,4})?$/).refine((v) => parseFloat(v) > 0, "amount must be positive"),
+    currencyOrig: z.string().regex(/^[A-Z0-9]{3,5}$/),
+    transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    accountId: z.string().uuid(),
+    categoryId: z.string().uuid().optional().nullable(),
+    note: z.string().max(500).optional().nullable(),
+    fxPreview: fxPreviewSchema,
+  }),
+  // TRANSFER
+  z.object({
+    kind: z.literal("TRANSFER"),
+    amountOrig: z.string().regex(/^\d+(\.\d{1,4})?$/).refine((v) => parseFloat(v) > 0, "amount must be positive"),
+    currencyOrig: z.string().regex(/^[A-Z0-9]{3,5}$/),
+    transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    accountId: z.string().uuid(), // from-account
+    toAccountId: z.string().uuid().optional(),
+    note: z.string().max(500).optional().nullable(),
+    fxPreview: fxPreviewSchema,
+  }),
+]);
+
+export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
+
+export interface TransactionDto {
+  id: string;
+  tenantId: string;
+  kind: string;
+  amountOrig: string;
+  currencyOrig: string;
+  amountDefault: string;
+  currencyDefault: string;
+  fxRate: string;
+  fxRateDate: string;
+  fxProvider: string;
+  transactionDate: string;
+  note: string | null;
+  accountId: string;
+  categoryId: string | null;
+  transferGroupId: string | null;
+  correctsId: string | null;
+  createdAt: string;
+  isStale: boolean;
+}

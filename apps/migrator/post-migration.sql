@@ -169,9 +169,11 @@ CREATE POLICY accounts_owner_delete ON identity.accounts
 -- Policy 1 (idempotency_keys_tenant_isolation) is declared in Drizzle schema (pgPolicy).
 -- Policy 2 (idempotency_keys_cleanup) is declared in Drizzle schema (pgPolicy).
 -- GRANTs: SELECT + INSERT for app_role + worker_role (request handling);
---         DELETE for worker_role (cleanup job via idempotency_keys_cleanup policy).
--- NO UPDATE: rows are write-once. Cleanup uses DELETE via the cleanup pgPolicy.
-GRANT SELECT, INSERT, DELETE ON shared_kernel.idempotency_keys TO app_role, worker_role;
+--         UPDATE required for SELECT ... FOR UPDATE row locking (race-safety T-2-03-03);
+--         DELETE for cleanup job via idempotency_keys_cleanup policy.
+-- Note: UPDATE grant is needed for SELECT FOR UPDATE lock — rows remain logically
+--       write-once (no application code issues UPDATE statements on this table).
+GRANT SELECT, INSERT, UPDATE, DELETE ON shared_kernel.idempotency_keys TO app_role, worker_role;
 ALTER TABLE shared_kernel.idempotency_keys FORCE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idempotency_keys_expires_at_idx
   ON shared_kernel.idempotency_keys (expires_at);
