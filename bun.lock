@@ -5,6 +5,7 @@
     "": {
       "name": "budget",
       "devDependencies": {
+        "@budget/budgeting": "workspace:*",
         "@budget/db": "workspace:*",
         "@budget/identity": "workspace:*",
         "@budget/platform": "workspace:*",

@@ -14,9 +14,11 @@
     "depcheck": "depcruise --config .dependency-cruiser.cjs apps packages",
     "grep:no-direct-tx": "! grep -RnE '\\.transaction\\(' --include='*.ts' --exclude=tx.ts --exclude-dir=test --exclude-dir=node_modules apps packages",
     "grep:no-pool-connect": "! grep -RnE 'appPool\\(\\)\\.connect\\(' --include='*.ts' --exclude=tx.ts --exclude-dir=test --exclude-dir=node_modules packages apps",
-    "test:ci-gate": "bash scripts/ci/run-tenant-leak.sh"
+    "test:ci-gate": "bash scripts/ci/run-tenant-leak.sh",
+    "replay:budgeting": "bun run scripts/replay-budgeting.ts"
   },
   "devDependencies": {
+    "@budget/budgeting": "workspace:*",
     "@budget/db": "workspace:*",
     "@budget/identity": "workspace:*",
     "@budget/platform": "workspace:*",
