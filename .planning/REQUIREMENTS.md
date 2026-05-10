@@ -55,14 +55,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Categories & Budgets (BDGT)
 
-- [ ] **BDGT-01**: User defines spending categories per scope (personal/shared)
-- [ ] **BDGT-02**: Categories support one-level grouping
-- [ ] **BDGT-03**: Each category has monthly normal budget limit
-- [ ] **BDGT-04**: Each category has separate monthly cushion budget limit (austerity mode)
-- [ ] **BDGT-05**: User can edit limits any time; changes audit-tracked
-- [ ] **BDGT-06**: User can archive categories (preserves history, hides from new-expense pickers)
-- [ ] **BDGT-07**: User can create budget templates and apply to new months
-- [ ] **BDGT-08**: SHARED workspace supports per-category contribution share overrides (decimal % per member per category, sum = 100% per category); falls back to TENT-13 global shares when category has no override
+- [x] **BDGT-01**: User defines spending categories per scope (personal/shared)
+- [x] **BDGT-02**: Categories support one-level grouping
+- [x] **BDGT-03**: Each category has monthly normal budget limit
+- [x] **BDGT-04**: Each category has separate monthly cushion budget limit (austerity mode)
+- [x] **BDGT-05**: User can edit limits any time; changes audit-tracked
+- [x] **BDGT-06**: User can archive categories (preserves history, hides from new-expense pickers)
+- [x] **BDGT-07**: User can create budget templates and apply to new months
+- [x] **BDGT-08**: SHARED workspace supports per-category contribution share overrides (decimal % per member per category, sum = 100% per category); falls back to TENT-13 global shares when category has no override
 
 ### Expense Capture (EXPN)
 
@@ -234,175 +234,176 @@ Out of v1 roadmap. Acknowledged.
 
 Explicitly excluded. Documented to prevent scope creep.
 
-| Feature | Reason |
-|---------|--------|
-| Tax filing / tax reports | Budgeting product, not accounting |
-| Crypto custody / trading execution | Regulatory scope; valuation only |
-| Generic chat-with-your-data LLM | LLM bounded to onboarding + structured Task inputs |
-| Full event sourcing (CQRS) | Append-only ledger + audit_history is pragmatic equivalent |
-| Real-time collaboration (live cursor / presence) | Eventual consistency + push is sufficient |
-| Receipt OCR (v1) | Voice + form covers v1 |
-| Direct bank API (v1) | Pipeline architected for v2+ provider plug-in |
-| Native mobile (v1) | PWA covers v1 |
-| Generic goals beyond cushion | Reserve mechanic covers irregular costs |
+| Feature                                          | Reason                                                     |
+| ------------------------------------------------ | ---------------------------------------------------------- |
+| Tax filing / tax reports                         | Budgeting product, not accounting                          |
+| Crypto custody / trading execution               | Regulatory scope; valuation only                           |
+| Generic chat-with-your-data LLM                  | LLM bounded to onboarding + structured Task inputs         |
+| Full event sourcing (CQRS)                       | Append-only ledger + audit_history is pragmatic equivalent |
+| Real-time collaboration (live cursor / presence) | Eventual consistency + push is sufficient                  |
+| Receipt OCR (v1)                                 | Voice + form covers v1                                     |
+| Direct bank API (v1)                             | Pipeline architected for v2+ provider plug-in              |
+| Native mobile (v1)                               | PWA covers v1                                              |
+| Generic goals beyond cushion                     | Reserve mechanic covers irregular costs                    |
 
 ## Traceability
 
 Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| IDNT-01 | Phase 1 | Pending |
-| IDNT-02 | Phase 1 | Pending |
-| IDNT-03 | Phase 1 | Pending |
-| IDNT-04 | Phase 1 | Pending |
-| IDNT-05 | Phase 1 | Pending |
-| IDNT-06 | Phase 1 | Pending |
-| IDNT-07 | Phase 1 | Pending |
-| IDNT-08 | Phase 1 | Pending |
-| TENT-01 | Phase 1 | Pending |
-| TENT-02 | Phase 1 | Pending |
-| TENT-03 | Phase 1 | Pending |
-| TENT-04 | Phase 1 | Pending |
-| TENT-05 | Phase 1 | Pending |
-| TENT-06 | Phase 1 | Pending |
-| TENT-07 | Phase 1 | Pending |
-| TENT-08 | Phase 1 | Pending |
-| TENT-09 | Phase 1 | Pending |
-| TENT-10 | Phase 1 | Pending |
-| TENT-11 | Phase 1 | Pending |
-| TENT-12 | Phase 1 | Pending |
-| TENT-13 | Phase 1 | Pending |
-| MONY-01 | Phase 1 | Pending |
-| MONY-02 | Phase 1 | Pending |
-| MONY-03 | Phase 2 | Pending |
-| MONY-04 | Phase 2 | Pending |
-| MONY-05 | Phase 2 | Pending |
-| MONY-06 | Phase 2 | Pending |
-| MONY-07 | Phase 1 | Pending |
-| MONY-08 | Phase 1 | Pending |
-| MONY-09 | Phase 1 | Pending |
-| ACCT-01 | Phase 2 | Pending |
-| ACCT-02 | Phase 2 | Pending |
-| ACCT-03 | Phase 2 | Pending |
-| ACCT-04 | Phase 2 | Pending |
-| BDGT-01 | Phase 2 | Pending |
-| BDGT-02 | Phase 2 | Pending |
-| BDGT-03 | Phase 2 | Pending |
-| BDGT-04 | Phase 2 | Pending |
-| BDGT-05 | Phase 2 | Pending |
-| BDGT-06 | Phase 2 | Pending |
-| BDGT-07 | Phase 2 | Pending |
-| BDGT-08 | Phase 2 | Pending |
-| EXPN-01 | Phase 2 | Pending |
-| EXPN-02 | Phase 2 | Pending |
-| EXPN-03 | Phase 2 | Pending |
-| EXPN-04 | Phase 5 | Pending |
-| EXPN-05 | Phase 5 | Pending |
-| EXPN-06 | Phase 2 | Pending |
-| EXPN-07 | Phase 2 | Pending |
-| EXPN-08 | Phase 2 | Pending |
-| EXPN-09 | Phase 2 | Pending |
-| EXPN-10 | Phase 2 | Pending |
-| EXPN-11 | Phase 2 | Pending |
-| EXPN-12 | Phase 2 | Pending |
-| EXPN-13 | Phase 2 | Pending |
-| RSRV-01 | Phase 3 | Pending |
-| RSRV-02 | Phase 3 | Pending |
-| RSRV-03 | Phase 3 | Pending |
-| RSRV-04 | Phase 3 | Pending |
-| RSRV-05 | Phase 3 | Pending |
-| RSRV-06 | Phase 3 | Pending |
-| RSRV-07 | Phase 3 | Pending |
-| RSRV-08 | Phase 3 | Pending |
-| CSHN-01 | Phase 3 | Pending |
-| CSHN-02 | Phase 3 | Pending |
-| CSHN-03 | Phase 3 | Pending |
-| CSHN-04 | Phase 3 | Pending |
-| CSHN-05 | Phase 3 | Pending |
-| CSHN-06 | Phase 3 | Pending |
-| INVT-01 | Phase 3 | Pending |
-| INVT-02 | Phase 3 | Pending |
-| INVT-03 | Phase 3 | Pending |
-| INVT-04 | Phase 3 | Pending |
-| INVT-05 | Phase 3 | Pending |
-| INVT-06 | Phase 3 | Pending |
-| INVT-07 | Phase 3 | Pending |
-| ONBD-01 | Phase 5 | Pending |
-| ONBD-02 | Phase 5 | Pending |
-| ONBD-03 | Phase 5 | Pending |
-| ONBD-04 | Phase 5 | Pending |
-| ONBD-05 | Phase 5 | Pending |
-| ONBD-06 | Phase 5 | Pending |
-| ONBD-07 | Phase 5 | Pending |
-| TASK-01 | Phase 4 | Pending |
-| TASK-02 | Phase 4 | Pending |
-| TASK-03 | Phase 4 | Pending |
-| TASK-04 | Phase 4 | Pending |
-| TASK-05 | Phase 4 | Pending |
-| TASK-06 | Phase 4 | Pending |
-| TASK-07 | Phase 4 | Pending |
-| TASK-08 | Phase 4 | Pending |
-| INSI-01 | Phase 4 | Pending |
-| INSI-02 | Phase 4 | Pending |
-| INSI-03 | Phase 4 | Pending |
-| INSI-04 | Phase 4 | Pending |
-| INSI-05 | Phase 4 | Pending |
-| INSI-06 | Phase 4 | Pending |
-| INSI-07 | Phase 4 | Pending |
-| INSI-08 | Phase 6 | Pending |
-| CMPR-01 | Phase 5 | Pending |
-| CMPR-02 | Phase 5 | Pending |
-| CMPR-03 | Phase 5 | Pending |
-| CMPR-04 | Phase 5 | Pending |
-| CMPR-05 | Phase 5 | Pending |
-| CMPR-06 | Phase 5 | Pending |
-| CMPR-07 | Phase 5 | Pending |
-| CMPR-08 | Phase 5 | Pending |
-| NOTF-01 | Phase 4 | Pending |
-| NOTF-02 | Phase 4 | Pending |
-| NOTF-03 | Phase 4 | Pending |
-| NOTF-04 | Phase 4 | Pending |
-| PLAT-01 | Phase 6 | Pending |
-| PLAT-02 | Phase 1 | Pending |
-| PLAT-03 | Phase 6 | Pending |
-| PLAT-04 | Phase 6 | Pending |
-| PLAT-05 | Phase 1 | Pending |
-| PLAT-06 | Phase 1 | Pending |
-| PLAT-07 | Phase 6 | Pending |
-| PLAT-08 | Phase 6 | Pending |
-| PLAT-09 | Phase 6 | Pending |
-| PLAT-10 | Phase 6 | Pending |
-| PLAT-11 | Phase 1 | Pending |
-| PLAT-12 | Phase 1 | Pending |
-| ENGR-01 | Phase 1 | Pending |
-| ENGR-02 | Phase 1 | Pending |
-| ENGR-03 | Phase 1 | Pending |
-| ENGR-04 | Phase 1 | Pending |
-| ENGR-05 | Phase 1 | Pending |
-| ENGR-06 | Phase 1 | Pending |
-| ENGR-07 | Phase 1 | Pending |
-| ENGR-08 | Phase 1 | Pending |
-| ENGR-09 | Phase 2 | Pending |
-| ENGR-10 | Phase 1 | Pending |
-| ENGR-11 | Phase 1 | Pending |
-| ENGR-12 | Phase 1 | Pending |
-| ENGR-13 | Phase 1 | Pending |
-| ENGR-14 | Phase 2 | Pending |
+| Requirement | Phase   | Status   |
+| ----------- | ------- | -------- |
+| IDNT-01     | Phase 1 | Pending  |
+| IDNT-02     | Phase 1 | Pending  |
+| IDNT-03     | Phase 1 | Pending  |
+| IDNT-04     | Phase 1 | Pending  |
+| IDNT-05     | Phase 1 | Pending  |
+| IDNT-06     | Phase 1 | Pending  |
+| IDNT-07     | Phase 1 | Pending  |
+| IDNT-08     | Phase 1 | Pending  |
+| TENT-01     | Phase 1 | Pending  |
+| TENT-02     | Phase 1 | Pending  |
+| TENT-03     | Phase 1 | Pending  |
+| TENT-04     | Phase 1 | Pending  |
+| TENT-05     | Phase 1 | Pending  |
+| TENT-06     | Phase 1 | Pending  |
+| TENT-07     | Phase 1 | Pending  |
+| TENT-08     | Phase 1 | Pending  |
+| TENT-09     | Phase 1 | Pending  |
+| TENT-10     | Phase 1 | Pending  |
+| TENT-11     | Phase 1 | Pending  |
+| TENT-12     | Phase 1 | Pending  |
+| TENT-13     | Phase 1 | Pending  |
+| MONY-01     | Phase 1 | Pending  |
+| MONY-02     | Phase 1 | Pending  |
+| MONY-03     | Phase 2 | Pending  |
+| MONY-04     | Phase 2 | Pending  |
+| MONY-05     | Phase 2 | Pending  |
+| MONY-06     | Phase 2 | Pending  |
+| MONY-07     | Phase 1 | Pending  |
+| MONY-08     | Phase 1 | Pending  |
+| MONY-09     | Phase 1 | Pending  |
+| ACCT-01     | Phase 2 | Pending  |
+| ACCT-02     | Phase 2 | Pending  |
+| ACCT-03     | Phase 2 | Pending  |
+| ACCT-04     | Phase 2 | Pending  |
+| BDGT-01     | Phase 2 | Complete |
+| BDGT-02     | Phase 2 | Complete |
+| BDGT-03     | Phase 2 | Complete |
+| BDGT-04     | Phase 2 | Complete |
+| BDGT-05     | Phase 2 | Complete |
+| BDGT-06     | Phase 2 | Complete |
+| BDGT-07     | Phase 2 | Complete |
+| BDGT-08     | Phase 2 | Complete |
+| EXPN-01     | Phase 2 | Pending  |
+| EXPN-02     | Phase 2 | Pending  |
+| EXPN-03     | Phase 2 | Pending  |
+| EXPN-04     | Phase 5 | Pending  |
+| EXPN-05     | Phase 5 | Pending  |
+| EXPN-06     | Phase 2 | Pending  |
+| EXPN-07     | Phase 2 | Pending  |
+| EXPN-08     | Phase 2 | Pending  |
+| EXPN-09     | Phase 2 | Pending  |
+| EXPN-10     | Phase 2 | Pending  |
+| EXPN-11     | Phase 2 | Pending  |
+| EXPN-12     | Phase 2 | Pending  |
+| EXPN-13     | Phase 2 | Pending  |
+| RSRV-01     | Phase 3 | Pending  |
+| RSRV-02     | Phase 3 | Pending  |
+| RSRV-03     | Phase 3 | Pending  |
+| RSRV-04     | Phase 3 | Pending  |
+| RSRV-05     | Phase 3 | Pending  |
+| RSRV-06     | Phase 3 | Pending  |
+| RSRV-07     | Phase 3 | Pending  |
+| RSRV-08     | Phase 3 | Pending  |
+| CSHN-01     | Phase 3 | Pending  |
+| CSHN-02     | Phase 3 | Pending  |
+| CSHN-03     | Phase 3 | Pending  |
+| CSHN-04     | Phase 3 | Pending  |
+| CSHN-05     | Phase 3 | Pending  |
+| CSHN-06     | Phase 3 | Pending  |
+| INVT-01     | Phase 3 | Pending  |
+| INVT-02     | Phase 3 | Pending  |
+| INVT-03     | Phase 3 | Pending  |
+| INVT-04     | Phase 3 | Pending  |
+| INVT-05     | Phase 3 | Pending  |
+| INVT-06     | Phase 3 | Pending  |
+| INVT-07     | Phase 3 | Pending  |
+| ONBD-01     | Phase 5 | Pending  |
+| ONBD-02     | Phase 5 | Pending  |
+| ONBD-03     | Phase 5 | Pending  |
+| ONBD-04     | Phase 5 | Pending  |
+| ONBD-05     | Phase 5 | Pending  |
+| ONBD-06     | Phase 5 | Pending  |
+| ONBD-07     | Phase 5 | Pending  |
+| TASK-01     | Phase 4 | Pending  |
+| TASK-02     | Phase 4 | Pending  |
+| TASK-03     | Phase 4 | Pending  |
+| TASK-04     | Phase 4 | Pending  |
+| TASK-05     | Phase 4 | Pending  |
+| TASK-06     | Phase 4 | Pending  |
+| TASK-07     | Phase 4 | Pending  |
+| TASK-08     | Phase 4 | Pending  |
+| INSI-01     | Phase 4 | Pending  |
+| INSI-02     | Phase 4 | Pending  |
+| INSI-03     | Phase 4 | Pending  |
+| INSI-04     | Phase 4 | Pending  |
+| INSI-05     | Phase 4 | Pending  |
+| INSI-06     | Phase 4 | Pending  |
+| INSI-07     | Phase 4 | Pending  |
+| INSI-08     | Phase 6 | Pending  |
+| CMPR-01     | Phase 5 | Pending  |
+| CMPR-02     | Phase 5 | Pending  |
+| CMPR-03     | Phase 5 | Pending  |
+| CMPR-04     | Phase 5 | Pending  |
+| CMPR-05     | Phase 5 | Pending  |
+| CMPR-06     | Phase 5 | Pending  |
+| CMPR-07     | Phase 5 | Pending  |
+| CMPR-08     | Phase 5 | Pending  |
+| NOTF-01     | Phase 4 | Pending  |
+| NOTF-02     | Phase 4 | Pending  |
+| NOTF-03     | Phase 4 | Pending  |
+| NOTF-04     | Phase 4 | Pending  |
+| PLAT-01     | Phase 6 | Pending  |
+| PLAT-02     | Phase 1 | Pending  |
+| PLAT-03     | Phase 6 | Pending  |
+| PLAT-04     | Phase 6 | Pending  |
+| PLAT-05     | Phase 1 | Pending  |
+| PLAT-06     | Phase 1 | Pending  |
+| PLAT-07     | Phase 6 | Pending  |
+| PLAT-08     | Phase 6 | Pending  |
+| PLAT-09     | Phase 6 | Pending  |
+| PLAT-10     | Phase 6 | Pending  |
+| PLAT-11     | Phase 1 | Pending  |
+| PLAT-12     | Phase 1 | Pending  |
+| ENGR-01     | Phase 1 | Pending  |
+| ENGR-02     | Phase 1 | Pending  |
+| ENGR-03     | Phase 1 | Pending  |
+| ENGR-04     | Phase 1 | Pending  |
+| ENGR-05     | Phase 1 | Pending  |
+| ENGR-06     | Phase 1 | Pending  |
+| ENGR-07     | Phase 1 | Pending  |
+| ENGR-08     | Phase 1 | Pending  |
+| ENGR-09     | Phase 2 | Pending  |
+| ENGR-10     | Phase 1 | Pending  |
+| ENGR-11     | Phase 1 | Pending  |
+| ENGR-12     | Phase 1 | Pending  |
+| ENGR-13     | Phase 1 | Pending  |
+| ENGR-14     | Phase 2 | Pending  |
 
 **Per-phase counts:**
 
-| Phase | Requirements Mapped |
-|-------|---------------------|
-| Phase 1 — Foundations | 43 |
-| Phase 2 — Budgeting & FX | 29 |
-| Phase 3 — Reserve, Investments, Cushion | 21 |
-| Phase 4 — Tasks, Insights, Notifications | 19 |
-| Phase 5 — Onboarding & Comparison | 17 |
-| Phase 6 — Launch Hardening | 8 |
-| **Total** | **138** |
+| Phase                                    | Requirements Mapped |
+| ---------------------------------------- | ------------------- |
+| Phase 1 — Foundations                    | 43                  |
+| Phase 2 — Budgeting & FX                 | 29                  |
+| Phase 3 — Reserve, Investments, Cushion  | 21                  |
+| Phase 4 — Tasks, Insights, Notifications | 19                  |
+| Phase 5 — Onboarding & Comparison        | 17                  |
+| Phase 6 — Launch Hardening               | 8                   |
+| **Total**                                | **138**             |
 
 **Coverage:**
+
 - v1 requirements: 138 total
 - Mapped to phases: 138
 - Unmapped: 0
@@ -410,5 +411,6 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 - v2+ requirements: 9 (deferred — appear in roadmap as "Deferred", not scheduled)
 
 ---
-*Requirements defined: 2026-05-05*
-*Last updated: 2026-05-05 — Phase 1 discuss-phase added share-aware multi-workspace reqs (TENT-09..13, MONY-09, BDGT-08, EXPN-13, RSRV-08, TASK-07, TASK-08); coverage 138/138*
+
+_Requirements defined: 2026-05-05_
+_Last updated: 2026-05-05 — Phase 1 discuss-phase added share-aware multi-workspace reqs (TENT-09..13, MONY-09, BDGT-08, EXPN-13, RSRV-08, TASK-07, TASK-08); coverage 138/138_

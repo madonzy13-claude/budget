@@ -59,7 +59,7 @@ Plans:
 - [x] 02-02-PLAN.md — FrankfurterFxProvider adapter (ENGR-09 ACL), fx_rates cache, daily 17:00 CET pg-boss fetcher, GET /fx/rate route, schema push
 - [x] 02-03-PLAN.md — Idempotency-Key middleware (shared_kernel.idempotency_keys per D-05-c), 24h TTL, hourly cleanup, cross-tenant + cross-user scope
 - [x] 02-04-PLAN.md — Accounts CRUD + balance_adjustments + Hono routes + RHF form + Assets/Liabilities UI (ACCT-01..04)
-- [ ] 02-05-PLAN.md — Categories + effective-dated category_limits + budget_templates + share_overrides (sum-100 deferred trigger) + budget_mode_history (BDGT-01..08)
+- [x] 02-05-PLAN.md — Categories + effective-dated category_limits + budget_templates + share_overrides (sum-100 deferred trigger) + budget_mode_history (BDGT-01..08)
 - [ ] 02-06-PLAN.md — ALTER expense_ledger Phase-2 columns + DROP corrected_by_id + transaction-repo single-tx writer (ledger + balance + projection + outbox) + capture form (EXPN-01..03, -11, -13)
 - [ ] 02-07-PLAN.md — Edit-via-correction-row + getTransactionHistory + edit form + history panel (EXPN-06, -13)
 - [ ] 02-08-PLAN.md — Recurring rules + recurring_drafts (PENDING-by-default per D-01-e/f/g) + pg-boss engine + confirm/edit/skip use cases + drafts inbox UI (EXPN-08)
