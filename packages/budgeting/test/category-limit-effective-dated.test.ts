@@ -5,6 +5,8 @@
  */
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { sql } from "drizzle-orm";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
 
 // These imports will fail at RED phase — that's expected
 import { DrizzleCategoryLimitRepo } from "../src/adapters/persistence/category-limit-repo";
@@ -15,7 +17,7 @@ const TEST_USER = crypto.randomUUID();
 
 let categoryId: string;
 let limitRepo: DrizzleCategoryLimitRepo;
-let categoryRepo: DrizzleCategoryRepo;
+let _categoryRepo: DrizzleCategoryRepo;
 
 async function getRawDb() {
   const { drizzle } = await import("drizzle-orm/node-postgres");
@@ -27,27 +29,34 @@ async function getRawDb() {
 beforeAll(async () => {
   // Create test tenant + category
   const { db, pool } = await getRawDb();
-  // Insert workspace (tenant) using migrator role bypass
+  const slug = `test-ws-${TEST_TENANT.substring(0, 8)}`;
+  // Set RLS GUC and insert workspace
+  await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
   await db.execute(sql`
-    INSERT INTO tenancy.workspaces (id, name, kind, default_currency, created_by_user_id)
-    VALUES (${TEST_TENANT}::uuid, 'Test Workspace', 'SHARED', 'EUR', ${TEST_USER}::uuid)
-    ON CONFLICT DO NOTHING
-  `);
-  // Insert category
-  categoryId = crypto.randomUUID();
-  await db.execute(sql`
-    INSERT INTO budgeting.categories (id, tenant_id, name, parent_id, scope, actor_user_id)
-    VALUES (${categoryId}::uuid, ${TEST_TENANT}::uuid, 'Food', NULL, 'SHARED', ${TEST_USER}::uuid)
+    INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id)
+    VALUES (${TEST_TENANT}::uuid, ${slug}, 'Test Workspace', 'SHARED', 'EUR', ${TEST_USER}::uuid)
     ON CONFLICT DO NOTHING
   `);
   await pool.end();
 
+  // Insert category via withTenantTx (RLS requires app.tenant_ids GUC)
+  categoryId = crypto.randomUUID();
+  const r = await withTenantTx(TenantId(TEST_TENANT), UserId(TEST_USER), async (tx) => {
+    await tx.execute(sql`
+      INSERT INTO budgeting.categories (id, tenant_id, name, scope, actor_user_id)
+      VALUES (${categoryId}::uuid, ${TEST_TENANT}::uuid, 'Food', 'SHARED', ${TEST_USER}::uuid)
+      ON CONFLICT DO NOTHING
+    `);
+  });
+  if (r.isErr()) throw r.error;
+
   limitRepo = new DrizzleCategoryLimitRepo();
-  categoryRepo = new DrizzleCategoryRepo();
+  _categoryRepo = new DrizzleCategoryRepo();
 });
 
 afterAll(async () => {
   const { db, pool } = await getRawDb();
+  await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
   await db.execute(sql`DELETE FROM budgeting.category_limits WHERE tenant_id = ${TEST_TENANT}::uuid`);
   await db.execute(sql`DELETE FROM budgeting.categories WHERE tenant_id = ${TEST_TENANT}::uuid`);
   await db.execute(sql`DELETE FROM tenancy.workspaces WHERE id = ${TEST_TENANT}::uuid`);
@@ -126,6 +135,7 @@ describe("CategoryLimit SCD-2 effective-dated logic", () => {
     });
 
     const { db, pool } = await getRawDb();
+    await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
     const result = await db.execute<{ count: string }>(
       sql`SELECT count(*)::text as count FROM budgeting.category_limits WHERE category_id = ${categoryId}::uuid AND effective_to IS NULL`
     );
@@ -136,6 +146,7 @@ describe("CategoryLimit SCD-2 effective-dated logic", () => {
   test("property: for any date in history, exactly one row matches PIT predicate", async () => {
     const testDates = ["2026-01-01", "2026-03-15", "2026-05-14", "2026-05-15", "2026-06-01", "2026-12-31"];
     const { db, pool } = await getRawDb();
+    await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
     for (const d of testDates) {
       const result = await db.execute<{ count: string }>(sql`
         SELECT count(*)::text as count FROM budgeting.category_limits

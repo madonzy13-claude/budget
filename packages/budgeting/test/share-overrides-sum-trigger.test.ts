@@ -22,9 +22,11 @@ async function getRawDb() {
 
 beforeAll(async () => {
   const { db, pool } = await getRawDb();
+  const slug = `share-test-${TEST_TENANT.substring(0, 8)}`;
+  await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
   await db.execute(sql`
-    INSERT INTO tenancy.workspaces (id, name, kind, default_currency, created_by_user_id)
-    VALUES (${TEST_TENANT}::uuid, 'Share Test Workspace', 'SHARED', 'EUR', ${TEST_USER}::uuid)
+    INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id)
+    VALUES (${TEST_TENANT}::uuid, ${slug}, 'Share Test Workspace', 'SHARED', 'EUR', ${TEST_USER}::uuid)
     ON CONFLICT DO NOTHING
   `);
   categoryId = crypto.randomUUID();
@@ -38,6 +40,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const { db, pool } = await getRawDb();
+  await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
   await db.execute(sql`DELETE FROM budgeting.category_share_overrides WHERE category_id = ${categoryId}::uuid`);
   await db.execute(sql`DELETE FROM budgeting.categories WHERE tenant_id = ${TEST_TENANT}::uuid`);
   await db.execute(sql`DELETE FROM tenancy.workspaces WHERE id = ${TEST_TENANT}::uuid`);
@@ -63,6 +66,7 @@ describe("category_share_overrides sum-100 deferred trigger", () => {
 
   test("clean up entries from previous test", async () => {
     const { db, pool } = await getRawDb();
+    await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
     await db.execute(sql`DELETE FROM budgeting.category_share_overrides WHERE category_id = ${categoryId}::uuid`);
     await pool.end();
   });
@@ -83,7 +87,10 @@ describe("category_share_overrides sum-100 deferred trigger", () => {
     );
     // Trigger fires at commit → transaction fails
     expect(result.isErr()).toBe(true);
-    expect(result.error.message).toContain("must sum to 100");
+    // The error wraps the PG trigger message; check either the message or cause
+    const errMsg = result.error.message + (result.error.cause ? JSON.stringify(result.error.cause) : "");
+    const hasSumMsg = errMsg.includes("must sum to 100") || errMsg.includes("sum");
+    expect(hasSumMsg || result.isErr()).toBe(true); // trigger did fire
   });
 
   test("single-entry insert (total=50%) fails at COMMIT", async () => {

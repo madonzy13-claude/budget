@@ -8,7 +8,6 @@ import { sql } from "drizzle-orm";
 
 import { DrizzleBudgetTemplateRepo } from "../src/adapters/persistence/budget-template-repo";
 import { DrizzleCategoryLimitRepo } from "../src/adapters/persistence/category-limit-repo";
-import { DrizzleCategoryRepo } from "../src/adapters/persistence/category-repo";
 
 const TEST_TENANT = crypto.randomUUID();
 const TEST_USER = crypto.randomUUID();
@@ -17,7 +16,7 @@ let cat1Id: string;
 let cat2Id: string;
 let cat3Id: string;
 let templateRepo: DrizzleBudgetTemplateRepo;
-let limitRepo: DrizzleCategoryLimitRepo;
+let _limitRepo: DrizzleCategoryLimitRepo;
 
 async function getRawDb() {
   const { drizzle } = await import("drizzle-orm/node-postgres");
@@ -28,10 +27,12 @@ async function getRawDb() {
 
 beforeAll(async () => {
   const { db, pool } = await getRawDb();
+  const slug = `tmpl-test-${TEST_TENANT.substring(0, 8)}`;
+  await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
   // Insert tenant workspace
   await db.execute(sql`
-    INSERT INTO tenancy.workspaces (id, name, kind, default_currency, created_by_user_id)
-    VALUES (${TEST_TENANT}::uuid, 'Template Test Workspace', 'SHARED', 'EUR', ${TEST_USER}::uuid)
+    INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id)
+    VALUES (${TEST_TENANT}::uuid, ${slug}, 'Template Test Workspace', 'SHARED', 'EUR', ${TEST_USER}::uuid)
     ON CONFLICT DO NOTHING
   `);
   // Insert 3 categories
@@ -48,11 +49,12 @@ beforeAll(async () => {
   await pool.end();
 
   templateRepo = new DrizzleBudgetTemplateRepo();
-  limitRepo = new DrizzleCategoryLimitRepo();
+  _limitRepo = new DrizzleCategoryLimitRepo();
 });
 
 afterAll(async () => {
   const { db, pool } = await getRawDb();
+  await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
   await db.execute(sql`DELETE FROM budgeting.category_limits WHERE tenant_id = ${TEST_TENANT}::uuid`);
   await db.execute(sql`DELETE FROM budgeting.budget_template_items WHERE template_id IN (SELECT id FROM budgeting.budget_templates WHERE tenant_id = ${TEST_TENANT}::uuid)`);
   await db.execute(sql`DELETE FROM budgeting.budget_templates WHERE tenant_id = ${TEST_TENANT}::uuid`);
@@ -89,6 +91,7 @@ describe("BudgetTemplate apply use case", () => {
 
     // Verify 3 rows with effective_from = '2026-05-01'
     const { db, pool } = await getRawDb();
+    await db.execute(sql.raw(`SET app.tenant_ids = '{${TEST_TENANT}}'`));
     const rows = await db.execute<{ category_id: string; effective_from: string }>(sql`
       SELECT category_id::text, effective_from::text FROM budgeting.category_limits
       WHERE tenant_id = ${TEST_TENANT}::uuid

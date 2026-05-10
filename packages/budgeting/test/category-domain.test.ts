@@ -7,7 +7,6 @@ import { describe, test, expect } from "bun:test";
 
 // Category domain entity — not yet implemented (RED)
 import { Category, type CategoryScope } from "../src/domain/category";
-import { Money } from "@budget/shared-kernel";
 
 function makeCategory(overrides: Partial<{
   id: string;
