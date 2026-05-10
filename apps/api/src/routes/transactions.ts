@@ -1,13 +1,17 @@
 /**
  * transactions.ts — /transactions route factory
  *
- * POST /transactions — create EXPENSE / INCOME / TRANSFER (idempotency middleware wraps automatically)
- * GET  /transactions — latest-only view (corrects_id derivation, paginated)
+ * POST /transactions            — create EXPENSE / INCOME / TRANSFER (idempotency middleware)
+ * GET  /transactions            — latest-only view (corrects_id derivation, paginated)
+ * POST /transactions/:id/correct — edit via correction row (plan 02-07)
+ * GET  /transactions/:id/history — full correction chain (plan 02-07)
  *
  * T-2-06-02: FX stale preview → 409 with fresh rate
  * T-2-06-03: RLS provides tenant isolation
  * T-2-06-05: Idempotency-Key middleware (plan 02-03) deduplicates replays
  * T-2-06-08: workspace_share_dirty → 409
+ * T-2-07-02: AlreadyCorrected → 409
+ * T-2-07-04: RLS scopes history chain
  */
 import { Hono } from "hono";
 import type { BootedDeps } from "../boot";
@@ -65,6 +69,91 @@ export function createTransactionsRoute(deps: BootedDeps) {
     }
 
     return c.json(r.value, 201);
+  });
+
+  // POST /transactions/:id/correct — edit via correction row (plan 02-07, EXPN-06)
+  app.post("/:id/correct", async (c) => {
+    const { correctTransactionSchema } = await import(
+      "@budget/budgeting/src/contracts/api"
+    );
+
+    const originalId = c.req.param("id");
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+
+    const parsed = correctTransactionSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+    }
+
+    const session = c.get("session");
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+
+    const r = await deps.budgeting.editTransaction({
+      transactionId: originalId,
+      edits: parsed.data.edits,
+      fxPreview: parsed.data.fxPreview ?? null,
+      actorUserId: userId,
+      tenantId,
+    });
+
+    if (r.isErr()) {
+      const e = r.error as { kind?: string; message: string; freshRate?: unknown };
+      if (e.kind === "AlreadyCorrected") {
+        return c.json({ error: "already_corrected", message: e.message }, 409);
+      }
+      if (e.kind === "TransactionNotFound") {
+        return c.json({ error: "not_found", message: e.message }, 404);
+      }
+      if (e.kind === "FxRateStale") {
+        return c.json({ error: "fx_rate_stale", freshRate: e.freshRate }, 409);
+      }
+      return c.json({ error: e.message }, 422);
+    }
+
+    return c.json(r.value, 201);
+  });
+
+  // GET /transactions/:id/history — full correction chain (plan 02-07, D-01-a)
+  app.get("/:id/history", async (c) => {
+    const transactionId = c.req.param("id");
+    const tenantId = pickTenant(c);
+
+    const r = await deps.budgeting.getTransactionHistory({
+      tenantId,
+      transactionId,
+    });
+
+    if (r.isErr()) {
+      return c.json({ error: r.error.message }, 500);
+    }
+
+    const chain = r.value;
+    if (chain.length === 0) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    return c.json({
+      chain: chain.map((row) => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        kind: row.kind,
+        amountOrig: row.amountOrig,
+        currencyOrig: row.currencyOrig,
+        amountDefault: row.amountDefault,
+        currencyDefault: row.currencyDefault,
+        fxRate: row.fxRate,
+        fxRateDate: row.fxRateDate,
+        fxProvider: row.fxProvider,
+        transactionDate: row.transactionDate,
+        note: row.note,
+        accountId: row.accountId,
+        categoryId: row.categoryId,
+        transferGroupId: row.transferGroupId,
+        correctsId: row.correctsId,
+      })),
+    });
   });
 
   // GET /transactions — latest transactions list

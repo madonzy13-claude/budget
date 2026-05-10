@@ -288,15 +288,21 @@ export class DrizzleTransactionRepo implements TransactionRepo {
         execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
       };
 
-      // 1. SELECT FOR UPDATE on original to serialize concurrent corrections (T-2-07-02)
+      // 1. Advisory transaction lock on originalId to serialize concurrent corrections (T-2-07-02)
+      // SELECT FOR UPDATE requires UPDATE privilege which is REVOKE'd (D-01-b, T-2-07-01).
+      // pg_advisory_xact_lock() holds until end of transaction — same serialization guarantee.
+      // We hash the uuid bytes to a bigint for the lock key.
+      await drizzleTx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${originalId}))`,
+      );
+
       const originalResult = await drizzleTx.execute(
         sql`SELECT id, tenant_id, kind, amount_orig, currency_orig, amount_default,
                    currency_default, fx_rate, fx_rate_date::text, fx_provider,
                    transaction_date::text, note, account_id, category_id,
                    transfer_group_id, corrects_id, created_at
             FROM budgeting.expense_ledger
-            WHERE id = ${originalId}::uuid AND tenant_id = ${tenantId}::uuid
-            FOR UPDATE`,
+            WHERE id = ${originalId}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
 
       if (!originalResult.rows[0]) {

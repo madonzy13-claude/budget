@@ -30,6 +30,8 @@ import { toggleBudgetMode } from "../application/toggle-budget-mode";
 import { createTransaction } from "../application/create-transaction";
 import { getLatestTransactions } from "../application/get-latest-transactions";
 import { listSupportedCurrencies } from "../application/list-supported-currencies";
+import { editTransaction } from "../application/edit-transaction";
+import { getTransactionHistory } from "../application/get-transaction-history";
 import { withInfraTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
@@ -58,6 +60,8 @@ export interface BudgetingModule {
   toggleBudgetMode: ReturnType<typeof toggleBudgetMode>;
   createTransaction: ReturnType<typeof createTransaction>;
   getLatestTransactions: ReturnType<typeof getLatestTransactions>;
+  editTransaction: ReturnType<typeof editTransaction>;
+  getTransactionHistory: ReturnType<typeof getTransactionHistory>;
   listSupportedCurrencies: typeof listSupportedCurrencies;
   /** Exposed for plan 02-08 createInTx cross-plan contract */
   transactionRepo: DrizzleTransactionRepo;
@@ -111,6 +115,12 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       getWorkspaceDefaultCurrency,
     }),
     getLatestTransactions: getLatestTransactions({ transactionRepo }),
+    editTransaction: editTransaction({
+      transactionRepo,
+      fxProvider,
+      getWorkspaceDefaultCurrency,
+    }),
+    getTransactionHistory: getTransactionHistory({ transactionRepo }),
     listSupportedCurrencies,
     transactionRepo,
   };
