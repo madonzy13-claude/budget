@@ -13,3 +13,6 @@ test-results/
 .claude/
 graphify-out/
 **/tsconfig.tsbuildinfo
+
+# Bind-mounted persistent data (postgres datadir)
+/data/

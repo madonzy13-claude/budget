@@ -16,7 +16,8 @@ services:
       WORKER_ROLE_PASSWORD: ${WORKER_ROLE_PASSWORD}
       MIGRATOR_ROLE_PASSWORD: ${MIGRATOR_ROLE_PASSWORD}
     volumes:
-      - budget_db_data:/var/lib/postgresql/data
+      # Persistent data → bind mount (visible, backup-friendly, host-local)
+      - ./data/postgres:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
       - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     ports:
@@ -113,6 +114,3 @@ services:
       db:
         condition: service_healthy
 
-volumes:
-  budget_db_data:
-    name: budget_db_data
