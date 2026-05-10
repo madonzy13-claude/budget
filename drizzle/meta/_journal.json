@@ -64,6 +64,13 @@
       "when": 1778362141491,
       "tag": "0008_common_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778401320938,
+      "tag": "0009_breezy_karen_page",
+      "breakpoints": true
     }
   ]
 }

@@ -392,3 +392,92 @@ CREATE CONSTRAINT TRIGGER shares_sum_invariant
   FOR EACH ROW EXECUTE FUNCTION tenancy.shares_sum_check();
 -- Note: total > 0 short-circuit allows the freshly-created workspace state where no rows exist (sum=0)
 -- and the subsequent owner-edit transaction filling rows to balance to 100 within the same tx.
+
+-- ===== Plan 02-05: categories + limits + templates + share overrides + mode history =====
+ALTER TABLE budgeting.categories FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.category_limits FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.budget_templates FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.budget_template_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.category_share_overrides FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.workspace_budget_mode_history FORCE ROW LEVEL SECURITY;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  budgeting.categories,
+  budgeting.category_limits,
+  budgeting.budget_templates,
+  budgeting.budget_template_items,
+  budgeting.category_share_overrides,
+  budgeting.workspace_budget_mode_history
+  TO app_role, worker_role;
+
+-- One-level grouping trigger (BDGT-02)
+CREATE OR REPLACE FUNCTION budgeting.categories_one_level_check() RETURNS trigger AS $$
+BEGIN
+  IF NEW.parent_id IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM budgeting.categories WHERE id = NEW.parent_id AND parent_id IS NOT NULL) THEN
+      RAISE EXCEPTION 'Categories support only one level of grouping';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS categories_one_level_trigger ON budgeting.categories;
+CREATE TRIGGER categories_one_level_trigger
+  BEFORE INSERT OR UPDATE ON budgeting.categories
+  FOR EACH ROW EXECUTE FUNCTION budgeting.categories_one_level_check();
+
+-- Partial unique + PIT indexes (effective-dated)
+CREATE UNIQUE INDEX IF NOT EXISTS category_limits_one_open_per_cat
+  ON budgeting.category_limits (category_id) WHERE effective_to IS NULL;
+CREATE INDEX IF NOT EXISTS category_limits_pit_idx
+  ON budgeting.category_limits (category_id, effective_from DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_budget_mode_one_open
+  ON budgeting.workspace_budget_mode_history (workspace_id) WHERE effective_to IS NULL;
+
+-- BDGT-08 sum-to-100 deferred trigger
+CREATE OR REPLACE FUNCTION budgeting.category_share_overrides_sum_check() RETURNS trigger AS $$
+DECLARE total numeric(7,4); cat_id uuid;
+BEGIN
+  cat_id := COALESCE(NEW.category_id, OLD.category_id);
+  SELECT coalesce(sum(percentage), 0) INTO total
+    FROM budgeting.category_share_overrides WHERE category_id = cat_id;
+  IF abs(total - 100) > 0.005 AND total > 0 THEN
+    RAISE EXCEPTION 'category_share_overrides for category % must sum to 100 (got %)', cat_id, total;
+  END IF;
+  RETURN NULL;
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS category_shares_sum_invariant ON budgeting.category_share_overrides;
+CREATE CONSTRAINT TRIGGER category_shares_sum_invariant
+  AFTER INSERT OR UPDATE OR DELETE ON budgeting.category_share_overrides
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION budgeting.category_share_overrides_sum_check();
+
+-- D-02-c workspace_share_dirty flag table + member join/leave triggers
+CREATE TABLE IF NOT EXISTS budgeting.workspace_share_dirty (
+  workspace_id UUID PRIMARY KEY,
+  dirty BOOLEAN NOT NULL DEFAULT false,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE budgeting.workspace_share_dirty FORCE ROW LEVEL SECURITY;
+CREATE POLICY workspace_share_dirty_isolation ON budgeting.workspace_share_dirty
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+GRANT SELECT, INSERT, UPDATE ON budgeting.workspace_share_dirty TO app_role, worker_role;
+
+CREATE OR REPLACE FUNCTION budgeting.flag_workspace_share_dirty() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO budgeting.workspace_share_dirty (workspace_id, dirty, updated_at)
+  VALUES (COALESCE(NEW.workspace_id, OLD.workspace_id), true, now())
+  ON CONFLICT (workspace_id) DO UPDATE SET dirty = true, updated_at = now();
+  -- Pitfall 8: cascade delete overrides for departing user
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM budgeting.category_share_overrides
+     WHERE user_id = OLD.user_id
+       AND category_id IN (SELECT id FROM budgeting.categories WHERE tenant_id = OLD.workspace_id);
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS workspace_members_share_dirty ON tenancy.workspace_members;
+CREATE TRIGGER workspace_members_share_dirty
+  AFTER INSERT OR DELETE ON tenancy.workspace_members
+  FOR EACH ROW EXECUTE FUNCTION budgeting.flag_workspace_share_dirty();
