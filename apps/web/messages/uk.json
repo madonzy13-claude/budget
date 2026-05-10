@@ -295,6 +295,34 @@
         "in": "Баланс у {currency}",
         "unavailable": "Курс недоступний"
       }
+    },
+    "transactions": {
+      "title": "Транзакції",
+      "addButton": "Додати транзакцію",
+      "capture": {
+        "saveExpense": "Зберегти витрату",
+        "saveIncome": "Зберегти дохід",
+        "saveTransfer": "Зберегти переказ",
+        "amountLabel": "Сума",
+        "currencyLabel": "Валюта",
+        "dateLabel": "Дата",
+        "categoryLabel": "Категорія",
+        "accountLabel": "Рахунок",
+        "noteLabel": "Нотатка (необов'язково)",
+        "kindExpense": "Витрата",
+        "kindIncome": "Дохід",
+        "kindTransfer": "Переказ"
+      },
+      "list": {
+        "editedBadge": "редаговано",
+        "empty": "Транзакцій ще немає."
+      }
+    },
+    "fx": {
+      "preview": "≈ {amount} {currency} @ {rate}, {provider}",
+      "freshnessBadge": "курс {age}",
+      "stale409Title": "Курс змінився",
+      "stale409Body": "Курс обміну змінився поки відкрита форма. Новий курс: {rate}. Зберегти з новим курсом?"
     }
   },
   "currency": {

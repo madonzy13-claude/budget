@@ -295,6 +295,34 @@
         "in": "Balance in {currency}",
         "unavailable": "Rate unavailable"
       }
+    },
+    "transactions": {
+      "title": "Transactions",
+      "addButton": "Add transaction",
+      "capture": {
+        "saveExpense": "Save expense",
+        "saveIncome": "Save income",
+        "saveTransfer": "Save transfer",
+        "amountLabel": "Amount",
+        "currencyLabel": "Currency",
+        "dateLabel": "Date",
+        "categoryLabel": "Category",
+        "accountLabel": "Account",
+        "noteLabel": "Note (optional)",
+        "kindExpense": "Expense",
+        "kindIncome": "Income",
+        "kindTransfer": "Transfer"
+      },
+      "list": {
+        "editedBadge": "edited",
+        "empty": "No transactions yet."
+      }
+    },
+    "fx": {
+      "preview": "≈ {amount} {currency} @ {rate}, {provider}",
+      "freshnessBadge": "rate {age}",
+      "stale409Title": "Rate has changed",
+      "stale409Body": "The exchange rate updated while the form was open. The new rate is {rate}. Save with the new rate?"
     }
   },
   "currency": {

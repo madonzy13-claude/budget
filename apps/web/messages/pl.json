@@ -295,6 +295,34 @@
         "in": "Saldo w {currency}",
         "unavailable": "Kurs niedostępny"
       }
+    },
+    "transactions": {
+      "title": "Transakcje",
+      "addButton": "Dodaj transakcję",
+      "capture": {
+        "saveExpense": "Zapisz wydatek",
+        "saveIncome": "Zapisz przychód",
+        "saveTransfer": "Zapisz przelew",
+        "amountLabel": "Kwota",
+        "currencyLabel": "Waluta",
+        "dateLabel": "Data",
+        "categoryLabel": "Kategoria",
+        "accountLabel": "Konto",
+        "noteLabel": "Notatka (opcjonalna)",
+        "kindExpense": "Wydatek",
+        "kindIncome": "Przychód",
+        "kindTransfer": "Przelew"
+      },
+      "list": {
+        "editedBadge": "edytowane",
+        "empty": "Brak transakcji."
+      }
+    },
+    "fx": {
+      "preview": "≈ {amount} {currency} @ {rate}, {provider}",
+      "freshnessBadge": "kurs {age}",
+      "stale409Title": "Kurs zmienił się",
+      "stale409Body": "Kurs wymiany zmienił się podczas wypełniania formularza. Nowy kurs to {rate}. Zapisać z nowym kursem?"
     }
   },
   "currency": {

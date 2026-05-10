@@ -7,6 +7,7 @@ import { createBdd } from "playwright-bdd";
 import { test } from "../fixtures/index.js";
 import { AccountsPage } from "../pages/AccountsPage.js";
 import { BudgetPage } from "../pages/BudgetPage.js";
+import { TransactionsPage } from "../pages/TransactionsPage.js";
 import { createFreshUser } from "../fixtures/freshUser.js";
 
 const { Given, When, Then } = createBdd(test);
@@ -186,3 +187,56 @@ Then("I see a success toast", async ({ page }) => {
   await page.waitForTimeout(500);
   // If toast already gone, test still passes (UI feedback verified in unit tests)
 });
+
+// ── Transactions steps ─────────────────────────────────────────────────────
+
+let transactionsPage: TransactionsPage;
+
+Given(
+  "I have a checking account {string} with currency {string}",
+  async ({ page }, _accountName: string, _currency: string) => {
+    // Create a checking account via API for speed in E2E setup.
+    // The /api/accounts endpoint requires authentication — handled by session from createFreshUser.
+    const res = await page.request.post("/api/accounts", {
+      data: {
+        name: _accountName,
+        kind: "CHECKING",
+        scope: "PERSONAL",
+        currency: _currency,
+      },
+    });
+    // Accept 201 (created) or 409 (already exists via idempotency replay)
+    expect([201, 409].includes(res.status())).toBeTruthy();
+  },
+);
+
+When("I open the Transactions page", async ({ page }) => {
+  transactionsPage = new TransactionsPage(page);
+  await transactionsPage.goto("en");
+});
+
+When(
+  "I fill the transaction form with kind {string}, amount {string}, currency {string}, date {string}",
+  async ({ page }, kind: string, amount: string, currency: string, date: string) => {
+    const txPage = new TransactionsPage(page);
+    await txPage.selectKind(kind as "EXPENSE" | "INCOME" | "TRANSFER");
+    await txPage.fillAmount(amount);
+    // Currency is pre-selected from workspace default; only change if different
+    if (currency !== "EUR") {
+      await txPage.pickCurrency(currency);
+    }
+    await txPage.fillDate(date);
+  },
+);
+
+When("I save the transaction", async ({ page }) => {
+  const txPage = new TransactionsPage(page);
+  await txPage.saveTransaction();
+});
+
+Then(
+  "I see a transaction in the list with amount {string}",
+  async ({ page }, amount: string) => {
+    await expect(page.getByText(amount).first()).toBeVisible({ timeout: 10000 });
+  },
+);

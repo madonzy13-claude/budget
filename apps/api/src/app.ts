@@ -26,6 +26,7 @@ import { createBudgetTemplatesRoute } from "./routes/budget-templates";
 import { createShareOverridesRoute } from "./routes/share-overrides";
 import { createWorkspaceSettingsRoute } from "./routes/workspace-settings";
 import { createTransactionsRoute } from "./routes/transactions";
+import { createCurrenciesRoute } from "./routes/currencies";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import type { BootedDeps } from "./boot";
 
@@ -55,6 +56,7 @@ export function createApp(deps: BootedDeps) {
   app.route("/budget-templates", createBudgetTemplatesRoute(deps));
   app.route("/workspace-settings", createWorkspaceSettingsRoute(deps));
   app.route("/transactions", createTransactionsRoute(deps));
+  app.route("/currencies", createCurrenciesRoute(deps));
 
   // 7. Health probe
   app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));
