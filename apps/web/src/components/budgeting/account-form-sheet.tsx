@@ -25,7 +25,7 @@ interface AccountFormSheetProps {
 }
 
 export function AccountFormSheet({
-  locale,
+  locale: _locale,
   addButtonLabel,
   tenantId = "",
   userId = "",

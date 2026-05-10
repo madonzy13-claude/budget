@@ -7,13 +7,18 @@
  * T-2-04-02: Currency immutability enforced at domain level.
  */
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
 import type { BootedDeps } from "../boot";
 
 export function createAccountsRoute(deps: BootedDeps) {
-  const app = new Hono<{
-    Variables: { tenantId: string; userId: string; session: any };
-  }>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const app = new Hono<{ Variables: Record<string, any> }>();
+
+  /** Pick the first active tenant (phase-2: single-workspace per request). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function pickTenant(c: any): string {
+    const ids = c.get("tenantIds") as string[] | undefined;
+    return ids?.[0] ?? "";
+  }
 
   // Lazy imports to avoid circular deps at module load
   async function getSchemas() {
@@ -26,7 +31,6 @@ export function createAccountsRoute(deps: BootedDeps) {
   // POST /accounts — create new account
   app.post("/", async (c) => {
     const { createAccountSchema } = await getSchemas();
-    const validator = zValidator("json", createAccountSchema);
 
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
@@ -37,7 +41,7 @@ export function createAccountsRoute(deps: BootedDeps) {
     }
 
     const session = c.get("session");
-    const tenantId = c.get("tenantId") as string;
+    const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
 
     const r = await deps.budgeting.createAccount({
@@ -60,7 +64,7 @@ export function createAccountsRoute(deps: BootedDeps) {
   // GET /accounts — list accounts
   app.get("/", async (c) => {
     const session = c.get("session");
-    const tenantId = c.get("tenantId") as string;
+    const tenantId = pickTenant(c);
     const includeArchived = c.req.query("includeArchived") === "true";
 
     const r = await deps.budgeting.listAccounts({ tenantId, includeArchived });
@@ -71,7 +75,7 @@ export function createAccountsRoute(deps: BootedDeps) {
 
   // GET /accounts/:id — find by id
   app.get("/:id", async (c) => {
-    const tenantId = c.get("tenantId") as string;
+    const tenantId = pickTenant(c);
     const { id } = c.req.param();
 
     const r = await deps.budgeting.findAccountById({ tenantId, accountId: id });
@@ -84,7 +88,7 @@ export function createAccountsRoute(deps: BootedDeps) {
   // POST /accounts/:id/archive — archive an account
   app.post("/:id/archive", async (c) => {
     const session = c.get("session");
-    const tenantId = c.get("tenantId") as string;
+    const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const { id: accountId } = c.req.param();
 
@@ -102,7 +106,7 @@ export function createAccountsRoute(deps: BootedDeps) {
   app.post("/:id/balance-adjustment", async (c) => {
     const { adjustBalanceSchema } = await getSchemas();
     const session = c.get("session");
-    const tenantId = c.get("tenantId") as string;
+    const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const { id: accountId } = c.req.param();
 

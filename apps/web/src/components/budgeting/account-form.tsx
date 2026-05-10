@@ -51,8 +51,10 @@ type AccountFormValues = {
 };
 
 interface AccountFormProps {
-  tenantId: string;
-  userId: string;
+  /** Reserved for future workspace-aware routing. Currently resolved server-side from session. */
+  tenantId?: string;
+  /** Reserved for future audit attribution. Currently resolved server-side from session. */
+  userId?: string;
   onSuccess?: (account: { id: string; name: string }) => void;
   onCancel?: () => void;
 }
@@ -69,8 +71,8 @@ const ACCOUNT_KINDS: AccountKind[] = [
 const ACCOUNT_SCOPES: AccountScope[] = ["PERSONAL", "SHARED"];
 
 export function AccountForm({
-  tenantId,
-  userId,
+  tenantId: _tenantId,
+  userId: _userId,
   onSuccess,
   onCancel,
 }: AccountFormProps) {

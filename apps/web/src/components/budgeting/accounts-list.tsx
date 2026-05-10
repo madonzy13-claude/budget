@@ -39,26 +39,6 @@ async function fetchAccounts(apiBase: string, cookieHeader: string): Promise<Acc
   }
 }
 
-async function fetchFxRate(
-  apiBase: string,
-  cookieHeader: string,
-  from: string,
-  to: string,
-): Promise<number | null> {
-  if (from === to) return 1;
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const res = await fetch(
-      `${apiBase}/fx/rate?base=${encodeURIComponent(from)}&quote=${encodeURIComponent(to)}&date=${today}`,
-      { headers: { cookie: cookieHeader }, cache: "no-store" },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { rate?: number | string };
-    return data.rate ? Number(data.rate) : null;
-  } catch {
-    return null;
-  }
-}
 
 export async function AccountsList({ locale, apiBase }: AccountsListProps) {
   const t = await getTranslations({ locale, namespace: "budgeting.accounts" });
