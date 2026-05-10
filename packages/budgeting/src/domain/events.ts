@@ -40,4 +40,35 @@ export type BudgetingEvent =
       transferGroupId: string;
       tenantId: string;
       legIds: [string, string];
+    }
+  | {
+      type: "budgeting.recurring.rule.created";
+      ruleId: string;
+      tenantId: string;
+      cadence: string;
+    }
+  | {
+      type: "budgeting.recurring.rule.updated";
+      ruleId: string;
+      tenantId: string;
+      appliedToFuture: boolean;
+      affectedPendingDraftIds: string[];
+    }
+  | {
+      type: "budgeting.recurring.draft.generated";
+      draftId: string;
+      ruleId: string;
+      tenantId: string;
+      dueDate: string;
+    }
+  | {
+      type: "budgeting.recurring.confirmed";
+      draftId: string;
+      ledgerId: string;
+      tenantId: string;
+    }
+  | {
+      type: "budgeting.recurring.skipped";
+      draftId: string;
+      tenantId: string;
     };

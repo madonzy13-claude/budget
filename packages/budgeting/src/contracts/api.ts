@@ -240,6 +240,104 @@ export const correctTransactionSchema = z.object({
 
 export type CorrectTransactionInput = z.infer<typeof correctTransactionSchema>;
 
+// ---------------------------------------------------------------------------
+// Recurring rules schemas (EXPN-08, plan 02-08)
+// ---------------------------------------------------------------------------
+
+export const cadenceSchema = z.enum(["MONTHLY", "WEEKLY"]);
+
+export const createRecurringRuleSchema = z.object({
+  accountId: z.string().uuid(),
+  categoryId: z.string().uuid().nullable().optional(),
+  amount: z.string().regex(/^\d+(\.\d{1,4})?$/).refine((v) => parseFloat(v) > 0, "amount must be positive"),
+  currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
+  kind: z.enum(["EXPENSE", "INCOME", "TRANSFER"]),
+  cadence: cadenceSchema,
+  cadenceAnchor: z.number().int().min(1).max(31).nullable().optional(),
+  weeklyDow: z.number().int().min(0).max(6).nullable().optional(),
+  note: z.string().max(500).nullable().optional(),
+  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export type CreateRecurringRuleInput = z.infer<typeof createRecurringRuleSchema>;
+
+const ruleEditsSchema = z.object({
+  amount: z.string().regex(/^\d+(\.\d{1,4})?$/).refine((v) => parseFloat(v) > 0, "amount must be positive").optional(),
+  currency: z.string().regex(/^[A-Z0-9]{3,5}$/).optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+  accountId: z.string().uuid().optional(),
+  note: z.string().max(500).nullable().optional(),
+  active: z.boolean().optional(),
+}).strict();
+
+export const updateRecurringRuleSchema = z.object({
+  edits: ruleEditsSchema,
+  /**
+   * REQUIRED — no .default(). Caller MUST pass explicitly.
+   * D-01-d: missing field → 422. UI pre-checks "Also apply to future occurrences".
+   */
+  applyToFuture: z.boolean(),
+});
+
+export type UpdateRecurringRuleInput = z.infer<typeof updateRecurringRuleSchema>;
+
+// Draft action schemas
+export const confirmDraftSchema = z.object({});
+
+const draftEditsSchema = z.object({
+  amount: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+  currency: z.string().regex(/^[A-Z0-9]{3,5}$/).optional(),
+  accountId: z.string().uuid().optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+  kind: z.enum(["EXPENSE", "INCOME", "TRANSFER"]).optional(),
+  note: z.string().max(500).nullable().optional(),
+}).strict();
+
+export const editConfirmDraftSchema = z.object({
+  edits: draftEditsSchema,
+  fxPreview: z.object({
+    rate: z.string().regex(/^\d+(\.\d+)?$/),
+    fxRateDate: z.string(),
+  }).nullable().optional(),
+});
+
+export type EditConfirmDraftInput = z.infer<typeof editConfirmDraftSchema>;
+
+export const skipDraftSchema = z.object({});
+
+export interface RecurringRuleDto {
+  id: string;
+  tenantId: string;
+  accountId: string;
+  categoryId: string | null;
+  amount: string;
+  currency: string;
+  kind: string;
+  cadence: string;
+  cadenceAnchor: number | null;
+  weeklyDow: number | null;
+  note: string | null;
+  active: boolean;
+  nextDueDate: string;
+  createdAt: string;
+}
+
+export interface RecurringDraftDto {
+  id: string;
+  tenantId: string;
+  ruleId: string;
+  dueDate: string;
+  amount: string;
+  currency: string;
+  accountId: string;
+  categoryId: string | null;
+  kind: string;
+  note: string | null;
+  status: string;
+  createdAt: string;
+  confirmedAt: string | null;
+}
+
 export interface TransactionDto {
   id: string;
   tenantId: string;
