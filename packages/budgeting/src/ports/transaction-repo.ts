@@ -63,4 +63,37 @@ export interface TransactionRepo {
     tenantId: string,
     opts: { limit: number; before?: { transactionDate: string; id: string } },
   ): Promise<import("../domain/transaction").Transaction[]>;
+
+  /**
+   * Returns the row with the given id (RLS-scoped by tenant).
+   * Returns null if not found or not in tenant's scope.
+   * Plan 02-07: used by editTransaction use case to load original.
+   */
+  findById(tenantId: string, id: string): Promise<TransactionRow | null>;
+
+  /**
+   * Inserts a correction row atomically:
+   * - SELECT FOR UPDATE on original (serializes concurrent edits → AlreadyCorrected if race)
+   * - INSERT new row with corrects_id = originalId
+   * - Reverse + re-apply accounts.current_balance delta (newAmountDefault - oldAmountDefault)
+   * - Reverse + re-apply spending_by_category_month upsert
+   * - writeAudit (actor + before/after diff)
+   * - writeOutbox budgeting.transaction.corrected
+   * Plan 02-07, D-01-a/b, EXPN-06.
+   */
+  insertCorrection(
+    originalId: string,
+    newFields: Partial<TransactionRow>,
+    userId: string,
+    tenantId: string,
+    diff: Record<string, { before: unknown; after: unknown }>,
+  ): Promise<{ ledgerId: string }>;
+
+  /**
+   * Returns the full correction chain for a given row id.
+   * Walks backwards from the given id to the original, then includes all corrections forward.
+   * Ordered by created_at ASC (original first, latest correction last).
+   * Plan 02-07, D-01-a.
+   */
+  getCorrectionChain(tenantId: string, anchorId: string): Promise<TransactionRow[]>;
 }

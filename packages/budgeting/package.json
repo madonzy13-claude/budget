@@ -44,7 +44,10 @@
     "./src/adapters/persistence/supported-currencies-repo": "./src/adapters/persistence/supported-currencies-repo.ts",
     "./src/application/create-transaction": "./src/application/create-transaction.ts",
     "./src/application/get-latest-transactions": "./src/application/get-latest-transactions.ts",
-    "./src/application/list-supported-currencies": "./src/application/list-supported-currencies.ts"
+    "./src/application/list-supported-currencies": "./src/application/list-supported-currencies.ts",
+    "./src/domain/correction": "./src/domain/correction.ts",
+    "./src/application/edit-transaction": "./src/application/edit-transaction.ts",
+    "./src/application/get-transaction-history": "./src/application/get-transaction-history.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
