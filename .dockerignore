@@ -52,3 +52,7 @@ docker-compose.override.yml.example
 
 # CI / planning
 .planning
+
+# Local Postgres bind-mount (commit 1aebb09) — never send to build context
+/data
+/data/**

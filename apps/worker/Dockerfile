@@ -12,6 +12,7 @@ COPY packages/identity/package.json packages/identity/
 COPY packages/platform/package.json packages/platform/
 COPY packages/shared-kernel/package.json packages/shared-kernel/
 COPY packages/tenancy/package.json packages/tenancy/
+COPY packages/budgeting/package.json packages/budgeting/
 RUN bun install --frozen-lockfile --production
 # Strip dev-only transitive deps that ship Go binaries (esbuild / vite /
 # vitest / playwright) — bun --production keeps them in workspace mode.
