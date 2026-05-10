@@ -26,6 +26,7 @@ export default defineConfig({
     "../../packages/budgeting/src/adapters/persistence/category-share-overrides-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/workspace-budget-mode-history-schema.ts",
     "../../packages/platform/src/idempotency/schema.ts",
+    "../../packages/budgeting/src/adapters/persistence/spending-projection-schema.ts",
   ],
   dbCredentials: { url },
   casing: "snake_case",

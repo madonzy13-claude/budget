@@ -458,6 +458,7 @@ CREATE TABLE IF NOT EXISTS budgeting.workspace_share_dirty (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE budgeting.workspace_share_dirty FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS workspace_share_dirty_isolation ON budgeting.workspace_share_dirty;
 CREATE POLICY workspace_share_dirty_isolation ON budgeting.workspace_share_dirty
   AS PERMISSIVE FOR ALL TO app_role, worker_role
   USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
@@ -481,3 +482,71 @@ DROP TRIGGER IF EXISTS workspace_members_share_dirty ON tenancy.workspace_member
 CREATE TRIGGER workspace_members_share_dirty
   AFTER INSERT OR DELETE ON tenancy.workspace_members
   FOR EACH ROW EXECUTE FUNCTION budgeting.flag_workspace_share_dirty();
+
+-- ===== Plan 02-06: expense_ledger Phase-2 extensions (idempotent — safe to re-run) =====
+
+-- Drop corrected_by_id (D-05-a) — Drizzle push should handle; belt-and-suspenders here
+ALTER TABLE budgeting.expense_ledger DROP COLUMN IF EXISTS corrected_by_id;
+
+-- Add Phase-2 columns if not already present (drizzle-kit push does this; SQL is belt-and-suspenders)
+ALTER TABLE budgeting.expense_ledger
+  ADD COLUMN IF NOT EXISTS transaction_date date NOT NULL DEFAULT now()::date,
+  ADD COLUMN IF NOT EXISTS note text,
+  ADD COLUMN IF NOT EXISTS account_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::uuid,
+  ADD COLUMN IF NOT EXISTS category_id uuid,
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'EXPENSE',
+  ADD COLUMN IF NOT EXISTS transfer_group_id uuid;
+
+-- note_tsv: GENERATED ALWAYS AS STORED (Drizzle cannot express this — SQL only)
+-- We must drop and re-add if column exists but is not generated (idempotent via IF NOT EXISTS)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'budgeting'
+       AND table_name = 'expense_ledger'
+       AND column_name = 'note_tsv'
+       AND is_generated = 'ALWAYS'
+  ) THEN
+    ALTER TABLE budgeting.expense_ledger DROP COLUMN IF EXISTS note_tsv;
+    ALTER TABLE budgeting.expense_ledger
+      ADD COLUMN note_tsv tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', coalesce(note, ''))) STORED;
+  END IF;
+END $$;
+
+-- CHECK constraint on kind
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'expense_ledger_kind_chk'
+       AND conrelid = 'budgeting.expense_ledger'::regclass
+  ) THEN
+    ALTER TABLE budgeting.expense_ledger
+      ADD CONSTRAINT expense_ledger_kind_chk
+      CHECK (kind IN ('EXPENSE','INCOME','TRANSFER'));
+  END IF;
+END $$;
+
+-- Indexes (all IF NOT EXISTS — idempotent)
+CREATE INDEX IF NOT EXISTS expense_ledger_note_tsv_idx
+  ON budgeting.expense_ledger USING GIN (note_tsv);
+CREATE INDEX IF NOT EXISTS expense_ledger_corrects_id_idx
+  ON budgeting.expense_ledger (corrects_id) WHERE corrects_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS expense_ledger_tenant_date_idx
+  ON budgeting.expense_ledger (tenant_id, transaction_date DESC);
+CREATE INDEX IF NOT EXISTS expense_ledger_tenant_category_date_idx
+  ON budgeting.expense_ledger (tenant_id, category_id, transaction_date DESC);
+CREATE INDEX IF NOT EXISTS expense_ledger_tenant_account_date_idx
+  ON budgeting.expense_ledger (tenant_id, account_id, transaction_date DESC);
+CREATE INDEX IF NOT EXISTS expense_ledger_transfer_group_idx
+  ON budgeting.expense_ledger (transfer_group_id) WHERE transfer_group_id IS NOT NULL;
+
+-- Re-assert REVOKE (safe after Drizzle push which may GRANT more broadly)
+REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role;
+GRANT SELECT, INSERT ON budgeting.expense_ledger TO app_role, worker_role;
+
+-- spending_by_category_month table (ENGR-14 projection) — Drizzle push creates it
+ALTER TABLE budgeting.spending_by_category_month FORCE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE ON budgeting.spending_by_category_month TO app_role, worker_role;

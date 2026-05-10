@@ -71,6 +71,13 @@
       "when": 1778401320938,
       "tag": "0009_breezy_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778404800000,
+      "tag": "0010_plan_02_06_ledger_projection",
+      "breakpoints": true
     }
   ]
 }
