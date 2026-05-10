@@ -34,7 +34,17 @@
     "./src/application/apply-budget-template": "./src/application/apply-budget-template.ts",
     "./src/application/set-share-overrides": "./src/application/set-share-overrides.ts",
     "./src/application/list-share-overrides": "./src/application/list-share-overrides.ts",
-    "./src/application/toggle-budget-mode": "./src/application/toggle-budget-mode.ts"
+    "./src/application/toggle-budget-mode": "./src/application/toggle-budget-mode.ts",
+    "./src/domain/transaction": "./src/domain/transaction.ts",
+    "./src/domain/events": "./src/domain/events.ts",
+    "./src/ports/transaction-repo": "./src/ports/transaction-repo.ts",
+    "./src/ports/spending-projection-repo": "./src/ports/spending-projection-repo.ts",
+    "./src/adapters/persistence/transaction-repo": "./src/adapters/persistence/transaction-repo.ts",
+    "./src/adapters/persistence/spending-projection-repo": "./src/adapters/persistence/spending-projection-repo.ts",
+    "./src/adapters/persistence/supported-currencies-repo": "./src/adapters/persistence/supported-currencies-repo.ts",
+    "./src/application/create-transaction": "./src/application/create-transaction.ts",
+    "./src/application/get-latest-transactions": "./src/application/get-latest-transactions.ts",
+    "./src/application/list-supported-currencies": "./src/application/list-supported-currencies.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -52,6 +62,7 @@
   },
   "devDependencies": {
     "@types/big.js": "^6.2.2",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "fast-check": "^3.20.0"
   }
 }

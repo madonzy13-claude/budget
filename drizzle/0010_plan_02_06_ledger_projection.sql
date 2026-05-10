@@ -26,3 +26,21 @@ CREATE TABLE "budgeting"."spending_by_category_month" (
 );
 --> statement-breakpoint
 ALTER TABLE "budgeting"."spending_by_category_month" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+     WHERE schemaname = 'budgeting'
+       AND tablename = 'spending_by_category_month'
+       AND policyname = 'spending_projection_isolation'
+  ) THEN
+    EXECUTE $policy$
+      CREATE POLICY spending_projection_isolation ON budgeting.spending_by_category_month
+        AS PERMISSIVE FOR ALL
+        TO app_role, worker_role
+        USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+        WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+    $policy$;
+  END IF;
+END $$;

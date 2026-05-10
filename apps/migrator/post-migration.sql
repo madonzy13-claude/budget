@@ -549,4 +549,10 @@ GRANT SELECT, INSERT ON budgeting.expense_ledger TO app_role, worker_role;
 
 -- spending_by_category_month table (ENGR-14 projection) — Drizzle push creates it
 ALTER TABLE budgeting.spending_by_category_month FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS spending_projection_isolation ON budgeting.spending_by_category_month;
+CREATE POLICY spending_projection_isolation ON budgeting.spending_by_category_month
+  AS PERMISSIVE FOR ALL
+  TO app_role, worker_role
+  USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 GRANT SELECT, INSERT, UPDATE ON budgeting.spending_by_category_month TO app_role, worker_role;
