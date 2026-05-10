@@ -73,7 +73,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **EXPN-05**: Voice flow always shows structured preview with parsed amount/currency/category before save
 - [ ] **EXPN-06**: User can edit transactions; edits create new ledger correction row, original immutable
 - [ ] **EXPN-07**: User can split a transaction across multiple categories
-- [ ] **EXPN-08**: User can record recurring transactions (monthly, weekly); engine generates instances at due date
+- [x] **EXPN-08**: User can record recurring transactions (monthly, weekly); engine generates instances at due date
 - [ ] **EXPN-09**: User can search and filter transactions by date range, category, account, scope, text
 - [ ] **EXPN-10**: User can re-categorize transactions; bulk re-categorize supported
 - [x] **EXPN-11**: All capture surfaces accept any currency (multi-currency-native)
@@ -301,7 +301,7 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | EXPN-05     | Phase 5 | Pending  |
 | EXPN-06     | Phase 2 | Pending  |
 | EXPN-07     | Phase 2 | Pending  |
-| EXPN-08     | Phase 2 | Pending  |
+| EXPN-08     | Phase 2 | Complete |
 | EXPN-09     | Phase 2 | Pending  |
 | EXPN-10     | Phase 2 | Pending  |
 | EXPN-11     | Phase 2 | Complete |
