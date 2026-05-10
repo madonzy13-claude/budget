@@ -23,6 +23,10 @@ export class TransactionsPage {
     return this.page.getByTestId("submit-button");
   }
 
+  editSubmitButton(): Locator {
+    return this.page.getByTestId("edit-submit-button");
+  }
+
   kindTab(kind: "expense" | "income" | "transfer"): Locator {
     return this.page.getByTestId(`kind-tab-${kind}`);
   }
@@ -65,5 +69,53 @@ export class TransactionsPage {
 
   async expectTransactionInList(amount: string): Promise<void> {
     await expect(this.transactionRow(amount)).toBeVisible();
+  }
+
+  // ── Plan 02-07: Edit + History ─────────────────────────────────────────────
+
+  /**
+   * Opens the edit form for a transaction row matching the note/amount text.
+   * Right-clicks or finds an edit button on the transaction row.
+   */
+  async openEditForm(transactionNote: string): Promise<void> {
+    // Find the transaction row containing the note text
+    const row = this.page.getByTestId(/^transaction-row-/).filter({ hasText: transactionNote });
+    // Click the edit button inside the row (rendered in the row via a kebab menu or edit icon)
+    const editBtn = row.getByRole("button", { name: /edit/i });
+    if (await editBtn.isVisible()) {
+      await editBtn.click();
+    } else {
+      // Fallback: right-click or find the edit sheet trigger
+      await row.click();
+    }
+  }
+
+  /**
+   * Changes the amount in the edit form.
+   */
+  async fillEditAmount(amount: string): Promise<void> {
+    await this.amountInput().fill(amount);
+  }
+
+  async saveEdit(): Promise<void> {
+    await this.editSubmitButton().click();
+  }
+
+  /**
+   * Returns the "edited" badge locator for a transaction row.
+   */
+  editedBadge(transactionId?: string): Locator {
+    if (transactionId) {
+      return this.page.getByTestId(`edited-badge-${transactionId}`);
+    }
+    return this.page.getByTestId(/^edited-badge-/);
+  }
+
+  async clickEditedBadge(transactionId?: string): Promise<void> {
+    await this.editedBadge(transactionId).first().click();
+  }
+
+  historyPanelRow(index: number): Locator {
+    return this.page.getByTestId(`chain-row-${index}`);
   }
 }

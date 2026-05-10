@@ -1,9 +1,11 @@
 /**
  * transaction-list.tsx — RSC component that fetches and renders latest transactions.
  * Per UI-SPEC: dark Binance rows; amount color by kind; FX freshness badge on stale rows.
+ * Plan 02-07: "edited" badge on rows with hasCorrections=true; clicking opens EditHistoryPanel.
  */
 import { getTranslations } from "next-intl/server";
 import { FxFreshnessBadge } from "./fx-freshness-badge";
+import { TransactionRowClient } from "./transaction-row-client";
 
 interface Transaction {
   id: string;
@@ -19,6 +21,7 @@ interface Transaction {
   categoryId: string | null;
   transferGroupId: string | null;
   isStale: boolean;
+  hasCorrections?: boolean;
 }
 
 interface TransactionListProps {
@@ -96,7 +99,7 @@ export async function TransactionList({ locale, apiBase }: TransactionListProps)
               )}
             </div>
 
-            {/* Right: amount + FX badge */}
+            {/* Right: amount + badges */}
             <div className="flex flex-col items-end gap-1 ml-4 shrink-0">
               <span
                 className={[
@@ -113,6 +116,13 @@ export async function TransactionList({ locale, apiBase }: TransactionListProps)
                 <FxFreshnessBadge
                   fxRateDate={tx.fxRateDate}
                   provider={tx.fxProvider}
+                />
+              )}
+              {/* "edited" badge — client interactive: opens history panel on click */}
+              {tx.hasCorrections && (
+                <TransactionRowClient
+                  transactionId={tx.id}
+                  editedBadgeLabel={t("list.editedBadge")}
                 />
               )}
             </div>

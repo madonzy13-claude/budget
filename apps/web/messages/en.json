@@ -316,6 +316,19 @@
       "list": {
         "editedBadge": "edited",
         "empty": "No transactions yet."
+      },
+      "edit": {
+        "title": "Edit transaction",
+        "saveButton": "Save changes",
+        "cancelButton": "Cancel",
+        "kindFieldHint": "Kind cannot be changed — create a new transaction instead.",
+        "alreadyCorrected": "This transaction was edited by someone else. Please reload."
+      },
+      "history": {
+        "panelTitle": "Edit history",
+        "originalLabel": "Original",
+        "editedLabel": "Edited",
+        "changedFields": "Changed: {fields}"
       }
     },
     "fx": {

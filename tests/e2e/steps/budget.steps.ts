@@ -240,3 +240,89 @@ Then(
     await expect(page.getByText(amount).first()).toBeVisible({ timeout: 10000 });
   },
 );
+
+// ── Plan 02-07: Correction row edit steps ─────────────────────────────────
+
+Given(
+  "I have an expense {string} of {int} EUR on {string}",
+  async ({ page }, note: string, amount: number, date: string) => {
+    // Find account via API to get accountId
+    const accountsRes = await page.request.get("/api/accounts");
+    const accountsData = accountsRes.ok()
+      ? (await accountsRes.json() as { accounts: Array<{ id: string }> })
+      : { accounts: [] };
+    const accountId = accountsData.accounts[0]?.id;
+
+    if (!accountId) {
+      throw new Error("No account found — run 'I have a checking account' step first");
+    }
+
+    const res = await page.request.post("/api/transactions", {
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      data: {
+        kind: "EXPENSE",
+        amountOrig: String(amount),
+        currencyOrig: "EUR",
+        transactionDate: date,
+        accountId,
+        note,
+      },
+    });
+    expect([201, 409].includes(res.status())).toBeTruthy();
+  },
+);
+
+When(
+  "I open the transaction edit form for {string}",
+  async ({ page }, note: string) => {
+    const txPage = new TransactionsPage(page);
+    await txPage.openEditForm(note);
+  },
+);
+
+When("I change the amount to {string}", async ({ page }, amount: string) => {
+  const txPage = new TransactionsPage(page);
+  await txPage.fillEditAmount(amount);
+});
+
+When("I save the edit", async ({ page }) => {
+  const txPage = new TransactionsPage(page);
+  await txPage.saveEdit();
+  // Wait for reload
+  await page.waitForLoadState("networkidle");
+});
+
+Then(
+  "the transaction shows an {string} badge",
+  async ({ page }, _badge: string) => {
+    await expect(page.getByTestId(/^edited-badge-/).first()).toBeVisible({ timeout: 10000 });
+  },
+);
+
+When(
+  "I click the {string} badge for the transaction",
+  async ({ page }, _badge: string) => {
+    const txPage = new TransactionsPage(page);
+    await txPage.clickEditedBadge();
+  },
+);
+
+Then("the edit history panel shows {int} rows", async ({ page }, count: number) => {
+  for (let i = 0; i < count; i++) {
+    await expect(page.getByTestId(`chain-row-${i}`)).toBeVisible({ timeout: 10000 });
+  }
+});
+
+Then(
+  "the first history row has amount {string}",
+  async ({ page }, amount: string) => {
+    await expect(page.getByTestId("chain-row-0")).toContainText(amount, { timeout: 10000 });
+  },
+);
+
+Then(
+  "the second history row has amount {string}",
+  async ({ page }, amount: string) => {
+    await expect(page.getByTestId("chain-row-1")).toContainText(amount, { timeout: 10000 });
+  },
+);

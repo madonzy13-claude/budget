@@ -37,6 +37,12 @@ export class Transaction {
     /** Corrects an earlier ledger row (uuid) */
     readonly correctsId: string | null,
     readonly createdAt: Date,
+    /**
+     * Plan 02-07: true when at least one correction row exists that points at this row.
+     * Derived via EXISTS(SELECT 1 FROM expense_ledger c WHERE c.corrects_id = this.id).
+     * Drives the "edited" badge in the UI.
+     */
+    readonly hasCorrections: boolean = false,
   ) {}
 
   /**

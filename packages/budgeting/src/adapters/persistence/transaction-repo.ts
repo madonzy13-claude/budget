@@ -65,6 +65,8 @@ function rowToTransaction(row: Record<string, unknown>): Transaction {
     (row.transfer_group_id as string | null) ?? null,
     (row.corrects_id as string | null) ?? null,
     new Date(row.created_at as string),
+    // Plan 02-07: has_corrections from EXISTS subquery in listLatest
+    row.has_corrections === true || row.has_corrections === "true",
   );
 }
 

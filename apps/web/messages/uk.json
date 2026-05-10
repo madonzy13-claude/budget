@@ -316,6 +316,19 @@
       "list": {
         "editedBadge": "редаговано",
         "empty": "Транзакцій ще немає."
+      },
+      "edit": {
+        "title": "Редагувати транзакцію",
+        "saveButton": "Зберегти зміни",
+        "cancelButton": "Скасувати",
+        "kindFieldHint": "Тип змінити не можна — створіть нову транзакцію.",
+        "alreadyCorrected": "Цю транзакцію вже відредагував хтось інший. Оновіть сторінку."
+      },
+      "history": {
+        "panelTitle": "Історія редагувань",
+        "originalLabel": "Оригінал",
+        "editedLabel": "Відредаговано",
+        "changedFields": "Змінено: {fields}"
       }
     },
     "fx": {

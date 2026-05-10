@@ -316,6 +316,19 @@
       "list": {
         "editedBadge": "edytowane",
         "empty": "Brak transakcji."
+      },
+      "edit": {
+        "title": "Edytuj transakcję",
+        "saveButton": "Zapisz zmiany",
+        "cancelButton": "Anuluj",
+        "kindFieldHint": "Nie można zmienić rodzaju — utwórz nową transakcję.",
+        "alreadyCorrected": "Ta transakcja została edytowana przez kogoś innego. Odśwież stronę."
+      },
+      "history": {
+        "panelTitle": "Historia edycji",
+        "originalLabel": "Oryginał",
+        "editedLabel": "Edytowano",
+        "changedFields": "Zmieniono: {fields}"
       }
     },
     "fx": {

@@ -194,6 +194,7 @@ export function createTransactionsRoute(deps: BootedDeps) {
         correctsId: tx.correctsId,
         createdAt: tx.createdAt.toISOString(),
         isStale: tx.isStale(),
+        hasCorrections: tx.hasCorrections,
       })),
     });
   });
