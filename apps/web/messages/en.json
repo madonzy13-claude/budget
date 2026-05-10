@@ -314,5 +314,52 @@
       "NOK": "Norwegian Krone",
       "SEK": "Swedish Krona"
     }
+  },
+  "budgeting_categories": {
+    "categories": {
+      "title": "Categories",
+      "addButton": "Add category",
+      "empty": "No categories yet. Add your first category to track spending.",
+      "form": {
+        "title": "New category",
+        "name": "Category name",
+        "scope": "Scope",
+        "parent": "Group (optional)",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "scopes": {
+        "PERSONAL": "Personal",
+        "SHARED": "Shared"
+      },
+      "overrideBadge": "override"
+    },
+    "limits": {
+      "title": "Budget limits",
+      "normalAmount": "Normal limit",
+      "cushionAmount": "Cushion limit",
+      "effectiveFrom": "Effective from",
+      "save": "Save limits",
+      "currency": "Currency"
+    },
+    "templates": {
+      "title": "Budget templates",
+      "addButton": "New template",
+      "applyButton": "Apply template",
+      "targetMonth": "Target month"
+    },
+    "shares": {
+      "title": "Contribution shares",
+      "sumCounter": "Currently {sum}% — must equal 100%",
+      "sharesNeedUpdate": "Shares need to be updated",
+      "save": "Save shares",
+      "overrideBadge": "override"
+    },
+    "budgetMode": {
+      "title": "Budget mode",
+      "NORMAL": "Normal",
+      "CUSHION": "Cushion",
+      "save": "Switch mode"
+    }
   }
 }

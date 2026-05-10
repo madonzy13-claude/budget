@@ -10,14 +10,12 @@ import { TenantId, UserId } from "@budget/shared-kernel";
 
 // These imports will fail at RED phase — that's expected
 import { DrizzleCategoryLimitRepo } from "../src/adapters/persistence/category-limit-repo";
-import { DrizzleCategoryRepo } from "../src/adapters/persistence/category-repo";
 
 const TEST_TENANT = crypto.randomUUID();
 const TEST_USER = crypto.randomUUID();
 
 let categoryId: string;
 let limitRepo: DrizzleCategoryLimitRepo;
-let _categoryRepo: DrizzleCategoryRepo;
 
 async function getRawDb() {
   const { drizzle } = await import("drizzle-orm/node-postgres");
@@ -51,7 +49,6 @@ beforeAll(async () => {
   if (r.isErr()) throw r.error;
 
   limitRepo = new DrizzleCategoryLimitRepo();
-  _categoryRepo = new DrizzleCategoryRepo();
 });
 
 afterAll(async () => {

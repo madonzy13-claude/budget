@@ -314,5 +314,52 @@
       "NOK": "Korona norweska",
       "SEK": "Korona szwedzka"
     }
+  },
+  "budgeting_categories": {
+    "categories": {
+      "title": "Kategorie",
+      "addButton": "Dodaj kategorię",
+      "empty": "Brak kategorii. Dodaj pierwszą kategorię, aby śledzić wydatki.",
+      "form": {
+        "title": "Nowa kategoria",
+        "name": "Nazwa kategorii",
+        "scope": "Zakres",
+        "parent": "Grupa (opcjonalnie)",
+        "save": "Zapisz",
+        "cancel": "Anuluj"
+      },
+      "scopes": {
+        "PERSONAL": "Osobiste",
+        "SHARED": "Wspólne"
+      },
+      "overrideBadge": "nadpisanie"
+    },
+    "limits": {
+      "title": "Limity budżetowe",
+      "normalAmount": "Limit normalny",
+      "cushionAmount": "Limit poduszki",
+      "effectiveFrom": "Obowiązuje od",
+      "save": "Zapisz limity",
+      "currency": "Waluta"
+    },
+    "templates": {
+      "title": "Szablony budżetu",
+      "addButton": "Nowy szablon",
+      "applyButton": "Zastosuj szablon",
+      "targetMonth": "Docelowy miesiąc"
+    },
+    "shares": {
+      "title": "Udziały w wydatkach",
+      "sumCounter": "Aktualnie {sum}% — musi wynosić 100%",
+      "sharesNeedUpdate": "Udziały wymagają aktualizacji",
+      "save": "Zapisz udziały",
+      "overrideBadge": "nadpisanie"
+    },
+    "budgetMode": {
+      "title": "Tryb budżetu",
+      "NORMAL": "Normalny",
+      "CUSHION": "Poduszka",
+      "save": "Zmień tryb"
+    }
   }
 }

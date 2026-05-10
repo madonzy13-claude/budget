@@ -7,7 +7,6 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { sql } from "drizzle-orm";
 
 import { DrizzleBudgetTemplateRepo } from "../src/adapters/persistence/budget-template-repo";
-import { DrizzleCategoryLimitRepo } from "../src/adapters/persistence/category-limit-repo";
 
 const TEST_TENANT = crypto.randomUUID();
 const TEST_USER = crypto.randomUUID();
@@ -16,7 +15,6 @@ let cat1Id: string;
 let cat2Id: string;
 let cat3Id: string;
 let templateRepo: DrizzleBudgetTemplateRepo;
-let _limitRepo: DrizzleCategoryLimitRepo;
 
 async function getRawDb() {
   const { drizzle } = await import("drizzle-orm/node-postgres");
@@ -49,7 +47,6 @@ beforeAll(async () => {
   await pool.end();
 
   templateRepo = new DrizzleBudgetTemplateRepo();
-  _limitRepo = new DrizzleCategoryLimitRepo();
 });
 
 afterAll(async () => {

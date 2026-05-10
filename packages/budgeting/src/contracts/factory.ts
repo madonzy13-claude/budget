@@ -16,6 +16,9 @@ import { listAccounts } from "../application/list-accounts";
 import { findAccountById } from "../application/find-account-by-id";
 import { createCategory } from "../application/create-category";
 import { archiveCategory } from "../application/archive-category";
+import { listCategories } from "../application/list-categories";
+import { findCategoryById } from "../application/find-category-by-id";
+import { renameCategory } from "../application/rename-category";
 import { setCategoryLimit } from "../application/set-category-limit";
 import { getEffectiveLimit } from "../application/get-effective-limit";
 import { applyBudgetTemplate } from "../application/apply-budget-template";
@@ -36,6 +39,9 @@ export interface BudgetingModule {
   findAccountById: ReturnType<typeof findAccountById>;
   createCategory: ReturnType<typeof createCategory>;
   archiveCategory: ReturnType<typeof archiveCategory>;
+  listCategories: ReturnType<typeof listCategories>;
+  findCategoryById: ReturnType<typeof findCategoryById>;
+  renameCategory: ReturnType<typeof renameCategory>;
   setCategoryLimit: ReturnType<typeof setCategoryLimit>;
   getEffectiveLimit: ReturnType<typeof getEffectiveLimit>;
   applyBudgetTemplate: ReturnType<typeof applyBudgetTemplate>;
@@ -60,6 +66,9 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     findAccountById: findAccountById({ repo }),
     createCategory: createCategory({ repo: categoryRepo }),
     archiveCategory: archiveCategory({ repo: categoryRepo }),
+    listCategories: listCategories({ repo: categoryRepo }),
+    findCategoryById: findCategoryById({ repo: categoryRepo }),
+    renameCategory: renameCategory({ repo: categoryRepo }),
     setCategoryLimit: setCategoryLimit({ limitRepo }),
     getEffectiveLimit: getEffectiveLimit({ limitRepo }),
     applyBudgetTemplate: applyBudgetTemplate({ templateRepo }),

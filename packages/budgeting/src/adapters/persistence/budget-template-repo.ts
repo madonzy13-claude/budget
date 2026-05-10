@@ -10,7 +10,6 @@ import type {
   CreateTemplateInput,
   ApplyTemplateInput,
   TemplateDto,
-  TemplateItemDto,
 } from "../../ports/budget-template-repo";
 import type { Result } from "@budget/shared-kernel";
 

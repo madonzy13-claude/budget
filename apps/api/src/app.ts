@@ -20,6 +20,11 @@ import { workspacesRoutesFactory } from "./routes/workspaces";
 import { settingsRoutesFactory } from "./routes/settings";
 import { createFxRoute } from "./routes/fx";
 import { createAccountsRoute } from "./routes/accounts";
+import { createCategoriesRoute } from "./routes/categories";
+import { createCategoryLimitsRoute } from "./routes/category-limits";
+import { createBudgetTemplatesRoute } from "./routes/budget-templates";
+import { createShareOverridesRoute } from "./routes/share-overrides";
+import { createWorkspaceSettingsRoute } from "./routes/workspace-settings";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import type { BootedDeps } from "./boot";
 
@@ -43,6 +48,11 @@ export function createApp(deps: BootedDeps) {
   app.route("/settings", settingsRoutesFactory(deps));
   app.route("/fx", createFxRoute(deps));
   app.route("/accounts", createAccountsRoute(deps));
+  app.route("/categories", createCategoriesRoute(deps));
+  app.route("/categories", createCategoryLimitsRoute(deps));
+  app.route("/categories", createShareOverridesRoute(deps));
+  app.route("/budget-templates", createBudgetTemplatesRoute(deps));
+  app.route("/workspace-settings", createWorkspaceSettingsRoute(deps));
 
   // 7. Health probe
   app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));

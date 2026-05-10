@@ -18,7 +18,22 @@
     "./src/application/archive-account": "./src/application/archive-account.ts",
     "./src/application/adjust-account-balance": "./src/application/adjust-account-balance.ts",
     "./src/application/list-accounts": "./src/application/list-accounts.ts",
-    "./src/application/find-account-by-id": "./src/application/find-account-by-id.ts"
+    "./src/application/find-account-by-id": "./src/application/find-account-by-id.ts",
+    "./src/adapters/persistence/category-repo": "./src/adapters/persistence/category-repo.ts",
+    "./src/adapters/persistence/category-limit-repo": "./src/adapters/persistence/category-limit-repo.ts",
+    "./src/adapters/persistence/budget-template-repo": "./src/adapters/persistence/budget-template-repo.ts",
+    "./src/adapters/persistence/share-override-repo": "./src/adapters/persistence/share-override-repo.ts",
+    "./src/adapters/persistence/budget-mode-repo": "./src/adapters/persistence/budget-mode-repo.ts",
+    "./src/application/create-category": "./src/application/create-category.ts",
+    "./src/application/archive-category": "./src/application/archive-category.ts",
+    "./src/application/list-categories": "./src/application/list-categories.ts",
+    "./src/application/find-category-by-id": "./src/application/find-category-by-id.ts",
+    "./src/application/rename-category": "./src/application/rename-category.ts",
+    "./src/application/set-category-limit": "./src/application/set-category-limit.ts",
+    "./src/application/get-effective-limit": "./src/application/get-effective-limit.ts",
+    "./src/application/apply-budget-template": "./src/application/apply-budget-template.ts",
+    "./src/application/set-share-overrides": "./src/application/set-share-overrides.ts",
+    "./src/application/toggle-budget-mode": "./src/application/toggle-budget-mode.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

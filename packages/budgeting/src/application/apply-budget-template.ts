@@ -2,7 +2,7 @@
  * apply-budget-template.ts — Application use case: apply template to target month
  * D-04-d: bulk-sets limits for all template items.
  */
-import { ok, err, type Result } from "@budget/shared-kernel";
+import { type Result } from "@budget/shared-kernel";
 import type { BudgetTemplateRepo } from "../ports/budget-template-repo";
 import type { ApplyTemplateInput } from "../contracts/api";
 
