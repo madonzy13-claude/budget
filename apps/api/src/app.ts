@@ -27,6 +27,8 @@ import { createShareOverridesRoute } from "./routes/share-overrides";
 import { createWorkspaceSettingsRoute } from "./routes/workspace-settings";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
+import { createRecurringRulesRoute } from "./routes/recurring-rules";
+import { createRecurringDraftsRoute } from "./routes/recurring-drafts";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import type { BootedDeps } from "./boot";
 
@@ -57,6 +59,8 @@ export function createApp(deps: BootedDeps) {
   app.route("/workspace-settings", createWorkspaceSettingsRoute(deps));
   app.route("/transactions", createTransactionsRoute(deps));
   app.route("/currencies", createCurrenciesRoute(deps));
+  app.route("/recurring-rules", createRecurringRulesRoute(deps));
+  app.route("/recurring-drafts", createRecurringDraftsRoute(deps));
 
   // 7. Health probe
   app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));

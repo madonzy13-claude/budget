@@ -11,6 +11,8 @@ import { DrizzleShareOverrideRepo } from "../adapters/persistence/share-override
 import { DrizzleBudgetModeRepo } from "../adapters/persistence/budget-mode-repo";
 import { DrizzleTransactionRepo } from "../adapters/persistence/transaction-repo";
 import { DrizzleSpendingProjectionRepo } from "../adapters/persistence/spending-projection-repo";
+import { DrizzleRecurringRuleRepo } from "../adapters/persistence/recurring-rule-repo";
+import { DrizzleRecurringDraftRepo } from "../adapters/persistence/recurring-draft-repo";
 import { createAccount } from "../application/create-account";
 import { archiveAccount } from "../application/archive-account";
 import { adjustAccountBalance } from "../application/adjust-account-balance";
@@ -32,6 +34,13 @@ import { getLatestTransactions } from "../application/get-latest-transactions";
 import { listSupportedCurrencies } from "../application/list-supported-currencies";
 import { editTransaction } from "../application/edit-transaction";
 import { getTransactionHistory } from "../application/get-transaction-history";
+import { createRecurringRule } from "../application/create-recurring-rule";
+import { updateRecurringRule } from "../application/update-recurring-rule";
+import { deleteRecurringRule } from "../application/delete-recurring-rule";
+import { confirmRecurringDraft } from "../application/confirm-recurring-draft";
+import { editAndConfirmRecurringDraft } from "../application/edit-and-confirm-recurring-draft";
+import { skipRecurringDraft } from "../application/skip-recurring-draft";
+import { listPendingDrafts } from "../application/list-pending-drafts";
 import { withInfraTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
@@ -65,12 +74,26 @@ export interface BudgetingModule {
   listSupportedCurrencies: typeof listSupportedCurrencies;
   /** Exposed for plan 02-08 createInTx cross-plan contract */
   transactionRepo: DrizzleTransactionRepo;
+  // Plan 02-08: recurring rules + drafts
+  createRecurringRule: ReturnType<typeof createRecurringRule>;
+  updateRecurringRule: ReturnType<typeof updateRecurringRule>;
+  deleteRecurringRule: ReturnType<typeof deleteRecurringRule>;
+  confirmRecurringDraft: ReturnType<typeof confirmRecurringDraft>;
+  editAndConfirmRecurringDraft: ReturnType<typeof editAndConfirmRecurringDraft>;
+  skipRecurringDraft: ReturnType<typeof skipRecurringDraft>;
+  listPendingDrafts: ReturnType<typeof listPendingDrafts>;
+  recurringRuleRepo: DrizzleRecurringRuleRepo;
+  recurringDraftRepo: DrizzleRecurringDraftRepo;
 }
 
 /** Resolves workspace default_currency from tenancy.workspaces. */
 async function getWorkspaceDefaultCurrency(tenantId: string): Promise<string> {
   const r = await withInfraTx(async (tx) => {
-    const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Array<{ default_currency: string }> }> };
+    const drizzleTx = tx as {
+      execute: (
+        q: unknown,
+      ) => Promise<{ rows: Array<{ default_currency: string }> }>;
+    };
     const rs = await drizzleTx.execute(
       sql`SELECT default_currency FROM tenancy.workspaces WHERE id = ${tenantId}::uuid LIMIT 1`,
     );
@@ -88,6 +111,8 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   const budgetModeRepo = new DrizzleBudgetModeRepo();
   const projectionRepo = new DrizzleSpendingProjectionRepo();
   const transactionRepo = new DrizzleTransactionRepo(repo, projectionRepo);
+  const recurringRuleRepo = new DrizzleRecurringRuleRepo();
+  const recurringDraftRepo = new DrizzleRecurringDraftRepo();
   const fxProvider = new FrankfurterFxProvider(deps.fxCache);
 
   return {
@@ -123,5 +148,24 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     getTransactionHistory: getTransactionHistory({ transactionRepo }),
     listSupportedCurrencies,
     transactionRepo,
+    // Plan 02-08
+    createRecurringRule: createRecurringRule({ ruleRepo: recurringRuleRepo }),
+    updateRecurringRule: updateRecurringRule({
+      ruleRepo: recurringRuleRepo,
+      draftRepo: recurringDraftRepo,
+    }),
+    deleteRecurringRule: deleteRecurringRule({ ruleRepo: recurringRuleRepo }),
+    confirmRecurringDraft: confirmRecurringDraft({
+      draftRepo: recurringDraftRepo,
+      transactionRepo,
+    }),
+    editAndConfirmRecurringDraft: editAndConfirmRecurringDraft({
+      draftRepo: recurringDraftRepo,
+      transactionRepo,
+    }),
+    skipRecurringDraft: skipRecurringDraft({ draftRepo: recurringDraftRepo }),
+    listPendingDrafts: listPendingDrafts({ draftRepo: recurringDraftRepo }),
+    recurringRuleRepo,
+    recurringDraftRepo,
   };
 }
