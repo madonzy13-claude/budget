@@ -317,6 +317,31 @@
         "editedBadge": "edytowane",
         "empty": "Brak transakcji."
       },
+      "search": {
+        "placeholder": "Szukaj transakcji",
+        "resultsCount": "{count, plural, =0{Brak wyników} =1{1 wynik} few{# wyniki} many{# wyników} other{# wyników}} dla {query}",
+        "noResults": "Żadna transakcja nie pasuje do wyszukiwania"
+      },
+      "filters": {
+        "toolbarLabel": "Filtry transakcji",
+        "dateRange": "Zakres dat",
+        "category": "Kategoria",
+        "account": "Konto",
+        "scope": "Zakres",
+        "kind": "Typ",
+        "clearAll": "Wyczyść wszystkie filtry"
+      },
+      "bulk": {
+        "regionLabel": "Akcje zbiorcze",
+        "selectedCount": "Zaznaczono: {count}",
+        "actionLabel": "Zmień kategorię {count} transakcji",
+        "applyButton": "Zastosuj zmianę kategorii",
+        "applySucceeded": "Zmieniono kategorię {count} transakcji",
+        "applyFailed": "Zbiorcza zmiana kategorii nie powiodła się",
+        "categorySelectLabel": "Nowa kategoria",
+        "categoryPlaceholder": "Wybierz kategorię",
+        "confirmDialog": "Zmienić kategorię {count} transakcji na {category}? Dla każdej zostanie utworzony wiersz korekty."
+      },
       "edit": {
         "title": "Edytuj transakcję",
         "saveButton": "Zapisz zmiany",

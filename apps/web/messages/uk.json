@@ -317,6 +317,31 @@
         "editedBadge": "редаговано",
         "empty": "Транзакцій ще немає."
       },
+      "search": {
+        "placeholder": "Пошук транзакцій",
+        "resultsCount": "{count, plural, =0{Немає результатів} =1{1 результат} few{# результати} many{# результатів} other{# результатів}} для {query}",
+        "noResults": "Жодна транзакція не відповідає пошуку"
+      },
+      "filters": {
+        "toolbarLabel": "Фільтри транзакцій",
+        "dateRange": "Діапазон дат",
+        "category": "Категорія",
+        "account": "Рахунок",
+        "scope": "Область",
+        "kind": "Тип",
+        "clearAll": "Очистити всі фільтри"
+      },
+      "bulk": {
+        "regionLabel": "Масові дії",
+        "selectedCount": "Вибрано: {count}",
+        "actionLabel": "Змінити категорію {count} транзакцій",
+        "applyButton": "Застосувати зміну категорії",
+        "applySucceeded": "Змінено категорію {count} транзакцій",
+        "applyFailed": "Масова зміна категорії не вдалася",
+        "categorySelectLabel": "Нова категорія",
+        "categoryPlaceholder": "Виберіть категорію",
+        "confirmDialog": "Змінити категорію {count} транзакцій на {category}? Для кожної буде створено рядок корекції."
+      },
       "edit": {
         "title": "Редагувати транзакцію",
         "saveButton": "Зберегти зміни",

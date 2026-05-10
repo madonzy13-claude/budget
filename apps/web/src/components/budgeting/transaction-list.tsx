@@ -2,10 +2,17 @@
  * transaction-list.tsx — RSC component that fetches and renders latest transactions.
  * Per UI-SPEC: dark Binance rows; amount color by kind; FX freshness badge on stale rows.
  * Plan 02-07: "edited" badge on rows with hasCorrections=true; clicking opens EditHistoryPanel.
+ * Plan 02-09: imports TransactionSearchBar / TransactionFilterChips so consumers (RSC pages)
+ * can compose search + filter on top of this list. The bulk-action-bar is a peer client
+ * component owned by the page (lifts selection state outside the RSC tree).
  */
 import { getTranslations } from "next-intl/server";
 import { FxFreshnessBadge } from "./fx-freshness-badge";
 import { TransactionRowClient } from "./transaction-row-client";
+// Plan 02-09: re-export the search/filter primitives so pages can compose them above this list.
+export { TransactionSearchBar } from "./transaction-search-bar";
+export { TransactionFilterChips } from "./transaction-filter-chips";
+export { BulkActionBar } from "./bulk-action-bar";
 
 interface Transaction {
   id: string;
