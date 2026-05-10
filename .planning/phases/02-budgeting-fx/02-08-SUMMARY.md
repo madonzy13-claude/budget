@@ -35,9 +35,8 @@ checkbox extends to future occurrences" is enforced at three layers:
   `(rule_id, due_date)` UNIQUE invariant.
 
 Confirm + edit-and-confirm reuse `transaction-repo.createInTx` (defined in
-plan 02-06 Task 2) so the ledger insert + balance update + projection update
-
-- outbox writes all share the same transaction as the draft UPDATE.
+plan 02-06 Task 2) so the ledger insert, balance update, projection update
+and outbox writes all share the same transaction as the draft UPDATE.
 
 ## Commits (oldest → newest)
 
@@ -80,9 +79,9 @@ NOTHING` for the D-05-g sentinel system user
   methods so the rule update + future-PENDING draft regeneration share one
   `withTenantTx`.
 - `src/adapters/persistence/{recurring-rule-repo,recurring-draft-repo}.ts` —
-  raw SQL via Drizzle `tx.execute(sql\`…\`)`. The future-PENDING regen
-query lives in `recurring-draft-repo.regenerateFuturePending`with the
-exact`status = 'PENDING' AND due_date >= CURRENT_DATE` filter.
+  raw SQL via Drizzle `tx.execute(sql...)`. The future-PENDING regen query
+  lives in `recurring-draft-repo.regenerateFuturePending` with the exact
+  `status = 'PENDING' AND due_date >= CURRENT_DATE` filter.
 - `src/application/{create,update,delete}-recurring-rule.ts` plus
   `src/application/{confirm,edit-and-confirm,skip}-recurring-draft.ts` and
   `src/application/list-pending-drafts.ts`. `update-recurring-rule.ts`
