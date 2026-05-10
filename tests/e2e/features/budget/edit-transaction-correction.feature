@@ -6,7 +6,7 @@ Feature: Edit transaction via correction row
     And I have a checking account "Main" with currency "EUR"
 
   Scenario: User edits an expense; original is preserved; history panel shows both versions
-    Given I have an expense "Coffee" of 5 EUR on 2026-05-08
+    Given I have an expense "Coffee" of 5 EUR on "2026-05-08"
     When I open the Transactions page
     Then I see a transaction in the list with amount "5"
     When I open the transaction edit form for "Coffee"
