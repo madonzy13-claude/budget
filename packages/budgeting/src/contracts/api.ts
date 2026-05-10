@@ -338,6 +338,52 @@ export interface RecurringDraftDto {
   confirmedAt: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Search + Bulk recategorize schemas (EXPN-09, EXPN-10, plan 02-09)
+// ---------------------------------------------------------------------------
+
+/**
+ * Helper to coerce comma-separated query strings into string arrays.
+ * Used for `categoryIds` and `accountIds` in GET /transactions?categoryIds=a,b,c
+ */
+const csvUuidArray = z
+  .union([z.string(), z.array(z.string().uuid())])
+  .optional()
+  .transform((v): string[] | undefined => {
+    if (v === undefined) return undefined;
+    if (Array.isArray(v)) return v;
+    if (v.length === 0) return undefined;
+    return v.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  });
+
+export const searchTransactionsSchema = z.object({
+  q: z.string().max(500).optional(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  categoryIds: csvUuidArray,
+  accountIds: csvUuidArray,
+  kind: z.enum(["EXPENSE", "INCOME", "TRANSFER"]).optional(),
+  cursorDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  cursorId: z.string().uuid().optional(),
+  limit: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => {
+      if (v === undefined) return 50;
+      const n = typeof v === "number" ? v : parseInt(v, 10);
+      return Number.isFinite(n) ? Math.min(Math.max(n, 1), 200) : 50;
+    }),
+});
+
+export type SearchTransactionsQuery = z.infer<typeof searchTransactionsSchema>;
+
+export const bulkRecategorizeSchema = z.object({
+  transactionIds: z.array(z.string().uuid()).min(1).max(500),
+  newCategoryId: z.string().uuid(),
+});
+
+export type BulkRecategorizeBody = z.infer<typeof bulkRecategorizeSchema>;
+
 export interface TransactionDto {
   id: string;
   tenantId: string;

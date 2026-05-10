@@ -90,6 +90,21 @@ export interface TransactionRepo {
   ): Promise<{ ledgerId: string }>;
 
   /**
+   * Plan 02-09: insert correction inside an existing tx.
+   * Same semantics as insertCorrection() but joins the caller's withTenantTx so
+   * a sequence of corrections can be atomic-all-or-none (bulkRecategorize).
+   * Caller MUST set the tenant GUC via withTenantTx.
+   */
+  insertCorrectionInTx(
+    tx: unknown,
+    originalId: string,
+    newFields: Partial<TransactionRow>,
+    userId: string,
+    tenantId: string,
+    diff: Record<string, { before: unknown; after: unknown }>,
+  ): Promise<{ ledgerId: string }>;
+
+  /**
    * Returns the full correction chain for a given row id.
    * Walks backwards from the given id to the original, then includes all corrections forward.
    * Ordered by created_at ASC (original first, latest correction last).

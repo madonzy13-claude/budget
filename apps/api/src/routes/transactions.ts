@@ -156,9 +156,107 @@ export function createTransactionsRoute(deps: BootedDeps) {
     });
   });
 
-  // GET /transactions — latest transactions list
-  app.get("/", async (c) => {
+  // POST /transactions/bulk-recategorize — Plan 02-09 (EXPN-10)
+  app.post("/bulk-recategorize", async (c) => {
+    const { bulkRecategorizeSchema } = await import(
+      "@budget/budgeting/src/contracts/api"
+    );
+
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+
+    const parsed = bulkRecategorizeSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+    }
+
+    const session = c.get("session");
     const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+
+    const r = await deps.budgeting.bulkRecategorize({
+      tenantId,
+      transactionIds: parsed.data.transactionIds,
+      newCategoryId: parsed.data.newCategoryId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      return c.json({ error: r.error.message }, 422);
+    }
+    return c.json(r.value, 200);
+  });
+
+  // GET /transactions — latest transactions list, with search/filter (Plan 02-09)
+  app.get("/", async (c) => {
+    const { searchTransactionsSchema } = await import(
+      "@budget/budgeting/src/contracts/api"
+    );
+    const tenantId = pickTenant(c);
+
+    // Hono request -> plain query record
+    const rawQuery: Record<string, string> = {};
+    const url = new URL(c.req.url);
+    for (const [k, v] of url.searchParams.entries()) rawQuery[k] = v;
+
+    const parsed = searchTransactionsSchema.safeParse(rawQuery);
+    if (!parsed.success) {
+      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+    }
+    const q = parsed.data;
+
+    const hasSearch =
+      q.q !== undefined ||
+      q.dateFrom !== undefined ||
+      q.dateTo !== undefined ||
+      q.categoryIds !== undefined ||
+      q.accountIds !== undefined ||
+      q.kind !== undefined ||
+      q.cursorDate !== undefined;
+
+    if (hasSearch) {
+      const r = await deps.budgeting.searchTransactions({
+        tenantId,
+        query: q.q,
+        filters: {
+          dateFrom: q.dateFrom,
+          dateTo: q.dateTo,
+          categoryIds: q.categoryIds,
+          accountIds: q.accountIds,
+          kind: q.kind,
+        },
+        cursor:
+          q.cursorDate && q.cursorId
+            ? { transactionDate: q.cursorDate, id: q.cursorId }
+            : null,
+        limit: q.limit,
+      });
+      if (r.isErr()) return c.json({ error: r.error.message }, 500);
+
+      return c.json({
+        transactions: r.value.rows.map((tx) => ({
+          id: tx.id,
+          tenantId: tx.tenantId,
+          kind: tx.kind,
+          amountOrig: tx.amountOrig,
+          currencyOrig: tx.currencyOrig,
+          amountDefault: tx.amountDefault,
+          currencyDefault: tx.currencyDefault,
+          fxRate: tx.fxRate,
+          fxRateDate: tx.fxRateDate,
+          fxProvider: tx.fxProvider,
+          transactionDate: tx.transactionDate,
+          note: tx.note,
+          accountId: tx.accountId,
+          categoryId: tx.categoryId,
+          transferGroupId: tx.transferGroupId,
+          correctsId: tx.correctsId,
+        })),
+        nextCursor: r.value.nextCursor,
+      });
+    }
+
+    // Legacy beforeDate/beforeId path — keep working for existing UI
     const limit = parseInt(c.req.query("limit") ?? "50", 10);
     const beforeDate = c.req.query("beforeDate");
     const beforeId = c.req.query("beforeId");

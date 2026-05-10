@@ -286,146 +286,154 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     let resultLedgerId = "";
 
     const r = await withTenantTx(TenantId(tenantId), UserId(userId), async (tx) => {
-      const drizzleTx = tx as {
-        execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
-      };
-
-      // 1. Advisory transaction lock on originalId to serialize concurrent corrections (T-2-07-02)
-      // SELECT FOR UPDATE requires UPDATE privilege which is REVOKE'd (D-01-b, T-2-07-01).
-      // pg_advisory_xact_lock() holds until end of transaction — same serialization guarantee.
-      // We hash the uuid bytes to a bigint for the lock key.
-      await drizzleTx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtext(${originalId}))`,
-      );
-
-      const originalResult = await drizzleTx.execute(
-        sql`SELECT id, tenant_id, kind, amount_orig, currency_orig, amount_default,
-                   currency_default, fx_rate, fx_rate_date::text, fx_provider,
-                   transaction_date::text, note, account_id, category_id,
-                   transfer_group_id, corrects_id, created_at
-            FROM budgeting.expense_ledger
-            WHERE id = ${originalId}::uuid AND tenant_id = ${tenantId}::uuid`,
-      );
-
-      if (!originalResult.rows[0]) {
-        throw new TransactionNotFoundError(originalId);
-      }
-
-      const originalRow = dbRowToTransactionRow(originalResult.rows[0]);
-
-      // 2. Check if already corrected — another row already has corrects_id = originalId
-      const alreadyCorrectedResult = await drizzleTx.execute(
-        sql`SELECT id FROM budgeting.expense_ledger
-            WHERE corrects_id = ${originalId}::uuid AND tenant_id = ${tenantId}::uuid
-            LIMIT 1`,
-      );
-
-      if (alreadyCorrectedResult.rows.length > 0) {
-        throw new AlreadyCorrectedError(originalId);
-      }
-
-      // 3. Build the correction row
-      const correctionRow = buildCorrectionRow(originalRow, newFields as Parameters<typeof buildCorrectionRow>[1], userId);
-      resultLedgerId = correctionRow.id;
-
-      // 4. INSERT the correction row
-      await drizzleTx.execute(
-        sql`INSERT INTO budgeting.expense_ledger
-              (id, tenant_id, amount_orig, currency_orig, amount_default, currency_default,
-               fx_rate, fx_rate_date, fx_provider, corrects_id,
-               transaction_date, note, account_id, category_id, kind, transfer_group_id,
-               created_at)
-            VALUES
-              (${correctionRow.id}::uuid, ${correctionRow.tenantId}::uuid,
-               ${correctionRow.amountOrig}::numeric, ${correctionRow.currencyOrig},
-               ${correctionRow.amountDefault}::numeric, ${correctionRow.currencyDefault},
-               ${correctionRow.fxRate}::numeric, ${correctionRow.fxRateDate}::date, ${correctionRow.fxProvider},
-               ${correctionRow.correctsId}::uuid,
-               ${correctionRow.transactionDate}::date,
-               ${correctionRow.note ?? null},
-               ${correctionRow.accountId}::uuid,
-               ${correctionRow.categoryId ? sql`${correctionRow.categoryId}::uuid` : sql`NULL`},
-               ${correctionRow.kind},
-               ${correctionRow.transferGroupId ? sql`${correctionRow.transferGroupId}::uuid` : sql`NULL`},
-               now())`,
-      );
-
-      // 5. Balance delta: reverse original, apply correction
-      const oldAmountDefault = parseFloat(originalRow.amountDefault);
-      const newAmountDefault = parseFloat(correctionRow.amountDefault);
-      const netDelta = newAmountDefault - oldAmountDefault;
-
-      // For EXPENSE (balanceDeltaSign=-1): original subtracted from balance, correction must subtract more/less
-      // Net effect: (newAmount - oldAmount) with same sign as original
-      const signedNetDelta = correctionRow.balanceDeltaSign === 1
-        ? String(netDelta)
-        : String(-netDelta);
-
-      if (netDelta !== 0) {
-        await this.accountRepo.applyDelta(tx, correctionRow.accountId, signedNetDelta);
-      }
-
-      // 6. Projection reversal + re-apply (EXPENSE/INCOME with category only)
-      if (correctionRow.kind !== "TRANSFER") {
-        // Reverse original projection contribution
-        if (originalRow.categoryId) {
-          const monthStart = firstDayOfMonth(originalRow.transactionDate);
-          const reverseDelta = originalRow.kind === "EXPENSE"
-            ? `-${originalRow.amountDefault}`
-            : "0";
-          await this.projectionRepo.upsert(tx, {
-            tenantId: correctionRow.tenantId,
-            workspaceId: correctionRow.tenantId,
-            categoryId: originalRow.categoryId,
-            monthStartDate: monthStart,
-            deltaNormal: reverseDelta,
-            deltaCushion: "0",
-            currency: originalRow.currencyDefault,
-          });
-        }
-
-        // Apply correction projection contribution
-        if (correctionRow.categoryId) {
-          const monthStart = firstDayOfMonth(correctionRow.transactionDate);
-          await this.projectionRepo.upsert(tx, {
-            tenantId: correctionRow.tenantId,
-            workspaceId: correctionRow.tenantId,
-            categoryId: correctionRow.categoryId,
-            monthStartDate: monthStart,
-            deltaNormal: correctionRow.kind === "EXPENSE" ? correctionRow.amountDefault : "0",
-            deltaCushion: "0",
-            currency: correctionRow.currencyDefault,
-          });
-        }
-      }
-
-      // 7. Write audit (T-2-07-03 — same tx, actor + before/after diff)
-      await writeAudit(tx as Parameters<typeof writeAudit>[0], {
-        tenantId: TenantId(tenantId),
-        entityType: "transaction",
-        entityId: originalId,
-        action: "update",
-        actorUserId: UserId(userId),
-        before: { ...originalRow, diff },
-        after: { ...correctionRow, correctionId: correctionRow.id },
-      });
-
-      // 8. Write outbox (budgeting.transaction.corrected — same tx as INSERT)
-      await writeOutbox(tx, {
-        tenantId: TenantId(correctionRow.tenantId),
-        aggregateType: "transaction",
-        aggregateId: originalId,
-        eventType: "budgeting.transaction.corrected",
-        payload: {
-          originalId,
-          correctionId: correctionRow.id,
-          diff,
-          tenantId,
-        },
-      });
+      const out = await this.insertCorrectionInTx(tx, originalId, newFields, userId, tenantId, diff);
+      resultLedgerId = out.ledgerId;
     });
 
     if (r.isErr()) throw r.error;
+    return { ledgerId: resultLedgerId };
+  }
+
+  /**
+   * Plan 02-09 in-tx variant: same semantics as insertCorrection but joins the caller's tx.
+   * Used by bulkRecategorize so several correction inserts share one withTenantTx (atomic-all-or-none).
+   */
+  async insertCorrectionInTx(
+    tx: unknown,
+    originalId: string,
+    newFields: Partial<TransactionRow>,
+    userId: string,
+    tenantId: string,
+    diff: Record<string, { before: unknown; after: unknown }>,
+  ): Promise<{ ledgerId: string }> {
+    const drizzleTx = tx as {
+      execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+    };
+
+    // 1. Advisory transaction lock on originalId — serializes concurrent corrections (T-2-07-02)
+    await drizzleTx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${originalId}))`,
+    );
+
+    const originalResult = await drizzleTx.execute(
+      sql`SELECT id, tenant_id, kind, amount_orig, currency_orig, amount_default,
+                 currency_default, fx_rate, fx_rate_date::text, fx_provider,
+                 transaction_date::text, note, account_id, category_id,
+                 transfer_group_id, corrects_id, created_at
+          FROM budgeting.expense_ledger
+          WHERE id = ${originalId}::uuid AND tenant_id = ${tenantId}::uuid`,
+    );
+
+    if (!originalResult.rows[0]) {
+      throw new TransactionNotFoundError(originalId);
+    }
+
+    const originalRow = dbRowToTransactionRow(originalResult.rows[0]);
+
+    // 2. Already-corrected check
+    const alreadyCorrectedResult = await drizzleTx.execute(
+      sql`SELECT id FROM budgeting.expense_ledger
+          WHERE corrects_id = ${originalId}::uuid AND tenant_id = ${tenantId}::uuid
+          LIMIT 1`,
+    );
+
+    if (alreadyCorrectedResult.rows.length > 0) {
+      throw new AlreadyCorrectedError(originalId);
+    }
+
+    // 3. Build correction row
+    const correctionRow = buildCorrectionRow(originalRow, newFields as Parameters<typeof buildCorrectionRow>[1], userId);
+    const resultLedgerId = correctionRow.id;
+
+    // 4. INSERT correction
+    await drizzleTx.execute(
+      sql`INSERT INTO budgeting.expense_ledger
+            (id, tenant_id, amount_orig, currency_orig, amount_default, currency_default,
+             fx_rate, fx_rate_date, fx_provider, corrects_id,
+             transaction_date, note, account_id, category_id, kind, transfer_group_id,
+             created_at)
+          VALUES
+            (${correctionRow.id}::uuid, ${correctionRow.tenantId}::uuid,
+             ${correctionRow.amountOrig}::numeric, ${correctionRow.currencyOrig},
+             ${correctionRow.amountDefault}::numeric, ${correctionRow.currencyDefault},
+             ${correctionRow.fxRate}::numeric, ${correctionRow.fxRateDate}::date, ${correctionRow.fxProvider},
+             ${correctionRow.correctsId}::uuid,
+             ${correctionRow.transactionDate}::date,
+             ${correctionRow.note ?? null},
+             ${correctionRow.accountId}::uuid,
+             ${correctionRow.categoryId ? sql`${correctionRow.categoryId}::uuid` : sql`NULL`},
+             ${correctionRow.kind},
+             ${correctionRow.transferGroupId ? sql`${correctionRow.transferGroupId}::uuid` : sql`NULL`},
+             now())`,
+    );
+
+    // 5. Balance delta reversal/re-apply
+    const oldAmountDefault = parseFloat(originalRow.amountDefault);
+    const newAmountDefault = parseFloat(correctionRow.amountDefault);
+    const netDelta = newAmountDefault - oldAmountDefault;
+    const signedNetDelta = correctionRow.balanceDeltaSign === 1
+      ? String(netDelta)
+      : String(-netDelta);
+    if (netDelta !== 0) {
+      await this.accountRepo.applyDelta(tx, correctionRow.accountId, signedNetDelta);
+    }
+
+    // 6. Projection reversal + re-apply
+    if (correctionRow.kind !== "TRANSFER") {
+      if (originalRow.categoryId) {
+        const monthStart = firstDayOfMonth(originalRow.transactionDate);
+        const reverseDelta = originalRow.kind === "EXPENSE"
+          ? `-${originalRow.amountDefault}`
+          : "0";
+        await this.projectionRepo.upsert(tx, {
+          tenantId: correctionRow.tenantId,
+          workspaceId: correctionRow.tenantId,
+          categoryId: originalRow.categoryId,
+          monthStartDate: monthStart,
+          deltaNormal: reverseDelta,
+          deltaCushion: "0",
+          currency: originalRow.currencyDefault,
+        });
+      }
+      if (correctionRow.categoryId) {
+        const monthStart = firstDayOfMonth(correctionRow.transactionDate);
+        await this.projectionRepo.upsert(tx, {
+          tenantId: correctionRow.tenantId,
+          workspaceId: correctionRow.tenantId,
+          categoryId: correctionRow.categoryId,
+          monthStartDate: monthStart,
+          deltaNormal: correctionRow.kind === "EXPENSE" ? correctionRow.amountDefault : "0",
+          deltaCushion: "0",
+          currency: correctionRow.currencyDefault,
+        });
+      }
+    }
+
+    // 7. Audit
+    await writeAudit(tx as Parameters<typeof writeAudit>[0], {
+      tenantId: TenantId(tenantId),
+      entityType: "transaction",
+      entityId: originalId,
+      action: "update",
+      actorUserId: UserId(userId),
+      before: { ...originalRow, diff },
+      after: { ...correctionRow, correctionId: correctionRow.id },
+    });
+
+    // 8. Outbox
+    await writeOutbox(tx, {
+      tenantId: TenantId(correctionRow.tenantId),
+      aggregateType: "transaction",
+      aggregateId: originalId,
+      eventType: "budgeting.transaction.corrected",
+      payload: {
+        originalId,
+        correctionId: correctionRow.id,
+        diff,
+        tenantId,
+      },
+    });
+
     return { ledgerId: resultLedgerId };
   }
 

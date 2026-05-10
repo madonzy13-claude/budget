@@ -41,6 +41,8 @@ import { confirmRecurringDraft } from "../application/confirm-recurring-draft";
 import { editAndConfirmRecurringDraft } from "../application/edit-and-confirm-recurring-draft";
 import { skipRecurringDraft } from "../application/skip-recurring-draft";
 import { listPendingDrafts } from "../application/list-pending-drafts";
+import { searchTransactions } from "../application/search-transactions";
+import { bulkRecategorize } from "../application/bulk-recategorize";
 import { withInfraTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
@@ -84,6 +86,9 @@ export interface BudgetingModule {
   listPendingDrafts: ReturnType<typeof listPendingDrafts>;
   recurringRuleRepo: DrizzleRecurringRuleRepo;
   recurringDraftRepo: DrizzleRecurringDraftRepo;
+  // Plan 02-09: search + bulk re-categorize
+  searchTransactions: ReturnType<typeof searchTransactions>;
+  bulkRecategorize: ReturnType<typeof bulkRecategorize>;
 }
 
 /** Resolves workspace default_currency from tenancy.workspaces. */
@@ -167,5 +172,8 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listPendingDrafts: listPendingDrafts({ draftRepo: recurringDraftRepo }),
     recurringRuleRepo,
     recurringDraftRepo,
+    // Plan 02-09
+    searchTransactions: searchTransactions(),
+    bulkRecategorize: bulkRecategorize({ transactionRepo }),
   };
 }
