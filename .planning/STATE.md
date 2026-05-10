@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 UI-SPEC approved
-last_updated: "2026-05-10T09:14:25.139Z"
+stopped_at: Completed 02-06 transaction ledger writer plan
+last_updated: "2026-05-10T10:01:13.081Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 20
-  completed_plans: 16
-  percent: 80
+  completed_plans: 17
+  percent: 85
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 02 (budgeting-fx) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-05-10
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 85%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [████████░░] 80%
 
 _Updated after each plan completion_
 | Phase 02-budgeting-fx P05 | 120 | 3 tasks | 60 files |
+| Phase 02-budgeting-fx P06 | 95 | 3 tasks | 42 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,10 @@ Recent decisions affecting current work:
 - 01.10: Tests 1+4 raw pg.Client approach: no mention of app tx primitives in test files (T-13 acceptance criteria requires string absence)
 - 01.10: seed-two-tenants uses createIdentityModule auth directly for createWorkspace (BA auth instance has createOrganization built-in)
 - 01.10: Playwright E2E (PC-10) gated on main or e2e label — requires live compose stack
+- [Phase ?]: TransactionRepo split surface: create() delegates to createInTx(); plan 02-08 imports only createInTx for recurring-draft composition
+- [Phase ?]: FX freshness gate: 60-minute server-side threshold; returns 409 FxRateStale with freshRate payload for client re-render
+- [Phase ?]: Currency allowlist: RSC pre-fetches /api/currencies once; CurrencyPicker options prop restricts to seeded codes only
+- [Phase ?]: Web app avoids bundling pg/drizzle: getSupportedCurrencies() fetches /api/currencies endpoint instead of direct DB import
 
 ### Pending Todos
 
@@ -123,6 +128,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-10T09:14:25.107Z
-Stopped at: Phase 2 UI-SPEC approved
+Last session: 2026-05-10T10:01:13.017Z
+Stopped at: Completed 02-06 transaction ledger writer plan
 Resume file: None

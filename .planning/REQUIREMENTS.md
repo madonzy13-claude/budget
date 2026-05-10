@@ -66,9 +66,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Expense Capture (EXPN)
 
-- [ ] **EXPN-01**: User can add expense via form: amount, currency, date, category, account, note
-- [ ] **EXPN-02**: User can add income (separate transaction kind)
-- [ ] **EXPN-03**: User can record transfer between accounts (no category impact)
+- [x] **EXPN-01**: User can add expense via form: amount, currency, date, category, account, note
+- [x] **EXPN-02**: User can add income (separate transaction kind)
+- [x] **EXPN-03**: User can record transfer between accounts (no category impact)
 - [ ] **EXPN-04**: User can add expense via voice (Browser STT or Groq STT, per-user pluggable)
 - [ ] **EXPN-05**: Voice flow always shows structured preview with parsed amount/currency/category before save
 - [ ] **EXPN-06**: User can edit transactions; edits create new ledger correction row, original immutable
@@ -76,9 +76,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **EXPN-08**: User can record recurring transactions (monthly, weekly); engine generates instances at due date
 - [ ] **EXPN-09**: User can search and filter transactions by date range, category, account, scope, text
 - [ ] **EXPN-10**: User can re-categorize transactions; bulk re-categorize supported
-- [ ] **EXPN-11**: All capture surfaces accept any currency (multi-currency-native)
+- [x] **EXPN-11**: All capture surfaces accept any currency (multi-currency-native)
 - [ ] **EXPN-12**: All mutating endpoints accept `Idempotency-Key` header (PWA offline → reconnect safety)
-- [ ] **EXPN-13**: Deposit-to-workspace-wallet (transfer-in / cash add) accepts any currency; UI shows FX-preview ("X CUR ≈ Y workspace-currency at rate Z, date D") before save; deposit recorded in workspace currency on ledger with original amount preserved (per MONY-06)
+- [x] **EXPN-13**: Deposit-to-workspace-wallet (transfer-in / cash add) accepts any currency; UI shows FX-preview ("X CUR ≈ Y workspace-currency at rate Z, date D") before save; deposit recorded in workspace currency on ledger with original amount preserved (per MONY-06)
 
 ### Reserve System (RSRV) — opt-in
 
@@ -294,9 +294,9 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | BDGT-06     | Phase 2 | Complete |
 | BDGT-07     | Phase 2 | Complete |
 | BDGT-08     | Phase 2 | Complete |
-| EXPN-01     | Phase 2 | Pending  |
-| EXPN-02     | Phase 2 | Pending  |
-| EXPN-03     | Phase 2 | Pending  |
+| EXPN-01     | Phase 2 | Complete |
+| EXPN-02     | Phase 2 | Complete |
+| EXPN-03     | Phase 2 | Complete |
 | EXPN-04     | Phase 5 | Pending  |
 | EXPN-05     | Phase 5 | Pending  |
 | EXPN-06     | Phase 2 | Pending  |
@@ -304,9 +304,9 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | EXPN-08     | Phase 2 | Pending  |
 | EXPN-09     | Phase 2 | Pending  |
 | EXPN-10     | Phase 2 | Pending  |
-| EXPN-11     | Phase 2 | Pending  |
+| EXPN-11     | Phase 2 | Complete |
 | EXPN-12     | Phase 2 | Pending  |
-| EXPN-13     | Phase 2 | Pending  |
+| EXPN-13     | Phase 2 | Complete |
 | RSRV-01     | Phase 3 | Pending  |
 | RSRV-02     | Phase 3 | Pending  |
 | RSRV-03     | Phase 3 | Pending  |
