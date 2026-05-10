@@ -336,6 +336,60 @@
       "freshnessBadge": "kurs {age}",
       "stale409Title": "Kurs zmienił się",
       "stale409Body": "Kurs wymiany zmienił się podczas wypełniania formularza. Nowy kurs to {rate}. Zapisać z nowym kursem?"
+    },
+    "recurring": {
+      "title": "Cykliczne",
+      "addRuleButton": "Dodaj regułę cykliczną",
+      "rule": {
+        "title": "Nowa reguła cykliczna",
+        "editTitle": "Edytuj regułę cykliczną",
+        "saveButton": "Zapisz regułę",
+        "cancelButton": "Anuluj",
+        "amountLabel": "Kwota",
+        "currencyLabel": "Waluta",
+        "kindLabel": "Typ",
+        "kindExpense": "Wydatek",
+        "kindIncome": "Przychód",
+        "kindTransfer": "Transfer",
+        "accountLabel": "Konto",
+        "categoryLabel": "Kategoria (opcjonalnie)",
+        "cadenceLabel": "Częstotliwość",
+        "monthly": "Miesięcznie",
+        "weekly": "Tygodniowo",
+        "anchorDayLabel": "W dniu",
+        "weekdayLabel": "W",
+        "weekdays": {
+          "0": "Niedziela",
+          "1": "Poniedziałek",
+          "2": "Wtorek",
+          "3": "Środa",
+          "4": "Czwartek",
+          "5": "Piątek",
+          "6": "Sobota"
+        },
+        "firstDueLabel": "Pierwsza data",
+        "noteLabel": "Notatka (opcjonalnie)",
+        "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
+        "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane."
+      },
+      "list": {
+        "title": "Reguły cykliczne",
+        "empty": "Brak reguł cyklicznych.",
+        "monthlyOnDay": "Miesięcznie · {day}",
+        "weeklyOnDow": "Tygodniowo · {weekday}",
+        "nextDueLabel": "Następnie: {date}",
+        "editButton": "Edytuj",
+        "archiveButton": "Archiwizuj"
+      },
+      "drafts": {
+        "inboxTitle": "Oczekujące cykliczne",
+        "empty": "Brak oczekujących szkiców.",
+        "confirmButton": "Potwierdź transakcję",
+        "editConfirmButton": "Edytuj i potwierdź",
+        "skipButton": "Pomiń ten okres",
+        "overdueLabel": "Spóźnione {age}",
+        "navBadgeLabel": "{count} spóźnionych"
+      }
     }
   },
   "currency": {

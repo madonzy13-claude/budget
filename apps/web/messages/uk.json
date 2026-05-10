@@ -336,6 +336,60 @@
       "freshnessBadge": "курс {age}",
       "stale409Title": "Курс змінився",
       "stale409Body": "Курс обміну змінився поки відкрита форма. Новий курс: {rate}. Зберегти з новим курсом?"
+    },
+    "recurring": {
+      "title": "Регулярні",
+      "addRuleButton": "Додати регулярне правило",
+      "rule": {
+        "title": "Нове регулярне правило",
+        "editTitle": "Редагувати регулярне правило",
+        "saveButton": "Зберегти правило",
+        "cancelButton": "Скасувати",
+        "amountLabel": "Сума",
+        "currencyLabel": "Валюта",
+        "kindLabel": "Тип",
+        "kindExpense": "Витрата",
+        "kindIncome": "Надходження",
+        "kindTransfer": "Переказ",
+        "accountLabel": "Рахунок",
+        "categoryLabel": "Категорія (необовʼязково)",
+        "cadenceLabel": "Частота",
+        "monthly": "Щомісячно",
+        "weekly": "Щотижня",
+        "anchorDayLabel": "У день",
+        "weekdayLabel": "У",
+        "weekdays": {
+          "0": "Неділя",
+          "1": "Понеділок",
+          "2": "Вівторок",
+          "3": "Середа",
+          "4": "Четвер",
+          "5": "Пʼятниця",
+          "6": "Субота"
+        },
+        "firstDueLabel": "Перша дата",
+        "noteLabel": "Примітка (необовʼязково)",
+        "applyToFutureLabel": "Застосувати також до майбутніх повторень",
+        "applyToFutureHelp": "Редагує найближчі очікувані чернетки, щоб вони відображали нову суму/категорію. Підтверджені минулі транзакції ніколи не змінюються."
+      },
+      "list": {
+        "title": "Регулярні правила",
+        "empty": "Поки що немає регулярних правил.",
+        "monthlyOnDay": "Щомісячно · {day}",
+        "weeklyOnDow": "Щотижня · {weekday}",
+        "nextDueLabel": "Далі: {date}",
+        "editButton": "Редагувати",
+        "archiveButton": "Архівувати"
+      },
+      "drafts": {
+        "inboxTitle": "Очікують підтвердження",
+        "empty": "Немає очікуваних чернеток.",
+        "confirmButton": "Підтвердити транзакцію",
+        "editConfirmButton": "Редагувати та підтвердити",
+        "skipButton": "Пропустити цей період",
+        "overdueLabel": "Прострочено {age}",
+        "navBadgeLabel": "{count} прострочено"
+      }
     }
   },
   "currency": {

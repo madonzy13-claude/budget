@@ -336,6 +336,60 @@
       "freshnessBadge": "rate {age}",
       "stale409Title": "Rate has changed",
       "stale409Body": "The exchange rate updated while the form was open. The new rate is {rate}. Save with the new rate?"
+    },
+    "recurring": {
+      "title": "Recurring",
+      "addRuleButton": "Add recurring rule",
+      "rule": {
+        "title": "New recurring rule",
+        "editTitle": "Edit recurring rule",
+        "saveButton": "Save rule",
+        "cancelButton": "Cancel",
+        "amountLabel": "Amount",
+        "currencyLabel": "Currency",
+        "kindLabel": "Kind",
+        "kindExpense": "Expense",
+        "kindIncome": "Income",
+        "kindTransfer": "Transfer",
+        "accountLabel": "Account",
+        "categoryLabel": "Category (optional)",
+        "cadenceLabel": "Cadence",
+        "monthly": "Monthly",
+        "weekly": "Weekly",
+        "anchorDayLabel": "On day",
+        "weekdayLabel": "On",
+        "weekdays": {
+          "0": "Sunday",
+          "1": "Monday",
+          "2": "Tuesday",
+          "3": "Wednesday",
+          "4": "Thursday",
+          "5": "Friday",
+          "6": "Saturday"
+        },
+        "firstDueLabel": "First due date",
+        "noteLabel": "Note (optional)",
+        "applyToFutureLabel": "Also apply to future occurrences",
+        "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed."
+      },
+      "list": {
+        "title": "Recurring rules",
+        "empty": "No recurring rules yet.",
+        "monthlyOnDay": "Monthly · {day}",
+        "weeklyOnDow": "Weekly · {weekday}",
+        "nextDueLabel": "Next: {date}",
+        "editButton": "Edit",
+        "archiveButton": "Archive"
+      },
+      "drafts": {
+        "inboxTitle": "Pending recurring",
+        "empty": "No pending drafts.",
+        "confirmButton": "Confirm transaction",
+        "editConfirmButton": "Edit & confirm",
+        "skipButton": "Skip this period",
+        "overdueLabel": "Overdue {age}",
+        "navBadgeLabel": "{count} overdue"
+      }
     }
   },
   "currency": {
