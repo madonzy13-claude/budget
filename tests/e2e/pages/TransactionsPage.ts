@@ -118,4 +118,38 @@ export class TransactionsPage {
   historyPanelRow(index: number): Locator {
     return this.page.getByTestId(`chain-row-${index}`);
   }
+
+  // ── Plan 02-09: Search / filter / bulk re-categorize ──────────────────────
+
+  searchInput(): Locator {
+    return this.page.getByTestId("transaction-search-input");
+  }
+
+  async fillSearch(query: string): Promise<void> {
+    await this.searchInput().fill(query);
+  }
+
+  filterPill(name: "date-range" | "category" | "account" | "scope" | "kind"): Locator {
+    return this.page.getByTestId(`filter-pill-${name}`);
+  }
+
+  bulkActionBar(): Locator {
+    return this.page.getByTestId("bulk-action-bar");
+  }
+
+  bulkActionBarApply(): Locator {
+    return this.page.getByTestId("bulk-action-bar-apply");
+  }
+
+  fxFreshnessBadge(): Locator {
+    return this.page.getByTestId(/^fx-freshness-badge/);
+  }
+
+  async getFxBadgeTextForRow(rowIndex: number): Promise<string | null> {
+    const badge = this.page
+      .getByTestId(/^transaction-row-/)
+      .nth(rowIndex)
+      .getByTestId(/^fx-freshness-badge/);
+    return await badge.textContent();
+  }
 }
