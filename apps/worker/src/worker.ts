@@ -2,6 +2,7 @@ import { getBoss, stopBoss, workerPool } from "@budget/platform";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
 import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
+import { registerRecurringEngine } from "./handlers/recurring-engine";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 
@@ -33,8 +34,13 @@ async function main() {
   await boss.schedule("idempotency-cleanup", "0 * * * *"); // hourly
   registerIdempotencyCleanup(boss);
 
+  // Recurring engine — daily 06:00 UTC, scans active rules and generates PENDING drafts (Plan 02-08)
+  await boss.createQueue("recurring-engine");
+  await boss.schedule("recurring-engine", "0 6 * * *"); // UTC, 5-placeholder format (Pitfall 9)
+  registerRecurringEngine(boss);
+
   console.log(
-    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin",
+    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC",
   );
 
   process.on("SIGTERM", async () => {

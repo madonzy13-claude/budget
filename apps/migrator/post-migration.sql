@@ -601,3 +601,14 @@ CREATE INDEX IF NOT EXISTS recurring_drafts_pending_idx
 -- Index for D-01-d "regenerate future PENDING drafts" UPDATE in update-recurring-rule
 CREATE INDEX IF NOT EXISTS recurring_drafts_rule_pending_due_idx
   ON budgeting.recurring_drafts (rule_id, due_date) WHERE status = 'PENDING';
+
+-- Cron scan policy: worker_role can SELECT recurring_rules across ALL tenants WITHOUT app.tenant_ids
+-- set (so the engine's withInfraTx scan-distinct-tenants step works). Per-tenant withTenantTx is
+-- still required for INSERTs/UPDATEs into recurring_rules and recurring_drafts (the tenant-isolation
+-- policy still applies because policies are PERMISSIVE — combined with OR, but worker writes only
+-- happen inside withTenantTx where app.tenant_ids is set, so the tenant-isolation USING + WITH CHECK
+-- still gates the actual mutation to the correct tenant).
+DROP POLICY IF EXISTS recurring_rules_worker_cron_scan ON budgeting.recurring_rules;
+CREATE POLICY recurring_rules_worker_cron_scan ON budgeting.recurring_rules
+  AS PERMISSIVE FOR SELECT TO worker_role
+  USING (true);
