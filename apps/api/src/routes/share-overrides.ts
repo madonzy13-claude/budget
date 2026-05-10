@@ -57,11 +57,7 @@ export function createShareOverridesRoute(deps: BootedDeps) {
     const tenantId = pickTenant(c);
     const { id: categoryId } = c.req.param();
 
-    const { DrizzleShareOverrideRepo } = await import(
-      "@budget/budgeting/src/adapters/persistence/share-override-repo"
-    );
-    const repo = new DrizzleShareOverrideRepo();
-    const overrides = await repo.listOverrides(tenantId, categoryId);
+    const overrides = await deps.budgeting.listShareOverrides(tenantId, categoryId);
     return c.json({ overrides });
   });
 

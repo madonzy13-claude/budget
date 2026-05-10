@@ -33,6 +33,7 @@
     "./src/application/get-effective-limit": "./src/application/get-effective-limit.ts",
     "./src/application/apply-budget-template": "./src/application/apply-budget-template.ts",
     "./src/application/set-share-overrides": "./src/application/set-share-overrides.ts",
+    "./src/application/list-share-overrides": "./src/application/list-share-overrides.ts",
     "./src/application/toggle-budget-mode": "./src/application/toggle-budget-mode.ts"
   },
   "scripts": {

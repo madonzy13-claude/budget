@@ -43,6 +43,7 @@ async function buildApp(userId: string, tenantId: string) {
   const { findCategoryById } = await import("@budget/budgeting/src/application/find-category-by-id");
   const { renameCategory } = await import("@budget/budgeting/src/application/rename-category");
   const { setShareOverrides } = await import("@budget/budgeting/src/application/set-share-overrides");
+  const { listShareOverrides } = await import("@budget/budgeting/src/application/list-share-overrides");
 
   const repo = new DrizzleCategoryRepo();
   const shareRepo = new DrizzleShareOverrideRepo();
@@ -55,6 +56,7 @@ async function buildApp(userId: string, tenantId: string) {
       findCategoryById: findCategoryById({ repo }),
       renameCategory: renameCategory({ repo }),
       setShareOverrides: setShareOverrides({ shareRepo }),
+      listShareOverrides: listShareOverrides({ shareRepo }),
     },
   } as unknown as import("../../src/boot").BootedDeps;
 

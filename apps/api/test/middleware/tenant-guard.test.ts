@@ -1,50 +1,34 @@
 /**
  * tenant-guard.test.ts — unit tests for tenantGuard middleware
- * Uses Hono test helpers with mocked withBootstrapUserContext (no live DB).
+ * Uses buildTenantGuard factory with injected mock bootstrapFn (no live DB, no mock.module).
  */
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { Hono } from "hono";
 import { ok, err } from "@budget/shared-kernel";
+import { buildTenantGuard } from "../../src/middleware/tenant-guard";
 
-// Mock @budget/platform withBootstrapUserContext before importing tenant-guard
-let mockBootstrapImpl:
-  | ((
-      userId: string,
-      fn: (tx: unknown) => Promise<string[]>,
-    ) => Promise<unknown>)
-  | null = null;
+type BootstrapImpl = (
+  userId: string,
+  fn: (tx: { execute: (q: unknown) => Promise<{ rows: unknown[] }> }) => Promise<string[]>,
+) => Promise<ReturnType<typeof ok | typeof err>>;
 
-mock.module("@budget/platform", () => ({
-  withBootstrapUserContext: async (
-    userId: string,
-    fn: (tx: unknown) => Promise<string[]>,
-  ) => {
-    if (mockBootstrapImpl) {
-      return mockBootstrapImpl(userId, fn);
-    }
-    // Default: call fn with a mock tx returning two workspace IDs
-    try {
-      const mockTx = {
-        execute: async () => ({ rows: [{ ids: ["ws-001", "ws-002"] }] }),
-      };
-      const value = await fn(mockTx);
-      return ok(value);
-    } catch (e) {
-      return err(e as Error);
-    }
-  },
-  appPool: () => ({
-    connect: async () => ({
-      query: async () => ({ rows: [] }),
-      release: () => {},
-    }),
-  }),
-  libsodiumReady: async () => {},
-  LibsodiumKeyStore: class {},
-}));
+let mockBootstrapImpl: BootstrapImpl | null = null;
 
-// Import AFTER mocking
-const { tenantGuard } = await import("../../src/middleware/tenant-guard");
+const mockBootstrap: BootstrapImpl = async (userId, fn) => {
+  if (mockBootstrapImpl) {
+    return mockBootstrapImpl(userId, fn);
+  }
+  // Default: call fn with a mock tx returning two workspace IDs
+  try {
+    const mockTx = {
+      execute: async () => ({ rows: [{ ids: ["ws-001", "ws-002"] }] }),
+    };
+    const value = await fn(mockTx);
+    return ok(value);
+  } catch (e) {
+    return err(e as Error);
+  }
+};
 
 describe("tenantGuard middleware", () => {
   beforeEach(() => {
@@ -52,12 +36,13 @@ describe("tenantGuard middleware", () => {
   });
 
   it("sets tenantIds to [] when no session", async () => {
+    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", null);
       await next();
     });
-    app.use(tenantGuard);
+    app.use(guard);
     app.get("/test", (c) => c.json({ tenantIds: c.get("tenantIds") }));
 
     const res = await app.request("/test");
@@ -66,6 +51,7 @@ describe("tenantGuard middleware", () => {
   });
 
   it("intersects active_workspace_ids with memberships and sets tenantIds", async () => {
+    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", {
@@ -77,7 +63,7 @@ describe("tenantGuard middleware", () => {
       });
       await next();
     });
-    app.use(tenantGuard);
+    app.use(guard);
     app.get("/test", (c) => c.json({ tenantIds: c.get("tenantIds") }));
 
     const res = await app.request("/test");
@@ -89,7 +75,7 @@ describe("tenantGuard middleware", () => {
   it("sets tenantIds to [] when bootstrap returns empty array", async () => {
     mockBootstrapImpl = async (
       _userId: string,
-      fn: (tx: unknown) => Promise<string[]>,
+      fn: (tx: { execute: (q: unknown) => Promise<{ rows: unknown[] }> }) => Promise<string[]>,
     ) => {
       const mockTx = {
         execute: async () => ({ rows: [{ ids: null }] }),
@@ -98,6 +84,7 @@ describe("tenantGuard middleware", () => {
       return ok(value);
     };
 
+    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", {
@@ -105,7 +92,7 @@ describe("tenantGuard middleware", () => {
       });
       await next();
     });
-    app.use(tenantGuard);
+    app.use(guard);
     app.get("/test", (c) => c.json({ tenantIds: c.get("tenantIds") }));
 
     const res = await app.request("/test");
@@ -118,6 +105,7 @@ describe("tenantGuard middleware", () => {
       return err(new Error("DB error"));
     };
 
+    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", {
@@ -125,7 +113,7 @@ describe("tenantGuard middleware", () => {
       });
       await next();
     });
-    app.use(tenantGuard);
+    app.use(guard);
     app.get("/test", (c) => c.json({ tenantIds: c.get("tenantIds") }));
 
     const res = await app.request("/test");

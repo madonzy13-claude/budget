@@ -5,6 +5,9 @@ registry = "https://registry.npmjs.org/"
 coverage = true
 # Integration tests use testcontainers which need extra time to start Postgres
 timeout = 30000
+# Limit concurrency to avoid Drizzle module singleton / GUC contamination across
+# parallel test files that share the same Postgres connection pool.
+smaxConcurrency = 4
 coverageThreshold = 0.80
 # PC-23: narrow 80% threshold to domain code only — adapter/application/contract/port layers
 # are integration-tested separately and are not the locus of business invariants.

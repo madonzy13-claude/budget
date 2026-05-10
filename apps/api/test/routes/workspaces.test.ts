@@ -5,43 +5,9 @@
 import { describe, it, expect, mock } from "bun:test";
 import { Hono } from "hono";
 
-// Mock @budget/platform to avoid real DB
-mock.module("@budget/platform", () => ({
-  withBootstrapUserContext: async (
-    _userId: string,
-    fn: (tx: unknown) => Promise<unknown>,
-  ) => {
-    const mockTx = {
-      execute: async () => ({ rows: [{ ids: ["ws-001"] }] }),
-    };
-    const { ok } = await import("@budget/shared-kernel");
-    return ok(await fn(mockTx));
-  },
-  appPool: () => ({
-    query: async () => ({ rows: [], rowCount: 1 }),
-    connect: async () => ({
-      query: async () => ({ rows: [] }),
-      release: () => {},
-    }),
-  }),
-  libsodiumReady: async () => {},
-  LibsodiumKeyStore: class {},
-  withUserContext: async (
-    _id: unknown,
-    fn: (tx: unknown) => Promise<unknown>,
-  ) => {
-    const { ok } = await import("@budget/shared-kernel");
-    return ok(await fn({}));
-  },
-  withTenantTx: async (
-    _id: unknown,
-    _uid: unknown,
-    fn: (tx: unknown) => Promise<unknown>,
-  ) => {
-    const { ok } = await import("@budget/shared-kernel");
-    return ok(await fn({}));
-  },
-}));
+// NOTE: @budget/platform mock removed — workspaces route uses injected fakeDeps
+// and does not need platform DB functions. Removing the global mock prevents
+// contamination of subsequent test files (mock.module is process-global in Bun).
 
 const { workspacesRoutesFactory } = await import("../../src/routes/workspaces");
 

@@ -3,27 +3,23 @@
  * TDD RED: tests fail until implementation lands.
  */
 import { describe, test, expect, mock } from "bun:test";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// mock used for pg-boss only
 import { Hono } from "hono";
 
-// Mock pg-boss and platform to avoid real DB/boss deps
-mock.module("@budget/platform", () => ({
-  withInfraTx: async (fn: (tx: unknown) => Promise<unknown>) => {
-    return fn({ execute: async () => ({ rows: [] }) });
-  },
-  appPool: () => ({
-    query: async () => ({ rows: [], rowCount: 0 }),
-  }),
-  libsodiumReady: async () => {},
-  LibsodiumKeyStore: class {},
-}));
-
+// NOTE: fx route does not use @budget/platform directly — no platform mock needed.
+// pg-boss mock prevents pool initialization side-effects from boss boot code.
+class FakePgBoss {
+  async start() { return this; }
+  async work() {}
+  async schedule() {}
+  async createQueue() {}
+  async send() {}
+  async stop() {}
+}
 mock.module("pg-boss", () => ({
-  default: class FakePgBoss {
-    async start() { return this; }
-    async work() {}
-    async schedule() {}
-    async createQueue() {}
-  },
+  default: FakePgBoss,
+  PgBoss: FakePgBoss,
 }));
 
 const { createFxRoute } = await import("../../src/routes/fx");

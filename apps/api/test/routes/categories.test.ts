@@ -48,6 +48,7 @@ async function buildApp(userId: string, tenantId: string) {
   const { setCategoryLimit } = await import("@budget/budgeting/src/application/set-category-limit");
   const { getEffectiveLimit } = await import("@budget/budgeting/src/application/get-effective-limit");
   const { setShareOverrides } = await import("@budget/budgeting/src/application/set-share-overrides");
+  const { listShareOverrides } = await import("@budget/budgeting/src/application/list-share-overrides");
 
   const repo = new DrizzleCategoryRepo();
   const limitRepo = new DrizzleCategoryLimitRepo();
@@ -63,6 +64,7 @@ async function buildApp(userId: string, tenantId: string) {
       setCategoryLimit: setCategoryLimit({ limitRepo }),
       getEffectiveLimit: getEffectiveLimit({ limitRepo }),
       setShareOverrides: setShareOverrides({ shareRepo }),
+      listShareOverrides: listShareOverrides({ shareRepo }),
     },
   } as unknown as import("../../src/boot").BootedDeps;
 

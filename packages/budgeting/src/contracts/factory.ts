@@ -23,6 +23,7 @@ import { setCategoryLimit } from "../application/set-category-limit";
 import { getEffectiveLimit } from "../application/get-effective-limit";
 import { applyBudgetTemplate } from "../application/apply-budget-template";
 import { setShareOverrides } from "../application/set-share-overrides";
+import { listShareOverrides } from "../application/list-share-overrides";
 import { toggleBudgetMode } from "../application/toggle-budget-mode";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
 
@@ -46,6 +47,7 @@ export interface BudgetingModule {
   getEffectiveLimit: ReturnType<typeof getEffectiveLimit>;
   applyBudgetTemplate: ReturnType<typeof applyBudgetTemplate>;
   setShareOverrides: ReturnType<typeof setShareOverrides>;
+  listShareOverrides: ReturnType<typeof listShareOverrides>;
   toggleBudgetMode: ReturnType<typeof toggleBudgetMode>;
 }
 
@@ -73,6 +75,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     getEffectiveLimit: getEffectiveLimit({ limitRepo }),
     applyBudgetTemplate: applyBudgetTemplate({ templateRepo }),
     setShareOverrides: setShareOverrides({ shareRepo }),
+    listShareOverrides: listShareOverrides({ shareRepo }),
     toggleBudgetMode: toggleBudgetMode({ budgetModeRepo }),
   };
 }
