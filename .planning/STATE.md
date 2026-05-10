@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-06 transaction ledger writer plan
-last_updated: "2026-05-10T13:26:14.815Z"
+stopped_at: Completed 02-09 search/filter + bulk + projection durability — Phase 02 complete
+last_updated: "2026-05-10T13:58:00.000Z"
 last_activity: 2026-05-10
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 20
-  completed_plans: 19
-  percent: 95
+  completed_plans: 20
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 
 ## Current Position
 
-Phase: 02 (budgeting-fx) — EXECUTING
-Plan: 4 of 9
-Status: Ready to execute
+Phase: 02 (budgeting-fx) — COMPLETE
+Plan: 9 of 9
+Status: Phase complete; ready to start Phase 03
 Last activity: 2026-05-10
 
-Progress: [██████████] 95%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [██████████] 95%
 _Updated after each plan completion_
 | Phase 02-budgeting-fx P05 | 120 | 3 tasks | 60 files |
 | Phase 02-budgeting-fx P06 | 95 | 3 tasks | 42 files |
+| Phase 02-budgeting-fx P09 | 65 | 3 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,11 @@ Recent decisions affecting current work:
 - [Phase ?]: FX freshness gate: 60-minute server-side threshold; returns 409 FxRateStale with freshRate payload for client re-render
 - [Phase ?]: Currency allowlist: RSC pre-fetches /api/currencies once; CurrencyPicker options prop restricts to seeded codes only
 - [Phase ?]: Web app avoids bundling pg/drizzle: getSupportedCurrencies() fetches /api/currencies endpoint instead of direct DB import
+- 02-09: budgeting.accounts gets accounts_worker_cron_scan policy (PERMISSIVE FOR SELECT TO worker_role USING (true)) so withInfraTx tenant scan works without app.tenant_ids GUC — mirrors recurring_rules_worker_cron_scan from Plan 02-08
+- 02-09: reconcile-projections auto-repair threshold = 1.00 currency unit; alert via outbox 'budgeting.projection.drift.detected' for Phase 6 monitoring
+- 02-09: bulk-recategorize loops insertCorrection inside a single withTenantTx — atomic-all-or-none on mid-loop error; never UPDATE expense_ledger
+- 02-09: replay CLI requires --from + --to explicit (no implicit "all time"); operator-only per T-2-09-07; lazy-imports the use case so --help works without a DB
+- 02-09: fx-stale-badge e2e migrated from Plan 02-06 per WARNING 6 — search/filter ledger view is the natural home for the stale-rate visual scenario
 
 ### Pending Todos
 
@@ -128,6 +134,6 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-10T13:26:14.798Z
-Stopped at: Completed 02-06 transaction ledger writer plan
+Last session: 2026-05-10T13:58:00.000Z
+Stopped at: Completed 02-09 — Phase 02 (budgeting-fx) shipped (9/9 plans)
 Resume file: None

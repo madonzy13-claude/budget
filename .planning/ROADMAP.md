@@ -63,7 +63,7 @@ Plans:
 - [x] 02-06-PLAN.md — ALTER expense_ledger Phase-2 columns + DROP corrected_by_id + transaction-repo single-tx writer (ledger + balance + projection + outbox) + capture form (EXPN-01..03, -11, -13)
 - [x] 02-07-PLAN.md — Edit-via-correction-row + getTransactionHistory + edit form + history panel (EXPN-06, -13)
 - [x] 02-08-PLAN.md — Recurring rules + recurring_drafts (PENDING-by-default per D-01-e/f/g) + pg-boss engine + confirm/edit/skip use cases + drafts inbox UI (EXPN-08)
-- [ ] 02-09-PLAN.md — Search/filter (FTS plainto_tsquery + cursor) + bulk-recategorize + reconciliation cron + replay-budgeting CLI + UI (EXPN-09, -10, ENGR-14)
+- [x] 02-09-PLAN.md — Search/filter (FTS plainto_tsquery + cursor) + bulk-recategorize + reconciliation cron + replay-budgeting CLI + UI (EXPN-09, -10, ENGR-14)
 
 **Wave structure** (serial — same-wave file-overlap check forces serialization since post-migration.sql, app.ts, boot.ts, contracts/factory.ts, i18n JSONs, e2e steps glue are touched by most plans):
 

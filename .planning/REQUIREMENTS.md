@@ -302,8 +302,8 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | EXPN-06     | Phase 2 | Pending  |
 | EXPN-07     | Phase 2 | Pending  |
 | EXPN-08     | Phase 2 | Complete |
-| EXPN-09     | Phase 2 | Pending  |
-| EXPN-10     | Phase 2 | Pending  |
+| EXPN-09     | Phase 2 | Complete |
+| EXPN-10     | Phase 2 | Complete |
 | EXPN-11     | Phase 2 | Complete |
 | EXPN-12     | Phase 2 | Pending  |
 | EXPN-13     | Phase 2 | Complete |
@@ -388,7 +388,7 @@ Mapped during roadmap creation. Each v1 requirement maps to exactly one phase.
 | ENGR-11     | Phase 1 | Pending  |
 | ENGR-12     | Phase 1 | Pending  |
 | ENGR-13     | Phase 1 | Pending  |
-| ENGR-14     | Phase 2 | Pending  |
+| ENGR-14     | Phase 2 | Complete |
 
 **Per-phase counts:**
 
