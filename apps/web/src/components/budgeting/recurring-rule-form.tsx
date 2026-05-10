@@ -219,14 +219,14 @@ export function RecurringRuleForm({
                 <div className="flex gap-2 pt-1">
                   <Button
                     type="button"
-                    variant={cadence === "MONTHLY" ? "default" : "outline"}
+                    variant={cadence === "MONTHLY" ? "primary" : "outline"}
                     onClick={() => setCadence("MONTHLY")}
                   >
                     {t("rule.monthly")}
                   </Button>
                   <Button
                     type="button"
-                    variant={cadence === "WEEKLY" ? "default" : "outline"}
+                    variant={cadence === "WEEKLY" ? "primary" : "outline"}
                     onClick={() => setCadence("WEEKLY")}
                   >
                     {t("rule.weekly")}

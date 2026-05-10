@@ -96,7 +96,7 @@ export function PendingDraftsInbox({
             <div className="flex gap-2">
               <Button
                 size="sm"
-                variant="default"
+                variant="primary"
                 onClick={() => {
                   onConfirm?.(draft.id);
                   void callAction(draft.id, "confirm");
