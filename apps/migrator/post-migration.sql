@@ -180,129 +180,149 @@ CREATE INDEX IF NOT EXISTS idempotency_keys_expires_at_idx
 
 -- Idempotent retries: every statement above is safe to re-run.
 
--- Plan 06: tenancy schema
+-- Plan 06: tenancy schema (v1.1: workspaces→budgets, workspace_members→budget_members, etc.)
 GRANT USAGE ON SCHEMA tenancy TO app_role, worker_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON tenancy.workspaces, tenancy.workspace_members, tenancy.workspace_invitations TO app_role;
-GRANT SELECT ON tenancy.workspaces, tenancy.workspace_members TO worker_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON tenancy.shared_workspace_member_shares TO app_role;
-GRANT SELECT ON tenancy.shared_workspace_member_shares TO worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenancy.budgets, tenancy.budget_members, tenancy.budget_invitations TO app_role;
+GRANT SELECT ON tenancy.budgets, tenancy.budget_members TO worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenancy.shared_budget_member_shares TO app_role;
+GRANT SELECT ON tenancy.shared_budget_member_shares TO worker_role;
 
-ALTER TABLE tenancy.workspaces FORCE ROW LEVEL SECURITY;
-ALTER TABLE tenancy.workspace_members FORCE ROW LEVEL SECURITY;
-ALTER TABLE tenancy.shared_workspace_member_shares FORCE ROW LEVEL SECURITY;
--- workspace_invitations: token-keyed lookup; NO RLS (status column controls visibility).
+ALTER TABLE tenancy.budgets FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenancy.budget_members FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenancy.shared_budget_member_shares FORCE ROW LEVEL SECURITY;
+-- budget_invitations: token-keyed lookup; NO RLS (status column controls visibility).
 
--- Plan 1 follow-up: workspace creation runs through Better Auth's createOrganization,
--- which inserts into tenancy.workspaces and tenancy.workspace_members BEFORE we can set
--- the app.tenant_ids GUC for the new workspace (the row doesn't exist yet, so there is
+-- Plan 1 follow-up: budget creation runs through Better Auth's createOrganization,
+-- which inserts into tenancy.budgets and tenancy.budget_members BEFORE we can set
+-- the app.tenant_ids GUC for the new budget (the row doesn't exist yet, so there is
 -- no tenant id to inject). The default tenant_isolation policy's WITH CHECK denies the
 -- INSERT.
 --
 -- Mitigations:
 --   * SELECT/UPDATE/DELETE remain gated by the original tenant_isolation policy.
---   * workspace_members has a BEFORE INSERT trigger (PC-11) that enforces the PRIVATE
+--   * budget_members has a BEFORE INSERT trigger (PC-11) that enforces the PRIVATE
 --     1-member cap atomically.
 --   * The application service / org-plugin hooks set app.tenant_ids in the same
 --     transaction for any subsequent reads.
-DROP POLICY IF EXISTS workspaces_insert_open ON tenancy.workspaces;
-CREATE POLICY workspaces_insert_open ON tenancy.workspaces
+-- v1.1: drop old workspaces_* policies retained by Postgres RENAME on tenancy.budgets
+DROP POLICY IF EXISTS workspaces_insert_open ON tenancy.budgets;
+DROP POLICY IF EXISTS workspaces_select_open ON tenancy.budgets;
+DROP POLICY IF EXISTS workspaces_tenant_isolation ON tenancy.budgets;
+DROP POLICY IF EXISTS workspaces_tenant_update ON tenancy.budgets;
+DROP POLICY IF EXISTS workspaces_tenant_delete ON tenancy.budgets;
+-- v1.1: drop old workspace_members_* policies on tenancy.budget_members
+DROP POLICY IF EXISTS workspace_members_insert_open ON tenancy.budget_members;
+DROP POLICY IF EXISTS workspace_members_select_open ON tenancy.budget_members;
+DROP POLICY IF EXISTS workspace_members_self ON tenancy.budget_members;
+DROP POLICY IF EXISTS workspace_members_tenant_isolation ON tenancy.budget_members;
+DROP POLICY IF EXISTS workspace_members_tenant_update ON tenancy.budget_members;
+DROP POLICY IF EXISTS workspace_members_tenant_delete ON tenancy.budget_members;
+
+DROP POLICY IF EXISTS budgets_insert_open ON tenancy.budgets;
+CREATE POLICY budgets_insert_open ON tenancy.budgets
   FOR INSERT TO app_role, worker_role
   WITH CHECK (true);
 
-DROP POLICY IF EXISTS workspace_members_insert_open ON tenancy.workspace_members;
-CREATE POLICY workspace_members_insert_open ON tenancy.workspace_members
+DROP POLICY IF EXISTS budget_members_insert_open ON tenancy.budget_members;
+CREATE POLICY budget_members_insert_open ON tenancy.budget_members
   FOR INSERT TO app_role, worker_role
   WITH CHECK (true);
 
 -- Better Auth's drizzleAdapter executes every INSERT as `INSERT ... RETURNING *`.
 -- Postgres applies SELECT USING to the RETURNING projection — without a permissive
 -- SELECT policy, RETURNING reports back zero rows and Better Auth surfaces
--- "new row violates row-level security policy". The original `workspaces_tenant_isolation`
--- USING relies on `app.tenant_ids`, which cannot be set BEFORE the workspace exists.
+-- "new row violates row-level security policy". The original `budgets_tenant_isolation`
+-- USING relies on `app.tenant_ids`, which cannot be set BEFORE the budget exists.
 --
 -- Phase 1 trade-off (matches identity.users / sessions / accounts relaxation):
---   * SELECT on workspaces / workspace_members is now permissive at the row-security
---     layer — the application-layer repos (workspace-repo, member-repo) still filter
---     by membership join, so listing the user's workspaces continues to enforce isolation.
+--   * SELECT on budgets / budget_members is now permissive at the row-security
+--     layer — the application-layer repos (budget-repo, member-repo) still filter
+--     by membership join, so listing the user's budgets continues to enforce isolation.
 --   * UPDATE/DELETE remain gated by the original tenant_isolation policy.
 --   * INSERT is permissive (above) so Better Auth's createOrganization succeeds.
---   * Phase 6 routes workspace lookups through a tenant-aware adapter that sets
+--   * Phase 6 routes budget lookups through a tenant-aware adapter that sets
 --     app.tenant_ids before the SELECT and re-tightens this policy.
 -- Tight SELECT policies: visible only when the requester has set either
--- (a) app.tenant_ids covering the row's workspace_id (normal read path),
+-- (a) app.tenant_ids covering the row's budget_id (normal read path),
 -- or (b) app.current_user_id matching the row's owner / member user (so
 -- Better Auth's INSERT...RETURNING can read its own freshly-inserted row
 -- without a tenant context that doesn't yet exist). The sibling BEFORE INSERT
 -- trigger below SET LOCAL app.current_user_id from the new row so the
 -- RETURNING projection clears the SELECT USING gate.
-DROP POLICY IF EXISTS workspaces_select_open ON tenancy.workspaces;
-CREATE POLICY workspaces_select_open ON tenancy.workspaces
+DROP POLICY IF EXISTS budgets_select_open ON tenancy.budgets;
+CREATE POLICY budgets_select_open ON tenancy.budgets
   FOR SELECT TO app_role, worker_role
   USING (
     id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])
     OR owner_user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
   );
 
-DROP POLICY IF EXISTS workspace_members_select_open ON tenancy.workspace_members;
-CREATE POLICY workspace_members_select_open ON tenancy.workspace_members
+DROP POLICY IF EXISTS budget_members_select_open ON tenancy.budget_members;
+CREATE POLICY budget_members_select_open ON tenancy.budget_members
   FOR SELECT TO app_role, worker_role
   USING (
-    workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])
+    budget_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])
     OR user_id = nullif(current_setting('app.current_user_id', true), '')::uuid
   );
+
+-- PC-01: bootstrap-self policy (needed for tenant-guard before app.tenant_ids is set)
+DROP POLICY IF EXISTS budget_members_self ON tenancy.budget_members;
+CREATE POLICY budget_members_self ON tenancy.budget_members
+  FOR SELECT TO app_role, worker_role
+  USING (user_id = nullif(current_setting('app.current_user_id', true), '')::uuid);
 
 -- BEFORE INSERT trigger to inject the owner's user-id GUC for the lifetime
 -- of the implicit transaction created by Better Auth's INSERT...RETURNING.
 -- The SELECT USING policies above use this GUC to authorise the RETURNING
 -- projection without leaking other rows.
-CREATE OR REPLACE FUNCTION tenancy.workspaces_set_user_context_on_insert()
+CREATE OR REPLACE FUNCTION tenancy.budgets_set_user_context_on_insert()
 RETURNS trigger AS $$
 BEGIN
   PERFORM set_config('app.current_user_id', NEW.owner_user_id::text, true);
   RETURN NEW;
 END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS workspaces_insert_set_context ON tenancy.workspaces;
-CREATE TRIGGER workspaces_insert_set_context
-  BEFORE INSERT ON tenancy.workspaces
-  FOR EACH ROW EXECUTE FUNCTION tenancy.workspaces_set_user_context_on_insert();
+DROP TRIGGER IF EXISTS budgets_insert_set_context ON tenancy.budgets;
+CREATE TRIGGER budgets_insert_set_context
+  BEFORE INSERT ON tenancy.budgets
+  FOR EACH ROW EXECUTE FUNCTION tenancy.budgets_set_user_context_on_insert();
 
-CREATE OR REPLACE FUNCTION tenancy.workspace_members_set_user_context_on_insert()
+CREATE OR REPLACE FUNCTION tenancy.budget_members_set_user_context_on_insert()
 RETURNS trigger AS $$
 BEGIN
   PERFORM set_config('app.current_user_id', NEW.user_id::text, true);
   RETURN NEW;
 END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS workspace_members_insert_set_context ON tenancy.workspace_members;
-CREATE TRIGGER workspace_members_insert_set_context
-  BEFORE INSERT ON tenancy.workspace_members
-  FOR EACH ROW EXECUTE FUNCTION tenancy.workspace_members_set_user_context_on_insert();
+DROP TRIGGER IF EXISTS budget_members_insert_set_context ON tenancy.budget_members;
+CREATE TRIGGER budget_members_insert_set_context
+  BEFORE INSERT ON tenancy.budget_members
+  FOR EACH ROW EXECUTE FUNCTION tenancy.budget_members_set_user_context_on_insert();
 
 -- Replace the original FOR ALL tenant_isolation policy with split UPDATE / DELETE
 -- policies. The FOR ALL policy includes INSERT in its WITH CHECK which kills
--- the workspaces_insert_open OR-merge in some Postgres edge cases (FORCE RLS
+-- the budgets_insert_open OR-merge in some Postgres edge cases (FORCE RLS
 -- + RETURNING + multiple permissive policies); splitting keeps INSERT
--- governed only by workspaces_insert_open and SELECT only by workspaces_select_open.
-DROP POLICY IF EXISTS workspaces_tenant_isolation ON tenancy.workspaces;
-DROP POLICY IF EXISTS workspaces_tenant_update ON tenancy.workspaces;
-DROP POLICY IF EXISTS workspaces_tenant_delete ON tenancy.workspaces;
-CREATE POLICY workspaces_tenant_update ON tenancy.workspaces
+-- governed only by budgets_insert_open and SELECT only by budgets_select_open.
+DROP POLICY IF EXISTS budgets_tenant_isolation ON tenancy.budgets;
+DROP POLICY IF EXISTS budgets_tenant_update ON tenancy.budgets;
+DROP POLICY IF EXISTS budgets_tenant_delete ON tenancy.budgets;
+CREATE POLICY budgets_tenant_update ON tenancy.budgets
   FOR UPDATE TO app_role, worker_role
   USING (id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
-CREATE POLICY workspaces_tenant_delete ON tenancy.workspaces
+CREATE POLICY budgets_tenant_delete ON tenancy.budgets
   FOR DELETE TO app_role, worker_role
   USING (id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
-DROP POLICY IF EXISTS workspace_members_tenant_isolation ON tenancy.workspace_members;
-DROP POLICY IF EXISTS workspace_members_tenant_update ON tenancy.workspace_members;
-DROP POLICY IF EXISTS workspace_members_tenant_delete ON tenancy.workspace_members;
-CREATE POLICY workspace_members_tenant_update ON tenancy.workspace_members
+DROP POLICY IF EXISTS budget_members_tenant_isolation ON tenancy.budget_members;
+DROP POLICY IF EXISTS budget_members_tenant_update ON tenancy.budget_members;
+DROP POLICY IF EXISTS budget_members_tenant_delete ON tenancy.budget_members;
+CREATE POLICY budget_members_tenant_update ON tenancy.budget_members
   FOR UPDATE TO app_role, worker_role
-  USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
-  WITH CHECK (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
-CREATE POLICY workspace_members_tenant_delete ON tenancy.workspace_members
+  USING (budget_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (budget_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+CREATE POLICY budget_members_tenant_delete ON tenancy.budget_members
   FOR DELETE TO app_role, worker_role
-  USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+  USING (budget_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
 -- Plan 02-02: fx_rates reference table (no RLS, GRANT-restricted)
 GRANT SELECT ON budgeting.fx_rates TO app_role, worker_role;
@@ -331,79 +351,88 @@ VALUES
   ('SOL', NULL, 'Solana', 'SOL', 'CRYPTO', 'internal')
 ON CONFLICT (iso_code) DO NOTHING;
 
--- Plan 02-04: accounts + account_balance_adjustments
-ALTER TABLE budgeting.accounts FORCE ROW LEVEL SECURITY;
+-- Plan 02-04: wallets (renamed from accounts in v1.1) + account_balance_adjustments
+ALTER TABLE budgeting.wallets FORCE ROW LEVEL SECURITY;
 ALTER TABLE budgeting.account_balance_adjustments FORCE ROW LEVEL SECURITY;
-GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.accounts TO app_role, worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.wallets TO app_role, worker_role;
 GRANT SELECT, INSERT ON budgeting.account_balance_adjustments TO app_role, worker_role;
 -- balance_adjustments is append-only; no UPDATE/DELETE per T-2-04-04
 REVOKE UPDATE, DELETE ON budgeting.account_balance_adjustments FROM app_role, worker_role;
 
--- Plan 02-09: cron scan policy — worker_role can SELECT budgeting.accounts across ALL tenants
+-- v1.1: drop old accounts_* policies on wallets (retained by Postgres RENAME; replaced below)
+DROP POLICY IF EXISTS accounts_tenant_isolation ON budgeting.wallets;
+DROP POLICY IF EXISTS accounts_worker_cron_scan ON budgeting.wallets;
+DROP POLICY IF EXISTS wallets_tenant_isolation ON budgeting.wallets;
+CREATE POLICY wallets_tenant_isolation ON budgeting.wallets
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+-- Plan 02-09: cron scan policy — worker_role can SELECT budgeting.wallets across ALL tenants
 -- WITHOUT app.tenant_ids set (so the budgeting-reconciliation engine's withInfraTx
--- "SELECT DISTINCT tenant_id FROM budgeting.accounts" scan works). Per-tenant withTenantTx
+-- "SELECT DISTINCT tenant_id FROM budgeting.wallets" scan works). Per-tenant withTenantTx
 -- is still required for INSERT/UPDATE/DELETE because permissive policies OR-combine but the
 -- worker writes only happen inside withTenantTx(tenantId, SYSTEM_USER) where app.tenant_ids
 -- is set. Mirrors recurring_rules_worker_cron_scan (Plan 02-08).
-DROP POLICY IF EXISTS accounts_worker_cron_scan ON budgeting.accounts;
-CREATE POLICY accounts_worker_cron_scan ON budgeting.accounts
+DROP POLICY IF EXISTS wallets_worker_cron_scan ON budgeting.wallets;
+CREATE POLICY wallets_worker_cron_scan ON budgeting.wallets
   AS PERMISSIVE FOR SELECT TO worker_role
   USING (true);
 
 -- D-04 / TENT-11: default_currency immutable post-create.
-CREATE OR REPLACE FUNCTION tenancy.workspaces_block_currency_change() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION tenancy.budgets_block_currency_change() RETURNS trigger AS $$
 BEGIN
   IF NEW.default_currency IS DISTINCT FROM OLD.default_currency THEN
     RAISE EXCEPTION 'default_currency is immutable post-create (TENT-11, D-04)';
   END IF;
   RETURN NEW;
 END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS workspaces_currency_immutable ON tenancy.workspaces;
-CREATE TRIGGER workspaces_currency_immutable
-  BEFORE UPDATE ON tenancy.workspaces
-  FOR EACH ROW EXECUTE FUNCTION tenancy.workspaces_block_currency_change();
+DROP TRIGGER IF EXISTS budgets_currency_immutable ON tenancy.budgets;
+CREATE TRIGGER budgets_currency_immutable
+  BEFORE UPDATE ON tenancy.budgets
+  FOR EACH ROW EXECUTE FUNCTION tenancy.budgets_block_currency_change();
 
 -- PC-11 (TENT-10, D-02): TOCTOU race-free PRIVATE-cap guard. Postgres unique partial indexes
 -- cannot reference subqueries, so we use a BEFORE INSERT trigger that runs in the same tx
 -- as the INSERT — count read + insert decision are atomic from any concurrent transaction's
--- perspective (row-level lock on workspaces.id picked up by SELECT FOR KEY SHARE).
-CREATE OR REPLACE FUNCTION tenancy.workspace_members_private_guard() RETURNS trigger AS $$
+-- perspective (row-level lock on budgets.id picked up by SELECT FOR KEY SHARE).
+CREATE OR REPLACE FUNCTION tenancy.budget_members_private_guard() RETURNS trigger AS $$
 DECLARE
   ws_kind text;
   live_count int;
 BEGIN
-  SELECT kind INTO ws_kind FROM tenancy.workspaces WHERE id = NEW.workspace_id FOR KEY SHARE;
+  SELECT kind INTO ws_kind FROM tenancy.budgets WHERE id = NEW.budget_id FOR KEY SHARE;
   IF ws_kind = 'PRIVATE' THEN
-    SELECT count(*)::int INTO live_count FROM tenancy.workspace_members WHERE workspace_id = NEW.workspace_id;
+    SELECT count(*)::int INTO live_count FROM tenancy.budget_members WHERE budget_id = NEW.budget_id;
     IF live_count >= 1 THEN
-      RAISE EXCEPTION 'PRIVATE workspaces accept only the owner. Convert to SHARED first. (TENT-10, D-02, PC-11)';
+      RAISE EXCEPTION 'PRIVATE budgets accept only the owner. Convert to SHARED first. (TENT-10, D-02, PC-11)';
     END IF;
   END IF;
   RETURN NEW;
 END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS workspace_members_private_cap ON tenancy.workspace_members;
-CREATE TRIGGER workspace_members_private_cap
-  BEFORE INSERT ON tenancy.workspace_members
-  FOR EACH ROW EXECUTE FUNCTION tenancy.workspace_members_private_guard();
+DROP TRIGGER IF EXISTS budget_members_private_cap ON tenancy.budget_members;
+CREATE TRIGGER budget_members_private_cap
+  BEFORE INSERT ON tenancy.budget_members
+  FOR EACH ROW EXECUTE FUNCTION tenancy.budget_members_private_guard();
 
--- D-06 / TENT-13: shares sum = 100 per workspace, deferred constraint trigger.
+-- D-06 / TENT-13: shares sum = 100 per budget, deferred constraint trigger.
 CREATE OR REPLACE FUNCTION tenancy.shares_sum_check() RETURNS trigger AS $$
 DECLARE total numeric(7,2);
 BEGIN
   SELECT coalesce(sum(percentage), 0) INTO total
-  FROM tenancy.shared_workspace_member_shares
-  WHERE workspace_id = COALESCE(NEW.workspace_id, OLD.workspace_id);
+  FROM tenancy.shared_budget_member_shares
+  WHERE budget_id = COALESCE(NEW.budget_id, OLD.budget_id);
   IF abs(total - 100) > 0.005 AND total > 0 THEN
-    RAISE EXCEPTION 'shared_workspace_member_shares for workspace % must sum to 100 (got %)', COALESCE(NEW.workspace_id, OLD.workspace_id), total;
+    RAISE EXCEPTION 'shared_budget_member_shares for budget % must sum to 100 (got %)', COALESCE(NEW.budget_id, OLD.budget_id), total;
   END IF;
   RETURN NULL;
 END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS shares_sum_invariant ON tenancy.shared_workspace_member_shares;
+DROP TRIGGER IF EXISTS shares_sum_invariant ON tenancy.shared_budget_member_shares;
 CREATE CONSTRAINT TRIGGER shares_sum_invariant
-  AFTER INSERT OR UPDATE OR DELETE ON tenancy.shared_workspace_member_shares
+  AFTER INSERT OR UPDATE OR DELETE ON tenancy.shared_budget_member_shares
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION tenancy.shares_sum_check();
--- Note: total > 0 short-circuit allows the freshly-created workspace state where no rows exist (sum=0)
+-- Note: total > 0 short-circuit allows the freshly-created budget state where no rows exist (sum=0)
 -- and the subsequent owner-edit transaction filling rows to balance to 100 within the same tx.
 
 -- ===== Plan 02-05: categories + limits + templates + share overrides + mode history =====
@@ -412,7 +441,7 @@ ALTER TABLE budgeting.category_limits FORCE ROW LEVEL SECURITY;
 ALTER TABLE budgeting.budget_templates FORCE ROW LEVEL SECURITY;
 ALTER TABLE budgeting.budget_template_items FORCE ROW LEVEL SECURITY;
 ALTER TABLE budgeting.category_share_overrides FORCE ROW LEVEL SECURITY;
-ALTER TABLE budgeting.workspace_budget_mode_history FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.budget_mode_history FORCE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   budgeting.categories,
@@ -420,7 +449,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   budgeting.budget_templates,
   budgeting.budget_template_items,
   budgeting.category_share_overrides,
-  budgeting.workspace_budget_mode_history
+  budgeting.budget_mode_history
   TO app_role, worker_role;
 
 -- One-level grouping trigger (BDGT-02)
@@ -448,8 +477,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS category_limits_one_open_per_cat
   ON budgeting.category_limits (category_id) WHERE effective_to IS NULL;
 CREATE INDEX IF NOT EXISTS category_limits_pit_idx
   ON budgeting.category_limits (category_id, effective_from DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS workspace_budget_mode_one_open
-  ON budgeting.workspace_budget_mode_history (workspace_id) WHERE effective_to IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS budget_mode_one_open
+  ON budgeting.budget_mode_history (budget_id) WHERE effective_to IS NULL;
 
 -- BDGT-08 sum-to-100 deferred trigger
 CREATE OR REPLACE FUNCTION budgeting.category_share_overrides_sum_check() RETURNS trigger AS $$
@@ -469,55 +498,56 @@ CREATE CONSTRAINT TRIGGER category_shares_sum_invariant
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW EXECUTE FUNCTION budgeting.category_share_overrides_sum_check();
 
--- D-02-c workspace_share_dirty flag table + member join/leave triggers
-CREATE TABLE IF NOT EXISTS budgeting.workspace_share_dirty (
-  workspace_id UUID PRIMARY KEY,
+-- D-02-c budget_share_dirty flag table + member join/leave triggers
+-- (renamed from workspace_share_dirty in v1.1 migration 0012)
+CREATE TABLE IF NOT EXISTS budgeting.budget_share_dirty (
+  budget_id UUID PRIMARY KEY,
   dirty BOOLEAN NOT NULL DEFAULT false,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-ALTER TABLE budgeting.workspace_share_dirty FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS workspace_share_dirty_isolation ON budgeting.workspace_share_dirty;
-CREATE POLICY workspace_share_dirty_isolation ON budgeting.workspace_share_dirty
+ALTER TABLE budgeting.budget_share_dirty FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS budget_share_dirty_isolation ON budgeting.budget_share_dirty;
+CREATE POLICY budget_share_dirty_isolation ON budgeting.budget_share_dirty
   AS PERMISSIVE FOR ALL TO app_role, worker_role
-  USING (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
-  WITH CHECK (workspace_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
-GRANT SELECT, INSERT, UPDATE ON budgeting.workspace_share_dirty TO app_role, worker_role;
+  USING (budget_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (budget_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+GRANT SELECT, INSERT, UPDATE ON budgeting.budget_share_dirty TO app_role, worker_role;
 
-CREATE OR REPLACE FUNCTION budgeting.flag_workspace_share_dirty() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION budgeting.flag_budget_share_dirty() RETURNS trigger AS $$
 DECLARE
   ws_kind text;
 BEGIN
-  -- D-02-c only applies to SHARED workspaces. PRIVATE workspaces have a single
+  -- D-02-c only applies to SHARED budgets. PRIVATE budgets have a single
   -- member; share validation is irrelevant — skip the dirty flag entirely.
-  SELECT kind::text INTO ws_kind FROM tenancy.workspaces
-   WHERE id = COALESCE(NEW.workspace_id, OLD.workspace_id);
+  SELECT kind::text INTO ws_kind FROM tenancy.budgets
+   WHERE id = COALESCE(NEW.budget_id, OLD.budget_id);
 
   IF ws_kind <> 'PRIVATE' THEN
-    INSERT INTO budgeting.workspace_share_dirty (workspace_id, dirty, updated_at)
-    VALUES (COALESCE(NEW.workspace_id, OLD.workspace_id), true, now())
-    ON CONFLICT (workspace_id) DO UPDATE SET dirty = true, updated_at = now();
+    INSERT INTO budgeting.budget_share_dirty (budget_id, dirty, updated_at)
+    VALUES (COALESCE(NEW.budget_id, OLD.budget_id), true, now())
+    ON CONFLICT (budget_id) DO UPDATE SET dirty = true, updated_at = now();
   END IF;
 
   -- Pitfall 8: cascade delete overrides for departing user
   IF TG_OP = 'DELETE' THEN
     DELETE FROM budgeting.category_share_overrides
      WHERE user_id = OLD.user_id
-       AND category_id IN (SELECT id FROM budgeting.categories WHERE tenant_id = OLD.workspace_id);
+       AND category_id IN (SELECT id FROM budgeting.categories WHERE tenant_id = OLD.budget_id);
   END IF;
   RETURN COALESCE(NEW, OLD);
 END $$ LANGUAGE plpgsql;
 
--- One-time backfill: clear dirty flag for any existing PRIVATE workspaces that
+-- One-time backfill: clear dirty flag for any existing PRIVATE budgets that
 -- were marked dirty by the prior trigger logic. Idempotent.
-UPDATE budgeting.workspace_share_dirty wsd SET dirty = false
-  FROM tenancy.workspaces w
- WHERE w.id = wsd.workspace_id
-   AND w.kind = 'PRIVATE'
-   AND wsd.dirty = true;
-DROP TRIGGER IF EXISTS workspace_members_share_dirty ON tenancy.workspace_members;
-CREATE TRIGGER workspace_members_share_dirty
-  AFTER INSERT OR DELETE ON tenancy.workspace_members
-  FOR EACH ROW EXECUTE FUNCTION budgeting.flag_workspace_share_dirty();
+UPDATE budgeting.budget_share_dirty bsd SET dirty = false
+  FROM tenancy.budgets b
+ WHERE b.id = bsd.budget_id
+   AND b.kind = 'PRIVATE'
+   AND bsd.dirty = true;
+DROP TRIGGER IF EXISTS budget_members_share_dirty ON tenancy.budget_members;
+CREATE TRIGGER budget_members_share_dirty
+  AFTER INSERT OR DELETE ON tenancy.budget_members
+  FOR EACH ROW EXECUTE FUNCTION budgeting.flag_budget_share_dirty();
 
 -- ===== Plan 02-06: expense_ledger Phase-2 extensions (idempotent — safe to re-run) =====
 
@@ -525,12 +555,11 @@ CREATE TRIGGER workspace_members_share_dirty
 ALTER TABLE budgeting.expense_ledger DROP COLUMN IF EXISTS corrected_by_id;
 
 -- Add Phase-2 columns if not already present (drizzle-kit push does this; SQL is belt-and-suspenders)
+-- Note: account_id and kind are NOT added here — they were dropped in v1.1 migration 0012 (MIG-03).
 ALTER TABLE budgeting.expense_ledger
   ADD COLUMN IF NOT EXISTS transaction_date date NOT NULL DEFAULT now()::date,
   ADD COLUMN IF NOT EXISTS note text,
-  ADD COLUMN IF NOT EXISTS account_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::uuid,
   ADD COLUMN IF NOT EXISTS category_id uuid,
-  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'EXPENSE',
   ADD COLUMN IF NOT EXISTS transfer_group_id uuid;
 
 -- note_tsv: GENERATED ALWAYS AS STORED (Drizzle cannot express this — SQL only)
@@ -551,19 +580,9 @@ BEGIN
   END IF;
 END $$;
 
--- CHECK constraint on kind
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-     WHERE conname = 'expense_ledger_kind_chk'
-       AND conrelid = 'budgeting.expense_ledger'::regclass
-  ) THEN
-    ALTER TABLE budgeting.expense_ledger
-      ADD CONSTRAINT expense_ledger_kind_chk
-      CHECK (kind IN ('EXPENSE','INCOME','TRANSFER'));
-  END IF;
-END $$;
+-- CHECK constraint on kind: dropped in v1.1 (kind column removed in MIG-03).
+-- Belt-and-suspenders: drop if somehow still present from an older migration replay.
+ALTER TABLE budgeting.expense_ledger DROP CONSTRAINT IF EXISTS expense_ledger_kind_chk;
 
 -- Indexes (all IF NOT EXISTS — idempotent)
 CREATE INDEX IF NOT EXISTS expense_ledger_note_tsv_idx
@@ -574,8 +593,7 @@ CREATE INDEX IF NOT EXISTS expense_ledger_tenant_date_idx
   ON budgeting.expense_ledger (tenant_id, transaction_date DESC);
 CREATE INDEX IF NOT EXISTS expense_ledger_tenant_category_date_idx
   ON budgeting.expense_ledger (tenant_id, category_id, transaction_date DESC);
-CREATE INDEX IF NOT EXISTS expense_ledger_tenant_account_date_idx
-  ON budgeting.expense_ledger (tenant_id, account_id, transaction_date DESC);
+-- expense_ledger_tenant_account_date_idx: account_id dropped in v1.1 (MIG-03); index not created.
 CREATE INDEX IF NOT EXISTS expense_ledger_transfer_group_idx
   ON budgeting.expense_ledger (transfer_group_id) WHERE transfer_group_id IS NOT NULL;
 
@@ -651,3 +669,7 @@ DROP POLICY IF EXISTS recurring_rules_worker_cron_scan ON budgeting.recurring_ru
 CREATE POLICY recurring_rules_worker_cron_scan ON budgeting.recurring_rules
   AS PERMISSIVE FOR SELECT TO worker_role
   USING (true);
+
+-- ===== Plan 01-01: tasks table (v1.1 new) =====
+ALTER TABLE budgeting.tasks FORCE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.tasks TO app_role, worker_role;
