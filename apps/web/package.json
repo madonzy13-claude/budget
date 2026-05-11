@@ -20,7 +20,7 @@
     "@tailwindcss/postcss": "^4.0.0",
     "react-hook-form": "latest",
     "@hookform/resolvers": "latest",
-    "zod": "^3.25.0",
+    "zod": "^4.4.3",
     "lucide-react": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
