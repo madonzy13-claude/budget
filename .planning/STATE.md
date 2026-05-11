@@ -1,124 +1,103 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 02-09 search/filter + bulk + projection durability — Phase 02 complete
-last_updated: "2026-05-10T13:58:00.000Z"
-last_activity: 2026-05-10
+milestone: v1.1
+milestone_name: Budget Restructure
+status: planning
+last_updated: "2026-05-11T17:19:00.000Z"
+last_activity: 2026-05-11
 progress:
-  total_phases: 6
-  completed_phases: 2
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  total_phases: 8
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-05)
+See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 02 — budgeting-fx
+**Current focus:** v1.1 Budget Restructure — roadmap landed (8 phases), planning Phase 1 next
 
 ## Current Position
 
-Phase: 02 (budgeting-fx) — COMPLETE
-Plan: 9 of 9
-Status: Phase complete; ready to start Phase 03
-Last activity: 2026-05-10
-
-Progress: [██████████] 100%
+Phase: Phase 1 — Schema Migration & Rename Foundation (not yet planned)
+Plan: —
+Status: Roadmap complete (126/126 REQ-IDs mapped); awaiting `/gsd-plan-phase 1`
+Last activity: 2026-05-11 — v1.1 ROADMAP.md created
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 0 (v1.1 — v1.0 history archived)
 - Average duration: —
 - Total execution time: 0 hours
 
 **By Phase:**
 
-| Phase                             | Plans | Total | Avg/Plan |
-| --------------------------------- | ----- | ----- | -------- |
-| 1. Foundations                    | 0     | —     | —        |
-| 2. Budgeting & FX                 | 0     | —     | —        |
-| 3. Reserve, Investments, Cushion  | 0     | —     | —        |
-| 4. Tasks, Insights, Notifications | 0     | —     | —        |
-| 5. Onboarding & Comparison        | 0     | —     | —        |
-| 6. Launch Hardening               | 0     | —     | —        |
+| Phase                                       | Plans | Total | Avg/Plan |
+| ------------------------------------------- | ----- | ----- | -------- |
+| 1. Schema Migration & Rename Foundation     | 0/TBD | —     | —        |
+| 2. Domain & API Restructure                 | 0/TBD | —     | —        |
+| 3. Navigation, Home & BDP Frame             | 0/TBD | —     | —        |
+| 4. Spendings Grid                           | 0/TBD | —     | —        |
+| 5. Reserves & Wallets Tabs                  | 0/TBD | —     | —        |
+| 6. Settings, Onboarding & Share UI          | 0/TBD | —     | —        |
+| 7. Tasks Queue                              | 0/TBD | —     | —        |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD | —     | —        |
 
 **Recent Trend:**
 
-- Last 5 plans: none
+- Last 5 plans: none in v1.1 (v1.0 history archived to `.planning/archive/v1.0/`)
 - Trend: —
 
 _Updated after each plan completion_
-| Phase 02-budgeting-fx P05 | 120 | 3 tasks | 60 files |
-| Phase 02-budgeting-fx P06 | 95 | 3 tasks | 42 files |
-| Phase 02-budgeting-fx P09 | 65 | 3 tasks | 22 files |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
 
-- Phase 1: Postgres + tenant_id + RLS (not schema-per-tenant); app + worker roles have NO BYPASSRLS; FORCE ROW LEVEL SECURITY on all user-data tables
-- Phase 1: Better Auth + organization plugin (not Lucia, deprecated) for family workspace
-- Phase 1: Drizzle (not Prisma) for first-class `pgPolicy()` RLS
-- Phase 1: Crypto-shredding day 1 — PII columns separated from ledger; DEK destroy flow ships Phase 6
-- Phase 1: dependency-cruiser CI rule — `domain/` cannot import `drizzle-orm`, Hono, AI SDK, or `adapters/`
-- Phase 5: LLM bounded to Onboarding adapter only; Tasks generators are deterministic
-- Phase 5: Comparison gated behind DPIA + k-anonymity floor (k≥20, tenant-policy-configurable)
-- 01.05: better-auth/adapters/drizzle ships inside better-auth 1.6+ (no @better-auth/drizzle-adapter package)
-- 01.05: listSessions is session-context-based in Better Auth; server-side list returns []; UI uses BA client
-- 01.05: DEK insert in user.create.after is best-effort (PC-09); Phase 6 adds reconciliation worker
-- 01.05: Plain email column kept in identity.users for Phase 1 Better Auth compatibility; Phase 6 drops it
-- 01.06: DrizzleWorkspaceRepo.findById/listMembers use withInfraTx (bootstrap carve-out); no user context at lookup time
-- 01.06: test/helpers.ts pattern for cross-package test helpers (dep-cruiser only restricts src/ not test/ imports)
-- 01.06: PRIVATE-cap trigger PC-18 limitation documented — Phase 6 will harden with SELECT FOR UPDATE
-- 01.06: createTenancyModule uses lazy require() to keep contracts/ free of adapter imports (PC-15)
-- 01.07: PC-27 — withBootstrapUserContext is the dedicated bootstrap primitive for tenant-guard (not raw pool connect); avoids grep:no-pool-connect CI gate
-- 01.07: apps/\*_ cannot statically import packages/_/src/application — route handlers call auth.api directly using factory output
-- 01.08: AppType imported via local shim (api-type.d.ts) not directly from apps/api to prevent pre-existing Hono context type errors cascading
-- 01.08: Tailwind v4 uses @import not @tailwind directives; @apply with CSS variable utilities unsupported in @layer base
-- 01.08: turbopack: false is invalid in Next.js 16 config (object expected, not boolean); Serwist requires --webpack build flag
-- 01.08: sessions-list receives empty array Phase 1; real session list wired Phase 2 (IDNT-04)
-- 01.08: proxy.ts (not middleware.ts) for next-intl routing — avoids next-intl pitfall 12
-- 01.09: API internal port is 4000; compose maps 3001:4000 (external:internal)
-- 01.09: comparison schema created Phase 1 but NOT granted to app_role/worker_role (reserved for comparison_role)
-- 01.09: seed-dev.ts uses HTTP API (not raw Drizzle) to exercise real auth flows (T-13)
-- 01.10: TenantContextMissing + withTenantJobHandler added to packages/platform (referenced by Plan 07 but not created there)
-- 01.10: Tests 1+4 raw pg.Client approach: no mention of app tx primitives in test files (T-13 acceptance criteria requires string absence)
-- 01.10: seed-two-tenants uses createIdentityModule auth directly for createWorkspace (BA auth instance has createOrganization built-in)
-- 01.10: Playwright E2E (PC-10) gated on main or e2e label — requires live compose stack
-- [Phase ?]: TransactionRepo split surface: create() delegates to createInTx(); plan 02-08 imports only createInTx for recurring-draft composition
-- [Phase ?]: FX freshness gate: 60-minute server-side threshold; returns 409 FxRateStale with freshRate payload for client re-render
-- [Phase ?]: Currency allowlist: RSC pre-fetches /api/currencies once; CurrencyPicker options prop restricts to seeded codes only
-- [Phase ?]: Web app avoids bundling pg/drizzle: getSupportedCurrencies() fetches /api/currencies endpoint instead of direct DB import
-- 02-09: budgeting.accounts gets accounts_worker_cron_scan policy (PERMISSIVE FOR SELECT TO worker_role USING (true)) so withInfraTx tenant scan works without app.tenant_ids GUC — mirrors recurring_rules_worker_cron_scan from Plan 02-08
-- 02-09: reconcile-projections auto-repair threshold = 1.00 currency unit; alert via outbox 'budgeting.projection.drift.detected' for Phase 6 monitoring
-- 02-09: bulk-recategorize loops insertCorrection inside a single withTenantTx — atomic-all-or-none on mid-loop error; never UPDATE expense_ledger
-- 02-09: replay CLI requires --from + --to explicit (no implicit "all time"); operator-only per T-2-09-07; lazy-imports the use case so --help works without a DB
-- 02-09: fx-stale-badge e2e migrated from Plan 02-06 per WARNING 6 — search/filter ledger view is the natural home for the stale-rate visual scenario
+**Carried-forward from v1.0 (still in force after restructure):**
+
+- Postgres + tenant_id + RLS (not schema-per-tenant); app + worker roles have NO BYPASSRLS; FORCE ROW LEVEL SECURITY on all user-data tables
+- Better Auth + organization plugin (used for SHARED budgets; app-facing label "shared budget")
+- Drizzle (not Prisma) for first-class `pgPolicy()` RLS
+- Crypto-shredding day 1 — PII columns separated from ledger
+- dependency-cruiser CI rule — `domain/` cannot import `drizzle-orm`, Hono, AI SDK, or `adapters/`
+- 80% domain coverage threshold in `bunfig.toml`
+- TransactionRepo split surface: create() delegates to createInTx()
+- FX freshness gate (60-min server-side threshold; 409 FxRateStale with freshRate payload)
+- Web app avoids bundling pg/drizzle: getSupportedCurrencies() fetches /api/currencies endpoint
+
+**v1.1 milestone decisions (from v1.1-SPEC.md):**
+
+- Rename workspace→budget and account→wallet at every layer in one mega-migration
+- Drop `transaction.kind` / `account_id` / `to_account_id` / `direction` — transactions are categorical-only
+- wallet_type enum is display-only (SPENDINGS / CUSHION / RESERVE); no income/transfer ledger
+- Reserves auto-compute via SQL view (materialized view as fallback in plan-phase)
+- Cushion-mode is a budget-wide toggle with history tracked (SCD-2 mini-table or audit-log snapshot — decision deferred to Phase 1 plan)
+- Tasks queue: 4 deterministic generators (RESERVE_TOPUP / CONFIRM_DRAFT / STALE_WALLET / MONTH_END_REVIEW)
+- Recurring drafts surface only in Spendings grid as highlighted rows (standalone inbox UI removed)
+- Share-link only invite flow (no email send required) via Better Auth orgs invite-token
+- Dev DB nuked — no data preservation; acceptable because no prod deploy
 
 ### Pending Todos
 
-None yet.
+- `/gsd-plan-phase 1` — plan the Schema Migration & Rename Foundation
+- Decide cushion-mode history storage (SCD-2 mini-table vs audit-log snapshot) in Phase 1 plan
+- Decide reserves auto-compute as regular view vs materialized view in Phase 2 plan
+- Probe Better Auth orgs invite-token revocation API in Phase 2 spike
 
 ### Blockers/Concerns
 
-Open questions to resolve in/before Phase 1 (from research):
-
-- Crypto-shredding key storage: Postgres pgcrypto + KEK env var, or external KMS? Decide before migration #001
-- Better Auth `organization.members` vs domain `family_members`: pick mechanic in Phase 1 plan
-- Hosting region v1: single-region confirmed (PLAT-11); region-per-family is v1.x
-- Voice STT default: Browser Web Speech with Groq fallback, or always-Groq — defer to Phase 5
+- None blocking; roadmap is approved and dependency graph is clean
+- Risk register in ROADMAP.md tracks 10 known risks across phases
 
 ## Quick Tasks Completed
 
@@ -134,6 +113,15 @@ Open questions to resolve in/before Phase 1 (from research):
 
 ## Session Continuity
 
-Last session: 2026-05-10T13:58:00.000Z
-Stopped at: Completed 02-09 — Phase 02 (budgeting-fx) shipped (9/9 plans)
-Resume file: None
+Last session: 2026-05-11T17:19:00.000Z
+Stopped at: v1.1 ROADMAP.md created — 8 phases, 126/126 REQ-IDs mapped
+Resume file: None — next step is `/gsd-plan-phase 1`
+
+## v1.0 History (archived)
+
+v1.0 milestone (Phases 1–2 shipped, Phases 3–6 frozen) is archived at:
+
+- `.planning/archive/v1.0/ROADMAP.md`
+- `.planning/archive/v1.0/REQUIREMENTS.md`
+
+v1.0 carried-forward production capabilities are listed in `REQUIREMENTS.md` § v1.0 Validated.

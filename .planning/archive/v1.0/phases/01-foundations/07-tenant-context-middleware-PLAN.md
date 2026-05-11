@@ -4,7 +4,7 @@ plan: 07
 plan_id: 01.07
 type: execute
 wave: 2
-depends_on: ['01.00', '01.01', '01.02', '01.04', '01.05', '01.06']
+depends_on: ["01.00", "01.01", "01.02", "01.04", "01.05", "01.06"]
 files_modified:
   - apps/api/package.json
   - apps/api/tsconfig.json
@@ -27,7 +27,8 @@ files_modified:
   - apps/api/locales/pl/email.json
   - apps/api/locales/uk/email.json
 autonomous: true
-requirements: [TENT-04, TENT-07, TENT-08, TENT-12, IDNT-04, IDNT-06, ENGR-04, ENGR-13]
+requirements:
+  [TENT-04, TENT-07, TENT-08, TENT-12, IDNT-04, IDNT-06, ENGR-04, ENGR-13]
 must_haves:
   truths:
     - "apps/api boots with libsodium ready, env validated, OTel + pino + Sentry init (Phase 6 instruments)"
@@ -104,12 +105,13 @@ import type { Hono } from 'hono';
 export type AppType = typeof app;
 
 <!-- Hono context augmentation -->
+
 declare module 'hono' {
-  interface ContextVariableMap {
-    session: { user: { id: string; email: string; locale: 'en'|'pl'|'uk' } } | null;
-    tenantIds: string[];
-    locale: 'en' | 'pl' | 'uk';
-  }
+interface ContextVariableMap {
+session: { user: { id: string; email: string; locale: 'en'|'pl'|'uk' } } | null;
+tenantIds: string[];
+locale: 'en' | 'pl' | 'uk';
+}
 }
 </interfaces>
 </context>
@@ -291,6 +293,7 @@ declare module 'hono' {
        ```
     8. Implement `apps/api/src/middleware/rate-limit.ts` — simple in-memory window keyed by `${userId}:${endpoint}`. Public methods: `checkAndRecord(key, windowSec, max): boolean`. Use for `/auth/resend-verification` at 1/min per user (D-13).
     9. WRITE TESTS for tenant-guard.test.ts (asserts intersection logic with mock session) and auth.test.ts (asserts session resolution from cookie).
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p apps/api/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err apps/api && ! grep -F '/dist/' apps/api/src/boot.ts && ! grep -F 'src/adapters/persistence' apps/api/src/boot.ts</automated>
@@ -459,6 +462,7 @@ declare module 'hono' {
        CMD ["bun", "run", "src/server.ts"]
        ```
     8. WRITE `apps/api/test/routes/workspaces.test.ts` — minimal smoke that POST /workspaces with valid body returns 201, missing session returns 401, kind=invalid returns 400 (zod validation).
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p apps/api/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err apps/api && bun test apps/api/test/</automated>
@@ -479,28 +483,30 @@ declare module 'hono' {
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| HTTP request → API handler | Cookie session resolution → tenant-guard intersection → GUC set per request |
-| Body → handler | zod validation enforces shape before reaching application services |
-| Session → tenantIds | Defense in depth: client-supplied active_workspace_ids never trusted; server intersects with actual memberships |
-| apps/api → packages/* | PC-02: imports via package roots only (createIdentityModule, createTenancyModule); dep-cruiser bans reaching into adapters/* / domain/* / application/* / ports/* |
+| Boundary                   | Description                                                                                                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP request → API handler | Cookie session resolution → tenant-guard intersection → GUC set per request                                                                                       |
+| Body → handler             | zod validation enforces shape before reaching application services                                                                                                |
+| Session → tenantIds        | Defense in depth: client-supplied active_workspace_ids never trusted; server intersects with actual memberships                                                   |
+| apps/api → packages/\*     | PC-02: imports via package roots only (createIdentityModule, createTenancyModule); dep-cruiser bans reaching into adapters/_ / domain/_ / application/_ / ports/_ |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-07-01 | Information Disclosure | Reading active_workspace_ids from cookie/session (user-controllable) | mitigate | tenant-guard reads exclusively from `identity.user_preferences` (server-side persisted); intersects with `tenancy.workspace_members` on every request — never trusts client claim |
-| T-01-07-02 | Information Disclosure | Tenant context leak between requests via SET (without LOCAL) (Pitfall 4) | mitigate | tenant-guard wraps SET LOCAL in BEGIN/COMMIT; for handler queries, withTenantTx (PC-03 extended signature) provides the wrap |
-| T-01-07-03 | Tampering | CSRF on state-changing endpoints | mitigate | Better Auth issues SameSite=Lax cookies; non-GET state-changing endpoints accept JSON body which double-protects against form-CSRF; explicit Origin check is Phase 6 hardening |
-| T-01-07-04 | Spoofing | Verification email resend abuse | mitigate | rate-limit middleware enforces 1/min per user/IP on /auth/resend-verification (D-13) |
-| T-01-07-05 | Elevation of Privilege | Member calling owner-only endpoints | mitigate | Application services in packages/tenancy check role server-side; routes also rely on RLS to filter visible workspaces |
-| T-01-07-06 | Tampering | Mass-assignment via JSON body | mitigate | zValidator on every state-changing endpoint with explicit zod schema |
-| T-01-07-07 | Information Disclosure | Verbose error messages leaking internal structure | mitigate | error.ts maps domain errors to user-facing 4xx with i18n-keyed messages |
-| T-01-07-08 | Repudiation | API actions not audit-tracked | partial mitigate | Plan 06's update-shares writes audit_history; Phase 1 does NOT audit every action |
-| T-01-07-09 | Tampering | Apps reaching into package internals (PC-02 violation) | mitigate | dep-cruiser rule `apps-only-public-package-surface` (Plan 00) bans apps/** → packages/*/src/{adapters,application,domain,ports}; CI fails closed |
+| Threat ID  | Category               | Component                                                                | Disposition      | Mitigation Plan                                                                                                                                                                   |
+| ---------- | ---------------------- | ------------------------------------------------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01-07-01 | Information Disclosure | Reading active_workspace_ids from cookie/session (user-controllable)     | mitigate         | tenant-guard reads exclusively from `identity.user_preferences` (server-side persisted); intersects with `tenancy.workspace_members` on every request — never trusts client claim |
+| T-01-07-02 | Information Disclosure | Tenant context leak between requests via SET (without LOCAL) (Pitfall 4) | mitigate         | tenant-guard wraps SET LOCAL in BEGIN/COMMIT; for handler queries, withTenantTx (PC-03 extended signature) provides the wrap                                                      |
+| T-01-07-03 | Tampering              | CSRF on state-changing endpoints                                         | mitigate         | Better Auth issues SameSite=Lax cookies; non-GET state-changing endpoints accept JSON body which double-protects against form-CSRF; explicit Origin check is Phase 6 hardening    |
+| T-01-07-04 | Spoofing               | Verification email resend abuse                                          | mitigate         | rate-limit middleware enforces 1/min per user/IP on /auth/resend-verification (D-13)                                                                                              |
+| T-01-07-05 | Elevation of Privilege | Member calling owner-only endpoints                                      | mitigate         | Application services in packages/tenancy check role server-side; routes also rely on RLS to filter visible workspaces                                                             |
+| T-01-07-06 | Tampering              | Mass-assignment via JSON body                                            | mitigate         | zValidator on every state-changing endpoint with explicit zod schema                                                                                                              |
+| T-01-07-07 | Information Disclosure | Verbose error messages leaking internal structure                        | mitigate         | error.ts maps domain errors to user-facing 4xx with i18n-keyed messages                                                                                                           |
+| T-01-07-08 | Repudiation            | API actions not audit-tracked                                            | partial mitigate | Plan 06's update-shares writes audit_history; Phase 1 does NOT audit every action                                                                                                 |
+| T-01-07-09 | Tampering              | Apps reaching into package internals (PC-02 violation)                   | mitigate         | dep-cruiser rule `apps-only-public-package-surface` (Plan 00) bans apps/\*_ → packages/_/src/{adapters,application,domain,ports}; CI fails closed                                 |
+
 </threat_model>
 
 <verification>
@@ -517,6 +523,7 @@ All exit 0.
 </verification>
 
 <success_criteria>
+
 - apps/api boots with libsodium ready, env validated, OTel + pino init
 - 5 middleware: error, auth (Better Auth session), tenant-guard (active_workspace_ids → GUC), i18n (locale), rate-limit
 - /auth Better Auth handler mounted; /workspaces (7 endpoints), /settings (5 endpoints), /health
@@ -525,7 +532,7 @@ All exit 0.
 - Dockerfile + healthcheck
 - PC-02 + PC-15: boot.ts imports via package roots only (createIdentityModule, createTenancyModule); no /dist/ or /src/adapters/
 - PC-01: tenant-guard intersection query depends on Plan 06's workspace_members_self policy (now DEFINED — no "if not yet present" hedge)
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-07-SUMMARY.md`

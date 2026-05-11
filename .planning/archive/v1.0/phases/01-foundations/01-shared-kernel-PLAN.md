@@ -4,7 +4,7 @@ plan: 01
 plan_id: 01.01
 type: execute
 wave: 1
-depends_on: ['01.00']
+depends_on: ["01.00"]
 files_modified:
   - packages/shared-kernel/src/index.ts
   - packages/shared-kernel/src/money.ts
@@ -28,7 +28,8 @@ files_modified:
   - packages/shared-kernel/test/ports.test.ts
   - packages/shared-kernel/package.json
 autonomous: true
-requirements: [MONY-01, MONY-07, MONY-08, ENGR-01, ENGR-05, ENGR-11, ENGR-12, ENGR-13]
+requirements:
+  [MONY-01, MONY-07, MONY-08, ENGR-01, ENGR-05, ENGR-11, ENGR-12, ENGR-13]
 must_haves:
   truths:
     - "Money(USD).add precision-stable: Money.of('1.99', 'USD').add(Money.of('0.01', 'USD')) equals Money.of('2.00', 'USD')"
@@ -117,75 +118,80 @@ export type CryptoCurrency = 'BTC' | 'ETH';
 export type Currency = FiatCurrency | CryptoCurrency;
 
 export class Money {
-  static of(amount: string | number, currency: Currency): Money;
-  add(other: Money): Money;
-  sub(other: Money): Money;
-  mul(factor: string | number): Money;
-  equals(other: Money): boolean;
-  isCrypto(): boolean;
-  toDb(): { amount_str: string; currency: Currency };  // string preserves precision
-  static fromDb(amount_str: string, currency: Currency): Money;
-  toString(): string;
-  readonly amount: Big;            // exact decimal (big.js)
-  readonly currency: Currency;
+static of(amount: string | number, currency: Currency): Money;
+add(other: Money): Money;
+sub(other: Money): Money;
+mul(factor: string | number): Money;
+equals(other: Money): boolean;
+isCrypto(): boolean;
+toDb(): { amount_str: string; currency: Currency }; // string preserves precision
+static fromDb(amount_str: string, currency: Currency): Money;
+toString(): string;
+readonly amount: Big; // exact decimal (big.js)
+readonly currency: Currency;
 }
 
 <!-- Clock port -->
+
 export interface Clock { now(): Date; }
 export class SystemClock implements Clock { now(): Date; }
 export class FakeClock implements Clock {
-  constructor(initial: Date);
-  now(): Date;
-  advance(ms: number): void;
-  set(d: Date): void;
+constructor(initial: Date);
+now(): Date;
+advance(ms: number): void;
+set(d: Date): void;
 }
 
 <!-- Result -->
+
 export { ok, err, Result, ResultAsync, okAsync, errAsync } from 'neverthrow';
 
 <!-- Branded IDs -->
-export type TenantId = string & { readonly __brand: 'TenantId' };
-export type UserId = string & { readonly __brand: 'UserId' };
+
+export type TenantId = string & { readonly **brand: 'TenantId' };
+export type UserId = string & { readonly **brand: 'UserId' };
 export const TenantId = (s: string): TenantId => s as TenantId;
 export const UserId = (s: string): UserId => s as UserId;
-export function newTenantId(): TenantId;   // UUID v7
-export function newUserId(): UserId;        // UUID v7
+export function newTenantId(): TenantId; // UUID v7
+export function newUserId(): UserId; // UUID v7
 
 <!-- Env -->
+
 export const env: {
-  DATABASE_URL_APP: string;
-  DATABASE_URL_WORKER: string;
-  DATABASE_URL_MIGRATOR: string;
-  BUDGET_KEK: string;        // 32-byte base64
-  BETTER_AUTH_SECRET: string;
-  BETTER_AUTH_URL: string;
-  APP_URL: string;
-  REGION: string;
-  LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error';
+DATABASE_URL_APP: string;
+DATABASE_URL_WORKER: string;
+DATABASE_URL_MIGRATOR: string;
+BUDGET_KEK: string; // 32-byte base64
+BETTER_AUTH_SECRET: string;
+BETTER_AUTH_URL: string;
+APP_URL: string;
+REGION: string;
+LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error';
 };
 
 <!-- Ports — every external integration sits behind one of these -->
+
 export interface FxProvider {
-  rateAsOf(from: Currency, to: Currency, date: Date): Promise<{ rate: string; provider: string; isStale: boolean }>;
+rateAsOf(from: Currency, to: Currency, date: Date): Promise<{ rate: string; provider: string; isStale: boolean }>;
 }
 export interface EmailSender {
-  send(args: { to: string; template: string; vars: Record<string, unknown> }): Promise<void>;
+send(args: { to: string; template: string; vars: Record<string, unknown> }): Promise<void>;
 }
 export interface CryptoKeyStore {
-  generateUserDek(userId: UserId): Promise<{ cipherDek: Uint8Array; nonce: Uint8Array }>;
-  unwrapUserDek(record: { cipherDek: Uint8Array; nonce: Uint8Array }): Promise<Uint8Array>;
-  encryptForUser(dek: Uint8Array, plaintext: string): Promise<{ ciphertext: Uint8Array; nonce: Uint8Array }>;
-  decryptForUser(dek: Uint8Array, record: { ciphertext: Uint8Array; nonce: Uint8Array }): Promise<string>;
-  emailHash(email: string): Promise<Uint8Array>;
+generateUserDek(userId: UserId): Promise<{ cipherDek: Uint8Array; nonce: Uint8Array }>;
+unwrapUserDek(record: { cipherDek: Uint8Array; nonce: Uint8Array }): Promise<Uint8Array>;
+encryptForUser(dek: Uint8Array, plaintext: string): Promise<{ ciphertext: Uint8Array; nonce: Uint8Array }>;
+decryptForUser(dek: Uint8Array, record: { ciphertext: Uint8Array; nonce: Uint8Array }): Promise<string>;
+emailHash(email: string): Promise<Uint8Array>;
 }
 export interface OutboxWriter {
-  write(tx: unknown, evt: { tenantId: TenantId; aggregateType: string; aggregateId: string; eventType: string; payload: unknown }): Promise<void>;
+write(tx: unknown, evt: { tenantId: TenantId; aggregateType: string; aggregateId: string; eventType: string; payload: unknown }): Promise<void>;
 }
 export interface LLMProvider {
-  generateObject<T>(args: { schema: unknown; prompt: string; userId: UserId }): Promise<T>;
+generateObject<T>(args: { schema: unknown; prompt: string; userId: UserId }): Promise<T>;
 }
 export interface STTProvider {
-  transcribe(args: { audio: Uint8Array; language: 'en' | 'pl' | 'uk' }): Promise<{ text: string }>;
+transcribe(args: { audio: Uint8Array; language: 'en' | 'pl' | 'uk' }): Promise<{ text: string }>;
 }
 </interfaces>
 </context>
@@ -400,6 +406,7 @@ export interface STTProvider {
        }
        ```
     3. Run tests — confirm GREEN.
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bun test packages/shared-kernel/test/env.test.ts</automated>
@@ -573,6 +580,7 @@ export interface STTProvider {
        export * from './stt-provider';
        ```
     4. Run tests — confirm GREEN.
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bun test packages/shared-kernel/test/ports.test.ts && bunx tsc --noEmit -p packages/shared-kernel/tsconfig.json</automated>
@@ -593,22 +601,24 @@ export interface STTProvider {
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Process boot → environment | Untrusted env values (could be missing/malformed) cross into typed `env` object |
-| Domain → adapter | Money / Result / branded IDs are the only types crossing — no leak of ORM types upward |
+| Boundary                   | Description                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| Process boot → environment | Untrusted env values (could be missing/malformed) cross into typed `env` object        |
+| Domain → adapter           | Money / Result / branded IDs are the only types crossing — no leak of ORM types upward |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-01-01 | Tampering | Float arithmetic on Money silently losing precision (Phase 1 high-severity per CLAUDE.md) | mitigate | Money class uses big.js exclusively (no `Number()`); adapter boundary `toDb()/fromDb()` accepts/returns string; ESLint `no-float-money` (Plan 0) blocks float math at lint time |
-| T-01-01-02 | Spoofing | Bare-string TenantId / UserId enabling cross-tenant identifier confusion | mitigate | Branded types `string & { __brand: 'TenantId' }` + helper constructors; tsc rejects bare-string assignments at compile time |
-| T-01-01-03 | Information Disclosure | Missing/malformed BUDGET_KEK at boot causing crypto-shred primitives to silently use empty key | mitigate | Zod env schema fails-fast on boot if BUDGET_KEK missing or not 44-char base64 (regex check); apps/api/apps/worker/apps/migrator all call `loadEnv()` before any other init |
-| T-01-01-04 | Tampering | Direct `process.env.X` access bypassing zod validation (drift risk) | accept | First plan only — establishes the contract. Lint rule banning `process.env` outside `env.ts` is a Phase 6 enhancement; documented |
-| T-01-01-05 | Information Disclosure | Currency mixing in Money arithmetic producing wrong totals | mitigate | `Money.add` throws on currency mismatch with explicit message — no silent coercion |
+| Threat ID  | Category               | Component                                                                                      | Disposition | Mitigation Plan                                                                                                                                                                 |
+| ---------- | ---------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01-01-01 | Tampering              | Float arithmetic on Money silently losing precision (Phase 1 high-severity per CLAUDE.md)      | mitigate    | Money class uses big.js exclusively (no `Number()`); adapter boundary `toDb()/fromDb()` accepts/returns string; ESLint `no-float-money` (Plan 0) blocks float math at lint time |
+| T-01-01-02 | Spoofing               | Bare-string TenantId / UserId enabling cross-tenant identifier confusion                       | mitigate    | Branded types `string & { __brand: 'TenantId' }` + helper constructors; tsc rejects bare-string assignments at compile time                                                     |
+| T-01-01-03 | Information Disclosure | Missing/malformed BUDGET_KEK at boot causing crypto-shred primitives to silently use empty key | mitigate    | Zod env schema fails-fast on boot if BUDGET_KEK missing or not 44-char base64 (regex check); apps/api/apps/worker/apps/migrator all call `loadEnv()` before any other init      |
+| T-01-01-04 | Tampering              | Direct `process.env.X` access bypassing zod validation (drift risk)                            | accept      | First plan only — establishes the contract. Lint rule banning `process.env` outside `env.ts` is a Phase 6 enhancement; documented                                               |
+| T-01-01-05 | Information Disclosure | Currency mixing in Money arithmetic producing wrong totals                                     | mitigate    | `Money.add` throws on currency mismatch with explicit message — no silent coercion                                                                                              |
+
 </threat_model>
 
 <verification>
@@ -622,6 +632,7 @@ All three exit 0.
 </verification>
 
 <success_criteria>
+
 - `packages/shared-kernel` exports Money, Clock (System/Fake), Result (neverthrow re-export), TenantId/UserId branded types, env validator, 6 ports + InMemory fakes
 - Money fiat (USD) uses 4-decimal NUMERIC(19,4) shape with banker's rounding
 - Money crypto (BTC/ETH) uses 18-decimal NUMERIC(38,18) shape
@@ -632,7 +643,7 @@ All three exit 0.
 - Env zod schema fails-fast on boot per Claude's discretion
 - 6 ports (FX, email, crypto, outbox, LLM, STT) + InMemory fakes per ENGR-13
 - All tests green; tsc strict passes; dep-cruiser passes
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-01-SUMMARY.md`

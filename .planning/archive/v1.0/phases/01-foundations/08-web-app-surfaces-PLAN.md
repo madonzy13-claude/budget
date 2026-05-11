@@ -4,7 +4,7 @@ plan: 08
 plan_id: 01.08
 type: execute
 wave: 3
-depends_on: ['01.00', '01.01', '01.05', '01.06', '01.07']
+depends_on: ["01.00", "01.01", "01.05", "01.06", "01.07"]
 files_modified:
   - apps/web/package.json
   - apps/web/tsconfig.json
@@ -77,7 +77,26 @@ files_modified:
   - apps/web/.dockerignore
   - apps/web/README.md
 autonomous: true
-requirements: [IDNT-04, IDNT-05, IDNT-06, IDNT-07, IDNT-08, TENT-01, TENT-02, TENT-04, TENT-06, TENT-09, TENT-10, TENT-11, TENT-12, TENT-13, MONY-09, PLAT-05, PLAT-06]
+requirements:
+  [
+    IDNT-04,
+    IDNT-05,
+    IDNT-06,
+    IDNT-07,
+    IDNT-08,
+    TENT-01,
+    TENT-02,
+    TENT-04,
+    TENT-06,
+    TENT-09,
+    TENT-10,
+    TENT-11,
+    TENT-12,
+    TENT-13,
+    MONY-09,
+    PLAT-05,
+    PLAT-06,
+  ]
 provides:
   - apps/web Next.js 16 App Router skeleton
   - 21 shadcn/ui components (new-york preset, zinc, cssVariables)
@@ -194,6 +213,7 @@ must_haves:
 ---
 
 <read_first>
+
 - .planning/phases/01-foundations/01-CONTEXT.md (D-01..D-30 — workspace model, active filter, currency rules)
 - .planning/phases/01-foundations/01-UI-SPEC.md (locked design contract — preset, fonts, copy keys, interaction rules)
 - .planning/phases/01-foundations/01-RESEARCH.md §Pattern 11, §Pitfall 7, §Pitfall 12 (next-intl proxy + Bun/Next interop)
@@ -202,7 +222,7 @@ must_haves:
 - .planning/phases/01-foundations/01-06-SUMMARY.md (workspace contracts; kind, default_currency, shares, active filter)
 - .planning/phases/01-foundations/01-07-SUMMARY.md (Hono AppType export; auth, workspaces, settings routes)
 - CLAUDE.md (Next.js 16, next-intl, Tailwind v4, Serwist Webpack-only, react-hook-form, lucide-react)
-</read_first>
+  </read_first>
 
 <truths>
 - Stack pin (CLAUDE.md): Next.js ^16 (App Router), next-intl ^4.4.3, tailwindcss ^4, react-hook-form latest, @hookform/resolvers latest, lucide-react latest, vitest ^4, happy-dom latest, @testing-library/react latest, @serwist/next latest, hono ^4.12.16 (for hc client only), zod (match version pinned in plan 00 — v3 or v4)
@@ -220,6 +240,7 @@ must_haves:
 </truths>
 
 <acceptance_criteria>
+
 - [ ] `test -f apps/web/proxy.ts` exits 0 AND `test -f apps/web/middleware.ts` exits 1 (Pitfall 12)
 - [ ] `grep -q "turbopack: false" apps/web/next.config.mjs` (Serwist + Webpack)
 - [ ] `grep -q "withSerwist" apps/web/next.config.mjs`
@@ -236,7 +257,7 @@ must_haves:
 - [ ] `grep -q "['en', 'pl', 'uk']" apps/web/i18n.config.ts` (PLAT-06)
 - [ ] `grep -q "hc<AppType>" apps/web/src/lib/api-client.ts`
 - [ ] PC-02 + PC-15: api-client.ts uses TYPE-ONLY import for AppType — no runtime import: `grep -E "import\\s+type\\s+\\{\\s*AppType" apps/web/src/lib/api-client.ts` exits 0
-- [ ] PC-02 + PC-15: apps/web does NOT import from packages/*/src/{adapters,domain,application,ports}: `! grep -RE "from ['\"]@budget/[a-z-]+/(src/(adapters|domain|application|ports)|dist)" apps/web/src` exits 0
+- [ ] PC-02 + PC-15: apps/web does NOT import from packages/\*/src/{adapters,domain,application,ports}: `! grep -RE "from ['\"]@budget/[a-z-]+/(src/(adapters|domain|application|ports)|dist)" apps/web/src` exits 0
 - [ ] `grep -q "createAuthClient" apps/web/src/lib/auth-client.ts`
 - [ ] `grep -q "Geist" apps/web/src/app/layout.tsx` (next/font/google Geist Sans + Mono)
 - [ ] `grep -q "PRIVATE" apps/web/src/components/workspace/create-workspace-form.tsx`
@@ -253,7 +274,7 @@ must_haves:
 - [ ] `docker build -t budget-web:test -f apps/web/Dockerfile .` exits 0 in CI
 - [ ] `apps/web/Dockerfile` contains `next build` AND multi-stage (`FROM .* AS`)
 - [ ] curl http://localhost:3000/en/health returns 200 + JSON (verified via docker compose smoke in plan 9)
-</acceptance_criteria>
+      </acceptance_criteria>
 
 <tasks>
 
@@ -341,25 +362,27 @@ must_haves:
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Browser → Next.js server | Client RSC requests + form submissions |
-| Next.js server → apps/api (Hono) | Hono RPC client + Better Auth cookie forwarding |
-| Service worker cache → page | Cached responses served to authenticated DOM |
-| apps/web → packages/* | PC-02: web bundle imports apps/api AppType (sibling app) and `@budget/shared-kernel` package root only; never reaches into packages/*/src/{adapters,domain,application,ports} |
+| Boundary                         | Description                                                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Browser → Next.js server         | Client RSC requests + form submissions                                                                                                                                         |
+| Next.js server → apps/api (Hono) | Hono RPC client + Better Auth cookie forwarding                                                                                                                                |
+| Service worker cache → page      | Cached responses served to authenticated DOM                                                                                                                                   |
+| apps/web → packages/\*           | PC-02: web bundle imports apps/api AppType (sibling app) and `@budget/shared-kernel` package root only; never reaches into packages/\*/src/{adapters,domain,application,ports} |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-8 | I (Information disclosure) | Better Auth session ↔ active workspace | mitigated | Phase 1 does NOT use customSession (Pitfall 3); active_workspace_ids lives in user_preferences and is read by tenant-guard (plan 07). Switcher PUT goes through authenticated /api/settings/active-workspaces — server intersects with actual memberships before persisting. |
-| T-9 | I (Information disclosure) | Serwist runtime cache | mitigated | sw.ts runtimeCaching uses NetworkOnly + explicit denylist for /api/auth/*, /api/workspaces/*, /api/settings/*, and any authenticated HTML route. Plan 10 (test #6, PC-10) adds an end-to-end Playwright assertion that tenant-A workspaces never appear in a tenant-B session via cache. |
-| T-10 | T (Tampering) | State-changing /api/* via cookie auth | mitigated | Better Auth ships SameSite=Lax cookie; auth-client adds CSRF token header on POST/PUT/PATCH/DELETE. Hono RPC client uses fetch credentials: 'include'. |
-| T-11 | T (Tampering) | next-intl locale routing | mitigated | proxy.ts uses createMiddleware(routing) — locales validated against the `routing.locales` allowlist. |
-| T-1 | I | RPC requests bypassing tenant guard | mitigated (transferred) | Plan 07 owns tenant-guard; web bundle never holds tenant_id. plan 10 adds the leak-CI gate. |
-| T-12 | T (Tampering) | apps/web reaching into packages/* internals (PC-02) | mitigated | dep-cruiser rule `apps-only-public-package-surface` (Plan 00) bans apps/** → packages/*/src/{adapters,domain,application,ports}; CI grep also bans `@budget/*/dist/` and `@budget/*/src/` paths in apps/web |
+| Threat ID | Category                   | Component                                            | Disposition             | Mitigation Plan                                                                                                                                                                                                                                                                           |
+| --------- | -------------------------- | ---------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-8       | I (Information disclosure) | Better Auth session ↔ active workspace               | mitigated               | Phase 1 does NOT use customSession (Pitfall 3); active_workspace_ids lives in user_preferences and is read by tenant-guard (plan 07). Switcher PUT goes through authenticated /api/settings/active-workspaces — server intersects with actual memberships before persisting.              |
+| T-9       | I (Information disclosure) | Serwist runtime cache                                | mitigated               | sw.ts runtimeCaching uses NetworkOnly + explicit denylist for /api/auth/_, /api/workspaces/_, /api/settings/\*, and any authenticated HTML route. Plan 10 (test #6, PC-10) adds an end-to-end Playwright assertion that tenant-A workspaces never appear in a tenant-B session via cache. |
+| T-10      | T (Tampering)              | State-changing /api/\* via cookie auth               | mitigated               | Better Auth ships SameSite=Lax cookie; auth-client adds CSRF token header on POST/PUT/PATCH/DELETE. Hono RPC client uses fetch credentials: 'include'.                                                                                                                                    |
+| T-11      | T (Tampering)              | next-intl locale routing                             | mitigated               | proxy.ts uses createMiddleware(routing) — locales validated against the `routing.locales` allowlist.                                                                                                                                                                                      |
+| T-1       | I                          | RPC requests bypassing tenant guard                  | mitigated (transferred) | Plan 07 owns tenant-guard; web bundle never holds tenant_id. plan 10 adds the leak-CI gate.                                                                                                                                                                                               |
+| T-12      | T (Tampering)              | apps/web reaching into packages/\* internals (PC-02) | mitigated               | dep-cruiser rule `apps-only-public-package-surface` (Plan 00) bans apps/\*_ → packages/_/src/{adapters,domain,application,ports}; CI grep also bans `@budget/*/dist/` and `@budget/*/src/` paths in apps/web                                                                              |
+
 </threat_model>
 
 <verification>
@@ -427,25 +450,27 @@ grep -E "(NetworkOnly|denylist|exclude)" apps/web/sw.ts >/dev/null
 echo "all checks pass"
 '
 ```
+
 </verification>
 
 <success_criteria>
+
 - apps/web is a buildable Next.js 16 App Router app with Webpack output
 - next-intl ships EN/PL/UK at exact key parity for every UI-SPEC string
 - 21 shadcn components present; new-york + zinc + cssVariables locked
 - Hono RPC client typed against apps/api AppType (PC-02 + PC-15: type-only import)
 - Better Auth client wired via cookie
-- PC-02 + PC-15: apps/web does NOT import from packages/*/src/{adapters,domain,application,ports} or /dist/ paths; only AppType (sibling app) and @budget/shared-kernel package root
+- PC-02 + PC-15: apps/web does NOT import from packages/\*/src/{adapters,domain,application,ports} or /dist/ paths; only AppType (sibling app) and @budget/shared-kernel package root
 - Workspace switcher persists active_workspace_ids per toggle
 - Workspace creation form enforces kind + immutable default_currency at UX layer
 - Shares editor disables Save until sum === 100.00
 - Verify-email banner enforces 60s resend cooldown
 - Sessions list supports per-row revoke via AlertDialog
 - PC-16: display-currency-picker.test.tsx asserts 8 fiat options + PUT mutation against /api/settings/display-currency
-- Serwist runtime cache excludes /api/* and authenticated HTML (T-9; Plan 10 PC-10 covers end-to-end)
+- Serwist runtime cache excludes /api/\* and authenticated HTML (T-9; Plan 10 PC-10 covers end-to-end)
 - Vitest skeleton tests pass; tsc + eslint + depcruise green
 - apps/web/Dockerfile produces a Next standalone production image
-</success_criteria>
+  </success_criteria>
 
 <output>
 .planning/phases/01-foundations/01-08-SUMMARY.md

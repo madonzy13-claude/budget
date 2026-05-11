@@ -4,7 +4,7 @@ plan: 04
 plan_id: 01.04
 type: execute
 wave: 1
-depends_on: ['01.00', '01.01', '01.02']
+depends_on: ["01.00", "01.01", "01.02"]
 files_modified:
   - packages/platform/src/crypto/libsodium-key-store.ts
   - packages/platform/src/crypto/user-keys-schema.ts
@@ -86,14 +86,14 @@ Output: A `packages/platform/src/crypto/*` module set with libsodium-backed impl
 import type { CryptoKeyStore, UserId } from '@budget/shared-kernel';
 
 export class LibsodiumKeyStore implements CryptoKeyStore {
-  // Internally uses libsodium-wrappers + KEK from loadEnv().BUDGET_KEK.
-  // Methods: generateUserDek, unwrapUserDek, encryptForUser, decryptForUser, emailHash
+// Internally uses libsodium-wrappers + KEK from loadEnv().BUDGET_KEK.
+// Methods: generateUserDek, unwrapUserDek, encryptForUser, decryptForUser, emailHash
 }
 
 export const dekContext: {
-  // AsyncLocalStorage-based per-request DEK cache
-  run<T>(dek: Uint8Array, fn: () => Promise<T>): Promise<T>;
-  get(): Uint8Array | undefined;
+// AsyncLocalStorage-based per-request DEK cache
+run<T>(dek: Uint8Array, fn: () => Promise<T>): Promise<T>;
+get(): Uint8Array | undefined;
 };
 
 // PC-12: shared_kernel.user_keys is USER-SCOPED — RLS keys off app.current_user_id.
@@ -183,6 +183,7 @@ export const dekContext: {
        GRANT SELECT ON shared_kernel.user_keys TO worker_role;
        ALTER TABLE shared_kernel.user_keys FORCE ROW LEVEL SECURITY;
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/platform/tsconfig.json && grep -F 'user_keys_owner_only' packages/platform/src/crypto/user-keys-schema.ts && grep -F 'shared_kernel.user_keys FORCE ROW LEVEL SECURITY' apps/migrator/post-migration.sql</automated>
@@ -359,6 +360,7 @@ export const dekContext: {
        });
        ```
     6. Run tests — confirm GREEN.
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bun test packages/platform/test/sodium-ready.test.ts packages/platform/test/crypto-key-store.test.ts packages/platform/test/email-hash.test.ts && bunx tsc --noEmit -p packages/platform/tsconfig.json</automated>
@@ -433,6 +435,7 @@ export const dekContext: {
        });
        ```
     3. Run tests — confirm GREEN.
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bun test packages/platform/test/crypto-key-store.test.ts && bunx tsc --noEmit -p packages/platform/tsconfig.json</automated>
@@ -448,25 +451,27 @@ export const dekContext: {
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Process boot → KEK | KEK from env (secret manager); never in DB, never logged |
-| Request → DEK | Request middleware decrypts user's DEK, places in AsyncLocalStorage; encrypted at rest |
-| App memory → response | DEK exists in process memory only for request lifetime; no persistence to disk |
+| Boundary              | Description                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| Process boot → KEK    | KEK from env (secret manager); never in DB, never logged                               |
+| Request → DEK         | Request middleware decrypts user's DEK, places in AsyncLocalStorage; encrypted at rest |
+| App memory → response | DEK exists in process memory only for request lifetime; no persistence to disk         |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-04-01 | Information Disclosure | Plaintext PII in DB (email, display_name) — Phase-1 high-severity invariant per CLAUDE.md compliance constraints | mitigate | LibsodiumKeyStore implements crypto_secretbox_easy AEAD; PII columns persisted as bytea ciphertext in identity context (Plan 5); right-to-delete via DEK destruction ships Phase 6 |
-| T-01-04-02 | Information Disclosure | KEK exposure (logged, dumped, committed) | mitigate | KEK only via env BUDGET_KEK (zod-validated 44-char base64); never appears in pino logs (logging guards in Phase 6 — Phase 1 documents in code comments); .env is gitignored; .env.example has empty BUDGET_KEK placeholder |
-| T-01-04-03 | Tampering | Wrong KEK in deployment causes silent decrypt failures returning garbage | mitigate | crypto_secretbox_open_easy returns null on auth tag failure; LibsodiumKeyStore throws explicit error "DEK unwrap failed — KEK rotated, record corrupted, or DEK destroyed". Never returns garbage |
-| T-01-04-04 | Spoofing | Reidentification via email_hash after DEK destroyed (Pitfall 11) | mitigate | Phase 6 destroy flow overwrites both cipher_dek AND email_hash to tombstone bytes; Phase 1 documents this requirement in the user_keys schema comment so Phase 6 implementer cannot miss it |
-| T-01-04-05 | Information Disclosure | DEK leakage between requests via shared in-process cache | mitigate | AsyncLocalStorage scopes DEK to request promise chain only; concurrent isolation verified by test; no module-global DEK |
-| T-01-04-06 | Tampering | libsodium not initialized when first crypto call runs (Pitfall 9) | mitigate | libsodiumReady() guard at start of every public method; idempotent; sodium-ready.test.ts asserts it works; apps/api boot calls libsodiumReady() before binding HTTP listener |
-| T-01-04-07 | Elevation of Privilege | One user reading another user's DEK row | mitigate | shared_kernel.user_keys pgPolicy keyed by current_setting('app.current_user_id') = row user_id (PC-12, USER-SCOPED); FORCE RLS in post-migration.sql; tenant-leak CI gate (Plan 10) extends to this table by asserting policy effect; PC-07: writes wrapped in withUserContext (NOT withTenantTx — wrong primitive for user-scoped data) |
+| Threat ID  | Category               | Component                                                                                                        | Disposition | Mitigation Plan                                                                                                                                                                                                                                                                                                                          |
+| ---------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01-04-01 | Information Disclosure | Plaintext PII in DB (email, display_name) — Phase-1 high-severity invariant per CLAUDE.md compliance constraints | mitigate    | LibsodiumKeyStore implements crypto_secretbox_easy AEAD; PII columns persisted as bytea ciphertext in identity context (Plan 5); right-to-delete via DEK destruction ships Phase 6                                                                                                                                                       |
+| T-01-04-02 | Information Disclosure | KEK exposure (logged, dumped, committed)                                                                         | mitigate    | KEK only via env BUDGET_KEK (zod-validated 44-char base64); never appears in pino logs (logging guards in Phase 6 — Phase 1 documents in code comments); .env is gitignored; .env.example has empty BUDGET_KEK placeholder                                                                                                               |
+| T-01-04-03 | Tampering              | Wrong KEK in deployment causes silent decrypt failures returning garbage                                         | mitigate    | crypto_secretbox_open_easy returns null on auth tag failure; LibsodiumKeyStore throws explicit error "DEK unwrap failed — KEK rotated, record corrupted, or DEK destroyed". Never returns garbage                                                                                                                                        |
+| T-01-04-04 | Spoofing               | Reidentification via email_hash after DEK destroyed (Pitfall 11)                                                 | mitigate    | Phase 6 destroy flow overwrites both cipher_dek AND email_hash to tombstone bytes; Phase 1 documents this requirement in the user_keys schema comment so Phase 6 implementer cannot miss it                                                                                                                                              |
+| T-01-04-05 | Information Disclosure | DEK leakage between requests via shared in-process cache                                                         | mitigate    | AsyncLocalStorage scopes DEK to request promise chain only; concurrent isolation verified by test; no module-global DEK                                                                                                                                                                                                                  |
+| T-01-04-06 | Tampering              | libsodium not initialized when first crypto call runs (Pitfall 9)                                                | mitigate    | libsodiumReady() guard at start of every public method; idempotent; sodium-ready.test.ts asserts it works; apps/api boot calls libsodiumReady() before binding HTTP listener                                                                                                                                                             |
+| T-01-04-07 | Elevation of Privilege | One user reading another user's DEK row                                                                          | mitigate    | shared_kernel.user_keys pgPolicy keyed by current_setting('app.current_user_id') = row user_id (PC-12, USER-SCOPED); FORCE RLS in post-migration.sql; tenant-leak CI gate (Plan 10) extends to this table by asserting policy effect; PC-07: writes wrapped in withUserContext (NOT withTenantTx — wrong primitive for user-scoped data) |
+
 </threat_model>
 
 <verification>
@@ -486,6 +491,7 @@ All exit 0.
 </verification>
 
 <success_criteria>
+
 - LibsodiumKeyStore implements CryptoKeyStore using crypto_secretbox_easy + crypto_generichash
 - libsodiumReady() guard at every public method (Pitfall 9)
 - Per-user DEK round-trips through KEK wrapping correctly
@@ -495,7 +501,7 @@ All exit 0.
 - shared_kernel.user_keys table is USER-SCOPED (PC-12) — RLS keys off app.current_user_id, NOT app.tenant_ids; no tenant_id column
 - PC-07: schema documentation requires withUserContext for all writes/reads (never withTenantTx)
 - post-migration.sql appended with user_keys grants + FORCE RLS
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-04-SUMMARY.md`

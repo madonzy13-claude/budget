@@ -4,7 +4,7 @@ plan: 05
 plan_id: 01.05
 type: execute
 wave: 2
-depends_on: ['01.00', '01.01', '01.02', '01.04']
+depends_on: ["01.00", "01.01", "01.02", "01.04"]
 files_modified:
   - packages/identity/package.json
   - packages/identity/src/index.ts
@@ -37,7 +37,20 @@ files_modified:
   - packages/identity/test/provider-prefs.test.ts
   - apps/migrator/post-migration.sql
 autonomous: true
-requirements: [IDNT-01, IDNT-02, IDNT-03, IDNT-04, IDNT-05, IDNT-06, IDNT-07, IDNT-08, MONY-09, ENGR-04, ENGR-13]
+requirements:
+  [
+    IDNT-01,
+    IDNT-02,
+    IDNT-03,
+    IDNT-04,
+    IDNT-05,
+    IDNT-06,
+    IDNT-07,
+    IDNT-08,
+    MONY-09,
+    ENGR-04,
+    ENGR-13,
+  ]
 must_haves:
   truths:
     - "User signs up with email/password (IDNT-01) — Better Auth emailAndPassword.enabled = true"
@@ -126,47 +139,47 @@ export type LLMProviderName = 'claude_haiku' | 'groq';
 export type STTProviderName = 'browser' | 'groq';
 
 export interface UserDTO {
-  id: UserId;
-  email: string;             // decrypted at adapter boundary
-  name: string;              // decrypted at adapter boundary
-  emailVerified: boolean;
-  locale: Locale;
-  display_currency: string;  // ISO-4217 (per D-05/MONY-09)
-  preferred_llm_provider: LLMProviderName | null;
-  preferred_stt_provider: STTProviderName | null;
+id: UserId;
+email: string; // decrypted at adapter boundary
+name: string; // decrypted at adapter boundary
+emailVerified: boolean;
+locale: Locale;
+display_currency: string; // ISO-4217 (per D-05/MONY-09)
+preferred_llm_provider: LLMProviderName | null;
+preferred_stt_provider: STTProviderName | null;
 }
 
 export interface SessionDTO {
-  id: string;
-  userId: UserId;
-  device: string;
-  ipAddress: string;
-  createdAt: Date;
-  lastActiveAt: Date;
-  expiresAt: Date;
-  isCurrent: boolean;
+id: string;
+userId: UserId;
+device: string;
+ipAddress: string;
+createdAt: Date;
+lastActiveAt: Date;
+expiresAt: Date;
+isCurrent: boolean;
 }
 
 // ports/user-repo.ts
 export interface UserRepo {
-  findById(id: UserId): Promise<UserDTO | null>;
-  findByEmail(email: string): Promise<UserDTO | null>;        // uses email_hash
-  updateLocale(id: UserId, locale: Locale): Promise<void>;
-  updateDisplayCurrency(id: UserId, currency: string): Promise<void>;
-  updateProviderPrefs(id: UserId, prefs: { llm?: LLMProviderName | null; stt?: STTProviderName | null }): Promise<void>;
-  getActiveWorkspaceIds(id: UserId): Promise<string[]>;
-  setActiveWorkspaceIds(id: UserId, ids: string[]): Promise<void>;
+findById(id: UserId): Promise<UserDTO | null>;
+findByEmail(email: string): Promise<UserDTO | null>; // uses email_hash
+updateLocale(id: UserId, locale: Locale): Promise<void>;
+updateDisplayCurrency(id: UserId, currency: string): Promise<void>;
+updateProviderPrefs(id: UserId, prefs: { llm?: LLMProviderName | null; stt?: STTProviderName | null }): Promise<void>;
+getActiveWorkspaceIds(id: UserId): Promise<string[]>;
+setActiveWorkspaceIds(id: UserId, ids: string[]): Promise<void>;
 }
 
-// contracts/factory.ts (PC-02, PC-15) — apps/* import THIS surface only
+// contracts/factory.ts (PC-02, PC-15) — apps/\* import THIS surface only
 export interface IdentityModule {
-  auth: ReturnType<typeof import('better-auth').betterAuth>;
-  userRepo: UserRepo;
+auth: ReturnType<typeof import('better-auth').betterAuth>;
+userRepo: UserRepo;
 }
 export interface CreateIdentityOptions {
-  emailSender: import('@budget/shared-kernel').EmailSender;
-  keyStore: import('@budget/platform').LibsodiumKeyStore;
-  additionalPlugins?: unknown[];   // tenancy plugin slot (Plan 06 fills)
+emailSender: import('@budget/shared-kernel').EmailSender;
+keyStore: import('@budget/platform').LibsodiumKeyStore;
+additionalPlugins?: unknown[]; // tenancy plugin slot (Plan 06 fills)
 }
 export function createIdentityModule(opts: CreateIdentityOptions): IdentityModule;
 </interfaces>
@@ -319,6 +332,7 @@ export function createIdentityModule(opts: CreateIdentityOptions): IdentityModul
         export type { CredentialRepo } from './ports/credential-repo';
         // domain/* and adapters/* are NOT re-exported.
         ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/identity/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err packages/identity</automated>
@@ -509,6 +523,7 @@ export function createIdentityModule(opts: CreateIdentityOptions): IdentityModul
          '../../packages/identity/src/adapters/persistence/user-preferences.ts',
        ],
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/identity/tsconfig.json && grep -F 'identity.users FORCE ROW LEVEL SECURITY' apps/migrator/post-migration.sql && grep -F 'active_workspace_ids' packages/identity/src/adapters/persistence/user-preferences.ts</automated>
@@ -584,6 +599,7 @@ export function createIdentityModule(opts: CreateIdentityOptions): IdentityModul
     - locale.test.ts: signup with locale='pl', user record has locale='pl'; updateLocale to 'uk' persists
     - display-currency.test.ts: user.display_currency independent of any workspace; user has display_currency='EUR' even with no workspaces
     - provider-prefs.test.ts: updateProviderPrefs sets preferred_llm_provider/preferred_stt_provider; round-trips
+
   </behavior>
   <action>
     1. Add to `packages/identity/package.json`:
@@ -732,6 +748,7 @@ export function createIdentityModule(opts: CreateIdentityOptions): IdentityModul
        });
        ```
        Cover the full behavior list per the test file's name (sign-up / verify-email / reset-password / sessions / locale / display-currency / provider-prefs).
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/identity/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err packages/identity && ! grep -F 'appPool().connect()' packages/identity/src/adapters/persistence/better-auth.ts</automated>
@@ -756,31 +773,33 @@ export function createIdentityModule(opts: CreateIdentityOptions): IdentityModul
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Browser → API (signup/login) | TLS-only in prod; Better Auth scrypt password hashing |
-| Email link → API (verify/reset) | Single-use, time-bound tokens via Better Auth verifications table |
-| API → DB (user PII) | DEK-encrypted at rest (D-16) — email_encrypted/name_encrypted bytea columns |
-| Session cookie → API | httpOnly + Secure + SameSite=Lax; revocable from settings |
-| Better Auth hooks → DB | PC-03: withUserContext (no raw appPool().connect()) — CI grep gate enforces |
+| Boundary                        | Description                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| Browser → API (signup/login)    | TLS-only in prod; Better Auth scrypt password hashing                       |
+| Email link → API (verify/reset) | Single-use, time-bound tokens via Better Auth verifications table           |
+| API → DB (user PII)             | DEK-encrypted at rest (D-16) — email_encrypted/name_encrypted bytea columns |
+| Session cookie → API            | httpOnly + Secure + SameSite=Lax; revocable from settings                   |
+| Better Auth hooks → DB          | PC-03: withUserContext (no raw appPool().connect()) — CI grep gate enforces |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-05-01 | Spoofing | Replayed/leaked password-reset tokens | mitigate | Better Auth `resetPasswordTokenExpiresIn: 1800` (30 min D-14) + single-use semantics; verifications table not under RLS but token IS the credential; reset-password.test.ts asserts expired token rejected |
-| T-01-05-02 | Spoofing | Replayed verification tokens (24h TTL D-13) | mitigate | Better Auth `emailVerification.expiresIn: 86400`; consumed on first valid POST; verify-email.test.ts asserts expired/invalid rejected |
-| T-01-05-03 | Information Disclosure | Plaintext PII (email, display_name) at rest | mitigate | databaseHooks.user.create.before + after wire LibsodiumKeyStore.emailHash + generateUserDek; email_encrypted + email_nonce columns persist ciphertext (Phase 6 drops plain `email` column); name same pattern |
-| T-01-05-04 | Spoofing | Stolen session token / cookie | mitigate | httpOnly + Secure + SameSite=Lax cookie defaults (Better Auth); session list + revoke endpoints (IDNT-04, D-15) ship Phase 1; session table colocated in identity schema with owner-only RLS |
-| T-01-05-05 | Tampering | Mass-assignment via additionalFields | mitigate | Better Auth `additionalFields` is allowlist — only the 4 declared fields accepted |
-| T-01-05-06 | Spoofing | Brute-force login | mitigate | Better Auth ships rate-limiting + scrypt by default; configure `rateLimit: { enabled: true }` in createAuth |
-| T-01-05-07 | Tampering | customSession + organization plugin order race losing activeOrganizationId (Pitfall 3) | mitigate | Plan 05 deliberately does NOT use customSession; Plan 06 organization plugin works with our own user_preferences.active_workspace_ids |
-| T-01-05-08 | Information Disclosure | Better Auth secret rotation invalidates active sessions | accept | Documented in apps/api/SECRETS.md (Phase 6 owns full rotation runbook) |
-| T-01-05-09 | Information Disclosure | Resend abuse on verification email | mitigate | Better Auth + apps/api enforce 1/min cooldown on resend (D-13) |
-| T-01-05-10 | Elevation of Privilege | Hook code escaping tenant/user context via raw `appPool().connect()` (PC-03 risk) | mitigate | All hook DB writes use withUserContext (Plan 02 Task 2); CI grep gate (Plan 00) bans appPool().connect() outside packages/db/src/tx.ts |
-| T-01-05-11 | Tampering | Orphan user row (user committed without DEK) due to non-atomic create.after hook (PC-09) | mitigate (best-effort + Phase 6 reconciliation) | After-hook is best-effort, logs failure; Phase 6 hardening adds reconciliation worker that periodically scans for users with no `user_keys` row and back-fills the DEK. Documented limitation: brief window between user commit and DEK insert; tradeoff vs. throwing-and-orphaning the user row in better-auth's view |
+| Threat ID  | Category               | Component                                                                                | Disposition                                     | Mitigation Plan                                                                                                                                                                                                                                                                                                        |
+| ---------- | ---------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01-05-01 | Spoofing               | Replayed/leaked password-reset tokens                                                    | mitigate                                        | Better Auth `resetPasswordTokenExpiresIn: 1800` (30 min D-14) + single-use semantics; verifications table not under RLS but token IS the credential; reset-password.test.ts asserts expired token rejected                                                                                                             |
+| T-01-05-02 | Spoofing               | Replayed verification tokens (24h TTL D-13)                                              | mitigate                                        | Better Auth `emailVerification.expiresIn: 86400`; consumed on first valid POST; verify-email.test.ts asserts expired/invalid rejected                                                                                                                                                                                  |
+| T-01-05-03 | Information Disclosure | Plaintext PII (email, display_name) at rest                                              | mitigate                                        | databaseHooks.user.create.before + after wire LibsodiumKeyStore.emailHash + generateUserDek; email_encrypted + email_nonce columns persist ciphertext (Phase 6 drops plain `email` column); name same pattern                                                                                                          |
+| T-01-05-04 | Spoofing               | Stolen session token / cookie                                                            | mitigate                                        | httpOnly + Secure + SameSite=Lax cookie defaults (Better Auth); session list + revoke endpoints (IDNT-04, D-15) ship Phase 1; session table colocated in identity schema with owner-only RLS                                                                                                                           |
+| T-01-05-05 | Tampering              | Mass-assignment via additionalFields                                                     | mitigate                                        | Better Auth `additionalFields` is allowlist — only the 4 declared fields accepted                                                                                                                                                                                                                                      |
+| T-01-05-06 | Spoofing               | Brute-force login                                                                        | mitigate                                        | Better Auth ships rate-limiting + scrypt by default; configure `rateLimit: { enabled: true }` in createAuth                                                                                                                                                                                                            |
+| T-01-05-07 | Tampering              | customSession + organization plugin order race losing activeOrganizationId (Pitfall 3)   | mitigate                                        | Plan 05 deliberately does NOT use customSession; Plan 06 organization plugin works with our own user_preferences.active_workspace_ids                                                                                                                                                                                  |
+| T-01-05-08 | Information Disclosure | Better Auth secret rotation invalidates active sessions                                  | accept                                          | Documented in apps/api/SECRETS.md (Phase 6 owns full rotation runbook)                                                                                                                                                                                                                                                 |
+| T-01-05-09 | Information Disclosure | Resend abuse on verification email                                                       | mitigate                                        | Better Auth + apps/api enforce 1/min cooldown on resend (D-13)                                                                                                                                                                                                                                                         |
+| T-01-05-10 | Elevation of Privilege | Hook code escaping tenant/user context via raw `appPool().connect()` (PC-03 risk)        | mitigate                                        | All hook DB writes use withUserContext (Plan 02 Task 2); CI grep gate (Plan 00) bans appPool().connect() outside packages/db/src/tx.ts                                                                                                                                                                                 |
+| T-01-05-11 | Tampering              | Orphan user row (user committed without DEK) due to non-atomic create.after hook (PC-09) | mitigate (best-effort + Phase 6 reconciliation) | After-hook is best-effort, logs failure; Phase 6 hardening adds reconciliation worker that periodically scans for users with no `user_keys` row and back-fills the DEK. Documented limitation: brief window between user commit and DEK insert; tradeoff vs. throwing-and-orphaning the user row in better-auth's view |
+
 </threat_model>
 
 <verification>
@@ -796,8 +815,9 @@ All exit 0 (testcontainer-backed; no skip-if-env).
 </verification>
 
 <success_criteria>
+
 - packages/identity follows DDD layer rules: domain → contracts/ports → application → adapters (dep-cruiser passes)
-- createIdentityModule() factory exported from contracts/factory.ts (PC-02, PC-15) — apps/* see only this surface
+- createIdentityModule() factory exported from contracts/factory.ts (PC-02, PC-15) — apps/\* see only this surface
 - createAuth() factory wires Better Auth with emailAndPassword + emailVerification + sendResetPassword + additionalFields (locale, display_currency, llm/stt prefs)
 - D-13 grace login (requireEmailVerification: false), D-14 reset TTL 1800s, D-13 verify TTL 86400s
 - D-16 PII wiring: email_hash (deterministic) + email_encrypted (DEK-encrypted) at user.create hooks
@@ -807,7 +827,7 @@ All exit 0 (testcontainer-backed; no skip-if-env).
 - user_preferences.active_workspace_ids UUID[] table per D-07
 - application services for all 7 tested behaviors
 - All 7 tests defined; pass via testcontainer (PC-06)
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-05-SUMMARY.md`

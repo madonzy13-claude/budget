@@ -1,228 +1,215 @@
-# Roadmap: Budget — Family Budgeting & Wealth Tracker
+# Roadmap: Budget v1.1 — Budget Restructure
 
 ## Overview
 
-Six phases take the project from empty repo to a multi-tenant SaaS family budgeter that tells a household exactly what to do this week to keep budget, reserve, and cushion healthy. Phase 1 is architecture-heavy: it locks in the multi-tenant + DDD discipline (RLS, `withTenantTx`, Money value object, Clock port, Result type, append-only ledger primitive, audit_history, transactional outbox skeleton, Better Auth + organization plugin, Drizzle schema-per-context, dependency-cruiser CI rule, crypto-shredding key store, i18n, Docker Compose) that every later phase depends on. Phase 2 builds the Budgeting context end-to-end with the FX adapter and idempotency-key middleware. Phase 3 fans out three parallel-eligible contexts (Reserve, Investments, Cushion) on top of Budgeting events. Phase 4 fans out three more parallel-eligible contexts (Tasks, Insights, Notifications) on top of B+C events. Phase 5 fans out the two LLM/privacy-sensitive contexts (Onboarding wizard with voice STT, Anonymous Comparison anonymizer with k-anonymity floor + DPIA gate). Phase 6 hardens for launch: PWA polish, GDPR export + crypto-shredding right-to-delete, CCPA opt-out, Docker multi-arch, observability, monthly digest, smoke + E2E.
+Eight phases take the v1.0 codebase (multi-page workspace UI, account-anchored transactions, planned reserve/cushion/investments contexts) to the v1.1 product: a single Excel-like Budget Detail Page, renamed domain (workspace→budget, account→wallet), categorical-only transactions, auto-computed reserves, cushion as a budget-wide toggle, and a Tasks-queue-driven UX delivered as an installable PWA.
 
-The roadmap is dependency-driven — phase boundaries fall where bounded contexts genuinely depend on each other, not on arbitrary technical layers. The 11 bounded contexts (Identity, Tenancy, Budgeting, Reserves, Cushion, Investments, Tasks, Insights, Comparison, Notifications, Onboarding) plus shared kernel + platform map cleanly: Phase 1 ships Identity + Tenancy + shared kernel + platform; Phase 2 ships Budgeting; Phase 3 ships Reserves + Investments + Cushion in parallel; Phase 4 ships Tasks + Insights + Notifications in parallel; Phase 5 ships Onboarding + Comparison in parallel; Phase 6 is cross-cutting hardening.
+The roadmap is dependency-driven, not category-driven. **Phase 1 lands the schema rename + new tables in a single migration** (workspaces→budgets, accounts→wallets, drop kind/account_id/scope, add wallet_type/cushion_mode/sort_index/tasks/SCD-2 cushion column) — every other phase blocks on it. **Phase 2 restructures the domain layer + API surface + recurring-engine + share-link backend** behind the renamed schema while the UI is still v1.0; this unblocks frontend work without forcing each UI phase to also touch the backend. **Phase 3 ships the new top-nav budget switcher, home page cards, and the BDP tab frame with a working task-banner shell** — the UI scaffold every subsequent tab plugs into. **Phase 4 is the core product surface: the Spendings grid** (column-per-category, quick-entry, pen-icon sliders, drag-reorder, arrow-key month nav, recurring drafts inline) and the real-time reserve-deduction wiring that drives row 4 of every column header. **Phase 5 ships the Reserves and Wallets tabs together** — they share a layout primitive (inline-editable table rows) and the same reserves-auto-compute view powers both. **Phase 6 ships Settings tab + Onboarding wizard + Share-link join UI** together — all three are settings-shaped form flows that depend on the BDP frame and the backend share-link routes from Phase 2. **Phase 7 surfaces the Tasks queue** (table writes from Phase 1 migration, generators wired across reserve-mismatch / draft-due / stale-wallet / month-end-rollover, banner expanded with kind-specific actions, push deep-links). **Phase 8 is cross-cutting hardening for launch:** PWA offline shell over the new IA, web-push wired to tasks, i18n EN/PL/UK rewrite for renamed namespaces, full E2E Gherkin rewrite, CI gates green.
+
+The work is dependency-shaped: schema rename precedes domain rename precedes API rename precedes frontend rename precedes UX flows. Parallelism is limited (each phase mostly unblocks the next) but Phase 5's two tabs and Phase 8's cross-cutting concerns can fan out at the plan level.
 
 ## Phases
 
 **Phase Numbering:**
 
 - Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+- Decimal phases (1.1, 2.1): Urgent insertions (marked with INSERTED)
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundations** - Platform + Shared Kernel + Identity + Tenancy with RLS gate
-- [ ] **Phase 2: Budgeting & FX** - Accounts, Categories, Budgets, Expense capture with append-only ledger and FX adapter
-- [ ] **Phase 3: Reserve, Investments, Cushion** - Three parallel contexts on top of Budgeting events
-- [ ] **Phase 4: Tasks, Insights, Notifications** - Three parallel contexts on top of B+C events
-- [ ] **Phase 5: Onboarding & Comparison** - LLM-bounded wizard with voice + privacy-pipeline anonymizer
-- [ ] **Phase 6: Launch Hardening** - PWA polish, GDPR/CCPA, observability, deploy, E2E
+- [ ] **Phase 1: Schema Migration & Rename Foundation** — Single Drizzle migration: rename workspaces→budgets and accounts→wallets, drop dropped columns, add wallet_type / cushion / sort_index / tasks; nuke dev DB; tenant-leak CI green on new schema
+- [ ] **Phase 2: Domain & API Restructure** — Rename domain entities, strip Transaction, update recurring-engine for extended cadence, wire reserves auto-compute SQL view, ship share-link backend routes; all `/budgets/*` and `/wallets/*` HTTP routes live
+- [ ] **Phase 3: Navigation, Home & BDP Frame** — Top-nav budget switcher dropdown, combined home page with per-budget cards + placeholder chart, BDP tab shell with sticky pills + task banner skeleton
+- [ ] **Phase 4: Spendings Grid** — The Excel-like core: column-per-category grid, quick-entry, pen-icon side sliders, drag-reorder, arrow-key month navigation, recurring drafts as highlighted rows, real-time reserve-deduction display
+- [ ] **Phase 5: Reserves & Wallets Tabs** — Reserves table with per-category isolated balances + wallet-share column, Wallets tab with always-inline editable rows (name/currency/amount/type) and add/delete
+- [ ] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow
+- [ ] **Phase 7: Tasks Queue** — Banner-with-expand UI, deterministic generators (reserve-mismatch, draft-due, stale-wallet, month-end), kind-specific resolution actions, auto-resolve on state change
+- [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
 
 ## Phase Details
 
-### Phase 1: Foundations
+### Phase 1: Schema Migration & Rename Foundation
 
-**Goal**: Establish a multi-tenant TypeScript-on-Bun monorepo where any tenant-leak test fails closed, the shared kernel (Money, Clock, Result) is in place, RLS-enforced tenancy is end-to-end, Better Auth ships email/password + family workspaces, and the architectural rails (DDD bounded contexts, ports/adapters, append-only ledger primitive, audit_history, transactional outbox skeleton, Drizzle schema-per-context, dependency-cruiser CI rule, crypto-shredding key store, i18n, Docker Compose) make every subsequent phase trivial to plug into.
-**Depends on**: Nothing (first phase)
-**Requirements**: IDNT-01, IDNT-02, IDNT-03, IDNT-04, IDNT-05, IDNT-06, IDNT-07, IDNT-08, TENT-01, TENT-02, TENT-03, TENT-04, TENT-05, TENT-06, TENT-07, TENT-08, TENT-09, TENT-10, TENT-11, TENT-12, TENT-13, MONY-01, MONY-02, MONY-07, MONY-08, MONY-09, ENGR-01, ENGR-02, ENGR-03, ENGR-04, ENGR-05, ENGR-06, ENGR-07, ENGR-08, ENGR-10, ENGR-11, ENGR-12, ENGR-13, PLAT-02, PLAT-05, PLAT-06, PLAT-11, PLAT-12
+**Goal**: Land the entire v1.1 schema in one Drizzle migration — every renamed table, every dropped column, every new table — and prove the tenant-leak CI gate stays green on the new shape. Nothing else in v1.1 ships until this is in.
+**Depends on**: Nothing (first phase of v1.1; v1.0 schema is the starting point)
+**Requirements**: MIG-01, MIG-02, MIG-03, MIG-04, MIG-05, MIG-06, MIG-07, MIG-08, MIG-09, MIG-10, MIG-11, MIG-12, MIG-13
 **Success Criteria** (what must be TRUE):
 
-1. New user can sign up with email/password, verify via email, reset password, and revoke their own session from a settings page rendered in EN, PL, or UK based on a setting they pick at signup
-2. Authenticated user can create multiple workspaces — each explicitly `PRIVATE` (single-member, owner) or `SHARED` (multi-member, invitable by email) with an immutable default-currency picked at creation; user can join unlimited SHARED workspaces; UI offers a persisted multi-select "active workspaces" filter (default = empty, user picks first time, restored across sessions); SHARED workspace owner can configure per-member global contribution shares (decimal % per member, sum=100%) and they are audit-tracked; user has a personal `display_currency` setting independent of any workspace's default-currency; role separation (owner vs member) enforced
-3. Tenant-leak CI test fails closed: a request without a tenant GUC returns zero rows from any user-data table; a worker job omitting `tenantId` errors before any DB read; app and worker DB roles have no `BYPASSRLS`; `FORCE ROW LEVEL SECURITY` is set on every user-data table
-4. `docker compose up` brings up web + api + worker + db locally; migrations apply via a separate DB role with a migration-lock; the `domain/` layer is enforced by dependency-cruiser to import nothing from `drizzle-orm`, Hono, AI SDK, or any `adapters/`
-5. Shared kernel exposes `Money(amount, currency)` (Dinero v2 + big.js for crypto, NUMERIC(19,4) columns, lint rule banning float arithmetic on money), `Clock` port, `Result<T, E>`, `TenantId`, `UserId`; `audit_history` table is queryable for any non-ledger entity; transactional outbox writes survive a worker restart without duplicate dispatch
-   **Plans**: 00 (monorepo-scaffold) ✓, 01 (shared-kernel) ✓, 02 (platform-infra) ✓, 03 (audit-and-outbox) ✓, 04 (identity-context) ✓, 05 (identity-context pt2) ✓, 06 (tenancy-context) ✓, 07 (tenant-context-middleware) ✓, 08 (web-app-surfaces) ✓, 09 (docker-compose) pending, 10 (ci-smoke) pending
+1. After running migrations from a fresh dev DB, `\dt` shows `budgets`, `wallets`, `tasks`, and `category_limits.cushion_amount_cents` exists alongside `planned_amount_cents`; tables `workspaces` and `accounts` no longer exist; columns `transactions.kind`, `transactions.account_id`, `transactions.to_account_id`, `transactions.direction` no longer exist
+2. `budgets.cushion_mode_enabled boolean default false`, `wallets.wallet_type` enum (SPENDINGS, CUSHION, RESERVE), and `categories.sort_index INTEGER` are queryable on the renamed schema
+3. `make ci-gate` passes 6/6 tenant-leak security tests targeting the renamed `budgets` and `wallets` tables — no test still references `workspaces` or `accounts`
+4. All EN/PL/UK i18n message keys under `workspaces.*` and `accounts.*` have been renamed to `budgets.*` and `wallets.*` (no message lookups fail at app boot); domain entity classes `Workspace` and `Account` are renamed to `Budget` and `Wallet` in `packages/budgeting` and `packages/tenancy` with zero remaining references to the old names in `src/`
+5. All HTTP route mounts under `/workspaces/*` and `/accounts/*` are removed and replaced with `/budgets/*` and `/wallets/*`; old paths return 404 (no aliases); a smoke request to `/budgets/health` returns 200
 
-### Phase 2: Budgeting & FX
+**Plans**: pending
 
-**Goal**: A user can model their household money: define accounts, define categories with both a normal and a cushion limit, capture expenses/income/transfers in any currency through a form, edit transactions via correction rows (original immutable), search/filter, and run recurring transactions — all on top of an append-only `expense_ledger` that stores original-and-default amounts plus the FX rate as of the transaction date, and behind an `Idempotency-Key` middleware so PWA offline-then-reconnect retries are safe.
+### Phase 2: Domain & API Restructure
+
+**Goal**: With the schema renamed (Phase 1), restructure the backend so the new IA's data flows work end-to-end at the API surface — even though the v1.0 UI still wraps it. Transaction domain stripped to categorical-only, recurring-engine extended for daily/weekly/yearly cadence, reserves-auto-compute SQL view shipped, share-link backend routes live behind Better Auth orgs plugin. By the end of this phase, every v1.1 API endpoint the frontend will eventually call exists and is integration-tested.
 **Depends on**: Phase 1
-**Requirements**: MONY-03, MONY-04, MONY-05, MONY-06, ACCT-01, ACCT-02, ACCT-03, ACCT-04, BDGT-01, BDGT-02, BDGT-03, BDGT-04, BDGT-05, BDGT-06, BDGT-07, BDGT-08, EXPN-01, EXPN-02, EXPN-03, EXPN-06, EXPN-08, EXPN-09, EXPN-10, EXPN-11, EXPN-12, EXPN-13, ENGR-09, ENGR-14
+**Requirements**: TXN-01, TXN-02, TXN-03, TXN-04, TXN-05, TXN-06, TXN-07, TXN-08, RECR-01, RECR-02, RSCM-01, RSCM-02, SHRD-01, SHRD-02, SHRD-03, SHRD-05, ENGR-01, ENGR-02, ENGR-03, ENGR-04
 **Success Criteria** (what must be TRUE):
 
-1. User can create accounts of every supported kind (cash, checking, savings, credit card, loan, investment) per personal/shared scope, set/update manual balances, archive accounts (history preserved), and view balance in both account currency and family default currency
-2. User can create categories per scope with a normal monthly limit and a separate cushion monthly limit, group them one level, edit limits with audit history visible in UI, archive categories, and apply a budget template to a new month
-3. User can capture an expense, income, or transfer via form in any currency on any date; the resulting `expense_ledger` row stores `(amount_orig, currency_orig, amount_default, currency_default, fx_rate, fx_rate_date, fx_provider)` with `fx_rate_stale=true` flag falling back to most-recent-prior rate when Frankfurter is unavailable; user cannot UPDATE or DELETE a ledger row at the SQL level
-4. User can edit a past transaction (creates a new correction row linking via `corrects_id`; original immutable; latest-only view derived from `WHERE id NOT IN (SELECT corrects_id FROM expense_ledger WHERE corrects_id IS NOT NULL)` per D-05-a), schedule recurring transactions (PENDING-by-default per D-01-e — engine generates drafts requiring user Confirm/Edit-confirm/Skip) that the engine generates at due date, search/filter by date/category/account/scope/text, and bulk re-categorize a set of transactions
-5. Every mutating endpoint accepts an `Idempotency-Key` header; replaying the same key within 24h returns the cached response without producing a duplicate ledger row or duplicate outbox event; projections (e.g. spending-by-category-month) update in the same transaction as ledger writes and a reconciliation cron + replay-from-ledger command can rebuild them
-   **Plans**: 9 plans
-   **UI hint**: yes
+1. Posting to `/budgets/[id]/transactions` with `{date, category_id, amount_original_cents, currency_original, note?}` creates a row with both original and converted amounts (FX-converted at txn date via Frankfurter adapter) and `confirmed_at = now()` for quick-entry; `kind` / `account_id` / `to_account_id` / `direction` are gone from the request/response schema and storage
+2. PATCH to a transaction allows currency-override; the response payload includes original-amount + converted-amount + fx_rate + fx_as_of so the side slider can display "5.00 USD · ~4.20 EUR @ 0.84 (2026-05-11)"; income/transfer endpoints removed; pending-drafts-inbox route removed
+3. Recurring rules accept daily / weekly / monthly / yearly cadence with day-of-week and day-of-month selectors; pg-boss materializes due rules into transactions with `confirmed_at IS NULL`; an integration test confirms a weekly rule due today produces exactly one pending-draft per run
+4. Per-category reserve balance is queryable via a SQL view that re-evaluates as transactions and category_limits change; cushion-mode history is tracked so each historical month evaluates against the mode active at that time; the view returns 0 for a new category with no history
+5. Calling the share-link create endpoint on a SHARED budget returns a token-bound invite URL (Better Auth orgs plugin) with configurable TTL (default 7d); owner can revoke any active link; tenant-leak CI gate remains green; dependency-cruiser blocks domain imports of drizzle-orm / Hono / AI SDK / `adapters/`; every new route has at least one integration test in `apps/api/test/routes/`; domain coverage threshold (80%) in `bunfig.toml` is preserved
 
-Plans:
+**Plans**: pending
 
-- [x] 02-01-PLAN.md — Money/Currency primitives, validateShares, Temporal helpers, supported_currencies bootstrap, test scaffolding
-- [x] 02-02-PLAN.md — FrankfurterFxProvider adapter (ENGR-09 ACL), fx_rates cache, daily 17:00 CET pg-boss fetcher, GET /fx/rate route, schema push
-- [x] 02-03-PLAN.md — Idempotency-Key middleware (shared_kernel.idempotency_keys per D-05-c), 24h TTL, hourly cleanup, cross-tenant + cross-user scope
-- [x] 02-04-PLAN.md — Accounts CRUD + balance_adjustments + Hono routes + RHF form + Assets/Liabilities UI (ACCT-01..04)
-- [x] 02-05-PLAN.md — Categories + effective-dated category_limits + budget_templates + share_overrides (sum-100 deferred trigger) + budget_mode_history (BDGT-01..08)
-- [x] 02-06-PLAN.md — ALTER expense_ledger Phase-2 columns + DROP corrected_by_id + transaction-repo single-tx writer (ledger + balance + projection + outbox) + capture form (EXPN-01..03, -11, -13)
-- [x] 02-07-PLAN.md — Edit-via-correction-row + getTransactionHistory + edit form + history panel (EXPN-06, -13)
-- [x] 02-08-PLAN.md — Recurring rules + recurring_drafts (PENDING-by-default per D-01-e/f/g) + pg-boss engine + confirm/edit/skip use cases + drafts inbox UI (EXPN-08)
-- [x] 02-09-PLAN.md — Search/filter (FTS plainto_tsquery + cursor) + bulk-recategorize + reconciliation cron + replay-budgeting CLI + UI (EXPN-09, -10, ENGR-14)
+### Phase 3: Navigation, Home & BDP Frame
 
-**Wave structure** (serial — same-wave file-overlap check forces serialization since post-migration.sql, app.ts, boot.ts, contracts/factory.ts, i18n JSONs, e2e steps glue are touched by most plans):
-
-| Wave | Plan  | Notes                                                                                                  |
-| ---- | ----- | ------------------------------------------------------------------------------------------------------ |
-| 1    | 02-01 | Domain primitives, no deps                                                                             |
-| 2    | 02-02 | FX adapter (pushes fx_rates schema first)                                                              |
-| 3    | 02-03 | Idempotency middleware (writes app.ts middleware order — must follow 02-02's route mount)              |
-| 4    | 02-04 | Accounts (writes app.ts/boot.ts/post-migration.sql)                                                    |
-| 5    | 02-05 | Categories + limits + templates + shares + mode toggle                                                 |
-| 6    | 02-06 | Transaction writer + ALTER expense_ledger + projection schema                                          |
-| 7    | 02-07 | Edit-via-correction (extends 02-06 transaction-list)                                                   |
-| 8    | 02-08 | Recurring engine (writes recurring page route + i18n + factory + e2e steps glue — overlaps with 02-07) |
-| 9    | 02-09 | Search/filter/bulk + reconciliation cron + replay CLI                                                  |
-
-Serialization tradeoff: parallel speedup is forfeited because post-migration.sql, contracts/factory.ts, en/pl/uk.json, and the e2e step-glue file are shared edit targets. Refactoring those into per-plan partial files would unlock parallel execution in v1.x — out of scope for this phase.
-
-**Action items for `/gsd-transition`** (per CONTEXT.md D-01-c):
-
-- Move `EXPN-07` from Active → Out of Scope in `REQUIREMENTS.md` (one-transaction-one-category model). Already removed from Phase 2 requirement line above.
-- Add a new requirement (suggested ID `EXPN-14` or annotate EXPN-08) for "Pending recurring drafts inbox surface" per D-01-e.
-
-### Phase 3: Reserve, Investments, Cushion
-
-**Goal**: Three opt-in capabilities ship in parallel on top of Budgeting events — Reserve (logical balance per category with month-end sweep), Investments (multi-asset positions with pluggable price providers), and Cushion (target snapshot vs multi-asset holdings adequacy in default currency) — each a bounded context that depends only on Budgeting and never on the others. Parallel-eligible: `/gsd-execute-phase` can fan out.
+**Goal**: Replace the v1.0 sidebar+pages chrome with the v1.1 top-nav budget switcher + combined home page + Budget Detail Page tab shell. This phase ships the structural UI scaffold — the routes, the dropdown, the cards, the sticky-pill tabs, the task-banner shell — that every subsequent tab phase plugs into.
 **Depends on**: Phase 2
-**Requirements**: RSRV-01, RSRV-02, RSRV-03, RSRV-04, RSRV-05, RSRV-06, RSRV-07, RSRV-08, INVT-01, INVT-02, INVT-03, INVT-04, INVT-05, INVT-06, INVT-07, CSHN-01, CSHN-02, CSHN-03, CSHN-04, CSHN-05, CSHN-06
+**Requirements**: NAV-01, NAV-02, NAV-03, NAV-04, NAV-05, HOME-01, HOME-02, HOME-03, HOME-04, BDP-01, BDP-02, BDP-03, BDP-04, BDP-05
 **Success Criteria** (what must be TRUE):
 
-1. Family can enable Reserve mode, configure the external account holding reserve funds, see UI labelled "Logical reserve · cash sits in your bank · we suggest moves", and on month-end run an idempotent sweep that emits a "Move X to Reserve" Task per under-spent category and a "Move X from Reserve" Task per over-spent category covered by reserve balance — replaying the sweep on the same period yields zero duplicate Tasks (period-scoped UNIQUE key)
-2. User can confirm/decline each Reserve move; logical balance per category and total updates only on confirm; Reserve insights surface balance per category, suggested top-ups, and suggested withdrawals over time
-3. User can record investment positions across stocks, ETFs, crypto, physical gold, real estate, bonds, and other; per asset choose manual snapshots or API price feed (v1 ships Twelve Data for stocks/ETFs, CoinGecko for crypto, metals.dev with GoldAPI fallback for gold; real estate and bonds remain manual); each price source sits behind a `PriceProvider` port; investment growth is computed in default currency per asset/class/total
-4. User can configure cushion target as N months of cushion-budget totals with a snapshot captured at config time, declare cushion holdings across multiple accounts/asset kinds (cash any currency, bonds, gold, etc.), and see target-vs-current both in default currency — with the snapshot timestamp visible in UI so editing budget limits does not silently shift the target
-5. Cushion-below-target and cushion-above-target-by-margin conditions become observable as future-Task-eligible signals (Tasks themselves emitted in Phase 4); investment-snapshot-stale condition is observable as a future-Task signal too
-   **Plans**: TBD
-   **UI hint**: yes
+1. Top nav shows the current budget name + private/shared icon + chevron; clicking opens a dropdown grouped Personal / Shared listing all budgets the user has access to, with an aside `+` button (not a list item) that navigates to `/budgets/new`; the standalone `/workspaces` list page no longer exists in the routing tree
+2. `/` renders one card per budget the user can access; each card shows budget name, type badge, current-month total spent, total wallet value (converted to `display_currency`), and the top 1–2 overspent categories; clicking a card navigates to `/budgets/[id]/spendings`; a placeholder chart component renders below the cards
+3. `/budgets/[id]` renders sticky pill-style horizontal tabs in order Spendings · Reserves · Wallets · Settings; default tab is Spendings; the active pill is highlighted with the yellow accent per DESIGN.md; clicking each tab navigates to the matching sub-route and browser back/forward respects those routes
+4. When the tasks API returns ≥1 pending task for the current budget, a task banner renders above the tabs with a count chip; clicking the banner expands an inline list (kind-specific action wiring is filled in Phase 7; this phase ships the shell)
+5. All four tab routes (`/budgets/[id]/spendings`, `/reserves`, `/wallets`, `/settings`) are reachable and render placeholder content where the real content will land in Phases 4–6
 
-### Phase 4: Tasks, Insights, Notifications
+**Plans**: pending
+**UI hint**: yes
 
-**Goal**: Three parallel contexts give the product its differentiator and feedback loop — the Tasks queue (deterministic generators only, dismiss/snooze/done state machine, single inbox), the Insights/charts dashboard (investment growth, spending growth, overspent timeline, reserve stats, cushion adequacy, net worth, income vs expense), and Notifications (Resend email + web-push VAPID with per-user/per-event toggles). Parallel-eligible after Phase 3 because all three consume B+C events through the in-process bus.
+### Phase 4: Spendings Grid
+
+**Goal**: Ship the core product surface — the Excel-like Spendings tab. Column-per-category grid with the 5-row header (name / planned-or-cushion / overspent / reserves-used / balance), bottom quick-entry input on every column, pen-icon side slider for category and transaction edit, drag-to-reorder column headers, dashed `+` column for new categories, arrow-key month navigation, and recurring drafts surfaced as highlighted rows in their target column with an inline Confirm action. Real-time reserve-deduction display from RSCM is wired so row 4 of every header updates when a new transaction pushes the category over its active budget.
 **Depends on**: Phase 3
-**Requirements**: TASK-01, TASK-02, TASK-03, TASK-04, TASK-05, TASK-06, TASK-07, TASK-08, INSI-01, INSI-02, INSI-03, INSI-04, INSI-05, INSI-06, INSI-07, NOTF-01, NOTF-02, NOTF-03, NOTF-04
+**Requirements**: GRID-01, GRID-02, GRID-03, GRID-04, GRID-05, GRID-06, GRID-07, GRID-08, GRID-09, GRID-10, GRID-11, GRID-12, GRID-13, GRID-14, GRID-15, RECR-03, RECR-04, RECR-05, RECR-06, RECR-07, RSCM-03, RSCM-04
 **Success Criteria** (what must be TRUE):
 
-1. User sees a single Tasks inbox with system-generated deterministic suggestions: move-to-reserve, move-from-reserve, category-overspent (`actual > limit + reserve coverage`), cushion-below-target, cushion-above-target-by-margin, missing-investment-snapshot — none of which are produced by an LLM
-2. User can dismiss, snooze, or mark a Task done; a dismissed Task does not reappear unless the underlying state changes (e.g. another overspend after a fresh expense); state transitions are auditable
-3. User sees charts in default currency: investment growth per asset/class/total over time, spending growth per scope and per category, overspent timeline per category, reserve balance/inflow/outflow per category over time, cushion adequacy over time, net worth + trend, income vs expense by month
-4. User receives transactional and budget-alert email via Resend; user can install the PWA, accept push permission at a meaningful trigger (post-onboarding or post-first-expense — never at signup), and receive a web-push notification (VAPID + service worker) for a high-priority Task
-5. Per-channel and per-event notification toggles are honored: turning off a category means no email and no push for that category; turning off web-push without revoking permission still suppresses delivery server-side
-   **Plans**: TBD
-   **UI hint**: yes
+1. User types `5.96` + Enter in any column's bottom quick-entry input and within ~200ms a new transaction appears in that column's list (newest first), the input clears, and the column header's overspent / reserves-used / balance rows update; hovering a transaction row reveals a pen icon that opens a side slider with date / category / amount / currency / note fields plus delete
+2. Clicking the pen icon on a column header opens a side slider that edits both planned and cushion values (saved as SCD-2 versions of `category_limits`); the dashed `+` column at the right edge opens the same slider in create mode and a new category appears as a new column on save
+3. Column headers can be drag-reordered; the new order persists to `categories.sort_index` per-budget; row 4 ("Reserves used") and row 3 ("Overspent") of the header recompute correctly using `max(0, spent − active_budget − reserve_used)` where `active_budget = cushion` when `budget.cushion_mode_enabled` else `planned`; the search bar and filter chips from v1.0 are gone
+4. Arrow keys ←/→ shift the month without leaving the Spendings tab and the current month label updates; past months render the same grid in read-only quick-entry mode (transaction pen-edit still works); on mobile the grid horizontal-scrolls cleanly
+5. When pg-boss materializes a recurring rule, the resulting pending-draft renders as a highlighted row (distinct background per DESIGN.md) in its target category column; user clicks "Confirm" → row transitions to normal styling and `confirmed_at = now()`; user can edit a draft before confirming via pen icon; user can dismiss a draft without confirming; the standalone pending-drafts-inbox page is gone
 
-### Phase 5: Onboarding & Comparison
+**Plans**: pending
+**UI hint**: yes
 
-**Goal**: Two LLM/privacy-sensitive contexts ship in parallel — the conversational Onboarding wizard (text + voice in user's locale, structured Zod-validated output via Vercel AI SDK, ACL re-validates against domain invariants, daily token cap) which also unlocks voice expense capture (STT port shared); and Anonymous Family Comparison (dedicated anonymizer worker with separate role + ACL, k-anonymity floor k≥20, closed system-category taxonomy, quasi-identifier generalization, opt-in revocable consent, output to `comparison.*` schema with no per-row tenant_id, gated behind a DPIA before launch). Parallel-eligible. **DPIA gate must pass before Comparison goes live to users.**
+### Phase 5: Reserves & Wallets Tabs
+
+**Goal**: Ship the two tabs that share a layout primitive (data table with computed and inline-editable rows). Reserves tab surfaces the auto-computed per-category balances and reserve-wallet-share column for visual reconciliation; Wallets tab is the always-inline editable list (name / currency / amount / type) with `+ Add` and delete affordances.
 **Depends on**: Phase 4
-**Requirements**: ONBD-01, ONBD-02, ONBD-03, ONBD-04, ONBD-05, ONBD-06, ONBD-07, EXPN-04, EXPN-05, CMPR-01, CMPR-02, CMPR-03, CMPR-04, CMPR-05, CMPR-06, CMPR-07, CMPR-08
+**Requirements**: RSRV-01, RSRV-02, RSRV-03, RSRV-04, RSRV-05, RSRV-06, RSRV-07, WALT-01, WALT-02, WALT-03, WALT-04, WALT-05, WALT-06, WALT-07
 **Success Criteria** (what must be TRUE):
 
-1. After signup, a new user runs a conversational Q&A wizard in their UI/voice locale (text + voice) that produces a starting set of categories with normal + cushion budgets, where the LLM uses only `generateObject` with Zod-validated structured output, the Onboarding ACL re-validates each field against domain invariants (LLM never directly creates rows), the wizard output is editable forever, and the user's daily LLM token cap degrades to manual entry on cap-hit without erroring
-2. User can capture an expense via voice — Browser Web Speech or Groq STT, switchable per user; voice flow always shows a structured preview (parsed amount, currency, category) before save; LLM is bounded to onboarding only — voice→expense uses deterministic locale-aware amount extraction with LLM only for category/note
-3. User can opt in to Anonymous Family Comparison via an explicit revocable consent flow; opt-out is honored within one anonymization run; user category is mapped through a closed system-category taxonomy; quasi-identifiers are generalized (region at country level, household size bucketed 1/2/3-4/5+, currency top-5 + other)
-4. Anonymizer worker runs under a dedicated DB role with a separate ACL distinct from the app role; output lands in a `comparison.*` schema with no per-row `tenant_id`; cohorts smaller than k=20 (tenant-policy-configurable) are suppressed and the user sees a "not enough data yet" state; CI test asserts the app role cannot read `comparison.*`
-5. DPIA + GDPR + CCPA review passes before Comparison is enabled in production: privacy notice, lawful basis documented, retention defined, opt-out flow verified, k-floor verified by red-team query attempt
-   **Plans**: TBD
-   **UI hint**: yes
+1. Reserves tab renders a table with columns Category / Reserve balance / Reserve wallet share / Actions; the per-category balance equals the cumulative `max(0, active_budget(m) − spent(m))` over past months minus reserves already pulled to cover subsequent-month overspends, with cushion-mode-as-of-month respected; a new category with zero history shows balance 0
+2. When the current month's spending pushes a category over its active budget, the relevant category's reserve balance drops in real-time (visible both on this tab and on Spendings grid row 4); per-category isolation holds — Housing reserve cannot fund Groceries overspend; the wallet-share column equals `(this category's reserve / Σ all reserves) × Σ(reserve-type wallet amounts)`
+3. Wallets tab renders one row per wallet with always-inline editable cells: Name (text), Currency (select), Amount (numeric), Type (single-select Spendings / Cushion / Reserve as radio or segmented control); Tab key moves focus between cells; on blur each cell auto-saves with a toast confirmation
+4. Clicking `+ Add wallet` at the bottom spawns a blank row with focus on Name; hovering a row reveals a trash icon that triggers a confirmation, then deletes; wallet balances do not auto-update from transactions (manual snapshots only); the type label is display-only — no income or transfer ledger affects it
+5. Reserves tab Actions column wires to the Phase 7 task model surface (top-up / withdraw) but stays inert in this phase; both tabs render correctly on mobile and respect the per-budget tenant context
 
-### Phase 6: Launch Hardening
+**Plans**: pending
+**UI hint**: yes
 
-**Goal**: Take the system from feature-complete to launch-ready: Serwist PWA polish (offline read of last-loaded data, install prompt at the right moment), GDPR data export per user/family + crypto-shredding right-to-delete, CCPA opt-out for analytics/comparison, multi-arch Docker images for production, observability stack (pino structured logs + OpenTelemetry traces + Sentry errors), monthly digest available in-app and via optional email, deploy hardening (stateless app tier with documented horizontal-scale path), and a green smoke + Playwright E2E suite covering install/push/voice/comparison-suppression flows.
+### Phase 6: Settings, Onboarding & Share UI
+
+**Goal**: Ship the three settings-shaped form flows together: the Budget Settings tab (identity / cushion toggle / recurring CRUD / members for SHARED / danger zone), the post-signup Onboarding wizard, and the share-link recipient join flow. All three share form primitives, locale rendering, and the Better-Auth-orgs share-link backend from Phase 2.
 **Depends on**: Phase 5
-**Requirements**: PLAT-01, PLAT-03, PLAT-04, PLAT-07, PLAT-08, PLAT-09, PLAT-10, INSI-08
+**Requirements**: SETT-01, SETT-02, SETT-03, SETT-04, SETT-05, SETT-06, SETT-07, SETT-08, SETT-09, ONBD-01, ONBD-02, ONBD-03, ONBD-04, ONBD-05, ONBD-06, ONBD-07, ONBD-08, ONBD-09, SHRD-04
 **Success Criteria** (what must be TRUE):
 
-1. User can install the PWA from a supported browser, see last-loaded data offline, and the service worker has a clean update strategy (no stale assets after deploy); the install prompt fires at the meaningful trigger defined in Phase 4 (post-onboarding or post-first-expense)
-2. User can request a GDPR data export of their personal scope and a family owner can request the family's export — both produced as a machine-readable archive within the documented SLA
-3. User can request right-to-delete; their per-user DEK is destroyed (crypto-shredded) so PII columns become unreadable while ledger amount/date rows survive immutably; CCPA opt-out for analytics and Comparison is honored end-to-end
-4. Production deploys via multi-arch Docker images (buildx); the app tier is stateless (sticky session not required); pino + OpenTelemetry + Sentry are wired so a single request shows correlated logs/traces/errors; monthly digest is available in-app and as an opt-in email
-5. Smoke + Playwright E2E suite is green covering: signup→onboarding wizard→first expense→install PWA→accept push→receive Task push; voice expense flow with structured preview; Comparison opt-in with k<20 suppression; right-to-delete crypto-shred verification; ledger UPDATE/DELETE blocked at SQL level
-   **Plans**: TBD
-   **UI hint**: yes
+1. Settings tab renders vertically-stacked sections Budget identity (name editable; currency editable until first transaction then locked with tooltip) · Cushion mode (toggle that persists `budgets.cushion_mode_enabled` and visibly switches grid headers and reserve calc to cushion values) · Recurring rules (CRUD list with name / amount / currency / category / cadence with day-of-\* selectors / start / optional end / active toggle) · Members (only for SHARED budgets) · Danger zone
+2. SHARED budget Members section lists current members with roles, exposes a "Generate share link" button that copies the token URL to clipboard, supports revoke per member, and supports "Leave budget" with last-owner protection; Danger zone offers Archive (soft-delete) and Delete (typed-name confirmation hard-delete); categories are NOT directly managed in Settings (Phase 4's pen-icon is the only category-edit surface)
+3. After a fresh signup, the user is redirected to `/budgets/new` and walks through Step 1 budget name → Step 2 currency picker (default = browser locale guess) → Step 3 budget type radio (Private / Shared, default Private) → Step 4 starter category multi-select (Housing, Groceries, Transport, Eating Out, Entertainment, Health, Subscriptions, Other; each pre-populates planned=0, cushion=0) → Step 5 optional skip → empty budget; the same wizard opens when the user clicks `+` in the top-nav switcher dropdown
+4. Wizard state persists in `onboarding_progress(user_id, step, completed_at)` so the wizard is resumable after a refresh / sign-out / sign-in; on finish the user is redirected to `/budgets/[new_id]/spendings`
+5. Recipient who clicks a valid share link lands on a confirmation page showing "Join {budget name}", clicking the action creates membership via Better Auth orgs plugin and redirects to `/budgets/[id]/spendings`; revoked or expired links show an error state
 
-## Deferred (v1.x and v2+)
+**Plans**: pending
+**UI hint**: yes
 
-These appear in REQUIREMENTS.md but are explicitly NOT scheduled in v1. Listed here for visibility; do not plan against them.
+### Phase 7: Tasks Queue
 
-**v1.x deferred:**
+**Goal**: Surface the Tasks queue end-to-end. The `tasks` table from Phase 1 plus the four deterministic generators (reserve mismatch / recurring draft due / stale wallet / month-end rollover) plus the BDP task banner expansion plus the kind-specific resolution actions. Auto-resolve on underlying state change so the queue never grows stale.
+**Depends on**: Phase 6
+**Requirements**: TASK-01, TASK-02, TASK-03, TASK-04, TASK-05, TASK-06, TASK-07, TASK-08
+**Success Criteria** (what must be TRUE):
 
-- IDNT-2FA — TOTP 2FA support
-- IDNT-OAUTH — Social login (Google, Apple)
-- EXPN-TAGS — Tags on transactions (separate from categories)
-- EXPN-WHO — "Who paid" attribution per shared transaction
-- EXPN-CSV — CSV import (in addition to GDPR export)
-- BDGT-AUTORULES — Rule-based auto-categorization
-- PLAT-REGION — Region-per-family hosting selection at signup
-- INVT-BONDDEEP — Structured manual bond inputs with yield/coupon/accrual
+1. When `Σ(category reserve balances) ≠ Σ(reserve-type wallet amounts)`, a `RESERVE_TOPUP` task appears in the BDP banner with title (i18n) `"Top up reserve by {amount}"` or `"Withdraw {amount} from reserve"` and payload including diff and direction; when the user manually adjusts a reserve-wallet balance so sums match, the task auto-resolves and disappears from the banner
+2. When pg-boss materializes a recurring rule into a pending-draft (Phase 2), a `CONFIRM_DRAFT` task appears; when the user confirms or dismisses the draft (Phase 4 inline action), the task auto-resolves; user can also resolve it from the banner via a primary "Confirm" action
+3. When a wallet's `updated_at` exceeds the configured threshold (default 30 days, configurable per budget), a `STALE_WALLET` task appears for that wallet; when the user edits any cell on that wallet row (Phase 5), the task auto-resolves
+4. On month rollover, a `MONTH_END_REVIEW` task fires for every budget; the task auto-resolves either when the user dismisses it from the banner or after N days, whichever comes first
+5. The BDP task banner shows a count chip (`N tasks pending`) and expands inline on click to a list of tasks with kind-specific primary action buttons; titles render correctly in EN / PL / UK; tasks list endpoint is RLS-scoped to the current budget; backend writes pass through the tenant guard
 
-**v2+ deferred:**
+**Plans**: pending
+**UI hint**: yes
 
-- EXPN-BANK — Bank API integration (Plaid / Open Banking)
-- EXPN-OCR — Receipt photo OCR
-- EXPN-EMAIL — Receipt forwarding via email
-- PLAT-NATIVE — Native iOS/Android apps
-- EXPN-ML — ML auto-categorization
-- BDGT-CUSTOMPERIOD — Non-monthly budget periods
-- TENT-KIDS — Kid accounts with limited permissions
-- INSI-PROJ — Forward projections (cashflow forecast)
-- PLAT-API — Public API + webhooks
+### Phase 8: PWA, Offline, Push, i18n & E2E Hardening
 
-## Bounded-Context Map
+**Goal**: Take v1.1 from feature-complete to launch-ready. Serwist offline shell over the new IA; IndexedDB cache of last-synced budgets / wallets / categories / current-month transactions; offline quick-entry with sync-on-reconnect using Idempotency-Key; VAPID web-push wired to task creation respecting per-user/per-budget preferences with deep-links to `/budgets/[id]/[tab]` with the task expanded; full EN/PL/UK i18n rewrite for the new IA (numbers via Intl.NumberFormat, dates via Temporal + Intl.DateTimeFormat); playwright-bdd Gherkin features and Page Objects rewritten end-to-end against the new flows; tenant-leak + domain-coverage CI gates green.
+**Depends on**: Phase 7
+**Requirements**: PWAX-01, PWAX-02, PWAX-03, PWAX-04, PWAX-05, PWAX-06, I18N-01, I18N-02, I18N-03, I18N-04, I18N-05, E2EX-01, E2EX-02, E2EX-03, E2EX-04, E2EX-05
+**Success Criteria** (what must be TRUE):
 
-The 11 bounded contexts (per ENGR-03) ship across phases as follows:
+1. PWA is installable from a supported browser (manifest + service worker registered on every page); when the user goes offline they can still read their last-synced budgets, wallets, categories, and current-month transactions; airplane-mode quick-entry on the Spendings grid queues a transaction locally and syncs successfully on reconnect with no duplicates (Idempotency-Key respected)
+2. User can enable web-push notifications per-budget; VAPID web-push fires on creation of `RESERVE_TOPUP` / `CONFIRM_DRAFT` / `STALE_WALLET` / `MONTH_END_REVIEW` tasks respecting per-user/per-budget preferences; clicking a push notification deep-links to `/budgets/[id]/[tab]` with the relevant task pre-expanded
+3. Every v1.1 message key is delivered in EN, PL, and UK; the `workspaces.*` and `accounts.*` namespaces no longer exist in the message catalogs (replaced by `budgets.*` and `wallets.*`); monetary amounts display via `Intl.NumberFormat` with the budget's currency; dates display via Temporal + `Intl.DateTimeFormat` per user locale; locale is persisted on `users.locale` and switchable from the user menu
+4. playwright-bdd `.feature` files cover quick-entry transaction, recurring draft confirm, real-time reserve auto-deduct, cushion-mode toggle, share-link recipient join, and the onboarding wizard end-to-end; Page Objects target renamed entities; fresh-user-per-scenario fixture is retained; E2E is green when run against `PLAYWRIGHT_BASE_URL` from `.env.local`
+5. CI gates green: `make ci-gate` 6/6 on renamed tables; `make test` passes with 80% domain coverage; `bun run test` (Vitest component) passes; `make test-e2e` (Playwright BDD) passes; dependency-cruiser still blocks domain imports of drizzle / Hono / AI SDK / adapters
 
-| Context       | Phase | Notes                                                       |
-| ------------- | ----- | ----------------------------------------------------------- |
-| Identity      | 1     | Better Auth + email/password + sessions + locale            |
-| Tenancy       | 1     | Family workspace, RLS, organization plugin                  |
-| Budgeting     | 2     | Accounts, Categories, Budgets, Expense ledger, FX           |
-| Reserves      | 3     | Logical balance, end-of-month sweep, parallel-eligible      |
-| Cushion       | 3     | Target snapshot, multi-asset adequacy, parallel-eligible    |
-| Investments   | 3     | Asset classes, pluggable price providers, parallel-eligible |
-| Tasks         | 4     | Deterministic generators only, parallel-eligible            |
-| Insights      | 4     | Charts + projections reconciliation, parallel-eligible      |
-| Notifications | 4     | Resend email + web-push VAPID, parallel-eligible            |
-| Onboarding    | 5     | LLM bounded here only; voice STT port, parallel-eligible    |
-| Comparison    | 5     | Anonymizer worker + ACL + DPIA gate, parallel-eligible      |
+**Plans**: pending
+**UI hint**: yes
 
-Shared kernel (`Money`, `Currency`, `TenantId`, `UserId`, `Clock`, `Result`) and platform (RLS helpers, outbox, event bus, i18n, logging, tracing) ship in Phase 1 and are extended (not redesigned) in later phases.
+## Risk Register
 
-## Cross-Phase Tensions
+| Risk                                                                       | Probability         | Impact | Owning Phase | Mitigation                                                                                                              |
+| -------------------------------------------------------------------------- | ------------------- | ------ | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Single mega-migration in Phase 1 fails partway, leaves dev DB inconsistent | Medium              | High   | 1            | Dev DB nuke is in-scope (MIG-09); migration is idempotent + atomic; rerun on fresh DB is the recovery path              |
+| Reserves auto-compute SQL view performance degrades with txn volume        | Low (small data v1) | Medium | 2, 5         | Start as a regular view; materialized view is a fallback decided in plan-phase; benchmarks in Phase 5 integration tests |
+| Cushion-mode history tracking adds schema complexity if user toggles often | Medium              | Medium | 1, 2         | Plan-phase decides between SCD-2 mini-table vs snapshot in audit log; both are pre-considered in v1.1-SPEC §8           |
+| Drag-to-reorder collides with quick-entry input keyboard focus             | Low                 | Low    | 4            | Reorder is mouse-only on column header chip; quick-entry input is below the row that triggers drag                      |
+| Recurring-engine pg-boss job runs before draft schema reaches new shape    | Low                 | High   | 2            | Phase 2 ships engine update AFTER Phase 1 migration; pg-boss queue is drained at deploy                                 |
+| Better Auth orgs invite-token flow doesn't expose programmatic revoke      | Medium              | Medium | 2, 6         | Probe in Phase 2 spike; if missing, layer a thin app-side revocation table on top                                       |
+| Offline IndexedDB cache schema drifts from server schema                   | Medium              | Medium | 8            | Cache writes go through a Zod schema shared with server contracts; bump cache version on schema change                  |
+| i18n PL/UK translation quality lags EN                                     | Medium              | Low    | 8            | Use Phase 8 i18n rewrite as the natural review checkpoint; user can self-review PL/UK                                   |
+| Playwright BDD rewrite blocks launch                                       | Medium              | High   | 8            | Phase 8 budgets explicit time for E2E rewrite; flows are already known from v1.0 features file                          |
+| Tasks queue produces noise (false positives auto-firing)                   | Medium              | Medium | 7            | All generators deterministic with auto-resolve on state change; user can dismiss; threshold tuning lives in plan-phase  |
 
-These are reconciled in the phases that own them:
+## Dependency Graph
 
-| Tension                                                       | Owning Phase(s) | Resolution location                                                                               |
-| ------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
-| RLS + workers (no BYPASSRLS worker role; jobs carry tenantId) | 1               | Tenancy + platform; CI gate in Phase 1                                                            |
-| Append-only ledger + GDPR Article 17 (crypto-shredding)       | 1, 6            | PII/ledger schema split day 1 (Phase 1); DEK destroy flow ships Phase 6                           |
-| Comparison crosses tenant boundary                            | 1, 5            | Anonymizer DB role + `comparison.*` schema designed in Phase 1 RLS work; ACL + k-floor in Phase 5 |
-| PWA offline + idempotency                                     | 2, 6            | `Idempotency-Key` middleware in Phase 2; PWA polish in Phase 6                                    |
-| LLM scope (Onboarding only; Tasks deterministic)              | 4, 5            | Tasks generators deterministic in Phase 4; LLM adapter contained in Onboarding in Phase 5         |
-| Cushion target snapshot to avoid silent shifts                | 3               | Snapshot at config time + UI shows snapshot date                                                  |
-| FX historical rate + back-dated expenses + weekend gaps       | 2               | Local cache + stale-flag fallback inside Phase 2                                                  |
-| ORM types leaking into domain                                 | 1               | dependency-cruiser CI rule in Phase 1                                                             |
-| End-of-month sweep duplicate Tasks on retry                   | 3               | Period-scoped UNIQUE key in Phase 3                                                               |
+```
+Phase 1 (Schema/Rename)
+   ↓
+Phase 2 (Domain/API + Recurring + Reserves view + Share-link backend)
+   ↓
+Phase 3 (Top-nav + Home + BDP shell)
+   ↓
+Phase 4 (Spendings grid + Recurring drafts inline + Real-time reserve deduct)
+   ↓
+Phase 5 (Reserves tab + Wallets tab)        ← can split into two parallel plan tracks
+   ↓
+Phase 6 (Settings + Onboarding + Share-join UI)
+   ↓
+Phase 7 (Tasks queue end-to-end)
+   ↓
+Phase 8 (PWA + Offline + Push + i18n + E2E)  ← cross-cutting; plans fan out
+```
+
+**Why no parallel phases:** Each phase's deliverable is a precondition for the next. Phase 5 can fan out at the plan level (Reserves and Wallets are independent tabs sharing only a primitive). Phase 8 is cross-cutting and its plans fan out (PWA vs i18n vs E2E are mostly independent file sets). Other phases are serial because each consumes the previous phase's surface as a hard dependency.
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
-Within Phase 3, sub-contexts (Reserve, Investments, Cushion) are parallel-eligible.
-Within Phase 4, sub-contexts (Tasks, Insights, Notifications) are parallel-eligible.
-Within Phase 5, sub-contexts (Onboarding, Comparison) are parallel-eligible.
+Within Phase 5, the Reserves and Wallets tabs are parallel-eligible at the plan level.
+Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan level.
 
-| Phase                             | Plans Complete | Status      | Completed |
-| --------------------------------- | -------------- | ----------- | --------- |
-| 1. Foundations                    | 0/TBD          | Not started | -         |
-| 2. Budgeting & FX                 | 0/TBD          | Not started | -         |
-| 3. Reserve, Investments, Cushion  | 0/TBD          | Not started | -         |
-| 4. Tasks, Insights, Notifications | 0/TBD          | Not started | -         |
-| 5. Onboarding & Comparison        | 0/TBD          | Not started | -         |
-| 6. Launch Hardening               | 0/TBD          | Not started | -         |
+| Phase                                       | Plans Complete | Status      | Completed |
+| ------------------------------------------- | -------------- | ----------- | --------- |
+| 1. Schema Migration & Rename Foundation     | 0/TBD          | Not started | -         |
+| 2. Domain & API Restructure                 | 0/TBD          | Not started | -         |
+| 3. Navigation, Home & BDP Frame             | 0/TBD          | Not started | -         |
+| 4. Spendings Grid                           | 0/TBD          | Not started | -         |
+| 5. Reserves & Wallets Tabs                  | 0/TBD          | Not started | -         |
+| 6. Settings, Onboarding & Share UI          | 0/TBD          | Not started | -         |
+| 7. Tasks Queue                              | 0/TBD          | Not started | -         |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -         |
+
+---
+
+_Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped._

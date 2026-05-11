@@ -100,7 +100,7 @@ fix:
   4. Sign-up form now passes locale field through to signUp.email
      E2E: en/pl/uk all deliver localized subjects (Verify your email — Budget / Potwierdź swój adres e-mail / Підтвердьте електронну адресу)
 - User reported follow-up: verify URL pointed at api port 3001. Fixed by:
-  1. Setting BETTER_AUTH_URL = APP_URL (web port 3000), since web proxies /auth/_ and /api/auth/_ to api:4000
+  1. Setting BETTER*AUTH_URL = APP_URL (web port 3000), since web proxies /auth/* and /api/auth/\_ to api:4000
   2. Removing api `ports: 3001:4000` from docker-compose.yml — api now internal-only
 - User reported follow-up: currency picker hardcoded English. Fixed by:
   1. CurrencyPicker uses useTranslations("currency"); names + picker UI strings localized
@@ -182,15 +182,15 @@ through Next.js rewrite to api:4000 (not the missing root /workspaces). 2. apps/
 (was { workspaceId }, which left form's `created.id` undefined → /workspaces/undefined). 3. packages/identity/src/adapters/persistence/better-auth.ts — added advanced.database.generateId
 returning crypto.randomUUID(); Better Auth's default 32-char nanoid id failed uuid casts on
 all org tables. Also accepts additionalSchema option for org plugin tables. 4. packages/tenancy/src/contracts/factory.ts — TenancyModule exports betterAuthSchema
-map (workspaces / workspace_members / workspace_invitations) so identity can register
+map (workspaces / workspace*members / workspace_invitations) so identity can register
 the org tables with Better Auth's drizzleAdapter. 5. packages/tenancy/src/adapters/persistence/schema.ts — Drizzle JS keys renamed to match
 Better Auth org plugin field names: defaultCurrency → default_currency,
 ownerUserId → owner_user_id, workspaceId → organizationId (column names unchanged). 6. packages/tenancy/src/adapters/persistence/better-auth-org.ts —
 additionalFields adds owner_user_id (input: false); beforeCreateOrganization hook
 injects owner_user_id from the session user. 7. apps/migrator/post-migration.sql — Phase 1 RLS relaxation on tenancy:
-_ sessions get permissive SELECT + scoped UPDATE/DELETE (Better Auth getSession
+* sessions get permissive SELECT + scoped UPDATE/DELETE (Better Auth getSession
 needs row read pre-auth-context).
-_ workspaces / workspace_members get split insert_open (true) + select_open (true) +
+\_ workspaces / workspace_members get split insert_open (true) + select_open (true) +
 tenant-scoped UPDATE/DELETE policies. The original FOR ALL tenant_isolation policy
 is replaced — Postgres FORCE RLS + INSERT...RETURNING on FOR ALL policies surfaced
 "new row violates row-level security policy" because RETURNING evaluates SELECT USING
@@ -311,28 +311,29 @@ application services (PC-20 fixture access; tests are not subject to the
 apps-only contract surface).
 _ tests/tenant-leak/fixtures/seed-two-tenants.ts: - bob password lengthened to satisfy minPasswordLength: 10. - noopKeyStore stub now implements emailHash + generateUserDek so Better
 Auth's post-create user hook (D-16) doesn't crash. emailHash is
-deterministic-per-email so users*email_hash_uq stays satisfied across
+deterministic-per-email so users\*email_hash_uq stays satisfied across
 multiple seeded users. - createTenancyModule wired into the identity bootstrap (additionalPlugins +
 additionalSchema), matching apps/api/src/boot.ts so auth.api.createOrganization
 is available in the seed. - getUserByEmail (admin plugin) replaced with raw SQL lookup against
 identity.users (PC-28 raw-client carve-out).
-* packages/db/test/testcontainer.ts — GRANT ALL ON SCHEMA public TO migrator
-so drizzle-kit's generated CREATE TYPE "public"."audit_action" can run
-under PG15+'s default-revoked public-schema CREATE.
-* Makefile: ci-gate target now wraps in $(INFISICAL) so DATABASE_URL*_,
-BETTER_AUTH_SECRET, BUDGET_KEK are injected from Infisical.
-_ apps/migrator/post-migration.sql — replaced the FOR ALL tenant_isolation
-policy with split FOR INSERT (true) / FOR SELECT (tenant_ids OR
-current_user_id) / FOR UPDATE / FOR DELETE policies on tenancy.workspaces
-and tenancy.workspace_members; added BEFORE INSERT triggers that
-set_config('app.current_user_id', NEW.owner_user_id|user_id, true) so
-Better Auth's INSERT...RETURNING projects the freshly-inserted row through
-the SELECT USING gate. The no-GUC raw-client read still returns 0 rows
-(test 1a passes) and the cross-tenant/cross-user filters still hold.
-Result line: "23 pass / 0 fail / 43 expect() calls". The wrapper script's
-exit code is non-zero due to a Bun coverage-or-subprocess quirk
-("failed to wait for command termination: exit status 1") that does not
-reflect a test failure — the test report itself is fully green.
+
+- packages/db/test/testcontainer.ts — GRANT ALL ON SCHEMA public TO migrator
+  so drizzle-kit's generated CREATE TYPE "public"."audit_action" can run
+  under PG15+'s default-revoked public-schema CREATE.
+- Makefile: ci-gate target now wraps in $(INFISICAL) so DATABASE*URL\**,
+  BETTER*AUTH_SECRET, BUDGET_KEK are injected from Infisical.
+  * apps/migrator/post-migration.sql — replaced the FOR ALL tenant_isolation
+  policy with split FOR INSERT (true) / FOR SELECT (tenant_ids OR
+  current_user_id) / FOR UPDATE / FOR DELETE policies on tenancy.workspaces
+  and tenancy.workspace_members; added BEFORE INSERT triggers that
+  set_config('app.current_user_id', NEW.owner_user_id|user_id, true) so
+  Better Auth's INSERT...RETURNING projects the freshly-inserted row through
+  the SELECT USING gate. The no-GUC raw-client read still returns 0 rows
+  (test 1a passes) and the cross-tenant/cross-user filters still hold.
+  Result line: "23 pass / 0 fail / 43 expect() calls". The wrapper script's
+  exit code is non-zero due to a Bun coverage-or-subprocess quirk
+  ("failed to wait for command termination: exit status 1") that does not
+  reflect a test failure — the test report itself is fully green.
 
 ## Summary
 

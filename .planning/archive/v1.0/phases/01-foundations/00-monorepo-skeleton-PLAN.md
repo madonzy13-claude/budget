@@ -62,7 +62,7 @@ must_haves:
   artifacts:
     - path: package.json
       provides: "Root Bun workspaces declaration"
-      contains: 'workspaces'
+      contains: "workspaces"
     - path: tsconfig.base.json
       provides: "Strict TS settings shared by all packages"
       contains: '"strict": true'
@@ -108,7 +108,7 @@ must_haves:
 <objective>
 Establish the monorepo skeleton, test rails, and CI gates that every later plan depends on.
 
-Purpose: Wave 0 is the blocking foundation per RESEARCH §Suggested Plan Decomposition. No code in Waves 1-3 can run without these scaffolds. This plan implements D-26 (Bun workspaces), D-27 (dependency-cruiser) + PC-02 carve-out (apps/* may import packages/*/src/index.ts + contracts/** only), D-28 (test runners), the ESLint `no-float-money` rule (D-19/MONY-07), the PC-04 grep gate (`.transaction(` only inside `packages/platform/src/db/tx.ts`), the PC-03 grep gate (`appPool().connect(` only inside `packages/platform/src/db/tx.ts`), and the PC-23 narrowed coverage scope (domain-only 80%). Per PC-26 the grep gates use file-level `--exclude=tx.ts` (the canonical location is `packages/platform/src/db/tx.ts`); per PC-28 they additionally `--exclude-dir=test` so the testcontainer helper and other test-only call sites are not flagged.
+Purpose: Wave 0 is the blocking foundation per RESEARCH §Suggested Plan Decomposition. No code in Waves 1-3 can run without these scaffolds. This plan implements D-26 (Bun workspaces), D-27 (dependency-cruiser) + PC-02 carve-out (apps/_ may import packages/_/src/index.ts + contracts/\*\* only), D-28 (test runners), the ESLint `no-float-money` rule (D-19/MONY-07), the PC-04 grep gate (`.transaction(` only inside `packages/platform/src/db/tx.ts`), the PC-03 grep gate (`appPool().connect(` only inside `packages/platform/src/db/tx.ts`), and the PC-23 narrowed coverage scope (domain-only 80%). Per PC-26 the grep gates use file-level `--exclude=tx.ts` (the canonical location is `packages/platform/src/db/tx.ts`); per PC-28 they additionally `--exclude-dir=test` so the testcontainer helper and other test-only call sites are not flagged.
 
 Output: A monorepo where `bun install`, `bun test`, `bunx depcruise`, and `bunx eslint` all run cleanly against empty-but-valid scaffolds.
 </objective>
@@ -134,31 +134,33 @@ package.json:
   "workspaces": ["apps/*", "packages/*"]
 
 <!-- Per-package package.json shape (each app/package mirrors this) — PC-15: NO /dist/, Bun runs TS natively -->
+
 {
-  "name": "@budget/<name>",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "main": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "bun test", "typecheck": "tsc --noEmit" }
+"name": "@budget/<name>",
+"version": "0.0.0",
+"private": true,
+"type": "module",
+"main": "src/index.ts",
+"exports": { ".": "./src/index.ts" },
+"scripts": { "test": "bun test", "typecheck": "tsc --noEmit" }
 }
 
 <!-- tsconfig.base.json (extends in every package) -->
+
 {
-  "compilerOptions": {
-    "target": "ES2024",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "lib": ["ES2024"]
-  }
+"compilerOptions": {
+"target": "ES2024",
+"module": "ESNext",
+"moduleResolution": "bundler",
+"strict": true,
+"noUncheckedIndexedAccess": true,
+"exactOptionalPropertyTypes": true,
+"esModuleInterop": true,
+"skipLibCheck": true,
+"isolatedModules": true,
+"verbatimModuleSyntax": true,
+"lib": ["ES2024"]
+}
 }
 </interfaces>
 </context>
@@ -344,6 +346,7 @@ package.json:
        ```
     6. Create empty `tests/fixtures/.gitkeep` so the directory exists for the ESLint rule fixture in Task 3.
     7. Run `bun install`. Confirm `bun test` (no test files) reports 0 tests successfully.
+
   </action>
   <verify>
     <automated>bun install --frozen-lockfile && bun test 2>&1 | grep -E '(0 pass|tests:|0 tests)' && test -f apps/web/vitest.config.ts && test -f playwright.config.ts</automated>
@@ -587,6 +590,7 @@ package.json:
               - name: bun test
                 run: bun test
         ```
+
   </action>
   <verify>
     <automated>bunx depcruise --config .dependency-cruiser.cjs --output-type err apps packages && bun run grep:no-direct-tx && bun run grep:no-pool-connect && bunx eslint tests/fixtures/float-money-clean.ts && (bunx eslint tests/fixtures/float-money.ts; test $? -ne 0)</automated>
@@ -620,25 +624,26 @@ package.json:
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Developer machine → repository | Pre-commit hook is the only gate; bypass possible via `--no-verify` |
-| Local commit → CI | GitHub Actions enforces gates that local hooks may skip |
-| Repository → secret store | `.env.example` documents keys; real values never committed (`.env` is gitignored) |
+| Boundary                       | Description                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| Developer machine → repository | Pre-commit hook is the only gate; bypass possible via `--no-verify`               |
+| Local commit → CI              | GitHub Actions enforces gates that local hooks may skip                           |
+| Repository → secret store      | `.env.example` documents keys; real values never committed (`.env` is gitignored) |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-00-01 | Tampering | Domain layer importing ORM/HTTP framework (architecture violation that enables future cross-tenant bugs) | mitigate | dependency-cruiser config bans `drizzle-orm`, `hono`, `@ai-sdk/*` imports from `packages/*/src/domain/`; CI gate fails closed |
-| T-01-00-02 | Information Disclosure | Float arithmetic on `Money` causing silent precision loss / financial bug | mitigate | Custom ESLint rule `no-float-money` flags `+=`, `-=`, `*=`, `/=` and binary `+/-/*/` on `*amount/money/total/sum/price/cost/balance` member access; CI gate fails closed |
-| T-01-00-03 | Tampering | Direct `db.transaction()` outside `withTenantTx` family (bypasses tenant context, enables cross-tenant leak — Phase 1 high-severity) | mitigate | Two-layer enforcement: (a) dependency-cruiser `no-direct-db-transaction` rule, (b) PC-04 grep CI step `! grep -RnE '\.transaction\(' --exclude=tx.ts --exclude-dir=test apps packages` — only call site repo-wide is `packages/platform/src/db/tx.ts` (PC-26 file-level exclude; PC-28 carve-out for test/ helpers) |
-| T-01-00-04 | Spoofing | Secrets committed to repository (`.env` instead of `.env.example`) | mitigate | `.gitignore` excludes `.env`; `.env.example` ships only placeholder values; pre-commit lint-staged does not touch `.env*` |
-| T-01-00-05 | Tampering | Pre-commit hook bypass (`git commit --no-verify`) | accept | Pre-commit is dev convenience; GitHub Actions CI is the binding gate. Documented as known-acceptable per solo-developer workflow |
-| T-01-00-06 | Tampering | apps/** reaching into packages/*/src/{adapters,application,domain,ports} (PC-02 architecture violation) | mitigate | dep-cruiser rule `apps-only-public-package-surface` bans the path pattern; apps/* must consume packages/* via the public surface (src/index.ts + contracts/**); CI fails closed |
-| T-01-00-07 | Tampering | Hook code escaping tenant context via raw `appPool().connect(` (PC-03 risk) | mitigate | grep CI step `! grep -RnE 'appPool\(\)\.connect\(' --exclude=tx.ts --exclude-dir=test apps packages` — outside `packages/platform/src/db/tx.ts`, no other call site is allowed (PC-26 file-level exclude; PC-28 carve-out for test/ helpers like the testcontainer bootstrap). PC-27: tenant-guard middleware uses the `withBootstrapUserContext` primitive (Plan 02) for legitimate bootstrap reads; pre-commit also runs this gate |
+| Threat ID  | Category               | Component                                                                                                                            | Disposition | Mitigation Plan                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T-01-00-01 | Tampering              | Domain layer importing ORM/HTTP framework (architecture violation that enables future cross-tenant bugs)                             | mitigate    | dependency-cruiser config bans `drizzle-orm`, `hono`, `@ai-sdk/*` imports from `packages/*/src/domain/`; CI gate fails closed                                                                                                                                                                                                                                                                                                        |
+| T-01-00-02 | Information Disclosure | Float arithmetic on `Money` causing silent precision loss / financial bug                                                            | mitigate    | Custom ESLint rule `no-float-money` flags `+=`, `-=`, `*=`, `/=` and binary `+/-/*/` on `*amount/money/total/sum/price/cost/balance` member access; CI gate fails closed                                                                                                                                                                                                                                                             |
+| T-01-00-03 | Tampering              | Direct `db.transaction()` outside `withTenantTx` family (bypasses tenant context, enables cross-tenant leak — Phase 1 high-severity) | mitigate    | Two-layer enforcement: (a) dependency-cruiser `no-direct-db-transaction` rule, (b) PC-04 grep CI step `! grep -RnE '\.transaction\(' --exclude=tx.ts --exclude-dir=test apps packages` — only call site repo-wide is `packages/platform/src/db/tx.ts` (PC-26 file-level exclude; PC-28 carve-out for test/ helpers)                                                                                                                  |
+| T-01-00-04 | Spoofing               | Secrets committed to repository (`.env` instead of `.env.example`)                                                                   | mitigate    | `.gitignore` excludes `.env`; `.env.example` ships only placeholder values; pre-commit lint-staged does not touch `.env*`                                                                                                                                                                                                                                                                                                            |
+| T-01-00-05 | Tampering              | Pre-commit hook bypass (`git commit --no-verify`)                                                                                    | accept      | Pre-commit is dev convenience; GitHub Actions CI is the binding gate. Documented as known-acceptable per solo-developer workflow                                                                                                                                                                                                                                                                                                     |
+| T-01-00-06 | Tampering              | apps/\*_ reaching into packages/_/src/{adapters,application,domain,ports} (PC-02 architecture violation)                             | mitigate    | dep-cruiser rule `apps-only-public-package-surface` bans the path pattern; apps/_ must consume packages/_ via the public surface (src/index.ts + contracts/\*\*); CI fails closed                                                                                                                                                                                                                                                    |
+| T-01-00-07 | Tampering              | Hook code escaping tenant context via raw `appPool().connect(` (PC-03 risk)                                                          | mitigate    | grep CI step `! grep -RnE 'appPool\(\)\.connect\(' --exclude=tx.ts --exclude-dir=test apps packages` — outside `packages/platform/src/db/tx.ts`, no other call site is allowed (PC-26 file-level exclude; PC-28 carve-out for test/ helpers like the testcontainer bootstrap). PC-27: tenant-guard middleware uses the `withBootstrapUserContext` primitive (Plan 02) for legitimate bootstrap reads; pre-commit also runs this gate |
 
 ## PC-17 ESLint Rule — Phase 6 (Documented Limitation)
 
@@ -661,11 +666,12 @@ All eight steps must exit 0.
 </verification>
 
 <success_criteria>
+
 - bun install resolves all 4 apps + 6 packages (shared-kernel, identity, tenancy, platform, crypto, db)
 - tsconfig.base.json strict mode covers all packages (tsc --noEmit passes)
 - All package.json exports point at src/index.ts (PC-15 — no /dist/, Bun runs TS natively)
 - dependency-cruiser blocks domain → drizzle-orm/hono/adapters/sibling-package imports
-- dependency-cruiser blocks apps/** → packages/*/src/{adapters,application,domain,ports} (PC-02 boundary)
+- dependency-cruiser blocks apps/\*_ → packages/_/src/{adapters,application,domain,ports} (PC-02 boundary)
 - ESLint custom rule `no-float-money` flags float arithmetic on Money-named identifiers
 - PC-04 grep gate blocks `.transaction(` calls outside `packages/platform/src/db/tx.ts` (single repo-wide call site, file-level exclude per PC-26 + test exclude per PC-28)
 - PC-03 grep gate blocks `appPool().connect(` calls outside `packages/platform/src/db/tx.ts` (file-level exclude per PC-26 + test exclude per PC-28; PC-27: legitimate bootstrap reads use `withBootstrapUserContext` primitive)
@@ -676,7 +682,7 @@ All eight steps must exit 0.
 - .env.example enumerates all required env vars
 - README.md documents PLAT-11 single-region v1
 - GitHub Actions CI workflow runs typecheck + depcruise + both grep gates + eslint fixture pair + bun test
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-00-SUMMARY.md`

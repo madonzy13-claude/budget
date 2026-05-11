@@ -64,15 +64,16 @@ metrics:
 
 ## Tasks Completed
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | Money + Clock + Result + branded IDs (TDD) | 6daab66 | money.ts, clock.ts, result.ts, ids.ts, index.ts + 5 test files |
-| 2 | Env Zod schema (boot fail-fast) | 95e5ad1 | env.ts + env.test.ts |
-| 3 | Port skeletons + InMemory fakes | f3cf570 | 6 port files + index.ts + ports.test.ts |
+| Task | Name                                       | Commit  | Files                                                          |
+| ---- | ------------------------------------------ | ------- | -------------------------------------------------------------- |
+| 1    | Money + Clock + Result + branded IDs (TDD) | 6daab66 | money.ts, clock.ts, result.ts, ids.ts, index.ts + 5 test files |
+| 2    | Env Zod schema (boot fail-fast)            | 95e5ad1 | env.ts + env.test.ts                                           |
+| 3    | Port skeletons + InMemory fakes            | f3cf570 | 6 port files + index.ts + ports.test.ts                        |
 
 ## What Was Built
 
 ### Money (`src/money.ts`)
+
 - `Money.of(amount, currency)` — private constructor, static factory, never uses `Number()`
 - `add()` throws `"Cannot add Money values in different currencies"` on mismatch
 - `toDb()` returns `{ amount_str, currency }` — string preserves exact decimal precision
@@ -81,24 +82,29 @@ metrics:
 - `isCrypto()` checks `BTC | ETH`
 
 ### Clock (`src/clock.ts`)
+
 - `Clock` interface: `now(): Date`
 - `SystemClock` — wraps `new Date()`
 - `FakeClock` — injectable, supports `advance(ms)` and `set(d)`, returns copies (mutation-safe)
 
 ### Result (`src/result.ts`)
+
 - Re-exports `ok`, `err`, `okAsync`, `errAsync`, `fromPromise`, `fromThrowable`, `Result`, `ResultAsync` from neverthrow
 
 ### Branded IDs (`src/ids.ts`)
+
 - `TenantId = string & { __brand: 'TenantId' }` — compile-time enforcement
 - `UserId = string & { __brand: 'UserId' }`
 - `newTenantId()` / `newUserId()` — UUID v7 (time-sortable)
 
 ### Env (`src/env.ts`)
+
 - Zod v3 schema: `DATABASE_URL_*`, `BUDGET_KEK` (44-char base64 regex), `BETTER_AUTH_*`, `APP_URL`
 - `LOG_LEVEL` defaults `'info'`, `REGION` defaults `'eu-central-1'`
 - `parseEnv(source)` for testing; `loadEnv()` lazy singleton for app boot
 
 ### Ports + InMemory Fakes (`src/ports/`)
+
 - `FxProvider` + `InMemoryFxProvider` (configurable fixed rates, MONY-08)
 - `EmailSender` + `StdoutEmailSender` (stdout + `sent[]` buffer for assertions)
 - `CryptoKeyStore` + `InMemoryCryptoKeyStore` (identity round-trip, no real crypto — Plan 4 ships libsodium)
@@ -119,28 +125,33 @@ depcruise packages/shared-kernel   →  no violations (17 modules)
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Money.toString() precision fix**
+
 - **Found during:** Task 1 — `Money.of('1.50', 'USD').toString()` returned `"1.5 USD"` instead of `"1.50 USD"`
 - **Fix:** `toString()` now uses `toFixed(scale)` consistent with `toDb()` — fiat 4dp, crypto 18dp
 - **Files modified:** packages/shared-kernel/src/money.ts
 - **Commit:** 6daab66
 
 **2. [Rule 2 - CLAUDE.md override] Zod v3 instead of plan's Zod v4**
+
 - **Found during:** Task 2 — plan specified `zod@^4.4.3` but CLAUDE.md explicitly mandates Zod v3 as ecosystem standard
 - **Fix:** Used `zod@^3.23.8` — no API differences for the schema patterns used here
 - **Files modified:** packages/shared-kernel/package.json
 
 **3. [Rule 3 - Blocker] Husky pre-commit hook missing `_/husky.sh`**
+
 - **Found during:** First commit attempt — `.husky/_/husky.sh` did not exist in worktree
 - **Fix:** Ran `bunx husky` in repo root to initialize husky internals; subsequent commits succeed
 - **Impact:** Zero code changes, build unaffected
 
 **4. [Rule 1 - Bug] neverthrow `err<T,E>` type parameter order**
+
 - **Found during:** tsc strict check — test used `err<string, number>('fail')` but neverthrow signature is `err<T=ok, E=err>`
 - **Fix:** Changed to `err<number, string>('fail')` — T=ok type, E=error type
 - **Files modified:** packages/shared-kernel/test/result.test.ts
 - **Commit:** 6daab66
 
 **5. [Rule 1 - Bug] Branded type `.toBe()` comparison**
+
 - **Found during:** tsc strict check — `expect(id).toBe('test-tenant')` fails because `TenantId` is not assignable to `string` in strict TS
 - **Fix:** Cast to `string` at assertion boundary: `expect(id as string).toBe('test-tenant')` — this is correct: the assertion tests runtime value, not compile-time type; the brand check is proven by tsc itself
 - **Files modified:** packages/shared-kernel/test/ids.test.ts
@@ -148,13 +159,13 @@ depcruise packages/shared-kernel   →  no violations (17 modules)
 
 ## Threat Model Coverage
 
-| Threat ID | Status |
-|-----------|--------|
-| T-01-01-01 | Mitigated — big.js only, no Number(), toDb() returns string |
+| Threat ID  | Status                                                                               |
+| ---------- | ------------------------------------------------------------------------------------ |
+| T-01-01-01 | Mitigated — big.js only, no Number(), toDb() returns string                          |
 | T-01-01-02 | Mitigated — branded types enforced by tsc; ids.test.ts proves compile-time rejection |
-| T-01-01-03 | Mitigated — Zod schema fails-fast on boot if BUDGET_KEK missing or malformed |
-| T-01-01-04 | Accepted — lint rule banning `process.env` outside `env.ts` is Phase 6 |
-| T-01-01-05 | Mitigated — `Money.add()` throws on currency mismatch, no silent coercion |
+| T-01-01-03 | Mitigated — Zod schema fails-fast on boot if BUDGET_KEK missing or malformed         |
+| T-01-01-04 | Accepted — lint rule banning `process.env` outside `env.ts` is Phase 6               |
+| T-01-01-05 | Mitigated — `Money.add()` throws on currency mismatch, no silent coercion            |
 
 ## Known Stubs
 
@@ -163,6 +174,7 @@ None — all implementations are complete for their scope. `InMemoryCryptoKeySto
 ## Self-Check: PASSED
 
 Files exist:
+
 - packages/shared-kernel/src/money.ts — FOUND
 - packages/shared-kernel/src/clock.ts — FOUND
 - packages/shared-kernel/src/result.ts — FOUND
@@ -176,6 +188,7 @@ Files exist:
 - packages/shared-kernel/src/ports/stt-provider.ts — FOUND
 
 Commits exist:
+
 - 6daab66 — FOUND (Task 1)
 - 95e5ad1 — FOUND (Task 2)
 - f3cf570 — FOUND (Task 3)

@@ -4,7 +4,7 @@ plan: 10
 plan_id: 01.10
 type: execute
 wave: 3
-depends_on: ['01.02', '01.03', '01.06', '01.07', '01.09']
+depends_on: ["01.02", "01.03", "01.06", "01.07", "01.09"]
 files_modified:
   - tests/tenant-leak/no-guc-zero-rows.test.ts
   - tests/tenant-leak/job-without-tenant-errors.test.ts
@@ -99,6 +99,7 @@ must_haves:
 ---
 
 <read_first>
+
 - .planning/phases/01-foundations/01-CONTEXT.md (D-08 GUC, D-10 worker propagation, D-11 leak gate)
 - .planning/phases/01-foundations/01-RESEARCH.md §Pattern 2, §Pitfall 6, §Pitfall 10, §Validation Architecture
 - .planning/phases/01-foundations/01-VALIDATION.md (rows 64–67 — the 4 CI gate tests)
@@ -108,7 +109,7 @@ must_haves:
 - .planning/phases/01-foundations/01-06-SUMMARY.md (tenancy.workspaces, tenancy.workspace_members [TWO policies: tenant_isolation + members_self], shared_workspace_member_shares — confirm under RLS)
 - .planning/phases/01-foundations/01-07-SUMMARY.md (tenant-guard middleware, TenantContextMissing error type)
 - .planning/phases/01-foundations/01-09-SUMMARY.md (compose db service, app_role/worker_role/migrator credentials env)
-</read_first>
+  </read_first>
 
 <truths>
 - T-1 (this plan IS the mitigation): the 6 tests are the production safety net
@@ -127,6 +128,7 @@ must_haves:
 </truths>
 
 <acceptance_criteria>
+
 - [ ] `test -f tests/tenant-leak/no-guc-zero-rows.test.ts`
 - [ ] `test -f tests/tenant-leak/job-without-tenant-errors.test.ts`
 - [ ] `test -f tests/tenant-leak/pg-roles-no-bypassrls.test.ts`
@@ -147,7 +149,7 @@ must_haves:
 - [ ] `grep -q "relforcerowsecurity" tests/tenant-leak/force-rls-on-all-tables.test.ts`
 - [ ] PC-08: in-process-bus test asserts handler sees its row's tenant: `grep -F 'app.tenant_ids' tests/tenant-leak/in-process-bus-tenant-scope.test.ts && grep -F 'eventBus' tests/tenant-leak/in-process-bus-tenant-scope.test.ts` exits 0
 - [ ] PC-10: Playwright spec asserts cross-tenant cache leak does not occur: `grep -F 'tenant-A' apps/web/e2e/cross-tenant-cache.spec.ts && grep -F 'tenant-B' apps/web/e2e/cross-tenant-cache.spec.ts && grep -F 'workspace' apps/web/e2e/cross-tenant-cache.spec.ts` exits 0
-- [ ] tests/tenant-leak/* (1+4) do NOT call withTenantTx: `! grep -RE "withTenantTx" tests/tenant-leak/no-guc-zero-rows.test.ts tests/tenant-leak/force-rls-on-all-tables.test.ts` exits 0
+- [ ] tests/tenant-leak/\* (1+4) do NOT call withTenantTx: `! grep -RE "withTenantTx" tests/tenant-leak/no-guc-zero-rows.test.ts tests/tenant-leak/force-rls-on-all-tables.test.ts` exits 0
 - [ ] PC-20: seed-two-tenants uses signUp + createWorkspace (NOT migrator role direct INSERTs): `grep -F 'signUp' tests/tenant-leak/fixtures/seed-two-tenants.ts && grep -F 'createWorkspace' tests/tenant-leak/fixtures/seed-two-tenants.ts && ! grep -F 'DATABASE_URL_MIGRATOR' tests/tenant-leak/fixtures/seed-two-tenants.ts` exits 0
 - [ ] PC-20: seed-two-tenants creates two tenants: `grep -cE "tenantId|tenant_id" tests/tenant-leak/fixtures/seed-two-tenants.ts` returns ≥ 4
 - [ ] `test -x scripts/ci/run-tenant-leak.sh`
@@ -161,7 +163,7 @@ must_haves:
 - [ ] `grep -q "test:ci-gate" package.json`
 - [ ] Local execution: `bash scripts/ci/run-tenant-leak.sh` exits 0
 - [ ] Negative test: temporarily change app_role to BYPASSRLS in init SQL → leak tests must FAIL (manual smoke; documented in script comments)
-</acceptance_criteria>
+      </acceptance_criteria>
 
 <tasks>
 
@@ -190,11 +192,11 @@ tenancy.workspace_invitations             EXCLUDED      # token-keyed; same patt
 ```
 
 File is plain text. Author tests/tenant-leak/fixtures/raw-pg-client.ts exporting `rawAppClient(): pg.Client` and `rawWorkerClient()` — connects using DATABASE_URL_APP / DATABASE_URL_WORKER as app_role/worker_role respectively, NEVER calls SET LOCAL app.tenant_ids.</description>
-  <files>tests/tenant-leak/USER-DATA-TABLES.txt, tests/tenant-leak/fixtures/raw-pg-client.ts</files>
-  <verify>
-    <automated>bash -c 'set -e; for t in identity.users identity.sessions identity.user_preferences tenancy.workspaces tenancy.workspace_members tenancy.shared_workspace_member_shares shared_kernel.audit_history shared_kernel.user_keys budgeting.expense_ledger; do grep -qF "$t" tests/tenant-leak/USER-DATA-TABLES.txt || { echo "missing INCLUDED: $t"; exit 1; }; done; grep -F "USER-SCOPED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -F "TENANT-SCOPED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -E "shared_kernel\\.user_keys.*USER-SCOPED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -E "Pitfall 10|outbox.*EXCLUDED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -q "shared_kernel.outbox" tests/tenant-leak/USER-DATA-TABLES.txt; grep -q "new Client" tests/tenant-leak/fixtures/raw-pg-client.ts; ! grep -q "withTenantTx" tests/tenant-leak/fixtures/raw-pg-client.ts'</automated>
-  </verify>
-  <deps>01.02, 01.03, 01.06</deps>
+<files>tests/tenant-leak/USER-DATA-TABLES.txt, tests/tenant-leak/fixtures/raw-pg-client.ts</files>
+<verify>
+<automated>bash -c 'set -e; for t in identity.users identity.sessions identity.user_preferences tenancy.workspaces tenancy.workspace_members tenancy.shared_workspace_member_shares shared_kernel.audit_history shared_kernel.user_keys budgeting.expense_ledger; do grep -qF "$t" tests/tenant-leak/USER-DATA-TABLES.txt || { echo "missing INCLUDED: $t"; exit 1; }; done; grep -F "USER-SCOPED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -F "TENANT-SCOPED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -E "shared_kernel\\.user_keys.*USER-SCOPED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -E "Pitfall 10|outbox.*EXCLUDED" tests/tenant-leak/USER-DATA-TABLES.txt; grep -q "shared_kernel.outbox" tests/tenant-leak/USER-DATA-TABLES.txt; grep -q "new Client" tests/tenant-leak/fixtures/raw-pg-client.ts; ! grep -q "withTenantTx" tests/tenant-leak/fixtures/raw-pg-client.ts'</automated>
+</verify>
+<deps>01.02, 01.03, 01.06</deps>
 </task>
 
 <task id="01.10.02" type="auto">
@@ -298,27 +300,29 @@ File is plain text. Author tests/tenant-leak/fixtures/raw-pg-client.ts exporting
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Test runner → Postgres | leak tests connect as app_role / worker_role with NO GUC |
-| Two-tenant fixture → leak tests | seeded via app_role application services (PC-20); proves cross-tenant queries return zero rows |
-| Outbox dispatcher → in-process handler | PC-08: handler runs under row's tenant; test 5 asserts isolation |
-| Browser cache → tenant context | PC-10: Playwright proves Serwist denylist works end-to-end |
+| Boundary                               | Description                                                                                    |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Test runner → Postgres                 | leak tests connect as app_role / worker_role with NO GUC                                       |
+| Two-tenant fixture → leak tests        | seeded via app_role application services (PC-20); proves cross-tenant queries return zero rows |
+| Outbox dispatcher → in-process handler | PC-08: handler runs under row's tenant; test 5 asserts isolation                               |
+| Browser cache → tenant context         | PC-10: Playwright proves Serwist denylist works end-to-end                                     |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-1 | I | Cross-tenant data leak via missing GUC | mitigated (THIS PLAN IS THE MITIGATION) | no-guc-zero-rows.test.ts asserts SELECT without GUC returns 0 rows for every user-data table; force-rls-on-all-tables.test.ts asserts FORCE ROW LEVEL SECURITY everywhere |
-| T-2 | I | Worker job omitting tenantIds reading tenant data | mitigated | job-without-tenant-errors.test.ts proves the wrapper throws TenantContextMissing before any DB read |
-| T-3 | E | BYPASSRLS role accidentally granted | mitigated | pg-roles-no-bypassrls.test.ts queries pg_roles and fails closed |
-| T-13 | T | Green-washed leak gate | mitigated | PC-20: fixture seeds via app_role + application services (signUp + createWorkspace), proving the real user-flow boundary holds; tests use raw pg.Client (NOT withTenantTx) for test 1+4; manual smoke documented |
-| T-1 (outbox) | I | Outbox table excluded from RLS (Pitfall 10) | accepted | shared_kernel.outbox is GRANT-restricted infrastructure; excluded from FORCE-RLS test by name in USER-DATA-TABLES.txt |
-| T-15 (PC-08) | I | In-process handler escaping the row's tenant scope | mitigated | in-process-bus-tenant-scope.test.ts (test 5) seeds two tenants, dispatches one event per tenant, asserts each handler sees ONLY its row's tenant in app.tenant_ids — proves dispatcher's tenantContextSql wrap holds across the publish boundary |
-| T-9 (PC-10) | I | Browser cross-tenant cache leak via Serwist | mitigated | apps/web/e2e/cross-tenant-cache.spec.ts (test 6) — Playwright E2E logs in as tenant-A, captures workspace switcher state, logs out, logs in as tenant-B in same browser context, asserts tenant-A workspaces NEVER appear in tenant-B's view |
-| T-12 (PC-12) | I | Cross-user leak via user_keys / sessions / accounts USER-SCOPED tables | mitigated | USER-DATA-TABLES.txt flags these as USER-SCOPED; test 1 third sub-test asserts cross-user filter (user-A's app.current_user_id cannot see user-B's row) |
+| Threat ID    | Category | Component                                                              | Disposition                             | Mitigation Plan                                                                                                                                                                                                                                  |
+| ------------ | -------- | ---------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T-1          | I        | Cross-tenant data leak via missing GUC                                 | mitigated (THIS PLAN IS THE MITIGATION) | no-guc-zero-rows.test.ts asserts SELECT without GUC returns 0 rows for every user-data table; force-rls-on-all-tables.test.ts asserts FORCE ROW LEVEL SECURITY everywhere                                                                        |
+| T-2          | I        | Worker job omitting tenantIds reading tenant data                      | mitigated                               | job-without-tenant-errors.test.ts proves the wrapper throws TenantContextMissing before any DB read                                                                                                                                              |
+| T-3          | E        | BYPASSRLS role accidentally granted                                    | mitigated                               | pg-roles-no-bypassrls.test.ts queries pg_roles and fails closed                                                                                                                                                                                  |
+| T-13         | T        | Green-washed leak gate                                                 | mitigated                               | PC-20: fixture seeds via app_role + application services (signUp + createWorkspace), proving the real user-flow boundary holds; tests use raw pg.Client (NOT withTenantTx) for test 1+4; manual smoke documented                                 |
+| T-1 (outbox) | I        | Outbox table excluded from RLS (Pitfall 10)                            | accepted                                | shared_kernel.outbox is GRANT-restricted infrastructure; excluded from FORCE-RLS test by name in USER-DATA-TABLES.txt                                                                                                                            |
+| T-15 (PC-08) | I        | In-process handler escaping the row's tenant scope                     | mitigated                               | in-process-bus-tenant-scope.test.ts (test 5) seeds two tenants, dispatches one event per tenant, asserts each handler sees ONLY its row's tenant in app.tenant_ids — proves dispatcher's tenantContextSql wrap holds across the publish boundary |
+| T-9 (PC-10)  | I        | Browser cross-tenant cache leak via Serwist                            | mitigated                               | apps/web/e2e/cross-tenant-cache.spec.ts (test 6) — Playwright E2E logs in as tenant-A, captures workspace switcher state, logs out, logs in as tenant-B in same browser context, asserts tenant-A workspaces NEVER appear in tenant-B's view     |
+| T-12 (PC-12) | I        | Cross-user leak via user_keys / sessions / accounts USER-SCOPED tables | mitigated                               | USER-DATA-TABLES.txt flags these as USER-SCOPED; test 1 third sub-test asserts cross-user filter (user-A's app.current_user_id cannot see user-B's row)                                                                                          |
+
 </threat_model>
 
 <verification>
@@ -384,9 +388,11 @@ bash -n scripts/ci/run-tenant-leak.sh
 echo "tenant-leak gate plan checks pass"
 '
 ```
+
 </verification>
 
 <success_criteria>
+
 - 6 leak tests fail closed when any RLS / GUC / role / wrapper / bus-scope / cache invariant is broken
 - Two-tenant fixture seeded via app_role + application services (PC-20) — proves the user-flow boundary, not just the DB layer
 - Tests 1+4 connect via raw pg.Client (NOT withTenantTx) so RLS is proven independent of app code
@@ -398,9 +404,9 @@ echo "tenant-leak gate plan checks pass"
 - PC-12: USER-DATA-TABLES.txt flags user-scoped tables (user_keys, sessions, accounts, user_preferences) for separate cross-user filter assertion
 - GitHub Actions workflow runs the full Phase-1 gate on every push (typecheck + lint + depcruise + grep gates [PC-03, PC-04] + bun test + leak suite + Playwright cross-tenant-cache)
 - A separate tenant-leak.yml workflow allows fast feedback via workflow_dispatch
-- depcruise CI step blocks domain → drizzle/hono/adapters imports (ENGR-10) and apps/** → packages/*/src/{adapters,application,domain,ports} (PC-02)
+- depcruise CI step blocks domain → drizzle/hono/adapters imports (ENGR-10) and apps/\*_ → packages/_/src/{adapters,application,domain,ports} (PC-02)
 - package.json adds `test:ci-gate` for local execution
-</success_criteria>
+  </success_criteria>
 
 <output>
 .planning/phases/01-foundations/01-10-SUMMARY.md

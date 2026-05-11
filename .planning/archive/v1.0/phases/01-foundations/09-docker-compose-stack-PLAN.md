@@ -4,7 +4,7 @@ plan: 09
 plan_id: 01.09
 type: execute
 wave: 3
-depends_on: ['01.02', '01.03', '01.05', '01.07', '01.08']
+depends_on: ["01.02", "01.03", "01.05", "01.07", "01.08"]
 files_modified:
   - docker-compose.yml
   - docker-compose.override.yml.example
@@ -102,6 +102,7 @@ must_haves:
 ---
 
 <read_first>
+
 - .planning/phases/01-foundations/01-CONTEXT.md (D-18 migration role, D-30 compose stack)
 - .planning/phases/01-foundations/01-RESEARCH.md §Pattern 10, §Pitfall 1, §Pattern 6
 - .planning/phases/01-foundations/01-02-SUMMARY.md (apps/migrator role separation, advisory lock signature)
@@ -110,7 +111,7 @@ must_haves:
 - .planning/phases/01-foundations/01-08-SUMMARY.md (apps/web Dockerfile signature, /en/health route)
 - CLAUDE.md (Postgres ≥17 supports SKIP LOCKED + JSONB; Bun 1.2.x base image)
 - Postgres docker-entrypoint-initdb.d behavior: scripts ending in `.sh` are executed; `.sql` files are run via psql automatically — `.sql.tpl` files are NOT auto-run, allowing the shell wrapper to template them.
-</read_first>
+  </read_first>
 
 <truths>
 - Postgres image: postgres:17-alpine (Postgres 17 ships uuid_generate_v7 natively per RESEARCH §A5; matches drizzle/drizzle-kit support)
@@ -126,6 +127,7 @@ must_haves:
 </truths>
 
 <acceptance_criteria>
+
 - [ ] `test -f docker-compose.yml`
 - [ ] `test -f docker-compose.override.yml.example && test ! -f docker-compose.override.yml`
 - [ ] `grep -E "image: postgres:17" docker-compose.yml` exits 0
@@ -152,7 +154,7 @@ must_haves:
 - [ ] README.md has a "Dev Quickstart" section
 - [ ] `docker compose config` exits 0
 - [ ] Smoke test: `bash tests/compose-up.sh` exits 0 within 90s wall-clock (PLAT-02)
-</acceptance_criteria>
+      </acceptance_criteria>
 
 <tasks>
 
@@ -204,23 +206,25 @@ must_haves:
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Developer host → docker compose | dev secrets pass through .env (git-ignored) |
-| Postgres init → role creation | one-time DDL bootstrap of NOBYPASSRLS roles via PC-19 shell wrapper |
-| api/web/worker containers → db container | DB connections via service-name DNS only |
+| Boundary                                 | Description                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| Developer host → docker compose          | dev secrets pass through .env (git-ignored)                         |
+| Postgres init → role creation            | one-time DDL bootstrap of NOBYPASSRLS roles via PC-19 shell wrapper |
+| api/web/worker containers → db container | DB connections via service-name DNS only                            |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-12 | I (Information disclosure) | docker-compose.yml committed to git | mitigated | Every secret referenced as `${VAR}`; .env is git-ignored; .env.example ships safe placeholders only; CI grep gate blocks accidental literal-secret commits |
-| T-3 | E (Elevation of privilege) | Postgres roles created at init | mitigated | infra/postgres/init/00-roles.sh shell wrapper templates env passwords into 00-roles.sql.tpl with explicit NOBYPASSRLS for all 3 roles; plan 10 verifies via `pg_roles WHERE rolbypassrls=true` returns 0 rows |
-| T-1 | I | Cross-tenant leak via misconfigured app_role | mitigated (transferred to plan 02 + plan 10) | This plan only ensures roles boot NOBYPASSRLS; plan 02 enforces FORCE ROW LEVEL SECURITY; plan 10 is the leak-CI gate |
-| T-13 | T | Greenwashed dev tests against an empty DB | mitigated | scripts/seed-dev.ts seeds two users + one PRIVATE + one SHARED workspace using application services |
-| T-14 | I | PC-19: hardcoded passwords in 00-roles.sql leaking via repo | mitigated | 00-roles.sql.tpl uses psql variables; passwords supplied via env at container start by 00-roles.sh; nothing in the repo holds a real password |
+| Threat ID | Category                   | Component                                                   | Disposition                                  | Mitigation Plan                                                                                                                                                                                               |
+| --------- | -------------------------- | ----------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-12      | I (Information disclosure) | docker-compose.yml committed to git                         | mitigated                                    | Every secret referenced as `${VAR}`; .env is git-ignored; .env.example ships safe placeholders only; CI grep gate blocks accidental literal-secret commits                                                    |
+| T-3       | E (Elevation of privilege) | Postgres roles created at init                              | mitigated                                    | infra/postgres/init/00-roles.sh shell wrapper templates env passwords into 00-roles.sql.tpl with explicit NOBYPASSRLS for all 3 roles; plan 10 verifies via `pg_roles WHERE rolbypassrls=true` returns 0 rows |
+| T-1       | I                          | Cross-tenant leak via misconfigured app_role                | mitigated (transferred to plan 02 + plan 10) | This plan only ensures roles boot NOBYPASSRLS; plan 02 enforces FORCE ROW LEVEL SECURITY; plan 10 is the leak-CI gate                                                                                         |
+| T-13      | T                          | Greenwashed dev tests against an empty DB                   | mitigated                                    | scripts/seed-dev.ts seeds two users + one PRIVATE + one SHARED workspace using application services                                                                                                           |
+| T-14      | I                          | PC-19: hardcoded passwords in 00-roles.sql leaking via repo | mitigated                                    | 00-roles.sql.tpl uses psql variables; passwords supplied via env at container start by 00-roles.sh; nothing in the repo holds a real password                                                                 |
+
 </threat_model>
 
 <verification>
@@ -289,9 +293,11 @@ fi
 echo "compose plan checks pass"
 '
 ```
+
 </verification>
 
 <success_criteria>
+
 - docker compose up brings db + migrator + api + web + worker + mailpit to healthy in <90s on Linux/macOS
 - PC-19: 00-roles.sh shell wrapper templates passwords from env into 00-roles.sql.tpl via psql -v variables; no hardcoded secrets in repo
 - app_role, worker_role, migrator created with NOBYPASSRLS verified at SQL level
@@ -301,7 +307,7 @@ echo "compose plan checks pass"
 - scripts/dev.sh provides up/down/logs/migrate/seed/reset/psql shortcuts
 - tests/compose-up.sh smoke validates the full stack and tears down cleanly
 - README documents the dev quickstart with the canonical command sequence
-</success_criteria>
+  </success_criteria>
 
 <output>
 .planning/phases/01-foundations/01-09-SUMMARY.md

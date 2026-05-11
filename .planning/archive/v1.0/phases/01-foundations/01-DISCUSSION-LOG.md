@@ -11,16 +11,17 @@
 
 ## Personal vs Shared Scope Model
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| A. Dual workspaces | Per-user `personal_ws` (1-member) + optional `family_ws`. Single `tenant_id` column. Maps 1:1 to Better-Auth `organization` plugin. UI = workspace switcher. TENT-06 trivial. | (rejected — too restrictive) |
-| B. Single workspace + scope column | One workspace; rows tagged PRIVATE/SHARED with `owner_user_id`. Cross-scope reads trivial. Leave-family edge case messy. | (rejected) |
-| C. Hybrid (two GUCs) | Both `app.user_id` + `app.family_id` GUCs set per request. Most flexible, most index/RLS complexity. | (rejected) |
-| **Custom — Multi-workspace with persisted multi-select filter** | User can be member of N workspaces (N PRIVATE + N SHARED). Workspace `kind` enum. UI = checkbox list, default = private only, restored across sessions. | ✓ |
+| Option                                                          | Description                                                                                                                                                                   | Selected                     |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| A. Dual workspaces                                              | Per-user `personal_ws` (1-member) + optional `family_ws`. Single `tenant_id` column. Maps 1:1 to Better-Auth `organization` plugin. UI = workspace switcher. TENT-06 trivial. | (rejected — too restrictive) |
+| B. Single workspace + scope column                              | One workspace; rows tagged PRIVATE/SHARED with `owner_user_id`. Cross-scope reads trivial. Leave-family edge case messy.                                                      | (rejected)                   |
+| C. Hybrid (two GUCs)                                            | Both `app.user_id` + `app.family_id` GUCs set per request. Most flexible, most index/RLS complexity.                                                                          | (rejected)                   |
+| **Custom — Multi-workspace with persisted multi-select filter** | User can be member of N workspaces (N PRIVATE + N SHARED). Workspace `kind` enum. UI = checkbox list, default = private only, restored across sessions.                       | ✓                            |
 
 **User's choice:** Custom — generalized variant of A. "Make sure you do not limit to only one private and one shared." "User should be able by selecting checkboxes select which budgets he wants to see, by default only private is selected, but user can also select shared at the same time, then he can see both (you should remember user selection and show same as he selected next time)."
 
 **Notes / domain-specific follow-ups raised by user:**
+
 - Each workspace has wallets assigned to it (workspace_id FK on accounts → Phase 2).
 - SHARED workspace has per-member contribution shares — global percentage AND per-category percentage. Edited on workspace edit page.
 - Member can add money to shared wallet in any currency; system shows FX-preview ("will convert at rate X") and converts.
@@ -33,11 +34,11 @@ These domain mechanics fall outside Phase 1 (they live in Phase 2 / 3 / 4). User
 
 ## RLS / Tenant Context Strategy
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Array GUC | `app.tenant_ids` array; RLS uses `= ANY(...)`. Single query reads cross-workspace. | ✓ |
+| Option                        | Description                                                                                         | Selected   |
+| ----------------------------- | --------------------------------------------------------------------------------------------------- | ---------- |
+| Array GUC                     | `app.tenant_ids` array; RLS uses `= ANY(...)`. Single query reads cross-workspace.                  | ✓          |
 | User-id GUC + membership join | `app.user_id`; RLS predicate joins `workspace_members`. Slightly more dynamic, more index pressure. | (rejected) |
-| Per-query single tenant | One workspace per query; app fans out N queries. Simplest predicate; harder cross-ws aggregates. | (rejected) |
+| Per-query single tenant       | One workspace per query; app fans out N queries. Simplest predicate; harder cross-ws aggregates.    | (rejected) |
 
 **User's choice:** Array GUC.
 **Notes:** Captured as D-08 in CONTEXT.md. Tenant-leak CI gate (D-11) verifies fail-closed behavior when GUC is unset.
@@ -46,10 +47,10 @@ These domain mechanics fall outside Phase 1 (they live in Phase 2 / 3 / 4). User
 
 ## Auto-Create Workspace at Signup
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Yes — one private workspace | Reduces empty-state friction; user can rename later. | (rejected) |
-| **No — user must create their first workspace** | Signup lands on "create your first budget" empty state. | ✓ |
+| Option                                          | Description                                             | Selected   |
+| ----------------------------------------------- | ------------------------------------------------------- | ---------- |
+| Yes — one private workspace                     | Reduces empty-state friction; user can rename later.    | (rejected) |
+| **No — user must create their first workspace** | Signup lands on "create your first budget" empty state. | ✓          |
 
 **User's choice:** No.
 **Notes:** Captured as D-03. Empty state is intentional — every workspace creation is a deliberate act.
@@ -58,10 +59,10 @@ These domain mechanics fall outside Phase 1 (they live in Phase 2 / 3 / 4). User
 
 ## Workspace `kind` Field — Explicit or Computed
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| **Explicit `kind` enum (PRIVATE \| SHARED)** | Stored on workspace row. UI groups filter cleanly. | ✓ |
-| Computed from member count | PRIVATE = 1 member, SHARED = >1. No enum. Ambiguous edge cases. | (rejected) |
+| Option                                       | Description                                                     | Selected   |
+| -------------------------------------------- | --------------------------------------------------------------- | ---------- |
+| **Explicit `kind` enum (PRIVATE \| SHARED)** | Stored on workspace row. UI groups filter cleanly.              | ✓          |
+| Computed from member count                   | PRIVATE = 1 member, SHARED = >1. No enum. Ambiguous edge cases. | (rejected) |
 
 **User's choice:** Explicit.
 **Notes:** Captured as D-02. Inviting a member to a PRIVATE workspace is rejected at the application layer — owner must convert via explicit "convert to shared" flow (deferred UX detail noted in 01-CONTEXT.md `<deferred>`).
@@ -70,11 +71,11 @@ These domain mechanics fall outside Phase 1 (they live in Phase 2 / 3 / 4). User
 
 ## Cross-Workspace Display Currency
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| **User display-currency setting** | User picks one global display currency in their settings; cross-ws totals convert to it via FX. Each per-ws view still uses its own default. | ✓ |
-| Per-workspace group, no merge | Side-by-side totals; no merged number. | (rejected) |
-| First-selected workspace's default | Order-dependent; brittle. | (rejected) |
+| Option                             | Description                                                                                                                                  | Selected   |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| **User display-currency setting**  | User picks one global display currency in their settings; cross-ws totals convert to it via FX. Each per-ws view still uses its own default. | ✓          |
+| Per-workspace group, no merge      | Side-by-side totals; no merged number.                                                                                                       | (rejected) |
+| First-selected workspace's default | Order-dependent; brittle.                                                                                                                    | (rejected) |
 
 **User's choice:** "On the global level user should be able to select default currency per workspace. One workspace may have only one currency. But when user adds money to shared wallet he may select currency and that will be automatically converted by actual exchange rate." Plus follow-up: "Users totals (from all his workspaces) should be in a globally selected currency, the currency user selected in settings. But each workspace should be shown in currency that workspace is configured in."
 
@@ -84,11 +85,11 @@ These domain mechanics fall outside Phase 1 (they live in Phase 2 / 3 / 4). User
 
 ## Capture Strategy for New Domain Requirements
 
-| Option | Description | Selected |
-|--------|-------------|----------|
-| **Add to REQUIREMENTS.md + ROADMAP.md now** | New req IDs added; phase counts updated; flow into Phase 2/3/4 plans. | ✓ |
-| Defer to v1.x | Park in CONTEXT.md only; v1 ships equal-share co-ownership. | (rejected) |
-| Capture in Deferred + decide per-feature later | Park with target-phase suggestions; promote during Phase 2 discuss. | (rejected) |
+| Option                                         | Description                                                           | Selected   |
+| ---------------------------------------------- | --------------------------------------------------------------------- | ---------- |
+| **Add to REQUIREMENTS.md + ROADMAP.md now**    | New req IDs added; phase counts updated; flow into Phase 2/3/4 plans. | ✓          |
+| Defer to v1.x                                  | Park in CONTEXT.md only; v1 ships equal-share co-ownership.           | (rejected) |
+| Capture in Deferred + decide per-feature later | Park with target-phase suggestions; promote during Phase 2 discuss.   | (rejected) |
 
 **User's choice:** Add now.
 **Notes:** REQUIREMENTS.md updated with TENT-09..13, MONY-09, BDGT-08, EXPN-13, RSRV-08, TASK-07, TASK-08. ROADMAP.md updated: Phase 1 reqs 37→43, Phase 2 27→29, Phase 3 20→21, Phase 4 17→19; total v1 reqs 126→138; Phase 1 success criterion #2 rewritten to reflect multi-workspace mechanic.

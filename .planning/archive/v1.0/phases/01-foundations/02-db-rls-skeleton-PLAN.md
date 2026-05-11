@@ -4,7 +4,7 @@ plan: 02
 plan_id: 01.02
 type: execute
 wave: 1
-depends_on: ['01.00']
+depends_on: ["01.00"]
 files_modified:
   - packages/platform/package.json
   - packages/platform/src/index.ts
@@ -121,11 +121,11 @@ Output: A `packages/platform` module with FIVE writable tx primitives, plus an `
 
 // pool.ts
 import type { Pool } from 'pg';
-export function appPool(): Pool;        // uses DATABASE_URL_APP (app_role, NOBYPASSRLS)
-export function workerPool(): Pool;     // uses DATABASE_URL_WORKER (worker_role, NOBYPASSRLS)
-export function migratorPool(): Pool;   // uses DATABASE_URL_MIGRATOR (migrator role)
-export const appDb;                     // drizzle(appPool())
-export const workerDb;                  // drizzle(workerPool())
+export function appPool(): Pool; // uses DATABASE_URL_APP (app_role, NOBYPASSRLS)
+export function workerPool(): Pool; // uses DATABASE_URL_WORKER (worker_role, NOBYPASSRLS)
+export function migratorPool(): Pool; // uses DATABASE_URL_MIGRATOR (migrator role)
+export const appDb; // drizzle(appPool())
+export const workerDb; // drizzle(workerPool())
 
 // tx.ts — D-09 + PC-03 + PC-04 + PC-27 — the FIVE writable transaction primitives
 // CANONICAL FILE: packages/platform/src/db/tx.ts (PC-26 reconciled location).
@@ -138,39 +138,39 @@ export class UserContextError extends Error {}
 
 // (1) Single-tenant WRITE (extended signature: tenantId + userId in same SET LOCAL)
 export function withTenantTx<T>(
-  tenantId: TenantId,
-  userId: UserId,
-  fn: (tx: Tx) => Promise<T>,
+tenantId: TenantId,
+userId: UserId,
+fn: (tx: Tx) => Promise<T>,
 ): Promise<Result<T, Error>>;
 
 // (2) Multi-tenant READ (cross-workspace dashboard) — userId still required for user-scoped joins
 export function withTenantTxRead<T>(
-  tenantIds: readonly TenantId[],
-  userId: UserId,
-  fn: (tx: Tx) => Promise<T>,
+tenantIds: readonly TenantId[],
+userId: UserId,
+fn: (tx: Tx) => Promise<T>,
 ): Promise<Result<T, Error>>;
 
 // (3) PC-03: USER-scoped tx (no tenant context). For user_keys, sessions, accounts, user_preferences.
 export function withUserContext<T>(
-  userId: UserId,
-  fn: (tx: Tx) => Promise<T>,
+userId: UserId,
+fn: (tx: Tx) => Promise<T>,
 ): Promise<Result<T, Error>>;
 
 // (4) PC-04: INFRASTRUCTURE-ONLY tx (no GUC). For outbox dispatch, migration runner.
-//     CI grep gate ensures only one .transaction( call site exists in the entire repo.
-//     NEVER call from tenant-scoped code paths.
+// CI grep gate ensures only one .transaction( call site exists in the entire repo.
+// NEVER call from tenant-scoped code paths.
 export function withInfraTx<T>(
-  fn: (tx: Tx) => Promise<T>,
+fn: (tx: Tx) => Promise<T>,
 ): Promise<Result<T, Error>>;
 
 // (5) PC-27: BOOTSTRAP carve-out — used ONLY by tenant-guard middleware (Plan 07) to query
-//     workspace_members for active_workspace_ids ∩ membership intersection BEFORE app.tenant_ids
-//     GUC is set. Mechanically identical to withUserContext (BEGIN + SET LOCAL app.current_user_id +
-//     body + COMMIT). Honors the workspace_members_self RLS policy keyed off app.current_user_id
-//     (Plan 06). Documented as the legitimate replacement for raw appPool().connect() in tenant-guard.
+// workspace_members for active_workspace_ids ∩ membership intersection BEFORE app.tenant_ids
+// GUC is set. Mechanically identical to withUserContext (BEGIN + SET LOCAL app.current_user_id +
+// body + COMMIT). Honors the workspace_members_self RLS policy keyed off app.current_user_id
+// (Plan 06). Documented as the legitimate replacement for raw appPool().connect() in tenant-guard.
 export function withBootstrapUserContext<T>(
-  userId: UserId,
-  fn: (tx: Tx) => Promise<T>,
+userId: UserId,
+fn: (tx: Tx) => Promise<T>,
 ): Promise<Result<T, Error>>;
 
 // schemas.ts — D-17
@@ -301,6 +301,7 @@ export const migratorRole = pgRole('migrator', { createRole: false, inherit: tru
        export * from './db/expense-ledger';
        ```
     6. Run tests — confirm GREEN.
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bun test packages/platform/test/numeric-parser.test.ts && bunx tsc --noEmit -p packages/platform/tsconfig.json</automated>
@@ -588,6 +589,7 @@ export const migratorRole = pgRole('migrator', { createRole: false, inherit: tru
        });
        ```
     6. Run tests. Tests run real against the testcontainer DB.
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bun test packages/platform/test/tx.test.ts packages/platform/test/with-user-context.test.ts packages/platform/test/with-bootstrap-user-context.test.ts && bunx tsc --noEmit -p packages/platform/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err packages/platform</automated>
@@ -633,6 +635,7 @@ export const migratorRole = pgRole('migrator', { createRole: false, inherit: tru
     - ALTER ROLE ... NOBYPASSRLS for app_role, worker_role, migrator in post-migration.sql
     - PC-28: ledger-revoke test uses withInfraTx (preferred) where it can; only the testcontainer bootstrap helper needs raw client access. The test asserts privilege via `has_table_privilege` which can be queried inside withInfraTx (no GUC needed for catalog reads).
     - Test asserts: `has_table_privilege('app_role', 'budgeting.expense_ledger', 'UPDATE')` returns false; `'INSERT'` returns true
+
   </behavior>
   <action>
     1. Implement `packages/platform/src/db/schemas.ts`:
@@ -754,6 +757,7 @@ export const migratorRole = pgRole('migrator', { createRole: false, inherit: tru
          if (r.isOk()) expect(r.value).toBe(true);
        });
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/platform/tsconfig.json && grep -F 'NOBYPASSRLS' apps/migrator/post-migration.sql && grep -F 'REVOKE UPDATE, DELETE' apps/migrator/post-migration.sql && grep -F 'FORCE ROW LEVEL SECURITY' apps/migrator/post-migration.sql</automated>
@@ -906,6 +910,7 @@ export const migratorRole = pgRole('migrator', { createRole: false, inherit: tru
          await pool.end();
        });
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p apps/migrator/tsconfig.json && test -f apps/migrator/Dockerfile && test -f apps/migrator/drizzle.config.ts && test -f apps/migrator/post-migration.sql</automated>
@@ -1073,6 +1078,7 @@ export const migratorRole = pgRole('migrator', { createRole: false, inherit: tru
        ```
     3. Create `packages/db/test/index.ts` re-exporting startTestcontainer + stopTestcontainer.
     4. Wire `@budget/db` into Plan 05/06/04 integration test setup files (those plans' Task lists already include `beforeAll(startTestcontainer)`).
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/db/tsconfig.json && test -f packages/db/test/testcontainer.ts && grep -F 'PostgreSqlContainer' packages/db/test/testcontainer.ts</automated>
@@ -1095,27 +1101,28 @@ export const migratorRole = pgRole('migrator', { createRole: false, inherit: tru
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Application code → DB | All writes route through withTenantTx / withUserContext / withBootstrapUserContext (PC-27); withInfraTx is the documented carve-out (PC-04) |
-| API request → tenant context | GUC `app.tenant_ids` + `app.current_user_id` set per-tx in same SET LOCAL pair (PC-03) |
-| Migrator role → app_role | DDL privileges separated from runtime DML (D-18) |
-| Test-only raw-client carve-out | `packages/db/test/testcontainer.ts` is the SOLE legitimate raw-client call site within tests/ (PC-28) |
+| Boundary                       | Description                                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Application code → DB          | All writes route through withTenantTx / withUserContext / withBootstrapUserContext (PC-27); withInfraTx is the documented carve-out (PC-04) |
+| API request → tenant context   | GUC `app.tenant_ids` + `app.current_user_id` set per-tx in same SET LOCAL pair (PC-03)                                                      |
+| Migrator role → app_role       | DDL privileges separated from runtime DML (D-18)                                                                                            |
+| Test-only raw-client carve-out | `packages/db/test/testcontainer.ts` is the SOLE legitimate raw-client call site within tests/ (PC-28)                                       |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-02-01 | Information Disclosure | Cross-tenant data leak via direct `db.transaction()` bypassing GUC (Phase-1 high-severity) | mitigate | Three-layer: (1) dependency-cruiser `no-direct-db-transaction` rule; (2) grep CI gate (Plan 00, PC-04, PC-26) `! grep -RnE '\.transaction\(' --exclude=tx.ts --exclude-dir=test apps packages` — only one call site allowed repo-wide outside tests; (3) withInfraTx is the only documented infrastructure carve-out and is bounded to outbox dispatch + migration runner |
-| T-01-02-02 | Information Disclosure | `SET app.tenant_ids` (without LOCAL) leaking tenant context across pooled connections (Pitfall 4 — CRITICAL) | mitigate | `tenantContextSql` helper exclusively uses `SET LOCAL`; helper is the ONLY producer of that statement; tx.ts always wraps in explicit transaction |
-| T-01-02-03 | Elevation of Privilege | App or worker role with BYPASSRLS reading any tenant's rows | mitigate | post-migration.sql executes `ALTER ROLE app_role NOBYPASSRLS` for all 3 roles; tenant-leak CI gate (Plan 10) asserts `pg_roles.rolbypassrls = false` |
-| T-01-02-04 | Tampering | UPDATE or DELETE on `expense_ledger` violating append-only invariant (ENGR-06) | mitigate | post-migration.sql: `REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role`; CI gate asserts `has_table_privilege('app_role', 'budgeting.expense_ledger', 'UPDATE') = false` |
-| T-01-02-05 | Tampering | drizzle-kit push silently skipping RLS policies in dev (Pitfall 1) → false-positive verification | mitigate | Migrator uses `drizzle-kit generate` + `migrate` exclusively; no `push` script in package.json; post-migration.sql appends FORCE RLS that drizzle-kit cannot emit (Pitfall 6) |
-| T-01-02-06 | Denial of Service | Concurrent migrators racing during multi-replica boot | mitigate | `pg_advisory_lock(hashtext('budget-migrations'))` serializes migrator runs; lock auto-releases on connection close (Postgres default) |
-| T-01-02-07 | Information Disclosure | NUMERIC float coercion via accidental `Number(row.amount)` (Pitfall 2 — HIGH likelihood) | mitigate | pg-types config keeps NUMERIC as string; ESLint `no-float-money` flags `Number()` near `amount` identifiers; Money.fromDb consumes string |
-| T-01-02-08 | Elevation of Privilege | Hook or middleware code escaping tenant context via raw `appPool().connect()` (PC-03 risk) | mitigate | withUserContext + withTenantTx (extended signature) cover the legitimate cases; PC-27 withBootstrapUserContext covers the tenant-guard bootstrap; CI grep gate (Plan 00, PC-26 file-level exclude on tx.ts, PC-28 test exclude) bans `appPool().connect(` outside `packages/platform/src/db/tx.ts`; only legitimate use is internal to tx.ts itself plus the testcontainer carve-out under tests/ |
+| Threat ID  | Category               | Component                                                                                                    | Disposition | Mitigation Plan                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01-02-01 | Information Disclosure | Cross-tenant data leak via direct `db.transaction()` bypassing GUC (Phase-1 high-severity)                   | mitigate    | Three-layer: (1) dependency-cruiser `no-direct-db-transaction` rule; (2) grep CI gate (Plan 00, PC-04, PC-26) `! grep -RnE '\.transaction\(' --exclude=tx.ts --exclude-dir=test apps packages` — only one call site allowed repo-wide outside tests; (3) withInfraTx is the only documented infrastructure carve-out and is bounded to outbox dispatch + migration runner                         |
+| T-01-02-02 | Information Disclosure | `SET app.tenant_ids` (without LOCAL) leaking tenant context across pooled connections (Pitfall 4 — CRITICAL) | mitigate    | `tenantContextSql` helper exclusively uses `SET LOCAL`; helper is the ONLY producer of that statement; tx.ts always wraps in explicit transaction                                                                                                                                                                                                                                                 |
+| T-01-02-03 | Elevation of Privilege | App or worker role with BYPASSRLS reading any tenant's rows                                                  | mitigate    | post-migration.sql executes `ALTER ROLE app_role NOBYPASSRLS` for all 3 roles; tenant-leak CI gate (Plan 10) asserts `pg_roles.rolbypassrls = false`                                                                                                                                                                                                                                              |
+| T-01-02-04 | Tampering              | UPDATE or DELETE on `expense_ledger` violating append-only invariant (ENGR-06)                               | mitigate    | post-migration.sql: `REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role`; CI gate asserts `has_table_privilege('app_role', 'budgeting.expense_ledger', 'UPDATE') = false`                                                                                                                                                                                               |
+| T-01-02-05 | Tampering              | drizzle-kit push silently skipping RLS policies in dev (Pitfall 1) → false-positive verification             | mitigate    | Migrator uses `drizzle-kit generate` + `migrate` exclusively; no `push` script in package.json; post-migration.sql appends FORCE RLS that drizzle-kit cannot emit (Pitfall 6)                                                                                                                                                                                                                     |
+| T-01-02-06 | Denial of Service      | Concurrent migrators racing during multi-replica boot                                                        | mitigate    | `pg_advisory_lock(hashtext('budget-migrations'))` serializes migrator runs; lock auto-releases on connection close (Postgres default)                                                                                                                                                                                                                                                             |
+| T-01-02-07 | Information Disclosure | NUMERIC float coercion via accidental `Number(row.amount)` (Pitfall 2 — HIGH likelihood)                     | mitigate    | pg-types config keeps NUMERIC as string; ESLint `no-float-money` flags `Number()` near `amount` identifiers; Money.fromDb consumes string                                                                                                                                                                                                                                                         |
+| T-01-02-08 | Elevation of Privilege | Hook or middleware code escaping tenant context via raw `appPool().connect()` (PC-03 risk)                   | mitigate    | withUserContext + withTenantTx (extended signature) cover the legitimate cases; PC-27 withBootstrapUserContext covers the tenant-guard bootstrap; CI grep gate (Plan 00, PC-26 file-level exclude on tx.ts, PC-28 test exclude) bans `appPool().connect(` outside `packages/platform/src/db/tx.ts`; only legitimate use is internal to tx.ts itself plus the testcontainer carve-out under tests/ |
 
 ## PC-21 Trigger Hardening — Phase 6 (Documented Limitation)
 
@@ -1143,6 +1150,7 @@ All static checks must exit 0; integration tests pass via testcontainer (PC-06).
 </verification>
 
 <success_criteria>
+
 - packages/platform exposes appPool/workerPool/migratorPool, appDb/workerDb, the FIVE tx primitives (withTenantTx, withTenantTxRead, withUserContext, withInfraTx, withBootstrapUserContext), pgSchemas (5), pgRoles (3), expenseLedger table primitive
 - withTenantTx is the only writable tenant-scoped primitive — dep-cruiser blocks direct db.transaction; CI grep gate (Plan 00, PC-26 file-level exclude + PC-28 test exclude) ensures only `packages/platform/src/db/tx.ts` calls `.transaction(` outside tests/
 - withTenantTx EXTENDED SIGNATURE (PC-03): accepts userId; sets BOTH app.tenant_ids AND app.current_user_id GUCs in same SET LOCAL pair
@@ -1157,7 +1165,7 @@ All static checks must exit 0; integration tests pass via testcontainer (PC-06).
 - PC-28: testcontainer.ts is documented as the SOLE approved raw-client call site within tests/ (whitelisted by Plan 00's --exclude-dir=test); ledger-revoke test uses withInfraTx for catalog reads
 - PC-29: testcontainer reads generated migrations at TEST TIME (during beforeAll) — Plan 06's close-out task owns drizzle-kit generate
 - Tests green via testcontainer
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-02-SUMMARY.md`

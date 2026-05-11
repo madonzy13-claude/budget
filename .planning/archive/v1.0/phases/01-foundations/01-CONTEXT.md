@@ -100,13 +100,14 @@ These entries DOCUMENT carve-outs / extensions to the original D-NN decisions su
 
   Documented invariant — CI grep gate enforces single non-test call site for `.transaction(` (PC-26: file-level `--exclude=tx.ts`; PC-28: also `--exclude-dir=test`). Underlying RLS rule from D-09 (no domain code opens `db.transaction(...)` directly) holds; the wrappers above replace what was previously one. [PC-03, PC-04, PC-07, PC-26, PC-27, PC-28]
 
-- **CHG-2026-05-06-B — Extends D-27 (cross-package imports).** D-27 says "only `contracts/**` is cross-package importable" — extended with the **factory surface convention**: every `packages/*/src/index.ts` re-exports a documented factory (`createIdentityModule`, `createTenancyModule`, `createPlatformModule`, etc.) defined under `packages/<ctx>/src/contracts/factory.ts`. Apps consume packages exclusively via the factory output (Better Auth instance, organization plugin, repos, etc.). The dep-cruiser rule `apps-only-public-package-surface` (Plan 00) enforces apps may import from `packages/*/src/index.ts` AND `packages/*/src/contracts/**`, but is BANNED from `packages/*/src/{domain,application,adapters,ports}/**`. The original D-27 contracts/** rule continues to govern cross-package imports between sibling packages. [PC-02, PC-15]
+- **CHG-2026-05-06-B — Extends D-27 (cross-package imports).** D-27 says "only `contracts/**` is cross-package importable" — extended with the **factory surface convention**: every `packages/*/src/index.ts` re-exports a documented factory (`createIdentityModule`, `createTenancyModule`, `createPlatformModule`, etc.) defined under `packages/<ctx>/src/contracts/factory.ts`. Apps consume packages exclusively via the factory output (Better Auth instance, organization plugin, repos, etc.). The dep-cruiser rule `apps-only-public-package-surface` (Plan 00) enforces apps may import from `packages/*/src/index.ts` AND `packages/*/src/contracts/**`, but is BANNED from `packages/*/src/{domain,application,adapters,ports}/**`. The original D-27 contracts/\*\* rule continues to govern cross-package imports between sibling packages. [PC-02, PC-15]
 
 - **CHG-2026-05-06-C — Refines D-28 (test infrastructure).** D-28's note "testcontainers is a v1.x option if isolation pain emerges" is exercised earlier than expected: Wave-1 + Wave-2 integration tests need a real DB at unit-test time, before the Wave-3 compose stack lands. Resolution: `packages/db/test/testcontainer.ts` exposes a `startTestcontainer()` helper (used in `beforeAll`) that boots a Postgres 17 container, creates the three NOBYPASSRLS roles and five schemas, runs drizzle migrations + post-migration.sql, and sets `DATABASE_URL_*` env vars. PC-28 adds `--exclude-dir=test` to the grep gates so testcontainer.ts is not flagged. PC-29: `bunx drizzle-kit generate` is owned by Plan 06's close-out task (the last Wave-2 plan) — earlier waves declare schema files but generation runs after all Phase-1 schemas exist. The testcontainer reads the generated migration files at TEST TIME (during `beforeAll`), so the order is: Plan 06 generates → Wave-2 + later integration tests run. Plan 09's compose stack remains the deployment artifact (Wave 3); it is no longer a Wave-2 test prerequisite. The "shared Compose test-db" hint in D-28 still applies for end-to-end smoke tests; testcontainers handles unit/integration tests within a single Bun process. [PC-06, PC-28, PC-29]
 
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
@@ -137,6 +138,7 @@ These entries DOCUMENT carve-outs / extensions to the original D-NN decisions su
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
@@ -150,7 +152,7 @@ These entries DOCUMENT carve-outs / extensions to the original D-NN decisions su
 
 ### Integration Points
 
-- Phase 1 is the *first* phase, so its integration surface is downward (later phases plug in). Planner must explicitly publish:
+- Phase 1 is the _first_ phase, so its integration surface is downward (later phases plug in). Planner must explicitly publish:
   - `withTenantTx` primitive signature
   - `Money`, `Clock`, `Result<T, E>`, `TenantId`, `UserId` types
   - `audit_history` write helper
@@ -189,8 +191,8 @@ These entries DOCUMENT carve-outs / extensions to the original D-NN decisions su
 
 ---
 
-*Phase: 1-Foundations*
-*Context gathered: 2026-05-05*
-*Revision pass: 2026-05-06 (changelog appended to <decisions>)*
-*Pass-2 cleanup: 2026-05-06 — CHG-2026-05-06-A path corrected to `packages/platform/src/db/tx.ts` per PC-26; CHG-2026-05-06-A grew to FIVE primitives (added withBootstrapUserContext per PC-27); CHG-2026-05-06-C now references PC-28 grep test exclude + PC-29 generate-migration ownership in Plan 06.*
+_Phase: 1-Foundations_
+_Context gathered: 2026-05-05_
+_Revision pass: 2026-05-06 (changelog appended to <decisions>)_
+_Pass-2 cleanup: 2026-05-06 — CHG-2026-05-06-A path corrected to `packages/platform/src/db/tx.ts` per PC-26; CHG-2026-05-06-A grew to FIVE primitives (added withBootstrapUserContext per PC-27); CHG-2026-05-06-C now references PC-28 grep test exclude + PC-29 generate-migration ownership in Plan 06._
 </content>

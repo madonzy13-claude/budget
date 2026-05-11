@@ -4,7 +4,7 @@ plan: 03
 plan_id: 01.03
 type: execute
 wave: 1
-depends_on: ['01.00', '01.02']
+depends_on: ["01.00", "01.02"]
 files_modified:
   - packages/platform/src/audit/schema.ts
   - packages/platform/src/audit/writer.ts
@@ -114,24 +114,27 @@ export interface AuditEvent {
 export async function writeAudit(tx: Tx, evt: AuditEvent): Promise<void>;
 
 <!-- outbox -->
+
 export interface OutboxEvent {
-  tenantId: TenantId;
-  aggregateType: string;
-  aggregateId: string;
-  eventType: string;
-  payload: unknown;
+tenantId: TenantId;
+aggregateType: string;
+aggregateId: string;
+eventType: string;
+payload: unknown;
 }
 export async function writeOutbox(tx: Tx, evt: OutboxEvent): Promise<void>;
 export async function dispatchOutboxBatch(): Promise<number>;
 
 <!-- in-process bus (PC-08) — handlers run under the published row's tenant context -->
+
 export type EventHandler = (evt: { tenantId: string; aggregateType: string; aggregateId: string; eventType: string; payload: unknown }) => Promise<void>;
 export const eventBus: {
-  subscribe(eventType: string, handler: EventHandler): void;
-  publish(evt: { tenantId: string; aggregateType: string; aggregateId: string; eventType: string; payload: unknown }): Promise<void>;
+subscribe(eventType: string, handler: EventHandler): void;
+publish(evt: { tenantId: string; aggregateType: string; aggregateId: string; eventType: string; payload: unknown }): Promise<void>;
 };
 
 <!-- pg-boss singleton -->
+
 export async function getBoss(): Promise<PgBoss>;
 </interfaces>
 </context>
@@ -256,6 +259,7 @@ export async function getBoss(): Promise<PgBoss>;
        GRANT SELECT, INSERT ON shared_kernel.audit_history TO app_role, worker_role;
        ALTER TABLE shared_kernel.audit_history FORCE ROW LEVEL SECURITY;
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/platform/tsconfig.json && grep -F 'audit_history' apps/migrator/post-migration.sql && grep -F 'audit_history_tenant_isolation' packages/platform/src/audit/schema.ts</automated>
@@ -449,6 +453,7 @@ export async function getBoss(): Promise<PgBoss>;
          expect(calls).toBe(1);
        });
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/platform/tsconfig.json && grep -F 'FOR UPDATE SKIP LOCKED' packages/platform/src/outbox/dispatcher.ts && grep -F 'withInfraTx' packages/platform/src/outbox/dispatcher.ts && grep -F 'tenantContextSql' packages/platform/src/outbox/dispatcher.ts && grep -F 'GRANT INSERT ON shared_kernel.outbox TO app_role' apps/migrator/post-migration.sql && grep -F 'GRANT SELECT, UPDATE ON shared_kernel.outbox TO worker_role' apps/migrator/post-migration.sql</automated>
@@ -614,6 +619,7 @@ export async function getBoss(): Promise<PgBoss>;
          expect(seen.size).toBe(5);
        });
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/platform/tsconfig.json && bunx tsc --noEmit -p apps/worker/tsconfig.json && grep -F 'pollingIntervalSeconds: 5' apps/worker/src/worker.ts && grep -F "schema: 'pgboss'" packages/platform/src/jobs/boss.ts</automated>
@@ -648,6 +654,7 @@ export async function getBoss(): Promise<PgBoss>;
     Correct ownership: Plan 06's close-out task (Task 4 in Plan 06) runs `bunx drizzle-kit generate` AFTER all Phase-1 schema files exist. The testcontainer (Plan 02 Task 5) reads the resulting `drizzle/0000_*.sql` files at TEST TIME (during `beforeAll`). Wave-2 integration tests therefore depend on Plan 06's close-out task having run; this is enforced by the wave structure (Plan 06 is the last Wave-2 plan to land before Wave-3 testcontainer-using verification).
 
     Plan 03's `provides` list shrinks accordingly: this plan declares the `audit_history` and `outbox` schemas (Tasks 1 + 2) but does NOT generate the migration SQL. The post-migration.sql additions (FORCE RLS, GRANTs) Plan 03 does append still apply at migrator-run time.
+
   </behavior>
   <action>
     No code changes in this task. Document the PC-29 reassignment:
@@ -670,26 +677,28 @@ export async function getBoss(): Promise<PgBoss>;
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| Domain write → outbox INSERT | Same transaction; either both happen or neither |
-| Outbox row → in-process bus | Dispatcher publishes after locking row; SKIP LOCKED prevents concurrent dispatchers |
-| Worker process → DB | worker_role with NOBYPASSRLS; outbox itself is GRANT-restricted infrastructure |
+| Boundary                                 | Description                                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Domain write → outbox INSERT             | Same transaction; either both happen or neither                                           |
+| Outbox row → in-process bus              | Dispatcher publishes after locking row; SKIP LOCKED prevents concurrent dispatchers       |
+| Worker process → DB                      | worker_role with NOBYPASSRLS; outbox itself is GRANT-restricted infrastructure            |
 | Outbox dispatch → handler tenant context | PC-08: dispatcher applies tenantContextSql before publish so handler DB I/O is RLS-scoped |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-03-01 | Tampering | Domain event lost between aggregate write and outbox INSERT (transactional outbox failure) | mitigate | writeOutbox accepts the same `tx` as the aggregate write; both succeed or both roll back |
-| T-01-03-02 | Repudiation / Information Disclosure | audit_history visible across tenants | mitigate | pgPolicy `audit_history_tenant_isolation` with same GUC array predicate as user-data tables; FORCE RLS in post-migration.sql; tenant-leak CI gate (Plan 10) covers this table |
-| T-01-03-03 | Tampering | Outbox at-most-once split (event dispatched but dispatched_at not updated) | mitigate | Dispatcher uses single transaction (PC-04 withInfraTx): SELECT FOR UPDATE SKIP LOCKED → publish → UPDATE dispatched_at; tx commit ties them together |
-| T-01-03-04 | Tampering | Outbox at-least-once duplicate dispatch on worker restart mid-batch (ENGR-08) | mitigate | dispatched_at is set inside the same tx as publish; SKIP LOCKED prevents concurrent dispatchers; outbox-restart.test.ts asserts this |
-| T-01-03-05 | Elevation of Privilege | app_role reading outbox events for OTHER tenants via lack of RLS | mitigate | post-migration.sql GRANTs INSERT-only to app_role on outbox; SELECT/UPDATE worker_role only |
-| T-01-03-06 | Information Disclosure | sensitive PII in outbox payload_jsonb | accept | Phase-1 outbox is infrastructure; producers control payloads. Documented for Phase-2+: do not put PII in payload_jsonb |
-| T-01-03-07 | Information Disclosure | In-process handler escaping the row's tenant scope (PC-08 risk) | mitigate | Dispatcher applies tenantContextSql([row.tenant_id], OUTBOX_SYSTEM_USER) before each publish; handler's DB I/O sees only that tenant; eventBus.publish JSDoc documents the contract; Plan 10 leak-CI test #5 asserts handler cannot escape the row's tenant |
+| Threat ID  | Category                             | Component                                                                                  | Disposition | Mitigation Plan                                                                                                                                                                                                                                             |
+| ---------- | ------------------------------------ | ------------------------------------------------------------------------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01-03-01 | Tampering                            | Domain event lost between aggregate write and outbox INSERT (transactional outbox failure) | mitigate    | writeOutbox accepts the same `tx` as the aggregate write; both succeed or both roll back                                                                                                                                                                    |
+| T-01-03-02 | Repudiation / Information Disclosure | audit_history visible across tenants                                                       | mitigate    | pgPolicy `audit_history_tenant_isolation` with same GUC array predicate as user-data tables; FORCE RLS in post-migration.sql; tenant-leak CI gate (Plan 10) covers this table                                                                               |
+| T-01-03-03 | Tampering                            | Outbox at-most-once split (event dispatched but dispatched_at not updated)                 | mitigate    | Dispatcher uses single transaction (PC-04 withInfraTx): SELECT FOR UPDATE SKIP LOCKED → publish → UPDATE dispatched_at; tx commit ties them together                                                                                                        |
+| T-01-03-04 | Tampering                            | Outbox at-least-once duplicate dispatch on worker restart mid-batch (ENGR-08)              | mitigate    | dispatched_at is set inside the same tx as publish; SKIP LOCKED prevents concurrent dispatchers; outbox-restart.test.ts asserts this                                                                                                                        |
+| T-01-03-05 | Elevation of Privilege               | app_role reading outbox events for OTHER tenants via lack of RLS                           | mitigate    | post-migration.sql GRANTs INSERT-only to app_role on outbox; SELECT/UPDATE worker_role only                                                                                                                                                                 |
+| T-01-03-06 | Information Disclosure               | sensitive PII in outbox payload_jsonb                                                      | accept      | Phase-1 outbox is infrastructure; producers control payloads. Documented for Phase-2+: do not put PII in payload_jsonb                                                                                                                                      |
+| T-01-03-07 | Information Disclosure               | In-process handler escaping the row's tenant scope (PC-08 risk)                            | mitigate    | Dispatcher applies tenantContextSql([row.tenant_id], OUTBOX_SYSTEM_USER) before each publish; handler's DB I/O sees only that tenant; eventBus.publish JSDoc documents the contract; Plan 10 leak-CI test #5 asserts handler cannot escape the row's tenant |
+
 </threat_model>
 
 <verification>
@@ -712,6 +721,7 @@ All exit 0; integration tests pass via testcontainer (note: Wave-2 testcontainer
 </verification>
 
 <success_criteria>
+
 - shared_kernel.audit_history table with RLS policy (D-24, ENGR-07)
 - writeAudit(tx, evt) helper inserts audit row in same tx as caller's aggregate write
 - shared_kernel.outbox table without RLS (Pitfall 10) — INSERT-only for app_role, SELECT/UPDATE for worker_role
@@ -723,7 +733,7 @@ All exit 0; integration tests pass via testcontainer (note: Wave-2 testcontainer
 - outbox-restart test asserts dispatched_at-based dedupe across restart (5h)
 - PC-29: drizzle-kit generate is OWNED BY PLAN 06's close-out task; Plan 03 declares its schemas but does NOT run generate (cannot succeed in Wave 1 because Wave-2 schemas don't exist yet)
 - post-migration.sql appended with audit_history FORCE RLS + outbox GRANTs
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-03-SUMMARY.md`

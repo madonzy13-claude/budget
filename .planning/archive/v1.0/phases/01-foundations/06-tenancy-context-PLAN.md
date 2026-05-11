@@ -4,7 +4,7 @@ plan: 06
 plan_id: 01.06
 type: execute
 wave: 2
-depends_on: ['01.00', '01.01', '01.02', '01.03', '01.05']
+depends_on: ["01.00", "01.01", "01.02", "01.03", "01.05"]
 files_modified:
   - packages/tenancy/package.json
   - packages/tenancy/src/index.ts
@@ -42,7 +42,22 @@ files_modified:
   - apps/migrator/post-migration.sql
   - apps/migrator/drizzle.config.ts
 autonomous: true
-requirements: [TENT-01, TENT-02, TENT-03, TENT-04, TENT-05, TENT-06, TENT-09, TENT-10, TENT-11, TENT-12, TENT-13, MONY-02, ENGR-04]
+requirements:
+  [
+    TENT-01,
+    TENT-02,
+    TENT-03,
+    TENT-04,
+    TENT-05,
+    TENT-06,
+    TENT-09,
+    TENT-10,
+    TENT-11,
+    TENT-12,
+    TENT-13,
+    MONY-02,
+    ENGR-04,
+  ]
 must_haves:
   truths:
     - "Workspace.kind enum (PRIVATE | SHARED) declared as Postgres enum (D-02, TENT-10)"
@@ -97,9 +112,9 @@ must_haves:
 <objective>
 Ship the Tenancy bounded context: workspaces (PRIVATE | SHARED kind enum), members, contribution shares, and the organization plugin configuration with hooks for kind validation, currency immutability, and shares lifecycle.
 
-Purpose: Implements all TENT-* requirements (01-13) + MONY-02 + D-01/02/04/06/07/12. The Tenancy context layers on Better Auth's organization plugin (configured via Plan 05's additionalPlugins) and adds domain-specific tables (workspace_members extension, shared_workspace_member_shares) plus a CHECK trigger enforcing default_currency immutability at the DB level (defense in depth).
+Purpose: Implements all TENT-\* requirements (01-13) + MONY-02 + D-01/02/04/06/07/12. The Tenancy context layers on Better Auth's organization plugin (configured via Plan 05's additionalPlugins) and adds domain-specific tables (workspace_members extension, shared_workspace_member_shares) plus a CHECK trigger enforcing default_currency immutability at the DB level (defense in depth).
 
-Output: A `packages/tenancy` with full DDD layout, the organization plugin properly configured, member-shares storage with sum=100 invariant, and 9 integration tests covering every TENT-* requirement.
+Output: A `packages/tenancy` with full DDD layout, the organization plugin properly configured, member-shares storage with sum=100 invariant, and 9 integration tests covering every TENT-\* requirement.
 </objective>
 
 <execution_context>
@@ -124,52 +139,52 @@ Output: A `packages/tenancy` with full DDD layout, the organization plugin prope
 export type WorkspaceKind = 'PRIVATE' | 'SHARED';
 
 export interface WorkspaceDTO {
-  id: string;
-  slug: string;                  // nanoid(12)
-  name: string;
-  kind: WorkspaceKind;
-  default_currency: string;      // ISO-4217 immutable post-create (D-04)
-  ownerUserId: string;
-  memberCount: number;
-  createdAt: Date;
+id: string;
+slug: string; // nanoid(12)
+name: string;
+kind: WorkspaceKind;
+default_currency: string; // ISO-4217 immutable post-create (D-04)
+ownerUserId: string;
+memberCount: number;
+createdAt: Date;
 }
 
 export interface MemberDTO {
-  workspaceId: string;
-  userId: string;
-  role: 'owner' | 'member';
-  joinedAt: Date;
+workspaceId: string;
+userId: string;
+role: 'owner' | 'member';
+joinedAt: Date;
 }
 
 export interface MemberShareDTO {
-  workspaceId: string;
-  userId: string;
-  percentage: string;            // string for big.js precision (5,2)
-  updatedAt: Date;
+workspaceId: string;
+userId: string;
+percentage: string; // string for big.js precision (5,2)
+updatedAt: Date;
 }
 
 // ports/workspace-repo.ts
 export interface WorkspaceRepo {
-  findById(id: string): Promise<WorkspaceDTO | null>;
-  listForUser(userId: string): Promise<WorkspaceDTO[]>;
-  listMembers(workspaceId: string): Promise<MemberDTO[]>;
+findById(id: string): Promise<WorkspaceDTO | null>;
+listForUser(userId: string): Promise<WorkspaceDTO[]>;
+listMembers(workspaceId: string): Promise<MemberDTO[]>;
 }
 
 // ports/member-repo.ts
 export interface MemberShareRepo {
-  list(workspaceId: string): Promise<MemberShareDTO[]>;
-  update(workspaceId: string, shares: { userId: string; percentage: string }[], actorUserId: string): Promise<void>;  // sum=100 + audit
+list(workspaceId: string): Promise<MemberShareDTO[]>;
+update(workspaceId: string, shares: { userId: string; percentage: string }[], actorUserId: string): Promise<void>; // sum=100 + audit
 }
 
 // contracts/factory.ts (PC-02, PC-15)
 export interface TenancyModule {
-  organizationPlugin: ReturnType<typeof import('better-auth/plugins').organization>;
-  workspaceRepo: import('../ports/workspace-repo').WorkspaceRepo;
-  memberShareRepo: import('../ports/member-repo').MemberShareRepo;
+organizationPlugin: ReturnType<typeof import('better-auth/plugins').organization>;
+workspaceRepo: import('../ports/workspace-repo').WorkspaceRepo;
+memberShareRepo: import('../ports/member-repo').MemberShareRepo;
 }
 export function createTenancyModule(deps: {
-  emailSender: import('@budget/shared-kernel').EmailSender;
-  appUrl: string;
+emailSender: import('@budget/shared-kernel').EmailSender;
+appUrl: string;
 }): TenancyModule;
 </interfaces>
 </context>
@@ -324,6 +339,7 @@ export function createTenancyModule(deps: {
         export type { MemberShareRepo } from './ports/member-repo';
         // domain/* and adapters/* are NOT re-exported.
         ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/tenancy/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err packages/tenancy</automated>
@@ -539,6 +555,7 @@ export function createTenancyModule(deps: {
          '../../packages/tenancy/src/adapters/persistence/shares-schema.ts',
        ],
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/tenancy/tsconfig.json && grep -F 'workspace_kind' packages/tenancy/src/adapters/persistence/schema.ts && grep -F 'workspaces_currency_immutable' apps/migrator/post-migration.sql && grep -F 'shares_sum_invariant' apps/migrator/post-migration.sql && grep -F 'workspace_members_private_cap' apps/migrator/post-migration.sql && grep -F 'workspace_members_self' packages/tenancy/src/adapters/persistence/schema.ts</automated>
@@ -702,6 +719,7 @@ export function createTenancyModule(deps: {
          }
          ```
        (validateShares + writeAudit + writeOutbox imported from domain/share + @budget/platform respectively.)
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/tenancy/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err packages/tenancy && ! grep -F 'appPool().connect()' packages/tenancy/src/adapters/persistence/better-auth-org.ts</automated>
@@ -775,6 +793,7 @@ export function createTenancyModule(deps: {
     - shares-audit.test.ts: SHARED owner updates shares; sum=100 enforced; audit_history row written; trying sum=99 throws (TENT-13, D-06)
 
     + PC-11 regression test (private-toctou.test.ts): seed PRIVATE workspace with owner; spawn TWO concurrent INSERT attempts into workspace_members for that workspace (different second-member UUIDs); assert exactly ONE succeeds and the other raises with the trigger's PRIVATE-cap exception. Proves race-free guard.
+
   </behavior>
   <action>
     1. Implement application services. Each service signature:
@@ -849,6 +868,7 @@ export function createTenancyModule(deps: {
          });
        });
        ```
+
   </action>
   <verify>
     <automated>cd /home/claude/budget && bunx tsc --noEmit -p packages/tenancy/tsconfig.json && bunx depcruise --config .dependency-cruiser.cjs --output-type err packages/tenancy</automated>
@@ -867,28 +887,29 @@ export function createTenancyModule(deps: {
 </tasks>
 
 <threat_model>
+
 ## Trust Boundaries
 
-| Boundary | Description |
-|----------|-------------|
-| API request → workspace mutation | Better Auth role enforcement (owner/member); organizationHooks add domain invariants |
-| App-layer hook → DB | Defense in depth: hook + DB trigger BOTH enforce default_currency immutability; PC-11 BEFORE-INSERT trigger is race-free PRIVATE cap |
-| Cross-workspace dashboard reads | RLS with array GUC ensures user only sees workspaces they're members of |
+| Boundary                         | Description                                                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| API request → workspace mutation | Better Auth role enforcement (owner/member); organizationHooks add domain invariants                                                 |
+| App-layer hook → DB              | Defense in depth: hook + DB trigger BOTH enforce default_currency immutability; PC-11 BEFORE-INSERT trigger is race-free PRIVATE cap |
+| Cross-workspace dashboard reads  | RLS with array GUC ensures user only sees workspaces they're members of                                                              |
 
 ## STRIDE Threat Register
 
-| Threat ID | Category | Component | Disposition | Mitigation Plan |
-|-----------|----------|-----------|-------------|-----------------|
-| T-01-06-01 | Tampering | PRIVATE workspace getting a 2nd member (D-02 violation) | mitigate | TWO walls: (1) organizationHooks.beforeAddMember queries live count via withTenantTx and rejects if PRIVATE & count>=1 (app-layer defense in depth); (2) PC-11 BEFORE INSERT trigger workspace_members_private_cap raises in same tx as INSERT (race-free, TOCTOU-proof). private-toctou.test.ts asserts both walls under concurrency |
-| T-01-06-02 | Tampering | default_currency change post-create (TENT-11 violation) | mitigate | Two-layer: organizationHooks.beforeUpdateOrganization throws AND DB trigger workspaces_currency_immutable raises; default-currency-immutable.test.ts asserts both layers |
-| T-01-06-03 | Information Disclosure | Cross-workspace data leak via active_workspace_ids tampering (user submits another user's workspace ID) | mitigate | setActiveWorkspaces application service intersects submitted IDs with actual memberships before writing user_preferences (defense in depth — app side) AND tenant-guard middleware (Plan 07) intersects again at request time |
-| T-01-06-04 | Elevation of Privilege | Member calling inviteMember (only owners can) | mitigate | Better Auth role check + role-enforcement.test.ts asserts member-call → 403 |
-| T-01-06-05 | Tampering | Owner-shares update with sum != 100 | mitigate | Three-layer: domain validateShares() returns Result.err on mismatch (defense 1); app-layer guard in MemberShareRepo.update (defense 2); DB constraint trigger shares_sum_invariant (defense 3); shares-audit.test.ts asserts |
-| T-01-06-06 | Repudiation | Untracked shares edits | mitigate | MemberShareRepo.update writes audit_history row in same tx as DELETE/INSERT; shares-audit.test.ts asserts visible |
-| T-01-06-07 | Spoofing | Replayed invitation tokens | mitigate | Better Auth invitation table has expiresAt + status; single-use semantics handled by plugin |
-| T-01-06-08 | Tampering | Last-owner leaving workspace, leaving it ownerless | mitigate | leaveWorkspace application service checks owner count via repo; rejects with TENT-05 message; leave-workspace.test.ts asserts |
-| T-01-06-09 | Information Disclosure | workspace_invitations table leaking pending invites across tenants | accept (Phase 1) | Token-keyed lookup (token IS the credential). NO RLS on this table — same pattern as identity.verifications. Documented in schema comment |
-| T-01-06-10 | Elevation of Privilege | Hook code escaping tenant context via raw appPool().connect() | mitigate (PC-03) | All hook DB writes use withTenantTx(workspaceId, userId, fn) extended signature; CI grep gate (Plan 00) bans appPool().connect() outside packages/db/src/tx.ts |
+| Threat ID  | Category               | Component                                                                                               | Disposition      | Mitigation Plan                                                                                                                                                                                                                                                                                                                       |
+| ---------- | ---------------------- | ------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T-01-06-01 | Tampering              | PRIVATE workspace getting a 2nd member (D-02 violation)                                                 | mitigate         | TWO walls: (1) organizationHooks.beforeAddMember queries live count via withTenantTx and rejects if PRIVATE & count>=1 (app-layer defense in depth); (2) PC-11 BEFORE INSERT trigger workspace_members_private_cap raises in same tx as INSERT (race-free, TOCTOU-proof). private-toctou.test.ts asserts both walls under concurrency |
+| T-01-06-02 | Tampering              | default_currency change post-create (TENT-11 violation)                                                 | mitigate         | Two-layer: organizationHooks.beforeUpdateOrganization throws AND DB trigger workspaces_currency_immutable raises; default-currency-immutable.test.ts asserts both layers                                                                                                                                                              |
+| T-01-06-03 | Information Disclosure | Cross-workspace data leak via active_workspace_ids tampering (user submits another user's workspace ID) | mitigate         | setActiveWorkspaces application service intersects submitted IDs with actual memberships before writing user_preferences (defense in depth — app side) AND tenant-guard middleware (Plan 07) intersects again at request time                                                                                                         |
+| T-01-06-04 | Elevation of Privilege | Member calling inviteMember (only owners can)                                                           | mitigate         | Better Auth role check + role-enforcement.test.ts asserts member-call → 403                                                                                                                                                                                                                                                           |
+| T-01-06-05 | Tampering              | Owner-shares update with sum != 100                                                                     | mitigate         | Three-layer: domain validateShares() returns Result.err on mismatch (defense 1); app-layer guard in MemberShareRepo.update (defense 2); DB constraint trigger shares_sum_invariant (defense 3); shares-audit.test.ts asserts                                                                                                          |
+| T-01-06-06 | Repudiation            | Untracked shares edits                                                                                  | mitigate         | MemberShareRepo.update writes audit_history row in same tx as DELETE/INSERT; shares-audit.test.ts asserts visible                                                                                                                                                                                                                     |
+| T-01-06-07 | Spoofing               | Replayed invitation tokens                                                                              | mitigate         | Better Auth invitation table has expiresAt + status; single-use semantics handled by plugin                                                                                                                                                                                                                                           |
+| T-01-06-08 | Tampering              | Last-owner leaving workspace, leaving it ownerless                                                      | mitigate         | leaveWorkspace application service checks owner count via repo; rejects with TENT-05 message; leave-workspace.test.ts asserts                                                                                                                                                                                                         |
+| T-01-06-09 | Information Disclosure | workspace_invitations table leaking pending invites across tenants                                      | accept (Phase 1) | Token-keyed lookup (token IS the credential). NO RLS on this table — same pattern as identity.verifications. Documented in schema comment                                                                                                                                                                                             |
+| T-01-06-10 | Elevation of Privilege | Hook code escaping tenant context via raw appPool().connect()                                           | mitigate (PC-03) | All hook DB writes use withTenantTx(workspaceId, userId, fn) extended signature; CI grep gate (Plan 00) bans appPool().connect() outside packages/db/src/tx.ts                                                                                                                                                                        |
 
 ## PC-18 Trigger Semantics — Phase 6 Hardening (Documented Limitation)
 
@@ -913,6 +934,7 @@ All exit 0. Tests run real with testcontainer; skip-if removed.
 </verification>
 
 <success_criteria>
+
 - packages/tenancy with full DDD layout (domain, contracts, ports, application, adapters)
 - workspace_kind enum + workspaces table + workspace_members (TWO policies: tenant_isolation + members_self per PC-01) + shared_workspace_member_shares per D-02/06/12
 - organization plugin configured via createOrganizationPlugin(deps) factory; injected into createIdentityModule.additionalPlugins via tenancy.organizationPlugin (PC-02)
@@ -923,7 +945,7 @@ All exit 0. Tests run real with testcontainer; skip-if removed.
 - All 9 + 1 integration tests covering TENT-01..13 + MONY-02 + PC-11 TOCTOU regression
 - audit_history rows written on shares update (D-06, ENGR-07 wiring)
 - Known limitation (PC-18 — deferred to Phase 6): PRIVATE-cap trigger uses count-based check; for extreme-concurrency hardening, Phase 6 will add row-lock SELECT FOR UPDATE before the count or convert to a generated-column partial unique index
-</success_criteria>
+  </success_criteria>
 
 <output>
 After completion, create `.planning/phases/01-foundations/01-06-SUMMARY.md`
