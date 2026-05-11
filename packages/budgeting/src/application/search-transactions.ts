@@ -60,7 +60,7 @@ function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
     fxProvider: row.fx_provider as string,
     transactionDate: row.transaction_date as string,
     note: (row.note as string | null) ?? null,
-    accountId: row.account_id as string,
+    accountId: (row.wallet_id as string | null) ?? (row.account_id as string | null) ?? "",
     categoryId: (row.category_id as string | null) ?? null,
     transferGroupId: (row.transfer_group_id as string | null) ?? null,
     correctsId: (row.corrects_id as string | null) ?? null,
@@ -112,14 +112,10 @@ export function searchTransactions() {
           sql`e.category_id = ANY(SELECT (jsonb_array_elements_text(${JSON.stringify(filters.categoryIds)}::jsonb))::uuid)`,
         );
       }
-      if (filters.accountIds && filters.accountIds.length > 0) {
-        conds.push(
-          sql`e.account_id = ANY(SELECT (jsonb_array_elements_text(${JSON.stringify(filters.accountIds)}::jsonb))::uuid)`,
-        );
-      }
-      if (filters.kind) {
-        conds.push(sql`e.kind = ${filters.kind}`);
-      }
+      // v1.1 (MIG-03): account_id dropped from expense_ledger — accountIds filter no longer supported
+      // if (filters.accountIds && filters.accountIds.length > 0) { ... }
+      // v1.1 (MIG-03): kind column dropped from expense_ledger — kind filter not supported
+      // if (filters.kind) { conds.push(sql`e.kind = ${filters.kind}`); }
       if (query) {
         // plainto_tsquery handles arbitrary user input safely (T-2-09-01)
         conds.push(sql`e.note_tsv @@ plainto_tsquery('simple', ${query})`);
@@ -137,12 +133,12 @@ export function searchTransactions() {
       }, undefined);
 
       const result = await drizzleTx.execute(
-        sql`SELECT e.id, e.tenant_id, e.kind, e.amount_orig, e.currency_orig,
+        sql`SELECT e.id, e.tenant_id, 'EXPENSE'::text AS kind, e.amount_orig, e.currency_orig,
                    e.amount_default, e.currency_default, e.fx_rate,
                    e.fx_rate_date::text AS fx_rate_date,
                    e.fx_provider,
                    e.transaction_date::text AS transaction_date,
-                   e.note, e.account_id, e.category_id,
+                   e.note, e.wallet_id, e.category_id,
                    e.transfer_group_id, e.corrects_id, e.created_at
               FROM budgeting.expense_ledger e
              WHERE ${whereClause}

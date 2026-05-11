@@ -42,7 +42,7 @@ async function createTestUser() {
       [userId, `rd-route-${userId}@example.com`],
     );
     await client.query(
-      `INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
        VALUES ($1, $2, 'RD Route WS', 'PRIVATE', 'USD', $3, 1, now())`,
       [tenantId, `ws-rd-${tenantId.slice(0, 8)}`, userId],
     );
@@ -50,8 +50,8 @@ async function createTestUser() {
       `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
     );
     await client.query(
-      `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Checking', 'CHECKING', 'PERSONAL', 'USD', 5000.0000, now(), $3)`,
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+       VALUES ($1, $2, 'Checking', 'SPENDINGS', 'USD', 5000.0000, now(), $3)`,
       [accountId, tenantId, userId],
     );
     await client.query("COMMIT");
@@ -83,7 +83,7 @@ async function seedRule(
     );
     await client.query(
       `INSERT INTO budgeting.recurring_rules
-         (id, tenant_id, account_id, amount, currency, kind, cadence, cadence_anchor, active, next_due_date, actor_user_id)
+         (id, tenant_id, wallet_id, amount, currency, kind, cadence, cadence_anchor, active, next_due_date, actor_user_id)
        VALUES ($1, $2, $3, '100', 'USD', 'EXPENSE', 'MONTHLY', 15, true, CURRENT_DATE, $4)`,
       [ruleId, tenantId, accountId, actorUserId],
     );
@@ -115,7 +115,7 @@ async function seedDraft(
     );
     await client.query(
       `INSERT INTO budgeting.recurring_drafts
-         (id, tenant_id, rule_id, due_date, amount, currency, account_id, kind, status, actor_user_id)
+         (id, tenant_id, rule_id, due_date, amount, currency, wallet_id, kind, status, actor_user_id)
        VALUES ($1, $2, $3, (CURRENT_DATE + INTERVAL '${daysFromToday} days')::date, $4, 'USD', $5, 'EXPENSE', 'PENDING', $6)`,
       [draftId, tenantId, ruleId, amount, accountId, SYSTEM_USER],
     );

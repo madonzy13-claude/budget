@@ -65,7 +65,7 @@ export function confirmRecurringDraft(deps: {
       // Call transactionRepo.createInTx (defined in plan 02-06) — same tx
       // Fetch workspace default currency
       const wsResult = await drizzleTx.execute(sql`
-        SELECT default_currency FROM tenancy.workspaces WHERE id = ${input.tenantId}::uuid LIMIT 1
+        SELECT default_currency FROM tenancy.budgets WHERE id = ${input.tenantId}::uuid LIMIT 1
       `);
       const defaultCurrency = ((wsResult.rows[0] as Record<string, unknown> | undefined)?.default_currency as string) ?? "USD";
       const amountStr = String(draft.amount);
@@ -87,7 +87,7 @@ export function confirmRecurringDraft(deps: {
             fxProvider: "recurring",
             transactionDate: draft.due_date as string,
             note: (draft.note as string | null) ?? null,
-            accountId: draft.account_id as string,
+            accountId: draft.wallet_id as string,
             categoryId: (draft.category_id as string | null) ?? null,
             transferGroupId: null,
             correctsId: null,

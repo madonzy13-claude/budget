@@ -36,20 +36,20 @@ async function createFixture(currency = "EUR") {
       [userId, `edit-test-${userId}@example.com`],
     );
     await client.query(
-      `INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
        VALUES ($1, $2, 'Edit WS', 'PRIVATE', $3, $4, 1, now())`,
       [tenantId, `ws-edit-${tenantId.slice(0, 8)}`, currency, userId],
     );
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
     await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
     await client.query(
-      `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Checking', 'CHECKING', 'PERSONAL', $3, 5000.0000, now(), $4)`,
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+       VALUES ($1, $2, 'Checking', 'SPENDINGS', $3, 5000.0000, now(), $4)`,
       [accountId, tenantId, currency, userId],
     );
     await client.query(
-      `INSERT INTO budgeting.categories (id, tenant_id, name, scope, created_at, actor_user_id)
-       VALUES ($1, $2, 'Food', 'PERSONAL', now(), $3)`,
+      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+       VALUES ($1, $2, 'Food', now(), $3)`,
       [categoryId, tenantId, userId],
     );
     await client.query("COMMIT");
@@ -97,7 +97,7 @@ async function getBalance(tenantId: string, accountId: string): Promise<number> 
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
     await client.query(`SELECT set_config('app.current_user_id', '${tenantId}', true)`);
     const r = await client.query(
-      `SELECT current_balance::float FROM budgeting.accounts WHERE id = $1`,
+      `SELECT current_balance::float FROM budgeting.wallets WHERE id = $1`,
       [accountId],
     );
     await client.query("COMMIT");

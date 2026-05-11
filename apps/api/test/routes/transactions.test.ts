@@ -44,20 +44,20 @@ async function createTestUser(currency = "EUR") {
       [userId, `tx-route-${userId}@example.com`],
     );
     await client.query(
-      `INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
        VALUES ($1, $2, 'TX Route WS', 'PRIVATE', $3, $4, 1, now())`,
       [tenantId, `ws-tx-rt-${tenantId.slice(0, 8)}`, currency, userId],
     );
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
     await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
     await client.query(
-      `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Checking', 'CHECKING', 'PERSONAL', $3, 2000.0000, now(), $4)`,
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+       VALUES ($1, $2, 'Checking', 'SPENDINGS', $3, 2000.0000, now(), $4)`,
       [accountId, tenantId, currency, userId],
     );
     await client.query(
-      `INSERT INTO budgeting.categories (id, tenant_id, name, scope, created_at, actor_user_id)
-       VALUES ($1, $2, 'Food', 'PERSONAL', now(), $3)`,
+      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+       VALUES ($1, $2, 'Food', now(), $3)`,
       [categoryId, tenantId, userId],
     );
     await client.query("COMMIT");
@@ -248,8 +248,8 @@ describe("POST /transactions", () => {
       await client.query(`SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', true)`);
       await client.query(`SELECT set_config('app.current_user_id', '${testUserId}', true)`);
       await client.query(
-        `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, created_at, actor_user_id)
-         VALUES ($1, $2, 'Savings', 'SAVINGS', 'PERSONAL', 'EUR', 0.0000, now(), $3)`,
+        `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+         VALUES ($1, $2, 'Savings', 'RESERVE', 'EUR', 0.0000, now(), $3)`,
         [toAccountId, testTenantId, testUserId],
       );
       await client.query("COMMIT");
@@ -286,8 +286,8 @@ describe("POST /transactions", () => {
       await client.query(`SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', true)`);
       await client.query(`SELECT set_config('app.current_user_id', '${testUserId}', true)`);
       await client.query(
-        `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, archived_at, created_at, actor_user_id)
-         VALUES ($1, $2, 'Archived', 'CASH', 'PERSONAL', 'EUR', 0.0000, now(), now(), $3)`,
+        `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, archived_at, created_at, actor_user_id)
+         VALUES ($1, $2, 'Archived', 'SPENDINGS', 'EUR', 0.0000, now(), now(), $3)`,
         [archivedAccountId, testTenantId, testUserId],
       );
       await client.query("COMMIT");

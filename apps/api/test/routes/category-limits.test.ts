@@ -5,8 +5,10 @@
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Hono } from "hono";
 
+const DB_URL_RAW = process.env.DATABASE_URL_APP;
+if (!DB_URL_RAW) throw new Error("DATABASE_URL_APP required");
+process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
-if (!DB_URL) throw new Error("DATABASE_URL_APP required");
 
 let testUserId: string;
 let testTenantId: string;
@@ -21,7 +23,7 @@ async function createTestUser(): Promise<{ userId: string; tenantId: string }> {
   try {
     await client.query("BEGIN");
     await client.query(`INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at) VALUES ($1, $2, 'Test', true, now(), now())`, [userId, email]);
-    await client.query(`INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'Lmt WS', 'PRIVATE', 'EUR', $3, 1, now())`, [tenantId, `ws-lmt-${tenantId.slice(0, 8)}`, userId]);
+    await client.query(`INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'Lmt WS', 'PRIVATE', 'EUR', $3, 1, now())`, [tenantId, `ws-lmt-${tenantId.slice(0, 8)}`, userId]);
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");

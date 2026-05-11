@@ -33,21 +33,21 @@ async function createFixture(label: string) {
       [userId, `bulk-route-${label}-${userId.slice(0, 8)}@example.com`],
     );
     await client.query(
-      `INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
        VALUES ($1, $2, 'Bulk WS', 'PRIVATE', 'EUR', $3, 1, now())`,
       [tenantId, `ws-bulk-${tenantId.slice(0, 8)}`, userId],
     );
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
     await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
     await client.query(
-      `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Checking', 'CHECKING', 'PERSONAL', 'EUR', 100000.0000, now(), $3)`,
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+       VALUES ($1, $2, 'Checking', 'SPENDINGS', 'EUR', 100000.0000, now(), $3)`,
       [accountId, tenantId, userId],
     );
     await client.query(
-      `INSERT INTO budgeting.categories (id, tenant_id, name, scope, created_at, actor_user_id)
-       VALUES ($1, $2, 'CatA', 'PERSONAL', now(), $3),
-              ($4, $2, 'CatB', 'PERSONAL', now(), $3)`,
+      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+       VALUES ($1, $2, 'CatA', now(), $3),
+              ($4, $2, 'CatB', now(), $3)`,
       [categoryAId, tenantId, userId, categoryBId],
     );
     await client.query("COMMIT");

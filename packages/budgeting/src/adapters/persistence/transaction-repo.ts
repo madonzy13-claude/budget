@@ -61,7 +61,7 @@ function rowToTransaction(row: Record<string, unknown>): Transaction {
     row.fx_provider as string,
     row.transaction_date as string,
     (row.note as string | null) ?? null,
-    (row.account_id as string | null) ?? "",
+    (row.wallet_id as string | null) ?? (row.account_id as string | null) ?? "",
     (row.category_id as string | null) ?? null,
     (row.transfer_group_id as string | null) ?? null,
     (row.corrects_id as string | null) ?? null,
@@ -87,7 +87,7 @@ function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
     fxProvider: row.fx_provider as string,
     transactionDate: row.transaction_date as string,
     note: (row.note as string | null) ?? null,
-    accountId: (row.account_id as string | null) ?? "",
+    accountId: (row.wallet_id as string | null) ?? (row.account_id as string | null) ?? "",
     categoryId: (row.category_id as string | null) ?? null,
     transferGroupId: (row.transfer_group_id as string | null) ?? null,
     correctsId: (row.corrects_id as string | null) ?? null,
@@ -128,13 +128,13 @@ export class DrizzleTransactionRepo implements TransactionRepo {
 
     for (const row of rows) {
       // 1. INSERT ledger row
-      // v1.1 (MIG-03): account_id and kind columns dropped from expense_ledger
+      // v1.1 (MIG-03): account_id and kind columns dropped; wallet_id added (Plan 01-03 fix)
       await drizzleTx.execute(
         sql`INSERT INTO budgeting.expense_ledger
               (id, tenant_id, amount_orig, currency_orig, amount_default, currency_default,
                fx_rate, fx_rate_date, fx_provider, corrects_id,
                transaction_date, note, category_id, transfer_group_id,
-               created_at)
+               wallet_id, created_at)
             VALUES
               (${row.id}::uuid, ${row.tenantId}::uuid,
                ${row.amountOrig}::numeric, ${row.currencyOrig},
@@ -145,6 +145,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
                ${row.note ?? null},
                ${row.categoryId ? sql`${row.categoryId}::uuid` : sql`NULL`},
                ${row.transferGroupId ? sql`${row.transferGroupId}::uuid` : sql`NULL`},
+               ${row.accountId ? sql`${row.accountId}::uuid` : sql`NULL`},
                now())`,
       );
 
@@ -201,11 +202,11 @@ export class DrizzleTransactionRepo implements TransactionRepo {
       let result: { rows: Record<string, unknown>[] };
 
       if (opts.before) {
-        // v1.1 (MIG-03): kind and account_id dropped from expense_ledger
+        // v1.1 (MIG-03): account_id/kind dropped; wallet_id added (Plan 01-03 fix)
         result = await drizzleTx.execute(
           sql`SELECT e.id, e.tenant_id, e.amount_orig, e.currency_orig, e.amount_default,
                      e.currency_default, e.fx_rate, e.fx_rate_date::text, e.fx_provider,
-                     e.transaction_date::text, e.note, e.category_id,
+                     e.transaction_date::text, e.note, e.wallet_id, e.category_id,
                      e.transfer_group_id, e.corrects_id, e.created_at,
                      EXISTS(SELECT 1 FROM budgeting.expense_ledger c WHERE c.corrects_id = e.id) AS has_corrections
               FROM budgeting.expense_ledger e
@@ -221,11 +222,11 @@ export class DrizzleTransactionRepo implements TransactionRepo {
               LIMIT ${opts.limit}`,
         );
       } else {
-        // v1.1 (MIG-03): kind and account_id dropped from expense_ledger
+        // v1.1 (MIG-03): account_id/kind dropped; wallet_id added (Plan 01-03 fix)
         result = await drizzleTx.execute(
           sql`SELECT e.id, e.tenant_id, e.amount_orig, e.currency_orig, e.amount_default,
                      e.currency_default, e.fx_rate, e.fx_rate_date::text, e.fx_provider,
-                     e.transaction_date::text, e.note, e.category_id,
+                     e.transaction_date::text, e.note, e.wallet_id, e.category_id,
                      e.transfer_group_id, e.corrects_id, e.created_at,
                      EXISTS(SELECT 1 FROM budgeting.expense_ledger c WHERE c.corrects_id = e.id) AS has_corrections
               FROM budgeting.expense_ledger e
@@ -255,11 +256,11 @@ export class DrizzleTransactionRepo implements TransactionRepo {
 
     const r = await withTenantTx(tid, uid, async (tx) => {
       const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
-      // v1.1 (MIG-03): kind and account_id dropped from expense_ledger
+      // v1.1 (MIG-03): account_id/kind dropped; wallet_id added (Plan 01-03 fix)
       const result = await drizzleTx.execute(
         sql`SELECT id, tenant_id, amount_orig, currency_orig, amount_default,
                    currency_default, fx_rate, fx_rate_date::text, fx_provider,
-                   transaction_date::text, note, category_id,
+                   transaction_date::text, note, wallet_id, category_id,
                    transfer_group_id, corrects_id, created_at
             FROM budgeting.expense_ledger
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
@@ -319,11 +320,11 @@ export class DrizzleTransactionRepo implements TransactionRepo {
       sql`SELECT pg_advisory_xact_lock(hashtext(${originalId}))`,
     );
 
-    // v1.1 (MIG-03): kind and account_id dropped from expense_ledger
+    // v1.1 (MIG-03): account_id/kind dropped; wallet_id added (Plan 01-03 fix)
     const originalResult = await drizzleTx.execute(
       sql`SELECT id, tenant_id, amount_orig, currency_orig, amount_default,
                  currency_default, fx_rate, fx_rate_date::text, fx_provider,
-                 transaction_date::text, note, category_id,
+                 transaction_date::text, note, wallet_id, category_id,
                  transfer_group_id, corrects_id, created_at
           FROM budgeting.expense_ledger
           WHERE id = ${originalId}::uuid AND tenant_id = ${tenantId}::uuid`,
@@ -350,13 +351,13 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     const correctionRow = buildCorrectionRow(originalRow, newFields as Parameters<typeof buildCorrectionRow>[1], userId);
     const resultLedgerId = correctionRow.id;
 
-    // 4. INSERT correction — v1.1 (MIG-03): account_id and kind dropped from expense_ledger
+    // 4. INSERT correction — v1.1 (MIG-03): account_id and kind dropped; wallet_id added (Plan 01-03 fix)
     await drizzleTx.execute(
       sql`INSERT INTO budgeting.expense_ledger
             (id, tenant_id, amount_orig, currency_orig, amount_default, currency_default,
              fx_rate, fx_rate_date, fx_provider, corrects_id,
              transaction_date, note, category_id, transfer_group_id,
-             created_at)
+             wallet_id, created_at)
           VALUES
             (${correctionRow.id}::uuid, ${correctionRow.tenantId}::uuid,
              ${correctionRow.amountOrig}::numeric, ${correctionRow.currencyOrig},
@@ -367,6 +368,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
              ${correctionRow.note ?? null},
              ${correctionRow.categoryId ? sql`${correctionRow.categoryId}::uuid` : sql`NULL`},
              ${correctionRow.transferGroupId ? sql`${correctionRow.transferGroupId}::uuid` : sql`NULL`},
+             ${correctionRow.accountId ? sql`${correctionRow.accountId}::uuid` : sql`NULL`},
              now())`,
     );
 
@@ -468,19 +470,19 @@ export class DrizzleTransactionRepo implements TransactionRepo {
       if (!rootId) return [];
 
       // Walk forward from root using recursive CTE
-      // v1.1 (MIG-03): kind and account_id dropped from expense_ledger
+      // v1.1 (MIG-03): account_id/kind dropped; wallet_id added (Plan 01-03 fix)
       const chainResult = await drizzleTx.execute(
         sql`WITH RECURSIVE chain AS (
               SELECT id, tenant_id, amount_orig, currency_orig, amount_default,
                      currency_default, fx_rate, fx_rate_date::text, fx_provider,
-                     transaction_date::text, note, category_id,
+                     transaction_date::text, note, wallet_id, category_id,
                      transfer_group_id, corrects_id, created_at
               FROM budgeting.expense_ledger
               WHERE id = ${rootId}::uuid AND tenant_id = ${tenantId}::uuid
               UNION ALL
               SELECT e.id, e.tenant_id, e.amount_orig, e.currency_orig, e.amount_default,
                      e.currency_default, e.fx_rate, e.fx_rate_date::text, e.fx_provider,
-                     e.transaction_date::text, e.note, e.category_id,
+                     e.transaction_date::text, e.note, e.wallet_id, e.category_id,
                      e.transfer_group_id, e.corrects_id, e.created_at
               FROM budgeting.expense_ledger e
               JOIN chain c ON e.corrects_id = c.id

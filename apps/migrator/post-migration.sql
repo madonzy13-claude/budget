@@ -556,11 +556,13 @@ ALTER TABLE budgeting.expense_ledger DROP COLUMN IF EXISTS corrected_by_id;
 
 -- Add Phase-2 columns if not already present (drizzle-kit push does this; SQL is belt-and-suspenders)
 -- Note: account_id and kind are NOT added here — they were dropped in v1.1 migration 0012 (MIG-03).
+-- wallet_id is added in v1.1 (Plan 01-03 fix) to preserve wallet reference for balance correction flow.
 ALTER TABLE budgeting.expense_ledger
   ADD COLUMN IF NOT EXISTS transaction_date date NOT NULL DEFAULT now()::date,
   ADD COLUMN IF NOT EXISTS note text,
   ADD COLUMN IF NOT EXISTS category_id uuid,
-  ADD COLUMN IF NOT EXISTS transfer_group_id uuid;
+  ADD COLUMN IF NOT EXISTS transfer_group_id uuid,
+  ADD COLUMN IF NOT EXISTS wallet_id uuid;
 
 -- note_tsv: GENERATED ALWAYS AS STORED (Drizzle cannot express this — SQL only)
 -- We must drop and re-add if column exists but is not generated (idempotent via IF NOT EXISTS)

@@ -16,7 +16,7 @@ function rowToDraftRow(row: Record<string, unknown>): RecurringDraftRow {
     dueDate: row.due_date as string,
     amount: String(row.amount),
     currency: row.currency as string,
-    accountId: row.account_id as string,
+    accountId: row.wallet_id as string,
     categoryId: (row.category_id as string | null) ?? null,
     kind: row.kind as "EXPENSE" | "INCOME" | "TRANSFER",
     note: (row.note as string | null) ?? null,
@@ -46,7 +46,7 @@ export class DrizzleRecurringDraftRepo implements RecurringDraftRepo {
     const drizzleTx = tx as DrizzleTx;
     const result = await drizzleTx.execute(sql`
       INSERT INTO budgeting.recurring_drafts
-        (tenant_id, rule_id, due_date, amount, currency, account_id, category_id, kind, note, status, actor_user_id)
+        (tenant_id, rule_id, due_date, amount, currency, wallet_id, category_id, kind, note, status, actor_user_id)
       VALUES
         (${draft.tenantId}::uuid, ${draft.ruleId}::uuid, ${draft.dueDate}::date,
          ${draft.amount}::numeric, ${draft.currency}, ${draft.accountId}::uuid,
@@ -127,7 +127,7 @@ export class DrizzleRecurringDraftRepo implements RecurringDraftRepo {
       ? sql`currency = ${edits.currency},`
       : sql``;
     const accountClause = edits.accountId !== undefined
-      ? sql`account_id = ${edits.accountId}::uuid,`
+      ? sql`wallet_id = ${edits.accountId}::uuid,`
       : sql``;
     const categoryClause = edits.categoryId !== undefined
       ? sql`category_id = ${edits.categoryId ?? null}::uuid,`

@@ -12,7 +12,7 @@ function rowToRuleRow(row: Record<string, unknown>): RecurringRuleRow {
   return {
     id: row.id as string,
     tenantId: row.tenant_id as string,
-    accountId: row.account_id as string,
+    accountId: row.wallet_id as string,
     categoryId: (row.category_id as string | null) ?? null,
     amount: String(row.amount),
     currency: row.currency as string,
@@ -47,7 +47,7 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
       const drizzleTx = tx as DrizzleTx;
       const result = await drizzleTx.execute(sql`
         INSERT INTO budgeting.recurring_rules
-          (tenant_id, account_id, category_id, amount, currency, kind, cadence,
+          (tenant_id, wallet_id, category_id, amount, currency, kind, cadence,
            cadence_anchor, weekly_dow, note, active, next_due_date, actor_user_id)
         VALUES
           (${rule.tenantId}::uuid, ${rule.accountId}::uuid, ${rule.categoryId}::uuid,
@@ -105,7 +105,7 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
       ? sqlTag`category_id = ${edits.categoryId ?? null}::uuid,`
       : sqlTag``;
     const accountClause = edits.accountId !== undefined
-      ? sqlTag`account_id = ${edits.accountId}::uuid,`
+      ? sqlTag`wallet_id = ${edits.accountId}::uuid,`
       : sqlTag``;
     const noteClause = edits.note !== undefined
       ? sqlTag`note = ${edits.note ?? null},`

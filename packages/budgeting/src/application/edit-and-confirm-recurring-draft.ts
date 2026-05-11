@@ -49,7 +49,7 @@ export function editAndConfirmRecurringDraft(deps: {
       // Resolved values: edit overrides draft
       const resolvedAmount = input.edits.amount ?? String(draft.amount);
       const resolvedCurrency = input.edits.currency ?? (draft.currency as string);
-      const resolvedAccountId = input.edits.accountId ?? (draft.account_id as string);
+      const resolvedAccountId = input.edits.accountId ?? (draft.wallet_id as string);
       const resolvedCategoryId = input.edits.categoryId !== undefined
         ? input.edits.categoryId
         : (draft.category_id as string | null);
@@ -57,7 +57,7 @@ export function editAndConfirmRecurringDraft(deps: {
       const resolvedNote = input.edits.note !== undefined ? input.edits.note : (draft.note as string | null);
 
       const wsResult = await drizzleTx.execute(sql`
-        SELECT default_currency FROM tenancy.workspaces WHERE id = ${input.tenantId}::uuid LIMIT 1
+        SELECT default_currency FROM tenancy.budgets WHERE id = ${input.tenantId}::uuid LIMIT 1
       `);
       const defaultCurrency = ((wsResult.rows[0] as Record<string, unknown> | undefined)?.default_currency as string) ?? "USD";
 

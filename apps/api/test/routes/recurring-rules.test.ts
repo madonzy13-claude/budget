@@ -41,7 +41,7 @@ async function createTestUser() {
       [userId, `rr-route-${userId}@example.com`],
     );
     await client.query(
-      `INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
        VALUES ($1, $2, 'RR Route WS', 'PRIVATE', 'USD', $3, 1, now())`,
       [tenantId, `ws-rr-${tenantId.slice(0, 8)}`, userId],
     );
@@ -49,8 +49,8 @@ async function createTestUser() {
       `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
     );
     await client.query(
-      `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Checking', 'CHECKING', 'PERSONAL', 'USD', 5000.0000, now(), $3)`,
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+       VALUES ($1, $2, 'Checking', 'SPENDINGS', 'USD', 5000.0000, now(), $3)`,
       [accountId, tenantId, userId],
     );
     await client.query("COMMIT");

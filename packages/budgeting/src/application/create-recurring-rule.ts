@@ -48,7 +48,7 @@ export function createRecurringRule(deps: { ruleRepo: RecurringRuleRepo }) {
       const { sql } = await import("drizzle-orm");
       const result = await drizzleTx.execute(sql`
         INSERT INTO budgeting.recurring_rules
-          (tenant_id, account_id, category_id, amount, currency, kind, cadence,
+          (tenant_id, wallet_id, category_id, amount, currency, kind, cadence,
            cadence_anchor, weekly_dow, note, active, next_due_date, actor_user_id)
         VALUES
           (${input.tenantId}::uuid, ${input.accountId}::uuid, ${(input.categoryId ?? null) as string | null}::uuid,

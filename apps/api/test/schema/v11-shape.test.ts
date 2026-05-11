@@ -12,8 +12,9 @@ import { Client } from "pg";
 let client: Client;
 
 beforeAll(async () => {
-  const url = process.env.DATABASE_URL_MIGRATOR ?? process.env.DATABASE_URL_APP;
-  if (!url) throw new Error("DATABASE_URL_MIGRATOR or DATABASE_URL_APP required");
+  const rawUrl = process.env.DATABASE_URL_MIGRATOR ?? process.env.DATABASE_URL_APP;
+  if (!rawUrl) throw new Error("DATABASE_URL_MIGRATOR or DATABASE_URL_APP required");
+  const url = rawUrl.replace("@db:", "@localhost:");
   client = new Client({ connectionString: url });
   await client.connect();
 });

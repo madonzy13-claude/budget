@@ -5,8 +5,11 @@
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Hono } from "hono";
 
+const DB_URL_RAW = process.env.DATABASE_URL_APP;
+if (!DB_URL_RAW) throw new Error("DATABASE_URL_APP required for integration tests");
+// Substitute Docker hostname → localhost so the test runner can reach the DB.
+process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
-if (!DB_URL) throw new Error("DATABASE_URL_APP required for integration tests");
 
 let testUserId: string;
 let testTenantId: string;
@@ -21,7 +24,7 @@ async function createTestUser(): Promise<{ userId: string; tenantId: string }> {
   try {
     await client.query("BEGIN");
     await client.query(`INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at) VALUES ($1, $2, 'Test User', true, now(), now())`, [userId, email]);
-    await client.query(`INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'Cat WS', 'PRIVATE', 'EUR', $3, 1, now())`, [tenantId, `ws-cat-${tenantId.slice(0, 8)}`, userId]);
+    await client.query(`INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'Cat WS', 'PRIVATE', 'EUR', $3, 1, now())`, [tenantId, `ws-cat-${tenantId.slice(0, 8)}`, userId]);
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -103,12 +106,14 @@ describe("POST /categories", () => {
     expect(body.archivedAt).toBeNull();
   });
 
-  it("returns 422 with invalid scope", async () => {
+  it("returns 422 when name is missing", async () => {
+    // D-13: scope field dropped — invalid scope no longer causes 422 (field ignored).
+    // Test renamed to verify missing-name validation still works.
     const app = await buildApp(testUserId, testTenantId);
     const res = await app.request("/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Bad", scope: "INVALID" }),
+      body: JSON.stringify({ scope: "SHARED" }), // missing required name
     });
     expect(res.status).toBe(422);
   });
