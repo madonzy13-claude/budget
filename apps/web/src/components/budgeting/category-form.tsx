@@ -2,7 +2,7 @@
 
 /**
  * category-form.tsx — RHF form for creating a new category.
- * Per UI-SPEC §Categories: name, scope, optional parent group.
+ * Categories are flat (no nesting) and unique per workspace by name.
  */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -22,13 +22,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface CategoryDto {
   id: string;
@@ -39,8 +32,6 @@ interface CategoryDto {
 }
 
 interface CategoryFormProps {
-  /** Existing root categories available as parents. */
-  rootCategories?: CategoryDto[];
   onSuccess?: (category: CategoryDto) => void;
   onCancel?: () => void;
   apiBase?: string;
@@ -48,14 +39,11 @@ interface CategoryFormProps {
 
 const formSchema = z.object({
   name: z.string().min(1),
-  scope: z.enum(["PERSONAL", "SHARED"]),
-  parentId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export function CategoryForm({
-  rootCategories = [],
   onSuccess,
   onCancel,
   apiBase = "/api",
@@ -67,8 +55,6 @@ export function CategoryForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      scope: "SHARED",
-      parentId: undefined,
     },
   });
 
@@ -77,24 +63,22 @@ export function CategoryForm({
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-      const body: Record<string, unknown> = {
-        name: values.name,
-        scope: values.scope,
-      };
-      if (values.parentId) {
-        body.parentId = values.parentId;
-      }
-
       const res = await fetch(`${apiBase}/categories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ name: values.name }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        setServerError(err?.message ?? "Failed to create category.");
+        // 409 from API when a category with this name already exists in workspace.
+        const code = err?.error ?? err?.message;
+        if (res.status === 409 || code === "category_name_taken") {
+          setServerError(t("form.errors.nameTaken"));
+          return;
+        }
+        setServerError(err?.message ?? t("form.errors.generic"));
         return;
       }
 
@@ -103,7 +87,7 @@ export function CategoryForm({
       form.reset();
       onSuccess?.(created);
     } catch {
-      setServerError("Network error. Try again.");
+      setServerError(t("form.errors.network"));
     }
   }
 
@@ -123,64 +107,12 @@ export function CategoryForm({
             <FormItem>
               <FormLabel>{t("form.name")}</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. Housing" {...field} />
+                <Input placeholder={t("form.namePlaceholder")} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="scope"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("form.scope")}</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="PERSONAL">{t("scopes.PERSONAL")}</SelectItem>
-                  <SelectItem value="SHARED">{t("scopes.SHARED")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {rootCategories.length > 0 && (
-          <FormField
-            control={form.control}
-            name="parentId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("form.parent")}</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value ?? ""}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="None (root category)" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {rootCategories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         <div className="flex gap-2 justify-end">
           {onCancel && (

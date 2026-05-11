@@ -93,9 +93,12 @@ export function CreateWorkspaceForm({
       }
 
       const created = (await res.json()) as { id: string; name: string };
+      // Workspace context is now URL-driven (/workspaces/[wsId]/...) — no
+      // session "active workspace" to set. Land the user directly inside
+      // their new workspace on the budget tab.
       toast.success(t("workspaces.create.success", { name: created.name }));
       onSuccess?.(created.id);
-      router.push(`/${locale ?? "en"}/workspaces/${created.id}`);
+      router.push(`/${locale ?? "en"}/workspaces/${created.id}/budget`);
     } catch {
       setServerError(t("state.error.network"));
     }

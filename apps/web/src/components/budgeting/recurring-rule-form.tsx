@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { uuidv4 } from "@/lib/uuid";
 
 export type RuleMode = "create" | "edit";
 
@@ -100,7 +101,7 @@ export function RecurringRuleForm({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Idempotency-Key": crypto.randomUUID(),
+            "Idempotency-Key": uuidv4(),
           },
           body: JSON.stringify({
             accountId,
@@ -126,7 +127,7 @@ export function RecurringRuleForm({
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            "Idempotency-Key": crypto.randomUUID(),
+            "Idempotency-Key": uuidv4(),
           },
           body: JSON.stringify({
             edits: { amount, currency, note: note || null },

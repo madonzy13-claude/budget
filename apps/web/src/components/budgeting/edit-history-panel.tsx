@@ -14,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { clientApiFetch } from "@/lib/workspace-fetch";
 
 interface ChainRow {
   id: string;
@@ -61,7 +62,7 @@ export function EditHistoryPanel({
     setLoading(true);
     setError(null);
 
-    fetch(`${apiBase}/api/transactions/${transactionId}/history`)
+    clientApiFetch(`/transactions/${transactionId}/history`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load history");
         return res.json() as Promise<{ chain: ChainRow[] }>;
@@ -75,7 +76,7 @@ export function EditHistoryPanel({
       .finally(() => {
         setLoading(false);
       });
-  }, [open, transactionId, apiBase]);
+  }, [open, transactionId]);
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>

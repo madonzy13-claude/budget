@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { cn } from "@/lib/utils";
+import { clientApiFetch } from "@/lib/workspace-fetch";
 
 type AccountKind =
   | "CASH"
@@ -46,7 +47,6 @@ type AccountScope = "PERSONAL" | "SHARED";
 type AccountFormValues = {
   name: string;
   kind: AccountKind;
-  scope: AccountScope;
   currency: string;
 };
 
@@ -105,7 +105,6 @@ export function AccountForm({
           "LOAN",
           "INVESTMENT",
         ]),
-        scope: z.enum(["PERSONAL", "SHARED"]),
         currency: z.string().min(3).max(5),
       }),
     [],
@@ -116,7 +115,6 @@ export function AccountForm({
     defaultValues: {
       name: "",
       kind: "CASH",
-      scope: "PERSONAL",
       currency: "",
     },
     mode: "onBlur",
@@ -127,7 +125,7 @@ export function AccountForm({
   async function onSubmit(values: AccountFormValues) {
     setServerError(null);
     try {
-      const res = await fetch("/api/accounts", {
+      const res = await clientApiFetch("/accounts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -135,6 +133,16 @@ export function AccountForm({
         },
         body: JSON.stringify(values),
       });
+
+      if (res.status === 401) {
+        // Stale / missing session — bounce to sign-in with a clear reason banner.
+        const locale =
+          (typeof window !== "undefined" &&
+            window.location.pathname.split("/")[1]) ||
+          "en";
+        window.location.assign(`/${locale}/sign-in?reason=session_expired`);
+        return;
+      }
 
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -206,42 +214,6 @@ export function AccountForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Scope — PERSONAL / SHARED tabs */}
-        <FormField
-          control={form.control}
-          name="scope"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("budgeting.accounts.form.scopeLabel")}</FormLabel>
-              <FormControl>
-                <div role="tablist" className="flex gap-2">
-                  {ACCOUNT_SCOPES.map((scope) => {
-                    const active = field.value === scope;
-                    return (
-                      <button
-                        key={scope}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        onClick={() => field.onChange(scope)}
-                        className={cn(
-                          "min-h-[44px] flex-1 rounded-[var(--radius-md)] border px-4 py-2 text-sm font-medium transition-colors",
-                          active
-                            ? "border-[var(--primary)] bg-[color-mix(in_oklab,var(--primary)_8%,transparent)] text-[var(--foreground)]"
-                            : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--muted-strong)]",
-                        )}
-                      >
-                        {t(`budgeting.accounts.scopes.${scope}`)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </FormControl>
               <FormMessage />
             </FormItem>
           )}

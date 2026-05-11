@@ -41,7 +41,10 @@ export class CreateWorkspacePage {
 
   async pickCurrency(label: string): Promise<void> {
     await this.currencyTrigger().click();
-    await this.page.getByText(label).first().click();
+    await this.page
+      .getByRole("option", { name: new RegExp(label, "i") })
+      .first()
+      .click();
   }
 
   async clickSubmit(): Promise<void> {

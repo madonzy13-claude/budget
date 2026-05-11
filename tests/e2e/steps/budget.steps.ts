@@ -17,11 +17,27 @@ let accountsPage: AccountsPage;
 
 Given(
   "I am signed in as a fresh user with workspace {string}",
-  async ({ page, scenarioCtx }, _workspaceName: string) => {
-    // Create fresh user and sign in (workspace created during onboarding)
+  async ({ page, scenarioCtx }, workspaceName: string) => {
     const user = await createFreshUser(page, "en");
     scenarioCtx.freshUser = user;
-    // User is now signed in and on the post-verify redirect page
+
+    // Bootstrap workspace via API (avoids the buggy onboarding currency picker
+    // and gives every budget scenario a known active workspace).
+    const create = await page.request.post("/api/workspaces", {
+      data: {
+        name: workspaceName,
+        kind: "PRIVATE",
+        default_currency: "EUR",
+      },
+    });
+    expect(create.ok()).toBeTruthy();
+    const { id: workspaceId } = (await create.json()) as { id: string };
+
+    const activate = await page.request.put("/api/workspaces/active", {
+      data: { workspaceIds: [workspaceId] },
+    });
+    expect(activate.ok()).toBeTruthy();
+
     accountsPage = new AccountsPage(page);
   },
 );
@@ -40,10 +56,29 @@ When(
   async ({ page }, name: string, kind: string, scope: string, currency: string) => {
     const accPage = new AccountsPage(page);
     await accPage.fillAccountName(name);
-    // Kind is default CASH or can be selected via select
-    // Scope button
+
+    // Kind: Radix Select → click trigger then matching option.
+    // Account form i18n labels each kind; option text matches the i18n value
+    // (e.g. "Cash", "Checking", "Credit card", "Loan").
+    if (kind && kind.toUpperCase() !== "CASH") {
+      const kindLabel = page.getByLabel(/account kind|kind/i).first();
+      await kindLabel.click();
+      const optionMatchers: Record<string, RegExp> = {
+        CHECKING: /checking/i,
+        SAVINGS: /savings/i,
+        CREDIT_CARD: /credit card/i,
+        LOAN: /loan/i,
+        INVESTMENT: /investment/i,
+        CASH: /cash/i,
+      };
+      const m = optionMatchers[kind.toUpperCase()] ?? new RegExp(kind, "i");
+      await page.getByRole("option", { name: m }).first().click();
+    }
+
+    // Scope tab (PERSONAL / SHARED).
     await page.getByRole("tab", { name: new RegExp(scope, "i") }).click();
-    // Currency picker
+
+    // Currency picker.
     await accPage.currencyTrigger().click();
     await page
       .getByRole("option", { name: new RegExp(currency, "i") })
@@ -67,10 +102,45 @@ Then(
 );
 
 When("I archive {string}", async ({ page }, accountName: string) => {
+  // Capture browser console / page errors during this step for diagnostics.
+  const consoleEvents: string[] = [];
+  page.on("console", (msg) => consoleEvents.push(`${msg.type()}: ${msg.text()}`));
+  page.on("pageerror", (err) => consoleEvents.push(`pageerror: ${err.message}`));
+
+  // Wait for client-island hydration before clicking the archive button.
+  await page
+    .locator('[data-account-actions][data-hydrated="true"]')
+    .first()
+    .waitFor({ state: "attached", timeout: 15000 });
+
   const archiveBtn = page.getByRole("button", {
     name: new RegExp(`archive ${accountName}`, "i"),
   });
+
+  // Inspect whether the React onClick handler is registered (sanity check).
+  const handlerInfo = await archiveBtn.evaluate((el) => ({
+    tag: el.tagName,
+    disabled: (el as HTMLButtonElement).disabled,
+    hasOnClickAttr: el.hasAttribute("onclick"),
+    parentHydrated: el.closest("[data-hydrated]")?.getAttribute("data-hydrated"),
+  }));
+
+  const responsePromise = page.waitForResponse(
+    (resp) =>
+      /\/api\/accounts\/[^/]+\/archive/.test(resp.url()) &&
+      resp.request().method() === "POST",
+    { timeout: 10000 },
+  );
   await archiveBtn.click();
+  try {
+    await responsePromise;
+  } catch (err) {
+    // Diagnostics on first failure
+    throw new Error(
+      `archive POST never observed. handler=${JSON.stringify(handlerInfo)} consoleEvents=${JSON.stringify(consoleEvents)}`,
+    );
+  }
+  await page.waitForLoadState("networkidle");
 });
 
 Then("{string} no longer appears in the active list", async ({ page }, accountName: string) => {
@@ -90,12 +160,24 @@ When("I open the Budget page", async ({ page }) => {
 When(
   "I create a category {string} with scope {string}",
   async ({ page }, name: string, scope: string) => {
-    // POST directly via API for speed in E2E setup
     const res = await page.request.post("/api/categories", {
       data: { name, scope },
     });
-    expect(res.ok()).toBeTruthy();
-    // Reload to show new category
+    if (!res.ok()) {
+      const body = await res.text();
+      throw new Error(`POST /api/categories failed: ${res.status()} ${body}`);
+    }
+    // Verify GET roundtrip before reloading the page (catches stale render).
+    const list = await page.request.get("/api/categories");
+    if (list.ok()) {
+      const data = (await list.json()) as { categories?: Array<{ name: string }> };
+      const found = (data.categories ?? []).some((c) => c.name === name);
+      if (!found) {
+        throw new Error(
+          `Created category ${name} but GET /api/categories did not return it; got: ${JSON.stringify(data)}`,
+        );
+      }
+    }
     await page.reload();
   }
 );
@@ -207,7 +289,12 @@ Given(
       },
     });
     // Accept 201 (created) or 409 (already exists via idempotency replay)
-    expect([201, 409].includes(res.status())).toBeTruthy();
+    if (![201, 409].includes(res.status())) {
+      const body = await res.text();
+      throw new Error(
+        `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
+      );
+    }
   },
 );
 
@@ -234,6 +321,42 @@ When("I save the transaction", async ({ page }) => {
   const txPage = new TransactionsPage(page);
   await txPage.saveTransaction();
 });
+
+When(
+  "I fill the transfer form from {string} to {string} amount {string} currency {string} date {string}",
+  async (
+    { page },
+    fromAccount: string,
+    toAccount: string,
+    amount: string,
+    currency: string,
+    date: string,
+  ) => {
+    // Switch to TRANSFER kind tab
+    await page.getByRole("tab", { name: /transfer/i }).click();
+
+    // Amount + date
+    const txPage = new TransactionsPage(page);
+    await txPage.fillAmount(amount);
+    await txPage.fillDate(date);
+
+    // From-account select (the first "Account" select in the form)
+    const accountSelect = page.getByLabel(/^account$/i).first();
+    await accountSelect.click();
+    await page
+      .getByRole("option", { name: new RegExp(`${fromAccount} \\(${currency}\\)`, "i") })
+      .first()
+      .click();
+
+    // To-account select
+    const toSelect = page.getByLabel(/to account/i).first();
+    await toSelect.click();
+    await page
+      .getByRole("option", { name: new RegExp(`${toAccount} \\(${currency}\\)`, "i") })
+      .first()
+      .click();
+  },
+);
 
 Then(
   "I see a transaction in the list with amount {string}",
@@ -269,7 +392,12 @@ Given(
         note,
       },
     });
-    expect([201, 409].includes(res.status())).toBeTruthy();
+    if (![201, 409].includes(res.status())) {
+      const body = await res.text();
+      throw new Error(
+        `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
+      );
+    }
   },
 );
 
@@ -425,7 +553,12 @@ Given(
         note,
       },
     });
-    expect([201, 409].includes(res.status())).toBeTruthy();
+    if (![201, 409].includes(res.status())) {
+      const body = await res.text();
+      throw new Error(
+        `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
+      );
+    }
   },
 );
 
@@ -511,7 +644,12 @@ Given(
       headers: { "Idempotency-Key": crypto.randomUUID() },
       data: { name, scope },
     });
-    expect([201, 409].includes(res.status())).toBeTruthy();
+    if (![201, 409].includes(res.status())) {
+      const body = await res.text();
+      throw new Error(
+        `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
+      );
+    }
   },
 );
 
@@ -549,7 +687,12 @@ Given(
         note,
       },
     });
-    expect([201, 409].includes(res.status())).toBeTruthy();
+    if (![201, 409].includes(res.status())) {
+      const body = await res.text();
+      throw new Error(
+        `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
+      );
+    }
   },
 );
 
@@ -573,7 +716,25 @@ Given(
         note,
       },
     });
-    expect([201, 409].includes(res.status())).toBeTruthy();
+    if (![201, 409].includes(res.status())) {
+      const body = await res.text();
+      throw new Error(
+        `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
+      );
+    }
+    // Verify GET roundtrip — same session sees the transaction.
+    const list = await page.request.get("/api/transactions");
+    if (list.ok()) {
+      const data = (await list.json()) as {
+        transactions?: Array<{ note: string | null }>;
+      };
+      const found = (data.transactions ?? []).some((t) => t.note === note);
+      if (!found) {
+        throw new Error(
+          `tx ${note} created but GET /api/transactions did not return it. status=${res.status()} body=${await res.text().catch(() => "<consumed>")} list=${JSON.stringify(data).slice(0, 500)}`,
+        );
+      }
+    }
   },
 );
 

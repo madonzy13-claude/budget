@@ -86,7 +86,11 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     environment:
+      # NEXT_PUBLIC_* is inlined at BUILD time. For server-side fetches that must
+      # resolve at runtime (RSC server actions calling http://api:4000) we set a
+      # separate non-public var that stays a runtime lookup.
       NEXT_PUBLIC_API_URL: http://api:4000
+      API_INTERNAL_URL: http://api:4000
     depends_on:
       api:
         condition: service_healthy

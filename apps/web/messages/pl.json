@@ -21,6 +21,14 @@
       "verify_pending": {
         "title": "Sprawdź skrzynkę odbiorczą",
         "body": "Wysłaliśmy e-mail z linkiem weryfikacyjnym. Kliknij go, zanim się zalogujesz."
+      },
+      "session_expired": {
+        "title": "Twoja sesja wygasła",
+        "body": "Ze względów bezpieczeństwa zostałeś wylogowany. Zaloguj się ponownie, aby kontynuować."
+      },
+      "auth_required": {
+        "title": "Wymagane logowanie",
+        "body": "Musisz być zalogowany, aby uzyskać dostęp do tej strony."
       }
     },
     "reset": {
@@ -167,8 +175,11 @@
     "verify_required": "Najpierw zweryfikuj swój e-mail, aby tworzyć obszary robocze lub dołączać do nich.",
     "list": {
       "heading": "Moje obszary robocze",
-      "manage": "Zarządzaj"
-    }
+      "manage": "Zarządzaj",
+      "addButton": "Dodaj obszar roboczy"
+    },
+    "kindPrivate": "Prywatny",
+    "kindShared": "Wspólny"
   },
   "workspace": {
     "shares": {
@@ -240,7 +251,11 @@
     "workspaces": "Obszary robocze",
     "settings": "Ustawienia",
     "onboarding": "Rozpocznij",
-    "sign_out": "Wyloguj się"
+    "sign_out": "Wyloguj się",
+    "budget": "Budżet",
+    "accounts": "Konta",
+    "transactions": "Transakcje",
+    "recurring": "Cykliczne"
   },
   "onboarding": {
     "eyebrow": "Krok 1 z 3",
@@ -442,11 +457,17 @@
       "empty": "Brak kategorii. Dodaj pierwszą kategorię, aby śledzić wydatki.",
       "form": {
         "title": "Nowa kategoria",
+        "editTitle": "Edytuj kategorię",
         "name": "Nazwa kategorii",
+        "namePlaceholder": "np. Mieszkanie",
         "scope": "Zakres",
-        "parent": "Grupa (opcjonalnie)",
         "save": "Zapisz",
-        "cancel": "Anuluj"
+        "cancel": "Anuluj",
+        "errors": {
+          "nameTaken": "Kategoria o tej nazwie już istnieje w tym workspace.",
+          "generic": "Nie udało się utworzyć kategorii.",
+          "network": "Błąd sieci. Spróbuj ponownie."
+        }
       },
       "scopes": {
         "PERSONAL": "Osobiste",
@@ -460,7 +481,10 @@
       "cushionAmount": "Limit poduszki",
       "effectiveFrom": "Obowiązuje od",
       "save": "Zapisz limity",
-      "currency": "Waluta"
+      "currency": "Waluta",
+      "errors": {
+        "saveFailed": "Nie udało się zapisać limitu. Spróbuj ponownie."
+      }
     },
     "templates": {
       "title": "Szablony budżetu",

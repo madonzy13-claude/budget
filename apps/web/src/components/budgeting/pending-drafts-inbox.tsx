@@ -7,6 +7,7 @@
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { uuidv4 } from "@/lib/uuid";
 
 export interface PendingDraft {
   id: string;
@@ -45,7 +46,7 @@ export function PendingDraftsInbox({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Idempotency-Key": crypto.randomUUID(),
+        "Idempotency-Key": uuidv4(),
       },
       body: action === "edit-confirm" ? JSON.stringify({ edits: {} }) : "",
     });

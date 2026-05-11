@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencyPicker, type CurrencyOption } from "@/components/common/currency-picker";
 import { cn } from "@/lib/utils";
+import { clientApiFetch } from "@/lib/workspace-fetch";
 
 type TransactionKind = "EXPENSE" | "INCOME" | "TRANSFER";
 
@@ -149,8 +150,8 @@ export function TransactionCaptureForm({
     }
     setFxLoading(true);
     try {
-      const res = await fetch(
-        `/api/fx/rate?from=${currencyOrig}&to=${defaultCurrency}&date=${transactionDate}`,
+      const res = await clientApiFetch(
+        `/fx/rate?from=${currencyOrig}&to=${defaultCurrency}&date=${transactionDate}`,
       );
       if (res.ok) {
         const data = (await res.json()) as FxQuote;
@@ -207,7 +208,7 @@ export function TransactionCaptureForm({
           : {}),
       };
 
-      const res = await fetch("/api/transactions", {
+      const res = await clientApiFetch("/transactions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -261,41 +262,8 @@ export function TransactionCaptureForm({
           </Alert>
         )}
 
-        {/* Kind tabs: Expense / Income / Transfer */}
-        <FormField
-          control={form.control}
-          name="kind"
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <div role="tablist" className="flex gap-2">
-                  {KINDS.map((k) => {
-                    const active = field.value === k;
-                    return (
-                      <button
-                        key={k}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        onClick={() => field.onChange(k)}
-                        className={cn(
-                          "min-h-[44px] flex-1 rounded-[var(--radius-md)] border px-4 py-2 text-sm font-medium transition-colors",
-                          active
-                            ? "border-[var(--primary)] bg-[color-mix(in_oklab,var(--primary)_8%,transparent)] text-[var(--foreground)]"
-                            : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--muted-strong)]",
-                        )}
-                        data-testid={`kind-tab-${k.toLowerCase()}`}
-                      >
-                        {t(`transactions.capture.kind${k.charAt(0) + k.slice(1).toLowerCase()}`)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Phase 2: only EXPENSE is exposed in the UI. INCOME / TRANSFER
+            remain in the contract for later phases but the user never picks. */}
 
         {/* Amount + currency */}
         <div className="flex gap-3">
@@ -410,36 +378,8 @@ export function TransactionCaptureForm({
           />
         )}
 
-        {/* To-account (TRANSFER only) */}
-        {kind === "TRANSFER" && accounts.length > 0 && (
-          <FormField
-            control={form.control}
-            name="toAccountId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>To account</FormLabel>
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select destination account" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {accounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name} ({a.currency})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-
-        {/* Category (EXPENSE / INCOME only) */}
-        {kind !== "TRANSFER" && categories.length > 0 && (
+        {/* Category — EXPENSE only (the only kind exposed in Phase-2 UI). */}
+        {categories.length > 0 && (
           <FormField
             control={form.control}
             name="categoryId"

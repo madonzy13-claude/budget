@@ -1,23 +1,19 @@
-/**
- * RecurringPage — /[locale]/(app)/recurring (plan 02-08)
- * RSC: pre-fetches active rules + pending drafts from API and hands them to client widgets.
- */
 import { getTranslations } from "next-intl/server";
 import { RecurringRulesList } from "@/components/budgeting/recurring-rules-list";
 import { PendingDraftsInbox } from "@/components/budgeting/pending-drafts-inbox";
-import { RecurringPageClient } from "./recurring-page-client";
-import { getRecurringRules, getPendingDrafts } from "./actions";
+import { RecurringPageClient } from "../../../recurring/recurring-page-client";
+import { getRecurringRules, getPendingDrafts } from "../../../recurring/actions";
 
 interface RecurringPageProps {
-  params: Promise<{ locale: string }>;
+  params: Promise<{ locale: string; wsId: string }>;
 }
 
 export default async function RecurringPage({ params }: RecurringPageProps) {
-  const { locale } = await params;
+  const { locale, wsId } = await params;
   const [t, rules, drafts] = await Promise.all([
     getTranslations({ locale, namespace: "budgeting.recurring" }),
-    getRecurringRules(),
-    getPendingDrafts(),
+    getRecurringRules(wsId),
+    getPendingDrafts(wsId),
   ]);
 
   return (

@@ -1,17 +1,13 @@
-/**
- * AccountsPage — /[locale]/(app)/accounts
- * RSC: heading + AccountsList + "Add account" button (opens Sheet).
- */
 import { getTranslations } from "next-intl/server";
 import { AccountsList } from "@/components/budgeting/accounts-list";
 import { AccountFormSheet } from "@/components/budgeting/account-form-sheet";
 
 interface AccountsPageProps {
-  params: Promise<{ locale: string }>;
+  params: Promise<{ locale: string; wsId: string }>;
 }
 
 export default async function AccountsPage({ params }: AccountsPageProps) {
-  const { locale } = await params;
+  const { locale, wsId } = await params;
   const t = await getTranslations({ locale, namespace: "budgeting.accounts" });
 
   return (
@@ -22,7 +18,7 @@ export default async function AccountsPage({ params }: AccountsPageProps) {
         </h1>
         <AccountFormSheet locale={locale} addButtonLabel={t("addButton")} />
       </div>
-      <AccountsList locale={locale} />
+      <AccountsList locale={locale} wsId={wsId} />
     </main>
   );
 }

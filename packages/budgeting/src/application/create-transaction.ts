@@ -112,6 +112,16 @@ function parseFxRateDate(fxRateDate: string): Date {
   return new Date(fxRateDate);
 }
 
+/**
+ * Subtract one calendar day from a YYYY-MM-DD string (UTC). Used to mark a
+ * stale FX rate so that `domain.isStale()` (rateDate < txDate) returns true.
+ */
+function rollbackOneDay(yyyymmdd: string): string {
+  const d = new Date(`${yyyymmdd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function createTransaction(deps: CreateTransactionDeps) {
   return async (
     input: CreateTransactionInput,
@@ -200,9 +210,17 @@ export function createTransaction(deps: CreateTransactionDeps) {
         defaultCurrency,
         new Date(input.transactionDate),
       );
+      // Persisted fxRateDate must reflect "the date the rate is valid", so
+      // domain.isStale() (= fxRateDate < transactionDate) returns true when the
+      // provider flagged the rate as stale (weekend / fallback). Otherwise the
+      // freshness badge would never light up. We back-date by one day in the
+      // stale case — sufficient for the badge; not a precise rate-date.
+      const persistedDate = fetched.isStale
+        ? rollbackOneDay(input.transactionDate)
+        : input.transactionDate;
       fxRateUsed = {
         rate: fetched.rate,
-        fxRateDate: input.transactionDate,
+        fxRateDate: persistedDate,
         provider: fetched.provider,
         isStale: fetched.isStale,
       };

@@ -438,6 +438,11 @@ CREATE TRIGGER categories_one_level_trigger
   BEFORE INSERT OR UPDATE ON budgeting.categories
   FOR EACH ROW EXECUTE FUNCTION budgeting.categories_one_level_check();
 
+-- Categories are flat and unique per workspace by name (case-insensitive).
+-- Partial: archived categories don't block creating a new one with the same name.
+CREATE UNIQUE INDEX IF NOT EXISTS categories_unique_name_per_tenant
+  ON budgeting.categories (tenant_id, lower(name)) WHERE archived_at IS NULL;
+
 -- Partial unique + PIT indexes (effective-dated)
 CREATE UNIQUE INDEX IF NOT EXISTS category_limits_one_open_per_cat
   ON budgeting.category_limits (category_id) WHERE effective_to IS NULL;
@@ -479,10 +484,20 @@ CREATE POLICY workspace_share_dirty_isolation ON budgeting.workspace_share_dirty
 GRANT SELECT, INSERT, UPDATE ON budgeting.workspace_share_dirty TO app_role, worker_role;
 
 CREATE OR REPLACE FUNCTION budgeting.flag_workspace_share_dirty() RETURNS trigger AS $$
+DECLARE
+  ws_kind text;
 BEGIN
-  INSERT INTO budgeting.workspace_share_dirty (workspace_id, dirty, updated_at)
-  VALUES (COALESCE(NEW.workspace_id, OLD.workspace_id), true, now())
-  ON CONFLICT (workspace_id) DO UPDATE SET dirty = true, updated_at = now();
+  -- D-02-c only applies to SHARED workspaces. PRIVATE workspaces have a single
+  -- member; share validation is irrelevant — skip the dirty flag entirely.
+  SELECT kind::text INTO ws_kind FROM tenancy.workspaces
+   WHERE id = COALESCE(NEW.workspace_id, OLD.workspace_id);
+
+  IF ws_kind <> 'PRIVATE' THEN
+    INSERT INTO budgeting.workspace_share_dirty (workspace_id, dirty, updated_at)
+    VALUES (COALESCE(NEW.workspace_id, OLD.workspace_id), true, now())
+    ON CONFLICT (workspace_id) DO UPDATE SET dirty = true, updated_at = now();
+  END IF;
+
   -- Pitfall 8: cascade delete overrides for departing user
   IF TG_OP = 'DELETE' THEN
     DELETE FROM budgeting.category_share_overrides
@@ -491,6 +506,14 @@ BEGIN
   END IF;
   RETURN COALESCE(NEW, OLD);
 END $$ LANGUAGE plpgsql;
+
+-- One-time backfill: clear dirty flag for any existing PRIVATE workspaces that
+-- were marked dirty by the prior trigger logic. Idempotent.
+UPDATE budgeting.workspace_share_dirty wsd SET dirty = false
+  FROM tenancy.workspaces w
+ WHERE w.id = wsd.workspace_id
+   AND w.kind = 'PRIVATE'
+   AND wsd.dirty = true;
 DROP TRIGGER IF EXISTS workspace_members_share_dirty ON tenancy.workspace_members;
 CREATE TRIGGER workspace_members_share_dirty
   AFTER INSERT OR DELETE ON tenancy.workspace_members

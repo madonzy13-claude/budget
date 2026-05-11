@@ -10,6 +10,7 @@
  */
 import { Hono } from "hono";
 import type { BootedDeps } from "../boot";
+import { serverError } from "../middleware/server-error";
 
 export function createRecurringDraftsRoute(deps: BootedDeps) {
   const app = new Hono<{ Variables: Record<string, any> }>();
@@ -26,7 +27,7 @@ export function createRecurringDraftsRoute(deps: BootedDeps) {
       tenantId,
       includeOverdue: true,
     });
-    if (r.isErr()) return c.json({ error: r.error.message }, 500);
+    if (r.isErr()) return serverError(c, "list_pending_drafts_failed", r.error);
     return c.json({
       drafts: r.value.map((d) => ({
         id: d.id,

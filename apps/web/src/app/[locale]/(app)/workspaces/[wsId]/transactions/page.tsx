@@ -1,25 +1,24 @@
-/**
- * TransactionsPage — /[locale]/(app)/transactions
- * RSC: pre-fetches supported currencies once and passes as prop to the capture form.
- * Currency picker is allowlist-bound — no client-side fetch race for the dropdown options.
- */
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { TransactionList } from "@/components/budgeting/transaction-list";
 import { TransactionCaptureSheet } from "@/components/budgeting/transaction-capture-sheet";
-import { getSupportedCurrencies } from "./actions";
+import {
+  getSupportedCurrencies,
+  getAccountsForForm,
+  getCategoriesForForm,
+} from "../../../transactions/actions";
 
 interface TransactionsPageProps {
-  params: Promise<{ locale: string }>;
+  params: Promise<{ locale: string; wsId: string }>;
 }
 
-export default async function TransactionsPage({
-  params,
-}: TransactionsPageProps) {
-  const { locale } = await params;
-  const [t, currencies] = await Promise.all([
+export default async function TransactionsPage({ params }: TransactionsPageProps) {
+  const { locale, wsId } = await params;
+  const [t, currencies, accounts, categories] = await Promise.all([
     getTranslations({ locale, namespace: "budgeting.transactions" }),
     getSupportedCurrencies(),
+    getAccountsForForm(wsId),
+    getCategoriesForForm(wsId),
   ]);
 
   return (
@@ -30,6 +29,8 @@ export default async function TransactionsPage({
         </h1>
         <TransactionCaptureSheet
           currencies={currencies}
+          accounts={accounts}
+          categories={categories}
           addButtonLabel={t("addButton")}
           locale={locale}
         />
@@ -42,7 +43,7 @@ export default async function TransactionsPage({
           </div>
         }
       >
-        <TransactionList locale={locale} />
+        <TransactionList locale={locale} wsId={wsId} />
       </Suspense>
     </main>
   );

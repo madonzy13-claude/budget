@@ -3,32 +3,64 @@
 /**
  * actions.ts — RSC server actions for the transactions page.
  *
- * getSupportedCurrencies() fetches the allowlist from /api/currencies (API-level server action).
- * Result is passed as a prop to <TransactionCaptureForm currencies={...} />
- * so the currency picker has its options at render time (no client-side fetch race).
- *
- * We use fetch() rather than direct DB access here because the web app does not
- * depend on @budget/budgeting packages directly (that would bundle DB client code
- * into the Next.js build). The /api/currencies endpoint calls listSupportedCurrencies()
- * via the booted budgeting module.
+ * Workspace context is passed explicitly (wsId param) and forwarded to the
+ * API server via the X-Workspace-ID header. The /api/currencies endpoint is
+ * workspace-agnostic so it stays without a wsId.
  */
 import type { CurrencyOption } from "@/components/common/currency-picker";
+import { serverApiFetch } from "@/lib/workspace-fetch.server";
 
 export async function getSupportedCurrencies(): Promise<CurrencyOption[]> {
   try {
-    // API_URL is set in Docker deployments; falls back to localhost for local dev.
-    const apiBase =
-      process.env.INTERNAL_API_URL ??
-      process.env.NEXT_PUBLIC_API_URL ??
-      "http://localhost:3001";
-    const res = await fetch(`${apiBase}/api/currencies`, {
-      next: { revalidate: 300 }, // cache for 5 minutes
-    });
+    const res = await serverApiFetch(null, "/currencies", {
+      next: { revalidate: 300 } as RequestInit["next"],
+    } as RequestInit);
     if (!res.ok) return getDefaultCurrencies();
     const data = (await res.json()) as { currencies: CurrencyOption[] };
     return data.currencies ?? getDefaultCurrencies();
   } catch {
     return getDefaultCurrencies();
+  }
+}
+
+export interface AccountOption {
+  id: string;
+  name: string;
+  currency: string;
+}
+
+export interface CategoryOption {
+  id: string;
+  name: string;
+}
+
+export async function getAccountsForForm(wsId: string): Promise<AccountOption[]> {
+  try {
+    const res = await serverApiFetch(wsId, "/accounts");
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      accounts: Array<{ id: string; name: string; currency: string; archivedAt: string | null }>;
+    };
+    return (data.accounts ?? [])
+      .filter((a) => !a.archivedAt)
+      .map((a) => ({ id: a.id, name: a.name, currency: a.currency }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getCategoriesForForm(wsId: string): Promise<CategoryOption[]> {
+  try {
+    const res = await serverApiFetch(wsId, "/categories");
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      categories: Array<{ id: string; name: string; archivedAt: string | null }>;
+    };
+    return (data.categories ?? [])
+      .filter((c) => !c.archivedAt)
+      .map((c) => ({ id: c.id, name: c.name }));
+  } catch {
+    return [];
   }
 }
 

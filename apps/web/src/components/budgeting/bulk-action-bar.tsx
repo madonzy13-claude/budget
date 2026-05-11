@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { uuidv4 } from "@/lib/uuid";
 
 export interface BulkActionBarCategory {
   id: string;
@@ -47,7 +48,7 @@ export function BulkActionBar({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": crypto.randomUUID(),
+          "Idempotency-Key": uuidv4(),
         },
         body: JSON.stringify({
           transactionIds: selectedIds,

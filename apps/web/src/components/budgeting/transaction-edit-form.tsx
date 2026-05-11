@@ -8,7 +8,7 @@
  * Generates a fresh Idempotency-Key per form mount.
  * On 409 AlreadyCorrected → inline error message (do not close; user must reload).
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,6 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { clientApiFetch } from "@/lib/workspace-fetch";
 
 interface ChainRow {
   id: string;
@@ -115,7 +116,7 @@ export function TransactionEditForm({
     }
 
     try {
-      const res = await fetch(`/api/transactions/${transaction.id}/correct`, {
+      const res = await clientApiFetch(`/transactions/${transaction.id}/correct`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

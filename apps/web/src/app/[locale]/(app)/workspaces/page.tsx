@@ -1,25 +1,33 @@
 import { getTranslations } from "next-intl/server";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Plus } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { WorkspaceRow } from "@/components/workspace/workspace-row";
+import { serverApiFetch } from "@/lib/workspace-fetch.server";
 
 interface WorkspacesPageProps {
   params: Promise<{ locale: string }>;
 }
 
-/**
- * Workspaces list. Phase 1 ships an empty state that sells the next action;
- * Phase 2 wires real data from the API.
- *
- * Empty-state pattern (DESIGN.md): single yellow primary CTA + one-line body,
- * no illustration, no "welcome back" platitudes. The CTA is rendered as a
- * link so screen readers and Playwright `getByRole("link")` selectors keep
- * working unchanged.
- */
+interface WorkspaceLite {
+  id: string;
+  name: string;
+  kind: "PRIVATE" | "SHARED";
+  default_currency: string;
+}
+
+async function fetchMyWorkspaces(): Promise<WorkspaceLite[]> {
+  // /workspaces/active is auth-only (no header required) and returns memberships.
+  const res = await serverApiFetch(null, "/workspaces/active");
+  if (!res.ok) return [];
+  const body = (await res.json()) as { workspaces?: WorkspaceLite[] };
+  return body.workspaces ?? [];
+}
+
 export default async function WorkspacesPage({ params }: WorkspacesPageProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "workspaces" });
-
-  const workspaces: never[] = [];
+  const workspaces = await fetchMyWorkspaces();
 
   if (workspaces.length === 0) {
     return (
@@ -36,22 +44,40 @@ export default async function WorkspacesPage({ params }: WorkspacesPageProps) {
           </p>
         </div>
         <Button asChild size="lg">
-          <a href={`/${locale}/onboarding`}>{t("empty.cta")}</a>
+          <Link href={`/${locale}/onboarding`}>{t("empty.cta")}</Link>
         </Button>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-title-lg text-[var(--on-dark)]">
+    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-[16px] font-semibold text-[var(--on-dark)]">
           {t("list.heading")}
         </h1>
+        <Button
+          asChild
+          size="sm"
+          className="bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]"
+        >
+          <Link href={`/${locale}/onboarding`}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            {t("list.addButton")}
+          </Link>
+        </Button>
       </div>
-      <div className="mt-8 space-y-3">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
+      <div className="space-y-2">
+        {workspaces.map((w) => (
+          <WorkspaceRow
+            key={w.id}
+            workspaceId={w.id}
+            name={w.name}
+            kind={w.kind}
+            defaultCurrency={w.default_currency}
+            locale={locale}
+          />
+        ))}
       </div>
     </main>
   );

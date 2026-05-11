@@ -21,6 +21,14 @@
       "verify_pending": {
         "title": "Check your inbox",
         "body": "We sent a verification email to your address. Click the link before signing in."
+      },
+      "session_expired": {
+        "title": "Your session expired",
+        "body": "For your security we've signed you out. Please sign in again to continue."
+      },
+      "auth_required": {
+        "title": "Sign in required",
+        "body": "You need to be signed in to access that page."
       }
     },
     "reset": {
@@ -167,8 +175,11 @@
     "verify_required": "Verify your email first to create or join a workspace.",
     "list": {
       "heading": "My workspaces",
-      "manage": "Manage"
-    }
+      "manage": "Manage",
+      "addButton": "Add workspace"
+    },
+    "kindPrivate": "Private",
+    "kindShared": "Shared"
   },
   "workspace": {
     "shares": {
@@ -240,7 +251,11 @@
     "workspaces": "Workspaces",
     "settings": "Settings",
     "onboarding": "Get started",
-    "sign_out": "Sign out"
+    "sign_out": "Sign out",
+    "budget": "Budget",
+    "accounts": "Accounts",
+    "transactions": "Transactions",
+    "recurring": "Recurring"
   },
   "onboarding": {
     "eyebrow": "Step 1 of 3",
@@ -442,11 +457,17 @@
       "empty": "No categories yet. Add your first category to track spending.",
       "form": {
         "title": "New category",
+        "editTitle": "Edit category",
         "name": "Category name",
+        "namePlaceholder": "e.g. Housing",
         "scope": "Scope",
-        "parent": "Group (optional)",
         "save": "Save",
-        "cancel": "Cancel"
+        "cancel": "Cancel",
+        "errors": {
+          "nameTaken": "A category with this name already exists in this workspace.",
+          "generic": "Failed to create category.",
+          "network": "Network error. Try again."
+        }
       },
       "scopes": {
         "PERSONAL": "Personal",
@@ -460,7 +481,10 @@
       "cushionAmount": "Cushion limit",
       "effectiveFrom": "Effective from",
       "save": "Save limits",
-      "currency": "Currency"
+      "currency": "Currency",
+      "errors": {
+        "saveFailed": "Failed to save the limit. Try again."
+      }
     },
     "templates": {
       "title": "Budget templates",

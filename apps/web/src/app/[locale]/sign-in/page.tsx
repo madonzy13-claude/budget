@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
-import { MailCheck } from "lucide-react";
+import { MailCheck, Clock, Lock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -32,6 +32,9 @@ export default async function SignInPage({
   const sp = await searchParams;
   const t = await getTranslations({ locale, namespace: "auth" });
   const showVerifyPending = sp.verify === "pending";
+  const reason = typeof sp.reason === "string" ? sp.reason : null;
+  const showSessionExpired = reason === "session_expired";
+  const showAuthRequired = reason === "required";
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)]">
@@ -58,6 +61,34 @@ export default async function SignInPage({
               <AlertTitle>{t("signin.verify_pending.title")}</AlertTitle>
               <AlertDescription>
                 {t("signin.verify_pending.body")}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {showSessionExpired && (
+            <Alert
+              variant="warning"
+              className="mb-6"
+              data-testid="session-expired-banner"
+            >
+              <Clock />
+              <AlertTitle>{t("signin.session_expired.title")}</AlertTitle>
+              <AlertDescription>
+                {t("signin.session_expired.body")}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {showAuthRequired && (
+            <Alert
+              variant="warning"
+              className="mb-6"
+              data-testid="auth-required-banner"
+            >
+              <Lock />
+              <AlertTitle>{t("signin.auth_required.title")}</AlertTitle>
+              <AlertDescription>
+                {t("signin.auth_required.body")}
               </AlertDescription>
             </Alert>
           )}

@@ -39,7 +39,6 @@ export function TransactionSearchBar({
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, debounceMs]);
 
   return (

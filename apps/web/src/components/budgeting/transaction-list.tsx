@@ -9,6 +9,8 @@
 import { getTranslations } from "next-intl/server";
 import { FxFreshnessBadge } from "./fx-freshness-badge";
 import { TransactionRowClient } from "./transaction-row-client";
+import { TransactionRowEdit } from "./transaction-row-edit";
+import { serverApiFetch } from "@/lib/workspace-fetch.server";
 // Plan 02-09: re-export the search/filter primitives so pages can compose them above this list.
 export { TransactionSearchBar } from "./transaction-search-bar";
 export { TransactionFilterChips } from "./transaction-filter-chips";
@@ -21,30 +23,30 @@ interface Transaction {
   currencyOrig: string;
   amountDefault: string;
   currencyDefault: string;
+  fxRate: string;
   fxRateDate: string;
   fxProvider: string;
   transactionDate: string;
   note: string | null;
+  accountId: string;
   categoryId: string | null;
   transferGroupId: string | null;
+  correctsId?: string | null;
   isStale: boolean;
   hasCorrections?: boolean;
 }
 
 interface TransactionListProps {
   locale: string;
-  /** API base URL — defaults to /api in Next.js RSC. Pass absolute URL in tests. */
-  apiBase?: string;
+  wsId: string;
 }
 
 async function fetchTransactions(
-  apiBase = "",
+  wsId: string,
   limit = 50,
 ): Promise<Transaction[]> {
   try {
-    const res = await fetch(`${apiBase}/api/transactions?limit=${limit}`, {
-      next: { revalidate: 30 },
-    });
+    const res = await serverApiFetch(wsId, `/transactions?limit=${limit}`);
     if (!res.ok) return [];
     const data = (await res.json()) as { transactions: Transaction[] };
     return data.transactions ?? [];
@@ -65,9 +67,9 @@ function amountPrefix(kind: string): string {
   return "";
 }
 
-export async function TransactionList({ locale, apiBase }: TransactionListProps) {
+export async function TransactionList({ locale, wsId }: TransactionListProps) {
   const t = await getTranslations({ locale, namespace: "budgeting.transactions" });
-  const transactions = await fetchTransactions(apiBase);
+  const transactions = await fetchTransactions(wsId);
 
   if (transactions.length === 0) {
     return (
@@ -91,14 +93,7 @@ export async function TransactionList({ locale, apiBase }: TransactionListProps)
               <span className="text-xs text-[var(--muted-foreground)] font-mono">
                 {tx.transactionDate}
               </span>
-              <span className="text-sm text-[var(--body)] truncate">
-                {tx.kind.charAt(0) + tx.kind.slice(1).toLowerCase()}
-                {tx.transferGroupId && (
-                  <span className="ml-1 text-xs text-[var(--muted-foreground)]">
-                    · transfer
-                  </span>
-                )}
-              </span>
+              {/* Phase 2 UI shows EXPENSE only — kind/transfer label dropped. */}
               {tx.note && (
                 <span className="text-xs text-[var(--muted-foreground)] truncate max-w-[200px]">
                   {tx.note}
@@ -132,6 +127,27 @@ export async function TransactionList({ locale, apiBase }: TransactionListProps)
                   editedBadgeLabel={t("list.editedBadge")}
                 />
               )}
+              <TransactionRowEdit
+                transaction={{
+                  id: tx.id,
+                  kind: tx.kind,
+                  amountOrig: tx.amountOrig,
+                  currencyOrig: tx.currencyOrig,
+                  amountDefault: tx.amountDefault,
+                  currencyDefault: tx.currencyDefault,
+                  fxRate: tx.fxRate,
+                  fxRateDate: tx.fxRateDate,
+                  fxProvider: tx.fxProvider,
+                  transactionDate: tx.transactionDate,
+                  note: tx.note,
+                  accountId: tx.accountId,
+                  categoryId: tx.categoryId,
+                  transferGroupId: tx.transferGroupId,
+                  correctsId: tx.correctsId ?? null,
+                }}
+                ariaLabel={`Edit ${tx.note ?? tx.amountOrig}`}
+                sheetTitle="Edit transaction"
+              />
             </div>
           </li>
         ))}

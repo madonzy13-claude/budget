@@ -8,6 +8,7 @@
  */
 import { Hono } from "hono";
 import type { BootedDeps } from "../boot";
+import { serverError } from "../middleware/server-error";
 
 export function createAccountsRoute(deps: BootedDeps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,8 +45,24 @@ export function createAccountsRoute(deps: BootedDeps) {
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
 
+    // Scope inherits from workspace.kind (PRIVATE → PERSONAL, SHARED → SHARED)
+    // — same rule as categories. Resolved via listForUser (RLS-aware).
+    let scope = parsed.data.scope;
+    if (!scope) {
+      try {
+        const memberships = await deps.tenancy.workspaceRepo.listForUser(
+          session?.user?.id ?? "",
+        );
+        const ws = memberships.find((m) => m.id === tenantId);
+        scope = ws?.kind === "SHARED" ? "SHARED" : "PERSONAL";
+      } catch {
+        scope = "PERSONAL";
+      }
+    }
+
     const r = await deps.budgeting.createAccount({
       ...parsed.data,
+      scope,
       tenantId,
       actorUserId: userId,
     });
@@ -68,7 +85,7 @@ export function createAccountsRoute(deps: BootedDeps) {
     const includeArchived = c.req.query("includeArchived") === "true";
 
     const r = await deps.budgeting.listAccounts({ tenantId, includeArchived });
-    if (r.isErr()) return c.json({ error: r.error.message }, 500);
+    if (r.isErr()) return serverError(c, "list_accounts_failed", r.error);
 
     return c.json({ accounts: r.value });
   });
@@ -79,7 +96,7 @@ export function createAccountsRoute(deps: BootedDeps) {
     const { id } = c.req.param();
 
     const r = await deps.budgeting.findAccountById({ tenantId, accountId: id });
-    if (r.isErr()) return c.json({ error: r.error.message }, 500);
+    if (r.isErr()) return serverError(c, "find_account_failed", r.error);
     if (!r.value) return c.json({ error: "Not found" }, 404);
 
     return c.json(r.value);

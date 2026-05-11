@@ -15,6 +15,7 @@
  */
 import { Hono } from "hono";
 import type { BootedDeps } from "../boot";
+import { serverError } from "../middleware/server-error";
 
 export function createTransactionsRoute(deps: BootedDeps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,7 +127,7 @@ export function createTransactionsRoute(deps: BootedDeps) {
     });
 
     if (r.isErr()) {
-      return c.json({ error: r.error.message }, 500);
+      return serverError(c, "get_transaction_history_failed", r.error);
     }
 
     const chain = r.value;
@@ -231,7 +232,7 @@ export function createTransactionsRoute(deps: BootedDeps) {
             : null,
         limit: q.limit,
       });
-      if (r.isErr()) return c.json({ error: r.error.message }, 500);
+      if (r.isErr()) return serverError(c, "search_transactions_failed", r.error);
 
       return c.json({
         transactions: r.value.rows.map((tx) => ({
@@ -270,7 +271,7 @@ export function createTransactionsRoute(deps: BootedDeps) {
           : undefined,
     });
 
-    if (r.isErr()) return c.json({ error: r.error.message }, 500);
+    if (r.isErr()) return serverError(c, "list_latest_transactions_failed", r.error);
 
     return c.json({
       transactions: r.value.map((tx) => ({

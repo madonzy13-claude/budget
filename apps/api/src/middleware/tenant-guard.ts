@@ -31,22 +31,37 @@ function buildTenantGuard(bootstrapFn: BootstrapFn): MiddlewareHandler {
 
     const userId = session.user.id as UserId;
 
-    // PC-27: Bootstrap intersection query — workspace_members_self policy permits SELECT
-    // of own membership rows with only app.current_user_id set (no app.tenant_ids yet).
-    // withBootstrapUserContext sets SET LOCAL app.current_user_id inside a transaction.
+    // The web client picks a workspace from the URL (`/workspaces/[wsId]/…`)
+    // and sends it on every API call as `X-Workspace-ID`. We MUST verify the
+    // caller is a member of that workspace before trusting it.
+    //
+    // If no header is present we leave tenantIds empty; downstream
+    // requireWorkspace then returns 403 (or the route is auth-only and never
+    // reads tenantIds). The legacy `active_workspace_ids` user-preference
+    // path is intentionally NOT consulted any more — workspace context is
+    // explicit-via-URL, never implicit-via-session.
+    const requestedWsId =
+      c.req.header("x-workspace-id") ??
+      c.req.header("X-Workspace-ID") ??
+      null;
+
+    if (!requestedWsId) {
+      c.set("tenantIds", []);
+      await next();
+      return;
+    }
+
     const result = await bootstrapFn(userId, async (tx) => {
       const rows = await tx.execute(
         sql.raw(`
-          SELECT array_agg(wm.workspace_id::text) AS ids
-            FROM identity.user_preferences up
-            JOIN tenancy.workspace_members wm ON wm.user_id = up.user_id
-           WHERE up.user_id = '${String(userId)}'
-             AND wm.workspace_id = ANY(up.active_workspace_ids)
+          SELECT wm.workspace_id::text AS id
+            FROM tenancy.workspace_members wm
+           WHERE wm.user_id = '${String(userId)}'
+             AND wm.workspace_id = '${requestedWsId.replace(/[^a-fA-F0-9-]/g, "")}'
+           LIMIT 1
         `),
       );
-      // Drizzle execute returns { rows: Array<Record<string, unknown>> }
-      const firstRow = rows.rows[0];
-      return (firstRow?.ids as string[] | null) ?? [];
+      return rows.rows.length > 0 ? [requestedWsId] : [];
     });
 
     const ids = result.isOk() ? result.value : [];

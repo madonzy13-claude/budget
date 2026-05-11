@@ -27,6 +27,18 @@ export default function middleware(request: NextRequest) {
   const isAuthenticated = !!request.cookies.get(SESSION_COOKIE)?.value;
   const bare = stripLocale(pathname);
   const locale = extractLocale(pathname);
+  const reason = request.nextUrl.searchParams.get("reason");
+  const sessionExpired = reason === "session_expired" || reason === "required";
+
+  // If the layout sent us to /sign-in with reason=session_expired (or =required),
+  // the cookie that's "present" is actually stale. Strip it here so the user sees
+  // the sign-in page once and doesn't loop:
+  //   middleware-bounce-off-auth-page <-> layout-bounce-off-protected-page.
+  if (sessionExpired && AUTH_ROUTES.some((r) => bare.startsWith(r))) {
+    const res = intlMiddleware(request);
+    res.cookies.delete(SESSION_COOKIE);
+    return res;
+  }
 
   // Authenticated → redirect away from auth pages
   if (isAuthenticated && AUTH_ROUTES.some((r) => bare.startsWith(r))) {

@@ -69,6 +69,7 @@ export function TransactionFilterChips({
         aria-pressed={isActive.dateRange}
         onClick={() => {
           if (isActive.dateRange) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { dateFrom: _f, dateTo: _ts, ...rest } = filters;
             onChange(rest);
           }
@@ -83,6 +84,7 @@ export function TransactionFilterChips({
         aria-pressed={isActive.category}
         onClick={() => {
           if (isActive.category) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { categoryIds: _c, ...rest } = filters;
             onChange(rest);
           }
@@ -97,6 +99,7 @@ export function TransactionFilterChips({
         aria-pressed={isActive.account}
         onClick={() => {
           if (isActive.account) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { accountIds: _a, ...rest } = filters;
             onChange(rest);
           }
@@ -111,6 +114,7 @@ export function TransactionFilterChips({
         aria-pressed={isActive.scope}
         onClick={() => {
           if (isActive.scope) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { scope: _s, ...rest } = filters;
             onChange(rest);
           }
@@ -125,6 +129,7 @@ export function TransactionFilterChips({
         aria-pressed={isActive.kind}
         onClick={() => {
           if (isActive.kind) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { kind: _k, ...rest } = filters;
             onChange(rest);
           }

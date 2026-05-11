@@ -18,10 +18,23 @@ import { TransactionCaptureForm } from "@/components/budgeting/transaction-captu
 import type { CurrencyOption } from "@/components/common/currency-picker";
 import { Plus } from "lucide-react";
 
+interface AccountOption {
+  id: string;
+  name: string;
+  currency: string;
+}
+
+interface CategoryOption {
+  id: string;
+  name: string;
+}
+
 interface TransactionCaptureSheetProps {
   locale: string;
   addButtonLabel: string;
   currencies: CurrencyOption[];
+  accounts?: AccountOption[];
+  categories?: CategoryOption[];
   defaultCurrency?: string;
 }
 
@@ -29,6 +42,8 @@ export function TransactionCaptureSheet({
   locale: _locale,
   addButtonLabel,
   currencies,
+  accounts,
+  categories,
   defaultCurrency = "EUR",
 }: TransactionCaptureSheetProps) {
   const router = useRouter();
@@ -62,6 +77,8 @@ export function TransactionCaptureSheet({
         </SheetHeader>
         <TransactionCaptureForm
           currencies={currencies}
+          {...(accounts ? { accounts } : {})}
+          {...(categories ? { categories } : {})}
           defaultCurrency={defaultCurrency}
           onSuccess={handleSuccess}
           onCancel={() => setOpen(false)}

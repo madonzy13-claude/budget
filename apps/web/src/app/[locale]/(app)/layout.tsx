@@ -1,8 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { BrandMark } from "@/components/common/brand-mark";
 import { SiteFooter } from "@/components/common/site-footer";
+import { getServerSession } from "@/lib/server-session";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -15,10 +18,24 @@ interface AppLayoutProps {
  *
  * The verify-email banner sits flush above the nav so it visually owns the
  * top of the page until verification completes.
+ *
+ * Authentication gate: validates the session via Better Auth (`/auth/get-session`)
+ * before rendering. The web `middleware.ts` only checks cookie *presence*; this
+ * layout is what catches a STALE cookie (token wiped from DB / expired session)
+ * and redirects to /sign-in?reason=session_expired so the user gets a clear
+ * "your session expired" message instead of a raw 401 from the API mid-action.
  */
 export default async function AppLayout({ children, params }: AppLayoutProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "nav" });
+
+  const session = await getServerSession();
+  if (!session) {
+    const cookieStore = await cookies();
+    const hasStaleCookie = !!cookieStore.get("better-auth.session_token")?.value;
+    const reason = hasStaleCookie ? "session_expired" : "required";
+    redirect(`/${locale}/sign-in?reason=${reason}`);
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">

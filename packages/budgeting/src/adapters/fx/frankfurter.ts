@@ -20,9 +20,11 @@ export class NoFxRateAvailable extends Error {
  *
  * Algorithm (cache-then-live-then-stale):
  * 1. from === to → {rate:'1', isStale:false}
- * 2. cache hit → return cached; isStale = (cached.date !== requested date)
- * 3. cache miss + live success → cache & return; isStale = (franker date !== requested)
- * 4. live failure → mostRecentPrior fallback; isStale=true; both miss → NoFxRateAvailable
+ * 2. weekend / holiday request → isStale=true (Pitfall 4: rate is Friday's even
+ *    when Frankfurter echoes the requested date back)
+ * 3. cache hit → return cached; isStale = (cached.date !== requested date) || weekend
+ * 4. cache miss + live success → cache & return; isStale = (frankfurter date !== requested) || weekend
+ * 5. live failure → mostRecentPrior fallback; isStale=true; both miss → NoFxRateAvailable
  */
 export class FrankfurterFxProvider implements FxProvider {
   constructor(
@@ -40,18 +42,22 @@ export class FrankfurterFxProvider implements FxProvider {
     }
 
     const yyyymmdd = formatDateUTC(date);
+    // Pitfall 4: weekend/holiday rollback — rates served on Sat/Sun are stamped
+    // with the requested date by Frankfurter but reflect Friday's value. Mark
+    // stale so the UI can surface the freshness badge.
+    const weekend = isWeekendUTC(date);
 
-    // Step 2: cache hit
+    // Step 3: cache hit
     const cached = await this.cache.lookup(from, to, yyyymmdd);
     if (cached) {
       return {
         rate: cached.rate,
         provider: "frankfurter",
-        isStale: cached.date !== yyyymmdd,
+        isStale: weekend || cached.date !== yyyymmdd,
       };
     }
 
-    // Step 3: live fetch
+    // Step 4: live fetch
     try {
       const r = await this.fetchFn(
         `https://api.frankfurter.dev/v2/rate/${from}/${to}?date=${yyyymmdd}`,
@@ -63,13 +69,18 @@ export class FrankfurterFxProvider implements FxProvider {
       return {
         rate: rateStr,
         provider: "frankfurter",
-        isStale: j.date !== yyyymmdd,
+        isStale: weekend || j.date !== yyyymmdd,
       };
     } catch {
-      // Step 4: fallback to most recent prior cached rate
+      // Step 5: fallback to most recent prior cached rate
       const fallback = await this.cache.mostRecentPrior(from, to, yyyymmdd);
       if (!fallback) throw new NoFxRateAvailable(from, to, yyyymmdd);
       return { rate: fallback.rate, provider: "frankfurter", isStale: true };
     }
   }
+}
+
+function isWeekendUTC(date: Date): boolean {
+  const d = date.getUTCDay();
+  return d === 0 || d === 6;
 }
