@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * transaction-filter-chips.tsx — filter pills for date-range / category / account / scope / kind
+ * transaction-filter-chips.tsx — filter pills for date-range / category / account / kind
  * (Plan 02-09 EXPN-09). Each pill toggles a popover with a picker; active pill renders with the
  * primary yellow accent border. Per UI-SPEC § Search/Filter.
  *
  * Stateless — parent owns filter values + URL round-trip.
+ * D-13: scope filter removed (categories.scope dropped from schema).
  */
 import { useTranslations } from "next-intl";
 
@@ -14,7 +15,6 @@ export interface TransactionFilters {
   dateTo?: string;
   categoryIds?: string[];
   accountIds?: string[];
-  scope?: "PERSONAL" | "SHARED";
   kind?: "EXPENSE" | "INCOME" | "TRANSFER";
 }
 
@@ -38,14 +38,12 @@ export function TransactionFilterChips({
     dateRange: !!(filters.dateFrom || filters.dateTo),
     category: (filters.categoryIds?.length ?? 0) > 0,
     account: (filters.accountIds?.length ?? 0) > 0,
-    scope: !!filters.scope,
     kind: !!filters.kind,
   };
   const anyActive =
     isActive.dateRange ||
     isActive.category ||
     isActive.account ||
-    isActive.scope ||
     isActive.kind;
 
   function pillClass(active: boolean): string {
@@ -106,21 +104,6 @@ export function TransactionFilterChips({
         }}
       >
         {t("account")}
-      </button>
-      <button
-        type="button"
-        className={pillClass(isActive.scope)}
-        data-testid="filter-pill-scope"
-        aria-pressed={isActive.scope}
-        onClick={() => {
-          if (isActive.scope) {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { scope: _s, ...rest } = filters;
-            onChange(rest);
-          }
-        }}
-      >
-        {t("scope")}
       </button>
       <button
         type="button"

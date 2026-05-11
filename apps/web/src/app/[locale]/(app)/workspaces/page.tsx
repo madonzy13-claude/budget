@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { WorkspaceRow } from "@/components/workspace/workspace-row";
-import { serverApiFetch } from "@/lib/workspace-fetch.server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 
 interface WorkspacesPageProps {
   params: Promise<{ locale: string }>;
@@ -18,7 +18,7 @@ interface WorkspaceLite {
 
 async function fetchMyWorkspaces(): Promise<WorkspaceLite[]> {
   // /workspaces/active is auth-only (no header required) and returns memberships.
-  const res = await serverApiFetch(null, "/workspaces/active");
+  const res = await serverApiFetch(null, "/budgets/active");
   if (!res.ok) return [];
   const body = (await res.json()) as { workspaces?: WorkspaceLite[] };
   return body.workspaces ?? [];

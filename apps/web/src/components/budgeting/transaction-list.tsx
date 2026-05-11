@@ -10,7 +10,7 @@ import { getTranslations } from "next-intl/server";
 import { FxFreshnessBadge } from "./fx-freshness-badge";
 import { TransactionRowClient } from "./transaction-row-client";
 import { TransactionRowEdit } from "./transaction-row-edit";
-import { serverApiFetch } from "@/lib/workspace-fetch.server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 // Plan 02-09: re-export the search/filter primitives so pages can compose them above this list.
 export { TransactionSearchBar } from "./transaction-search-bar";
 export { TransactionFilterChips } from "./transaction-filter-chips";

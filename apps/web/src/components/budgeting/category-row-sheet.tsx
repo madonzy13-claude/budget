@@ -15,7 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { CategoryEditForm } from "@/components/budgeting/category-edit-form";
-import { clientApiFetch } from "@/lib/workspace-fetch";
+import { clientApiFetch } from "@/lib/budget-fetch";
 
 interface LimitDto {
   id: string;

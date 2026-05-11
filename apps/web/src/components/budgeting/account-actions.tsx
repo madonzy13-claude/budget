@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Archive } from "lucide-react";
 import { uuidv4 } from "@/lib/uuid";
-import { clientApiFetch } from "@/lib/workspace-fetch";
+import { clientApiFetch } from "@/lib/budget-fetch";
 
 interface AccountActionsProps {
   accountId: string;
@@ -35,7 +35,7 @@ export function AccountActions({
     if (pending) return;
     setPending(true);
     try {
-      const res = await clientApiFetch(`/accounts/${accountId}/archive`, {
+      const res = await clientApiFetch(`/wallets/${accountId}/archive`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

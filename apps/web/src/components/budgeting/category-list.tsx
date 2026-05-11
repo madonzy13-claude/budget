@@ -4,11 +4,11 @@
  * clickable client island that opens the LimitEditor sheet.
  *
  * Workspace context: takes `wsId` from the page and forwards it on the API
- * request via the X-Workspace-ID header.
+ * request via the X-Budget-ID header.
  */
 import { getTranslations } from "next-intl/server";
 import { CategoryRowSheet } from "@/components/budgeting/category-row-sheet";
-import { serverApiFetch } from "@/lib/workspace-fetch.server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 
 interface CategoryDto {
   id: string;

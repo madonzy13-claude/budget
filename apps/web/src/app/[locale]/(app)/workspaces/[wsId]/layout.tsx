@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { serverApiFetch } from "@/lib/workspace-fetch.server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 
 interface WorkspaceLayoutProps {
@@ -15,7 +15,7 @@ interface WorkspaceLite {
 }
 
 async function fetchWorkspace(wsId: string): Promise<WorkspaceLite | null> {
-  const res = await serverApiFetch(null, "/workspaces/active");
+  const res = await serverApiFetch(null, "/budgets/active");
   if (!res.ok) return null;
   const body = (await res.json()) as { workspaces?: WorkspaceLite[] };
   return body.workspaces?.find((w) => w.id === wsId) ?? null;
@@ -39,10 +39,10 @@ export default async function WorkspaceLayout({
   const t = await getTranslations({ locale, namespace: "nav" });
 
   const tabs = [
-    { key: "budget", href: `/${locale}/workspaces/${wsId}/budget`, label: t("budget") },
-    { key: "accounts", href: `/${locale}/workspaces/${wsId}/accounts`, label: t("accounts") },
-    { key: "transactions", href: `/${locale}/workspaces/${wsId}/transactions`, label: t("transactions") },
-    { key: "recurring", href: `/${locale}/workspaces/${wsId}/recurring`, label: t("recurring") },
+    { key: "budget", href: `/${locale}/budgets/${wsId}/spendings`, label: t("budget") },
+    { key: "accounts", href: `/${locale}/budgets/${wsId}/wallets`, label: t("wallets") },
+    { key: "transactions", href: `/${locale}/budgets/${wsId}/transactions`, label: t("transactions") },
+    { key: "recurring", href: `/${locale}/budgets/${wsId}/recurring`, label: t("recurring") },
   ];
 
   return (

@@ -26,7 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { clientApiFetch } from "@/lib/workspace-fetch";
+import { clientApiFetch } from "@/lib/budget-fetch";
 
 interface ChainRow {
   id: string;

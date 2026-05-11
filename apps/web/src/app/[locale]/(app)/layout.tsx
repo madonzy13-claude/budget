@@ -44,10 +44,10 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       <header className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-8">
-            <BrandMark href={`/${locale}/workspaces`} />
+            <BrandMark href={`/${locale}/budgets`} />
             <nav className="hidden items-center gap-6 sm:flex">
               <Link
-                href={`/${locale}/workspaces`}
+                href={`/${locale}/budgets`}
                 className="text-nav-link text-[var(--muted-foreground)] transition-colors hover:text-[var(--on-dark)]"
               >
                 {t("workspaces")}

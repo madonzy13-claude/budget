@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { cn } from "@/lib/utils";
-import { clientApiFetch } from "@/lib/workspace-fetch";
+import { clientApiFetch } from "@/lib/budget-fetch";
 
 type AccountKind =
   | "CASH"
@@ -125,7 +125,7 @@ export function AccountForm({
   async function onSubmit(values: AccountFormValues) {
     setServerError(null);
     try {
-      const res = await clientApiFetch("/accounts", {
+      const res = await clientApiFetch("/wallets", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -177,11 +177,11 @@ export function AccountForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("budgeting.accounts.form.nameLabel")}</FormLabel>
+              <FormLabel>{t("budgeting.wallets.form.nameLabel")}</FormLabel>
               <FormControl>
                 <Input
-                  placeholder={t("budgeting.accounts.form.namePlaceholder")}
-                  aria-label={t("budgeting.accounts.form.nameLabel")}
+                  placeholder={t("budgeting.wallets.form.namePlaceholder")}
+                  aria-label={t("budgeting.wallets.form.nameLabel")}
                   {...field}
                 />
               </FormControl>
@@ -196,7 +196,7 @@ export function AccountForm({
           name="kind"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("budgeting.accounts.form.kindLabel")}</FormLabel>
+              <FormLabel>{t("budgeting.wallets.form.kindLabel")}</FormLabel>
               <Select
                 value={field.value}
                 onValueChange={field.onChange}
@@ -209,7 +209,7 @@ export function AccountForm({
                 <SelectContent>
                   {ACCOUNT_KINDS.map((kind) => (
                     <SelectItem key={kind} value={kind}>
-                      {t(`budgeting.accounts.kinds.${kind}`)}
+                      {t(`budgeting.wallets.kinds.${kind}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -225,13 +225,13 @@ export function AccountForm({
           name="currency"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("budgeting.accounts.form.currencyLabel")}</FormLabel>
+              <FormLabel>{t("budgeting.wallets.form.currencyLabel")}</FormLabel>
               <FormControl>
                 <CurrencyPicker
                   value={field.value}
                   onSelect={field.onChange}
-                  placeholder={t("budgeting.accounts.form.currencyPlaceholder")}
-                  aria-label={t("budgeting.accounts.form.currencyLabel")}
+                  placeholder={t("budgeting.wallets.form.currencyPlaceholder")}
+                  aria-label={t("budgeting.wallets.form.currencyLabel")}
                 />
               </FormControl>
               <FormMessage />
@@ -248,7 +248,7 @@ export function AccountForm({
             onClick={onCancel}
             disabled={isSubmitting}
           >
-            {t("budgeting.accounts.form.cancelButton")}
+            {t("budgeting.wallets.form.cancelButton")}
           </Button>
           <Button
             type="submit"
@@ -261,7 +261,7 @@ export function AccountForm({
                 {t("state.loading")}
               </>
             ) : (
-              t("budgeting.accounts.form.saveButton")
+              t("budgeting.wallets.form.saveButton")
             )}
           </Button>
         </div>

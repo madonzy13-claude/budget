@@ -10,23 +10,20 @@ import { AccountForm } from "../../src/components/budgeting/account-form";
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => {
     const map: Record<string, string> = {
-      "budgeting.accounts.form.title": "New account",
-      "budgeting.accounts.form.nameLabel": "Account name",
-      "budgeting.accounts.form.namePlaceholder": "e.g. Cash Wallet",
-      "budgeting.accounts.form.kindLabel": "Account kind",
-      "budgeting.accounts.form.scopeLabel": "Scope",
-      "budgeting.accounts.form.currencyLabel": "Currency",
-      "budgeting.accounts.form.currencyPlaceholder": "Select currency",
-      "budgeting.accounts.form.saveButton": "Save account",
-      "budgeting.accounts.form.cancelButton": "Cancel",
-      "budgeting.accounts.scopes.PERSONAL": "Personal",
-      "budgeting.accounts.scopes.SHARED": "Shared",
-      "budgeting.accounts.kinds.CASH": "Cash",
-      "budgeting.accounts.kinds.CHECKING": "Checking",
-      "budgeting.accounts.kinds.SAVINGS": "Savings",
-      "budgeting.accounts.kinds.CREDIT_CARD": "Credit card",
-      "budgeting.accounts.kinds.LOAN": "Loan",
-      "budgeting.accounts.kinds.INVESTMENT": "Investment",
+      "budgeting.wallets.form.title": "New wallet",
+      "budgeting.wallets.form.nameLabel": "Wallet name",
+      "budgeting.wallets.form.namePlaceholder": "e.g. Cash Wallet",
+      "budgeting.wallets.form.kindLabel": "Wallet type",
+            "budgeting.wallets.form.currencyLabel": "Currency",
+      "budgeting.wallets.form.currencyPlaceholder": "Select currency",
+      "budgeting.wallets.form.saveButton": "Save wallet",
+      "budgeting.wallets.form.cancelButton": "Cancel",
+                  "budgeting.wallets.kinds.CASH": "Cash",
+      "budgeting.wallets.kinds.CHECKING": "Checking",
+      "budgeting.wallets.kinds.SAVINGS": "Savings",
+      "budgeting.wallets.kinds.CREDIT_CARD": "Credit card",
+      "budgeting.wallets.kinds.LOAN": "Loan",
+      "budgeting.wallets.kinds.INVESTMENT": "Investment",
       "currency.picker.placeholder": "Search currency...",
       "currency.picker.aria_label": "Select currency",
       "currency.picker.empty": "No currency found.",
@@ -68,18 +65,18 @@ describe("AccountForm", () => {
 
   it("renders account name input", () => {
     render(<AccountForm tenantId="t1" userId="u1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
-    expect(screen.getByLabelText("Account name")).toBeTruthy();
+    expect(screen.getByLabelText("Wallet name")).toBeTruthy();
   });
 
   it("renders kind selector", () => {
     render(<AccountForm tenantId="t1" userId="u1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
-    expect(screen.getByText("Account kind")).toBeTruthy();
+    expect(screen.getByText("Wallet type")).toBeTruthy();
   });
 
-  it("renders scope selector (PERSONAL/SHARED tabs)", () => {
+  it("renders wallet name input (scope removed D-13)", () => {
     render(<AccountForm tenantId="t1" userId="u1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
-    expect(screen.getByText("Personal")).toBeTruthy();
-    expect(screen.getByText("Shared")).toBeTruthy();
+    // Scope field removed per D-13; wallet name input should still render
+    expect(screen.getByLabelText("Wallet name")).toBeTruthy();
   });
 
   it("renders currency picker", () => {
@@ -89,7 +86,7 @@ describe("AccountForm", () => {
 
   it("renders Save account button", () => {
     render(<AccountForm tenantId="t1" userId="u1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Save account" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save wallet" })).toBeTruthy();
   });
 
   it("renders Cancel button", () => {
@@ -97,11 +94,11 @@ describe("AccountForm", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
   });
 
-  it("submits POST /api/accounts with Idempotency-Key header", async () => {
+  it("submits POST /api/wallets with Idempotency-Key header", async () => {
     render(<AccountForm tenantId="t1" userId="u1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
     // Fill in required field: name
-    const nameInput = screen.getByLabelText("Account name");
+    const nameInput = screen.getByLabelText("Wallet name");
     fireEvent.change(nameInput, { target: { value: "My Cash" } });
 
     // The form has default kind=CASH and scope=PERSONAL.
@@ -112,7 +109,7 @@ describe("AccountForm", () => {
     // This is acceptable: the Idempotency-Key is set on form mount, not on submit.
     // Verify that the key was generated via useState(crypto.randomUUID)
     // by checking the component renders (key generated in useState initializer)
-    expect(screen.getByRole("button", { name: "Save account" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save wallet" })).toBeTruthy();
 
     // Verify idempotency key is set in form state (generated on mount)
     // The actual fetch call with the key is tested in E2E.
@@ -124,7 +121,7 @@ describe("AccountForm", () => {
   it("shows validation error when name is empty on submit", async () => {
     render(<AccountForm tenantId="t1" userId="u1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
-    const saveButton = screen.getByRole("button", { name: "Save account" });
+    const saveButton = screen.getByRole("button", { name: "Save wallet" });
     fireEvent.click(saveButton);
 
     await waitFor(() => {

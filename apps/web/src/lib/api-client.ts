@@ -5,7 +5,7 @@ import { hc } from "hono/client";
 // Do NOT import from @budget/*/src/{adapters,domain,application,ports} or /dist/ paths.
 // Import via local shim type to prevent cascading api type errors (see src/types/api-type.d.ts).
 import type { AppType } from "@/types/api-type";
-import { extractWorkspaceIdFromPath } from "@/lib/workspace-fetch";
+import { extractBudgetIdFromPath } from "@/lib/budget-fetch";
 
 type AnyApi = any;
 
@@ -19,9 +19,9 @@ export const api: AnyApi = hc<AppType>(_apiBase, {
   fetch: (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     if (typeof window !== "undefined") {
-      const wsId = extractWorkspaceIdFromPath(window.location.pathname);
-      if (wsId && !headers.has("X-Workspace-ID")) {
-        headers.set("X-Workspace-ID", wsId);
+      const budgetId = extractBudgetIdFromPath(window.location.pathname);
+      if (budgetId && !headers.has("X-Budget-ID")) {
+        headers.set("X-Budget-ID", budgetId);
       }
     }
     return fetch(input, {

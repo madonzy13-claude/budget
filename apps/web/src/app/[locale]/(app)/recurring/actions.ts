@@ -7,7 +7,7 @@
  */
 import type { RecurringRuleListItem } from "@/components/budgeting/recurring-rules-list";
 import type { PendingDraft } from "@/components/budgeting/pending-drafts-inbox";
-import { serverApiFetch } from "@/lib/workspace-fetch.server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 
 export async function getRecurringRules(
   wsId: string,

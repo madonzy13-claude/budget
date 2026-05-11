@@ -5,7 +5,7 @@
  */
 import { getTranslations } from "next-intl/server";
 import { AccountActions } from "./account-actions";
-import { serverApiFetch } from "@/lib/workspace-fetch.server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 
 interface AccountDto {
   id: string;
@@ -27,7 +27,7 @@ const LIABILITY_KINDS = new Set(["CREDIT_CARD", "LOAN"]);
 
 async function fetchAccounts(wsId: string): Promise<AccountDto[]> {
   try {
-    const res = await serverApiFetch(wsId, "/accounts");
+    const res = await serverApiFetch(wsId, "/wallets");
     if (!res.ok) return [];
     const data = (await res.json()) as { accounts: AccountDto[] };
     return data.accounts ?? [];
@@ -38,7 +38,7 @@ async function fetchAccounts(wsId: string): Promise<AccountDto[]> {
 
 
 export async function AccountsList({ locale, wsId }: AccountsListProps) {
-  const t = await getTranslations({ locale, namespace: "budgeting.accounts" });
+  const t = await getTranslations({ locale, namespace: "budgeting.wallets" });
   const accounts = await fetchAccounts(wsId);
 
   const assets = accounts.filter((a) => !LIABILITY_KINDS.has(a.kind));

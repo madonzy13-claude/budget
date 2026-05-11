@@ -72,7 +72,7 @@ export function SignInForm({ locale }: SignInFormProps) {
       return;
     }
 
-    router.push(`/${locale}/workspaces`);
+    router.push(`/${locale}/budgets`);
     router.refresh();
   }
 

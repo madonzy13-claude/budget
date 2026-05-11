@@ -50,12 +50,12 @@ export function CreateWorkspaceForm({
       z.object({
         name: z
           .string()
-          .min(1, t("workspaces.create.validation.name_required"))
+          .min(1, t("budgets.create.validation.name_required"))
           .max(100),
         kind: z.enum(["PRIVATE", "SHARED"]),
         default_currency: z
           .string()
-          .min(3, t("workspaces.create.validation.currency_required"))
+          .min(3, t("budgets.create.validation.currency_required"))
           .max(3),
       }),
     [t],
@@ -96,7 +96,7 @@ export function CreateWorkspaceForm({
       // Workspace context is now URL-driven (/workspaces/[wsId]/...) — no
       // session "active workspace" to set. Land the user directly inside
       // their new workspace on the budget tab.
-      toast.success(t("workspaces.create.success", { name: created.name }));
+      toast.success(t("budgets.create.success", { name: created.name }));
       onSuccess?.(created.id);
       router.push(`/${locale ?? "en"}/workspaces/${created.id}/budget`);
     } catch {
@@ -122,10 +122,10 @@ export function CreateWorkspaceForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("workspaces.create.name.label")}</FormLabel>
+              <FormLabel>{t("budgets.create.name.label")}</FormLabel>
               <FormControl>
                 <Input
-                  placeholder={t("workspaces.create.name.placeholder")}
+                  placeholder={t("budgets.create.name.placeholder")}
                   {...field}
                 />
               </FormControl>
@@ -140,18 +140,18 @@ export function CreateWorkspaceForm({
           name="kind"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("workspaces.create.kind.label")}</FormLabel>
+              <FormLabel>{t("budgets.create.kind.label")}</FormLabel>
               <FormControl>
                 <div role="radiogroup" className="grid gap-2 sm:grid-cols-2">
                   {[
                     {
                       kind: "PRIVATE" as WorkspaceKind,
-                      label: t("workspaces.create.kind.private"),
+                      label: t("budgets.create.kind.private"),
                       Icon: Lock,
                     },
                     {
                       kind: "SHARED" as WorkspaceKind,
-                      label: t("workspaces.create.kind.shared"),
+                      label: t("budgets.create.kind.shared"),
                       Icon: Users,
                     },
                   ].map(({ kind, label, Icon }) => {
@@ -210,17 +210,17 @@ export function CreateWorkspaceForm({
           name="default_currency"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("workspaces.create.currency.label")}</FormLabel>
+              <FormLabel>{t("budgets.create.currency.label")}</FormLabel>
               <FormControl>
                 <CurrencyPicker
                   value={field.value}
                   onSelect={field.onChange}
-                  placeholder={t("workspaces.create.currency.placeholder")}
-                  aria-label={t("workspaces.create.currency.label")}
+                  placeholder={t("budgets.create.currency.placeholder")}
+                  aria-label={t("budgets.create.currency.label")}
                 />
               </FormControl>
               <FormDescription>
-                {t("workspaces.create.currency.helper")}
+                {t("budgets.create.currency.helper")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -234,7 +234,7 @@ export function CreateWorkspaceForm({
               {t("state.loading")}
             </>
           ) : (
-            t("workspaces.create.cta")
+            t("budgets.create.cta")
           )}
         </Button>
       </form>

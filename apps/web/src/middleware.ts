@@ -6,7 +6,7 @@ const intlMiddleware = createMiddleware(routing);
 
 const LOCALES = ["en", "pl", "uk"];
 const AUTH_ROUTES = ["/sign-in", "/sign-up"];
-const PROTECTED_ROUTES = ["/onboarding", "/workspaces", "/settings"];
+const PROTECTED_ROUTES = ["/onboarding", "/budgets", "/settings"];
 const SESSION_COOKIE = "better-auth.session_token";
 
 function extractLocale(pathname: string): string {
@@ -42,7 +42,7 @@ export default function middleware(request: NextRequest) {
 
   // Authenticated → redirect away from auth pages
   if (isAuthenticated && AUTH_ROUTES.some((r) => bare.startsWith(r))) {
-    return NextResponse.redirect(new URL(`/${locale}/workspaces`, request.url));
+    return NextResponse.redirect(new URL(`/${locale}/budgets`, request.url));
   }
 
   // Unauthenticated → redirect away from protected pages

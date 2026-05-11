@@ -29,7 +29,7 @@ interface InviteMemberFormProps {
 }
 
 export function InviteMemberForm({ workspaceId }: InviteMemberFormProps) {
-  const t = useTranslations("workspace.invite");
+  const t = useTranslations("budget.invite");
   const tRoot = useTranslations();
   const [serverError, setServerError] = useState<string | null>(null);
 

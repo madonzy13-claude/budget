@@ -4,11 +4,11 @@
  * actions.ts — RSC server actions for the transactions page.
  *
  * Workspace context is passed explicitly (wsId param) and forwarded to the
- * API server via the X-Workspace-ID header. The /api/currencies endpoint is
+ * API server via the X-Budget-ID header. The /api/currencies endpoint is
  * workspace-agnostic so it stays without a wsId.
  */
 import type { CurrencyOption } from "@/components/common/currency-picker";
-import { serverApiFetch } from "@/lib/workspace-fetch.server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 
 export async function getSupportedCurrencies(): Promise<CurrencyOption[]> {
   try {
@@ -36,7 +36,7 @@ export interface CategoryOption {
 
 export async function getAccountsForForm(wsId: string): Promise<AccountOption[]> {
   try {
-    const res = await serverApiFetch(wsId, "/accounts");
+    const res = await serverApiFetch(wsId, "/wallets");
     if (!res.ok) return [];
     const data = (await res.json()) as {
       accounts: Array<{ id: string; name: string; currency: string; archivedAt: string | null }>;

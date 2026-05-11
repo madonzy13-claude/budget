@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencyPicker, type CurrencyOption } from "@/components/common/currency-picker";
 import { cn } from "@/lib/utils";
-import { clientApiFetch } from "@/lib/workspace-fetch";
+import { clientApiFetch } from "@/lib/budget-fetch";
 
 type TransactionKind = "EXPENSE" | "INCOME" | "TRANSFER";
 

@@ -38,7 +38,7 @@ function WorkspaceSwitcherContent({
   activeIds: string[];
   onToggle: (id: string) => void;
 }) {
-  const t = useTranslations("workspaces.switcher");
+  const t = useTranslations("budgets.switcher");
 
   const privateWs = workspaces.filter((w) => w.kind === "PRIVATE");
   const sharedWs = workspaces.filter((w) => w.kind === "SHARED");
@@ -101,7 +101,7 @@ export function WorkspaceSwitcher({
   initialActiveIds,
   onActiveChange,
 }: WorkspaceSwitcherProps) {
-  const t = useTranslations("workspaces.switcher");
+  const t = useTranslations("budgets.switcher");
   const [activeIds, setActiveIds] = useState<string[]>(initialActiveIds);
   const [mobileOpen, setMobileOpen] = useState(false);
 
