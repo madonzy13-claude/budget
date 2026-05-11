@@ -9,8 +9,11 @@
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Hono } from "hono";
 
+const DB_URL_RAW = process.env.DATABASE_URL_APP;
+if (!DB_URL_RAW)
+  throw new Error("DATABASE_URL_APP required for integration tests");
+process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
-if (!DB_URL) throw new Error("DATABASE_URL_APP required for integration tests");
 
 let testUserId: string;
 let testTenantId: string;

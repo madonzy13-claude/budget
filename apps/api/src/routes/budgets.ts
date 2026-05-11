@@ -1,5 +1,5 @@
 /**
- * workspaces.ts — /workspaces route factory
+ * budgets.ts — /budgets route factory
  *
  * PC-02: all application service imports come from package roots or internal imports.
  * T-01-07-06: zValidator on every state-changing endpoint.
@@ -12,7 +12,7 @@ import { sql } from "drizzle-orm";
 import type { BootedDeps } from "../boot";
 import { UserId } from "@budget/shared-kernel";
 
-export function workspacesRoutesFactory(deps: BootedDeps) {
+export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
 
   const createSchema = z.object({
@@ -43,7 +43,10 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     workspaceIds: z.array(z.string()),
   });
 
-  // POST /workspaces — create new workspace
+  // GET /budgets/health — smoke endpoint (ROADMAP success criterion #5)
+  r.get("/health", (c) => c.json({ ok: true, phase: "1" }));
+
+  // POST /budgets — create new budget
   r.post("/", zValidator("json", createSchema), async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
@@ -67,24 +70,25 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
       return c.json({ id: r2.id, name: body.name }, 201);
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
-      if (/PRIVATE workspaces/.test(msg)) return c.json({ error: msg }, 409);
-      console.error("[create-ws] failed:", msg, e);
+      if (/PRIVATE budgets/.test(msg) || /PRIVATE workspaces/.test(msg))
+        return c.json({ error: msg }, 409);
+      console.error("[create-budget] failed:", msg, e);
       throw e;
     }
   });
 
-  // POST /workspaces/:id/invitations — invite member
+  // POST /budgets/:id/invitations — invite member
   // Bypasses Better Auth's createInvitation: its findMemberByOrgId SELECT runs
   // without app.current_user_id GUC and is filtered out by RLS in CI (app_role
   // connection). We do the membership check ourselves through
   // withBootstrapUserContext (which sets the GUC), then INSERT directly into
-  // tenancy.workspace_invitations (table has no RLS — token-keyed lookup) and
+  // tenancy.budget_invitations (table has no RLS — token-keyed lookup) and
   // dispatch the invitation email.
   r.post("/:id/invitations", zValidator("json", inviteSchema), async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
-    const { id: workspaceId } = c.req.param();
+    const { id: budgetId } = c.req.param();
     const body = c.req.valid("json");
 
     const { withBootstrapUserContext, appPool } =
@@ -94,11 +98,11 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
       UserId(session.user.id),
       async (tx) => {
         const result = await tx.execute(sql`
-          SELECT wm.role::text AS role, w.kind::text AS kind, w.name AS name
-            FROM tenancy.workspace_members wm
-            JOIN tenancy.workspaces w ON w.id = wm.workspace_id
-           WHERE wm.workspace_id = ${workspaceId}::uuid
-             AND wm.user_id = ${session.user.id}::uuid
+          SELECT bm.role::text AS role, b.kind::text AS kind, b.name AS name
+            FROM tenancy.budget_members bm
+            JOIN tenancy.budgets b ON b.id = bm.budget_id
+           WHERE bm.budget_id = ${budgetId}::uuid
+             AND bm.user_id = ${session.user.id}::uuid
            LIMIT 1
         `);
         return result.rows[0] as
@@ -121,7 +125,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
       return c.json(
         {
           error:
-            "PRIVATE workspaces accept only the owner. Convert to SHARED first.",
+            "PRIVATE budgets accept only the owner. Convert to SHARED first.",
         },
         409,
       );
@@ -132,12 +136,12 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
 
     try {
       await appPool().query(
-        `INSERT INTO tenancy.workspace_invitations
-          (id, workspace_id, email, role, status, inviter_id, expires_at)
+        `INSERT INTO tenancy.budget_invitations
+          (id, budget_id, email, role, status, inviter_id, expires_at)
          VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
         [
           invitationId,
-          workspaceId,
+          budgetId,
           body.email,
           body.role,
           session.user.id,
@@ -152,7 +156,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     try {
       const inviterName =
         ((session.user as { name?: string }).name ?? session.user.email) ||
-        "A workspace owner";
+        "A budget owner";
       await deps.emailSender.send({
         to: body.email,
         template: "workspace-invite",
@@ -170,18 +174,18 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     return c.json({ invitationId }, 201);
   });
 
-  // POST /workspaces/:id/leave — leave workspace
+  // POST /budgets/:id/leave — leave budget
   r.post("/:id/leave", async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
-    const { id: workspaceId } = c.req.param();
+    const { id: budgetId } = c.req.param();
 
     const auth = deps.identity.auth as any;
 
     try {
       await auth.api.leaveOrganization({
-        body: { organizationId: workspaceId, userId: session.user.id },
+        body: { organizationId: budgetId, userId: session.user.id },
       });
       return c.json({ ok: true });
     } catch (e) {
@@ -192,7 +196,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     }
   });
 
-  // POST /workspaces/:id/transfer-ownership
+  // POST /budgets/:id/transfer-ownership
   r.post(
     "/:id/transfer-ownership",
     zValidator("json", transferSchema),
@@ -200,14 +204,14 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
       const session = c.get("session");
       if (!session) return c.json({ error: "unauthorized" }, 401);
 
-      const { id: workspaceId } = c.req.param();
+      const { id: budgetId } = c.req.param();
       const body = c.req.valid("json");
 
       const auth = deps.identity.auth as any;
 
       await auth.api.transferOwnership({
         body: {
-          organizationId: workspaceId,
+          organizationId: budgetId,
           fromUserId: session.user.id,
           toUserId: body.toUserId,
         },
@@ -216,23 +220,23 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     },
   );
 
-  // PUT /workspaces/:id/shares — update member shares
+  // PUT /budgets/:id/shares — update member shares
   r.put("/:id/shares", zValidator("json", sharesSchema), async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
-    const { id: workspaceId } = c.req.param();
+    const { id: budgetId } = c.req.param();
     const body = c.req.valid("json");
 
     await deps.tenancy.memberShareRepo.update(
-      workspaceId,
+      budgetId,
       body.shares,
       session.user.id,
     );
     return c.json({ ok: true });
   });
 
-  // GET /workspaces/active — list active workspaces
+  // GET /budgets/active — list active budgets
   r.get("/active", async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
@@ -242,7 +246,7 @@ export function workspacesRoutesFactory(deps: BootedDeps) {
     return c.json({ workspaces: memberships });
   });
 
-  // PUT /workspaces/active — set active workspaces (D-07, TENT-12)
+  // PUT /budgets/active — set active budgets (D-07, TENT-12)
   r.put("/active", zValidator("json", activeSchema), async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);

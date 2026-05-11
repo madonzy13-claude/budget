@@ -13,6 +13,12 @@ import { DrizzleTransactionRepo } from "../adapters/persistence/transaction-repo
 import { DrizzleSpendingProjectionRepo } from "../adapters/persistence/spending-projection-repo";
 import { DrizzleRecurringRuleRepo } from "../adapters/persistence/recurring-rule-repo";
 import { DrizzleRecurringDraftRepo } from "../adapters/persistence/recurring-draft-repo";
+import { createWallet } from "../application/create-wallet";
+import { archiveWallet } from "../application/archive-wallet";
+import { adjustWalletBalance } from "../application/adjust-wallet-balance";
+import { listWallets } from "../application/list-wallets";
+import { findWalletById } from "../application/find-wallet-by-id";
+// Backward-compat aliases (routes migrated in Plan 01-03)
 import { createAccount } from "../application/create-account";
 import { archiveAccount } from "../application/archive-account";
 import { adjustAccountBalance } from "../application/adjust-account-balance";
@@ -55,6 +61,13 @@ export interface BudgetingDeps {
 
 export interface BudgetingModule {
   fxProvider: FrankfurterFxProvider;
+  // Wallet methods (renamed from account in Plan 01-02/01-03)
+  createWallet: ReturnType<typeof createWallet>;
+  archiveWallet: ReturnType<typeof archiveWallet>;
+  adjustWalletBalance: ReturnType<typeof adjustWalletBalance>;
+  listWallets: ReturnType<typeof listWallets>;
+  findWalletById: ReturnType<typeof findWalletById>;
+  // Backward-compat account aliases (deprecated, use wallet methods above)
   createAccount: ReturnType<typeof createAccount>;
   archiveAccount: ReturnType<typeof archiveAccount>;
   adjustAccountBalance: ReturnType<typeof adjustAccountBalance>;
@@ -95,7 +108,7 @@ export interface BudgetingModule {
   replayProjections: ReturnType<typeof replayProjections>;
 }
 
-/** Resolves workspace default_currency from tenancy.workspaces. */
+/** Resolves budget default_currency from tenancy.budgets (renamed from workspaces in v1.1). */
 async function getWorkspaceDefaultCurrency(tenantId: string): Promise<string> {
   const r = await withInfraTx(async (tx) => {
     const drizzleTx = tx as {
@@ -104,7 +117,7 @@ async function getWorkspaceDefaultCurrency(tenantId: string): Promise<string> {
       ) => Promise<{ rows: Array<{ default_currency: string }> }>;
     };
     const rs = await drizzleTx.execute(
-      sql`SELECT default_currency FROM tenancy.workspaces WHERE id = ${tenantId}::uuid LIMIT 1`,
+      sql`SELECT default_currency FROM tenancy.budgets WHERE id = ${tenantId}::uuid LIMIT 1`,
     );
     return rs.rows[0]?.default_currency ?? "EUR";
   });
@@ -126,6 +139,13 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
 
   return {
     fxProvider,
+    // Wallet methods (Plan 01-03 route rename)
+    createWallet: createWallet({ repo }),
+    archiveWallet: archiveWallet({ repo }),
+    adjustWalletBalance: adjustWalletBalance({ repo }),
+    listWallets: listWallets({ repo }),
+    findWalletById: findWalletById({ repo }),
+    // Backward-compat account aliases
     createAccount: createAccount({ repo }),
     archiveAccount: archiveAccount({ repo }),
     adjustAccountBalance: adjustAccountBalance({ repo }),
