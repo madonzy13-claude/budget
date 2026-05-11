@@ -3,7 +3,7 @@
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type { CategoryRepo } from "../ports/category-repo";
-import { Category, type CategoryScope } from "../domain/category";
+import { Category } from "../domain/category";
 import type { CreateCategoryInput, CategoryDto } from "../contracts/api";
 
 export interface CreateCategoryDeps {
@@ -30,7 +30,6 @@ export function createCategory(deps: CreateCategoryDeps) {
         input.tenantId,
         input.name,
         input.parentId,
-        "PERSONAL" as CategoryScope, // scope dropped in v1.1; placeholder until Task 4
         null,
         new Date(),
         input.actorUserId,
@@ -46,7 +45,6 @@ export function createCategory(deps: CreateCategoryDeps) {
       input.tenantId,
       input.name,
       input.parentId ?? null,
-      "PERSONAL" as CategoryScope, // scope dropped in v1.1; placeholder until Task 4
       null,
       now,
       input.actorUserId,

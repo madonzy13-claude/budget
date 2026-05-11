@@ -6,14 +6,13 @@
 import { describe, test, expect } from "bun:test";
 
 // Category domain entity — not yet implemented (RED)
-import { Category, type CategoryScope } from "../src/domain/category";
+import { Category } from "../src/domain/category";
 
 function makeCategory(overrides: Partial<{
   id: string;
   tenantId: string;
   name: string;
   parentId: string | null;
-  scope: CategoryScope;
   archivedAt: Date | null;
   createdAt: Date;
   actorUserId: string;
@@ -23,7 +22,6 @@ function makeCategory(overrides: Partial<{
     overrides.tenantId ?? "tenant-001",
     overrides.name ?? "Food",
     overrides.parentId ?? null,
-    overrides.scope ?? "SHARED",
     overrides.archivedAt ?? null,
     overrides.createdAt ?? new Date("2026-01-01"),
     overrides.actorUserId ?? "user-001",

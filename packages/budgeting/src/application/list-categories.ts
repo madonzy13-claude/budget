@@ -21,7 +21,6 @@ export function listCategories(deps: ListCategoriesDeps) {
           id: c.id,
           name: c.name,
           parentId: c.parentId,
-          scope: c.scope,
           archivedAt: c.archivedAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
         })),

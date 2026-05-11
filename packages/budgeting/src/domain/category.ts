@@ -2,10 +2,9 @@
  * category.ts — Category aggregate root
  * Domain entity: no Drizzle imports (dep-cruiser enforced).
  * One-level grouping enforced via canBeChild() (BDGT-02).
+ * Note: CategoryScope dropped in v1.1 (D-13); budget-level visibility replaces per-category scope.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
-
-export type CategoryScope = "PERSONAL" | "SHARED";
 
 export class Category {
   constructor(
@@ -13,7 +12,6 @@ export class Category {
     public readonly tenantId: string,
     public name: string,
     public readonly parentId: string | null,
-    public readonly scope: CategoryScope,
     public archivedAt: Date | null,
     public readonly createdAt: Date,
     public readonly actorUserId: string,
@@ -61,3 +59,7 @@ export class Category {
     return ok(undefined);
   }
 }
+
+// Backward-compat type export — removed from domain, kept for Plan 01-03 route layer migration
+/** @deprecated CategoryScope dropped in v1.1 */
+export type CategoryScope = "PERSONAL" | "SHARED";

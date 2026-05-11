@@ -2,6 +2,7 @@
  * category-repo.ts — Drizzle adapter for CategoryRepo port
  * MUST NOT be imported by domain/application layers.
  * Each write: withTenantTx → SQL → writeAudit → writeOutbox.
+ * Note: scope column dropped in v1.1 (D-13).
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
@@ -14,7 +15,6 @@ function rowToCategory(row: {
   tenant_id: string;
   name: string;
   parent_id: string | null;
-  scope: string;
   archived_at: Date | null;
   created_at: Date;
   actor_user_id: string;
@@ -25,7 +25,6 @@ function rowToCategory(row: {
     row.tenant_id,
     row.name,
     row.parent_id ?? null,
-    row.scope as any,
     row.archived_at ? new Date(row.archived_at) : null,
     new Date(row.created_at),
     row.actor_user_id,
@@ -40,11 +39,11 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     const r = await withTenantTx(tid, uid, async (tx) => {
       await tx.execute(
         sql`INSERT INTO budgeting.categories
-              (id, tenant_id, name, parent_id, scope, archived_at, created_at, actor_user_id)
+              (id, tenant_id, name, parent_id, archived_at, created_at, actor_user_id)
             VALUES
               (${category.id}::uuid, ${category.tenantId}::uuid, ${category.name},
                ${category.parentId ? sql`${category.parentId}::uuid` : sql`NULL`},
-               ${category.scope}, ${category.archivedAt?.toISOString() ?? null},
+               ${category.archivedAt?.toISOString() ?? null},
                ${category.createdAt.toISOString()}, ${category.actorUserId}::uuid)`,
       );
 
@@ -58,7 +57,6 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         after: {
           name: category.name,
           parentId: category.parentId,
-          scope: category.scope,
         },
       });
 
@@ -69,7 +67,6 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         eventType: "budgeting.category.created",
         payload: {
           name: category.name,
-          scope: category.scope,
           actorUserId: category.actorUserId,
         },
       });
@@ -87,12 +84,11 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         tenant_id: string;
         name: string;
         parent_id: string | null;
-        scope: string;
         archived_at: Date | null;
         created_at: Date;
         actor_user_id: string;
       }>(
-        sql`SELECT id, tenant_id, name, parent_id::text, scope, archived_at, created_at, actor_user_id
+        sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id
             FROM budgeting.categories
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
@@ -112,17 +108,16 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         tenant_id: string;
         name: string;
         parent_id: string | null;
-        scope: string;
         archived_at: Date | null;
         created_at: Date;
         actor_user_id: string;
       }>(
         includeArchived
-          ? sql`SELECT id, tenant_id, name, parent_id::text, scope, archived_at, created_at, actor_user_id
+          ? sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                 ORDER BY created_at ASC`
-          : sql`SELECT id, tenant_id, name, parent_id::text, scope, archived_at, created_at, actor_user_id
+          : sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid AND archived_at IS NULL
                 ORDER BY created_at ASC`,
