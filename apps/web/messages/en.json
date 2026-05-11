@@ -47,7 +47,7 @@
     "verify": {
       "banner": {
         "heading": "Verify your email to continue",
-        "body": "We sent a link to {email}. Workspace creation and invitations unlock once you verify.",
+        "body": "We sent a link to {email}. Budget creation and invitations unlock once you verify.",
         "resend": "Resend email",
         "cooldown": "You can resend in {seconds}s."
       }
@@ -106,7 +106,7 @@
     },
     "display_currency": {
       "label": "Display currency",
-      "helper": "Used to show totals across multiple workspaces. Each workspace keeps its own currency for its own data.",
+      "helper": "Used to show totals across multiple budgets. Each budget keeps its own currency for its own data.",
       "tab": "Display currency",
       "save_success": "Display currency updated.",
       "error_save": "Failed to save display currency. Try again."
@@ -130,61 +130,61 @@
     "save": "Save changes",
     "save_success": "Settings saved."
   },
-  "workspaces": {
+  "budgets": {
     "empty": {
       "eyebrow": "Get started",
-      "heading": "Create your first workspace",
-      "body": "A workspace holds one budget. Make a private one for yourself, or a shared one to plan with family.",
-      "cta": "Create workspace"
+      "heading": "Create your first budget",
+      "body": "A budget holds your spending plan. Make a private one for yourself, or a shared one to plan with family.",
+      "cta": "Create budget"
     },
     "create": {
-      "heading": "New workspace",
+      "heading": "New budget",
       "name": {
-        "label": "Workspace name",
+        "label": "Budget name",
         "placeholder": "e.g. Family budget"
       },
       "kind": {
-        "label": "Workspace type",
+        "label": "Budget type",
         "private": "Private — just me",
         "shared": "Shared — invite family"
       },
       "currency": {
         "label": "Default currency",
-        "helper": "This is permanent — every entry in this workspace settles in this currency.",
+        "helper": "This is permanent — every entry in this budget settles in this currency.",
         "placeholder": "Select currency"
       },
-      "cta": "Create workspace",
-      "success": "Workspace \"{name}\" created.",
+      "cta": "Create budget",
+      "success": "Budget \"{name}\" created.",
       "validation": {
-        "name_required": "Workspace name is required.",
+        "name_required": "Budget name is required.",
         "currency_required": "Default currency is required."
       }
     },
     "switcher": {
-      "label": "Active workspaces",
-      "helper": "Pick the workspaces you want to see. We'll remember this.",
+      "label": "Active budgets",
+      "helper": "Pick the budgets you want to see. We'll remember this.",
       "error_save": "Failed to save. Try again.",
       "group": {
         "private": "Private budgets",
         "shared": "Shared budgets"
       },
-      "first_pick": "Pick at least one workspace to start.",
+      "first_pick": "Pick at least one budget to start.",
       "select_all": "Select all",
-      "active_count": "{count, plural, one {# workspace} other {# workspaces}}"
+      "active_count": "{count, plural, one {# budget} other {# budgets}}"
     },
-    "verify_required": "Verify your email first to create or join a workspace.",
+    "verify_required": "Verify your email first to create or join a budget.",
     "list": {
-      "heading": "My workspaces",
+      "heading": "My budgets",
       "manage": "Manage",
-      "addButton": "Add workspace"
+      "addButton": "Add budget"
     },
     "kindPrivate": "Private",
     "kindShared": "Shared"
   },
-  "workspace": {
+  "budget": {
     "shares": {
       "heading": "Contribution shares",
-      "body": "Set what portion of this workspace's budget each member is responsible for. Shares must add up to 100%.",
+      "body": "Set what portion of this budget each member is responsible for. Shares must add up to 100%.",
       "col": {
         "member": "Member",
         "percentage": "Share"
@@ -208,7 +208,7 @@
       "cta": "Send invitation",
       "success": "Invitation sent to {email}.",
       "error": {
-        "already_member": "{email} is already a member of this workspace."
+        "already_member": "{email} is already a member of this budget."
       },
       "validation": {
         "email_invalid": "Email isn't a valid address. Check the format and try again."
@@ -217,8 +217,8 @@
     "leave": {
       "confirm": {
         "title": "Leave \"{name}\"?",
-        "body": "You'll lose access to this workspace's data. The owner can re-invite you later.",
-        "cta": "Leave workspace"
+        "body": "You'll lose access to this budget's data. The owner can re-invite you later.",
+        "cta": "Leave budget"
       }
     },
     "transfer": {
@@ -248,40 +248,39 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "workspaces": "Workspaces",
+    "budgets": "Budgets",
     "settings": "Settings",
     "onboarding": "Get started",
     "sign_out": "Sign out",
     "budget": "Budget",
-    "accounts": "Accounts",
+    "wallets": "Wallets",
     "transactions": "Transactions",
     "recurring": "Recurring"
   },
   "onboarding": {
     "eyebrow": "Step 1 of 3",
-    "heading": "Set up your first workspace",
-    "subtitle": "You're almost ready. Create a workspace to start tracking your budget.",
-    "step_workspace": "Create workspace",
-    "step_workspace_helper": "Pick a name, scope, and default currency. The currency is permanent."
+    "heading": "Set up your first budget",
+    "subtitle": "You're almost ready. Create a budget to start tracking your spending.",
+    "step_workspace": "Create budget",
+    "step_workspace_helper": "Pick a name and default currency. The currency is permanent."
   },
   "dashboard": {
     "heading": "Dashboard",
-    "no_workspaces": "No active workspaces selected. Use the workspace switcher to pick at least one.",
+    "no_workspaces": "No active budgets selected. Use the budget switcher to pick at least one.",
     "totals_in": "Totals shown in {currency}"
   },
   "budgeting": {
-    "accounts": {
-      "title": "Accounts",
-      "addButton": "Add account",
+    "wallets": {
+      "title": "Wallets",
+      "addButton": "Add wallet",
       "form": {
-        "title": "New account",
-        "nameLabel": "Account name",
+        "title": "New wallet",
+        "nameLabel": "Wallet name",
         "namePlaceholder": "e.g. Cash Wallet",
-        "kindLabel": "Account kind",
-        "scopeLabel": "Scope",
+        "kindLabel": "Wallet type",
         "currencyLabel": "Currency",
         "currencyPlaceholder": "Select currency",
-        "saveButton": "Save account",
+        "saveButton": "Save wallet",
         "cancelButton": "Cancel"
       },
       "kinds": {
@@ -292,10 +291,6 @@
         "LOAN": "Loan",
         "INVESTMENT": "Investment"
       },
-      "scopes": {
-        "PERSONAL": "Personal",
-        "SHARED": "Shared"
-      },
       "groups": {
         "assets": "Assets",
         "liabilities": "Liabilities"
@@ -305,7 +300,7 @@
         "archiveAria": "Archive {name}",
         "adjustBalance": "Adjust balance"
       },
-      "empty": "No accounts yet. Add your first account to start tracking your money.",
+      "empty": "No wallets yet. Add your first wallet to start tracking your money.",
       "balance": {
         "in": "Balance in {currency}",
         "unavailable": "Rate unavailable"
@@ -322,7 +317,7 @@
         "currencyLabel": "Currency",
         "dateLabel": "Date",
         "categoryLabel": "Category",
-        "accountLabel": "Account",
+        "accountLabel": "Wallet",
         "noteLabel": "Note (optional)",
         "kindExpense": "Expense",
         "kindIncome": "Income",
@@ -341,8 +336,7 @@
         "toolbarLabel": "Transaction filters",
         "dateRange": "Date range",
         "category": "Category",
-        "account": "Account",
-        "scope": "Scope",
+        "account": "Wallet",
         "kind": "Kind",
         "clearAll": "Clear all filters"
       },
@@ -391,7 +385,7 @@
         "kindExpense": "Expense",
         "kindIncome": "Income",
         "kindTransfer": "Transfer",
-        "accountLabel": "Account",
+        "accountLabel": "Wallet",
         "categoryLabel": "Category (optional)",
         "cadenceLabel": "Cadence",
         "monthly": "Monthly",
@@ -460,18 +454,13 @@
         "editTitle": "Edit category",
         "name": "Category name",
         "namePlaceholder": "e.g. Housing",
-        "scope": "Scope",
         "save": "Save",
         "cancel": "Cancel",
         "errors": {
-          "nameTaken": "A category with this name already exists in this workspace.",
+          "nameTaken": "A category with this name already exists in this budget.",
           "generic": "Failed to create category.",
           "network": "Network error. Try again."
         }
-      },
-      "scopes": {
-        "PERSONAL": "Personal",
-        "SHARED": "Shared"
       },
       "overrideBadge": "override"
     },

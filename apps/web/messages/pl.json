@@ -47,7 +47,7 @@
     "verify": {
       "banner": {
         "heading": "Zweryfikuj swój e-mail, aby kontynuować",
-        "body": "Wysłaliśmy link na adres {email}. Tworzenie obszarów roboczych i zaproszenia zostaną odblokowane po weryfikacji.",
+        "body": "Wysłaliśmy link na adres {email}. Tworzenie budżetów i zaproszenia zostaną odblokowane po weryfikacji.",
         "resend": "Wyślij e-mail ponownie",
         "cooldown": "Możesz wysłać ponownie za {seconds}s."
       }
@@ -106,7 +106,7 @@
     },
     "display_currency": {
       "label": "Waluta wyświetlania",
-      "helper": "Używana do wyświetlania sum w wielu obszarach roboczych. Każdy obszar roboczy zachowuje własną walutę dla swoich danych.",
+      "helper": "Używana do wyświetlania sum w wielu budżetach. Każdy budżet zachowuje własną walutę dla swoich danych.",
       "tab": "Waluta wyświetlania",
       "save_success": "Waluta wyświetlania zaktualizowana.",
       "error_save": "Nie udało się zapisać waluty wyświetlania. Spróbuj ponownie."
@@ -130,61 +130,61 @@
     "save": "Zapisz zmiany",
     "save_success": "Ustawienia zapisane."
   },
-  "workspaces": {
+  "budgets": {
     "empty": {
       "eyebrow": "Zaczynamy",
-      "heading": "Utwórz swój pierwszy obszar roboczy",
-      "body": "Obszar roboczy zawiera jeden budżet. Utwórz prywatny dla siebie lub wspólny do planowania z rodziną.",
-      "cta": "Utwórz obszar roboczy"
+      "heading": "Utwórz swój pierwszy budżet",
+      "body": "Budżet zawiera Twój plan wydatków. Utwórz prywatny dla siebie lub wspólny do planowania z rodziną.",
+      "cta": "Utwórz budżet"
     },
     "create": {
-      "heading": "Nowy obszar roboczy",
+      "heading": "Nowy budżet",
       "name": {
-        "label": "Nazwa obszaru roboczego",
+        "label": "Nazwa budżetu",
         "placeholder": "np. Budżet rodzinny"
       },
       "kind": {
-        "label": "Typ obszaru roboczego",
+        "label": "Typ budżetu",
         "private": "Prywatny — tylko ja",
         "shared": "Wspólny — zaproś rodzinę"
       },
       "currency": {
         "label": "Domyślna waluta",
-        "helper": "To ustawienie jest trwałe — każdy wpis w tym obszarze roboczym jest rozliczany w tej walucie.",
+        "helper": "To ustawienie jest trwałe — każdy wpis w tym budżecie jest rozliczany w tej walucie.",
         "placeholder": "Wybierz walutę"
       },
-      "cta": "Utwórz obszar roboczy",
-      "success": "Obszar roboczy \"{name}\" został utworzony.",
+      "cta": "Utwórz budżet",
+      "success": "Budżet \"{name}\" został utworzony.",
       "validation": {
-        "name_required": "Nazwa obszaru roboczego jest wymagana.",
+        "name_required": "Nazwa budżetu jest wymagana.",
         "currency_required": "Domyślna waluta jest wymagana."
       }
     },
     "switcher": {
-      "label": "Aktywne obszary robocze",
-      "helper": "Wybierz obszary robocze, które chcesz widzieć. Zapamiętamy to.",
+      "label": "Aktywne budżety",
+      "helper": "Wybierz budżety, które chcesz widzieć. Zapamiętamy to.",
       "error_save": "Nie udało się zapisać. Spróbuj ponownie.",
       "group": {
         "private": "Prywatne budżety",
         "shared": "Wspólne budżety"
       },
-      "first_pick": "Wybierz co najmniej jeden obszar roboczy, aby rozpocząć.",
+      "first_pick": "Wybierz co najmniej jeden budżet, aby rozpocząć.",
       "select_all": "Zaznacz wszystkie",
-      "active_count": "{count, plural, one {# obszar roboczy} few {# obszary robocze} many {# obszarów roboczych} other {# obszarów roboczych}}"
+      "active_count": "{count, plural, one {# budżet} few {# budżety} many {# budżetów} other {# budżetów}}"
     },
-    "verify_required": "Najpierw zweryfikuj swój e-mail, aby tworzyć obszary robocze lub dołączać do nich.",
+    "verify_required": "Najpierw zweryfikuj swój e-mail, aby tworzyć budżety lub dołączać do nich.",
     "list": {
-      "heading": "Moje obszary robocze",
+      "heading": "Moje budżety",
       "manage": "Zarządzaj",
-      "addButton": "Dodaj obszar roboczy"
+      "addButton": "Dodaj budżet"
     },
     "kindPrivate": "Prywatny",
     "kindShared": "Wspólny"
   },
-  "workspace": {
+  "budget": {
     "shares": {
       "heading": "Udziały w wkładzie",
-      "body": "Ustaw, jaka część budżetu tego obszaru roboczego jest odpowiedzialnością każdego członka. Udziały muszą sumować się do 100%.",
+      "body": "Ustaw, jaka część tego budżetu jest odpowiedzialnością każdego członka. Udziały muszą sumować się do 100%.",
       "col": {
         "member": "Członek",
         "percentage": "Udział"
@@ -208,7 +208,7 @@
       "cta": "Wyślij zaproszenie",
       "success": "Zaproszenie wysłane do {email}.",
       "error": {
-        "already_member": "{email} jest już członkiem tego obszaru roboczego."
+        "already_member": "{email} jest już członkiem tego budżetu."
       },
       "validation": {
         "email_invalid": "Adres e-mail jest nieprawidłowy. Sprawdź format i spróbuj ponownie."
@@ -217,8 +217,8 @@
     "leave": {
       "confirm": {
         "title": "Opuścić \"{name}\"?",
-        "body": "Utracisz dostęp do danych tego obszaru roboczego. Właściciel może ponownie Cię zaprosić.",
-        "cta": "Opuść obszar roboczy"
+        "body": "Utracisz dostęp do danych tego budżetu. Właściciel może ponownie Cię zaprosić.",
+        "cta": "Opuść budżet"
       }
     },
     "transfer": {
@@ -248,40 +248,39 @@
   },
   "nav": {
     "dashboard": "Pulpit",
-    "workspaces": "Obszary robocze",
+    "budgets": "Budżety",
     "settings": "Ustawienia",
     "onboarding": "Rozpocznij",
     "sign_out": "Wyloguj się",
     "budget": "Budżet",
-    "accounts": "Konta",
+    "wallets": "Portfele",
     "transactions": "Transakcje",
     "recurring": "Cykliczne"
   },
   "onboarding": {
     "eyebrow": "Krok 1 z 3",
-    "heading": "Skonfiguruj swój pierwszy obszar roboczy",
-    "subtitle": "Prawie gotowe. Utwórz obszar roboczy, aby zacząć śledzić budżet.",
-    "step_workspace": "Utwórz obszar roboczy",
-    "step_workspace_helper": "Wybierz nazwę, zakres i domyślną walutę. Waluty nie można później zmienić."
+    "heading": "Skonfiguruj swój pierwszy budżet",
+    "subtitle": "Prawie gotowe. Utwórz budżet, aby zacząć śledzić wydatki.",
+    "step_workspace": "Utwórz budżet",
+    "step_workspace_helper": "Wybierz nazwę i domyślną walutę. Waluty nie można później zmienić."
   },
   "dashboard": {
     "heading": "Pulpit",
-    "no_workspaces": "Nie wybrano żadnych aktywnych obszarów roboczych. Użyj przełącznika obszarów roboczych, aby wybrać co najmniej jeden.",
+    "no_workspaces": "Nie wybrano żadnych aktywnych budżetów. Użyj przełącznika budżetów, aby wybrać co najmniej jeden.",
     "totals_in": "Sumy w {currency}"
   },
   "budgeting": {
-    "accounts": {
-      "title": "Konta",
-      "addButton": "Dodaj konto",
+    "wallets": {
+      "title": "Portfele",
+      "addButton": "Dodaj portfel",
       "form": {
-        "title": "Nowe konto",
-        "nameLabel": "Nazwa konta",
+        "title": "Nowy portfel",
+        "nameLabel": "Nazwa portfela",
         "namePlaceholder": "np. Portfel gotówkowy",
-        "kindLabel": "Rodzaj konta",
-        "scopeLabel": "Zakres",
+        "kindLabel": "Rodzaj portfela",
         "currencyLabel": "Waluta",
         "currencyPlaceholder": "Wybierz walutę",
-        "saveButton": "Zapisz konto",
+        "saveButton": "Zapisz portfel",
         "cancelButton": "Anuluj"
       },
       "kinds": {
@@ -292,10 +291,6 @@
         "LOAN": "Pożyczka",
         "INVESTMENT": "Inwestycja"
       },
-      "scopes": {
-        "PERSONAL": "Osobiste",
-        "SHARED": "Wspólne"
-      },
       "groups": {
         "assets": "Aktywa",
         "liabilities": "Pasywa"
@@ -305,7 +300,7 @@
         "archiveAria": "Archiwizuj {name}",
         "adjustBalance": "Dostosuj saldo"
       },
-      "empty": "Brak kont. Dodaj pierwsze konto, aby zacząć śledzić swoje finanse.",
+      "empty": "Brak portfeli. Dodaj pierwszy portfel, aby zacząć śledzić swoje finanse.",
       "balance": {
         "in": "Saldo w {currency}",
         "unavailable": "Kurs niedostępny"
@@ -322,7 +317,7 @@
         "currencyLabel": "Waluta",
         "dateLabel": "Data",
         "categoryLabel": "Kategoria",
-        "accountLabel": "Konto",
+        "accountLabel": "Portfel",
         "noteLabel": "Notatka (opcjonalna)",
         "kindExpense": "Wydatek",
         "kindIncome": "Przychód",
@@ -341,8 +336,7 @@
         "toolbarLabel": "Filtry transakcji",
         "dateRange": "Zakres dat",
         "category": "Kategoria",
-        "account": "Konto",
-        "scope": "Zakres",
+        "account": "Portfel",
         "kind": "Typ",
         "clearAll": "Wyczyść wszystkie filtry"
       },
@@ -391,7 +385,7 @@
         "kindExpense": "Wydatek",
         "kindIncome": "Przychód",
         "kindTransfer": "Transfer",
-        "accountLabel": "Konto",
+        "accountLabel": "Portfel",
         "categoryLabel": "Kategoria (opcjonalnie)",
         "cadenceLabel": "Częstotliwość",
         "monthly": "Miesięcznie",
@@ -460,18 +454,13 @@
         "editTitle": "Edytuj kategorię",
         "name": "Nazwa kategorii",
         "namePlaceholder": "np. Mieszkanie",
-        "scope": "Zakres",
         "save": "Zapisz",
         "cancel": "Anuluj",
         "errors": {
-          "nameTaken": "Kategoria o tej nazwie już istnieje w tym workspace.",
+          "nameTaken": "Kategoria o tej nazwie już istnieje w tym budżecie.",
           "generic": "Nie udało się utworzyć kategorii.",
           "network": "Błąd sieci. Spróbuj ponownie."
         }
-      },
-      "scopes": {
-        "PERSONAL": "Osobiste",
-        "SHARED": "Wspólne"
       },
       "overrideBadge": "nadpisanie"
     },
