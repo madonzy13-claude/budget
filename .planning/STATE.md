@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Budget Restructure
 status: executing
-stopped_at: "01-01 complete; awaiting 01-02 (domain entity rename)"
-last_updated: "2026-05-11T19:28:00Z"
-last_activity: "2026-05-11 — Plan 01-01 complete: schema migration + tasks table + shape tests"
+stopped_at: Plan 01-02 complete — domain rename Account→Wallet, Workspace→Budget; scope/kind columns stripped
+last_updated: "2026-05-11T19:53:00.000Z"
+last_activity: "2026-05-11 — Plan 01-02 complete: Wallet/Budget domain entities, backward-compat shims, dropped-column SQL strips, recurring engine rename"
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
-  percent: 25
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: Phase 1 — Schema Migration & Rename Foundation
-Plan: 01-01 complete → 01-02 next
-Status: Executing — Plan 01-01 done (schema migration, tasks table, shape tests 14/14 green)
-Last activity: 2026-05-11 — Plan 01-01 complete: 0012 migration + Drizzle schema renames + post-migration.sql + CI fixtures
+Plan: 01-02 complete → 01-03 next
+Status: Executing — Plan 01-02 done (domain rename, dropped-column strips, recurring engine)
+Last activity: 2026-05-11 — Plan 01-02 complete: Wallet/Budget domain entities, backward-compat shims, scope/kind SQL stripped
 
 ## Phase 1 Plans
 
@@ -51,7 +51,7 @@ Last activity: 2026-05-11 — Plan 01-01 complete: 0012 migration + Drizzle sche
 
 | Phase                                       | Plans | Total | Avg/Plan |
 | ------------------------------------------- | ----- | ----- | -------- |
-| 1. Schema Migration & Rename Foundation     | 1/4   | ~90m  | ~90m     |
+| 1. Schema Migration & Rename Foundation     | 2/4   | ~108m | ~54m     |
 | 2. Domain & API Restructure                 | 0/TBD | —     | —        |
 | 3. Navigation, Home & BDP Frame             | 0/TBD | —     | —        |
 | 4. Spendings Grid                           | 0/TBD | —     | —        |
@@ -99,7 +99,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
-- Execute Plan 01-02 — domain entity rename (Workspace→Budget, Account→Wallet) + create-budget application service
+- Execute Plan 01-03 — Hono route rename (workspaces→budgets, accounts→wallets) + tenant-guard header rename
 - Decide reserves auto-compute as regular view vs materialized view in Phase 2 plan
 - Probe Better Auth orgs invite-token revocation API in Phase 2 spike
 
@@ -107,6 +107,12 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 - Conditional DO block for workspace_share_dirty rename — fresh DB installs skip (post-migration.sql creates budget_share_dirty directly)
 - wallet_type stored as text+CHECK in Drizzle schema, PG ENUM in migration SQL — easier future ALTER TYPE
+
+### Plan 01-02 Decisions (recorded 2026-05-11, execution)
+
+- Backward-compat shims: account.ts/account-repo.ts/workspace.ts/workspace-repo.ts kept with re-exports for Plan 01-03 migration period
+- D-07 minimum compile-fix: TransactionRow.kind and TransactionRow.accountId TypeScript fields preserved; SQL INSERTs/SELECTs drop account_id/kind only — Phase 2 reshapes TS types
+- Better Auth organizationId carve-out confirmed: schema.ts organizationId JS field maps to budget_id SQL column per Better Auth org plugin contract
 - Backward-compat export aliases on all renamed Drizzle tables — avoids cascading compile failures before 01-02
 - tasks table ownership DO block in migration handles postgres-superuser dev installs
 - drizzle-kit TTY limitation requires hand-authored migration; journal entry registered manually

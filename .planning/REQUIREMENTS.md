@@ -26,7 +26,7 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 - [ ] **MIG-09**: Dev DB nuked: existing data discarded; no data migration script required
 - [ ] **MIG-10**: All i18n message keys renamed `workspaces.*` → `budgets.*` and `accounts.*` → `wallets.*` across EN/PL/UK
 - [ ] **MIG-11**: All Hono routes renamed `/workspaces/*` → `/budgets/*` and `/accounts/*` → `/wallets/*`; old paths removed (no aliases)
-- [ ] **MIG-12**: Domain entities renamed `Workspace` → `Budget`, `Account` → `Wallet` across `packages/budgeting`, `packages/tenancy`
+- [x] **MIG-12**: Domain entities renamed `Workspace` → `Budget`, `Account` → `Wallet` across `packages/budgeting`, `packages/tenancy`
 - [ ] **MIG-13**: Tenant-leak CI gate updated to target renamed tables; passes 6/6 tests on new schema
 
 ### Top Navigation & Budget Switcher (NAV)
