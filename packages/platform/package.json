@@ -14,7 +14,7 @@
   "dependencies": {
     "@budget/shared-kernel": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "libsodium-wrappers": "^0.7.6",
+    "libsodium-wrappers": "^0.8.4",
     "nodemailer": "^7.0.13",
     "pg": "^8.13.0",
     "pg-boss": "^12.18.2"
