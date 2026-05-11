@@ -33,7 +33,7 @@ interface RuleRow {
   cadence: string;
   cadence_anchor: number | null;
   weekly_dow: number | null;
-  account_id: string;
+  wallet_id: string;
   category_id: string | null;
   amount: string;
   currency: string;
@@ -72,9 +72,10 @@ export async function runRecurringEngine(
       const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
 
       // Step 2: get all due rules for this tenant
+      // v1.1 (MIG-04): account_id → wallet_id in recurring_rules
       const rulesResult = await drizzleTx.execute(sql`
         SELECT id, tenant_id, next_due_date, cadence, cadence_anchor, weekly_dow,
-               account_id, category_id, amount, currency, kind, note
+               wallet_id, category_id, amount, currency, kind, note
           FROM budgeting.recurring_rules
          WHERE tenant_id = ${tenant_id}::uuid
            AND active = true
@@ -89,14 +90,15 @@ export async function runRecurringEngine(
         const dueDateStr = toDateString(rule.next_due_date);
 
         // Step 3: INSERT draft ON CONFLICT DO NOTHING (idempotency via UNIQUE (rule_id, due_date))
+        // v1.1 (MIG-04): account_id → wallet_id in recurring_drafts
         const categoryId = rule.category_id ?? null;
         const note = rule.note ?? null;
         const insertResult = await drizzleTx.execute(sql`
           INSERT INTO budgeting.recurring_drafts
-            (tenant_id, rule_id, due_date, amount, currency, account_id, category_id, kind, note, status, actor_user_id)
+            (tenant_id, rule_id, due_date, amount, currency, wallet_id, category_id, kind, note, status, actor_user_id)
           VALUES
             (${tenant_id}::uuid, ${rule.id}::uuid, ${dueDateStr}::date, ${rule.amount}, ${rule.currency},
-             ${rule.account_id}::uuid, ${categoryId}::uuid, ${rule.kind}, ${note}, 'PENDING', ${SYSTEM_USER_ID}::uuid)
+             ${rule.wallet_id}::uuid, ${categoryId}::uuid, ${rule.kind}, ${note}, 'PENDING', ${SYSTEM_USER_ID}::uuid)
           ON CONFLICT (rule_id, due_date) DO NOTHING
           RETURNING id
         `);

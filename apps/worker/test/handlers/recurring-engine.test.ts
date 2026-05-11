@@ -35,15 +35,17 @@ async function seedTenantForEngine(label: string): Promise<{ tenantId: string; u
        VALUES ($1, $2, $3, true, now(), now())`,
       [userId, `engine-${label.toLowerCase().replace(/[^a-z0-9]/g, "")}-${userId.slice(0, 8)}@test.local`, label],
     );
+    // v1.1 (MIG-01): workspaces → budgets table
     await client.query(
-      `INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
        VALUES ($1, $2, $3, 'PRIVATE', 'USD', $4, 1, now())`,
       [tenantId, `eng-${tenantId.slice(0, 8)}`, label, userId],
     );
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
+    // v1.1 (MIG-04): accounts → wallets; kind/scope dropped; wallet_type added
     await client.query(
-      `INSERT INTO budgeting.accounts (id, tenant_id, name, kind, scope, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Checking', 'CHECKING', 'PERSONAL', 'USD', 10000.0000, now(), $3)`,
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+       VALUES ($1, $2, 'Checking', 'SPENDINGS', 'USD', 10000.0000, now(), $3)`,
       [accountId, tenantId, userId],
     );
     await client.query("COMMIT");
@@ -73,9 +75,10 @@ async function seedRuleWithDueDate(
     await client.query("BEGIN");
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
     await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
+    // v1.1 (MIG-04): account_id → wallet_id in recurring_rules
     await client.query(
       `INSERT INTO budgeting.recurring_rules
-         (id, tenant_id, account_id, amount, currency, kind, cadence, cadence_anchor, weekly_dow, active, next_due_date, actor_user_id)
+         (id, tenant_id, wallet_id, amount, currency, kind, cadence, cadence_anchor, weekly_dow, active, next_due_date, actor_user_id)
        VALUES ($1, $2, $3, '200', 'USD', 'EXPENSE', $4, $5, $6, true, $7::date, $8)`,
       [ruleId, tenantId, accountId, cadence, cadenceAnchor, weeklyDow, nextDueDate, userId],
     );
@@ -236,9 +239,10 @@ describe("recurring engine handler", () => {
       await client.query("BEGIN");
       await client.query(`SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`);
       await client.query(`SELECT set_config('app.current_user_id', '${tenant.userId}', true)`);
+      // v1.1 (MIG-04): account_id → wallet_id in recurring_rules
       await client.query(
         `INSERT INTO budgeting.recurring_rules
-           (id, tenant_id, account_id, amount, currency, kind, cadence, cadence_anchor, active, next_due_date, actor_user_id)
+           (id, tenant_id, wallet_id, amount, currency, kind, cadence, cadence_anchor, active, next_due_date, actor_user_id)
          VALUES ($1, $2, $3, '300', 'USD', 'EXPENSE', 'MONTHLY', 15, false, $4::date, $5)`,
         [ruleId, tenant.tenantId, tenant.accountId, TODAY, tenant.userId],
       );
