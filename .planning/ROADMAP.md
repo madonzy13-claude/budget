@@ -17,7 +17,7 @@ The work is dependency-shaped: schema rename precedes domain rename precedes API
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Schema Migration & Rename Foundation** — Single Drizzle migration: rename workspaces→budgets and accounts→wallets, drop dropped columns, add wallet_type / cushion / sort_index / tasks; nuke dev DB; tenant-leak CI green on new schema
+- [ ] **Phase 1: Schema Migration & Rename Foundation** — Single Drizzle migration: rename workspaces→budgets and accounts→wallets, drop dropped columns, add wallet_type / cushion / sort_index / tasks; nuke dev DB; tenant-leak CI green on new schema [Plan 01-01 ✓ | 01-02..04 pending]
 - [ ] **Phase 2: Domain & API Restructure** — Rename domain entities, strip Transaction, update recurring-engine for extended cadence, wire reserves auto-compute SQL view, ship share-link backend routes; all `/budgets/*` and `/wallets/*` HTTP routes live
 - [ ] **Phase 3: Navigation, Home & BDP Frame** — Top-nav budget switcher dropdown, combined home page with per-budget cards + placeholder chart, BDP tab shell with sticky pills + task banner skeleton
 - [ ] **Phase 4: Spendings Grid** — The Excel-like core: column-per-category grid, quick-entry, pen-icon side sliders, drag-reorder, arrow-key month navigation, recurring drafts as highlighted rows, real-time reserve-deduction display
