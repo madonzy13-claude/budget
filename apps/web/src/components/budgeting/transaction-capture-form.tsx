@@ -36,11 +36,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CurrencyPicker, type CurrencyOption } from "@/components/common/currency-picker";
-import { cn } from "@/lib/utils";
+import {
+  CurrencyPicker,
+  type CurrencyOption,
+} from "@/components/common/currency-picker";
 import { clientApiFetch } from "@/lib/budget-fetch";
-
-type TransactionKind = "EXPENSE" | "INCOME" | "TRANSFER";
 
 interface FxQuote {
   rate: string;
@@ -71,8 +71,6 @@ export interface TransactionCaptureFormProps {
   onCancel?: () => void;
 }
 
-const KINDS: TransactionKind[] = ["EXPENSE", "INCOME", "TRANSFER"];
-
 const formSchema = z.object({
   kind: z.enum(["EXPENSE", "INCOME", "TRANSFER"]),
   amountOrig: z
@@ -90,7 +88,10 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 function generateIdempotencyKey(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => {
@@ -204,7 +205,12 @@ export function TransactionCaptureForm({
           : {}),
         ...(values.note ? { note: values.note } : {}),
         ...(fxPreview && currencyOrig !== defaultCurrency
-          ? { fxPreview: { rate: fxPreview.rate, fxRateDate: fxPreview.fxRateDate } }
+          ? {
+              fxPreview: {
+                rate: fxPreview.rate,
+                fxRateDate: fxPreview.fxRateDate,
+              },
+            }
           : {}),
       };
 
@@ -218,7 +224,10 @@ export function TransactionCaptureForm({
       });
 
       if (res.status === 409) {
-        const data = (await res.json()) as { error: string; freshRate?: FxQuote };
+        const data = (await res.json()) as {
+          error: string;
+          freshRate?: FxQuote;
+        };
         if (data.freshRate) {
           setFxPreview(data.freshRate);
         }
@@ -280,7 +289,12 @@ export function TransactionCaptureForm({
                     placeholder="0.00"
                     aria-label={t("transactions.capture.amountLabel")}
                     data-testid="amount-input"
-                    style={{ fontSize: "40px", fontFamily: "var(--font-binom)", fontWeight: 600, height: "64px" }}
+                    style={{
+                      fontSize: "40px",
+                      fontFamily: "var(--font-binom)",
+                      fontWeight: 600,
+                      height: "64px",
+                    }}
                     {...field}
                   />
                 </FormControl>
@@ -316,19 +330,24 @@ export function TransactionCaptureForm({
             <span>Fetching rate…</span>
           </div>
         )}
-        {!fxLoading && fxPreview && currencyOrig !== defaultCurrency && amountOrig && (
-          <div
-            className="rounded-[var(--radius-sm)] bg-[var(--surface-card-dark)] px-3 py-2 text-xs text-[var(--muted-foreground)]"
-            data-testid="fx-preview"
-          >
-            {t("fx.preview", {
-              amount: (parseFloat(amountOrig) * parseFloat(fxPreview.rate)).toFixed(2),
-              currency: defaultCurrency,
-              rate: fxPreview.rate,
-              provider: fxPreview.provider,
-            })}
-          </div>
-        )}
+        {!fxLoading &&
+          fxPreview &&
+          currencyOrig !== defaultCurrency &&
+          amountOrig && (
+            <div
+              className="rounded-[var(--radius-sm)] bg-[var(--surface-card-dark)] px-3 py-2 text-xs text-[var(--muted-foreground)]"
+              data-testid="fx-preview"
+            >
+              {t("fx.preview", {
+                amount: (
+                  parseFloat(amountOrig) * parseFloat(fxPreview.rate)
+                ).toFixed(2),
+                currency: defaultCurrency,
+                rate: fxPreview.rate,
+                provider: fxPreview.provider,
+              })}
+            </div>
+          )}
 
         {/* Transaction date */}
         <FormField

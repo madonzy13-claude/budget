@@ -51,13 +51,17 @@ interface ExistingCategory {
 
 export type CategoryEditMode =
   | { kind: "create" }
-  | { kind: "edit"; category: ExistingCategory; existingLimit: LimitDto | null };
+  | {
+      kind: "edit";
+      category: ExistingCategory;
+      existingLimit: LimitDto | null;
+    };
 
 interface CategoryEditFormProps {
   mode: CategoryEditMode;
   onSuccess?: () => void;
   onCancel?: () => void;
-  apiBase?: string;
+  _apiBase?: string;
 }
 
 function todayIso(): string {
@@ -68,7 +72,7 @@ export function CategoryEditForm({
   mode,
   onSuccess,
   onCancel,
-  apiBase = "/api",
+  _apiBase = "/api",
 }: CategoryEditFormProps) {
   const tCat = useTranslations("budgeting_categories.categories");
   const tLim = useTranslations("budgeting_categories.limits");
@@ -81,8 +85,12 @@ export function CategoryEditForm({
   const formSchema = useMemo(() => {
     const base = z.object({
       name: z.string().min(1).max(120),
-      normalAmount: z.string().regex(/^\d+$/, "Amount must be a non-negative integer"),
-      cushionAmount: z.string().regex(/^\d+$/, "Amount must be a non-negative integer"),
+      normalAmount: z
+        .string()
+        .regex(/^\d+$/, "Amount must be a non-negative integer"),
+      cushionAmount: z
+        .string()
+        .regex(/^\d+$/, "Amount must be a non-negative integer"),
     });
     return isEdit
       ? base.extend({
@@ -146,7 +154,9 @@ export function CategoryEditForm({
             body: JSON.stringify({ name: values.name }),
           });
           if (!ren.ok) {
-            const err = (await ren.json().catch(() => ({}))) as { error?: string };
+            const err = (await ren.json().catch(() => ({}))) as {
+              error?: string;
+            };
             if (ren.status === 409 || err.error === "category_name_taken") {
               setServerError(tCat("form.errors.nameTaken"));
               return;
@@ -166,8 +176,9 @@ export function CategoryEditForm({
           cushionAmount: values.cushionAmount,
         };
         if (isEdit && "effectiveFrom" in values) {
-          limitBody.effectiveFrom = (values as { effectiveFrom: string })
-            .effectiveFrom;
+          limitBody.effectiveFrom = (
+            values as { effectiveFrom: string }
+          ).effectiveFrom;
         }
         const lim = await clientApiFetch(`/categories/${categoryId}/limits`, {
           method: "POST",
@@ -217,7 +228,13 @@ export function CategoryEditForm({
             <FormItem>
               <FormLabel>{tLim("normalAmount")}</FormLabel>
               <FormControl>
-                <Input type="number" min="0" step="1" placeholder="0" {...field} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -231,7 +248,13 @@ export function CategoryEditForm({
             <FormItem>
               <FormLabel>{tLim("cushionAmount")}</FormLabel>
               <FormControl>
-                <Input type="number" min="0" step="1" placeholder="0" {...field} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

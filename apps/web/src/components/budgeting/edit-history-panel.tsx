@@ -39,14 +39,14 @@ export interface EditHistoryPanelProps {
   open: boolean;
   onClose: () => void;
   /** API base URL — defaults to /api in Next.js. Pass absolute URL in tests. */
-  apiBase?: string;
+  _apiBase?: string;
 }
 
 export function EditHistoryPanel({
   transactionId,
   open,
   onClose,
-  apiBase = "",
+  _apiBase = "",
 }: EditHistoryPanelProps) {
   const t = useTranslations("budgeting");
   const [chain, setChain] = useState<ChainRow[]>([]);
@@ -91,12 +91,12 @@ export function EditHistoryPanel({
         </SheetHeader>
 
         {loading && (
-          <p className="text-sm text-[var(--muted-foreground)] px-1">Loading…</p>
+          <p className="text-sm text-[var(--muted-foreground)] px-1">
+            Loading…
+          </p>
         )}
 
-        {error && (
-          <p className="text-sm text-destructive px-1">{error}</p>
-        )}
+        {error && <p className="text-sm text-destructive px-1">{error}</p>}
 
         {!loading && !error && (
           <div className="space-y-3">

@@ -32,7 +32,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CurrencyPicker } from "@/components/common/currency-picker";
-import { cn } from "@/lib/utils";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
 type AccountKind =
@@ -42,8 +41,6 @@ type AccountKind =
   | "CREDIT_CARD"
   | "LOAN"
   | "INVESTMENT";
-type AccountScope = "PERSONAL" | "SHARED";
-
 type AccountFormValues = {
   name: string;
   kind: AccountKind;
@@ -68,8 +65,6 @@ const ACCOUNT_KINDS: AccountKind[] = [
   "INVESTMENT",
 ];
 
-const ACCOUNT_SCOPES: AccountScope[] = ["PERSONAL", "SHARED"];
-
 export function AccountForm({
   tenantId: _tenantId,
   userId: _userId,
@@ -82,13 +77,16 @@ export function AccountForm({
   // crypto.randomUUID() requires secure context (HTTPS/localhost); fall back to
   // Math.random-based UUID v4 for non-secure dev environments.
   const [idempotencyKey] = useState(() => {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    if (
+      typeof crypto !== "undefined" &&
+      typeof crypto.randomUUID === "function"
+    ) {
       return crypto.randomUUID();
     }
     // Fallback UUID v4
     return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => {
       const n = parseInt(c, 10);
-      return (n ^ (Math.random() * 16 >> (n / 4))).toString(16);
+      return (n ^ ((Math.random() * 16) >> (n / 4))).toString(16);
     });
   });
   const [serverError, setServerError] = useState<string | null>(null);
@@ -197,10 +195,7 @@ export function AccountForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>{t("budgeting.wallets.form.kindLabel")}</FormLabel>
-              <Select
-                value={field.value}
-                onValueChange={field.onChange}
-              >
+              <Select value={field.value} onValueChange={field.onChange}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue />
