@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Budget Restructure
 status: executing
-stopped_at: Plan 01-02 complete — domain rename Account→Wallet, Workspace→Budget; scope/kind columns stripped
-last_updated: "2026-05-11T19:53:00.000Z"
-last_activity: "2026-05-11 — Plan 01-02 complete: Wallet/Budget domain entities, backward-compat shims, dropped-column SQL strips, recurring engine rename"
+stopped_at: Plan 01-04 complete — Phase 1 done; i18n rename, budget-fetch helpers, D-13 cascade, E2E wallet vocabulary, migration 0012 idempotency
+last_updated: "2026-05-11T22:47:00Z"
+last_activity: "2026-05-11 — Plan 01-04 complete: i18n EN/PL/UK renamed, X-Budget-ID header, WalletsPage E2E, ci-gate 25/25 pass"
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 75
+  completed_plans: 4
+  percent: 100
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: Phase 1 — Schema Migration & Rename Foundation
-Plan: 01-02 complete → 01-03 next
-Status: Executing — Plan 01-02 done (domain rename, dropped-column strips, recurring engine)
-Last activity: 2026-05-11 — Plan 01-02 complete: Wallet/Budget domain entities, backward-compat shims, scope/kind SQL stripped
+Plan: 01-04 complete → Phase 1 done
+Status: Complete — Phase 1 all 4 plans executed; web client vocabulary, CI gate 25/25 pass
+Last activity: 2026-05-11 — Plan 01-04 complete: i18n EN/PL/UK renamed, X-Budget-ID header, WalletsPage E2E, ci-gate 25/25
 
 ## Phase 1 Plans
 
@@ -51,7 +51,7 @@ Last activity: 2026-05-11 — Plan 01-02 complete: Wallet/Budget domain entities
 
 | Phase                                       | Plans | Total | Avg/Plan |
 | ------------------------------------------- | ----- | ----- | -------- |
-| 1. Schema Migration & Rename Foundation     | 2/4   | ~108m | ~54m     |
+| 1. Schema Migration & Rename Foundation     | 4/4   | ~185m | ~46m     |
 | 2. Domain & API Restructure                 | 0/TBD | —     | —        |
 | 3. Navigation, Home & BDP Frame             | 0/TBD | —     | —        |
 | 4. Spendings Grid                           | 0/TBD | —     | —        |
@@ -99,9 +99,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
-- Execute Plan 01-03 — Hono route rename (workspaces→budgets, accounts→wallets) + tenant-guard header rename
+- Phase 1 complete — begin Phase 2 planning (Domain & API Restructure)
 - Decide reserves auto-compute as regular view vs materialized view in Phase 2 plan
 - Probe Better Auth orgs invite-token revocation API in Phase 2 spike
+- Investigate pre-existing make ci-gate coverage threshold failure (tenant-leak tests pull transitive imports; ~51% aggregate vs 80% threshold — security tests all pass 25/25)
 
 ### Plan 01-01 Decisions (recorded 2026-05-11, execution)
 
@@ -123,6 +124,14 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - D-11: Cushion column stays `cushion_amount` (already exists in schema); `_cents` suffix not applied
 - D-12: `balance_adjustments` retained (WALT-03 manual edit path); FK cols renamed
 - D-13: `categories.scope` dropped (redundant with budget-level visibility); cascades through ~8 files
+
+### Plan 01-04 Decisions (recorded 2026-05-11, execution)
+
+- workspace-fetch.ts/workspace-fetch.server.ts kept as backward-compat shims re-exporting from budget-fetch to avoid missed import paths
+- D-13 scope cascade: filter chips UI, category form, E2E steps, i18n keys all cleaned up in single plan
+- Migration 0012 made idempotent via DO $$ IF EXISTS $$ wrappers — Postgres lacks IF EXISTS on RENAME TABLE
+- Function ownership fix needed for dev DB (postgres-owned functions from prior superuser post-migration.sql run); fresh DB (CI) creates correctly
+- make ci-gate coverage threshold failure is pre-existing (tenant-leak transitive imports pull uncovered packages); 25/25 security tests pass
 
 ### Blockers/Concerns
 
