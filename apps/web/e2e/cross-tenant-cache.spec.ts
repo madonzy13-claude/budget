@@ -46,7 +46,7 @@ test.describe("PC-10: Cross-tenant cache leak via Serwist", () => {
     await page.click('[type="submit"]');
 
     // Wait for workspace page to load
-    await page.waitForURL(`${BASE_URL}/en/workspaces`, { timeout: 10_000 });
+    await page.waitForURL(`${BASE_URL}/en/budgets`, { timeout: 10_000 });
 
     // Assert alice can see Tenant-A WS
     await expect(page.getByText(TENANT_A_WS, { exact: false })).toBeVisible({
@@ -70,7 +70,7 @@ test.describe("PC-10: Cross-tenant cache leak via Serwist", () => {
     await page.fill('[name="password"]', BOB_PASSWORD);
     await page.click('[type="submit"]');
 
-    await page.waitForURL(`${BASE_URL}/en/workspaces`, { timeout: 10_000 });
+    await page.waitForURL(`${BASE_URL}/en/budgets`, { timeout: 10_000 });
 
     // Step 4: Assert bob can see Tenant-B WS
     await expect(page.getByText(TENANT_B_WS, { exact: false })).toBeVisible({
@@ -88,7 +88,7 @@ test.describe("PC-10: Cross-tenant cache leak via Serwist", () => {
       page
         .waitForResponse(
           (resp) =>
-            resp.url().includes("/api/workspaces") && resp.status() === 200,
+            resp.url().includes("/api/budgets") && resp.status() === 200,
           { timeout: 5_000 },
         )
         .catch(() => null),
@@ -117,7 +117,7 @@ test.describe("PC-10: Cross-tenant cache leak via Serwist", () => {
     await page.fill('[name="password"]', ALICE_PASSWORD);
     await page.click('[type="submit"]');
 
-    await page.waitForURL(`${BASE_URL}/en/workspaces`, { timeout: 10_000 });
+    await page.waitForURL(`${BASE_URL}/en/budgets`, { timeout: 10_000 });
 
     // tenant-A workspace must be visible
     await expect(page.getByText(TENANT_A_WS, { exact: false })).toBeVisible({
@@ -138,7 +138,7 @@ test.describe("PC-10: Cross-tenant cache leak via Serwist", () => {
     await page.fill('[name="password"]', BOB_PASSWORD);
     await page.click('[type="submit"]');
 
-    await page.waitForURL(`${BASE_URL}/en/workspaces`, { timeout: 10_000 });
+    await page.waitForURL(`${BASE_URL}/en/budgets`, { timeout: 10_000 });
 
     // tenant-B workspace must be visible (bob has access to tenantB SHARED workspace)
     await expect(page.getByText(TENANT_B_WS, { exact: false })).toBeVisible({

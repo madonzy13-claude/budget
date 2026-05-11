@@ -5,7 +5,7 @@
 import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import { test } from "../fixtures/index.js";
-import { AccountsPage } from "../pages/AccountsPage.js";
+import { WalletsPage } from "../pages/WalletsPage.js";
 import { BudgetPage } from "../pages/BudgetPage.js";
 import { TransactionsPage } from "../pages/TransactionsPage.js";
 import { RecurringPage } from "../pages/RecurringPage.js";
@@ -13,7 +13,7 @@ import { createFreshUser } from "../fixtures/freshUser.js";
 
 const { Given, When, Then } = createBdd(test);
 
-let accountsPage: AccountsPage;
+let walletsPage: WalletsPage;
 
 Given(
   "I am signed in as a fresh user with workspace {string}",
@@ -23,7 +23,7 @@ Given(
 
     // Bootstrap workspace via API (avoids the buggy onboarding currency picker
     // and gives every budget scenario a known active workspace).
-    const create = await page.request.post("/api/workspaces", {
+    const create = await page.request.post("/api/budgets", {
       data: {
         name: workspaceName,
         kind: "PRIVATE",
@@ -33,18 +33,18 @@ Given(
     expect(create.ok()).toBeTruthy();
     const { id: workspaceId } = (await create.json()) as { id: string };
 
-    const activate = await page.request.put("/api/workspaces/active", {
-      data: { workspaceIds: [workspaceId] },
+    const activate = await page.request.put("/api/budgets/active", {
+      data: { budgetIds: [workspaceId] },
     });
     expect(activate.ok()).toBeTruthy();
 
-    accountsPage = new AccountsPage(page);
+    walletsPage = new WalletsPage(page);
   },
 );
 
-When("I open the Accounts page", async ({ page }) => {
-  accountsPage = accountsPage ?? new AccountsPage(page);
-  await accountsPage.goto("en");
+When("I open the Wallets page", async ({ page }) => {
+  walletsPage = walletsPage ?? new WalletsPage(page);
+  await walletsPage.goto("en");
 });
 
 When("I click {string}", async ({ page }, label: string) => {
@@ -52,16 +52,16 @@ When("I click {string}", async ({ page }, label: string) => {
 });
 
 When(
-  "I fill the account form with name {string}, kind {string}, scope {string}, currency {string}",
-  async ({ page }, name: string, kind: string, scope: string, currency: string) => {
-    const accPage = new AccountsPage(page);
-    await accPage.fillAccountName(name);
+  "I fill the wallet form with name {string}, walletType {string}, currency {string}",
+  async ({ page }, name: string, kind: string, currency: string) => {
+    const walletPage = new WalletsPage(page);
+    await walletPage.fillWalletName(name);
 
     // Kind: Radix Select → click trigger then matching option.
-    // Account form i18n labels each kind; option text matches the i18n value
+    // Wallet form i18n labels each kind; option text matches the i18n value
     // (e.g. "Cash", "Checking", "Credit card", "Loan").
     if (kind && kind.toUpperCase() !== "CASH") {
-      const kindLabel = page.getByLabel(/account kind|kind/i).first();
+      const kindLabel = page.getByLabel(/wallet type|kind/i).first();
       await kindLabel.click();
       const optionMatchers: Record<string, RegExp> = {
         CHECKING: /checking/i,
@@ -75,11 +75,8 @@ When(
       await page.getByRole("option", { name: m }).first().click();
     }
 
-    // Scope tab (PERSONAL / SHARED).
-    await page.getByRole("tab", { name: new RegExp(scope, "i") }).click();
-
     // Currency picker.
-    await accPage.currencyTrigger().click();
+    await walletPage.currencyTrigger().click();
     await page
       .getByRole("option", { name: new RegExp(currency, "i") })
       .first()
@@ -87,13 +84,13 @@ When(
   },
 );
 
-When("I save the account", async ({ page }) => {
-  const accPage = new AccountsPage(page);
-  await accPage.saveAccount();
+When("I save the wallet", async ({ page }) => {
+  const walletPage = new WalletsPage(page);
+  await walletPage.saveWallet();
 });
 
 Then(
-  "I see {string} in the Accounts list under {string}",
+  "I see {string} in the Wallets list under {string}",
   async ({ page }, accountName: string, group: string) => {
     await expect(
       page.locator("section").filter({ hasText: group }).getByText(accountName),
@@ -127,7 +124,7 @@ When("I archive {string}", async ({ page }, accountName: string) => {
 
   const responsePromise = page.waitForResponse(
     (resp) =>
-      /\/api\/accounts\/[^/]+\/archive/.test(resp.url()) &&
+      /\/api\/wallets\/[^/]+\/archive/.test(resp.url()) &&
       resp.request().method() === "POST",
     { timeout: 10000 },
   );
@@ -158,10 +155,10 @@ When("I open the Budget page", async ({ page }) => {
 });
 
 When(
-  "I create a category {string} with scope {string}",
-  async ({ page }, name: string, scope: string) => {
+  "I create a category {string}",
+  async ({ page }, name: string) => {
     const res = await page.request.post("/api/categories", {
-      data: { name, scope },
+      data: { name },
     });
     if (!res.ok()) {
       const body = await res.text();
@@ -280,7 +277,7 @@ Given(
   async ({ page }, _accountName: string, _currency: string) => {
     // Create a checking account via API for speed in E2E setup.
     // The /api/accounts endpoint requires authentication — handled by session from createFreshUser.
-    const res = await page.request.post("/api/accounts", {
+    const res = await page.request.post("/api/wallets", {
       data: {
         name: _accountName,
         kind: "CHECKING",
@@ -371,7 +368,7 @@ Given(
   "I have an expense {string} of {int} EUR on {string}",
   async ({ page }, note: string, amount: number, date: string) => {
     // Find account via API to get accountId
-    const accountsRes = await page.request.get("/api/accounts");
+    const accountsRes = await page.request.get("/api/wallets");
     const accountsData = accountsRes.ok()
       ? (await accountsRes.json() as { accounts: Array<{ id: string }> })
       : { accounts: [] };
@@ -478,7 +475,7 @@ When(
   ) => {
     const rp = recurringPage ?? new RecurringPage(page);
     // Locate one account id for the rule (Account input takes UUID per current form).
-    const accountsRes = await page.request.get("/api/accounts");
+    const accountsRes = await page.request.get("/api/wallets");
     const accountsData = accountsRes.ok()
       ? ((await accountsRes.json()) as { accounts: Array<{ id: string }> })
       : { accounts: [] };
@@ -523,7 +520,7 @@ Then(
 Given(
   "I have a monthly recurring rule {string} of {int} USD anchored to day {int}",
   async ({ page }, note: string, amount: number, anchorDay: number) => {
-    const accountsRes = await page.request.get("/api/accounts");
+    const accountsRes = await page.request.get("/api/wallets");
     const accountsData = accountsRes.ok()
       ? ((await accountsRes.json()) as { accounts: Array<{ id: string }> })
       : { accounts: [] };
@@ -638,11 +635,11 @@ When(
 // ── Plan 02-09: Search / filter / bulk re-categorize / FX stale badge ──────
 
 Given(
-  "I have a category {string} with scope {string}",
-  async ({ page }, name: string, scope: string) => {
+  "I have a category {string}",
+  async ({ page }, name: string) => {
     const res = await page.request.post("/api/categories", {
       headers: { "Idempotency-Key": crypto.randomUUID() },
-      data: { name, scope },
+      data: { name },
     });
     if (![201, 409].includes(res.status())) {
       const body = await res.text();
@@ -668,7 +665,7 @@ async function findCategoryId(
 Given(
   'I have an expense {string} of {int} EUR on {string} in category {string}',
   async ({ page }, note: string, amount: number, date: string, categoryName: string) => {
-    const accountsRes = await page.request.get("/api/accounts");
+    const accountsRes = await page.request.get("/api/wallets");
     const { accounts } = (await accountsRes.json()) as {
       accounts: Array<{ id: string }>;
     };
@@ -699,7 +696,7 @@ Given(
 Given(
   'I have an expense {string} of {int} USD on {string}',
   async ({ page }, note: string, amount: number, date: string) => {
-    const accountsRes = await page.request.get("/api/accounts");
+    const accountsRes = await page.request.get("/api/wallets");
     const { accounts } = (await accountsRes.json()) as {
       accounts: Array<{ id: string }>;
     };

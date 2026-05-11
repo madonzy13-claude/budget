@@ -6,16 +6,16 @@ Feature: Account grouping by Assets vs Liabilities
 
   Scenario: Credit card account appears under Liabilities
     Given I am signed in as a fresh user with workspace "Family"
-    When I open the Accounts page
-    And I click "Add account"
-    And I fill the account form with name "Visa Gold", kind "CREDIT_CARD", scope "PERSONAL", currency "USD"
-    And I save the account
-    Then I see "Visa Gold" in the Accounts list under "Liabilities"
+    When I open the Wallets page
+    And I click "Add wallet"
+    And I fill the wallet form with name "Visa Gold", walletType "CREDIT_CARD", currency "USD"
+    And I save the wallet
+    Then I see "Visa Gold" in the Wallets list under "Liabilities"
 
   Scenario: Loan account appears under Liabilities
     Given I am signed in as a fresh user with workspace "Family"
-    When I open the Accounts page
-    And I click "Add account"
-    And I fill the account form with name "Mortgage", kind "LOAN", scope "SHARED", currency "EUR"
-    And I save the account
-    Then I see "Mortgage" in the Accounts list under "Liabilities"
+    When I open the Wallets page
+    And I click "Add wallet"
+    And I fill the wallet form with name "Mortgage", walletType "LOAN", currency "EUR"
+    And I save the wallet
+    Then I see "Mortgage" in the Wallets list under "Liabilities"

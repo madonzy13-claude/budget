@@ -129,7 +129,7 @@ export class TransactionsPage {
     await this.searchInput().fill(query);
   }
 
-  filterPill(name: "date-range" | "category" | "account" | "scope" | "kind"): Locator {
+  filterPill(name: "date-range" | "category" | "account" | "kind"): Locator {
     return this.page.getByTestId(`filter-pill-${name}`);
   }
 

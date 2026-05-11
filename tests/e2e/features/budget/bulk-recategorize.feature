@@ -6,8 +6,8 @@ Feature: Bulk re-categorize transactions
   Background:
     Given I am signed in as a fresh user with workspace "Bulk Test Workspace"
     And I have a checking account "Main" with currency "EUR"
-    And I have a category "Food" with scope "PERSONAL"
-    And I have a category "Eating Out" with scope "PERSONAL"
+    And I have a category "Food"
+    And I have a category "Eating Out"
 
   Scenario: User bulk re-categorizes 2 transactions to a new category
     Given I have an expense "Lunch" of 10 EUR on "2026-05-07" in category "Food"
