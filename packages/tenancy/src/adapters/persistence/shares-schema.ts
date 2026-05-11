@@ -7,15 +7,18 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { tenancy, appRole, workerRole } from "@budget/platform";
-import { workspaces } from "./schema";
+import { budgets } from "./schema";
 
-/** D-06, TENT-13: per-member contribution shares (storage only Phase 1; math Phase 2/4). */
-export const sharedWorkspaceMemberShares = tenancy.table(
-  "shared_workspace_member_shares",
+/** D-06, TENT-13: per-member contribution shares (storage only Phase 1; math Phase 2/4).
+ * v1.1 (migration 0012): table renamed shared_workspace_member_shares → shared_budget_member_shares,
+ * column workspace_id → budget_id.
+ */
+export const sharedBudgetMemberShares = tenancy.table(
+  "shared_budget_member_shares",
   {
-    workspaceId: uuid("workspace_id")
+    budgetId: uuid("budget_id")
       .notNull()
-      .references(() => workspaces.id),
+      .references(() => budgets.id),
     userId: uuid("user_id").notNull(),
     percentage: numeric("percentage", { precision: 5, scale: 2 })
       .notNull()
@@ -28,13 +31,17 @@ export const sharedWorkspaceMemberShares = tenancy.table(
       .notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.workspaceId, t.userId] }),
+    primaryKey({ columns: [t.budgetId, t.userId] }),
     pgPolicy("shares_tenant_isolation", {
       as: "permissive",
       for: "all",
       to: [appRole, workerRole],
-      using: sql`${t.workspaceId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
-      withCheck: sql`${t.workspaceId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
+      using: sql`${t.budgetId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
+      withCheck: sql`${t.budgetId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
     }),
   ],
 );
+
+// Backward-compat alias — Plan 01-02 removes this.
+/** @deprecated use `sharedBudgetMemberShares` */
+export const sharedWorkspaceMemberShares = sharedBudgetMemberShares;

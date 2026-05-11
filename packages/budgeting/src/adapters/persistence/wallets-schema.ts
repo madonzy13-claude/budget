@@ -1,5 +1,5 @@
 /**
- * accounts-schema.ts — Drizzle schema for budgeting.accounts
+ * wallets-schema.ts — Drizzle schema for budgeting.wallets (renamed from accounts in v1.1)
  * RLS via pgPolicy. FORCE RLS in post-migration.sql.
  * No domain imports — adapters only.
  */
@@ -15,14 +15,14 @@ import {
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
-export const accounts = budgeting.table(
-  "accounts",
+export const wallets = budgeting.table(
+  "wallets",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: uuid("tenant_id").notNull(),
     name: text("name").notNull(),
-    kind: text("kind").notNull(), // CHECK constraint enforced below
-    scope: text("scope").notNull(), // CHECK constraint enforced below
+    // wallet_type replaces the old kind + scope columns. Values: SPENDINGS | CUSHION | RESERVE
+    walletType: text("wallet_type").notNull(), // CHECK constraint enforced below
     currency: char("currency", { length: 3 }).notNull(),
     currentBalance: numeric("current_balance", {
       precision: 19,
@@ -38,11 +38,10 @@ export const accounts = budgeting.table(
   },
   (t) => [
     check(
-      "accounts_kind_chk",
-      sql`${t.kind} IN ('CASH','CHECKING','SAVINGS','CREDIT_CARD','LOAN','INVESTMENT')`,
+      "wallets_wallet_type_chk",
+      sql`${t.walletType} IN ('SPENDINGS','CUSHION','RESERVE')`,
     ),
-    check("accounts_scope_chk", sql`${t.scope} IN ('PERSONAL','SHARED')`),
-    pgPolicy("accounts_tenant_isolation", {
+    pgPolicy("wallets_tenant_isolation", {
       as: "permissive",
       for: "all",
       to: [appRole, workerRole],
@@ -51,3 +50,8 @@ export const accounts = budgeting.table(
     }),
   ],
 );
+
+// Backward-compat alias so code referencing `accounts` still compiles during
+// the Plan 01-01 → 01-02 transition. Plan 01-02 removes this alias.
+/** @deprecated use `wallets` */
+export const accounts = wallets;

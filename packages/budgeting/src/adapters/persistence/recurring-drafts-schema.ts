@@ -3,6 +3,9 @@
  * RLS via pgPolicy. FORCE RLS in post-migration.sql.
  * Unique (rule_id, due_date) prevents double-generation if cron re-runs (idempotency).
  * No domain imports — adapters only.
+ *
+ * v1.1 changes (migration 0012):
+ *   - accountId (account_id) → walletId (wallet_id)
  */
 import { sql } from "drizzle-orm";
 import {
@@ -27,7 +30,7 @@ export const recurringDrafts = budgeting.table(
     dueDate: date("due_date").notNull(),
     amount: numeric("amount", { precision: 19, scale: 4 }).notNull(),
     currency: char("currency", { length: 3 }).notNull(),
-    accountId: uuid("account_id").notNull(),
+    walletId: uuid("wallet_id").notNull(),
     categoryId: uuid("category_id"),
     kind: text("kind").notNull(),
     note: text("note"),

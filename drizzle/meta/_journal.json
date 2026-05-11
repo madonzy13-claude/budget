@@ -85,6 +85,13 @@
       "when": 1778407200000,
       "tag": "0011_plan_02_08_recurring",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1747008000000,
+      "tag": "0012_phase01_v11_rename",
+      "breakpoints": true
     }
   ]
 }

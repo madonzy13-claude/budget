@@ -1,6 +1,9 @@
 /**
  * balance-adjustments-schema.ts — Drizzle schema for budgeting.account_balance_adjustments
  * Append-only: REVOKE UPDATE, DELETE in post-migration.sql.
+ *
+ * v1.1 changes (migration 0012):
+ *   - accountId (account_id) → walletId (wallet_id) (D-12: table retained)
  */
 import { sql } from "drizzle-orm";
 import {
@@ -18,7 +21,7 @@ export const accountBalanceAdjustments = budgeting.table(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: uuid("tenant_id").notNull(),
-    accountId: uuid("account_id").notNull(), // FK to accounts.id (enforced at app level to avoid cross-schema FK issues)
+    walletId: uuid("wallet_id").notNull(), // FK to wallets.id (enforced at app level to avoid cross-schema FK issues)
     deltaAmount: numeric("delta_amount", { precision: 19, scale: 4 }).notNull(),
     deltaCurrency: char("delta_currency", { length: 3 }).notNull(),
     reason: text("reason").notNull(),

@@ -2,6 +2,9 @@
  * recurring-rules-schema.ts — Drizzle schema for budgeting.recurring_rules
  * RLS via pgPolicy. FORCE RLS in post-migration.sql.
  * No domain imports — adapters only.
+ *
+ * v1.1 changes (migration 0012):
+ *   - accountId (account_id) → walletId (wallet_id)
  */
 import { sql } from "drizzle-orm";
 import {
@@ -23,7 +26,7 @@ export const recurringRules = budgeting.table(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: uuid("tenant_id").notNull(),
-    accountId: uuid("account_id").notNull(),
+    walletId: uuid("wallet_id").notNull(),
     categoryId: uuid("category_id"),
     amount: numeric("amount", { precision: 19, scale: 4 }).notNull(),
     currency: char("currency", { length: 3 }).notNull(),

@@ -1,7 +1,8 @@
 /**
- * workspace-budget-mode-history-schema.ts — Drizzle schema for budgeting.workspace_budget_mode_history
+ * budget-mode-history-schema.ts — Drizzle schema for budgeting.budget_mode_history
+ * (renamed from workspace_budget_mode_history in v1.1 migration 0012)
  * Effective-dated SCD-2 per D-04-e. Partial unique index in post-migration.sql.
- * Tracks NORMAL|CUSHION mode per workspace over time.
+ * Tracks NORMAL|CUSHION mode per budget over time.
  */
 import { sql } from "drizzle-orm";
 import {
@@ -14,11 +15,11 @@ import {
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
-export const workspaceBudgetModeHistory = budgeting.table(
-  "workspace_budget_mode_history",
+export const budgetModeHistory = budgeting.table(
+  "budget_mode_history",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id").notNull(),
+    budgetId: uuid("budget_id").notNull(),
     tenantId: uuid("tenant_id").notNull(),
     mode: text("mode").notNull(),
     effectiveFrom: date("effective_from").notNull(),
@@ -29,8 +30,8 @@ export const workspaceBudgetModeHistory = budgeting.table(
       .notNull(),
   },
   (t) => [
-    check("workspace_budget_mode_chk", sql`${t.mode} IN ('NORMAL','CUSHION')`),
-    pgPolicy("workspace_budget_mode_history_tenant_isolation", {
+    check("budget_mode_chk", sql`${t.mode} IN ('NORMAL','CUSHION')`),
+    pgPolicy("budget_mode_history_tenant_isolation", {
       as: "permissive",
       for: "all",
       to: [appRole, workerRole],
@@ -39,3 +40,8 @@ export const workspaceBudgetModeHistory = budgeting.table(
     }),
   ],
 );
+
+// Backward-compat alias so code referencing old export name still compiles during
+// the Plan 01-01 → 01-02 transition. Plan 01-02 removes this alias.
+/** @deprecated use `budgetModeHistory` */
+export const workspaceBudgetModeHistory = budgetModeHistory;

@@ -6,7 +6,9 @@ if (!url) throw new Error("DATABASE_URL_MIGRATOR required");
 export default defineConfig({
   dialect: "postgresql",
   out: "../../drizzle",
-  // Plans 3, 5, 6 extend this to an array as more table files appear.
+  // v1.1 (Phase 1, plan 01-01): accounts-schema.ts → wallets-schema.ts,
+  // workspace-budget-mode-history-schema.ts → budget-mode-history-schema.ts,
+  // tasks-schema.ts added (NEW).
   schema: [
     "../../packages/platform/src/db/expense-ledger.ts",
     "../../packages/platform/src/audit/schema.ts",
@@ -18,17 +20,18 @@ export default defineConfig({
     "../../packages/tenancy/src/adapters/persistence/shares-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/supported-currencies-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/fx-rates-schema.ts",
-    "../../packages/budgeting/src/adapters/persistence/accounts-schema.ts",
+    "../../packages/budgeting/src/adapters/persistence/wallets-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/balance-adjustments-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/categories-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/category-limits-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/budget-templates-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/category-share-overrides-schema.ts",
-    "../../packages/budgeting/src/adapters/persistence/workspace-budget-mode-history-schema.ts",
+    "../../packages/budgeting/src/adapters/persistence/budget-mode-history-schema.ts",
     "../../packages/platform/src/idempotency/schema.ts",
     "../../packages/budgeting/src/adapters/persistence/spending-projection-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/recurring-rules-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/recurring-drafts-schema.ts",
+    "../../packages/budgeting/src/adapters/persistence/tasks-schema.ts",
   ],
   dbCredentials: { url },
   casing: "snake_case",
