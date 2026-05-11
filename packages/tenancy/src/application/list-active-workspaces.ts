@@ -2,17 +2,19 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import { sql } from "drizzle-orm";
 import { withUserContext } from "@budget/platform";
 import { UserId } from "@budget/shared-kernel";
-import type { WorkspaceRepo } from "../ports/workspace-repo";
-import type { WorkspaceDTO } from "../contracts/api";
+import type { BudgetRepo } from "../ports/budget-repo";
+import type { BudgetDTO } from "../contracts/api";
 
-export interface ListActiveWorkspacesInput {
+export interface ListActiveBudgetsInput {
   userId: string;
 }
+/** @deprecated use ListActiveBudgetsInput */
+export type ListActiveWorkspacesInput = ListActiveBudgetsInput;
 
-export async function listActiveWorkspaces(
-  deps: { workspaceRepo: WorkspaceRepo },
-  input: ListActiveWorkspacesInput,
-): Promise<Result<WorkspaceDTO[], Error>> {
+export async function listActiveBudgets(
+  deps: { budgetRepo: BudgetRepo },
+  input: ListActiveBudgetsInput,
+): Promise<Result<BudgetDTO[], Error>> {
   try {
     // Get persisted active_workspace_ids
     const prefsResult = await withUserContext(
@@ -31,7 +33,7 @@ export async function listActiveWorkspaces(
     if (storedIds.length === 0) return ok([]);
 
     // Intersect with actual memberships (D-07, TENT-12)
-    const memberships = await deps.workspaceRepo.listForUser(input.userId);
+    const memberships = await deps.budgetRepo.listForUser(input.userId);
     const membershipMap = new Map(memberships.map((w) => [w.id, w]));
 
     const active = storedIds
@@ -42,4 +44,13 @@ export async function listActiveWorkspaces(
   } catch (e) {
     return err(e as Error);
   }
+}
+
+/** @deprecated use listActiveBudgets */
+export async function listActiveWorkspaces(
+  deps: { budgetRepo?: BudgetRepo; workspaceRepo?: BudgetRepo },
+  input: { userId: string },
+): Promise<Result<BudgetDTO[], Error>> {
+  const repo = (deps.budgetRepo ?? deps.workspaceRepo)!;
+  return listActiveBudgets({ budgetRepo: repo }, input);
 }

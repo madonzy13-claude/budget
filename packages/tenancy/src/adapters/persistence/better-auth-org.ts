@@ -15,10 +15,10 @@ export function createOrganizationPlugin(deps: OrgDeps) {
     // TENT-09: unlimited orgs per user
     allowUserToCreateOrganization: async () => true,
 
-    // D-12: map to our domain table names
+    // D-12: map to our domain table names (v1.1: budgets / budget_members / budget_invitations)
     schema: {
       organization: {
-        modelName: "workspaces",
+        modelName: "budgets",
         additionalFields: {
           kind: { type: "string", input: true, required: true }, // D-02 TENT-10
           default_currency: { type: "string", input: true, required: true }, // D-04 TENT-11
@@ -28,12 +28,12 @@ export function createOrganizationPlugin(deps: OrgDeps) {
           owner_user_id: { type: "string", input: false, required: true },
         },
       },
-      member: { modelName: "workspace_members" },
-      invitation: { modelName: "workspace_invitations" },
+      member: { modelName: "budget_members" },
+      invitation: { modelName: "budget_invitations" },
     },
 
     organizationHooks: {
-      // tenancy.workspaces has columns owner_user_id (NOT NULL) and member_count
+      // tenancy.budgets has columns owner_user_id (NOT NULL) and member_count
       // (NOT NULL DEFAULT 1) that Better Auth's org plugin does not populate. Inject
       // owner_user_id from the creating user; member_count uses its DB default.
       beforeCreateOrganization: async ({ organization, user }) => {
@@ -45,15 +45,15 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         };
       },
 
-      // D-02: PRIVATE workspaces refuse invitations at creation time (the row should
-      // never exist). The PC-11 BEFORE INSERT trigger on workspace_members is the
+      // D-02: PRIVATE budgets refuse invitations at creation time (the row should
+      // never exist). The PC-11 BEFORE INSERT trigger on budget_members is the
       // race-free wall; this hook stops the invitation up front so we don't generate
       // an email for an invitation that can never be accepted.
       beforeCreateInvitation: async ({ organization }) => {
         const org = organization as unknown as { kind?: "PRIVATE" | "SHARED" };
         if (org.kind === "PRIVATE") {
           throw new Error(
-            "PRIVATE workspaces accept only the owner. Convert to SHARED first.",
+            "PRIVATE budgets accept only the owner. Convert to SHARED first.",
           );
         }
       },
@@ -68,13 +68,16 @@ export function createOrganizationPlugin(deps: OrgDeps) {
           (member as { user_id?: string; userId?: string }).user_id ??
           (member as { userId?: string }).userId ??
           "";
-        // PC-03: use withTenantTx(workspaceId, userId, fn) — never raw pool connects
+        // PC-03: use withTenantTx(budgetId, userId, fn) — never raw pool connects
         const result = await withTenantTx(
           TenantId(org.id),
           UserId(actorUserId),
           async (tx) => {
             const r = await tx.execute(
-              sql`SELECT count(*)::int AS c FROM tenancy.workspace_members WHERE workspace_id = ${org.id}`,
+              // Better Auth org plugin contract: app-facing field is `organizationId`.
+              // SQL column is `budget_id` (post-Phase-1 rename). DO NOT rename the JS field
+              // — it's referenced by Better Auth plugin code in node_modules.
+              sql`SELECT count(*)::int AS c FROM tenancy.budget_members WHERE budget_id = ${org.id}`,
             );
             return (r.rows?.[0] as { c: number } | undefined)?.c ?? 0;
           },
@@ -82,7 +85,7 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         if (result.isErr()) throw result.error;
         if (org.kind === "PRIVATE" && result.value >= 1) {
           throw new Error(
-            "PRIVATE workspaces accept only the owner. Convert to SHARED first.",
+            "PRIVATE budgets accept only the owner. Convert to SHARED first.",
           );
         }
       },
@@ -102,8 +105,8 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         }
       },
 
-      // D-06: SHARED workspace gains member → insert 0% share row.
-      // PC-03: use withTenantTx(workspaceId, userId, fn) — extended signature sets BOTH
+      // D-06: SHARED budget gains member → insert 0% share row.
+      // PC-03: use withTenantTx(budgetId, userId, fn) — extended signature sets BOTH
       // app.tenant_ids AND app.current_user_id GUCs in same SET LOCAL pair.
       afterAddMember: async ({ member, organization }) => {
         const org = organization as unknown as {
@@ -120,7 +123,7 @@ export function createOrganizationPlugin(deps: OrgDeps) {
           UserId(memberUserId),
           async (tx) => {
             await tx.execute(sql`
-              INSERT INTO tenancy.shared_workspace_member_shares (workspace_id, user_id, percentage)
+              INSERT INTO tenancy.shared_budget_member_shares (budget_id, user_id, percentage)
               VALUES (${org.id}, ${memberUserId}, 0)
               ON CONFLICT DO NOTHING
             `);

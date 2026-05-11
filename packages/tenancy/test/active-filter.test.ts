@@ -68,7 +68,7 @@ test("setActiveWorkspaces persists; listActiveWorkspaces returns intersection (T
   // Set w1 as active; include a fake ID that user is not a member of (should be filtered)
   const fakeId = "00000000-0000-0000-0000-000000000000";
   const set = await setActiveWorkspaces(
-    { workspaceRepo: tenancy.workspaceRepo },
+    { budgetRepo: tenancy.budgetRepo },
     {
       userId: user.value.userId,
       workspaceIds: [w1.value.workspaceId, fakeId],
@@ -78,7 +78,7 @@ test("setActiveWorkspaces persists; listActiveWorkspaces returns intersection (T
 
   // Fetch back — should only return w1 (fakeId filtered out)
   const active = await listActiveWorkspaces(
-    { workspaceRepo: tenancy.workspaceRepo },
+    { budgetRepo: tenancy.budgetRepo },
     { userId: user.value.userId },
   );
   expect(active.isOk()).toBe(true);

@@ -1,26 +1,33 @@
-export type WorkspaceKind = "PRIVATE" | "SHARED";
+export type BudgetKind = "PRIVATE" | "SHARED";
 
-export interface WorkspaceDTO {
+export interface BudgetDTO {
   id: string;
   slug: string; // nanoid(12)
   name: string;
-  kind: WorkspaceKind;
+  kind: BudgetKind;
   default_currency: string; // ISO-4217 immutable post-create (D-04)
   ownerUserId: string;
   memberCount: number;
   createdAt: Date;
+  cushionModeEnabled?: boolean;
 }
 
 export interface MemberDTO {
-  workspaceId: string;
+  budgetId: string;
   userId: string;
   role: "owner" | "member";
   joinedAt: Date;
 }
 
 export interface MemberShareDTO {
-  workspaceId: string;
+  budgetId: string;
   userId: string;
   percentage: string; // string for big.js precision (5,2)
   updatedAt: Date;
 }
+
+// Backward-compat aliases — Plan 01-03 removes these
+/** @deprecated use BudgetKind */
+export type WorkspaceKind = BudgetKind;
+/** @deprecated use BudgetDTO */
+export type WorkspaceDTO = BudgetDTO;

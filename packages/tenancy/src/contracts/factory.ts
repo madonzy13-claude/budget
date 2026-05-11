@@ -1,17 +1,19 @@
 import type { EmailSender } from "@budget/shared-kernel";
-import type { WorkspaceRepo } from "../ports/workspace-repo";
+import type { BudgetRepo } from "../ports/budget-repo";
 import type { MemberShareRepo } from "../ports/member-repo";
 
 export interface TenancyModule {
   organizationPlugin: unknown; // typed as ReturnType<typeof organization> at impl site
   /**
    * Drizzle-adapter schema map for Better Auth. Keys are the model names used
-   * by the organization plugin (workspaces / workspace_members / workspace_invitations).
+   * by the organization plugin (budgets / budget_members / budget_invitations).
    * The identity module merges this into Better Auth's drizzleAdapter schema.
    */
   betterAuthSchema: Record<string, unknown>;
-  workspaceRepo: WorkspaceRepo;
+  budgetRepo: BudgetRepo;
   memberShareRepo: MemberShareRepo;
+  /** @deprecated use budgetRepo */
+  workspaceRepo: BudgetRepo;
 }
 
 export function createTenancyModule(deps: {
@@ -24,20 +26,25 @@ export function createTenancyModule(deps: {
   const { createOrganizationPlugin } =
     require("../adapters/persistence/better-auth-org") as typeof import("../adapters/persistence/better-auth-org");
 
-  const { DrizzleWorkspaceRepo, DrizzleMemberShareRepo } =
+  const { DrizzleBudgetRepo, DrizzleMemberShareRepo } =
     require("../adapters/persistence/workspace-repo") as typeof import("../adapters/persistence/workspace-repo");
 
   const tenancySchema =
     require("../adapters/persistence/schema") as typeof import("../adapters/persistence/schema");
 
+  const budgetRepo = new DrizzleBudgetRepo();
+
   return {
     organizationPlugin: createOrganizationPlugin(deps),
     betterAuthSchema: {
-      workspaces: tenancySchema.workspaces,
-      workspace_members: tenancySchema.workspaceMembers,
-      workspace_invitations: tenancySchema.workspaceInvitations,
+      // Better Auth org plugin contract: model names must match `modelName` values in better-auth-org.ts
+      budgets: tenancySchema.budgets,
+      budget_members: tenancySchema.budgetMembers,
+      budget_invitations: tenancySchema.budgetInvitations,
     },
-    workspaceRepo: new DrizzleWorkspaceRepo(),
+    budgetRepo,
     memberShareRepo: new DrizzleMemberShareRepo(),
+    // Backward-compat alias for Plan 01-03 migration period
+    workspaceRepo: budgetRepo,
   };
 }
