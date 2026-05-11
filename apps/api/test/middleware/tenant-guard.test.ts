@@ -9,7 +9,9 @@ import { buildTenantGuard } from "../../src/middleware/tenant-guard";
 
 type BootstrapImpl = (
   userId: string,
-  fn: (tx: { execute: (q: unknown) => Promise<{ rows: unknown[] }> }) => Promise<string[]>,
+  fn: (tx: {
+    execute: (q: unknown) => Promise<{ rows: unknown[] }>;
+  }) => Promise<string[]>,
 ) => Promise<ReturnType<typeof ok | typeof err>>;
 
 let mockBootstrapImpl: BootstrapImpl | null = null;
@@ -36,7 +38,9 @@ describe("tenantGuard middleware", () => {
   });
 
   it("sets tenantIds to [] when no session", async () => {
-    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
+    const guard = buildTenantGuard(
+      mockBootstrap as Parameters<typeof buildTenantGuard>[0],
+    );
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", null);
@@ -50,8 +54,12 @@ describe("tenantGuard middleware", () => {
     expect(body.tenantIds).toEqual([]);
   });
 
-  it("intersects active_workspace_ids with memberships and sets tenantIds", async () => {
-    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
+  it("accepts X-Budget-ID header and verifies membership, sets tenantIds", async () => {
+    // D-10: After rename, X-Budget-ID is the accepted header (not active_workspace_ids).
+    // Default mockBootstrap returns rows when fn is called → tenantIds populated.
+    const guard = buildTenantGuard(
+      mockBootstrap as Parameters<typeof buildTenantGuard>[0],
+    );
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", {
@@ -66,25 +74,34 @@ describe("tenantGuard middleware", () => {
     app.use(guard);
     app.get("/test", (c) => c.json({ tenantIds: c.get("tenantIds") }));
 
-    const res = await app.request("/test");
+    // Send X-Budget-ID header — guard looks up membership and sets tenantIds
+    const res = await app.request("/test", {
+      headers: { "X-Budget-ID": "budget-001" },
+    });
     const body = (await res.json()) as { tenantIds: string[] };
-    // Default mock returns ['ws-001', 'ws-002']
-    expect(body.tenantIds).toEqual(["ws-001", "ws-002"]);
+    // bootstrap mock executes fn → fn reads rows [{...}] → returns ["budget-001"]
+    // (the guard returns [requestedBudgetId] when rows.length > 0)
+    expect(body.tenantIds).toEqual(["budget-001"]);
   });
 
-  it("sets tenantIds to [] when bootstrap returns empty array", async () => {
+  it("sets tenantIds to [] when X-Budget-ID header present but membership not found", async () => {
+    // Guard sends X-Budget-ID to DB lookup; if no membership rows → returns []
     mockBootstrapImpl = async (
       _userId: string,
-      fn: (tx: { execute: (q: unknown) => Promise<{ rows: unknown[] }> }) => Promise<string[]>,
+      fn: (tx: {
+        execute: (q: unknown) => Promise<{ rows: unknown[] }>;
+      }) => Promise<string[]>,
     ) => {
       const mockTx = {
-        execute: async () => ({ rows: [{ ids: null }] }),
+        execute: async () => ({ rows: [] }), // no membership found
       };
       const value = await fn(mockTx);
       return ok(value);
     };
 
-    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
+    const guard = buildTenantGuard(
+      mockBootstrap as Parameters<typeof buildTenantGuard>[0],
+    );
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", {
@@ -95,7 +112,9 @@ describe("tenantGuard middleware", () => {
     app.use(guard);
     app.get("/test", (c) => c.json({ tenantIds: c.get("tenantIds") }));
 
-    const res = await app.request("/test");
+    const res = await app.request("/test", {
+      headers: { "X-Budget-ID": "non-member-budget" },
+    });
     const body = (await res.json()) as { tenantIds: string[] };
     expect(body.tenantIds).toEqual([]);
   });
@@ -105,7 +124,9 @@ describe("tenantGuard middleware", () => {
       return err(new Error("DB error"));
     };
 
-    const guard = buildTenantGuard(mockBootstrap as Parameters<typeof buildTenantGuard>[0]);
+    const guard = buildTenantGuard(
+      mockBootstrap as Parameters<typeof buildTenantGuard>[0],
+    );
     const app = new Hono();
     app.use(async (c, next) => {
       c.set("session", {
@@ -116,7 +137,9 @@ describe("tenantGuard middleware", () => {
     app.use(guard);
     app.get("/test", (c) => c.json({ tenantIds: c.get("tenantIds") }));
 
-    const res = await app.request("/test");
+    const res = await app.request("/test", {
+      headers: { "X-Budget-ID": "some-budget" },
+    });
     const body = (await res.json()) as { tenantIds: string[] };
     // On error, tenant-guard falls back to [] gracefully
     expect(body.tenantIds).toEqual([]);
