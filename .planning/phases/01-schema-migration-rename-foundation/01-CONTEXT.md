@@ -42,6 +42,13 @@ Single Drizzle migration that takes v1.0 schema to v1.1: rename `workspaces`→`
 - **D-08:** Web client URL constants updated in Phase 1 (`apps/web/src/lib/api-client.ts`). v1.0 pages calling `/workspaces/[id]` etc. transparently hit `/budgets/[id]` afterwards. No 404 gap between Phase 1 and Phase 3 ship. UI structure (sidebar, page layouts) untouched in Phase 1 — Phase 3 owns that.
 - **D-09:** No temporary route aliases. Roadmap success criterion #5 is strict: `/workspaces/*` and `/accounts/*` return 404 immediately after Phase 1 ships. Catches any missed call site.
 
+### Late additions from research (2026-05-11, post-research)
+
+- **D-10:** Rename request header `X-Workspace-ID` → `X-Budget-ID` in Phase 1, lockstep with table/route renames. Sites confirmed by research: `apps/api/src/middleware/tenant-guard.ts:43`, `apps/web/src/lib/api-client.ts:23-25`, `apps/web/src/lib/workspace-fetch.ts:24-26`. Plan 01-03 (API) and 01-04 (web client) split the work. Keeps the Phase 1 surface fully renamed; no Phase-1↔Phase-3 inconsistency.
+- **D-11:** Keep cushion column name as `cushion_amount` (already exists per `packages/budgeting/src/adapters/persistence/category-limits-schema.ts:25`). MIG-05's `_cents` suffix wording is cosmetic and does NOT apply — the existing schema column is the source of truth. SCD-2 versioning pattern remains as decided in D-03.
+- **D-12:** Retain `balance_adjustments` table in Phase 1. Rename FK columns `workspace_id`→`budget_id` and `account_id`→`wallet_id` as part of the standard rename pass. Rationale: WALT-03 manual wallet-balance edit path uses this table. Dev-DB-nuke wipes row data; schema survives.
+- **D-13:** DROP `categories.scope` column in Phase 1 (in addition to MIG-03's listed drops). Rationale: scope (`PERSONAL`/`SHARED`) is redundant with budget-level visibility — a budget's `is_shared` flag determines all its categories' visibility under v1.1 IA. Cascades into ~8 call sites: `packages/budgeting/src/domain/category.ts` (entity field), `packages/budgeting/src/adapters/persistence/category-repo.ts:47,61,72`, `packages/budgeting/src/application/create-category.ts:65`, `packages/budgeting/src/application/find-category-by-id.ts:24`, `packages/budgeting/src/application/rename-category.ts:42`, `packages/budgeting/src/application/archive-category.ts:43`, `packages/budgeting/src/contracts/api.ts:53,59`, `apps/web/src/components/budgeting/transaction-filter-chips.tsx`, `tests/e2e/steps/budget.steps.ts:161,641`, `tests/e2e/pages/TransactionsPage.ts:132`. Plan 01-02 owns domain/application/repo strip + contract update; plan 01-04 owns web filter-chip + E2E rewrite.
+
 ### Claude's Discretion
 
 - Tasks table internals (RLS policy shape, indexes on `(budget_id, status)` and `(kind)`, FK to `budgets(id) ON DELETE CASCADE`, `kind` enum vs text+CHECK) — apply the same RLS pattern as `workspace_budget_mode_history` (tenant_id-anchored, `appRole + workerRole`). Generators and reads land in Phase 7; Phase 1 just creates the empty table.
@@ -107,8 +114,18 @@ Single Drizzle migration that takes v1.0 schema to v1.1: rename `workspaces`→`
 
 ### CI gate
 
-- `make ci-gate` Makefile target — 6 tenant-leak security tests; locations must be updated to renamed table names
+- `make ci-gate` Makefile target — actual gate is 5 backend tests + 1 Playwright `apps/web/e2e/cross-tenant-cache.spec.ts` per `scripts/ci/run-tenant-leak.sh:9-10`. `scripts/ci/USER-DATA-TABLES.txt:30-32,43` and `tests/ci-gate/fixtures/seed-two-tenants.ts:17,90,153,169,188-218` need updating from `workspaces`/`accounts` → `budgets`/`wallets`
 - `bunfig.toml` — 80% domain coverage threshold; do not lower (ENGR-01)
+
+### Research findings (2026-05-11)
+
+- `packages/tenancy/src/adapters/persistence/schema.ts` — `tenancy.workspaces` lives in `tenancy` schema (not `budgeting`). `apps/migrator/post-migration.sql` has 23+ references at lines 185-388 (policies, triggers, GRANTs) — MUST be edited in lockstep with `0012_*.sql` or container boot fails.
+- **`identity.accounts` (Better Auth provider accounts) MUST NOT be renamed.** Only `budgeting.accounts` becomes `wallets`. Confirmed by research §Q1.
+- **Better Auth org plugin field binding:** `workspace_members.workspace_id` column may rename to `budget_id` safely, BUT the JS field name `organizationId` must stay (plugin contract). Affects domain class field naming in `packages/tenancy/`.
+- **`workspace_share_dirty` is in `budgeting` schema** (per `post-migration.sql:473`). Rename target: `budgeting.budget_share_dirty`.
+- **Drizzle-kit RENAME detection is interactive (TTY-only).** Existing `drizzle/0011_plan_02_08_recurring.sql` was hand-authored — same pattern for `0012_phase01_v11_rename.sql`. Planner instructs executor to hand-author the SQL, not rely on `drizzle-kit generate`.
+- **MIG-03 wording mismatch:** real ledger table is `budgeting.expense_ledger` (not `transactions`). Columns `direction` and `to_account_id` do NOT currently exist in the schema; MIG-03 wording is forward-looking but only `kind`, `account_id` (and `accounts.scope` per MIG) actually need DROP. Planner should treat MIG-03 as "drop whatever of {kind, account_id, to_account_id, direction} currently exists" — silently no-op the absent ones.
+- **pg-boss queues unaffected** (separate schema). One worker handler affected: `apps/worker/src/handlers/recurring-engine.ts:36,77,96,99` + its test fixture — references to renamed identifiers, included in plan 01-02 scope.
 
 ### Design system
 

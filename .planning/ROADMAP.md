@@ -41,7 +41,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. All EN/PL/UK i18n message keys under `workspaces.*` and `accounts.*` have been renamed to `budgets.*` and `wallets.*` (no message lookups fail at app boot); domain entity classes `Workspace` and `Account` are renamed to `Budget` and `Wallet` in `packages/budgeting` and `packages/tenancy` with zero remaining references to the old names in `src/`
 5. All HTTP route mounts under `/workspaces/*` and `/accounts/*` are removed and replaced with `/budgets/*` and `/wallets/*`; old paths return 404 (no aliases); a smoke request to `/budgets/health` returns 200
 
-**Plans**: pending
+**Plans** (4 — sequential, dependency-strict):
+
+- `01-01-PLAN.md` — Schema migration (`drizzle/0012_phase01_v11_rename.sql` hand-authored), `post-migration.sql` lockstep rename (23+ sites), `tasks` table CREATE, `wallet_type` enum, dev DB nuke, tenant-leak fixture retarget — owns MIG-01..09, MIG-13 (5 backend)
+- `01-02-PLAN.md` — Domain entity rename `Workspace`→`Budget`, `Account`→`Wallet` across `packages/{budgeting,tenancy}` + Better Auth `organizationId` carve-out + `categories.scope` drop cascade through 8 application sites + worker handler — owns MIG-12; depends on 01-01
+- `01-03-PLAN.md` — Hono route `git mv` (`workspaces.ts`→`budgets.ts`, `accounts.ts`→`wallets.ts`) + `app.ts` mount flip (no aliases per D-09) + `tenant-guard.ts` header `X-Workspace-ID`→`X-Budget-ID` (D-10) + `/budgets/health` smoke + minimum compile-fix on route bodies — owns MIG-11; depends on 01-02
+- `01-04-PLAN.md` — i18n EN/PL/UK jq codemod + `api-client.ts`/`workspace-fetch.ts` header & path rewrite + scope filter chip drop + E2E Gherkin sweep + final `make ci-gate` Playwright green — owns MIG-10, MIG-13 (Playwright); depends on 01-03
 
 ### Phase 2: Domain & API Restructure
 

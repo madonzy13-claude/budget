@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Budget Restructure
 status: completed
-stopped_at: Phase 1 context gathered
-last_updated: "2026-05-11T18:16:37.698Z"
-last_activity: 2026-05-11 — v1.1 ROADMAP.md created
+stopped_at: Phase 1 planned (4 plans)
+last_updated: "2026-05-11T18:53:00.000Z"
+last_activity: 2026-05-11 — Phase 1 plans written + checked PASS
 progress:
   total_phases: 8
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
 ---
 
@@ -24,10 +24,19 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 ## Current Position
 
-Phase: Phase 1 — Schema Migration & Rename Foundation (not yet planned)
+Phase: Phase 1 — Schema Migration & Rename Foundation
 Plan: —
-Status: Roadmap complete (126/126 REQ-IDs mapped); awaiting `/gsd-plan-phase 1`
-Last activity: 2026-05-11 — v1.1 ROADMAP.md created
+Status: Planning complete (4 plans, PLAN-CHECK PASS, 0 BLOCKER/0 MAJOR); awaiting `/gsd-execute-phase 1`
+Last activity: 2026-05-11 — Phase 1 plans written + checked PASS
+
+## Phase 1 Plans
+
+| Plan  | Title                                                                                   | Reqs                         | Depends |
+| ----- | --------------------------------------------------------------------------------------- | ---------------------------- | ------- |
+| 01-01 | Schema migration + post-migration.sql + dev DB nuke + CI fixture retarget               | MIG-01..09, MIG-13 (backend) | —       |
+| 01-02 | Domain entity rename (Workspace→Budget, Account→Wallet) + categories.scope drop cascade | MIG-12                       | 01-01   |
+| 01-03 | Hono route rename + middleware header rename (X-Workspace-ID→X-Budget-ID)               | MIG-11                       | 01-02   |
+| 01-04 | i18n EN/PL/UK + web client + ci-gate Playwright verification                            | MIG-10, MIG-13 (Playwright)  | 01-03   |
 
 ## Performance Metrics
 
@@ -41,7 +50,7 @@ Last activity: 2026-05-11 — v1.1 ROADMAP.md created
 
 | Phase                                       | Plans | Total | Avg/Plan |
 | ------------------------------------------- | ----- | ----- | -------- |
-| 1. Schema Migration & Rename Foundation     | 0/TBD | —     | —        |
+| 1. Schema Migration & Rename Foundation     | 0/4   | —     | —        |
 | 2. Domain & API Restructure                 | 0/TBD | —     | —        |
 | 3. Navigation, Home & BDP Frame             | 0/TBD | —     | —        |
 | 4. Spendings Grid                           | 0/TBD | —     | —        |
@@ -89,10 +98,16 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
-- `/gsd-plan-phase 1` — plan the Schema Migration & Rename Foundation
-- Decide cushion-mode history storage (SCD-2 mini-table vs audit-log snapshot) in Phase 1 plan
+- `/gsd-execute-phase 1` — execute four sequential plans (01-01 → 01-02 → 01-03 → 01-04)
 - Decide reserves auto-compute as regular view vs materialized view in Phase 2 plan
 - Probe Better Auth orgs invite-token revocation API in Phase 2 spike
+
+### Phase 1 Late Decisions (recorded 2026-05-11, post-research)
+
+- D-10: Header `X-Workspace-ID` → `X-Budget-ID` renamed in lockstep with routes/tables
+- D-11: Cushion column stays `cushion_amount` (already exists in schema); `_cents` suffix not applied
+- D-12: `balance_adjustments` retained (WALT-03 manual edit path); FK cols renamed
+- D-13: `categories.scope` dropped (redundant with budget-level visibility); cascades through ~8 files
 
 ### Blockers/Concerns
 
@@ -113,9 +128,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-11T18:16:37.661Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-schema-migration-rename-foundation/01-CONTEXT.md
+Last session: 2026-05-11T18:53:00.000Z
+Stopped at: Phase 1 planned (4 plans, PLAN-CHECK PASS)
+Resume file: .planning/phases/01-schema-migration-rename-foundation/01-01-PLAN.md
 
 ## v1.0 History (archived)
 
