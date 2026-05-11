@@ -6,7 +6,7 @@
  * Asserts relrowsecurity=true AND relforcerowsecurity=true for every INCLUDED table.
  *
  * Also verifies EXCLUDED tables (shared_kernel.outbox, identity.verifications,
- * tenancy.workspace_invitations) do NOT have FORCE ROW LEVEL SECURITY (expected — Pitfall 10).
+ * tenancy.budget_invitations) do NOT have FORCE ROW LEVEL SECURITY (expected — Pitfall 10).
  *
  * Negative smoke: flip any table to NOFORCE ROW LEVEL SECURITY in post-migration.sql
  * and rerun — this test MUST fail.
@@ -130,6 +130,6 @@ describe("Test 4: FORCE ROW LEVEL SECURITY on all INCLUDED tables", () => {
     // Non-DB check: verify USER-DATA-TABLES.txt EXCLUDED section has expected tables
     expect(excluded).toContain("shared_kernel.outbox");
     expect(excluded).toContain("identity.verifications");
-    expect(excluded).toContain("tenancy.workspace_invitations");
+    expect(excluded).toContain("tenancy.budget_invitations");
   });
 });
