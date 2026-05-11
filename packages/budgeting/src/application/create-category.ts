@@ -30,7 +30,7 @@ export function createCategory(deps: CreateCategoryDeps) {
         input.tenantId,
         input.name,
         input.parentId,
-        input.scope as CategoryScope,
+        "PERSONAL" as CategoryScope, // scope dropped in v1.1; placeholder until Task 4
         null,
         new Date(),
         input.actorUserId,
@@ -46,7 +46,7 @@ export function createCategory(deps: CreateCategoryDeps) {
       input.tenantId,
       input.name,
       input.parentId ?? null,
-      input.scope as CategoryScope,
+      "PERSONAL" as CategoryScope, // scope dropped in v1.1; placeholder until Task 4
       null,
       now,
       input.actorUserId,
@@ -62,7 +62,6 @@ export function createCategory(deps: CreateCategoryDeps) {
       id: category.id,
       name: category.name,
       parentId: category.parentId,
-      scope: category.scope,
       archivedAt: null,
       createdAt: now.toISOString(),
     });

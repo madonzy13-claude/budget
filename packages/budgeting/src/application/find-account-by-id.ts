@@ -1,34 +1,6 @@
 /**
- * find-account-by-id.ts — Application use case: find a single account
+ * find-account-by-id.ts — Backward-compat shim (Plan 01-02 rename to find-wallet-by-id.ts).
+ * @deprecated
  */
-import { ok, err, type Result } from "@budget/shared-kernel";
-import type { AccountRepo } from "../ports/account-repo";
-import type { AccountDto } from "../contracts/api";
-
-export interface FindAccountByIdDeps {
-  repo: AccountRepo;
-}
-
-export function findAccountById(deps: FindAccountByIdDeps) {
-  return async (input: {
-    tenantId: string;
-    accountId: string;
-  }): Promise<Result<AccountDto | null, Error>> => {
-    try {
-      const account = await deps.repo.findById(input.tenantId, input.accountId);
-      if (!account) return ok(null);
-      return ok({
-        id: account.id,
-        name: account.name,
-        kind: account.kind,
-        scope: account.scope,
-        currency: account.currency,
-        currentBalance: account.currentBalance.amount.toFixed(4),
-        archivedAt: account.archivedAt ? account.archivedAt.toISOString() : null,
-        createdAt: account.createdAt.toISOString(),
-      });
-    } catch (e) {
-      return err(e as Error);
-    }
-  };
-}
+export { findWalletById as findAccountById } from "./find-wallet-by-id";
+export type { FindWalletByIdDeps as FindAccountByIdDeps } from "./find-wallet-by-id";

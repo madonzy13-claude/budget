@@ -39,7 +39,6 @@ export function renameCategory(deps: RenameCategoryDeps) {
       id: category.id,
       name: category.name,
       parentId: category.parentId,
-      scope: category.scope,
       archivedAt: category.archivedAt?.toISOString() ?? null,
       createdAt: category.createdAt.toISOString(),
     });

@@ -15,10 +15,7 @@ export function archiveCategory(deps: ArchiveCategoryDeps) {
     categoryId: string;
     actorUserId: string;
   }): Promise<Result<CategoryDto, Error>> => {
-    const category = await deps.repo.findById(
-      input.tenantId,
-      input.categoryId,
-    );
+    const category = await deps.repo.findById(input.tenantId, input.categoryId);
     if (!category) {
       return err(new Error(`Category ${input.categoryId} not found`));
     }
@@ -40,7 +37,6 @@ export function archiveCategory(deps: ArchiveCategoryDeps) {
       id: category.id,
       name: category.name,
       parentId: category.parentId,
-      scope: category.scope,
       archivedAt: category.archivedAt!.toISOString(),
       createdAt: category.createdAt.toISOString(),
     });

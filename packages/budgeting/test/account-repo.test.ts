@@ -1,5 +1,5 @@
 /**
- * account-repo.test.ts — Integration tests for DrizzleAccountRepo
+ * account-repo.test.ts — Integration tests for DrizzleWalletRepo (Plan 01-02 rename)
  * Uses real Postgres via DATABASE_URL_APP env.
  * TDD: written before implementation per CLAUDE.md mandate.
  */
@@ -13,19 +13,17 @@ if (!DB_URL) throw new Error("DATABASE_URL_APP required for integration tests");
 let testUserId: string;
 let testTenantId: string;
 
-// Helper: create a fresh tenant (user + workspace) for test isolation
+// Helper: create a fresh tenant (user + budget) for test isolation
 async function createFreshTenant(): Promise<{
   userId: string;
   tenantId: string;
 }> {
   const { Pool } = await import("pg");
-  // Use app_role pool so RLS policies and triggers are applied correctly
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
   const userId = crypto.randomUUID();
   const tenantId = crypto.randomUUID();
   const email = `test-${userId}@example.com`;
 
-  // Use a transaction to set context + insert atomically
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -37,13 +35,12 @@ async function createFreshTenant(): Promise<{
        VALUES ($1, $2, 'Test User', true, now(), now())`,
       [userId, email],
     );
-    // Insert workspace
     await client.query(
       `SELECT set_config('app.current_user_id', '${userId}', true)`,
     );
     await client.query(
-      `INSERT INTO tenancy.workspaces (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
-       VALUES ($1, $2, 'Test WS', 'PRIVATE', 'EUR', $3, 1, now())`,
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
+       VALUES ($1, $2, 'Test Budget', 'PRIVATE', 'EUR', $3, 1, now())`,
       [tenantId, `ws-${tenantId.slice(0, 8)}`, userId],
     );
     await client.query("COMMIT");
@@ -57,7 +54,7 @@ async function createFreshTenant(): Promise<{
   return { userId, tenantId };
 }
 
-describe("DrizzleAccountRepo integration", () => {
+describe("DrizzleWalletRepo integration", () => {
   beforeAll(async () => {
     const t = await createFreshTenant();
     testUserId = t.userId;
@@ -65,18 +62,17 @@ describe("DrizzleAccountRepo integration", () => {
   });
 
   test("create + findById round-trip", async () => {
-    const { DrizzleAccountRepo } =
-      await import("../src/adapters/persistence/account-repo");
-    const repo = new DrizzleAccountRepo();
-    const { Account } = await import("../src/domain/account");
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
     const { Money } = await import("@budget/shared-kernel");
 
-    const acc = new Account(
+    const wal = new Wallet(
       crypto.randomUUID(),
       testTenantId,
       "Cash Wallet",
-      "CASH",
-      "PERSONAL",
+      "SPENDINGS",
       "EUR",
       Money.of("0", "EUR" as any),
       null,
@@ -84,113 +80,108 @@ describe("DrizzleAccountRepo integration", () => {
       testUserId,
     );
 
-    await repo.create(acc);
-    const found = await repo.findById(testTenantId, acc.id);
+    await repo.create(wal);
+    const found = await repo.findById(testTenantId, wal.id);
     expect(found).not.toBeNull();
     expect(found!.name).toBe("Cash Wallet");
-    expect(found!.kind).toBe("CASH");
+    expect(found!.walletType).toBe("SPENDINGS");
     expect(found!.currency).toBe("EUR");
     expect(found!.archivedAt).toBeNull();
   });
 
   test("list excludes archived by default", async () => {
-    const { DrizzleAccountRepo } =
-      await import("../src/adapters/persistence/account-repo");
-    const repo = new DrizzleAccountRepo();
-    const { Account } = await import("../src/domain/account");
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
     const { Money } = await import("@budget/shared-kernel");
 
-    const acc = new Account(
+    const wal = new Wallet(
       crypto.randomUUID(),
       testTenantId,
-      "Archived Account",
-      "SAVINGS",
-      "PERSONAL",
+      "Archived Wallet",
+      "SPENDINGS",
       "EUR",
       Money.of("0", "EUR" as any),
       new Date(), // already archived
       new Date(),
       testUserId,
     );
-    await repo.create(acc);
+    await repo.create(wal);
 
     const list = await repo.list(testTenantId, false);
-    const ids = list.map((a) => a.id);
-    expect(ids).not.toContain(acc.id);
+    const ids = list.map((w) => w.id);
+    expect(ids).not.toContain(wal.id);
   });
 
   test("archive sets archivedAt", async () => {
-    const { DrizzleAccountRepo } =
-      await import("../src/adapters/persistence/account-repo");
-    const repo = new DrizzleAccountRepo();
-    const { Account } = await import("../src/domain/account");
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
     const { Money } = await import("@budget/shared-kernel");
 
-    const acc = new Account(
+    const wal = new Wallet(
       crypto.randomUUID(),
       testTenantId,
       "To Archive",
-      "CHECKING",
-      "PERSONAL",
+      "SPENDINGS",
       "EUR",
       Money.of("500", "EUR" as any),
       null,
       new Date(),
       testUserId,
     );
-    await repo.create(acc);
+    await repo.create(wal);
 
-    await repo.archive(testTenantId, acc.id, testUserId);
-    const found = await repo.findById(testTenantId, acc.id);
+    await repo.archive(testTenantId, wal.id, testUserId);
+    const found = await repo.findById(testTenantId, wal.id);
     expect(found!.archivedAt).toBeInstanceOf(Date);
   });
 
-  test("recordAdjustment writes to balance_adjustments AND updates accounts.current_balance", async () => {
-    const { DrizzleAccountRepo } =
-      await import("../src/adapters/persistence/account-repo");
-    const repo = new DrizzleAccountRepo();
-    const { Account } = await import("../src/domain/account");
+  test("recordAdjustment writes to account_balance_adjustments AND updates wallets.current_balance", async () => {
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
     const { Money } = await import("@budget/shared-kernel");
 
-    const acc = new Account(
+    const wal = new Wallet(
       crypto.randomUUID(),
       testTenantId,
       "Adjustment Test",
-      "SAVINGS",
-      "PERSONAL",
+      "RESERVE",
       "EUR",
       Money.of("100", "EUR" as any),
       null,
       new Date(),
       testUserId,
     );
-    await repo.create(acc);
+    await repo.create(wal);
 
     await repo.recordAdjustment(
       testTenantId,
-      acc.id,
+      wal.id,
       { amount: "50", currency: "EUR" },
       "Manual correction",
       testUserId,
     );
 
-    const found = await repo.findById(testTenantId, acc.id);
+    const found = await repo.findById(testTenantId, wal.id);
     // 100 + 50 = 150
     expect(parseFloat(found!.currentBalance.amount.toFixed(2))).toBe(150);
 
-    // Check balance_adjustments row exists (need tenant context for RLS)
-    // Use false (session-level) not true (transaction-local) since we're not in a tx
+    // Check account_balance_adjustments row exists
     const { Pool } = await import("pg");
     const pool = new Pool({ connectionString: DB_URL });
     const client = await pool.connect();
     try {
-      // Use session-level set_config (false = session scope)
       await client.query(
         `SELECT set_config('app.tenant_ids', '{${testTenantId}}', false)`,
       );
       const { rows } = await client.query(
-        `SELECT * FROM budgeting.account_balance_adjustments WHERE account_id = $1`,
-        [acc.id],
+        `SELECT * FROM budgeting.account_balance_adjustments WHERE wallet_id = $1`,
+        [wal.id],
       );
       expect(rows.length).toBe(1);
       expect(rows[0].reason).toBe("Manual correction");
@@ -201,64 +192,62 @@ describe("DrizzleAccountRepo integration", () => {
   });
 
   test("applyDelta inside withTenantTx updates current_balance atomically", async () => {
-    const { DrizzleAccountRepo } =
-      await import("../src/adapters/persistence/account-repo");
-    const repo = new DrizzleAccountRepo();
-    const { Account } = await import("../src/domain/account");
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
     const { Money, TenantId, UserId } = await import("@budget/shared-kernel");
     const { withTenantTx } = await import("@budget/platform");
 
-    const acc = new Account(
+    const wal = new Wallet(
       crypto.randomUUID(),
       testTenantId,
       "Delta Test",
-      "CASH",
-      "PERSONAL",
+      "SPENDINGS",
       "EUR",
       Money.of("200", "EUR" as any),
       null,
       new Date(),
       testUserId,
     );
-    await repo.create(acc);
+    await repo.create(wal);
 
     const result = await withTenantTx(
       TenantId(testTenantId),
       UserId(testUserId),
       async (tx) => {
-        await repo.applyDelta(tx, acc.id, "75");
+        await repo.applyDelta(tx, wal.id, "75");
       },
     );
     expect(result.isOk()).toBe(true);
 
-    const found = await repo.findById(testTenantId, acc.id);
+    const found = await repo.findById(testTenantId, wal.id);
     expect(parseFloat(found!.currentBalance.amount.toFixed(2))).toBe(275);
   });
 
   test("RLS denies cross-tenant SELECT", async () => {
-    const { DrizzleAccountRepo } =
-      await import("../src/adapters/persistence/account-repo");
-    const repo = new DrizzleAccountRepo();
-    const { Account } = await import("../src/domain/account");
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
     const { Money } = await import("@budget/shared-kernel");
 
-    const acc = new Account(
+    const wal = new Wallet(
       crypto.randomUUID(),
       testTenantId,
-      "Private Account",
-      "CASH",
-      "PERSONAL",
+      "Private Wallet",
+      "SPENDINGS",
       "EUR",
       Money.of("999", "EUR" as any),
       null,
       new Date(),
       testUserId,
     );
-    await repo.create(acc);
+    await repo.create(wal);
 
-    // Different tenant ID — should not find the account
+    // Different tenant ID — should not find the wallet
     const otherTenantId = crypto.randomUUID();
-    const found = await repo.findById(otherTenantId, acc.id);
+    const found = await repo.findById(otherTenantId, wal.id);
     expect(found).toBeNull();
   });
 });

@@ -21,7 +21,6 @@ export function findCategoryById(deps: FindCategoryByIdDeps) {
         id: cat.id,
         name: cat.name,
         parentId: cat.parentId,
-        scope: cat.scope,
         archivedAt: cat.archivedAt?.toISOString() ?? null,
         createdAt: cat.createdAt.toISOString(),
       });
