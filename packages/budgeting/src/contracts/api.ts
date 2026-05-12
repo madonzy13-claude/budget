@@ -184,9 +184,9 @@ const fxPreviewSchema = z
   .nullable();
 
 export const createTransactionSchema = z.discriminatedUnion("kind", [
-  // EXPENSE
+  // SPENDING (renamed from EXPENSE in v1.1, TXN-07)
   z.object({
-    kind: z.literal("EXPENSE"),
+    kind: z.literal("SPENDING"),
     amountOrig: z
       .string()
       .regex(/^\d+(\.\d{1,4})?$/)
@@ -209,20 +209,6 @@ export const createTransactionSchema = z.discriminatedUnion("kind", [
     transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     accountId: z.string().uuid(),
     categoryId: z.string().uuid().optional().nullable(),
-    note: z.string().max(500).optional().nullable(),
-    fxPreview: fxPreviewSchema,
-  }),
-  // TRANSFER
-  z.object({
-    kind: z.literal("TRANSFER"),
-    amountOrig: z
-      .string()
-      .regex(/^\d+(\.\d{1,4})?$/)
-      .refine((v) => parseFloat(v) > 0, "amount must be positive"),
-    currencyOrig: z.string().regex(/^[A-Z0-9]{3,5}$/),
-    transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    accountId: z.string().uuid(), // from-account
-    toAccountId: z.string().uuid().optional(),
     note: z.string().max(500).optional().nullable(),
     fxPreview: fxPreviewSchema,
   }),
@@ -404,7 +390,7 @@ export const searchTransactionsSchema = z.object({
     .optional(),
   categoryIds: csvUuidArray,
   accountIds: csvUuidArray,
-  kind: z.enum(["EXPENSE", "INCOME", "TRANSFER"]).optional(),
+  kind: z.enum(["SPENDING", "INCOME"]).optional(),
   cursorDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
