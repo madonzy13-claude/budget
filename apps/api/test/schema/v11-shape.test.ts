@@ -168,4 +168,131 @@ describe("v1.1 schema shape", () => {
     );
     expect(res.rows.length).toBe(1);
   });
+
+  // ── Phase 2 (migration 0013) assertions ──────────────────────────────────
+
+  test("expense_ledger has amount_original_cents column (Phase 2 rename)", async () => {
+    expect(await columnExists("budgeting", "expense_ledger", "amount_original_cents")).toBe(true);
+  });
+
+  test("expense_ledger has amount_converted_cents column (Phase 2 rename)", async () => {
+    expect(await columnExists("budgeting", "expense_ledger", "amount_converted_cents")).toBe(true);
+  });
+
+  test("expense_ledger has fx_as_of column (Phase 2 rename)", async () => {
+    expect(await columnExists("budgeting", "expense_ledger", "fx_as_of")).toBe(true);
+  });
+
+  test("expense_ledger has recurring_rule_id column (Phase 2 new)", async () => {
+    expect(await columnExists("budgeting", "expense_ledger", "recurring_rule_id")).toBe(true);
+  });
+
+  test("expense_ledger has confirmed_at column (Phase 2 new)", async () => {
+    expect(await columnExists("budgeting", "expense_ledger", "confirmed_at")).toBe(true);
+  });
+
+  test("expense_ledger old columns absent (amount_orig, amount_default, fx_rate_date, wallet_id)", async () => {
+    expect(await columnExists("budgeting", "expense_ledger", "amount_orig")).toBe(false);
+    expect(await columnExists("budgeting", "expense_ledger", "amount_default")).toBe(false);
+    expect(await columnExists("budgeting", "expense_ledger", "fx_rate_date")).toBe(false);
+    expect(await columnExists("budgeting", "expense_ledger", "wallet_id")).toBe(false);
+  });
+
+  test("expense_ledger.kind CHECK constraint allows SPENDING and INCOME only", async () => {
+    const res = await client.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(c.oid) AS def
+       FROM pg_constraint c
+       JOIN pg_class t ON c.conrelid = t.oid
+       JOIN pg_namespace n ON n.oid = t.relnamespace
+       WHERE n.nspname = 'budgeting' AND t.relname = 'expense_ledger'
+         AND c.conname = 'expense_ledger_kind_chk'`,
+    );
+    expect(res.rows.length).toBe(1);
+    expect(res.rows[0].def).toMatch(/SPENDING/);
+    expect(res.rows[0].def).toMatch(/INCOME/);
+  });
+
+  test("account_balance_adjustments table has been dropped (Phase 2 cleanup)", async () => {
+    expect(await tableExists("budgeting", "account_balance_adjustments")).toBe(false);
+  });
+
+  test("recurring_rules.kind column absent (Phase 2 cleanup)", async () => {
+    expect(await columnExists("budgeting", "recurring_rules", "kind")).toBe(false);
+  });
+
+  test("recurring_rules.wallet_id column absent (Phase 2 cleanup)", async () => {
+    expect(await columnExists("budgeting", "recurring_rules", "wallet_id")).toBe(false);
+  });
+
+  test("recurring_rules.yearly_month column present (Phase 2 cadence extension)", async () => {
+    expect(await columnExists("budgeting", "recurring_rules", "yearly_month")).toBe(true);
+  });
+
+  test("recurring_drafts table has been dropped (Phase 2 cleanup)", async () => {
+    expect(await tableExists("budgeting", "recurring_drafts")).toBe(false);
+  });
+
+  test("tenancy.budget_share_links table present (Phase 2 share-link feature)", async () => {
+    expect(await tableExists("tenancy", "budget_share_links")).toBe(true);
+  });
+
+  test("tenancy.budget_share_links has all required columns", async () => {
+    const required = [
+      "id",
+      "budget_id",
+      "tenant_id",
+      "token",
+      "created_by",
+      "expires_at",
+      "revoked_at",
+      "accepted_by",
+      "accepted_at",
+      "created_at",
+    ];
+    for (const col of required) {
+      expect(await columnExists("tenancy", "budget_share_links", col)).toBe(true);
+    }
+  });
+
+  test("budgeting.category_reserve_balance VIEW present (Phase 2 reserves view)", async () => {
+    const res = await client.query<{ viewname: string }>(
+      `SELECT viewname FROM pg_views WHERE schemaname = 'budgeting'`,
+    );
+    const views = res.rows.map((r) => r.viewname);
+    expect(views).toContain("category_reserve_balance");
+  });
+
+  test("expense_ledger_recurring_rule_date_uidx partial unique index present", async () => {
+    const res = await client.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE schemaname = 'budgeting' AND tablename = 'expense_ledger'
+         AND indexname = 'expense_ledger_recurring_rule_date_uidx'`,
+    );
+    expect(res.rows.length).toBe(1);
+  });
+
+  test("post-migration GRANT UPDATE on expense_ledger columns applied to app_role", async () => {
+    const res = await client.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.column_privileges
+       WHERE table_schema = 'budgeting'
+         AND table_name = 'expense_ledger'
+         AND grantee = 'app_role'
+         AND privilege_type = 'UPDATE'`,
+    );
+    const granted = res.rows.map((r) => r.column_name);
+    expect(granted).toEqual(
+      expect.arrayContaining([
+        "note",
+        "date",
+        "category_id",
+        "amount_original_cents",
+        "amount_converted_cents",
+        "fx_rate",
+        "fx_as_of",
+        "kind",
+        "confirmed_at",
+      ]),
+    );
+  });
 });
