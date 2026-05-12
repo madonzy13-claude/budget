@@ -359,13 +359,17 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
   });
 
   // GET /budgets/active — list active budgets
+  // v1.1 IA consistency: response now carries BOTH `budgets` (canonical, v1.1)
+  // AND `workspaces` (legacy alias) so existing web call sites keep working
+  // for one Phase 3 wave (03-RESEARCH §"Data Contracts" §4). Plans 03-04 / 03-05
+  // read `body.budgets ?? body.workspaces`.
   r.get("/active", async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const userId = session.user.id;
     const memberships = await deps.tenancy.workspaceRepo.listForUser(userId);
-    return c.json({ workspaces: memberships });
+    return c.json({ budgets: memberships, workspaces: memberships });
   });
 
   // PUT /budgets/active — set active budgets (D-07, TENT-12)

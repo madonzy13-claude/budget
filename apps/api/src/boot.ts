@@ -19,6 +19,9 @@ import { createIdentityModule } from "@budget/identity"; // PC-02, PC-15
 import { createTenancyModule } from "@budget/tenancy"; // PC-02, PC-15
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
+import { createBudgetHomeSummaryRepo } from "@budget/budgeting/src/adapters/persistence/budget-home-summary-repo";
+import { getBudgetHomeSummary } from "@budget/budgeting/src/application/get-budget-home-summary";
+import { UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
 
 export interface BootedDeps {
@@ -28,7 +31,15 @@ export interface BootedDeps {
   emailSender: EmailSender;
   identity: ReturnType<typeof createIdentityModule>;
   tenancy: ReturnType<typeof createTenancyModule>;
-  budgeting: ReturnType<typeof createBudgetingModule>;
+  /**
+   * Budgeting module plus the HOME-02 plan extension
+   * (`getBudgetHomeSummary`). The base module from `createBudgetingModule`
+   * is wide-typed; we intersect to surface the new method on the deps shape
+   * without touching the factory.
+   */
+  budgeting: ReturnType<typeof createBudgetingModule> & {
+    getBudgetHomeSummary: ReturnType<typeof getBudgetHomeSummary>;
+  };
 }
 
 /**
@@ -107,7 +118,27 @@ export async function boot(): Promise<BootedDeps> {
 
   // Budgeting module: FX adapter wired to real cache repo (worker_role pool)
   const fxCache = new DrizzleFxRateCacheRepo(workerPool());
-  const budgeting = createBudgetingModule({ fxCache });
+  const baseBudgeting = createBudgetingModule({ fxCache });
+
+  // HOME-02: wire the budget-home-summary service. The UserDisplayCurrencyReader
+  // port is adapted from deps.identity.userRepo here — keeping the cross-context
+  // boundary at the apps/api composition layer (budgeting does NOT depend on
+  // @budget/identity).
+  const summaryRepo = createBudgetHomeSummaryRepo();
+  const displayCurrencyReader = {
+    getDisplayCurrency: async (userId: string) => {
+      const user = await identity.userRepo.findById(UserId(userId));
+      return user?.display_currency ?? null;
+    },
+  };
+  const homeSummaryService = getBudgetHomeSummary({
+    summaryRepo,
+    fxProvider: baseBudgeting.fxProvider,
+    displayCurrencyReader,
+  });
+  const budgeting = Object.assign(baseBudgeting, {
+    getBudgetHomeSummary: homeSummaryService,
+  });
 
   logger.info({ region: env.REGION }, "apps/api booted");
 
