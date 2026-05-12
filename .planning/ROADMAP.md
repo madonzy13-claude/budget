@@ -61,7 +61,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. Per-category reserve balance is queryable via a SQL view that re-evaluates as transactions and category_limits change; cushion-mode history is tracked so each historical month evaluates against the mode active at that time; the view returns 0 for a new category with no history
 5. Calling the share-link create endpoint on a SHARED budget returns a token-bound invite URL (Better Auth orgs plugin) with configurable TTL (default 7d); owner can revoke any active link; tenant-leak CI gate remains green; dependency-cruiser blocks domain imports of drizzle-orm / Hono / AI SDK / `adapters/`; every new route has at least one integration test in `apps/api/test/routes/`; domain coverage threshold (80%) in `bunfig.toml` is preserved
 
-**Plans**: pending
+**Plans** (5):
+
+- 02-01: Transaction Domain & Routes (TXN-01..08)
+- 02-02: Recurring Engine Extension (RECR-01, RECR-02)
+- 02-03: Reserves SQL View & Cushion History (RSCM-01, RSCM-02)
+- 02-04: Share-Link Backend (SHRD-01, SHRD-02, SHRD-03, SHRD-05)
+- 02-05: Engineering Gates (ENGR-01..ENGR-04)
 
 ### Phase 3: Navigation, Home & BDP Frame
 
