@@ -1,7 +1,8 @@
 ---
 phase: 3
 slug: navigation-home-bdp-frame
-status: draft
+status: approved
+reviewed_at: 2026-05-12T20:09:00Z
 shadcn_initialized: true
 preset: project-local (style=new-york, baseColor=zinc, rsc=true, icons=lucide)
 created: 2026-05-12
