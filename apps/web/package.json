@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src --max-warnings 0"
+    "lint": "eslint src --max-warnings 0",
+    "e2e": "bddgen && playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "latest",
@@ -47,16 +48,18 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "vitest": "^4.0.0",
-    "happy-dom": "latest",
-    "@testing-library/react": "latest",
+    "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
     "@testing-library/user-event": "latest",
+    "@types/node": "latest",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/node": "latest",
-    "typescript": "^5.6.0",
+    "@vitejs/plugin-react": "latest",
+    "happy-dom": "latest",
+    "playwright-bdd": "^8",
     "postcss": "latest",
-    "@vitejs/plugin-react": "latest"
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.0"
   }
 }
