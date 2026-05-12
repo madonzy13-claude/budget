@@ -70,7 +70,9 @@
     "./src/application/search-transactions": "./src/application/search-transactions.ts",
     "./src/application/bulk-recategorize": "./src/application/bulk-recategorize.ts",
     "./src/application/reconcile-projections": "./src/application/reconcile-projections.ts",
-    "./src/application/replay-projections": "./src/application/replay-projections.ts"
+    "./src/application/replay-projections": "./src/application/replay-projections.ts",
+    "./src/ports/reserve-balance-repo": "./src/ports/reserve-balance-repo.ts",
+    "./src/adapters/persistence/reserve-balance-repo": "./src/adapters/persistence/reserve-balance-repo.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

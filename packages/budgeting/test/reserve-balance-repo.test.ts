@@ -90,6 +90,8 @@ async function seedLimit(
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
+    // set_config with is_local=true is transaction-scoped — must be inside explicit tx
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
     );
@@ -114,6 +116,10 @@ async function seedLimit(
         effectiveTo,
       ],
     );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
   } finally {
     client.release();
     await pool.end();
@@ -134,6 +140,7 @@ async function seedExpense(
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
     );
@@ -145,10 +152,14 @@ async function seedExpense(
          (tenant_id, budget_id, category_id,
           amount_original_cents, currency_original,
           amount_converted_cents, fx_rate, fx_as_of,
-          transaction_date, kind, confirmed_at, actor_user_id)
-       VALUES ($1, $1, $2, $3, 'EUR', $3, 1.0, $4::date, $4::date, $5, now(), $1)`,
+          transaction_date, kind, confirmed_at)
+       VALUES ($1, $1, $2, $3, 'EUR', $3, 1.0, $4::date, $4::date, $5, now())`,
       [budgetId, categoryId, amountConvertedCents, transactionDate, kind],
     );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
   } finally {
     client.release();
     await pool.end();
@@ -169,6 +180,7 @@ async function seedBudgetMode(
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
     );
@@ -181,6 +193,10 @@ async function seedBudgetMode(
        VALUES ($1, $1, $2, $3::date, $4::date, $5)`,
       [budgetId, mode, effectiveFrom, effectiveTo, actorUserId],
     );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
   } finally {
     client.release();
     await pool.end();
@@ -216,14 +232,14 @@ describe("ReserveBalanceRepo — Scenario 1: empty history", () => {
 
   test("getForCategory returns Money(0, EUR) when no history", async () => {
     const repo = createReserveBalanceRepo();
-    const { Money } = await import("@budget/shared-kernel");
     const money = await repo.getForCategory(
       fix.budgetId,
       fix.categoryId,
       fix.budgetId,
       new Date(),
     );
-    expect(money.amountCents).toBe(0n);
+    // 0 cents = 0.00 in decimal
+    expect(money.amount.toFixed(2)).toBe("0.00");
     expect(money.currency).toBe("EUR");
   });
 });
@@ -245,8 +261,8 @@ describe("ReserveBalanceRepo — Scenario 2: single-month remainder", () => {
 
   test("getForCategory returns cumulative reserve including current month (today=2026-05-12)", async () => {
     const repo = createReserveBalanceRepo();
-    // Apr: max(0, 10000-3000)=7000
-    // May: max(0, 7000+10000-0)=17000 (no spending in May yet)
+    // Apr: max(0, 10000-3000)=7000 cents = 70.00 EUR
+    // May: max(0, 7000+10000-0)=17000 cents = 170.00 EUR (no spending in May yet)
     const asOf = new Date("2026-05-12");
     const money = await repo.getForCategory(
       fix.budgetId,
@@ -254,7 +270,7 @@ describe("ReserveBalanceRepo — Scenario 2: single-month remainder", () => {
       fix.budgetId,
       asOf,
     );
-    expect(money.amountCents).toBe(17000n);
+    expect(money.amount.toFixed(2)).toBe("170.00");
     expect(money.currency).toBe("EUR");
   });
 });
@@ -279,13 +295,13 @@ describe("ReserveBalanceRepo — Scenario 3: multi-month accumulation", () => {
     // Apr, May: no spending
   });
 
-  test("getForCategory returns 25000 on 2026-05-12", async () => {
+  test("getForCategory returns 250.00 EUR on 2026-05-12", async () => {
     const repo = createReserveBalanceRepo();
-    // Jan: max(0, 10000-8000) = 2000
-    // Feb: max(0, 2000+10000-12000) = 0  (RSRV-02 clamp)
-    // Mar: max(0, 0+10000-5000) = 5000
-    // Apr: max(0, 5000+10000-0) = 15000
-    // May: max(0, 15000+10000-0) = 25000
+    // Jan: max(0, 10000-8000) = 2000 cents
+    // Feb: max(0, 2000+10000-12000) = 0 cents (RSRV-02 clamp)
+    // Mar: max(0, 0+10000-5000) = 5000 cents
+    // Apr: max(0, 5000+10000-0) = 15000 cents
+    // May: max(0, 15000+10000-0) = 25000 cents = 250.00 EUR
     const asOf = new Date("2026-05-12");
     const money = await repo.getForCategory(
       fix.budgetId,
@@ -293,7 +309,7 @@ describe("ReserveBalanceRepo — Scenario 3: multi-month accumulation", () => {
       fix.budgetId,
       asOf,
     );
-    expect(money.amountCents).toBe(25000n);
+    expect(money.amount.toFixed(2)).toBe("250.00");
     expect(money.currency).toBe("EUR");
   });
 });
@@ -320,13 +336,13 @@ describe("ReserveBalanceRepo — Scenario 4: cushion-mode flip mid-history", () 
     await seedExpense(fix.budgetId, fix.categoryId, "2026-04-15", 5000);
   });
 
-  test("getForCategory returns 18000 on 2026-05-12 (respects mode-as-of-month)", async () => {
+  test("getForCategory returns 180.00 EUR on 2026-05-12 (respects mode-as-of-month)", async () => {
     const repo = createReserveBalanceRepo();
-    // Jan (NORMAL, budget=10000): max(0, 10000-5000) = 5000
-    // Feb (NORMAL, budget=10000): max(0, 5000+10000-5000) = 10000
-    // Mar (CUSHION, budget=6000): max(0, 10000+6000-5000) = 11000
-    // Apr (CUSHION, budget=6000): max(0, 11000+6000-5000) = 12000
-    // May (CUSHION, budget=6000, no spend): max(0, 12000+6000-0) = 18000
+    // Jan (NORMAL, budget=10000): max(0, 10000-5000) = 5000 cents
+    // Feb (NORMAL, budget=10000): max(0, 5000+10000-5000) = 10000 cents
+    // Mar (CUSHION, budget=6000): max(0, 10000+6000-5000) = 11000 cents
+    // Apr (CUSHION, budget=6000): max(0, 11000+6000-5000) = 12000 cents
+    // May (CUSHION, budget=6000, no spend): max(0, 12000+6000-0) = 18000 cents = 180.00 EUR
     const asOf = new Date("2026-05-12");
     const money = await repo.getForCategory(
       fix.budgetId,
@@ -334,7 +350,7 @@ describe("ReserveBalanceRepo — Scenario 4: cushion-mode flip mid-history", () 
       fix.budgetId,
       asOf,
     );
-    expect(money.amountCents).toBe(18000n);
+    expect(money.amount.toFixed(2)).toBe("180.00");
     expect(money.currency).toBe("EUR");
   });
 });
@@ -359,9 +375,11 @@ describe("ReserveBalanceRepo — Scenario 5: overspend clamps at zero", () => {
 
   test("getForCategory shows Feb reserve=0 (not negative) and Mar recovers", async () => {
     const repo = createReserveBalanceRepo();
-    // Through Mar: max(0, 0+10000-0)=10000
-    // Apr: max(0, 10000+10000-0)=20000
-    // May: max(0, 20000+10000-0)=30000
+    // Jan: max(0, 10000-1000) = 9000 cents
+    // Feb: max(0, 9000+10000-25000) = 0 cents (RSRV-02 clamp — not -6000)
+    // Mar: max(0, 0+10000-0) = 10000 cents (recovery)
+    // Apr: max(0, 10000+10000-0) = 20000 cents
+    // May: max(0, 20000+10000-0) = 30000 cents = 300.00 EUR
     const asOf = new Date("2026-05-12");
     const money = await repo.getForCategory(
       fix.budgetId,
@@ -369,7 +387,7 @@ describe("ReserveBalanceRepo — Scenario 5: overspend clamps at zero", () => {
       fix.budgetId,
       asOf,
     );
-    expect(money.amountCents).toBe(30000n);
+    expect(money.amount.toFixed(2)).toBe("300.00");
     expect(money.currency).toBe("EUR");
   });
 
@@ -379,6 +397,6 @@ describe("ReserveBalanceRepo — Scenario 5: overspend clamps at zero", () => {
     const map = await repo.getForBudget(fix.budgetId, fix.budgetId, asOf);
     const balance = map.get(fix.categoryId);
     expect(balance).toBeDefined();
-    expect(balance!.amountCents).toBe(30000n);
+    expect(balance!.amount.toFixed(2)).toBe("300.00");
   });
 });

@@ -54,6 +54,8 @@ import { replayProjections } from "../application/replay-projections";
 import { withInfraTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
+import { createReserveBalanceRepo } from "../adapters/persistence/reserve-balance-repo";
+import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 
 export interface BudgetingDeps {
   fxCache: FxRateCacheRepo;
@@ -106,6 +108,8 @@ export interface BudgetingModule {
   bulkRecategorize: ReturnType<typeof bulkRecategorize>;
   reconcileProjections: ReturnType<typeof reconcileProjections>;
   replayProjections: ReturnType<typeof replayProjections>;
+  // Plan 02-03: reserve balance read-model
+  reserveBalanceRepo: ReserveBalanceRepo;
 }
 
 /** Resolves budget default_currency from tenancy.budgets (renamed from workspaces in v1.1). */
@@ -195,5 +199,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     bulkRecategorize: bulkRecategorize({ transactionRepo }),
     reconcileProjections: reconcileProjections(),
     replayProjections: replayProjections(),
+    // Plan 02-03: reserve balance read-model
+    reserveBalanceRepo: createReserveBalanceRepo(),
   };
 }

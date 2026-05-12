@@ -351,13 +351,19 @@ VALUES
   ('SOL', NULL, 'Solana', 'SOL', 'CRYPTO', 'internal')
 ON CONFLICT (iso_code) DO NOTHING;
 
--- Plan 02-04: wallets (renamed from accounts in v1.1) + account_balance_adjustments
+-- Plan 02-04: wallets (renamed from accounts in v1.1)
+-- account_balance_adjustments was dropped in migration 0013 (D-PH2-09); guard with IF EXISTS.
 ALTER TABLE budgeting.wallets FORCE ROW LEVEL SECURITY;
-ALTER TABLE budgeting.account_balance_adjustments FORCE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables
+             WHERE table_schema='budgeting' AND table_name='account_balance_adjustments') THEN
+    EXECUTE 'ALTER TABLE budgeting.account_balance_adjustments FORCE ROW LEVEL SECURITY';
+    EXECUTE 'GRANT SELECT, INSERT ON budgeting.account_balance_adjustments TO app_role, worker_role';
+    EXECUTE 'REVOKE UPDATE, DELETE ON budgeting.account_balance_adjustments FROM app_role, worker_role';
+  END IF;
+END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.wallets TO app_role, worker_role;
-GRANT SELECT, INSERT ON budgeting.account_balance_adjustments TO app_role, worker_role;
--- balance_adjustments is append-only; no UPDATE/DELETE per T-2-04-04
-REVOKE UPDATE, DELETE ON budgeting.account_balance_adjustments FROM app_role, worker_role;
 
 -- v1.1: drop old accounts_* policies on wallets (retained by Postgres RENAME; replaced below)
 DROP POLICY IF EXISTS accounts_tenant_isolation ON budgeting.wallets;
@@ -589,15 +595,13 @@ ALTER TABLE budgeting.expense_ledger DROP CONSTRAINT IF EXISTS expense_ledger_ki
 -- Indexes (all IF NOT EXISTS — idempotent)
 CREATE INDEX IF NOT EXISTS expense_ledger_note_tsv_idx
   ON budgeting.expense_ledger USING GIN (note_tsv);
-CREATE INDEX IF NOT EXISTS expense_ledger_corrects_id_idx
-  ON budgeting.expense_ledger (corrects_id) WHERE corrects_id IS NOT NULL;
+-- corrects_id dropped in migration 0013 (A16) — index skipped.
+-- transfer_group_id dropped in migration 0013 (A16) — index skipped.
 CREATE INDEX IF NOT EXISTS expense_ledger_tenant_date_idx
   ON budgeting.expense_ledger (tenant_id, transaction_date DESC);
 CREATE INDEX IF NOT EXISTS expense_ledger_tenant_category_date_idx
   ON budgeting.expense_ledger (tenant_id, category_id, transaction_date DESC);
 -- expense_ledger_tenant_account_date_idx: account_id dropped in v1.1 (MIG-03); index not created.
-CREATE INDEX IF NOT EXISTS expense_ledger_transfer_group_idx
-  ON budgeting.expense_ledger (transfer_group_id) WHERE transfer_group_id IS NOT NULL;
 
 -- Re-assert REVOKE (safe after Drizzle push which may GRANT more broadly)
 REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role;
@@ -623,8 +627,21 @@ GRANT DELETE ON budgeting.spending_by_category_month TO app_role, worker_role;
 -- ENABLE + FORCE RLS on new tables (ENABLE done by Drizzle migration; FORCE done here)
 ALTER TABLE budgeting.recurring_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE budgeting.recurring_rules FORCE ROW LEVEL SECURITY;
-ALTER TABLE budgeting.recurring_drafts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE budgeting.recurring_drafts FORCE ROW LEVEL SECURITY;
+-- recurring_drafts was dropped in migration 0013 (Section C — folded into expense_ledger); guard with IF EXISTS.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables
+             WHERE table_schema='budgeting' AND table_name='recurring_drafts') THEN
+    EXECUTE 'ALTER TABLE budgeting.recurring_drafts ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'ALTER TABLE budgeting.recurring_drafts FORCE ROW LEVEL SECURITY';
+    EXECUTE $sql$DROP POLICY IF EXISTS recurring_drafts_tenant_isolation ON budgeting.recurring_drafts$sql$;
+    EXECUTE $sql$CREATE POLICY recurring_drafts_tenant_isolation ON budgeting.recurring_drafts
+      AS PERMISSIVE FOR ALL TO app_role, worker_role
+      USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+      WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))$sql$;
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_drafts TO app_role, worker_role';
+  END IF;
+END $$;
 
 -- RLS policies (idempotent — DROP IF EXISTS + re-CREATE)
 DROP POLICY IF EXISTS recurring_rules_tenant_isolation ON budgeting.recurring_rules;
@@ -633,15 +650,8 @@ CREATE POLICY recurring_rules_tenant_isolation ON budgeting.recurring_rules
   USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
-DROP POLICY IF EXISTS recurring_drafts_tenant_isolation ON budgeting.recurring_drafts;
-CREATE POLICY recurring_drafts_tenant_isolation ON budgeting.recurring_drafts
-  AS PERMISSIVE FOR ALL TO app_role, worker_role
-  USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
-  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
-
 -- GRANTs
 GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_rules TO app_role, worker_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_drafts TO app_role, worker_role;
 
 -- D-05-g system user for cron-initiated writes (recurring engine, projection reconciliation)
 -- NOTE: identity.users has FORCE ROW LEVEL SECURITY and only app_role/worker_role have INSERT policies.
@@ -655,11 +665,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_drafts TO app_role, 
 -- Indexes for engine scan
 CREATE INDEX IF NOT EXISTS recurring_rules_next_due_idx
   ON budgeting.recurring_rules (next_due_date) WHERE active = true;
-CREATE INDEX IF NOT EXISTS recurring_drafts_pending_idx
-  ON budgeting.recurring_drafts (tenant_id, due_date DESC) WHERE status = 'PENDING';
--- Index for D-01-d "regenerate future PENDING drafts" UPDATE in update-recurring-rule
-CREATE INDEX IF NOT EXISTS recurring_drafts_rule_pending_due_idx
-  ON budgeting.recurring_drafts (rule_id, due_date) WHERE status = 'PENDING';
+-- recurring_drafts dropped in migration 0013; indexes skipped.
+-- recurring_drafts_pending_idx: skipped (table dropped).
+-- recurring_drafts_rule_pending_due_idx: skipped (table dropped).
 
 -- Cron scan policy: worker_role can SELECT recurring_rules across ALL tenants WITHOUT app.tenant_ids
 -- set (so the engine's withInfraTx scan-distinct-tenants step works). Per-tenant withTenantTx is

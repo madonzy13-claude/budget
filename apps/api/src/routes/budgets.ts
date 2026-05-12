@@ -236,6 +236,30 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     return c.json({ ok: true });
   });
 
+  // GET /budgets/:id/reserves — per-category reserve balances (RSCM-01, RSCM-02)
+  r.get("/:id/reserves", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const tenantId = budgetId; // v1.1: budget_id === tenant_id
+
+    const balances = await deps.budgeting.reserveBalanceRepo.getForBudget(
+      budgetId,
+      tenantId,
+      new Date(),
+    );
+
+    const reserves = Array.from(balances.entries()).map(
+      ([categoryId, money]) => ({
+        categoryId,
+        balanceCents: money.amount.times("100").toFixed(0),
+      }),
+    );
+
+    return c.json({ budgetId, reserves });
+  });
+
   // GET /budgets/active — list active budgets
   r.get("/active", async (c) => {
     const session = c.get("session");
