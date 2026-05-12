@@ -31,10 +31,10 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 ### Top Navigation & Budget Switcher (NAV)
 
-- [ ] **NAV-01**: Top nav displays current budget name + private/shared icon + chevron as dropdown trigger
-- [ ] **NAV-02**: Budget switcher dropdown lists user's budgets grouped by Personal / Shared sections
-- [ ] **NAV-03**: Dropdown has aside `+` button (not list item) that opens new-budget wizard at `/budgets/new`
-- [ ] **NAV-04**: Clicking a budget in dropdown navigates to `/budgets/[id]/spendings`
+- [x] **NAV-01**: Top nav displays current budget name + private/shared icon + chevron as dropdown trigger
+- [x] **NAV-02**: Budget switcher dropdown lists user's budgets grouped by Personal / Shared sections
+- [x] **NAV-03**: Dropdown has aside `+` button (not list item) that opens new-budget wizard at `/budgets/new`
+- [x] **NAV-04**: Clicking a budget in dropdown navigates to `/budgets/[id]/spendings`
 - [ ] **NAV-05**: Standalone `/workspaces` list page removed; switcher replaces it
 
 ### Home Page — Combined View (HOME)
