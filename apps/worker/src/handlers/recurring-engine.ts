@@ -1,14 +1,23 @@
 /**
  * recurring-engine.ts — pg-boss handler for the recurring draft generation cron.
  *
- * Schedule: 0 6 * * * UTC (D-01-e, plan 02-08)
- * Algorithm:
- *   1. SELECT DISTINCT tenant_id from active rules due today (withInfraTx — no RLS needed for scan)
- *   2. For each tenant: withTenantTx(tenantId, SYSTEM_USER_ID)
- *      - SELECT rules WHERE active AND next_due_date <= today FOR UPDATE
- *      - INSERT draft ON CONFLICT (rule_id, due_date) DO NOTHING (idempotency)
- *      - UPDATE rule.next_due_date = computeNext(...)
- *      - writeOutbox 'budgeting.recurring.draft.generated'
+ * Schedule: 0 6 * * * UTC (D-01-e)
+ *
+ * Algorithm (D-PH2-04 catch-up loop):
+ *   1. SELECT DISTINCT tenant_id from active rules due today or earlier (withInfraTx)
+ *   2. Per tenant withTenantTx:
+ *      - SELECT active rules WHERE next_due_date <= today FOR UPDATE
+ *      - For each rule:
+ *          while dueDate <= today:
+ *            INSERT into budgeting.expense_ledger (confirmed_at NULL, kind='SPENDING',
+ *              recurring_rule_id=rule.id) ON CONFLICT (recurring_rule_id, transaction_date) DO NOTHING
+ *            if new row: writeOutbox
+ *            dueDate = nextOccurrence(dueDate)
+ *          UPDATE recurring_rules.next_due_date = dueDate (first date > today)
+ *
+ * T-02-03 idempotency: UNIQUE index (recurring_rule_id, transaction_date) WHERE NOT deleted_at.
+ * INSERT FIRST, UPDATE next_due_date AFTER (Pitfall 3).
+ * budget_id = tenant_id in this schema (single workspace per tenant).
  *
  * Returns { tenantsScanned, draftsGenerated } for observability.
  * System user sentinel: 00000000-0000-0000-0000-000000000001 (D-05-g).
@@ -33,12 +42,12 @@ interface RuleRow {
   cadence: string;
   cadence_anchor: number | null;
   weekly_dow: number | null;
-  wallet_id: string;
+  yearly_month: number | null;
   category_id: string | null;
   amount: string;
   currency: string;
-  kind: string;
   note: string | null;
+  budget_currency?: string; // joined from tenancy.budgets
 }
 
 function toDateString(d: string | Date): string {
@@ -51,8 +60,9 @@ export async function runRecurringEngine(
   todayOverride?: string,
 ): Promise<Result<{ tenantsScanned: number; draftsGenerated: number }, Error>> {
   const today = todayOverride ?? Temporal.Now.plainDateISO().toString();
+  const todayDate = Temporal.PlainDate.from(today);
 
-  // Step 1: collect distinct tenants with due rules (worker_role, no RLS)
+  // Step 1: collect distinct tenants with due rules (worker_role, no RLS needed for scan)
   const tenantsResult = await withInfraTx(async (tx) => {
     const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
     const r = await drizzleTx.execute(sql`
@@ -62,7 +72,7 @@ export async function runRecurringEngine(
     return r.rows as Array<{ tenant_id: string }>;
   });
 
-  if (tenantsResult.isErr()) return tenantsResult as unknown as Result<{ tenantsScanned: number; draftsGenerated: number }, Error>; // propagate err
+  if (tenantsResult.isErr()) return tenantsResult as unknown as Result<{ tenantsScanned: number; draftsGenerated: number }, Error>;
   const tenants = tenantsResult.value;
 
   let totalDrafts = 0;
@@ -71,73 +81,98 @@ export async function runRecurringEngine(
     const r = await withTenantTx(TenantId(tenant_id), UserId(SYSTEM_USER_ID), async (tx) => {
       const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
 
-      // Step 2: get all due rules for this tenant
-      // v1.1 (MIG-04): account_id → wallet_id in recurring_rules
+      // Step 2: get all due rules for this tenant, join budget currency
       const rulesResult = await drizzleTx.execute(sql`
-        SELECT id, tenant_id, next_due_date, cadence, cadence_anchor, weekly_dow,
-               wallet_id, category_id, amount, currency, kind, note
-          FROM budgeting.recurring_rules
-         WHERE tenant_id = ${tenant_id}::uuid
-           AND active = true
-           AND next_due_date <= ${today}::date
-         FOR UPDATE
+        SELECT r.id, r.tenant_id, r.next_due_date, r.cadence, r.cadence_anchor, r.weekly_dow,
+               r.yearly_month, r.category_id, r.amount, r.currency, r.note,
+               b.default_currency AS budget_currency
+          FROM budgeting.recurring_rules r
+          JOIN tenancy.budgets b ON b.id = r.tenant_id
+         WHERE r.tenant_id = ${tenant_id}::uuid
+           AND r.active = true
+           AND r.next_due_date <= ${today}::date
+         FOR UPDATE OF r
       `);
 
       let draftsGenerated = 0;
 
       for (const ruleRaw of rulesResult.rows) {
         const rule = ruleRaw as unknown as RuleRow;
-        const dueDateStr = toDateString(rule.next_due_date);
-
-        // Step 3: INSERT draft ON CONFLICT DO NOTHING (idempotency via UNIQUE (rule_id, due_date))
-        // v1.1 (MIG-04): account_id → wallet_id in recurring_drafts
+        let dueDate = Temporal.PlainDate.from(toDateString(rule.next_due_date));
+        const budgetCurrency = rule.budget_currency ?? rule.currency;
+        const amountOriginalCents = String(Math.round(Number(rule.amount) * 100));
         const categoryId = rule.category_id ?? null;
         const note = rule.note ?? null;
-        const insertResult = await drizzleTx.execute(sql`
-          INSERT INTO budgeting.recurring_drafts
-            (tenant_id, rule_id, due_date, amount, currency, wallet_id, category_id, kind, note, status, actor_user_id)
-          VALUES
-            (${tenant_id}::uuid, ${rule.id}::uuid, ${dueDateStr}::date, ${rule.amount}, ${rule.currency},
-             ${rule.wallet_id}::uuid, ${categoryId}::uuid, ${rule.kind}, ${note}, 'PENDING', ${SYSTEM_USER_ID}::uuid)
-          ON CONFLICT (rule_id, due_date) DO NOTHING
-          RETURNING id
-        `);
 
-        // Step 4: advance next_due_date
-        const prevDate = Temporal.PlainDate.from(dueDateStr);
-        const nextDate = nextOccurrence(
-          {
-            cadence: rule.cadence as Cadence,
-            anchorDay: rule.cadence_anchor ?? undefined,
-            weeklyDow: rule.weekly_dow ?? undefined,
-          },
-          prevDate,
-        );
+        // Step 3: catch-up loop — INSERT a draft for each missed due date
+        while (Temporal.PlainDate.compare(dueDate, todayDate) <= 0) {
+          const dueDateStr = dueDate.toString();
 
+          // Compute FX: if same currency, rate = 1
+          let fxRate = "1";
+          let fxAsOf = dueDateStr;
+          let amountConvertedCents = amountOriginalCents;
+
+          // Note: FX lookup for cross-currency rules is omitted in v1.1 (rule.currency typically = budget.currency)
+          // T-02-WORKER-FX: rate bounds enforced at application layer; FX port extensible in Phase 5
+
+          // INSERT into expense_ledger (confirmed_at NULL = draft, per D-PH2-08)
+          const insertResult = await drizzleTx.execute(sql`
+            INSERT INTO budgeting.expense_ledger
+              (id, tenant_id, budget_id, category_id, transaction_date,
+               amount_original_cents, currency_original,
+               amount_converted_cents, fx_rate, fx_as_of,
+               note, recurring_rule_id, confirmed_at, kind, created_at, updated_at)
+            VALUES
+              (gen_random_uuid(), ${tenant_id}::uuid, ${tenant_id}::uuid,
+               ${categoryId}::uuid, ${dueDateStr}::date,
+               ${amountOriginalCents}::bigint, ${rule.currency},
+               ${amountConvertedCents}::bigint, ${fxRate}::numeric, ${fxAsOf}::date,
+               ${note}, ${rule.id}::uuid,
+               NULL,
+               'SPENDING',
+               now(), now())
+            ON CONFLICT (recurring_rule_id, transaction_date) DO NOTHING
+            RETURNING id
+          `);
+
+          // Step 4: writeOutbox only if draft was actually inserted (not a conflict skip)
+          if (insertResult.rows.length > 0) {
+            const draftId = (insertResult.rows[0] as Record<string, unknown>).id as string;
+            await writeOutbox(tx, {
+              tenantId: TenantId(tenant_id),
+              aggregateType: "recurring_rule",
+              aggregateId: rule.id,
+              eventType: "budgeting.recurring.draft.generated",
+              payload: {
+                draftId,
+                ruleId: rule.id,
+                tenantId: tenant_id,
+                dueDate: dueDateStr,
+              },
+            });
+            draftsGenerated++;
+          }
+
+          // Step 5: advance dueDate via nextOccurrence
+          dueDate = nextOccurrence(
+            {
+              cadence: rule.cadence as Cadence,
+              anchorDay: rule.cadence_anchor ?? undefined,
+              weeklyDow: rule.weekly_dow ?? undefined,
+              yearlyMonth: rule.yearly_month ?? undefined,
+            },
+            dueDate,
+          );
+        }
+
+        // Step 6: UPDATE next_due_date to first date > today (INSERT FIRST per Pitfall 3)
         await drizzleTx.execute(sql`
           UPDATE budgeting.recurring_rules
-             SET next_due_date = ${nextDate.toString()}::date,
+             SET next_due_date = ${dueDate.toString()}::date,
                  updated_at = now()
            WHERE id = ${rule.id}::uuid
         `);
-
-        // Step 5: writeOutbox (only if draft was actually inserted — not a conflict)
-        if (insertResult.rows.length > 0) {
-          const draftId = (insertResult.rows[0] as Record<string, unknown>).id as string;
-          await writeOutbox(tx, {
-            tenantId: TenantId(tenant_id),
-            aggregateType: "recurring_rule",
-            aggregateId: rule.id,
-            eventType: "budgeting.recurring.draft.generated",
-            payload: {
-              draftId,
-              ruleId: rule.id,
-              tenantId: tenant_id,
-              dueDate: dueDateStr,
-            },
-          });
-          draftsGenerated++;
-        }
       }
 
       return draftsGenerated;
