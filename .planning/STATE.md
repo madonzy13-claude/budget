@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Budget Restructure
 status: executing
 stopped_at: Phase 3 UI-SPEC approved
-last_updated: "2026-05-12T23:36:28.107Z"
+last_updated: "2026-05-12T23:54:29.046Z"
 last_activity: 2026-05-12
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 17
-  completed_plans: 15
-  percent: 88
+  completed_plans: 16
+  percent: 94
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: 03 (navigation-home-bdp-frame) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-05-12
 
@@ -82,6 +82,7 @@ _Updated after each plan completion_
 | Phase 3 P3 | 32 | - tasks | - files |
 | Phase 03-navigation-home-bdp-frame P04 | 8min | 3 tasks | 11 files |
 | Phase 3 P5 | 11min | 2 tasks | 9 files |
+| Phase 03 P06 | 12 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 3]: Plan 3-5: lucide v1.14 renames BarChart3 → ChartColumn; tests accept svg.lucide-chart-column OR svg.lucide-bar-chart-3 for stability across upgrades
 - [Phase 3]: Plan 3-5: BudgetCard error path keeps Link wrapper so card always routes to /budgets/[id]/spendings — tenant guard enforces access at BDP
 - [Phase 3]: Plan 3-5: Async-RSC + RTL test pattern — await Component({props}) then render(ui); mock @/lib/budget-fetch.server + next-intl/server.getTranslations
+- [Phase ?]: Plan 03-06: i18n bdp.tab.\* nested {label, title, placeholder} shape locked upfront in Task 1 (BLOCKER #11 resolution)
+- [Phase ?]: Plan 03-06: TaskBanner 60s polling test asserts DELTA across vi.advanceTimersByTimeAsync(60_000) rather than exact mount-time call count
 
 ### Pending Todos
 
@@ -176,7 +179,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-12T23:35:16.991Z
+Last session: 2026-05-12T23:54:28.976Z
 Stopped at: Phase 3 UI-SPEC approved
 Resume file: None
 
