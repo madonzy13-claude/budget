@@ -35,6 +35,7 @@ shared_kernel.user_keys                   USER-SCOPED   # PC-12: user_keys_owner
 budgeting.expense_ledger                  TENANT-SCOPED # expense_ledger_tenant_isolation policy (app.tenant_ids)
 budgeting.budget_mode_history             TENANT-SCOPED # budget_mode_history_tenant_isolation policy (app.tenant_ids)
 budgeting.tasks                           TENANT-SCOPED # tasks_tenant_isolation policy (app.tenant_ids)
+tenancy.budget_share_links                TENANT-SCOPED # budget_share_links_tenant_isolation policy (app.tenant_ids); SHRD-01, 02-04
 
 # ============================================================
 # EXCLUDED — infrastructure, NOT under RLS (Pitfall 10)

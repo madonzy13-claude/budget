@@ -32,6 +32,7 @@ import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createRecurringRulesRoute } from "./routes/recurring-rules";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
+import { createShareJoinRoute } from "./routes/share-join";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -51,6 +52,13 @@ export function createApp(deps: BootedDeps) {
   app.use(tenantGuard);
   app.use(createIdempotencyMiddleware()); // Pitfall 2: AFTER tenantGuard, BEFORE routes
   app.use(i18nMiddleware);
+
+  // 6a-share: /budgets/join routes registered BEFORE the broad requireAuth fence.
+  //     GET /budgets/join/:token is PUBLIC (no auth — recipient may not have account).
+  //     POST /budgets/join/:token/accept requires auth, checked inline in the handler.
+  //     Hono evaluates middleware in registration order — registering BEFORE requireAuth
+  //     on /budgets/* ensures the public GET sub-route bypasses the fence.
+  app.route("/budgets/join", createShareJoinRoute(deps));
 
   // 6a. Auth-only routes (signed-in, but no active budget required)
   //     /budgets  — caller may be creating their first budget

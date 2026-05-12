@@ -11,6 +11,9 @@ import { zValidator } from "@hono/zod-validator";
 import { sql } from "drizzle-orm";
 import type { BootedDeps } from "../boot";
 import { UserId } from "@budget/shared-kernel";
+import { DrizzleBudgetShareLinkRepo } from "@budget/tenancy/src/adapters/persistence/budget-share-link-repo";
+import { createShareLink } from "@budget/tenancy/src/application/create-share-link";
+import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-link";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -258,6 +261,70 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     );
 
     return c.json({ budgetId, reserves });
+  });
+
+  // POST /budgets/:id/share — create share link (owner only, SHRD-01)
+  r.post(
+    "/:id/share",
+    zValidator(
+      "json",
+      z.object({
+        ttlDays: z.number().int().min(1).max(90).optional().default(7),
+      }),
+    ),
+    async (c) => {
+      const session = c.get("session");
+      if (!session) return c.json({ error: "unauthorized" }, 401);
+
+      const budgetId = c.req.param("id");
+      const { ttlDays } = c.req.valid("json");
+
+      const repo = new DrizzleBudgetShareLinkRepo();
+
+      try {
+        const result = await createShareLink(
+          { budgetShareLinkRepo: repo, appUrl: deps.env.APP_URL },
+          {
+            budgetId,
+            tenantId: budgetId, // v1.1: budget_id === tenant_id
+            userId: session.user.id,
+            ttlDays,
+          },
+        );
+        return c.json(result, 201);
+      } catch (e: unknown) {
+        const msg = (e as Error).message ?? "unknown";
+        if (msg === "Forbidden") return c.json({ error: "Forbidden" }, 403);
+        console.error("[share-link:create] failed:", msg);
+        throw e;
+      }
+    },
+  );
+
+  // DELETE /budgets/share/:linkId — revoke share link (owner only, SHRD-05)
+  r.delete("/share/:linkId", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const linkId = c.req.param("linkId");
+    // tenantId derived from the link itself inside revokeShareLink service
+    // Pass empty string as tenantId — revoke uses the link's own budget_id via JOIN
+    const tenantId = ""; // overridden by revokeShareLink inner JOIN lookup
+
+    const repo = new DrizzleBudgetShareLinkRepo();
+
+    try {
+      await revokeShareLink(
+        { budgetShareLinkRepo: repo },
+        { linkId, tenantId, userId: session.user.id },
+      );
+      return c.body(null, 204);
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? "unknown";
+      if (msg === "Forbidden") return c.json({ error: "Forbidden" }, 403);
+      console.error("[share-link:revoke] failed:", msg);
+      throw e;
+    }
   });
 
   // GET /budgets/active — list active budgets

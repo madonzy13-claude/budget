@@ -105,11 +105,14 @@ async function seedExpiredLink(
   createdBy: string,
   token: string,
 ): Promise<string> {
+  // Use app_role with GUC set so RLS is satisfied
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    // Bypass RLS: insert as superuser context (infra pattern)
+    // Set app.tenant_ids GUC so RLS policy is satisfied
+    await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
+    await client.query(`SELECT set_config('app.current_user_id', '${createdBy}', true)`);
     const r = await client.query<{ id: string }>(
       `INSERT INTO tenancy.budget_share_links
          (id, budget_id, tenant_id, token, created_by, expires_at, created_at)
@@ -118,7 +121,7 @@ async function seedExpiredLink(
       [crypto.randomUUID(), budgetId, tenantId, token, createdBy],
     );
     await client.query("COMMIT");
-    return r.rows[0].id;
+    return r.rows[0]!.id;
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
@@ -199,7 +202,7 @@ async function buildApp(
   } as any;
 
   const app = new Hono();
-  app.use("*", async (c, next) => {
+  app.use("*", async (c: any, next: any) => {
     if (authenticated) {
       c.set("session", { user: { id: userId } });
     }
