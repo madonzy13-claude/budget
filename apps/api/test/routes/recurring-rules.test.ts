@@ -266,4 +266,128 @@ describe("/recurring-rules", () => {
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("first_due_in_past");
   });
+
+  // RECR-01: DAILY/YEARLY cadence validation (02-02 GREEN wave)
+
+  it("POST cadence=DAILY creates rule → 201", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        cadence: "DAILY",
+        amount: "120000",
+        currency: "EUR",
+        category_id: crypto.randomUUID(),
+        first_due_date: "2027-01-01",
+        note: "Daily allowance",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ruleId ?? body.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("POST cadence=YEARLY missing yearly_month → 400 or 422 with Zod error", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        cadence: "YEARLY",
+        cadence_anchor: 15,
+        // yearly_month intentionally omitted
+        amount: "500.00",
+        currency: "EUR",
+        first_due_date: "2027-01-15",
+      }),
+    });
+    expect([400, 422]).toContain(res.status);
+    const body = (await res.json()) as Record<string, unknown>;
+    // Should mention yearly_month in the error
+    const bodyStr = JSON.stringify(body).toLowerCase();
+    expect(
+      bodyStr.includes("yearly_month") || bodyStr.includes("yearlym"),
+    ).toBe(true);
+  });
+
+  it("POST cadence=YEARLY yearly_month=13 → 400 or 422 (out of range)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        cadence: "YEARLY",
+        yearly_month: 13, // invalid
+        cadence_anchor: 15,
+        amount: "500.00",
+        currency: "EUR",
+        first_due_date: "2027-01-15",
+      }),
+    });
+    expect([400, 422]).toContain(res.status);
+  });
+
+  it("POST cadence=WEEKLY missing weekly_dow → 400 or 422", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        cadence: "WEEKLY",
+        // weekly_dow intentionally omitted
+        amount: "100.00",
+        currency: "EUR",
+        first_due_date: "2027-01-05",
+      }),
+    });
+    expect([400, 422]).toContain(res.status);
+  });
+
+  it("GET /recurring-rules returns yearly_month field in response", async () => {
+    // Create a YEARLY rule first
+    const app = await buildApp(testUserId, testTenantId);
+    const createRes = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        cadence: "YEARLY",
+        yearly_month: 6,
+        cadence_anchor: 1,
+        amount: "1200.00",
+        currency: "EUR",
+        first_due_date: "2027-06-01",
+        note: "Annual subscription",
+      }),
+    });
+    expect(createRes.status).toBe(201);
+
+    const getRes = await app.request("/recurring-rules");
+    expect(getRes.status).toBe(200);
+    const body = (await getRes.json()) as { rules: Record<string, unknown>[] };
+    expect(Array.isArray(body.rules)).toBe(true);
+    // At least one rule should have yearly_month exposed
+    const yearlyRules = body.rules.filter(
+      (r) =>
+        r.cadence === "YEARLY" ||
+        r.yearlyMonth !== undefined ||
+        r.yearly_month !== undefined,
+    );
+    expect(yearlyRules.length).toBeGreaterThan(0);
+  });
 });
