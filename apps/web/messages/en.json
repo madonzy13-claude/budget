@@ -527,5 +527,30 @@
       "CUSHION": "Cushion",
       "save": "Switch mode"
     }
+  },
+  "bdp": {
+    "tab": {
+      "aria": "Budget detail tabs",
+      "spendings": {
+        "label": "Spendings",
+        "title": "Spendings",
+        "placeholder": "The Excel-like categories grid lands in Phase 4."
+      },
+      "reserves": {
+        "label": "Reserves",
+        "title": "Reserves",
+        "placeholder": "Per-category reserve balances land in Phase 5."
+      },
+      "wallets": {
+        "label": "Wallets",
+        "title": "Wallets",
+        "placeholder": "Inline-editable wallet rows land in Phase 5."
+      },
+      "settings": {
+        "label": "Settings",
+        "title": "Settings",
+        "placeholder": "Budget identity, cushion toggle, recurring rules, and members land in Phase 6."
+      }
+    }
   }
 }
