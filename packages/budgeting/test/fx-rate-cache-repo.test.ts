@@ -9,6 +9,17 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { DrizzleFxRateCacheRepo } from "../src/adapters/persistence/fx-rate-cache-repo";
 
+// Normalise @db: → @localhost: for host-side test runner (Task 5 pattern)
+if (process.env.DATABASE_URL_WORKER) {
+  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace("@db:", "@localhost:");
+}
+if (process.env.DATABASE_URL_APP) {
+  process.env.DATABASE_URL_APP = process.env.DATABASE_URL_APP.replace("@db:", "@localhost:");
+}
+if (process.env.DATABASE_URL_MIGRATOR) {
+  process.env.DATABASE_URL_MIGRATOR = process.env.DATABASE_URL_MIGRATOR.replace("@db:", "@localhost:");
+}
+
 // worker_role has SELECT + INSERT + UPDATE on fx_rates (see post-migration.sql)
 const WORKER_URL =
   process.env.DATABASE_URL_WORKER ??

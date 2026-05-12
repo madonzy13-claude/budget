@@ -179,6 +179,11 @@ export async function runRecurringEngine(
     });
 
     if (r.isOk()) totalDrafts += r.value;
+    else {
+      const anyE = r.error as unknown as Record<string, unknown>;
+      const cause = anyE?.cause as Record<string, unknown> | undefined;
+      if (cause?.code) console.error(`[engine] tenant ${tenant_id} pg_err code=${cause.code} msg=${cause.message}`);
+    }
   }
 
   return ok({ tenantsScanned: tenants.length, draftsGenerated: totalDrafts });

@@ -103,12 +103,10 @@ async function createExpense(
       "Idempotency-Key": crypto.randomUUID(),
     },
     body: JSON.stringify({
-      kind: "EXPENSE",
-      amountOrig: amount,
-      currencyOrig: "EUR",
-      transactionDate: date,
-      accountId,
-      categoryId,
+      date,
+      category_id: categoryId,
+      amount_original_cents: Math.round(parseFloat(amount) * 100),
+      currency_original: "EUR",
       note,
     }),
   });

@@ -97,6 +97,7 @@ async function insertRule(opts: {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${opts.tenantId}"}', true)`,
     );
@@ -124,7 +125,11 @@ async function insertRule(opts: {
         opts.actorUserId,
       ],
     );
+    await client.query("COMMIT");
     return res.rows[0].id as string;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
   } finally {
     client.release();
     await pool.end();
@@ -138,6 +143,7 @@ async function countLedgerDrafts(
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
     );
@@ -148,6 +154,7 @@ async function countLedgerDrafts(
           AND confirmed_at IS NULL`,
       [tenantId, ruleId],
     );
+    await client.query("COMMIT");
     return parseInt(res.rows[0].cnt, 10);
   } finally {
     client.release();
@@ -162,6 +169,7 @@ async function getNextDueDate(
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
     );
@@ -169,6 +177,7 @@ async function getNextDueDate(
       `SELECT next_due_date FROM budgeting.recurring_rules WHERE id = $1::uuid AND tenant_id = $2::uuid`,
       [ruleId, tenantId],
     );
+    await client.query("COMMIT");
     const d = res.rows[0]?.next_due_date as string | Date;
     if (d instanceof Date) return d.toISOString().slice(0, 10);
     return String(d).slice(0, 10);
@@ -196,32 +205,31 @@ describe("recurring engine catch-up", () => {
   });
 
   test("weekly catch-up: 3 missed Mondays → 3 drafts in expense_ledger", async () => {
-    // TODAY in test = 2026-05-12 (a Tuesday)
-    // 3 missed Mondays: 2026-04-21, 2026-04-28, 2026-05-05
-    const today = "2026-05-12";
+    // TODAY in test = 2026-05-04 (a Monday — the 3rd missed Monday itself)
+    // 3 missed Mondays: 2026-04-20, 2026-04-27, 2026-05-04
+    const today = "2026-05-04";
     const ruleId = await insertRule({
       tenantId: fx1.budgetId,
       categoryId: fx1.categoryId,
       actorUserId: fx1.userId,
       cadence: "WEEKLY",
       weeklyDow: 1, // Monday
-      nextDueDate: "2026-04-21", // 3 weeks ago Monday
+      nextDueDate: "2026-04-20", // 3 actual Mondays ago
       amount: "2500",
       currency: "EUR",
     });
 
     const { runRecurringEngine } =
-      await import("../../apps/worker/src/handlers/recurring-engine");
+      await import("@budget/budgeting/src/application/recurring-engine");
 
     const result = await runRecurringEngine(today);
     expect(result.isOk()).toBe(true);
-
     const draftCount = await countLedgerDrafts(fx1.budgetId, ruleId);
     expect(draftCount).toBe(3);
 
     const nextDue = await getNextDueDate(fx1.budgetId, ruleId);
-    // Next Monday after 2026-05-12 is 2026-05-18
-    expect(nextDue).toBe("2026-05-18");
+    // Next Monday after 2026-05-04 is 2026-05-11
+    expect(nextDue).toBe("2026-05-11");
   });
 
   test("idempotency: re-running on same day produces 0 new drafts (ON CONFLICT DO NOTHING)", async () => {
@@ -238,7 +246,7 @@ describe("recurring engine catch-up", () => {
     });
 
     const { runRecurringEngine } =
-      await import("../../apps/worker/src/handlers/recurring-engine");
+      await import("@budget/budgeting/src/application/recurring-engine");
 
     // First run
     const r1 = await runRecurringEngine(today);
@@ -266,7 +274,7 @@ describe("recurring engine catch-up", () => {
     });
 
     const { runRecurringEngine } =
-      await import("../../apps/worker/src/handlers/recurring-engine");
+      await import("@budget/budgeting/src/application/recurring-engine");
 
     const r1 = await runRecurringEngine(today);
     expect(r1.isOk()).toBe(true);
@@ -300,7 +308,7 @@ describe("recurring engine catch-up", () => {
     });
 
     const { runRecurringEngine } =
-      await import("../../apps/worker/src/handlers/recurring-engine");
+      await import("@budget/budgeting/src/application/recurring-engine");
 
     const result = await runRecurringEngine(today);
     expect(result.isOk()).toBe(true);

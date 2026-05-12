@@ -54,7 +54,7 @@ function makeFailingFetch(): typeof fetch {
 }
 
 let cache: FakeFxRateCacheRepo;
-const TODAY = new Date("2026-05-09T12:00:00Z");
+const TODAY = new Date("2026-05-08T12:00:00Z"); // Friday — not a weekend, so isStale=false for fresh cache hit
 
 beforeEach(() => {
   cache = new FakeFxRateCacheRepo();
@@ -73,7 +73,7 @@ describe("FrankfurterFxProvider", () => {
   });
 
   test("cache hit fresh: returns cached rate with isStale=false", async () => {
-    cache.setLookup("USD", "EUR", "2026-05-09", "0.85");
+    cache.setLookup("USD", "EUR", "2026-05-08", "0.85");
     const provider = new FrankfurterFxProvider(cache, makeFailingFetch());
     const result = await provider.rateAsOf("USD", "EUR", TODAY);
     expect(result.rate).toBe("0.85");
@@ -82,15 +82,11 @@ describe("FrankfurterFxProvider", () => {
   });
 
   test("cache hit stale: returns cached rate with isStale=true when dates differ", async () => {
-    // cache has 2026-05-08 but we request 2026-05-09 (weekend/holiday roll)
-    cache.setLookup("USD", "EUR", "2026-05-08", "0.85");
-    // lookup called with "2026-05-09" → null (cache stored at "2026-05-08")
-    // We need to set it so lookup(USD, EUR, 2026-05-09) returns with stale date
-    cache = new FakeFxRateCacheRepo();
+    // cache has 2026-05-07 but we request 2026-05-08 (holiday roll)
     // Simulate: cache has the entry but at an older date
     // Override lookup to return a stale result
     const staleCache: FxRateCacheRepo = {
-      async lookup(_b, _q, _d) { return { rate: "0.85", date: "2026-05-08" }; },
+      async lookup(_b, _q, _d) { return { rate: "0.85", date: "2026-05-07" }; },
       async upsert() {},
       async mostRecentPrior() { return null; },
     };
@@ -103,7 +99,7 @@ describe("FrankfurterFxProvider", () => {
   test("live success fresh: cache miss → fetches, caches, returns isStale=false", async () => {
     const provider = new FrankfurterFxProvider(
       cache,
-      makeFetch(200, { date: "2026-05-09", rate: 0.86 }),
+      makeFetch(200, { date: "2026-05-08", rate: 0.86 }),
     );
     const result = await provider.rateAsOf("USD", "EUR", TODAY);
     expect(result.rate).toBe("0.86");
@@ -113,10 +109,10 @@ describe("FrankfurterFxProvider", () => {
   });
 
   test("Pitfall 4 - live success Frankfurter rolled back date: isStale=true", async () => {
-    // Request 2026-05-09 (Saturday), Frankfurter returns 2026-05-08
+    // Request 2026-05-08 (Friday), Frankfurter returns 2026-05-07 (rolled back one day)
     const provider = new FrankfurterFxProvider(
       cache,
-      makeFetch(200, { date: "2026-05-08", rate: 0.85 }),
+      makeFetch(200, { date: "2026-05-07", rate: 0.85 }),
     );
     const result = await provider.rateAsOf("USD", "EUR", TODAY);
     expect(result.rate).toBe("0.85");
@@ -139,7 +135,7 @@ describe("FrankfurterFxProvider", () => {
   test("ACL boundary: result.rate is always string, never number", async () => {
     const provider = new FrankfurterFxProvider(
       cache,
-      makeFetch(200, { date: "2026-05-09", rate: 0.9234 }),
+      makeFetch(200, { date: "2026-05-08", rate: 0.9234 }),
     );
     const result = await provider.rateAsOf("USD", "EUR", TODAY);
     expect(typeof result.rate).toBe("string");

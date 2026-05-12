@@ -342,7 +342,7 @@ describe("POST /budgets/:budgetId/transactions/:txId/confirm", () => {
       await client.query(`SELECT set_config('app.current_user_id', '${f.userId}', true)`);
       await client.query(
         `INSERT INTO budgeting.expense_ledger
-           (id, tenant_id, budget_id, category_id, date, amount_original_cents, currency_original,
+           (id, tenant_id, budget_id, category_id, transaction_date, amount_original_cents, currency_original,
             amount_converted_cents, fx_rate, fx_as_of, kind, confirmed_at, created_at, updated_at)
          VALUES ($1, $2, $2, $3, '2026-05-11', 500, 'EUR', 500, '1', '2026-05-11', 'SPENDING', NULL, now(), now())`,
         [txId, f.budgetId, f.categoryId],

@@ -68,7 +68,8 @@
     "./src/application/reconcile-projections": "./src/application/reconcile-projections.ts",
     "./src/application/replay-projections": "./src/application/replay-projections.ts",
     "./src/ports/reserve-balance-repo": "./src/ports/reserve-balance-repo.ts",
-    "./src/adapters/persistence/reserve-balance-repo": "./src/adapters/persistence/reserve-balance-repo.ts"
+    "./src/adapters/persistence/reserve-balance-repo": "./src/adapters/persistence/reserve-balance-repo.ts",
+    "./src/application/recurring-engine": "./src/application/recurring-engine.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

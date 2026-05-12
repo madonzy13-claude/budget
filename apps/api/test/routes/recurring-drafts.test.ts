@@ -83,9 +83,9 @@ async function seedRule(
     );
     await client.query(
       `INSERT INTO budgeting.recurring_rules
-         (id, tenant_id, wallet_id, amount, currency, kind, cadence, cadence_anchor, active, next_due_date, actor_user_id)
-       VALUES ($1, $2, $3, '100', 'USD', 'EXPENSE', 'MONTHLY', 15, true, CURRENT_DATE, $4)`,
-      [ruleId, tenantId, accountId, actorUserId],
+         (id, tenant_id, amount, currency, cadence, cadence_anchor, active, next_due_date, actor_user_id)
+       VALUES ($1, $2, '100', 'USD', 'MONTHLY', 15, true, CURRENT_DATE, $3)`,
+      [ruleId, tenantId, actorUserId],
     );
     await client.query("COMMIT");
   } finally {
@@ -113,11 +113,16 @@ async function seedDraft(
     await client.query(
       `SELECT set_config('app.current_user_id', '${SYSTEM_USER}', true)`,
     );
+    // Drafts are expense_ledger rows with confirmed_at IS NULL (recurring_drafts table dropped in 02-01)
     await client.query(
-      `INSERT INTO budgeting.recurring_drafts
-         (id, tenant_id, rule_id, due_date, amount, currency, wallet_id, kind, status, actor_user_id)
-       VALUES ($1, $2, $3, (CURRENT_DATE + INTERVAL '${daysFromToday} days')::date, $4, 'USD', $5, 'EXPENSE', 'PENDING', $6)`,
-      [draftId, tenantId, ruleId, amount, accountId, SYSTEM_USER],
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, transaction_date, amount_original_cents, currency_original,
+          amount_converted_cents, fx_rate, fx_as_of, kind, recurring_rule_id, confirmed_at, created_at, updated_at)
+       VALUES ($1, $2, $2, (CURRENT_DATE + INTERVAL '${daysFromToday} days')::date,
+               ${Math.round(Number(amount) * 100)}, 'USD',
+               ${Math.round(Number(amount) * 100)}, '1', CURRENT_DATE::date,
+               'SPENDING', $3, NULL, now(), now())`,
+      [draftId, tenantId, ruleId],
     );
     await client.query("COMMIT");
   } finally {

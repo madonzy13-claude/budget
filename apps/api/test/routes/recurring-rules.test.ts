@@ -22,7 +22,6 @@ resetPools();
 
 let testUserId: string;
 let testTenantId: string;
-let testAccountId: string;
 
 async function createTestUser() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
@@ -61,7 +60,7 @@ async function createTestUser() {
     client.release();
     await pool.end();
   }
-  return { userId, tenantId, accountId };
+  return { userId, tenantId };
 }
 
 async function buildApp(userId: string, tenantId: string) {
@@ -94,7 +93,6 @@ describe("/recurring-rules", () => {
     const t = await createTestUser();
     testUserId = t.userId;
     testTenantId = t.tenantId;
-    testAccountId = t.accountId;
   });
 
   it("POST creates a monthly rule → 201 with ruleId", async () => {
@@ -106,13 +104,11 @@ describe("/recurring-rules", () => {
         "Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify({
-        accountId: testAccountId,
         amount: "1500.00",
         currency: "USD",
-        kind: "EXPENSE",
         cadence: "MONTHLY",
-        cadenceAnchor: 1,
-        firstDueDate: "2026-06-01",
+        cadence_anchor: 1,
+        first_due_date: "2026-06-01",
         note: "Rent",
       }),
     });
@@ -140,13 +136,11 @@ describe("/recurring-rules", () => {
         "Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify({
-        accountId: testAccountId,
         amount: "100.00",
         currency: "USD",
-        kind: "EXPENSE",
         cadence: "MONTHLY",
-        cadenceAnchor: 5,
-        firstDueDate: "2026-06-05",
+        cadence_anchor: 5,
+        first_due_date: "2026-06-05",
       }),
     });
     expect(createRes.status).toBe(201);
@@ -175,13 +169,11 @@ describe("/recurring-rules", () => {
         "Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify({
-        accountId: testAccountId,
         amount: "300.00",
         currency: "USD",
-        kind: "EXPENSE",
         cadence: "MONTHLY",
-        cadenceAnchor: 10,
-        firstDueDate: "2026-06-10",
+        cadence_anchor: 10,
+        first_due_date: "2026-06-10",
       }),
     });
     expect(createRes.status).toBe(201);
@@ -212,13 +204,11 @@ describe("/recurring-rules", () => {
         "Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify({
-        accountId: testAccountId,
         amount: "50.00",
         currency: "USD",
-        kind: "EXPENSE",
         cadence: "WEEKLY",
-        weeklyDow: 1,
-        firstDueDate: "2026-06-15",
+        weekly_dow: 1,
+        first_due_date: "2026-06-15",
       }),
     });
     expect(createRes.status).toBe(201);
@@ -253,13 +243,11 @@ describe("/recurring-rules", () => {
         "Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify({
-        accountId: testAccountId,
         amount: "100.00",
         currency: "USD",
-        kind: "EXPENSE",
         cadence: "MONTHLY",
-        cadenceAnchor: 1,
-        firstDueDate: "2020-01-01",
+        cadence_anchor: 1,
+        first_due_date: "2020-01-01",
       }),
     });
     expect(res.status).toBe(422);

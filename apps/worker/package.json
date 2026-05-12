@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./src/handlers/recurring-engine": "./src/handlers/recurring-engine.ts"
+  },
   "scripts": {
     "start": "bun run src/worker.ts",
     "test": "bun test",
