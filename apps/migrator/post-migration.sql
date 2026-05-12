@@ -675,3 +675,28 @@ CREATE POLICY recurring_rules_worker_cron_scan ON budgeting.recurring_rules
 -- ===== Plan 01-01: tasks table (v1.1 new) =====
 ALTER TABLE budgeting.tasks FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.tasks TO app_role, worker_role;
+
+-- ===== Phase 2 Plan 02-01: expense_ledger + reserves view + share-links GRANTs/RLS =====
+
+-- Phase 2 v1.1: column-level GRANT UPDATE on editable expense_ledger columns
+-- (lifts REVOKE UPDATE for PATCH /transactions; preserves append-only for id/tenant_id/budget_id/created_at)
+GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, currency_original,
+              amount_converted_cents, fx_rate, fx_as_of, kind, recurring_rule_id,
+              confirmed_at, deleted_at, updated_at)
+  ON budgeting.expense_ledger TO app_role;
+
+-- Phase 2 plan 02-03: GRANT on reserves auto-compute view
+GRANT SELECT ON budgeting.category_reserve_balance TO app_role, worker_role;
+
+-- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
+GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;
+GRANT SELECT ON tenancy.budget_share_links TO worker_role;
+
+ALTER TABLE tenancy.budget_share_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenancy.budget_share_links FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS budget_share_links_tenant_isolation ON tenancy.budget_share_links;
+CREATE POLICY budget_share_links_tenant_isolation ON tenancy.budget_share_links
+  AS PERMISSIVE FOR ALL TO app_role
+  USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
