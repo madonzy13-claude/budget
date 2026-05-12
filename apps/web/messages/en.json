@@ -255,7 +255,23 @@
     "budget": "Budget",
     "wallets": "Wallets",
     "transactions": "Transactions",
-    "recurring": "Recurring"
+    "recurring": "Recurring",
+    "budgetSwitcher": {
+      "trigger": {
+        "aria": "Switch budget"
+      }
+    },
+    "switcher": {
+      "personal": "Personal",
+      "shared": "Shared",
+      "empty": {
+        "trigger": "No budgets yet",
+        "body": "Use + to create your first budget.",
+        "cta": "Create budget"
+      }
+    },
+    "newBudget": "New budget",
+    "newBudgetTooltip": "Create new budget"
   },
   "onboarding": {
     "eyebrow": "Step 1 of 3",
