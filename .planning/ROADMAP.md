@@ -82,8 +82,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. When the tasks API returns ≥1 pending task for the current budget, a task banner renders above the tabs with a count chip; clicking the banner expands an inline list (kind-specific action wiring is filled in Phase 7; this phase ships the shell)
 5. All four tab routes (`/budgets/[id]/spendings`, `/reserves`, `/wallets`, `/settings`) are reachable and render placeholder content where the real content will land in Phases 4–6
 
-**Plans**: pending
-**UI hint**: yes
+**Plans**: 7 plans
+
+- [ ] 03-01-PLAN.md — Wave 0 prep: React Query + playwright-bdd install, delete v1.0 /workspaces tree (NAV-05)
+- [ ] 03-02-PLAN.md — Backend: GET /budgets/:id/home-summary + FxProvider conversion (HOME-01, HOME-02)
+- [ ] 03-03-PLAN.md — Backend: GET /budgets/:id/tasks?status=pending read endpoint (BDP-03 shell)
+- [ ] 03-04-PLAN.md — BudgetSwitcher Popover + NewBudgetButton + TopNav + rewrite (app)/layout.tsx (NAV-01..04)
+- [ ] 03-05-PLAN.md — Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero (HOME-01..04)
+- [ ] 03-06-PLAN.md — BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tab pages + /budgets/new (BDP-01..05)
+- [ ] 03-07-PLAN.md — PL/UK i18n + playwright-bdd Gherkin features + Makefile test-e2e target (14 reqs)
+      **UI hint**: yes
 
 ### Phase 4: Spendings Grid
 
