@@ -167,4 +167,105 @@ describe("Wallets route (renamed from accounts)", () => {
     // scope must not appear in response
     expect(body.scope).toBeUndefined();
   });
+
+  // ---------------------------------------------------------------------------
+  // Phase 2 gap-closure: wallet balance fully decoupled from transactions.
+  // Only PUT /wallets/:id/balance (set full value) mutates current_balance.
+  // The old delta endpoint POST /wallets/:id/balance-adjustment is removed
+  // because its backing table `account_balance_adjustments` was dropped by
+  // migration 0013 (D-PH2-09 updated).
+  // ---------------------------------------------------------------------------
+
+  it("PUT /wallets/:id/balance overwrites current_balance to the absolute value (no delta math, no adjustment row)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+
+    const createRes = await app.request("/wallets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        name: "Balance Set Wallet",
+        walletType: "SPENDINGS",
+        currency: "EUR",
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const wallet = (await createRes.json()) as any;
+
+    // Set balance to an absolute value
+    const setRes = await app.request(`/wallets/${wallet.id}/balance`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: "1234.56", currency: "EUR" }),
+    });
+    expect(setRes.status).toBe(200);
+
+    // Verify GET reflects the absolute value (not a delta sum)
+    const getRes = await app.request(`/wallets/${wallet.id}`);
+    expect(getRes.status).toBe(200);
+    const fresh = (await getRes.json()) as any;
+    const balAmount = fresh.currentBalance?.amount ?? fresh.balance?.amount;
+    expect(balAmount).toBe("1234.56");
+
+    // A second PUT overwrites (does NOT add to previous)
+    const setRes2 = await app.request(`/wallets/${wallet.id}/balance`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: "50.00", currency: "EUR" }),
+    });
+    expect(setRes2.status).toBe(200);
+    const getRes2 = await app.request(`/wallets/${wallet.id}`);
+    const fresh2 = (await getRes2.json()) as any;
+    const balAmount2 = fresh2.currentBalance?.amount ?? fresh2.balance?.amount;
+    expect(balAmount2).toBe("50.00"); // overwritten, NOT 1284.56
+  });
+
+  it("PUT /wallets/:id/balance rejects mismatched currency (immutable per WALT-04)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const createRes = await app.request("/wallets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        name: "EUR Wallet",
+        walletType: "SPENDINGS",
+        currency: "EUR",
+      }),
+    });
+    const wallet = (await createRes.json()) as any;
+
+    const res = await app.request(`/wallets/${wallet.id}/balance`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: "100", currency: "USD" }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("POST /wallets/:id/balance-adjustment returns 404 (removed in v1.1 — clients must use PUT /balance)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const createRes = await app.request("/wallets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        name: "W",
+        walletType: "SPENDINGS",
+        currency: "EUR",
+      }),
+    });
+    const wallet = (await createRes.json()) as any;
+    const res = await app.request(`/wallets/${wallet.id}/balance-adjustment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: "10", currency: "EUR", reason: "x" }),
+    });
+    expect(res.status).toBe(404);
+  });
 });

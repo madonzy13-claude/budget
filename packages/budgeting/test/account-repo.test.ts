@@ -139,6 +139,83 @@ describe("DrizzleWalletRepo integration", () => {
     expect(found!.archivedAt).toBeInstanceOf(Date);
   });
 
+  // -------------------------------------------------------------------------
+  // Phase 2 gap-closure: wallet balance decoupled from transactions.
+  // Only setBalance (full absolute value) mutates current_balance.
+  // recordAdjustment + applyDelta are removed.
+  // -------------------------------------------------------------------------
+
+  test("setBalance overwrites current_balance to absolute value (does NOT add)", async () => {
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
+    const { Money } = await import("@budget/shared-kernel");
+
+    const wal = new Wallet(
+      crypto.randomUUID(),
+      testTenantId,
+      "SetBalance Test",
+      "SPENDINGS",
+      "EUR",
+      Money.of("100", "EUR" as any),
+      null,
+      new Date(),
+      testUserId,
+    );
+    await repo.create(wal);
+
+    // First setBalance: 100 → 500
+    await repo.setBalance(
+      testTenantId,
+      wal.id,
+      { amount: "500", currency: "EUR" },
+      testUserId,
+    );
+    const found1 = await repo.findById(testTenantId, wal.id);
+    expect(parseFloat(found1!.currentBalance.amount.toFixed(2))).toBe(500);
+
+    // Second setBalance: 500 → 42.50 (overwrite, NOT add)
+    await repo.setBalance(
+      testTenantId,
+      wal.id,
+      { amount: "42.50", currency: "EUR" },
+      testUserId,
+    );
+    const found2 = await repo.findById(testTenantId, wal.id);
+    expect(parseFloat(found2!.currentBalance.amount.toFixed(2))).toBe(42.5);
+  });
+
+  test("setBalance rejects mismatched currency (WALT-04 immutable)", async () => {
+    const { DrizzleWalletRepo } =
+      await import("../src/adapters/persistence/wallet-repo");
+    const repo = new DrizzleWalletRepo();
+    const { Wallet } = await import("../src/domain/wallet");
+    const { Money } = await import("@budget/shared-kernel");
+
+    const wal = new Wallet(
+      crypto.randomUUID(),
+      testTenantId,
+      "Currency Guard",
+      "SPENDINGS",
+      "EUR",
+      Money.of("100", "EUR" as any),
+      null,
+      new Date(),
+      testUserId,
+    );
+    await repo.create(wal);
+
+    await expect(
+      repo.setBalance(
+        testTenantId,
+        wal.id,
+        { amount: "100", currency: "USD" },
+        testUserId,
+      ),
+    ).rejects.toThrow();
+  });
+
   test("recordAdjustment writes to account_balance_adjustments AND updates wallets.current_balance", async () => {
     const { DrizzleWalletRepo } =
       await import("../src/adapters/persistence/wallet-repo");
