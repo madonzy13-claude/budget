@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Budget Restructure
-status: planning_complete
-stopped_at: Phase 3 plans approved (iter 2 PASS)
-last_updated: "2026-05-12T21:55:00.000Z"
-last_activity: "2026-05-12 — Phase 3 plans complete: 7 plans across 7 waves; gsd-plan-checker iter 2 PASS; 14/14 REQs covered, 22/22 D-PH3 decisions honored, ASVS-L1 threat models, ready for /gsd-execute-phase 3"
+status: executing
+stopped_at: Phase 3 UI-SPEC approved
+last_updated: "2026-05-12T22:53:18.524Z"
+last_activity: 2026-05-12
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_plans: 17
+  completed_plans: 12
+  percent: 71
 ---
 
 # Project State
@@ -21,26 +21,26 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** v1.1 Budget Restructure — roadmap landed (8 phases), planning Phase 1 next
+**Current focus:** Phase 03 — navigation-home-bdp-frame
 
 ## Current Position
 
-Phase: Phase 3 — Navigation, Home & BDP Frame
-Plan: 7 plans across 7 waves; gsd-plan-checker iter 2 PASS
-Status: Planning complete — ready for /gsd-execute-phase 3
-Last activity: 2026-05-12 — Phase 3 plans approved: 14/14 REQs covered, 22/22 D-PH3 decisions honored, ASVS-L1 threat models, schemas locked
+Phase: 03 (navigation-home-bdp-frame) — EXECUTING
+Plan: 2 of 7
+Status: Ready to execute
+Last activity: 2026-05-12
 
 ## Phase 3 Plans
 
-| Plan  | Wave | Title                                                                                  | Reqs                              | Depends   |
-| ----- | ---- | -------------------------------------------------------------------------------------- | --------------------------------- | --------- |
-| 03-01 | 0    | Wave 0 prep: React Query + playwright-bdd install; delete /workspaces tree             | NAV-05                            | —         |
-| 03-02 | 1    | Backend: GET /budgets/:id/home-summary + FxProvider conversion                         | HOME-01, HOME-02                  | [03-01]   |
-| 03-03 | 2    | Backend: GET /budgets/:id/tasks?status=pending read shell                              | BDP-03                            | [03-01]   |
-| 03-04 | 3    | BudgetSwitcher + NewBudgetButton + TopNav + (app) layout + middleware x-pathname       | NAV-01..04                        | [03-01,02]|
-| 03-05 | 4    | Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero    | HOME-01..04                       | [03-02,04]|
-| 03-06 | 5    | BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tabs + /budgets/new  | BDP-01..05                        | [03-03,04]|
-| 03-07 | 6    | PL/UK i18n + 4 Gherkin features (playwright-bdd) + Page Objects + Makefile             | NAV-04, HOME-03, BDP-01, BDP-05   | [03-04,05,06] |
+| Plan  | Wave | Title                                                                                 | Reqs                            | Depends       |
+| ----- | ---- | ------------------------------------------------------------------------------------- | ------------------------------- | ------------- |
+| 03-01 | 0    | Wave 0 prep: React Query + playwright-bdd install; delete /workspaces tree            | NAV-05                          | —             |
+| 03-02 | 1    | Backend: GET /budgets/:id/home-summary + FxProvider conversion                        | HOME-01, HOME-02                | [03-01]       |
+| 03-03 | 2    | Backend: GET /budgets/:id/tasks?status=pending read shell                             | BDP-03                          | [03-01]       |
+| 03-04 | 3    | BudgetSwitcher + NewBudgetButton + TopNav + (app) layout + middleware x-pathname      | NAV-01..04                      | [03-01,02]    |
+| 03-05 | 4    | Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero   | HOME-01..04                     | [03-02,04]    |
+| 03-06 | 5    | BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tabs + /budgets/new | BDP-01..05                      | [03-03,04]    |
+| 03-07 | 6    | PL/UK i18n + 4 Gherkin features (playwright-bdd) + Page Objects + Makefile            | NAV-04, HOME-03, BDP-01, BDP-05 | [03-04,05,06] |
 
 ## Phase 1 Plans (archived)
 
@@ -78,6 +78,7 @@ Last activity: 2026-05-12 — Phase 3 plans approved: 14/14 REQs covered, 22/22 
 - Trend: —
 
 _Updated after each plan completion_
+| Phase 03 P02 | 85min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Recurring drafts surface only in Spendings grid as highlighted rows (standalone inbox UI removed)
 - Share-link only invite flow (no email send required) via Better Auth orgs invite-token
 - Dev DB nuked — no data preservation; acceptable because no prod deploy
+- [Phase ?]: Phase 3-02: UserDisplayCurrencyReader local port avoids budgeting → identity coupling; FxProvider adapted to rateAsOf; tenant-leak gate 5→6 files
 
 ### Pending Todos
 
@@ -164,9 +166,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-12T20:11:37.910Z
+Last session: 2026-05-12T22:53:18.439Z
 Stopped at: Phase 3 UI-SPEC approved
-Resume file: .planning/phases/03-navigation-home-bdp-frame/03-UI-SPEC.md
+Resume file: None
 
 ## v1.0 History (archived)
 
