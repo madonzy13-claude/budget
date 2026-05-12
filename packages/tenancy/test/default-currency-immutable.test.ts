@@ -27,6 +27,7 @@ test("app-layer hook rejects default_currency update (TENT-11, D-04)", async () 
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const owner = await signUp(
@@ -88,6 +89,7 @@ test("DB trigger blocks direct SQL UPDATE of default_currency (TENT-11, D-04)", 
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const owner = await signUp(

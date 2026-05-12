@@ -25,6 +25,7 @@ test("createWorkspace PRIVATE has kind=PRIVATE, memberCount=1 (TENT-01, TENT-10)
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const u = await signUp(

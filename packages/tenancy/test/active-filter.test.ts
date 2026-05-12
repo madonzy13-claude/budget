@@ -27,6 +27,7 @@ test("setActiveWorkspaces persists; listActiveWorkspaces returns intersection (T
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const user = await signUp(

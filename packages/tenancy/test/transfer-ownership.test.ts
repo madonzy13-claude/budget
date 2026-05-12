@@ -26,6 +26,7 @@ test("transferOwnership succeeds; previous owner can now leave (TENT-05)", async
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   // Create two users

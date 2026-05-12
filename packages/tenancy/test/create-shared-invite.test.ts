@@ -26,6 +26,7 @@ test("SHARED workspace invite sends email via EmailSender port (TENT-02, TENT-09
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   // Create owner

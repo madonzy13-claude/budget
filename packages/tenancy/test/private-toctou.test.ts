@@ -27,6 +27,7 @@ test("PC-11 PRIVATE-cap trigger blocks 2nd member — owner already occupies sea
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   // Create owner and PRIVATE workspace (owner occupies the single seat)

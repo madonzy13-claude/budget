@@ -27,6 +27,7 @@ test("owner updates shares to sum=100 — audit_history row written (TENT-13, D-
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const owner = await signUp(
@@ -129,6 +130,7 @@ test("shares summing to 99 throws (TENT-13)", async () => {
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const owner = await signUp(

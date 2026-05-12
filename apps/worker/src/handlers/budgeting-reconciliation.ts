@@ -3,7 +3,7 @@
  *
  * Schedule: 0 * * * * UTC.
  * Algorithm:
- *   1. SELECT DISTINCT tenant_id from budgeting.accounts (via withInfraTx — no RLS needed for scan)
+ *   1. SELECT DISTINCT tenant_id from budgeting.wallets (via withInfraTx — no RLS needed for scan)
  *   2. Per tenant: call reconcileProjections({tenantId, monthStart=2 months ago, monthEnd=current})
  *      under withTenantTx(tenantId, SYSTEM_USER).
  *
@@ -21,7 +21,10 @@ import { Temporal } from "temporal-polyfill";
 import { reconcileProjections } from "@budget/budgeting/src/application/reconcile-projections";
 
 interface PgBossLike {
-  work(queue: string, handler: (job: unknown) => Promise<unknown>): Promise<void>;
+  work(
+    queue: string,
+    handler: (job: unknown) => Promise<unknown>,
+  ): Promise<void>;
 }
 
 interface ReconciliationOutput {
@@ -34,7 +37,10 @@ interface ReconciliationOutput {
 /**
  * Computes [monthStart=first day of (today - 2 months), monthEnd=last day of current month].
  */
-function rollingThreeMonthWindow(today: Temporal.PlainDate): { monthStart: string; monthEnd: string } {
+function rollingThreeMonthWindow(today: Temporal.PlainDate): {
+  monthStart: string;
+  monthEnd: string;
+} {
   const start = today.subtract({ months: 2 }).with({ day: 1 });
   const end = today.with({ day: today.daysInMonth });
   return { monthStart: start.toString(), monthEnd: end.toString() };
@@ -49,16 +55,19 @@ export async function runBudgetingReconciliation(
     : Temporal.Now.plainDateISO();
   const { monthStart, monthEnd } = rollingThreeMonthWindow(today);
 
-  // Step 1: collect distinct tenants (worker_role, no RLS — accounts is GRANT-restricted)
+  // Step 1: collect distinct tenants (worker_role, no RLS — wallets is GRANT-restricted)
   const tenantsResult = await withInfraTx(async (tx) => {
-    const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
+    const drizzleTx = tx as {
+      execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+    };
     const r = await drizzleTx.execute(sql`
-      SELECT DISTINCT tenant_id FROM budgeting.accounts
+      SELECT DISTINCT tenant_id FROM budgeting.wallets
     `);
     return r.rows as Array<{ tenant_id: string }>;
   });
 
-  if (tenantsResult.isErr()) return tenantsResult as unknown as Result<ReconciliationOutput, Error>;
+  if (tenantsResult.isErr())
+    return tenantsResult as unknown as Result<ReconciliationOutput, Error>;
   const tenants = tenantsResult.value;
 
   let totalChecked = 0;
@@ -74,12 +83,13 @@ export async function runBudgetingReconciliation(
       totalRepaired += r.value.repaired;
       totalAlerted += r.value.alerted;
     } else {
-      // eslint-disable-next-line no-console
-      console.error(`[budgeting-reconciliation] tenant=${tenant_id} err:`, r.error);
+      console.error(
+        `[budgeting-reconciliation] tenant=${tenant_id} err:`,
+        r.error,
+      );
     }
   }
 
-  // eslint-disable-next-line no-console
   console.log(
     `[budgeting-reconciliation] scanned=${tenants.length} checked=${totalChecked} repaired=${totalRepaired} alerted=${totalAlerted} window=${monthStart}..${monthEnd}`,
   );
