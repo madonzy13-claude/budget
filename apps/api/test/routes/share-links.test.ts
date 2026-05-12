@@ -17,7 +17,8 @@ import { Hono } from "hono";
 import { Pool } from "pg";
 
 const DB_URL_RAW = process.env.DATABASE_URL_APP;
-if (!DB_URL_RAW) throw new Error("DATABASE_URL_APP required for integration tests");
+if (!DB_URL_RAW)
+  throw new Error("DATABASE_URL_APP required for integration tests");
 process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
 
@@ -111,8 +112,12 @@ async function seedExpiredLink(
   try {
     await client.query("BEGIN");
     // Set app.tenant_ids GUC so RLS policy is satisfied
-    await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
-    await client.query(`SELECT set_config('app.current_user_id', '${createdBy}', true)`);
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${createdBy}', true)`,
+    );
     const r = await client.query<{ id: string }>(
       `INSERT INTO tenancy.budget_share_links
          (id, budget_id, tenant_id, token, created_by, expires_at, created_at)
@@ -138,9 +143,7 @@ async function buildApp(
   tenantId: string,
   authenticated = true,
 ) {
-  const { createShareJoinRoute } = await import(
-    "../../src/routes/share-join"
-  );
+  const { createShareJoinRoute } = await import("../../src/routes/share-join");
   const { budgetsRoutesFactory } = await import("../../src/routes/budgets");
 
   // Minimal deps stub for share-link routes
@@ -222,7 +225,6 @@ async function buildApp(
 describe("Share-link: happy path (create → resolve → accept → 2nd accept 409)", () => {
   let fix: Fixture;
   let token: string;
-  let linkId: string;
 
   beforeAll(async () => {
     fix = await createFixture("Happy");
@@ -236,19 +238,18 @@ describe("Share-link: happy path (create → resolve → accept → 2nd accept 4
       body: JSON.stringify({ ttlDays: 7 }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.url).toMatch(/\/budgets\/join\//);
     expect(body.expiresAt).toBeDefined();
     expect(body.id).toBeDefined();
     token = body.url.split("/budgets/join/")[1];
-    linkId = body.id;
   });
 
   it("GET /budgets/join/:token (no auth) returns 200 with budget name + state flags", async () => {
     const app = await buildApp("", "", false);
     const res = await app.request(`/budgets/join/${token}`);
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.budgetName).toBe(fix.budgetName);
     expect(body.isExpired).toBe(false);
     expect(body.isRevoked).toBe(false);
@@ -262,7 +263,7 @@ describe("Share-link: happy path (create → resolve → accept → 2nd accept 4
       headers: { "Content-Type": "application/json" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.budgetId).toBe(fix.budgetId);
   });
 
@@ -273,7 +274,7 @@ describe("Share-link: happy path (create → resolve → accept → 2nd accept 4
       headers: { "Content-Type": "application/json" },
     });
     expect(res.status).toBe(409);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("AlreadyUsed");
   });
 });
@@ -284,15 +285,23 @@ describe("Share-link: expired link", () => {
 
   beforeAll(async () => {
     fix = await createFixture("Expired");
-    expiredToken = `expired-${crypto.randomUUID().replace(/-/g, "")}`.slice(0, 32);
-    await seedExpiredLink(fix.budgetId, fix.budgetId, fix.ownerId, expiredToken);
+    expiredToken = `expired-${crypto.randomUUID().replace(/-/g, "")}`.slice(
+      0,
+      32,
+    );
+    await seedExpiredLink(
+      fix.budgetId,
+      fix.budgetId,
+      fix.ownerId,
+      expiredToken,
+    );
   });
 
   it("GET /budgets/join/:token returns isExpired=true", async () => {
     const app = await buildApp("", "", false);
     const res = await app.request(`/budgets/join/${expiredToken}`);
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.isExpired).toBe(true);
   });
 
@@ -303,7 +312,7 @@ describe("Share-link: expired link", () => {
       headers: { "Content-Type": "application/json" },
     });
     expect(res.status).toBe(410);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("Expired");
   });
 });
@@ -325,7 +334,7 @@ describe("Share-link: revoked link", () => {
       body: JSON.stringify({ ttlDays: 7 }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     token = body.url.split("/budgets/join/")[1];
     linkId = body.id;
   });
@@ -342,7 +351,7 @@ describe("Share-link: revoked link", () => {
     const app = await buildApp("", "", false);
     const res = await app.request(`/budgets/join/${token}`);
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.isRevoked).toBe(true);
   });
 
@@ -353,7 +362,7 @@ describe("Share-link: revoked link", () => {
       headers: { "Content-Type": "application/json" },
     });
     expect(res.status).toBe(410);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("Revoked");
   });
 });
@@ -369,16 +378,13 @@ describe("Share-link: cross-tenant probe (T-02-08)", () => {
   it("Token from tenant A resolves to tenant A budget name (token is the credential)", async () => {
     // Create link as tenant A owner
     const app = await buildApp(tenantA.ownerId, tenantA.budgetId);
-    const createRes = await app.request(
-      `/budgets/${tenantA.budgetId}/share`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ttlDays: 7 }),
-      },
-    );
+    const createRes = await app.request(`/budgets/${tenantA.budgetId}/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ttlDays: 7 }),
+    });
     expect(createRes.status).toBe(201);
-    const body = await createRes.json() as any;
+    const body = (await createRes.json()) as any;
     tokenA = body.url.split("/budgets/join/")[1];
   });
 
@@ -387,7 +393,7 @@ describe("Share-link: cross-tenant probe (T-02-08)", () => {
     const app = await buildApp("", "", false);
     const res = await app.request(`/budgets/join/${tokenA}`);
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     // Must return tenant A's budget name (not some other tenant)
     expect(body.budgetName).toBe(tenantA.budgetName);
     expect(body.isExpired).toBe(false);
@@ -410,7 +416,7 @@ describe("Share-link: non-owner cannot create or revoke (403)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ttlDays: 7 }),
     });
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     linkId = body.id;
   });
 
@@ -422,7 +428,7 @@ describe("Share-link: non-owner cannot create or revoke (403)", () => {
       body: JSON.stringify({ ttlDays: 7 }),
     });
     expect(res.status).toBe(403);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("Forbidden");
   });
 
@@ -432,7 +438,7 @@ describe("Share-link: non-owner cannot create or revoke (403)", () => {
       method: "DELETE",
     });
     expect(res.status).toBe(403);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("Forbidden");
   });
 });
@@ -452,7 +458,7 @@ describe("Share-link: token format validation", () => {
       body: JSON.stringify({ ttlDays: 7 }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     const token = body.url.split("/budgets/join/")[1];
     expect(token).toMatch(/^[A-Za-z0-9_-]{32}$/);
   });

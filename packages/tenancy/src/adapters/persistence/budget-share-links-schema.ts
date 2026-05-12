@@ -2,7 +2,6 @@
 // Mirror of the tenancy.budget_share_links table created by migration 0013 Section D (SHRD-01).
 import {
   pgPolicy,
-  pgTable,
   uuid,
   text,
   timestamp,
