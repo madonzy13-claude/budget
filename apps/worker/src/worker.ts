@@ -36,9 +36,10 @@ async function main() {
   registerIdempotencyCleanup(boss);
 
   // Recurring engine — daily 06:00 UTC, scans active rules and generates PENDING drafts (Plan 02-08)
+  // T-02-WORKER-FX: pass FxProvider so cross-currency rules use real FX rates with bounds check.
   await boss.createQueue("recurring-engine");
   await boss.schedule("recurring-engine", "0 6 * * *"); // UTC, 5-placeholder format (Pitfall 9)
-  registerRecurringEngine(boss);
+  registerRecurringEngine(boss, fxProvider);
 
   // Budgeting reconciliation — hourly drift check on spending_by_category_month (Plan 02-09)
   await boss.createQueue("budgeting-reconciliation");

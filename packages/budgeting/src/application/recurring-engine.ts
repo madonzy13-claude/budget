@@ -24,15 +24,31 @@
  */
 import { sql } from "drizzle-orm";
 import { withInfraTx, withTenantTx, writeOutbox } from "@budget/platform";
-import { TenantId, UserId, ok, type Result } from "@budget/shared-kernel";
+import {
+  TenantId,
+  UserId,
+  InMemoryFxProvider,
+  ok,
+  type Result,
+} from "@budget/shared-kernel";
 import { Temporal } from "temporal-polyfill";
-import { nextOccurrence, type Cadence } from "@budget/budgeting/src/domain/cadence";
+import {
+  nextOccurrence,
+  type Cadence,
+} from "@budget/budgeting/src/domain/cadence";
+import {
+  computeRecurringFx,
+  type FxProviderLike,
+} from "@budget/budgeting/src/application/recurring-engine-fx";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 // PgBoss type hint
 interface PgBossLike {
-  work(queue: string, handler: (job: unknown) => Promise<unknown>): Promise<void>;
+  work(
+    queue: string,
+    handler: (job: unknown) => Promise<unknown>,
+  ): Promise<void>;
 }
 
 interface RuleRow {
@@ -55,16 +71,29 @@ function toDateString(d: string | Date): string {
   return String(d).slice(0, 10);
 }
 
+export interface RunRecurringEngineOpts {
+  todayOverride?: string;
+  fxProvider?: FxProviderLike;
+}
+
 /** Core engine logic — exported for direct testing. */
 export async function runRecurringEngine(
-  todayOverride?: string,
+  opts: RunRecurringEngineOpts | string = {},
 ): Promise<Result<{ tenantsScanned: number; draftsGenerated: number }, Error>> {
-  const today = todayOverride ?? Temporal.Now.plainDateISO().toString();
+  // Backwards-compat: legacy callers pass `todayOverride` positionally as a string.
+  const normalized: RunRecurringEngineOpts =
+    typeof opts === "string" ? { todayOverride: opts } : opts;
+  const today =
+    normalized.todayOverride ?? Temporal.Now.plainDateISO().toString();
   const todayDate = Temporal.PlainDate.from(today);
+  const fxProvider: FxProviderLike =
+    normalized.fxProvider ?? new InMemoryFxProvider();
 
   // Step 1: collect distinct tenants with due rules (worker_role, no RLS needed for scan)
   const tenantsResult = await withInfraTx(async (tx) => {
-    const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
+    const drizzleTx = tx as {
+      execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+    };
     const r = await drizzleTx.execute(sql`
       SELECT DISTINCT tenant_id FROM budgeting.recurring_rules
        WHERE active = true AND next_due_date <= ${today}::date
@@ -72,17 +101,26 @@ export async function runRecurringEngine(
     return r.rows as Array<{ tenant_id: string }>;
   });
 
-  if (tenantsResult.isErr()) return tenantsResult as unknown as Result<{ tenantsScanned: number; draftsGenerated: number }, Error>;
+  if (tenantsResult.isErr())
+    return tenantsResult as unknown as Result<
+      { tenantsScanned: number; draftsGenerated: number },
+      Error
+    >;
   const tenants = tenantsResult.value;
 
   let totalDrafts = 0;
 
   for (const { tenant_id } of tenants) {
-    const r = await withTenantTx(TenantId(tenant_id), UserId(SYSTEM_USER_ID), async (tx) => {
-      const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
+    const r = await withTenantTx(
+      TenantId(tenant_id),
+      UserId(SYSTEM_USER_ID),
+      async (tx) => {
+        const drizzleTx = tx as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
 
-      // Step 2: get all due rules for this tenant, join budget currency
-      const rulesResult = await drizzleTx.execute(sql`
+        // Step 2: get all due rules for this tenant, join budget currency
+        const rulesResult = await drizzleTx.execute(sql`
         SELECT r.id, r.tenant_id, r.next_due_date, r.cadence, r.cadence_anchor, r.weekly_dow,
                r.yearly_month, r.category_id, r.amount, r.currency, r.note,
                b.default_currency AS budget_currency
@@ -94,30 +132,39 @@ export async function runRecurringEngine(
          FOR UPDATE OF r
       `);
 
-      let draftsGenerated = 0;
+        let draftsGenerated = 0;
 
-      for (const ruleRaw of rulesResult.rows) {
-        const rule = ruleRaw as unknown as RuleRow;
-        let dueDate = Temporal.PlainDate.from(toDateString(rule.next_due_date));
-        const budgetCurrency = rule.budget_currency ?? rule.currency;
-        const amountOriginalCents = String(Math.round(Number(rule.amount) * 100));
-        const categoryId = rule.category_id ?? null;
-        const note = rule.note ?? null;
+        for (const ruleRaw of rulesResult.rows) {
+          const rule = ruleRaw as unknown as RuleRow;
+          let dueDate = Temporal.PlainDate.from(
+            toDateString(rule.next_due_date),
+          );
+          const budgetCurrency = rule.budget_currency ?? rule.currency;
+          const amountOriginalCents = String(
+            Math.round(Number(rule.amount) * 100),
+          );
+          const categoryId = rule.category_id ?? null;
+          const note = rule.note ?? null;
 
-        // Step 3: catch-up loop — INSERT a draft for each missed due date
-        while (Temporal.PlainDate.compare(dueDate, todayDate) <= 0) {
-          const dueDateStr = dueDate.toString();
+          // Step 3: catch-up loop — INSERT a draft for each missed due date
+          while (Temporal.PlainDate.compare(dueDate, todayDate) <= 0) {
+            const dueDateStr = dueDate.toString();
 
-          // Compute FX: if same currency, rate = 1
-          let fxRate = "1";
-          let fxAsOf = dueDateStr;
-          let amountConvertedCents = amountOriginalCents;
+            // T-02-WORKER-FX: same-currency path skips FX call; cross-currency uses
+            // FxProvider and enforces `0 < rate < 1e6` before persisting any draft.
+            const fxComputed = await computeRecurringFx({
+              ruleCurrency: rule.currency,
+              budgetCurrency,
+              amountOriginalCents,
+              dueDateStr,
+              fxProvider,
+            });
+            const fxRate = fxComputed.fxRate;
+            const fxAsOf = fxComputed.fxAsOf;
+            const amountConvertedCents = fxComputed.amountConvertedCents;
 
-          // Note: FX lookup for cross-currency rules is omitted in v1.1 (rule.currency typically = budget.currency)
-          // T-02-WORKER-FX: rate bounds enforced at application layer; FX port extensible in Phase 5
-
-          // INSERT into expense_ledger (confirmed_at NULL = draft, per D-PH2-08)
-          const insertResult = await drizzleTx.execute(sql`
+            // INSERT into expense_ledger (confirmed_at NULL = draft, per D-PH2-08)
+            const insertResult = await drizzleTx.execute(sql`
             INSERT INTO budgeting.expense_ledger
               (id, tenant_id, budget_id, category_id, transaction_date,
                amount_original_cents, currency_original,
@@ -136,53 +183,58 @@ export async function runRecurringEngine(
             RETURNING id
           `);
 
-          // Step 4: writeOutbox only if draft was actually inserted (not a conflict skip)
-          if (insertResult.rows.length > 0) {
-            const draftId = (insertResult.rows[0] as Record<string, unknown>).id as string;
-            await writeOutbox(tx, {
-              tenantId: TenantId(tenant_id),
-              aggregateType: "recurring_rule",
-              aggregateId: rule.id,
-              eventType: "budgeting.recurring.draft.generated",
-              payload: {
-                draftId,
-                ruleId: rule.id,
-                tenantId: tenant_id,
-                dueDate: dueDateStr,
+            // Step 4: writeOutbox only if draft was actually inserted (not a conflict skip)
+            if (insertResult.rows.length > 0) {
+              const draftId = (insertResult.rows[0] as Record<string, unknown>)
+                .id as string;
+              await writeOutbox(tx, {
+                tenantId: TenantId(tenant_id),
+                aggregateType: "recurring_rule",
+                aggregateId: rule.id,
+                eventType: "budgeting.recurring.draft.generated",
+                payload: {
+                  draftId,
+                  ruleId: rule.id,
+                  tenantId: tenant_id,
+                  dueDate: dueDateStr,
+                },
+              });
+              draftsGenerated++;
+            }
+
+            // Step 5: advance dueDate via nextOccurrence
+            dueDate = nextOccurrence(
+              {
+                cadence: rule.cadence as Cadence,
+                anchorDay: rule.cadence_anchor ?? undefined,
+                weeklyDow: rule.weekly_dow ?? undefined,
+                yearlyMonth: rule.yearly_month ?? undefined,
               },
-            });
-            draftsGenerated++;
+              dueDate,
+            );
           }
 
-          // Step 5: advance dueDate via nextOccurrence
-          dueDate = nextOccurrence(
-            {
-              cadence: rule.cadence as Cadence,
-              anchorDay: rule.cadence_anchor ?? undefined,
-              weeklyDow: rule.weekly_dow ?? undefined,
-              yearlyMonth: rule.yearly_month ?? undefined,
-            },
-            dueDate,
-          );
-        }
-
-        // Step 6: UPDATE next_due_date to first date > today (INSERT FIRST per Pitfall 3)
-        await drizzleTx.execute(sql`
+          // Step 6: UPDATE next_due_date to first date > today (INSERT FIRST per Pitfall 3)
+          await drizzleTx.execute(sql`
           UPDATE budgeting.recurring_rules
              SET next_due_date = ${dueDate.toString()}::date,
                  updated_at = now()
            WHERE id = ${rule.id}::uuid
         `);
-      }
+        }
 
-      return draftsGenerated;
-    });
+        return draftsGenerated;
+      },
+    );
 
     if (r.isOk()) totalDrafts += r.value;
     else {
       const anyE = r.error as unknown as Record<string, unknown>;
       const cause = anyE?.cause as Record<string, unknown> | undefined;
-      if (cause?.code) console.error(`[engine] tenant ${tenant_id} pg_err code=${cause.code} msg=${cause.message}`);
+      if (cause?.code)
+        console.error(
+          `[engine] tenant ${tenant_id} pg_err code=${cause.code} msg=${cause.message}`,
+        );
     }
   }
 
@@ -190,8 +242,11 @@ export async function runRecurringEngine(
 }
 
 /** Register pg-boss handler scheduled at 0 6 * * * UTC (5-placeholder format). */
-export function registerRecurringEngine(boss: PgBossLike): void {
+export function registerRecurringEngine(
+  boss: PgBossLike,
+  fxProvider?: FxProviderLike,
+): void {
   boss.work("recurring-engine", async () => {
-    return runRecurringEngine();
+    return runRecurringEngine(fxProvider ? { fxProvider } : {});
   });
 }

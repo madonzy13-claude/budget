@@ -101,8 +101,13 @@ export function editTransaction(deps: EditTransactionDeps) {
           new Date(newDate + "T00:00:00Z"), // Pitfall 7
         );
         newFxRate = fxResult.rate;
+        // T-02-01: cap rate to sane bounds (0 < rate < 1e6) before persisting
+        const rateNum = Number(newFxRate);
+        if (!Number.isFinite(rateNum) || rateNum <= 0 || rateNum >= 1e6) {
+          return err(new Error(`FX rate out of bounds: ${newFxRate}`));
+        }
         newAmountConverted = String(
-          Math.round(Number(newAmountCents) * Number(newFxRate)),
+          Math.round(Number(newAmountCents) * rateNum),
         );
       }
 
