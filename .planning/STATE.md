@@ -4,14 +4,14 @@ milestone: v1.1
 milestone_name: Budget Restructure
 status: executing
 stopped_at: Phase 3 UI-SPEC approved
-last_updated: "2026-05-12T23:26:25.500Z"
+last_updated: "2026-05-12T23:36:28.107Z"
 last_activity: 2026-05-12
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 17
-  completed_plans: 14
-  percent: 82
+  completed_plans: 15
+  percent: 88
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: 03 (navigation-home-bdp-frame) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-05-12
 
@@ -81,6 +81,7 @@ _Updated after each plan completion_
 | Phase 03 P02 | 85min | 3 tasks | 8 files |
 | Phase 3 P3 | 32 | - tasks | - files |
 | Phase 03-navigation-home-bdp-frame P04 | 8min | 3 tasks | 11 files |
+| Phase 3 P5 | 11min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase ?]: Tenant-leak gate adds one file per new tenant-scoped endpoint; BDP-03 increments 6 -> 7 files
 - [Phase ?]: Plan 03-04: Header z-index bumped from z-40 to z-50 so BudgetSwitcher PopoverContent z-[60] floats above and BDP sticky wrapper z-40 (Plan 03-06) renders below.
 - [Phase ?]: Plan 03-04: Middleware OVERWRITES x-pathname (not set-if-absent) to discard any client-supplied value — T-03-04-06 mitigation.
+- [Phase 3]: Plan 3-5: lucide v1.14 renames BarChart3 → ChartColumn; tests accept svg.lucide-chart-column OR svg.lucide-bar-chart-3 for stability across upgrades
+- [Phase 3]: Plan 3-5: BudgetCard error path keeps Link wrapper so card always routes to /budgets/[id]/spendings — tenant guard enforces access at BDP
+- [Phase 3]: Plan 3-5: Async-RSC + RTL test pattern — await Component({props}) then render(ui); mock @/lib/budget-fetch.server + next-intl/server.getTranslations
 
 ### Pending Todos
 
@@ -172,7 +176,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-12T23:26:17.381Z
+Last session: 2026-05-12T23:35:16.991Z
 Stopped at: Phase 3 UI-SPEC approved
 Resume file: None
 

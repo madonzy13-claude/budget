@@ -41,8 +41,8 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 - [x] **HOME-01**: `/` renders one card per budget the user has access to (Personal + Shared)
 - [x] **HOME-02**: Each card shows: budget name, type badge, current-month total spent, total wallets value (converted to user's `display_currency`), top 1–2 overspent categories
-- [ ] **HOME-03**: Card click navigates to `/budgets/[id]/spendings`
-- [ ] **HOME-04**: Placeholder chart component below cards (scaffold only, no real data wiring in v1.1)
+- [x] **HOME-03**: Card click navigates to `/budgets/[id]/spendings`
+- [x] **HOME-04**: Placeholder chart component below cards (scaffold only, no real data wiring in v1.1)
 
 ### Budget Detail Page (BDP) — Tab Frame (BDP)
 

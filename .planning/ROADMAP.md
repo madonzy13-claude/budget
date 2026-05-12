@@ -88,7 +88,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 03-02-PLAN.md — Backend: GET /budgets/:id/home-summary + FxProvider conversion (HOME-01, HOME-02)
 - [x] 03-03-PLAN.md — Backend: GET /budgets/:id/tasks?status=pending read endpoint (BDP-03 shell)
 - [x] 03-04-PLAN.md — BudgetSwitcher Popover + NewBudgetButton + TopNav + rewrite (app)/layout.tsx (NAV-01..04)
-- [ ] 03-05-PLAN.md — Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero (HOME-01..04)
+- [x] 03-05-PLAN.md — Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero (HOME-01..04)
 - [ ] 03-06-PLAN.md — BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tab pages + /budgets/new (BDP-01..05)
 - [ ] 03-07-PLAN.md — PL/UK i18n + playwright-bdd Gherkin features + Makefile test-e2e target (14 reqs)
       **UI hint**: yes
@@ -222,7 +222,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | ------------------------------------------- | -------------- | ----------- | --------- |
 | 1. Schema Migration & Rename Foundation     | 0/TBD          | Not started | -         |
 | 2. Domain & API Restructure                 | 0/TBD          | Not started | -         |
-| 3. Navigation, Home & BDP Frame             | 4/7            | In Progress |           |
+| 3. Navigation, Home & BDP Frame             | 5/7            | In Progress |           |
 | 4. Spendings Grid                           | 0/TBD          | Not started | -         |
 | 5. Reserves & Wallets Tabs                  | 0/TBD          | Not started | -         |
 | 6. Settings, Onboarding & Share UI          | 0/TBD          | Not started | -         |
