@@ -11,7 +11,7 @@ import { err, type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { RecurringRuleRepo, RecurringRuleEdits } from "../ports/recurring-rule-repo";
-import type { RecurringDraftRepo, DraftEdits } from "../ports/recurring-draft-repo";
+import type { RecurringDraftRepo } from "../ports/recurring-draft-repo";
 
 export interface UpdateRecurringRuleInput {
   tenantId: string;
@@ -53,11 +53,13 @@ export function updateRecurringRule(deps: {
       // UPDATE the rule's mutable fields
       await deps.ruleRepo.update(tx, input.ruleId, input.tenantId, input.edits);
 
-      // Build draft edits (subset of rule edits applicable to drafts)
-      const draftEdits: DraftEdits = {};
-      if (input.edits.amount !== undefined) draftEdits.amount = input.edits.amount;
+      // Build draft edits (subset of rule edits applicable to expense_ledger drafts)
+      const draftEdits: Parameters<RecurringDraftRepo["regenerateFuturePending"]>[2] = {};
+      if (input.edits.amount !== undefined) {
+        // Convert decimal amount to cents for expense_ledger
+        draftEdits.amountOriginalCents = String(Math.round(Number(input.edits.amount) * 100));
+      }
       if (input.edits.currency !== undefined) draftEdits.currency = input.edits.currency;
-      if (input.edits.accountId !== undefined) draftEdits.accountId = input.edits.accountId;
       if (input.edits.categoryId !== undefined) draftEdits.categoryId = input.edits.categoryId;
       if (input.edits.note !== undefined) draftEdits.note = input.edits.note;
 

@@ -1,5 +1,11 @@
 /**
  * create-recurring-rule.ts — Create a recurring rule use case.
+ *
+ * v1.1 (Phase 2, Plan 02-02):
+ *   - accountId / walletId dropped: categorical-only per TXN-02 / D-PH2-09
+ *   - kind dropped: all rules produce SPENDING drafts per D-PH2-09
+ *   - yearlyMonth added for YEARLY cadence
+ *   - Cadence extended to DAILY|WEEKLY|MONTHLY|YEARLY
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
@@ -9,14 +15,13 @@ import type { RecurringRuleRepo } from "../ports/recurring-rule-repo";
 
 export interface CreateRecurringRuleInput {
   tenantId: string;
-  accountId: string;
   categoryId?: string | null;
   amount: string;
   currency: string;
-  kind: "EXPENSE" | "INCOME" | "TRANSFER";
-  cadence: "MONTHLY" | "WEEKLY";
+  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadenceAnchor?: number | null;
   weeklyDow?: number | null;
+  yearlyMonth?: number | null;
   note?: string | null;
   firstDueDate: string; // ISO YYYY-MM-DD
   actorUserId: string;
@@ -48,12 +53,14 @@ export function createRecurringRule(deps: { ruleRepo: RecurringRuleRepo }) {
       const { sql } = await import("drizzle-orm");
       const result = await drizzleTx.execute(sql`
         INSERT INTO budgeting.recurring_rules
-          (tenant_id, wallet_id, category_id, amount, currency, kind, cadence,
-           cadence_anchor, weekly_dow, note, active, next_due_date, actor_user_id)
+          (tenant_id, category_id, amount, currency, cadence,
+           cadence_anchor, weekly_dow, yearly_month,
+           note, active, next_due_date, actor_user_id)
         VALUES
-          (${input.tenantId}::uuid, ${input.accountId}::uuid, ${(input.categoryId ?? null) as string | null}::uuid,
-           ${input.amount}::numeric, ${input.currency}, ${input.kind}, ${input.cadence},
-           ${input.cadenceAnchor ?? null}, ${input.weeklyDow ?? null}, ${input.note ?? null}, true,
+          (${input.tenantId}::uuid, ${(input.categoryId ?? null) as string | null}::uuid,
+           ${input.amount}::numeric, ${input.currency}, ${input.cadence},
+           ${input.cadenceAnchor ?? null}, ${input.weeklyDow ?? null}, ${input.yearlyMonth ?? null},
+           ${input.note ?? null}, true,
            ${input.firstDueDate}::date, ${input.actorUserId}::uuid)
         RETURNING id
       `);
@@ -66,7 +73,7 @@ export function createRecurringRule(deps: { ruleRepo: RecurringRuleRepo }) {
         entityId: ruleId,
         action: "create" as const,
         before: null,
-        after: { amount: input.amount, cadence: input.cadence, kind: input.kind },
+        after: { amount: input.amount, cadence: input.cadence },
       });
 
       await writeOutbox(tx, {

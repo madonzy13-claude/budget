@@ -1,76 +1,58 @@
 /**
- * recurring-draft-repo.ts — Port interface for RecurringDraft persistence.
+ * recurring-draft-repo.ts — Port interface for recurring draft persistence.
+ *
+ * v1.1 (Phase 2, Plan 02-02):
+ *   Drafts are now expense_ledger rows with confirmed_at IS NULL.
+ *   The separate recurring_drafts table is DROPPED by migration 0013 (02-01).
+ *   Adapter targets budgeting.expense_ledger.
+ *
  * Domain layer: no Drizzle imports.
  */
-
-export type DraftStatus = "PENDING" | "CONFIRMED" | "SKIPPED";
 
 export interface RecurringDraftRow {
   id: string;
   tenantId: string;
   ruleId: string;
-  dueDate: string; // ISO date YYYY-MM-DD
-  amount: string;
+  dueDate: string; // ISO date YYYY-MM-DD (from transaction_date)
+  amountOriginalCents: string;
   currency: string;
-  accountId: string;
   categoryId: string | null;
-  kind: "EXPENSE" | "INCOME" | "TRANSFER";
   note: string | null;
-  status: DraftStatus;
+  confirmedAt: Date | null; // null = draft (pending)
+  kind: "SPENDING" | "INCOME";
   createdAt: Date;
-  confirmedAt: Date | null;
-  actorUserId: string | null;
 }
 
 export interface DraftEdits {
-  amount?: string;
+  amountOriginalCents?: string;
   currency?: string;
-  accountId?: string;
   categoryId?: string | null;
-  kind?: "EXPENSE" | "INCOME" | "TRANSFER";
   note?: string | null;
 }
 
 export interface RecurringDraftRepo {
-  /**
-   * Insert a new draft (ON CONFLICT (rule_id, due_date) DO NOTHING for idempotency).
-   * Returns the created id or null if the conflict was ignored.
-   */
-  insert(
-    tx: unknown,
-    draft: {
-      tenantId: string;
-      ruleId: string;
-      dueDate: string;
-      amount: string;
-      currency: string;
-      accountId: string;
-      categoryId: string | null;
-      kind: "EXPENSE" | "INCOME" | "TRANSFER";
-      note: string | null;
-      actorUserId: string;
-    },
-  ): Promise<{ id: string } | null>;
-
   /** Find by id (RLS-scoped). Returns null if not found or wrong tenant. */
   findById(tenantId: string, draftId: string): Promise<RecurringDraftRow | null>;
 
-  /** List pending drafts for tenant ordered by due_date ASC. */
+  /** List pending drafts (confirmed_at IS NULL) for tenant ordered by transaction_date ASC. */
   listPending(tenantId: string): Promise<RecurringDraftRow[]>;
 
   /**
-   * Mark draft as CONFIRMED.
-   * Caller owns the tx — must share tx with transactionRepo.createInTx.
+   * Confirm a draft: set confirmed_at = now() and actor_user_id.
+   * Caller owns the tx — must share tx with transactionRepo.
    */
   markConfirmed(tx: unknown, draftId: string, actorUserId: string): Promise<void>;
 
-  /** Mark draft as SKIPPED. */
+  /**
+   * Soft-delete a draft (draft skip = deleted_at set).
+   * Caller owns the tx.
+   */
   markSkipped(tx: unknown, draftId: string, actorUserId: string): Promise<void>;
 
   /**
-   * UPDATE future PENDING drafts in-place for a rule (D-01-d "apply to future" behavior).
-   * Only touches rows WHERE rule_id=$1 AND status='PENDING' AND due_date >= CURRENT_DATE.
-   * Preserves draft.id (PENDING-id stable) and UNIQUE (rule_id, due_date) invariant.
+   * UPDATE future pending drafts in-place for a rule (D-01-d "apply to future" behavior).
+   * Only touches rows WHERE recurring_rule_id=$1 AND confirmed_at IS NULL AND transaction_date >= CURRENT_DATE.
+   * Preserves draft.id and UNIQUE (recurring_rule_id, transaction_date) invariant.
    * Returns array of affected draft ids for outbox payload.
    * Caller owns the tx.
    */

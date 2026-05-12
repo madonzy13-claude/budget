@@ -1,6 +1,12 @@
 /**
  * recurring-rule-repo.ts — Port interface for RecurringRule persistence.
  * Domain layer: no Drizzle imports.
+ *
+ * v1.1 (Phase 2, Plan 02-02):
+ *   - accountId dropped: categorical-only per TXN-02
+ *   - kind dropped: all rules produce SPENDING drafts per D-PH2-09
+ *   - yearlyMonth added for YEARLY cadence
+ *   - Cadence extended to DAILY|WEEKLY|MONTHLY|YEARLY
  */
 import type { RecurringRule } from "../domain/recurring-rule";
 
@@ -8,7 +14,6 @@ export interface RecurringRuleEdits {
   amount?: string;
   currency?: string;
   categoryId?: string | null;
-  accountId?: string;
   note?: string | null;
   active?: boolean;
 }
@@ -16,14 +21,13 @@ export interface RecurringRuleEdits {
 export interface RecurringRuleRow {
   id: string;
   tenantId: string;
-  accountId: string;
   categoryId: string | null;
   amount: string;
   currency: string;
-  kind: "EXPENSE" | "INCOME" | "TRANSFER";
-  cadence: "MONTHLY" | "WEEKLY";
+  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadenceAnchor: number | null;
   weeklyDow: number | null;
+  yearlyMonth: number | null;
   note: string | null;
   active: boolean;
   nextDueDate: string; // ISO date YYYY-MM-DD
@@ -35,14 +39,13 @@ export interface RecurringRuleRepo {
   /** Insert a new rule; returns the created id. */
   insert(rule: {
     tenantId: string;
-    accountId: string;
     categoryId: string | null;
     amount: string;
     currency: string;
-    kind: "EXPENSE" | "INCOME" | "TRANSFER";
-    cadence: "MONTHLY" | "WEEKLY";
+    cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
     cadenceAnchor: number | null;
     weeklyDow: number | null;
+    yearlyMonth: number | null;
     note: string | null;
     nextDueDate: string;
     actorUserId: string;

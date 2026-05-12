@@ -284,23 +284,39 @@ export type CorrectTransactionInput = z.infer<typeof correctTransactionSchema>;
 // Recurring rules schemas (EXPN-08, plan 02-08)
 // ---------------------------------------------------------------------------
 
-export const cadenceSchema = z.enum(["MONTHLY", "WEEKLY"]);
+export const cadenceSchema = z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]);
 
-export const createRecurringRuleSchema = z.object({
-  accountId: z.string().uuid(),
-  categoryId: z.string().uuid().nullable().optional(),
+/**
+ * Discriminated union for cadence + required selectors (RECR-01 / D-PH2-03).
+ * Enforces per-cadence required fields at Zod level; DB CHECK mirrors this.
+ */
+export const cadenceSpecSchema = z.discriminatedUnion("cadence", [
+  z.object({ cadence: z.literal("DAILY") }),
+  z.object({ cadence: z.literal("WEEKLY"), weekly_dow: z.number().int().min(0).max(6) }),
+  z.object({ cadence: z.literal("MONTHLY"), cadence_anchor: z.number().int().min(1).max(31) }),
+  z.object({
+    cadence: z.literal("YEARLY"),
+    yearly_month: z.number().int().min(1).max(12),
+    cadence_anchor: z.number().int().min(1).max(31),
+  }),
+]);
+
+/** Base fields common to all cadences */
+const createRecurringRuleBaseSchema = z.object({
+  category_id: z.string().uuid().nullable().optional(),
   amount: z
     .string()
     .regex(/^\d+(\.\d{1,4})?$/)
     .refine((v) => parseFloat(v) > 0, "amount must be positive"),
   currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
-  kind: z.enum(["EXPENSE", "INCOME", "TRANSFER"]),
-  cadence: cadenceSchema,
-  cadenceAnchor: z.number().int().min(1).max(31).nullable().optional(),
-  weeklyDow: z.number().int().min(0).max(6).nullable().optional(),
   note: z.string().max(500).nullable().optional(),
-  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  first_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
+
+export const createRecurringRuleSchema = z.intersection(
+  createRecurringRuleBaseSchema,
+  cadenceSpecSchema,
+);
 
 export type CreateRecurringRuleInput = z.infer<
   typeof createRecurringRuleSchema
@@ -318,7 +334,6 @@ const ruleEditsSchema = z
       .regex(/^[A-Z0-9]{3,5}$/)
       .optional(),
     categoryId: z.string().uuid().nullable().optional(),
-    accountId: z.string().uuid().optional(),
     note: z.string().max(500).nullable().optional(),
     active: z.boolean().optional(),
   })
@@ -342,17 +357,12 @@ export const confirmDraftSchema = z.object({});
 
 const draftEditsSchema = z
   .object({
-    amount: z
-      .string()
-      .regex(/^\d+(\.\d{1,4})?$/)
-      .optional(),
+    amountOriginalCents: z.string().regex(/^\d+$/).optional(),
     currency: z
       .string()
       .regex(/^[A-Z0-9]{3,5}$/)
       .optional(),
-    accountId: z.string().uuid().optional(),
     categoryId: z.string().uuid().nullable().optional(),
-    kind: z.enum(["EXPENSE", "INCOME", "TRANSFER"]).optional(),
     note: z.string().max(500).nullable().optional(),
   })
   .strict();

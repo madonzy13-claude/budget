@@ -12,7 +12,7 @@ import { DrizzleBudgetModeRepo } from "../adapters/persistence/budget-mode-repo"
 import { DrizzleTransactionRepo } from "../adapters/persistence/transaction-repo";
 import { DrizzleSpendingProjectionRepo } from "../adapters/persistence/spending-projection-repo";
 import { DrizzleRecurringRuleRepo } from "../adapters/persistence/recurring-rule-repo";
-import { DrizzleRecurringDraftRepo } from "../adapters/persistence/recurring-draft-repo";
+import { ExpenseLedgerDraftRepo } from "../adapters/persistence/expense-ledger-draft-repo";
 import { createWallet } from "../application/create-wallet";
 import { archiveWallet } from "../application/archive-wallet";
 import { adjustWalletBalance } from "../application/adjust-wallet-balance";
@@ -91,7 +91,7 @@ export interface BudgetingModule {
   listSupportedCurrencies: typeof listSupportedCurrencies;
   /** Exposed for plan 02-08 createInTx cross-plan contract */
   transactionRepo: DrizzleTransactionRepo;
-  // Plan 02-08: recurring rules + drafts
+  // Plan 02-08 / 02-02: recurring rules + drafts (drafts now in expense_ledger)
   createRecurringRule: ReturnType<typeof createRecurringRule>;
   updateRecurringRule: ReturnType<typeof updateRecurringRule>;
   deleteRecurringRule: ReturnType<typeof deleteRecurringRule>;
@@ -100,7 +100,7 @@ export interface BudgetingModule {
   skipRecurringDraft: ReturnType<typeof skipRecurringDraft>;
   listPendingDrafts: ReturnType<typeof listPendingDrafts>;
   recurringRuleRepo: DrizzleRecurringRuleRepo;
-  recurringDraftRepo: DrizzleRecurringDraftRepo;
+  recurringDraftRepo: ExpenseLedgerDraftRepo;
   // Plan 02-09: search + bulk re-categorize + projection durability
   searchTransactions: ReturnType<typeof searchTransactions>;
   bulkRecategorize: ReturnType<typeof bulkRecategorize>;
@@ -134,7 +134,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   const projectionRepo = new DrizzleSpendingProjectionRepo();
   const transactionRepo = new DrizzleTransactionRepo(repo, projectionRepo);
   const recurringRuleRepo = new DrizzleRecurringRuleRepo();
-  const recurringDraftRepo = new DrizzleRecurringDraftRepo();
+  const recurringDraftRepo = new ExpenseLedgerDraftRepo();
   const fxProvider = new FrankfurterFxProvider(deps.fxCache);
 
   return {
@@ -177,23 +177,17 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     getTransactionHistory: getTransactionHistory({ transactionRepo }),
     listSupportedCurrencies,
     transactionRepo,
-    // Plan 02-08
+    // Plan 02-08 / 02-02
     createRecurringRule: createRecurringRule({ ruleRepo: recurringRuleRepo }),
     updateRecurringRule: updateRecurringRule({
       ruleRepo: recurringRuleRepo,
       draftRepo: recurringDraftRepo,
     }),
     deleteRecurringRule: deleteRecurringRule({ ruleRepo: recurringRuleRepo }),
-    confirmRecurringDraft: confirmRecurringDraft({
-      draftRepo: recurringDraftRepo,
-      transactionRepo,
-    }),
-    editAndConfirmRecurringDraft: editAndConfirmRecurringDraft({
-      draftRepo: recurringDraftRepo,
-      transactionRepo,
-    }),
-    skipRecurringDraft: skipRecurringDraft({ draftRepo: recurringDraftRepo }),
-    listPendingDrafts: listPendingDrafts({ draftRepo: recurringDraftRepo }),
+    confirmRecurringDraft: confirmRecurringDraft(),
+    editAndConfirmRecurringDraft: editAndConfirmRecurringDraft(),
+    skipRecurringDraft: skipRecurringDraft(),
+    listPendingDrafts: listPendingDrafts(),
     recurringRuleRepo,
     recurringDraftRepo,
     // Plan 02-09

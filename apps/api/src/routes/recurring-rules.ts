@@ -1,16 +1,64 @@
 /**
- * recurring-rules.ts — /recurring-rules route factory (plan 02-08, EXPN-08)
+ * recurring-rules.ts — /recurring-rules route factory (plan 02-02, RECR-01)
  *
- * POST   /recurring-rules            — create rule (idempotency middleware)
+ * POST   /recurring-rules            — create rule (discriminated cadence union)
  * GET    /recurring-rules            — list active rules for tenant
  * PATCH  /recurring-rules/:id        — update rule (REQUIRES applyToFuture; D-01-d)
  * DELETE /recurring-rules/:id        — soft-delete (sets active=false)
  *
- * Idempotency middleware (mounted in app.ts) protects POST/PATCH/DELETE.
- * RLS via tenantGuard middleware (sets app.tenant_ids GUC).
+ * v1.1 changes (Plan 02-02):
+ *   - Cadence extended to DAILY|WEEKLY|MONTHLY|YEARLY with per-cadence Zod validation
+ *   - kind field removed (all rules produce SPENDING drafts per D-PH2-09)
+ *   - accountId/walletId removed (categorical-only per TXN-02)
+ *   - yearly_month exposed in response
  */
 import { Hono } from "hono";
+import { z } from "zod";
 import type { BootedDeps } from "../boot";
+
+// Re-export discriminated union from contracts for route use
+const cadenceSpecSchema = z.discriminatedUnion("cadence", [
+  z.object({ cadence: z.literal("DAILY") }),
+  z.object({ cadence: z.literal("WEEKLY"), weekly_dow: z.number().int().min(0).max(6) }),
+  z.object({ cadence: z.literal("MONTHLY"), cadence_anchor: z.number().int().min(1).max(31) }),
+  z.object({
+    cadence: z.literal("YEARLY"),
+    yearly_month: z.number().int().min(1).max(12),
+    cadence_anchor: z.number().int().min(1).max(31),
+  }),
+]);
+
+const createRuleBaseSchema = z.object({
+  category_id: z.string().uuid().nullable().optional(),
+  amount: z
+    .string()
+    .regex(/^\d+(\.\d{1,4})?$/)
+    .refine((v) => parseFloat(v) > 0, "amount must be positive"),
+  currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
+  note: z.string().max(500).nullable().optional(),
+  first_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const createRuleSchema = z.intersection(createRuleBaseSchema, cadenceSpecSchema);
+
+const updateRuleEditsSchema = z
+  .object({
+    amount: z
+      .string()
+      .regex(/^\d+(\.\d{1,4})?$/)
+      .refine((v) => parseFloat(v) > 0, "amount must be positive")
+      .optional(),
+    currency: z.string().regex(/^[A-Z0-9]{3,5}$/).optional(),
+    categoryId: z.string().uuid().nullable().optional(),
+    note: z.string().max(500).nullable().optional(),
+    active: z.boolean().optional(),
+  })
+  .strict();
+
+const updateRuleSchema = z.object({
+  edits: updateRuleEditsSchema,
+  applyToFuture: z.boolean(),
+});
 
 export function createRecurringRulesRoute(deps: BootedDeps) {
   const app = new Hono<{ Variables: Record<string, any> }>();
@@ -22,26 +70,34 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
 
   // POST /recurring-rules — create
   app.post("/", async (c) => {
-    const { createRecurringRuleSchema } =
-      await import("@budget/budgeting/src/contracts/api");
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
 
-    const parsed = createRecurringRuleSchema.safeParse(body);
+    const parsed = createRuleSchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
         { error: "Validation error", issues: parsed.error.issues },
-        422,
+        400,
       );
     }
 
+    const data = parsed.data;
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
 
+    // Map snake_case API fields to camelCase application input
     const r = await deps.budgeting.createRecurringRule({
-      ...parsed.data,
       tenantId,
       actorUserId: userId,
+      categoryId: (data as any).category_id ?? null,
+      amount: data.amount,
+      currency: data.currency,
+      cadence: data.cadence as "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+      cadenceAnchor: (data as any).cadence_anchor ?? null,
+      weeklyDow: (data as any).weekly_dow ?? null,
+      yearlyMonth: (data as any).yearly_month ?? null,
+      note: data.note ?? null,
+      firstDueDate: (data as any).first_due_date,
     });
 
     if (r.isErr()) {
@@ -63,14 +119,13 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
       rules: rules.map((rule) => ({
         id: rule.id,
         tenantId: rule.tenantId,
-        accountId: rule.accountId,
         categoryId: rule.categoryId,
         amount: rule.amount,
         currency: rule.currency,
-        kind: rule.kind,
         cadence: rule.cadence,
         cadenceAnchor: rule.cadenceAnchor,
         weeklyDow: rule.weeklyDow,
+        yearlyMonth: rule.yearlyMonth,
         note: rule.note,
         active: rule.active,
         nextDueDate: rule.nextDueDate,
@@ -84,13 +139,11 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
 
   // PATCH /recurring-rules/:id — D-01-d: applyToFuture REQUIRED
   app.patch("/:id", async (c) => {
-    const { updateRecurringRuleSchema } =
-      await import("@budget/budgeting/src/contracts/api");
     const ruleId = c.req.param("id");
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
 
-    const parsed = updateRecurringRuleSchema.safeParse(body);
+    const parsed = updateRuleSchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
         { error: "Validation error", issues: parsed.error.issues },

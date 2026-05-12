@@ -1,25 +1,28 @@
 /**
  * edit-and-confirm-recurring-draft.ts — Edit draft fields then confirm in one atomic tx.
- * Same single-tx pattern as confirm-recurring-draft.
+ *
+ * v1.1 (Phase 2, Plan 02-02):
+ *   Drafts are expense_ledger rows with confirmed_at IS NULL.
+ *   Edit + confirm = UPDATE expense_ledger fields + SET confirmed_at = now() in one tx.
  */
 import { err, type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
-import type { RecurringDraftRepo, DraftEdits } from "../ports/recurring-draft-repo";
-import type { TransactionRepo } from "../ports/transaction-repo";
 import { AlreadyConfirmedError, DraftNotFoundError } from "./confirm-recurring-draft";
 
 export interface EditAndConfirmInput {
   tenantId: string;
   draftId: string;
-  edits: DraftEdits & { fxPreview?: { rate: string; fxRateDate: string } | null };
+  edits: {
+    amountOriginalCents?: string;
+    currency?: string;
+    categoryId?: string | null;
+    note?: string | null;
+  };
   actorUserId: string;
 }
 
-export function editAndConfirmRecurringDraft(deps: {
-  draftRepo: RecurringDraftRepo;
-  transactionRepo: TransactionRepo;
-}) {
+export function editAndConfirmRecurringDraft(_deps: Record<string, unknown> = {}) {
   return async (input: EditAndConfirmInput): Promise<Result<{ ledgerId: string }, Error>> => {
     const r = await withTenantTx(TenantId(input.tenantId), UserId(input.actorUserId), async (tx) => {
       const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
@@ -27,8 +30,12 @@ export function editAndConfirmRecurringDraft(deps: {
 
       // SELECT FOR UPDATE to prevent concurrent confirms
       const draftResult = await drizzleTx.execute(sql`
-        SELECT * FROM budgeting.recurring_drafts
-         WHERE id = ${input.draftId}::uuid AND tenant_id = ${input.tenantId}::uuid
+        SELECT id, confirmed_at, deleted_at, amount_original_cents, currency_original,
+               category_id, note, transaction_date
+          FROM budgeting.expense_ledger
+         WHERE id = ${input.draftId}::uuid
+           AND tenant_id = ${input.tenantId}::uuid
+           AND recurring_rule_id IS NOT NULL
          FOR UPDATE
       `);
 
@@ -38,89 +45,54 @@ export function editAndConfirmRecurringDraft(deps: {
 
       const draft = draftResult.rows[0] as Record<string, unknown>;
 
-      if (draft.status !== "PENDING") {
+      if (draft.confirmed_at != null || draft.deleted_at != null) {
         throw new AlreadyConfirmedError(input.draftId);
       }
 
-      // Apply edits to draft in-place
-      const idResult = await drizzleTx.execute(sql`SELECT gen_random_uuid() AS id`);
-      const ledgerId = (idResult.rows[0] as Record<string, unknown>).id as string;
+      // Apply edits + confirm in one UPDATE
+      const amountClause = input.edits.amountOriginalCents !== undefined
+        ? sql`amount_original_cents = ${input.edits.amountOriginalCents}::bigint, amount_converted_cents = ${input.edits.amountOriginalCents}::bigint,`
+        : sql``;
+      const currencyClause = input.edits.currency !== undefined
+        ? sql`currency_original = ${input.edits.currency},`
+        : sql``;
+      const categoryClause = input.edits.categoryId !== undefined
+        ? sql`category_id = ${input.edits.categoryId ?? null}::uuid,`
+        : sql``;
+      const noteClause = input.edits.note !== undefined
+        ? sql`note = ${input.edits.note ?? null},`
+        : sql``;
 
-      // Resolved values: edit overrides draft
-      const resolvedAmount = input.edits.amount ?? String(draft.amount);
-      const resolvedCurrency = input.edits.currency ?? (draft.currency as string);
-      const resolvedAccountId = input.edits.accountId ?? (draft.wallet_id as string);
-      const resolvedCategoryId = input.edits.categoryId !== undefined
-        ? input.edits.categoryId
-        : (draft.category_id as string | null);
-      const resolvedKind = input.edits.kind ?? (draft.kind as "EXPENSE" | "INCOME" | "TRANSFER");
-      const resolvedNote = input.edits.note !== undefined ? input.edits.note : (draft.note as string | null);
-
-      const wsResult = await drizzleTx.execute(sql`
-        SELECT default_currency FROM tenancy.budgets WHERE id = ${input.tenantId}::uuid LIMIT 1
+      await drizzleTx.execute(sql`
+        UPDATE budgeting.expense_ledger
+           SET ${amountClause}
+               ${currencyClause}
+               ${categoryClause}
+               ${noteClause}
+               confirmed_at = now(),
+               updated_at = now()
+         WHERE id = ${input.draftId}::uuid
       `);
-      const defaultCurrency = ((wsResult.rows[0] as Record<string, unknown> | undefined)?.default_currency as string) ?? "USD";
-
-      let amountDefault = resolvedAmount;
-      let fxRate = "1";
-      let fxRateDate = draft.due_date as string;
-      let fxProvider = "recurring";
-
-      if (input.edits.fxPreview) {
-        fxRate = input.edits.fxPreview.rate;
-        fxRateDate = input.edits.fxPreview.fxRateDate;
-        amountDefault = String(parseFloat(resolvedAmount) * parseFloat(fxRate));
-        fxProvider = "fx-preview";
-      }
-
-      await deps.transactionRepo.createInTx(
-        tx,
-        [
-          {
-            id: ledgerId,
-            tenantId: input.tenantId,
-            kind: resolvedKind,
-            amountOrig: resolvedAmount,
-            currencyOrig: resolvedCurrency,
-            amountDefault,
-            currencyDefault: defaultCurrency,
-            fxRate,
-            fxRateDate,
-            fxProvider,
-            transactionDate: draft.due_date as string,
-            note: resolvedNote,
-            accountId: resolvedAccountId,
-            categoryId: resolvedCategoryId,
-            transferGroupId: null,
-            correctsId: null,
-            balanceDeltaSign: resolvedKind === "INCOME" ? 1 : -1,
-          },
-        ],
-        input.actorUserId,
-        input.tenantId,
-      );
-
-      await deps.draftRepo.markConfirmed(tx, input.draftId, input.actorUserId);
 
       await writeAudit(tx, {
         tenantId: TenantId(input.tenantId),
         actorUserId: UserId(input.actorUserId),
-        entityType: "recurring_draft",
+        entityType: "expense_ledger",
         entityId: input.draftId,
         action: "update" as const,
-        before: { status: "PENDING", amount: draft.amount },
-        after: { status: "CONFIRMED", ledgerId, edits: input.edits },
+        before: { confirmed_at: null, amount_original_cents: draft.amount_original_cents },
+        after: { confirmed_at: "now()", edits: input.edits },
       });
 
       await writeOutbox(tx, {
         tenantId: TenantId(input.tenantId),
-        aggregateType: "recurring_draft",
+        aggregateType: "expense_ledger",
         aggregateId: input.draftId,
         eventType: "budgeting.recurring.confirmed",
-        payload: { draftId: input.draftId, ledgerId, tenantId: input.tenantId },
+        payload: { draftId: input.draftId, ledgerId: input.draftId, tenantId: input.tenantId },
       });
 
-      return { ledgerId };
+      return { ledgerId: input.draftId };
     });
 
     return r;
