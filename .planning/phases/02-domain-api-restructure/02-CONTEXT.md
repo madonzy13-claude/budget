@@ -75,13 +75,36 @@ With Phase 1's schema rename + cleanup landed, Phase 2 restructures the backend 
 
 ### Stale-schema cleanup + INCOME refinement (TXN-07 relaxed)
 
-- **D-PH2-09:** Schema changes in Phase 2 migration `0013_phase02_domain_restructure.sql`:
-  1. `DROP TABLE budgeting.account_balance_adjustments` (D-12 retained, now obsolete — wallet balances are manual snapshots per WALT-07; balance-adjustments has no caller).
+- **D-PH2-09 (amended 2026-05-12 — Phase 2 gap-closure):** Schema changes in Phase 2 migration `0013_phase02_domain_restructure.sql`:
+  1. `DROP TABLE budgeting.account_balance_adjustments` (D-12 retained, now obsolete — wallet balances are manual snapshots per WALT-07).
   2. `ALTER TABLE budgeting.expense_ledger DROP COLUMN kind` (drops old `EXPENSE|INCOME|TRANSFER` enum).
   3. `ALTER TABLE budgeting.expense_ledger ADD COLUMN kind TEXT NOT NULL DEFAULT 'SPENDING' CHECK (kind IN ('SPENDING','INCOME'))` — new tighter enum.
   4. `ALTER TABLE budgeting.recurring_rules DROP COLUMN kind` (categorical-only, all rules produce SPENDING drafts).
   5. Worker handler `apps/worker/src/handlers/recurring-engine.ts` stripped of `kind` references in SELECT + INSERT.
   6. Add new column `expense_ledger.recurring_rule_id uuid NULL` (FK to `recurring_rules.id`) per TXN-01 spec — replaces the v1.0 audit ledger flow.
+
+  **Amendment (2026-05-12 gap-closure)** — the original D-PH2-09 statement
+  "balance-adjustments has no caller" was incorrect. The route
+  `POST /wallets/:id/balance-adjustment` + chain
+  `adjustWalletBalance → recordAdjustment → INSERT account_balance_adjustments`
+  were still wired after the table drop, throwing
+  `relation "budgeting.account_balance_adjustments" does not exist` at
+  runtime. New rule (enforced by Phase 2 gap commits `test(gap-02)…` and
+  `feat(gap-02)…`):
+  - Wallet `current_balance` is **fully decoupled** from transactions.
+    Creating a SPENDING/INCOME row in `expense_ledger` does NOT mutate
+    any wallet's `current_balance`. Wallet balance is a manual snapshot
+    the user maintains themselves (WALT-07).
+  - The only path that writes `current_balance` is the new
+    `PUT /wallets/:id/balance` route → `setWalletBalance` →
+    `WalletRepo.setBalance(absoluteAmount, currency)`. It **overwrites**;
+    no delta math, no audit row in a dedicated adjustments table.
+  - Deleted: `adjustWalletBalance` application service, the
+    `adjust-account-balance` backward-compat shim, the deprecated
+    `recordAdjustment` and `applyDelta` methods on `WalletRepo`, the
+    `adjustBalanceSchema` Zod contract.
+  - Added: `setWalletBalance` application service, `setBalance` repo
+    method, `setBalanceSchema` Zod contract.
 
   **INCOME semantics (relaxes REQUIREMENTS TXN-07 letter, preserves spirit):**
   - INCOME is a transaction-kind classifier only — NOT a separate income ledger, NOT a wallet credit flow, NOT a transfer.
