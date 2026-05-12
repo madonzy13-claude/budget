@@ -21,6 +21,13 @@ if (!DB_URL_RAW)
   throw new Error("DATABASE_URL_APP required for integration tests");
 process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
+// withInfraTx (public resolve path) uses DATABASE_URL_WORKER — normalize too.
+if (process.env.DATABASE_URL_WORKER) {
+  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace(
+    "@db:",
+    "@localhost:",
+  );
+}
 
 const { resetPools } = await import("@budget/platform");
 resetPools();
