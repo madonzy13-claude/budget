@@ -1,6 +1,7 @@
 /**
  * ledger/fx.property.test.ts — Property-based tests for Transaction.isStale().
- * Uses fast-check to generate random (fxRateDate, transactionDate) pairs.
+ * Uses fast-check to generate random (fxAsOf, date) pairs.
+ * Uses v1.1 Transaction constructor.
  */
 import { describe, test, expect } from "bun:test";
 import * as fc from "fast-check";
@@ -10,8 +11,30 @@ function makeIsoDate(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function makeTx(fxAsOf: string, date: string): Transaction {
+  return new Transaction(
+    crypto.randomUUID(), // id
+    crypto.randomUUID(), // tenantId
+    crypto.randomUUID(), // budgetId
+    crypto.randomUUID(), // categoryId
+    date, // date
+    "10000", // amountOriginalCents
+    "USD", // currencyOriginal
+    "9250", // amountConvertedCents
+    "0.92500000", // fxRate
+    fxAsOf, // fxAsOf
+    null, // note
+    null, // recurringRuleId
+    new Date(), // confirmedAt
+    "SPENDING", // kind
+    new Date(), // createdAt
+    new Date(), // updatedAt
+    null, // deletedAt
+  );
+}
+
 describe("Transaction.isStale() property tests", () => {
-  test("isStale() === (fxRateDate < transactionDate) for any date pair", () => {
+  test("isStale() === (fxAsOf < date) for any date pair", () => {
     fc.assert(
       fc.property(
         // Generate two random dates in 2020-2030
@@ -24,19 +47,12 @@ describe("Transaction.isStale() property tests", () => {
           txDay: fc.integer({ min: 1, max: 28 }),
         }),
         ({ fxYear, fxMonth, fxDay, txYear, txMonth, txDay }) => {
-          const fxRateDate = makeIsoDate(fxYear, fxMonth, fxDay);
+          const fxAsOf = makeIsoDate(fxYear, fxMonth, fxDay);
           const transactionDate = makeIsoDate(txYear, txMonth, txDay);
 
-          const tx = new Transaction(
-            crypto.randomUUID(), crypto.randomUUID(), "EXPENSE",
-            "100.00", "USD", "92.50", "EUR", "0.92500000",
-            fxRateDate,
-            "frankfurter",
-            transactionDate,
-            null, crypto.randomUUID(), null, null, null, new Date(),
-          );
+          const tx = makeTx(fxAsOf, transactionDate);
 
-          const expectedStale = fxRateDate < transactionDate;
+          const expectedStale = fxAsOf < transactionDate;
           expect(tx.isStale()).toBe(expectedStale);
         },
       ),
@@ -44,7 +60,7 @@ describe("Transaction.isStale() property tests", () => {
     );
   });
 
-  test("same fxRateDate and transactionDate is never stale", () => {
+  test("same fxAsOf and date is never stale", () => {
     fc.assert(
       fc.property(
         fc.record({
@@ -54,12 +70,7 @@ describe("Transaction.isStale() property tests", () => {
         }),
         ({ year, month, day }) => {
           const date = makeIsoDate(year, month, day);
-          const tx = new Transaction(
-            crypto.randomUUID(), crypto.randomUUID(), "EXPENSE",
-            "100.00", "USD", "92.50", "EUR", "0.92500000",
-            date, "frankfurter", date,
-            null, crypto.randomUUID(), null, null, null, new Date(),
-          );
+          const tx = makeTx(date, date);
           expect(tx.isStale()).toBe(false);
         },
       ),

@@ -1,48 +1,54 @@
 /**
  * ledger/fx.test.ts — FX-related ledger tests.
- * Weekend scenario: Saturday transactionDate, Friday fxRateDate → isStale=true.
+ * Weekend scenario: Saturday transactionDate, Friday fxAsOf → isStale=true.
+ * Uses v1.1 Transaction constructor (fxAsOf, budgetId, categoryId, kind SPENDING|INCOME).
  */
 import { describe, test, expect } from "bun:test";
 import { Transaction } from "@budget/budgeting/src/domain/transaction";
 
+function makeTx(
+  fxAsOf: string,
+  date: string,
+  kind: "SPENDING" | "INCOME" = "SPENDING",
+): Transaction {
+  return new Transaction(
+    crypto.randomUUID(), // id
+    crypto.randomUUID(), // tenantId
+    crypto.randomUUID(), // budgetId
+    crypto.randomUUID(), // categoryId
+    date, // date (transaction date)
+    "10000", // amountOriginalCents
+    "USD", // currencyOriginal
+    "9250", // amountConvertedCents
+    "0.92500000", // fxRate
+    fxAsOf, // fxAsOf
+    null, // note
+    null, // recurringRuleId
+    new Date(), // confirmedAt
+    kind, // kind
+    new Date(), // createdAt
+    new Date(), // updatedAt
+    null, // deletedAt
+  );
+}
+
 describe("Ledger FX tests", () => {
   test("weekend scenario: Saturday transaction with Friday FX rate is stale", () => {
     // Friday 2024-01-12, Saturday 2024-01-13
-    const tx = new Transaction(
-      crypto.randomUUID(), crypto.randomUUID(), "EXPENSE",
-      "100.00", "USD", "92.50", "EUR", "0.92500000",
-      "2024-01-12", // fxRateDate = Friday
-      "frankfurter",
-      "2024-01-13", // transactionDate = Saturday (markets closed, rate is from Friday)
-      null, crypto.randomUUID(), null, null, null, new Date(),
-    );
+    const tx = makeTx("2024-01-12", "2024-01-13");
 
     expect(tx.isStale()).toBe(true);
-    expect(tx.fxRateDate).toBe("2024-01-12");
-    expect(tx.transactionDate).toBe("2024-01-13");
+    expect(tx.fxAsOf).toBe("2024-01-12");
+    expect(tx.date).toBe("2024-01-13");
   });
 
   test("same-day rate is not stale", () => {
-    const tx = new Transaction(
-      crypto.randomUUID(), crypto.randomUUID(), "EXPENSE",
-      "100.00", "USD", "92.50", "EUR", "0.92500000",
-      "2024-01-15", // fxRateDate == transactionDate
-      "frankfurter",
-      "2024-01-15",
-      null, crypto.randomUUID(), null, null, null, new Date(),
-    );
+    const tx = makeTx("2024-01-15", "2024-01-15");
     expect(tx.isStale()).toBe(false);
   });
 
   test("Monday transaction with prior Friday rate is stale", () => {
-    const tx = new Transaction(
-      crypto.randomUUID(), crypto.randomUUID(), "INCOME",
-      "500.00", "GBP", "590.00", "EUR", "1.18000000",
-      "2024-01-12", // Friday
-      "frankfurter",
-      "2024-01-15", // Monday
-      null, crypto.randomUUID(), null, null, null, new Date(),
-    );
+    const tx = makeTx("2024-01-12", "2024-01-15", "INCOME");
     expect(tx.isStale()).toBe(true);
   });
 });

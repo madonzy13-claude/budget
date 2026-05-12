@@ -40,4 +40,14 @@ export class Transaction {
     readonly updatedAt: Date,
     readonly deletedAt: Date | null,
   ) {}
+
+  /**
+   * isStale() — FX rate is stale when fxAsOf < transaction date.
+   * Occurs on weekends/holidays when markets are closed: the FX rate is from
+   * the last trading day, which precedes the transaction date.
+   * Returns false when fxAsOf === date (same-day rate is always fresh).
+   */
+  isStale(): boolean {
+    return this.fxAsOf < this.date;
+  }
 }
