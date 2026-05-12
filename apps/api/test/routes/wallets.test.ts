@@ -206,8 +206,8 @@ describe("Wallets route (renamed from accounts)", () => {
     const getRes = await app.request(`/wallets/${wallet.id}`);
     expect(getRes.status).toBe(200);
     const fresh = (await getRes.json()) as any;
-    const balAmount = fresh.currentBalance?.amount ?? fresh.balance?.amount;
-    expect(balAmount).toBe("1234.56");
+    // WalletDto.currentBalance is a string (Money serialized at adapter boundary)
+    expect(parseFloat(fresh.currentBalance)).toBeCloseTo(1234.56, 2);
 
     // A second PUT overwrites (does NOT add to previous)
     const setRes2 = await app.request(`/wallets/${wallet.id}/balance`, {
@@ -218,8 +218,7 @@ describe("Wallets route (renamed from accounts)", () => {
     expect(setRes2.status).toBe(200);
     const getRes2 = await app.request(`/wallets/${wallet.id}`);
     const fresh2 = (await getRes2.json()) as any;
-    const balAmount2 = fresh2.currentBalance?.amount ?? fresh2.balance?.amount;
-    expect(balAmount2).toBe("50.00"); // overwritten, NOT 1284.56
+    expect(parseFloat(fresh2.currentBalance)).toBeCloseTo(50, 2); // overwritten, NOT 1284.56
   });
 
   it("PUT /wallets/:id/balance rejects mismatched currency (immutable per WALT-04)", async () => {

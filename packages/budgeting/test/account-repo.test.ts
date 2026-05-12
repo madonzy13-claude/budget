@@ -5,8 +5,12 @@
  */
 import { describe, test, expect, beforeAll } from "bun:test";
 
+const DB_URL_RAW = process.env.DATABASE_URL_APP;
+if (!DB_URL_RAW)
+  throw new Error("DATABASE_URL_APP required for integration tests");
+// Tests run on the host; replace Docker-network @db: with @localhost:
+process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
-if (!DB_URL) throw new Error("DATABASE_URL_APP required for integration tests");
 
 // We need a real user to satisfy FK constraints.
 // We create a user via direct SQL and use their ID as actor.
