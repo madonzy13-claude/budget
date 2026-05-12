@@ -31,7 +31,6 @@ import { createBudgetSettingsRoute } from "./routes/budget-settings";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createRecurringRulesRoute } from "./routes/recurring-rules";
-import { createRecurringDraftsRoute } from "./routes/recurring-drafts";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import type { BootedDeps } from "./boot";
 
@@ -75,7 +74,6 @@ export function createApp(deps: BootedDeps) {
     "/budget-settings/*",
     "/transactions/*",
     "/recurring-rules/*",
-    "/recurring-drafts/*",
   ]) {
     app.use(path, requireAuth, requireWorkspace);
   }
@@ -88,7 +86,6 @@ export function createApp(deps: BootedDeps) {
   app.route("/budget-settings", createBudgetSettingsRoute(deps));
   app.route("/transactions", createTransactionsRoute(deps));
   app.route("/recurring-rules", createRecurringRulesRoute(deps));
-  app.route("/recurring-drafts", createRecurringDraftsRoute(deps));
 
   return app;
 }

@@ -1,301 +1,306 @@
 /**
- * transactions.ts — /transactions route factory
+ * transactions.ts — /budgets/:budgetId/transactions route factory (v1.1)
  *
- * POST /transactions            — create EXPENSE / INCOME / TRANSFER (idempotency middleware)
- * GET  /transactions            — latest-only view (corrects_id derivation, paginated)
- * POST /transactions/:id/correct — edit via correction row (plan 02-07)
- * GET  /transactions/:id/history — full correction chain (plan 02-07)
+ * Six sub-routes per D-PH2-08:
+ *   POST   /budgets/:budgetId/transactions               — create (TXN-03)
+ *   PATCH  /budgets/:budgetId/transactions/:txId         — edit + FX re-compute (TXN-04,06)
+ *   POST   /budgets/:budgetId/transactions/:txId/confirm — draft → confirmed (TXN-03)
+ *   DELETE /budgets/:budgetId/transactions/:txId         — soft-delete
+ *   GET    /budgets/:budgetId/transactions?month=YYYY-MM  — list for month (TXN-05)
+ *   GET    /budgets/:budgetId/transactions/:txId         — single row
  *
- * T-2-06-02: FX stale preview → 409 with fresh rate
- * T-2-06-03: RLS provides tenant isolation
- * T-2-06-05: Idempotency-Key middleware (plan 02-03) deduplicates replays
- * T-2-06-08: workspace_share_dirty → 409
- * T-2-07-02: AlreadyCorrected → 409
- * T-2-07-04: RLS scopes history chain
+ * Removed routes (TXN-08): /income, /transfer, /:id/history, /:id/correct, /bulk-recategorize
+ *
+ * T-02-01: currency_original validated as 3-char ISO.
+ * T-02-02: amount_converted_cents NEVER read from client body — computed server-side.
+ * T-02-09: column-level GRANT enforced at DB layer; no trust boundary breach.
  */
 import { Hono } from "hono";
-import type { BootedDeps } from "../boot";
-import { serverError } from "../middleware/server-error";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
+import { sql } from "drizzle-orm";
+import { withInfraTx } from "@budget/platform";
+import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
+import {
+  createTransaction,
+  type CreateTransactionDeps,
+} from "@budget/budgeting/src/application/create-transaction";
+import {
+  editTransaction,
+  type EditTransactionDeps,
+} from "@budget/budgeting/src/application/edit-transaction";
 
-export function createTransactionsRoute(deps: BootedDeps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const app = new Hono<{ Variables: Record<string, any> }>();
+// ──────────────────────────────────────────────────────────────────────
+// Deps interface — only fxProvider is injected (for testability).
+// Repo + getBudgetCurrency are wired internally.
+// ──────────────────────────────────────────────────────────────────────
 
-  /** Pick the first active tenant (phase-2: single-workspace per request). */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function pickTenant(c: any): string {
-    const ids = c.get("tenantIds") as string[] | undefined;
-    return ids?.[0] ?? "";
+export interface TransactionRouteDeps {
+  fxProvider: CreateTransactionDeps["fxProvider"];
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Zod schemas
+// ──────────────────────────────────────────────────────────────────────
+
+const createSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+  category_id: z.string().uuid(),
+  /** Signed: negative → INCOME (D-PH2-09) */
+  amount_original_cents: z.number().int(),
+  currency_original: z.string().length(3).toUpperCase().optional(),
+  note: z.string().nullable().optional(),
+});
+
+const patchSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  category_id: z.string().uuid().optional(),
+  /** Signed — absolute value stored; kind derived from sign if provided */
+  amount_original_cents: z.number().int().optional(),
+  currency_original: z.string().length(3).toUpperCase().optional(),
+  note: z.string().nullable().optional(),
+  kind: z.enum(["SPENDING", "INCOME"]).optional(),
+});
+
+const listQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, "month must be YYYY-MM"),
+  confirmed: z
+    .enum(["true", "false", "any"])
+    .optional()
+    .transform((v) => {
+      if (v === "true") return true as const;
+      if (v === "false") return false as const;
+      return "any" as const;
+    }),
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Response serialiser: TransactionRow → snake_case JSON
+// ──────────────────────────────────────────────────────────────────────
+
+function serializeRow(row: {
+  id: string;
+  tenantId: string;
+  budgetId: string;
+  categoryId: string;
+  date: string;
+  amountOriginalCents: string;
+  currencyOriginal: string;
+  amountConvertedCents: string;
+  fxRate: string;
+  fxAsOf: string;
+  note: string | null;
+  recurringRuleId: string | null;
+  confirmedAt: Date | null;
+  kind: "SPENDING" | "INCOME";
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}) {
+  return {
+    id: row.id,
+    tenant_id: row.tenantId,
+    budget_id: row.budgetId,
+    category_id: row.categoryId,
+    date: row.date,
+    amount_original_cents: row.amountOriginalCents,
+    currency_original: row.currencyOriginal,
+    amount_converted_cents: row.amountConvertedCents,
+    fx_rate: row.fxRate,
+    fx_as_of: row.fxAsOf,
+    note: row.note ?? null,
+    recurring_rule_id: row.recurringRuleId ?? null,
+    confirmed_at: row.confirmedAt?.toISOString() ?? null,
+    kind: row.kind,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+    deleted_at: row.deletedAt?.toISOString() ?? null,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Route factory
+// ──────────────────────────────────────────────────────────────────────
+
+export function createTransactionsRoute(deps: TransactionRouteDeps) {
+  const app = new Hono<{ Variables: Record<string, unknown> }>();
+
+  // Wire repo and services (instantiated once per route factory call)
+  const transactionRepo = new DrizzleTransactionRepo();
+
+  async function getBudgetCurrency(budgetId: string): Promise<string> {
+    const r = await withInfraTx(async (tx) => {
+      const drizzleTx = tx as {
+        execute: (
+          q: unknown,
+        ) => Promise<{ rows: Array<{ default_currency: string }> }>;
+      };
+      const rs = await drizzleTx.execute(
+        sql`SELECT default_currency FROM tenancy.budgets WHERE id = ${budgetId}::uuid LIMIT 1`,
+      );
+      return rs.rows[0]?.default_currency ?? "EUR";
+    });
+    return r.isOk() ? r.value : "EUR";
   }
 
-  // POST /transactions — create ledger rows
-  app.post("/", async (c) => {
-    const { createTransactionSchema } = await import(
-      "@budget/budgeting/src/contracts/api"
-    );
+  const createTxService = createTransaction({
+    transactionRepo,
+    fxProvider: deps.fxProvider,
+    getBudgetCurrency,
+  });
 
-    const body = await c.req.json().catch(() => null);
-    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+  const editTxService = editTransaction({
+    transactionRepo,
+    fxProvider: deps.fxProvider,
+    getBudgetCurrency,
+  });
 
-    const parsed = createTransactionSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
-    }
+  function pickTenant(c: { get(k: string): unknown }): string {
+    const ids = c.get("tenantIds") as string[] | undefined;
+    return ids?.[0] ?? (c.get("tenantId") as string | undefined) ?? "";
+  }
 
-    const session = c.get("session");
+  function pickUser(c: { get(k: string): unknown }): string {
+    const userId = c.get("userId") as string | undefined;
+    if (userId) return userId;
+    const session = c.get("session") as { user?: { id: string } } | undefined;
+    return session?.user?.id ?? "";
+  }
+
+  // ── POST / — create transaction ──────────────────────────────────────
+  app.post("/", zValidator("json", createSchema), async (c) => {
+    const body = c.req.valid("json");
     const tenantId = pickTenant(c);
-    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const userId = pickUser(c);
+    // budgetId comes from the path param :budgetId on the parent router
+    const budgetId = c.req.param("budgetId") ?? tenantId;
 
-    const r = await deps.budgeting.createTransaction({
-      ...parsed.data,
+    const r = await createTxService({
+      date: body.date,
+      categoryId: body.category_id,
+      amountOriginalCents: body.amount_original_cents,
+      currencyOriginal: body.currency_original ?? null,
+      note: body.note ?? null,
+      budgetId,
       tenantId,
       actorUserId: userId,
     });
 
     if (r.isErr()) {
-      const e = r.error as { kind?: string; freshRate?: unknown; message: string };
-      if (e.kind === "FxRateStale") {
-        return c.json({ error: "fx_rate_stale", freshRate: e.freshRate }, 409);
-      }
-      if (e.kind === "WorkspaceSharesDirty") {
-        return c.json({ error: "shares_dirty" }, 409);
-      }
+      const e = r.error as { kind?: string; message: string };
       if (e.kind === "CurrencyNotSupported") {
         return c.json({ error: e.message }, 422);
       }
-      if (e.kind === "AccountArchived") {
-        return c.json({ error: e.message }, 422);
-      }
       return c.json({ error: e.message }, 422);
     }
 
-    return c.json(r.value, 201);
+    return c.json({ transaction: serializeRow(r.value.transaction) }, 201);
   });
 
-  // POST /transactions/:id/correct — edit via correction row (plan 02-07, EXPN-06)
-  app.post("/:id/correct", async (c) => {
-    const { correctTransactionSchema } = await import(
-      "@budget/budgeting/src/contracts/api"
-    );
-
-    const originalId = c.req.param("id");
-    const body = await c.req.json().catch(() => null);
-    if (!body) return c.json({ error: "Invalid JSON" }, 422);
-
-    const parsed = correctTransactionSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
-    }
-
-    const session = c.get("session");
+  // ── PATCH /:txId — edit transaction (FX re-compute on currency/date change) ──
+  app.patch("/:txId", zValidator("json", patchSchema), async (c) => {
+    const txId = c.req.param("txId");
     const tenantId = pickTenant(c);
-    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const userId = pickUser(c);
+    const body = c.req.valid("json");
 
-    const r = await deps.budgeting.editTransaction({
-      transactionId: originalId,
-      edits: parsed.data.edits,
-      fxPreview: parsed.data.fxPreview ?? null,
-      actorUserId: userId,
+    const r = await editTxService({
+      transactionId: txId,
       tenantId,
+      actorUserId: userId,
+      fields: {
+        date: body.date,
+        categoryId: body.category_id,
+        amountOriginalCents: body.amount_original_cents,
+        currencyOriginal: body.currency_original,
+        note: body.note,
+        kind: body.kind,
+      },
     });
 
     if (r.isErr()) {
-      const e = r.error as { kind?: string; message: string; freshRate?: unknown };
-      if (e.kind === "AlreadyCorrected") {
-        return c.json({ error: "already_corrected", message: e.message }, 409);
-      }
+      const e = r.error as { kind?: string; message: string };
       if (e.kind === "TransactionNotFound") {
         return c.json({ error: "not_found", message: e.message }, 404);
       }
-      if (e.kind === "FxRateStale") {
-        return c.json({ error: "fx_rate_stale", freshRate: e.freshRate }, 409);
-      }
       return c.json({ error: e.message }, 422);
     }
 
-    return c.json(r.value, 201);
+    return c.json({ transaction: serializeRow(r.value.transaction) }, 200);
   });
 
-  // GET /transactions/:id/history — full correction chain (plan 02-07, D-01-a)
-  app.get("/:id/history", async (c) => {
-    const transactionId = c.req.param("id");
+  // ── POST /:txId/confirm — flip draft → confirmed ──────────────────────
+  app.post("/:txId/confirm", async (c) => {
+    const txId = c.req.param("txId");
     const tenantId = pickTenant(c);
+    const userId = pickUser(c);
 
-    const r = await deps.budgeting.getTransactionHistory({
-      tenantId,
-      transactionId,
-    });
-
-    if (r.isErr()) {
-      return serverError(c, "get_transaction_history_failed", r.error);
+    try {
+      await transactionRepo.confirm(txId, userId, tenantId);
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 422);
     }
 
-    const chain = r.value;
-    if (chain.length === 0) {
-      return c.json({ error: "not_found" }, 404);
-    }
+    const row = await transactionRepo.findById(tenantId, txId);
+    if (!row) return c.json({ error: "not_found" }, 404);
 
-    return c.json({
-      chain: chain.map((row) => ({
-        id: row.id,
-        tenantId: row.tenantId,
-        kind: row.kind,
-        amountOrig: row.amountOrig,
-        currencyOrig: row.currencyOrig,
-        amountDefault: row.amountDefault,
-        currencyDefault: row.currencyDefault,
-        fxRate: row.fxRate,
-        fxRateDate: row.fxRateDate,
-        fxProvider: row.fxProvider,
-        transactionDate: row.transactionDate,
-        note: row.note,
-        accountId: row.accountId,
-        categoryId: row.categoryId,
-        transferGroupId: row.transferGroupId,
-        correctsId: row.correctsId,
-      })),
-    });
+    return c.json({ transaction: serializeRow(row) }, 200);
   });
 
-  // POST /transactions/bulk-recategorize — Plan 02-09 (EXPN-10)
-  app.post("/bulk-recategorize", async (c) => {
-    const { bulkRecategorizeSchema } = await import(
-      "@budget/budgeting/src/contracts/api"
-    );
-
-    const body = await c.req.json().catch(() => null);
-    if (!body) return c.json({ error: "Invalid JSON" }, 422);
-
-    const parsed = bulkRecategorizeSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
-    }
-
-    const session = c.get("session");
+  // ── DELETE /:txId — soft-delete ───────────────────────────────────────
+  app.delete("/:txId", async (c) => {
+    const txId = c.req.param("txId");
     const tenantId = pickTenant(c);
-    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const userId = pickUser(c);
 
-    const r = await deps.budgeting.bulkRecategorize({
-      tenantId,
-      transactionIds: parsed.data.transactionIds,
-      newCategoryId: parsed.data.newCategoryId,
-      actorUserId: userId,
-    });
-
-    if (r.isErr()) {
-      return c.json({ error: r.error.message }, 422);
+    try {
+      await transactionRepo.softDelete(txId, userId, tenantId);
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 422);
     }
-    return c.json(r.value, 200);
+
+    return new Response(null, { status: 204 });
   });
 
-  // GET /transactions — latest transactions list, with search/filter (Plan 02-09)
+  // ── GET / — list for month ────────────────────────────────────────────
   app.get("/", async (c) => {
-    const { searchTransactionsSchema } = await import(
-      "@budget/budgeting/src/contracts/api"
-    );
     const tenantId = pickTenant(c);
+    const budgetId = c.req.param("budgetId") ?? tenantId;
 
-    // Hono request -> plain query record
-    const rawQuery: Record<string, string> = {};
-    const url = new URL(c.req.url);
-    for (const [k, v] of url.searchParams.entries()) rawQuery[k] = v;
+    // Parse query params
+    const rawMonth = c.req.query("month");
+    const rawConfirmed = c.req.query("confirmed");
 
-    const parsed = searchTransactionsSchema.safeParse(rawQuery);
+    const parsed = listQuerySchema.safeParse({
+      month: rawMonth,
+      confirmed: rawConfirmed,
+    });
+
     if (!parsed.success) {
       return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
     }
-    const q = parsed.data;
 
-    const hasSearch =
-      q.q !== undefined ||
-      q.dateFrom !== undefined ||
-      q.dateTo !== undefined ||
-      q.categoryIds !== undefined ||
-      q.accountIds !== undefined ||
-      q.kind !== undefined ||
-      q.cursorDate !== undefined;
+    const { month, confirmed } = parsed.data;
 
-    if (hasSearch) {
-      const r = await deps.budgeting.searchTransactions({
-        tenantId,
-        query: q.q,
-        filters: {
-          dateFrom: q.dateFrom,
-          dateTo: q.dateTo,
-          categoryIds: q.categoryIds,
-          accountIds: q.accountIds,
-          kind: q.kind,
-        },
-        cursor:
-          q.cursorDate && q.cursorId
-            ? { transactionDate: q.cursorDate, id: q.cursorId }
-            : null,
-        limit: q.limit,
-      });
-      if (r.isErr()) return serverError(c, "search_transactions_failed", r.error);
-
-      return c.json({
-        transactions: r.value.rows.map((tx) => ({
-          id: tx.id,
-          tenantId: tx.tenantId,
-          kind: tx.kind,
-          amountOrig: tx.amountOrig,
-          currencyOrig: tx.currencyOrig,
-          amountDefault: tx.amountDefault,
-          currencyDefault: tx.currencyDefault,
-          fxRate: tx.fxRate,
-          fxRateDate: tx.fxRateDate,
-          fxProvider: tx.fxProvider,
-          transactionDate: tx.transactionDate,
-          note: tx.note,
-          accountId: tx.accountId,
-          categoryId: tx.categoryId,
-          transferGroupId: tx.transferGroupId,
-          correctsId: tx.correctsId,
-        })),
-        nextCursor: r.value.nextCursor,
-      });
-    }
-
-    // Legacy beforeDate/beforeId path — keep working for existing UI
-    const limit = parseInt(c.req.query("limit") ?? "50", 10);
-    const beforeDate = c.req.query("beforeDate");
-    const beforeId = c.req.query("beforeId");
-
-    const r = await deps.budgeting.getLatestTransactions({
+    const rows = await transactionRepo.listForMonth(
       tenantId,
-      limit: isNaN(limit) ? 50 : Math.min(limit, 100),
-      before:
-        beforeDate && beforeId
-          ? { transactionDate: beforeDate, id: beforeId }
-          : undefined,
-    });
+      budgetId,
+      month,
+      confirmed ?? "any",
+    );
 
-    if (r.isErr()) return serverError(c, "list_latest_transactions_failed", r.error);
+    return c.json({ transactions: rows.map(serializeRow) }, 200);
+  });
 
-    return c.json({
-      transactions: r.value.map((tx) => ({
-        id: tx.id,
-        tenantId: tx.tenantId,
-        kind: tx.kind,
-        amountOrig: tx.amountOrig,
-        currencyOrig: tx.currencyOrig,
-        amountDefault: tx.amountDefault,
-        currencyDefault: tx.currencyDefault,
-        fxRate: tx.fxRate,
-        fxRateDate: tx.fxRateDate,
-        fxProvider: tx.fxProvider,
-        transactionDate: tx.transactionDate,
-        note: tx.note,
-        accountId: tx.accountId,
-        categoryId: tx.categoryId,
-        transferGroupId: tx.transferGroupId,
-        correctsId: tx.correctsId,
-        createdAt: tx.createdAt.toISOString(),
-        isStale: tx.isStale(),
-        hasCorrections: tx.hasCorrections,
-      })),
-    });
+  // ── GET /:txId — single transaction ──────────────────────────────────
+  app.get("/:txId", async (c) => {
+    const txId = c.req.param("txId");
+    const tenantId = pickTenant(c);
+
+    const row = await transactionRepo.findById(tenantId, txId);
+    if (!row) return c.json({ error: "not_found" }, 404);
+
+    return c.json({ transaction: serializeRow(row) }, 200);
   });
 
   return app;
