@@ -66,3 +66,34 @@ export interface BudgetActiveResponse {
    * later Phase 3 wave once apps/web migrates fully. */
   workspaces: Array<{ id: string; name: string; role: string; kind: string }>;
 }
+
+/**
+ * TaskKind / TaskSummaryResponse / ListPendingTasksResponse — wire-format DTOs
+ * for `GET /budgets/:budgetId/tasks?status=pending` (BDP-03 / D-PH3-13).
+ *
+ * Phase 3 ships the READ path only. The banner reads `tasks.length` to render
+ * the count chip and renders `kind` per task. Payload shape per task kind is
+ * owned by Phase 7 generators; the contract type keeps it opaque
+ * (`Record<string, unknown>`) so Phase 7 can extend per-kind payloads without
+ * a breaking change to this surface.
+ */
+export type TaskKind =
+  | "RESERVE_TOPUP"
+  | "CONFIRM_DRAFT"
+  | "STALE_WALLET"
+  | "MONTH_END_REVIEW";
+
+export interface TaskSummaryResponse {
+  id: string;
+  budget_id: string;
+  kind: TaskKind;
+  status: "PENDING" | "RESOLVED";
+  payload: Record<string, unknown>;
+  /** ISO-8601 UTC timestamp. */
+  created_at: string;
+}
+
+export interface ListPendingTasksResponse {
+  budgetId: string;
+  tasks: TaskSummaryResponse[];
+}

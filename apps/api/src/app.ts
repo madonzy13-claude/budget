@@ -31,6 +31,7 @@ import { createBudgetSettingsRoute } from "./routes/budget-settings";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createRecurringRulesRoute } from "./routes/recurring-rules";
+import { createTasksRoute } from "./routes/tasks";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import { createShareJoinRoute } from "./routes/share-join";
 import type { BootedDeps } from "./boot";
@@ -68,6 +69,12 @@ export function createApp(deps: BootedDeps) {
   app.use("/currencies/*", requireAuth);
   app.use("/settings/*", requireAuth);
   app.route("/budgets", budgetsRoutesFactory(deps));
+  // BDP-03: tasks sub-router mounted under /budgets/:budgetId/tasks. The
+  // /budgets/* requireAuth fence above already covers this prefix; the route
+  // handler itself asserts c.get("tenantIds").includes(budgetId) → 404 on
+  // cross-tenant attempts. Phase 7 will extend this sub-router with POST/
+  // PATCH/DELETE without reshaping the read surface.
+  app.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
   app.route("/settings", settingsRoutesFactory(deps));
   app.route("/currencies", createCurrenciesRoute(deps));
 

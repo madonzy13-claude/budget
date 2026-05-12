@@ -21,6 +21,8 @@ import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 import { createBudgetHomeSummaryRepo } from "@budget/budgeting/src/adapters/persistence/budget-home-summary-repo";
 import { getBudgetHomeSummary } from "@budget/budgeting/src/application/get-budget-home-summary";
+import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
+import { listPendingTasks } from "@budget/budgeting/src/application/list-pending-tasks";
 import { UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
 
@@ -39,6 +41,8 @@ export interface BootedDeps {
    */
   budgeting: ReturnType<typeof createBudgetingModule> & {
     getBudgetHomeSummary: ReturnType<typeof getBudgetHomeSummary>;
+    /** BDP-03: list PENDING tasks for the banner read path. */
+    listPendingTasks: ReturnType<typeof listPendingTasks>;
   };
 }
 
@@ -136,8 +140,14 @@ export async function boot(): Promise<BootedDeps> {
     fxProvider: baseBudgeting.fxProvider,
     displayCurrencyReader,
   });
+  // BDP-03: wire the list-pending-tasks read service. Port-based composition
+  // mirrors HOME-02 (createBudgetHomeSummaryRepo + getBudgetHomeSummary).
+  const taskRepo = createTaskRepo();
+  const listPendingTasksService = listPendingTasks({ taskRepo });
+
   const budgeting = Object.assign(baseBudgeting, {
     getBudgetHomeSummary: homeSummaryService,
+    listPendingTasks: listPendingTasksService,
   });
 
   logger.info({ region: env.REGION }, "apps/api booted");
