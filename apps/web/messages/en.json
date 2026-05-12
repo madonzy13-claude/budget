@@ -179,7 +179,12 @@
       "addButton": "Add budget"
     },
     "kindPrivate": "Private",
-    "kindShared": "Shared"
+    "kindShared": "Shared",
+    "new": {
+      "title": "Create budget",
+      "placeholder": "The onboarding wizard lands in Phase 6.",
+      "backToHome": "Back to home"
+    }
   },
   "budget": {
     "shares": {
