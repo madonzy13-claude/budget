@@ -86,7 +86,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] 03-01-PLAN.md — Wave 0 prep: React Query + playwright-bdd install, delete v1.0 /workspaces tree (NAV-05)
 - [x] 03-02-PLAN.md — Backend: GET /budgets/:id/home-summary + FxProvider conversion (HOME-01, HOME-02)
-- [ ] 03-03-PLAN.md — Backend: GET /budgets/:id/tasks?status=pending read endpoint (BDP-03 shell)
+- [x] 03-03-PLAN.md — Backend: GET /budgets/:id/tasks?status=pending read endpoint (BDP-03 shell)
 - [ ] 03-04-PLAN.md — BudgetSwitcher Popover + NewBudgetButton + TopNav + rewrite (app)/layout.tsx (NAV-01..04)
 - [ ] 03-05-PLAN.md — Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero (HOME-01..04)
 - [ ] 03-06-PLAN.md — BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tab pages + /budgets/new (BDP-01..05)

@@ -48,7 +48,7 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 - [ ] **BDP-01**: BDP route `/budgets/[id]` renders pill-style horizontal tabs sticky on scroll
 - [ ] **BDP-02**: Tab order: Spendings · Reserves · Wallets · Settings; default tab = Spendings
-- [ ] **BDP-03**: Task banner renders above tabs when tasks exist; shows count chip; click expands inline list with primary action per task
+- [x] **BDP-03**: Task banner renders above tabs when tasks exist; shows count chip; click expands inline list with primary action per task
 - [ ] **BDP-04**: Active tab pill highlighted with yellow accent per DESIGN.md
 - [ ] **BDP-05**: Browser back/forward respects tab routes (`/budgets/[id]/spendings` ↔ `/budgets/[id]/reserves` etc.)
 
