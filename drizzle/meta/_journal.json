@@ -120,6 +120,13 @@
       "when": 1747353600000,
       "tag": "0016_add_verifications_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1747440000000,
+      "tag": "0017_reserve_view_security_invoker",
+      "breakpoints": true
     }
   ]
 }
