@@ -74,7 +74,10 @@
     "./src/ports/budget-home-summary-repo": "./src/ports/budget-home-summary-repo.ts",
     "./src/ports/user-display-currency-reader": "./src/ports/user-display-currency-reader.ts",
     "./src/adapters/persistence/budget-home-summary-repo": "./src/adapters/persistence/budget-home-summary-repo.ts",
-    "./src/application/get-budget-home-summary": "./src/application/get-budget-home-summary.ts"
+    "./src/application/get-budget-home-summary": "./src/application/get-budget-home-summary.ts",
+    "./src/ports/task-repo": "./src/ports/task-repo.ts",
+    "./src/adapters/persistence/task-repo": "./src/adapters/persistence/task-repo.ts",
+    "./src/application/list-pending-tasks": "./src/application/list-pending-tasks.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
