@@ -75,12 +75,12 @@ async function seedRuleWithDueDate(
     await client.query("BEGIN");
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
     await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
-    // v1.1 (MIG-04): account_id → wallet_id in recurring_rules
+    // v1.1 (02-02): wallet_id + kind dropped; category_id optional.
     await client.query(
       `INSERT INTO budgeting.recurring_rules
-         (id, tenant_id, wallet_id, amount, currency, kind, cadence, cadence_anchor, weekly_dow, active, next_due_date, actor_user_id)
-       VALUES ($1, $2, $3, '200', 'USD', 'EXPENSE', $4, $5, $6, true, $7::date, $8)`,
-      [ruleId, tenantId, accountId, cadence, cadenceAnchor, weeklyDow, nextDueDate, userId],
+         (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor, weekly_dow, active, next_due_date, actor_user_id)
+       VALUES ($1, $2, NULL, '200', 'USD', $3, $4, $5, true, $6::date, $7)`,
+      [ruleId, tenantId, cadence, cadenceAnchor, weeklyDow, nextDueDate, userId],
     );
     await client.query("COMMIT");
   } finally {
@@ -97,9 +97,12 @@ async function countDraftsForRule(tenantId: string, ruleId: string): Promise<num
   try {
     await client.query("BEGIN");
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
+    // v1.1 (02-02): recurring_drafts table dropped; drafts live as
+    // expense_ledger rows with confirmed_at IS NULL and recurring_rule_id set.
     const r = await client.query(
-      `SELECT count(*) AS cnt FROM budgeting.recurring_drafts
-        WHERE rule_id = $1 AND tenant_id = $2`,
+      `SELECT count(*) AS cnt FROM budgeting.expense_ledger
+        WHERE recurring_rule_id = $1 AND tenant_id = $2
+          AND confirmed_at IS NULL AND deleted_at IS NULL`,
       [ruleId, tenantId],
     );
     await client.query("COMMIT");
@@ -239,12 +242,12 @@ describe("recurring engine handler", () => {
       await client.query("BEGIN");
       await client.query(`SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`);
       await client.query(`SELECT set_config('app.current_user_id', '${tenant.userId}', true)`);
-      // v1.1 (MIG-04): account_id → wallet_id in recurring_rules
+      // v1.1 (02-02): wallet_id + kind dropped; category_id optional.
       await client.query(
         `INSERT INTO budgeting.recurring_rules
-           (id, tenant_id, wallet_id, amount, currency, kind, cadence, cadence_anchor, active, next_due_date, actor_user_id)
-         VALUES ($1, $2, $3, '300', 'USD', 'EXPENSE', 'MONTHLY', 15, false, $4::date, $5)`,
-        [ruleId, tenant.tenantId, tenant.accountId, TODAY, tenant.userId],
+           (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor, active, next_due_date, actor_user_id)
+         VALUES ($1, $2, NULL, '300', 'USD', 'MONTHLY', 15, false, $3::date, $4)`,
+        [ruleId, tenant.tenantId, TODAY, tenant.userId],
       );
       await client.query("COMMIT");
     } catch (e) {
