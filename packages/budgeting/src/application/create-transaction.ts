@@ -1,54 +1,22 @@
 /**
- * create-transaction.ts — Application use case: create EXPENSE / INCOME / TRANSFER ledger rows.
+ * create-transaction.ts — Application use case: create categorical transaction (v1.1).
  *
- * Validation gates (in order):
- * 1. currency_orig in supported_currencies allowlist
- * 2. workspace_share_dirty = true → 409 WorkspaceSharesDirty (D-02-c)
- * 3. account must not be archived
- * 4. FX rate: if client provides fxPreview, validate <60 min freshness (D-02-d / EXPN-13);
- *    else call fxProvider.rateAsOf(currencyOrig, defaultCurrency, transactionDate)
- * 5. TRANSFER: split into two rows sharing transfer_group_id; each leg's own FX
- * 6. delegate to repo.create() (opens withTenantTx atomically)
+ * v1.1 changes (Plan 02-01, TXN-01..08):
+ *   - No account/wallet linkage, no TRANSFER kind, no correction surface.
+ *   - Negative amount_original_cents → flip kind to INCOME, store positive (D-PH2-09).
+ *   - FX: server calls rateAsOf(currencyOriginal, budget.currency, date) on every create.
+ *   - Quick-entry path: sets confirmed_at = now() immediately.
+ *   - amountOriginalCents and amountConvertedCents are bigint strings.
  *
- * rateAsOf is called in this use case, NOT in the repo — MONY-06 adapter boundary.
+ * T-02-01: currency_original validated as 3-char ISO.
+ * T-02-02: amount_converted_cents is NEVER read from client body — computed server-side.
+ * Pitfall 7: date string converted via new Date(s + 'T00:00:00Z').
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
-import type { AccountRepo } from "../ports/account-repo";
-import type { TransactionRepo, TransactionRow } from "../ports/transaction-repo";
-import { isSupportedCurrency } from "../adapters/persistence/supported-currencies-repo";
-import { withInfraTx } from "@budget/platform";
-import { sql } from "drizzle-orm";
-
-export class FxRateStaleError extends Error {
-  readonly kind = "FxRateStale" as const;
-  constructor(
-    public readonly freshRate: {
-      rate: string;
-      fxRateDate: string;
-      provider: string;
-      isStale: boolean;
-    },
-  ) {
-    super("FX rate is stale — server fetched a fresh rate");
-    this.name = "FxRateStaleError";
-  }
-}
-
-export class WorkspaceSharesDirtyError extends Error {
-  readonly kind = "WorkspaceSharesDirty" as const;
-  constructor() {
-    super("Workspace shares are dirty — re-run share allocation before transacting");
-    this.name = "WorkspaceSharesDirtyError";
-  }
-}
-
-export class AccountArchivedError extends Error {
-  readonly kind = "AccountArchived" as const;
-  constructor(public readonly accountId: string) {
-    super(`Account ${accountId} is archived`);
-    this.name = "AccountArchivedError";
-  }
-}
+import type {
+  TransactionRepo,
+  TransactionRow,
+} from "../ports/transaction-repo";
 
 export class CurrencyNotSupportedError extends Error {
   readonly kind = "CurrencyNotSupported" as const;
@@ -58,41 +26,25 @@ export class CurrencyNotSupportedError extends Error {
   }
 }
 
-export interface FxPreview {
-  rate: string;
-  fxRateDate: string; // ISO date string 'YYYY-MM-DD' or ISO timestamp
-}
-
 export interface CreateTransactionInput {
-  kind: "EXPENSE" | "INCOME" | "TRANSFER";
-  amountOrig: string;
-  currencyOrig: string;
-  transactionDate: string; // ISO 'YYYY-MM-DD'
-  accountId: string;
-  categoryId?: string | null;
+  date: string; // 'YYYY-MM-DD'
+  categoryId: string;
+  /** Signed: negative value → kind flipped to INCOME (D-PH2-09) */
+  amountOriginalCents: number;
+  /** ISO-4217 3-char code; defaults to budget.currency when omitted */
+  currencyOriginal?: string | null;
   note?: string | null;
-  /** For TRANSFER only: destination account */
-  toAccountId?: string;
-  /** Client-provided FX preview (EXPN-13) — server validates freshness */
-  fxPreview?: FxPreview | null;
+  budgetId: string;
   tenantId: string;
   actorUserId: string;
 }
 
 export interface CreateTransactionResult {
-  ledgerId: string;
-  transferGroupId?: string;
-  fxRateUsed: {
-    rate: string;
-    fxRateDate: string;
-    provider: string;
-    isStale: boolean;
-  };
+  transaction: TransactionRow;
 }
 
 export interface CreateTransactionDeps {
   transactionRepo: TransactionRepo;
-  accountRepo: AccountRepo;
   fxProvider: {
     rateAsOf(
       from: string,
@@ -100,237 +52,85 @@ export interface CreateTransactionDeps {
       date: Date,
     ): Promise<{ rate: string; provider: string; isStale: boolean }>;
   };
-  /** Workspace default currency resolver */
-  getWorkspaceDefaultCurrency(tenantId: string): Promise<string>;
-}
-
-/** 60-minute freshness window (EXPN-13 / D-02-d) */
-const FX_STALE_MINUTES = 60;
-
-function parseFxRateDate(fxRateDate: string): Date {
-  // fxRateDate may be ISO date ('YYYY-MM-DD') or ISO timestamp
-  return new Date(fxRateDate);
-}
-
-/**
- * Subtract one calendar day from a YYYY-MM-DD string (UTC). Used to mark a
- * stale FX rate so that `domain.isStale()` (rateDate < txDate) returns true.
- */
-function rollbackOneDay(yyyymmdd: string): string {
-  const d = new Date(`${yyyymmdd}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
+  getBudgetCurrency(budgetId: string): Promise<string>;
 }
 
 export function createTransaction(deps: CreateTransactionDeps) {
   return async (
     input: CreateTransactionInput,
-  ): Promise<
-    Result<
-      CreateTransactionResult,
-      FxRateStaleError | WorkspaceSharesDirtyError | AccountArchivedError | CurrencyNotSupportedError | Error
-    >
-  > => {
-    // Gate 1: currency allowlist
-    const supported = await isSupportedCurrency(input.currencyOrig);
-    if (!supported) {
-      return err(new CurrencyNotSupportedError(input.currencyOrig));
+  ): Promise<Result<CreateTransactionResult, Error>> => {
+    const budgetCurrency = await deps.getBudgetCurrency(input.budgetId);
+
+    // D-PH2-09: negative amount → INCOME with positive storage
+    const rawCents = input.amountOriginalCents;
+    const kind = rawCents < 0 ? "INCOME" : "SPENDING";
+    const absCents = Math.abs(rawCents);
+    const amountOriginalCents = String(absCents);
+
+    // Resolve currency (default to budget currency)
+    const currencyOriginal = (
+      input.currencyOriginal ?? budgetCurrency
+    ).toUpperCase();
+
+    // T-02-01: validate 3-char ISO
+    if (!/^[A-Z]{3}$/.test(currencyOriginal)) {
+      return err(new CurrencyNotSupportedError(currencyOriginal));
     }
 
-    // Gate 2: share_dirty check (D-02-c)
-    const shareDirtyCheck = await withInfraTx(async (tx) => {
-      const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Array<{ dirty: boolean }> }> };
-      const rs = await drizzleTx.execute(
-        sql`SELECT dirty FROM budgeting.workspace_share_dirty
-             WHERE workspace_id = ${input.tenantId}::uuid LIMIT 1`,
-      );
-      return rs.rows[0]?.dirty ?? false;
-    });
-    if (shareDirtyCheck.isOk() && shareDirtyCheck.value === true) {
-      return err(new WorkspaceSharesDirtyError());
-    }
+    // FX computation (T-02-02: NEVER from client; Pitfall 7: date string via T00:00:00Z)
+    let fxRate: string;
+    let fxAsOf: string;
+    let amountConvertedCents: string;
 
-    // Gate 3: account not archived
-    const account = await deps.accountRepo.findById(input.tenantId, input.accountId);
-    if (!account) {
-      return err(new Error(`Account ${input.accountId} not found`));
-    }
-    if (account.archivedAt !== null) {
-      return err(new AccountArchivedError(input.accountId));
-    }
-
-    // Get workspace default currency
-    const defaultCurrency = await deps.getWorkspaceDefaultCurrency(input.tenantId);
-
-    // Gate 4: FX rate
-    let fxRateUsed: { rate: string; fxRateDate: string; provider: string; isStale: boolean };
-
-    if (input.currencyOrig === defaultCurrency) {
-      // Same currency — no conversion needed
-      fxRateUsed = {
-        rate: "1",
-        fxRateDate: input.transactionDate,
-        provider: "internal",
-        isStale: false,
-      };
-    } else if (input.fxPreview) {
-      // Client provided a previewed rate — validate freshness (EXPN-13 / D-02-d)
-      const rateAge = Date.now() - parseFxRateDate(input.fxPreview.fxRateDate).getTime();
-      const ageMinutes = rateAge / (1000 * 60);
-
-      if (ageMinutes > FX_STALE_MINUTES) {
-        // Rate too old — fetch fresh and return 409
-        const freshRateResult = await deps.fxProvider.rateAsOf(
-          input.currencyOrig,
-          defaultCurrency,
-          new Date(input.transactionDate),
-        );
-        const freshRateDate = input.transactionDate; // use transaction date for fresh lookup
-        return err(
-          new FxRateStaleError({
-            rate: freshRateResult.rate,
-            fxRateDate: freshRateDate,
-            provider: freshRateResult.provider,
-            isStale: freshRateResult.isStale,
-          }),
-        );
-      }
-
-      // Rate is fresh enough — use client's previewed rate
-      fxRateUsed = {
-        rate: input.fxPreview.rate,
-        fxRateDate: input.fxPreview.fxRateDate.slice(0, 10), // normalize to YYYY-MM-DD
-        provider: "frankfurter",
-        isStale: input.fxPreview.fxRateDate.slice(0, 10) < input.transactionDate,
-      };
+    if (currencyOriginal === budgetCurrency) {
+      fxRate = "1";
+      fxAsOf = input.date;
+      amountConvertedCents = amountOriginalCents;
     } else {
-      // No preview — fetch from provider
-      const fetched = await deps.fxProvider.rateAsOf(
-        input.currencyOrig,
-        defaultCurrency,
-        new Date(input.transactionDate),
+      const fxResult = await deps.fxProvider.rateAsOf(
+        currencyOriginal,
+        budgetCurrency,
+        new Date(input.date + "T00:00:00Z"),
       );
-      // Persisted fxRateDate must reflect "the date the rate is valid", so
-      // domain.isStale() (= fxRateDate < transactionDate) returns true when the
-      // provider flagged the rate as stale (weekend / fallback). Otherwise the
-      // freshness badge would never light up. We back-date by one day in the
-      // stale case — sufficient for the badge; not a precise rate-date.
-      const persistedDate = fetched.isStale
-        ? rollbackOneDay(input.transactionDate)
-        : input.transactionDate;
-      fxRateUsed = {
-        rate: fetched.rate,
-        fxRateDate: persistedDate,
-        provider: fetched.provider,
-        isStale: fetched.isStale,
-      };
+      fxRate = fxResult.rate;
+      fxAsOf = input.date;
+      amountConvertedCents = String(Math.round(absCents * Number(fxRate)));
     }
 
-    // Compute amountDefault
-    const amountDefault = (
-      parseFloat(input.amountOrig) * parseFloat(fxRateUsed.rate)
-    ).toFixed(4);
-
-    if (input.kind === "TRANSFER") {
-      // EXPN-03: two linked rows sharing transfer_group_id
-      const transferGroupId = crypto.randomUUID();
-      const fromLegId = crypto.randomUUID();
-      const toLegId = crypto.randomUUID();
-      const toAccountId = input.toAccountId ?? input.accountId;
-
-      // Validate to-account
-      if (input.toAccountId) {
-        const toAccount = await deps.accountRepo.findById(input.tenantId, input.toAccountId);
-        if (!toAccount || toAccount.archivedAt !== null) {
-          return err(new AccountArchivedError(input.toAccountId));
-        }
-      }
-
-      const rows: TransactionRow[] = [
-        {
-          id: fromLegId,
-          tenantId: input.tenantId,
-          kind: "TRANSFER",
-          amountOrig: input.amountOrig,
-          currencyOrig: input.currencyOrig,
-          amountDefault,
-          currencyDefault: defaultCurrency,
-          fxRate: fxRateUsed.rate,
-          fxRateDate: fxRateUsed.fxRateDate,
-          fxProvider: fxRateUsed.provider,
-          transactionDate: input.transactionDate,
-          note: input.note ?? null,
-          accountId: input.accountId,
-          categoryId: null, // TRANSFER has no category
-          transferGroupId,
-          correctsId: null,
-          balanceDeltaSign: -1, // debit from-account
-        },
-        {
-          id: toLegId,
-          tenantId: input.tenantId,
-          kind: "TRANSFER",
-          amountOrig: input.amountOrig,
-          currencyOrig: input.currencyOrig,
-          amountDefault,
-          currencyDefault: defaultCurrency,
-          fxRate: fxRateUsed.rate,
-          fxRateDate: fxRateUsed.fxRateDate,
-          fxProvider: fxRateUsed.provider,
-          transactionDate: input.transactionDate,
-          note: input.note ?? null,
-          accountId: toAccountId,
-          categoryId: null,
-          transferGroupId,
-          correctsId: null,
-          balanceDeltaSign: 1, // credit to-account
-        },
-      ];
-
-      try {
-        await deps.transactionRepo.create(rows, input.actorUserId, input.tenantId);
-      } catch (e) {
-        return err(e as Error);
-      }
-
-      return ok({
-        ledgerId: fromLegId,
-        transferGroupId,
-        fxRateUsed,
-      });
-    } else {
-      // EXPENSE or INCOME
-      const ledgerId = crypto.randomUUID();
-      const row: TransactionRow = {
-        id: ledgerId,
-        tenantId: input.tenantId,
-        kind: input.kind,
-        amountOrig: input.amountOrig,
-        currencyOrig: input.currencyOrig,
-        amountDefault,
-        currencyDefault: defaultCurrency,
-        fxRate: fxRateUsed.rate,
-        fxRateDate: fxRateUsed.fxRateDate,
-        fxProvider: fxRateUsed.provider,
-        transactionDate: input.transactionDate,
-        note: input.note ?? null,
-        accountId: input.accountId,
-        categoryId: input.categoryId ?? null,
-        transferGroupId: null,
-        correctsId: null,
-        balanceDeltaSign: input.kind === "INCOME" ? 1 : -1,
-      };
-
-      try {
-        await deps.transactionRepo.create([row], input.actorUserId, input.tenantId);
-      } catch (e) {
-        return err(e as Error);
-      }
-
-      return ok({
-        ledgerId,
-        fxRateUsed,
-      });
+    // T-02-01: cap rate to sane bounds (0 < rate < 1e6)
+    const rateNum = Number(fxRate);
+    if (rateNum <= 0 || rateNum >= 1e6) {
+      return err(new Error(`FX rate out of bounds: ${fxRate}`));
     }
+
+    const id = crypto.randomUUID();
+    const row: TransactionRow = {
+      id,
+      tenantId: input.tenantId,
+      budgetId: input.budgetId,
+      categoryId: input.categoryId,
+      date: input.date,
+      amountOriginalCents,
+      currencyOriginal,
+      amountConvertedCents,
+      fxRate,
+      fxAsOf,
+      note: input.note ?? null,
+      recurringRuleId: null,
+      // Quick-entry path: auto-confirm immediately
+      confirmedAt: new Date(),
+      kind: kind as "SPENDING" | "INCOME",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    };
+
+    try {
+      await deps.transactionRepo.create(row, input.actorUserId, input.tenantId);
+    } catch (e) {
+      return err(e as Error);
+    }
+
+    return ok({ transaction: row });
   };
 }

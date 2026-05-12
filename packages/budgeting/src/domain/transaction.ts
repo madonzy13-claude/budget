@@ -1,55 +1,43 @@
 /**
- * transaction.ts — Transaction domain value object (immutable after minting).
- * No Drizzle imports — pure domain. D-05-b / D-05-f / EXPN-01..03.
+ * transaction.ts — Transaction domain entity v1.1 (immutable after minting).
+ * No Drizzle imports — pure domain. TXN-01..08 / D-PH2-08 / D-PH2-09.
+ *
+ * v1.1 changes:
+ *   - kind: narrowed from v1.0 (3 values) → "SPENDING"|"INCOME" only
+ *   - amount fields: bigint-as-string per CLAUDE.md "Money at adapter boundary"
+ *   - removed: accountId, transferGroupId, correctsId, hasCorrections, fxProvider
+ *   - added: budgetId, recurringRuleId, confirmedAt, deletedAt, updatedAt
  */
 
-export type TransactionKind = "EXPENSE" | "INCOME" | "TRANSFER";
+export type TransactionKind = "SPENDING" | "INCOME";
 
 export class Transaction {
   constructor(
     readonly id: string,
     readonly tenantId: string,
-    readonly kind: TransactionKind,
-    /** Original (user-entered) amount — decimal string */
-    readonly amountOrig: string,
-    /** Original currency ISO code */
-    readonly currencyOrig: string,
-    /** Converted to workspace default currency — decimal string */
-    readonly amountDefault: string,
-    /** Workspace default currency ISO code */
-    readonly currencyDefault: string,
-    /** FX rate applied: amountDefault = amountOrig * fxRate */
+    readonly budgetId: string,
+    readonly categoryId: string,
+    /** Transaction date — ISO date string 'YYYY-MM-DD' */
+    readonly date: string,
+    /** Original (user-entered) amount — bigint as string (cents) */
+    readonly amountOriginalCents: string,
+    /** Original currency ISO-4217 code */
+    readonly currencyOriginal: string,
+    /** Converted to budget default currency — bigint as string (cents) */
+    readonly amountConvertedCents: string,
+    /** FX rate applied: amountConvertedCents = amountOriginalCents * fxRate */
     readonly fxRate: string,
     /** Date for which fxRate was retrieved — ISO date string 'YYYY-MM-DD' */
-    readonly fxRateDate: string,
-    /** FX provider name e.g. 'frankfurter' */
-    readonly fxProvider: string,
-    /** Date of the transaction — ISO date string 'YYYY-MM-DD' */
-    readonly transactionDate: string,
+    readonly fxAsOf: string,
     /** Optional freetext note */
     readonly note: string | null,
-    /** Account ID (uuid) */
-    readonly accountId: string,
-    /** Category ID (uuid) — null for TRANSFER legs */
-    readonly categoryId: string | null,
-    /** Transfer group ID — shared by both legs of a TRANSFER */
-    readonly transferGroupId: string | null,
-    /** Corrects an earlier ledger row (uuid) */
-    readonly correctsId: string | null,
+    /** ID of the recurring rule that spawned this transaction (null = manual) */
+    readonly recurringRuleId: string | null,
+    /** NULL = draft; Date = confirmed (quick-entry sets confirmed_at = now()) */
+    readonly confirmedAt: Date | null,
+    readonly kind: TransactionKind,
     readonly createdAt: Date,
-    /**
-     * Plan 02-07: true when at least one correction row exists that points at this row.
-     * Derived via EXISTS(SELECT 1 FROM expense_ledger c WHERE c.corrects_id = this.id).
-     * Drives the "edited" badge in the UI.
-     */
-    readonly hasCorrections: boolean = false,
+    readonly updatedAt: Date,
+    readonly deletedAt: Date | null,
   ) {}
-
-  /**
-   * isStale() — returns true when fxRateDate < transactionDate.
-   * Used by UI to show the FX freshness badge.
-   */
-  isStale(): boolean {
-    return this.fxRateDate < this.transactionDate;
-  }
 }

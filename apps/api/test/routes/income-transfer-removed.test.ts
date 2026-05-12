@@ -5,53 +5,12 @@
  * TXN-08: GET /history, POST /correct, POST /income, POST /transfer, GET /recurring-drafts
  * all must return 404 after Phase 2 route restructure.
  */
-import { describe, it, expect, beforeAll } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import { Hono } from "hono";
 
-async function buildFullApp(userId: string, budgetId: string) {
-  // Import the full app factory which mounts all routes
-  // After Task 3, recurring-drafts will be deleted and income/transfer routes removed.
-  const { createApp } = await import("../../src/app");
-
-  // Minimal deps that won't throw on route registration
-  const fakeDeps = {
-    env: { REGION: "test" },
-    fxProvider: {
-      rateAsOf: async () => ({ rate: "1", provider: "stub", isStale: false }),
-    },
-    budgeting: {
-      createTransaction: async () => ({ isErr: () => true, error: { message: "not impl" } }),
-      editTransaction: async () => ({ isErr: () => true, error: { message: "not impl" } }),
-      getTransactionHistory: async () => ({ isErr: () => true, error: { message: "not impl" } }),
-      getLatestTransactions: async () => ({ isErr: () => false, value: [] }),
-      searchTransactions: async () => ({ isErr: () => false, value: { rows: [], nextCursor: null } }),
-      bulkRecategorize: async () => ({ isErr: () => false, value: {} }),
-      listPendingDrafts: async () => ({ isErr: () => false, value: [] }),
-      confirmRecurringDraft: async () => ({ isErr: () => false, value: {} }),
-      editAndConfirmRecurringDraft: async () => ({ isErr: () => false, value: {} }),
-      skipRecurringDraft: async () => ({ isErr: () => false, value: {} }),
-    },
-    tenancy: {
-      workspaceRepo: { findById: async () => null, listForUser: async () => [] },
-    },
-    identity: {
-      auth: { handler: async () => new Response("", { status: 404 }) },
-      userRepo: {
-        getActiveWorkspaceIds: async () => [],
-        setActiveWorkspaceIds: async () => {},
-        findById: async () => null,
-        updateLocale: async () => {},
-      },
-    },
-  } as any;
-
-  const app = createApp(fakeDeps);
-  return app;
-}
-
-// For a simpler approach: directly test the transactions route and the old sub-paths
 async function buildTransactionsRouteApp(userId: string, budgetId: string) {
-  const { createTransactionsRoute } = await import("../../src/routes/transactions");
+  const { createTransactionsRoute } =
+    await import("../../src/routes/transactions");
   const fakeDeps = {
     fxProvider: {
       rateAsOf: async () => ({ rate: "1", provider: "stub", isStale: false }),
@@ -66,7 +25,10 @@ async function buildTransactionsRouteApp(userId: string, budgetId: string) {
     c.set("userId", userId);
     await next();
   });
-  app.route("/budgets/:budgetId/transactions", createTransactionsRoute(fakeDeps));
+  app.route(
+    "/budgets/:budgetId/transactions",
+    createTransactionsRoute(fakeDeps),
+  );
   return app;
 }
 
@@ -118,9 +80,7 @@ describe("Removed v1.0 routes return 404", () => {
 
   it("GET /budgets/:id/recurring-drafts → 404 (folded into ?confirmed=false)", async () => {
     const app = await buildTransactionsRouteApp(fakeUserId, fakeBudgetId);
-    const res = await app.request(
-      `/budgets/${fakeBudgetId}/recurring-drafts`,
-    );
+    const res = await app.request(`/budgets/${fakeBudgetId}/recurring-drafts`);
     expect(res.status).toBe(404);
   });
 });
