@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Budget Restructure
-status: executing
-stopped_at: Plan 01-04 complete — Phase 1 done; i18n rename, budget-fetch helpers, D-13 cascade, E2E wallet vocabulary, migration 0012 idempotency
-last_updated: "2026-05-11T22:47:00Z"
-last_activity: "2026-05-11 — Plan 01-04 complete: i18n EN/PL/UK renamed, X-Budget-ID header, WalletsPage E2E, ci-gate 25/25 pass"
+status: verified
+stopped_at: Phase 1 VERIFICATION.md — PASS 13/13; all MIG requirements + 5 ROADMAP success criteria + 13 locked decisions verified
+last_updated: "2026-05-12T07:05:00Z"
+last_activity: "2026-05-12 — Phase 1 verified by gsd-verifier: 13/13 MIG reqs PASS, 5/5 ROADMAP criteria PASS, ci-gate 25/25, TDD red-first ordering clean, DDD boundary intact, BDD/Gherkin E2E only"
 progress:
   total_phases: 8
   completed_phases: 1
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: Phase 1 — Schema Migration & Rename Foundation
-Plan: 01-04 complete → Phase 1 done
-Status: Complete — Phase 1 all 4 plans executed; web client vocabulary, CI gate 25/25 pass
-Last activity: 2026-05-11 — Plan 01-04 complete: i18n EN/PL/UK renamed, X-Budget-ID header, WalletsPage E2E, ci-gate 25/25
+Plan: All 4 plans complete + VERIFICATION.md PASS
+Status: Verified — gsd-verifier PASS 13/13 must-haves; ready for Phase 2
+Last activity: 2026-05-12 — VERIFICATION.md written: 13/13 MIG reqs, 5/5 ROADMAP criteria, 13/13 decisions honored, TDD/DDD/BDD discipline intact
 
 ## Phase 1 Plans
 
