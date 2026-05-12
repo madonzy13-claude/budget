@@ -50,7 +50,22 @@ export default function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/${locale}/sign-in`, request.url));
   }
 
-  return intlMiddleware(request);
+  // Final non-redirect pass: forward to next-intl while injecting an `x-pathname`
+  // request header so downstream RSCs (e.g. (app)/layout.tsx) can derive the
+  // current pathname via `headers()`. OVERWRITE the header (do not set-if-absent)
+  // so any client-supplied value is discarded — defense against client spoofing
+  // (T-03-04-06). next-intl's response carries its own headers/cookies; we merge
+  // them onto the augmented NextResponse so locale handling is preserved.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+
+  const intlRes = intlMiddleware(request);
+  const merged = NextResponse.next({ request: { headers: requestHeaders } });
+  intlRes.headers.forEach((value, key) => merged.headers.set(key, value));
+  intlRes.cookies
+    .getAll()
+    .forEach((c) => merged.cookies.set(c.name, c.value, c));
+  return merged;
 }
 
 export const config = {
