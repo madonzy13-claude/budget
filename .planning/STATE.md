@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Budget Restructure
-status: verifying
-stopped_at: Phase 3 context gathered
-last_updated: "2026-05-12T19:56:38.831Z"
-last_activity: "2026-05-12 — VERIFICATION.md written: 13/13 MIG reqs, 5/5 ROADMAP criteria, 13/13 decisions honored, TDD/DDD/BDD discipline intact"
+status: planning_complete
+stopped_at: Phase 3 plans approved (iter 2 PASS)
+last_updated: "2026-05-12T21:55:00.000Z"
+last_activity: "2026-05-12 — Phase 3 plans complete: 7 plans across 7 waves; gsd-plan-checker iter 2 PASS; 14/14 REQs covered, 22/22 D-PH3 decisions honored, ASVS-L1 threat models, ready for /gsd-execute-phase 3"
 progress:
   total_phases: 8
   completed_phases: 2
@@ -25,12 +25,24 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 ## Current Position
 
-Phase: Phase 1 — Schema Migration & Rename Foundation
-Plan: All 4 plans complete + VERIFICATION.md PASS
-Status: Verified — gsd-verifier PASS 13/13 must-haves; ready for Phase 2
-Last activity: 2026-05-12 — VERIFICATION.md written: 13/13 MIG reqs, 5/5 ROADMAP criteria, 13/13 decisions honored, TDD/DDD/BDD discipline intact
+Phase: Phase 3 — Navigation, Home & BDP Frame
+Plan: 7 plans across 7 waves; gsd-plan-checker iter 2 PASS
+Status: Planning complete — ready for /gsd-execute-phase 3
+Last activity: 2026-05-12 — Phase 3 plans approved: 14/14 REQs covered, 22/22 D-PH3 decisions honored, ASVS-L1 threat models, schemas locked
 
-## Phase 1 Plans
+## Phase 3 Plans
+
+| Plan  | Wave | Title                                                                                  | Reqs                              | Depends   |
+| ----- | ---- | -------------------------------------------------------------------------------------- | --------------------------------- | --------- |
+| 03-01 | 0    | Wave 0 prep: React Query + playwright-bdd install; delete /workspaces tree             | NAV-05                            | —         |
+| 03-02 | 1    | Backend: GET /budgets/:id/home-summary + FxProvider conversion                         | HOME-01, HOME-02                  | [03-01]   |
+| 03-03 | 2    | Backend: GET /budgets/:id/tasks?status=pending read shell                              | BDP-03                            | [03-01]   |
+| 03-04 | 3    | BudgetSwitcher + NewBudgetButton + TopNav + (app) layout + middleware x-pathname       | NAV-01..04                        | [03-01,02]|
+| 03-05 | 4    | Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero    | HOME-01..04                       | [03-02,04]|
+| 03-06 | 5    | BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tabs + /budgets/new  | BDP-01..05                        | [03-03,04]|
+| 03-07 | 6    | PL/UK i18n + 4 Gherkin features (playwright-bdd) + Page Objects + Makefile             | NAV-04, HOME-03, BDP-01, BDP-05   | [03-04,05,06] |
+
+## Phase 1 Plans (archived)
 
 | Plan  | Title                                                                                   | Reqs                         | Depends |
 | ----- | --------------------------------------------------------------------------------------- | ---------------------------- | ------- |
@@ -152,9 +164,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-12T19:56:38.723Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-navigation-home-bdp-frame/03-CONTEXT.md
+Last session: 2026-05-12T20:11:37.910Z
+Stopped at: Phase 3 UI-SPEC approved
+Resume file: .planning/phases/03-navigation-home-bdp-frame/03-UI-SPEC.md
 
 ## v1.0 History (archived)
 
