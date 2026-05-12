@@ -239,6 +239,37 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     return c.json({ ok: true });
   });
 
+  // GET /budgets/:id/home-summary — HOME-02 aggregated read-model
+  // (current-month spend + wallets total FX-converted server-side + top-2 overspent categories).
+  // Per v1.1 invariant: budget_id === tenant_id. The tenant-guard middleware
+  // verified membership and populated c.get("tenantIds"); we ALSO defensively
+  // ensure budgetId is in that verified set before calling the service.
+  r.get("/:id/home-summary", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const userId = (session as { user: { id: string } }).user.id;
+
+    const result = await deps.budgeting.getBudgetHomeSummary({
+      budgetId,
+      userId,
+      now: new Date(),
+    });
+    if (result.isErr()) {
+      const msg = (result.error as Error).message;
+      if (msg === "budget_not_found")
+        return c.json({ error: "not_found" }, 404);
+      console.error("[home-summary] failed:", msg);
+      return c.json({ error: "home_summary_failed" }, 500);
+    }
+    return c.json(result.value);
+  });
+
   // GET /budgets/:id/reserves — per-category reserve balances (RSCM-01, RSCM-02)
   r.get("/:id/reserves", async (c) => {
     const session = c.get("session");

@@ -70,7 +70,11 @@
     "./src/ports/reserve-balance-repo": "./src/ports/reserve-balance-repo.ts",
     "./src/adapters/persistence/reserve-balance-repo": "./src/adapters/persistence/reserve-balance-repo.ts",
     "./src/application/recurring-engine": "./src/application/recurring-engine.ts",
-    "./src/application/recurring-engine-fx": "./src/application/recurring-engine-fx.ts"
+    "./src/application/recurring-engine-fx": "./src/application/recurring-engine-fx.ts",
+    "./src/ports/budget-home-summary-repo": "./src/ports/budget-home-summary-repo.ts",
+    "./src/ports/user-display-currency-reader": "./src/ports/user-display-currency-reader.ts",
+    "./src/adapters/persistence/budget-home-summary-repo": "./src/adapters/persistence/budget-home-summary-repo.ts",
+    "./src/application/get-budget-home-summary": "./src/application/get-budget-home-summary.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
