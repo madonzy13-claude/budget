@@ -22,7 +22,7 @@ dependency_graph:
 tech_stack:
   added:
     - "nanoid (already in package.json) — 32-char URL-safe token generation"
-    - "drizzle/0014_phase02_04_share_link_public_resolve.sql — worker_role SELECT policies for public resolve path"
+    - "drizzle/0015_phase02_04_share_link_public_resolve.sql — worker_role SELECT policies for public resolve path"
   patterns:
     - "withTenantTx for owner-only writes (create, accept, revoke)"
     - "withInfraTx (worker_role + budget_share_links_worker_public_resolve policy) for public token lookup"
@@ -40,7 +40,7 @@ key_files:
     - "packages/tenancy/src/application/revoke-share-link.ts"
     - "apps/api/src/routes/share-join.ts"
     - "apps/api/test/routes/share-links.test.ts"
-    - "drizzle/0014_phase02_04_share_link_public_resolve.sql"
+    - "drizzle/0015_phase02_04_share_link_public_resolve.sql"
   modified:
     - "apps/api/src/routes/budgets.ts (POST /:id/share + DELETE /share/:linkId)"
     - "apps/api/src/app.ts (app.route('/budgets/join', ...) before requireAuth fence)"
@@ -118,8 +118,8 @@ Hono evaluates in registration order. GET /budgets/join/:token bypasses the fenc
 
 - **Found during:** Task 2 (GREEN) — `findByToken` returned null with no error
 - **Issue:** `withInfraTx` uses `workerDb()` (worker_role). `tenancy.budget_share_links` has `FORCE ROW LEVEL SECURITY`. With no GUC set, `worker_role` gets 0 rows — even for the public token resolve path. The plan's design (use `withInfraTx` for public resolve) assumed BYPASSRLS or no FORCE RLS, but neither was true.
-- **Fix:** Added `drizzle/0014_phase02_04_share_link_public_resolve.sql` migration with `CREATE POLICY budget_share_links_worker_public_resolve ... FOR SELECT TO worker_role USING (true)`. Same for `tenancy.budgets` (needed for budget name lookup). Applied to live test DB.
-- **Files modified:** `drizzle/0014_phase02_04_share_link_public_resolve.sql` (new)
+- **Fix:** Added `drizzle/0015_phase02_04_share_link_public_resolve.sql` migration with `CREATE POLICY budget_share_links_worker_public_resolve ... FOR SELECT TO worker_role USING (true)`. Same for `tenancy.budgets` (needed for budget name lookup). Applied to live test DB.
+- **Files modified:** `drizzle/0015_phase02_04_share_link_public_resolve.sql` (new)
 - **Commits:** `abcdf5d`
 
 **2. [Rule 1 - Bug] Drizzle raw execute returns timestamps as strings (not Date objects)**
@@ -151,7 +151,7 @@ Hono evaluates in registration order. GET /budgets/join/:token bypasses the fenc
 - **Found during:** Task 2 (GREEN) — ALL tests failing with `relation "tenancy.workspaces" does not exist`
 - **Issue:** Migration 0012 dropped `tenancy.workspaces` but migration 0013 did NOT drop the old `workspace_members_*` triggers on `tenancy.budget_members`. These triggers fire on INSERT and reference the dropped table.
 - **Fix:** Dropped 5 obsolete triggers directly in test DB and added to `drizzle/0014_*` migration. Applied to live DB.
-- **Files modified:** `drizzle/0014_phase02_04_share_link_public_resolve.sql`
+- **Files modified:** `drizzle/0015_phase02_04_share_link_public_resolve.sql`
 - **Commits:** `abcdf5d`
 
 ### Deferred Items

@@ -1,4 +1,4 @@
--- Migration: 0014_phase02_04_share_link_public_resolve.sql
+-- Migration: 0015_phase02_04_share_link_public_resolve.sql
 --
 -- Adds a worker_role policy on tenancy.budget_share_links that allows
 -- SELECT by token without requiring tenant context.
