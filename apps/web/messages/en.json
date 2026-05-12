@@ -460,6 +460,23 @@
       "SEK": "Swedish Krona"
     }
   },
+  "home": {
+    "heading": "My budgets",
+    "card": {
+      "spent": "Spent this month",
+      "wallets": "Total wallets",
+      "overspentHeading": "Overspent",
+      "allOnBudget": "All categories on budget",
+      "error": "Couldn't load summary. Tap to open.",
+      "openAria": "Open {budgetName}"
+    },
+    "chart": { "placeholder": "Insights coming soon" },
+    "empty": {
+      "heading": "Welcome — let's set up your first budget",
+      "body": "Create a budget to start tracking spendings, wallets, and reserves.",
+      "cta": "Create your first budget"
+    }
+  },
   "budgeting_categories": {
     "categories": {
       "title": "Categories",

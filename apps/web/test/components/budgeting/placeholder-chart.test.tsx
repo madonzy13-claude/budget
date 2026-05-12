@@ -36,8 +36,12 @@ describe("PlaceholderChart", () => {
   it("renders lucide BarChart3 icon and 'Insights coming soon' copy", async () => {
     const ui = await PlaceholderChart({ locale: "en" });
     const { container } = render(ui);
-    // lucide-react attaches `lucide-bar-chart-3` on the SVG.
-    const svg = container.querySelector("svg.lucide-bar-chart-3");
+    // lucide-react v1.14+ renames BarChart3 → ChartColumn under the hood, so
+    // the rendered SVG carries `lucide-chart-column`. Match either legacy or
+    // current class so the assertion is stable across upgrades.
+    const svg = container.querySelector(
+      "svg.lucide-chart-column, svg.lucide-bar-chart-3",
+    );
     expect(svg).toBeTruthy();
     expect(screen.getByText("Insights coming soon")).toBeTruthy();
   });
