@@ -15,13 +15,12 @@ import { DrizzleRecurringRuleRepo } from "../adapters/persistence/recurring-rule
 import { ExpenseLedgerDraftRepo } from "../adapters/persistence/expense-ledger-draft-repo";
 import { createWallet } from "../application/create-wallet";
 import { archiveWallet } from "../application/archive-wallet";
-import { adjustWalletBalance } from "../application/adjust-wallet-balance";
+import { setWalletBalance } from "../application/set-wallet-balance";
 import { listWallets } from "../application/list-wallets";
 import { findWalletById } from "../application/find-wallet-by-id";
 // Backward-compat aliases (routes migrated in Plan 01-03)
 import { createAccount } from "../application/create-account";
 import { archiveAccount } from "../application/archive-account";
-import { adjustAccountBalance } from "../application/adjust-account-balance";
 import { listAccounts } from "../application/list-accounts";
 import { findAccountById } from "../application/find-account-by-id";
 import { createCategory } from "../application/create-category";
@@ -66,13 +65,13 @@ export interface BudgetingModule {
   // Wallet methods (renamed from account in Plan 01-02/01-03)
   createWallet: ReturnType<typeof createWallet>;
   archiveWallet: ReturnType<typeof archiveWallet>;
-  adjustWalletBalance: ReturnType<typeof adjustWalletBalance>;
+  /** D-PH2-09 amended: setBalance overwrites current_balance to absolute value (no delta math). */
+  setWalletBalance: ReturnType<typeof setWalletBalance>;
   listWallets: ReturnType<typeof listWallets>;
   findWalletById: ReturnType<typeof findWalletById>;
   // Backward-compat account aliases (deprecated, use wallet methods above)
   createAccount: ReturnType<typeof createAccount>;
   archiveAccount: ReturnType<typeof archiveAccount>;
-  adjustAccountBalance: ReturnType<typeof adjustAccountBalance>;
   listAccounts: ReturnType<typeof listAccounts>;
   findAccountById: ReturnType<typeof findAccountById>;
   createCategory: ReturnType<typeof createCategory>;
@@ -146,13 +145,12 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     // Wallet methods (Plan 01-03 route rename)
     createWallet: createWallet({ repo }),
     archiveWallet: archiveWallet({ repo }),
-    adjustWalletBalance: adjustWalletBalance({ repo }),
+    setWalletBalance: setWalletBalance({ repo }),
     listWallets: listWallets({ repo }),
     findWalletById: findWalletById({ repo }),
     // Backward-compat account aliases
     createAccount: createAccount({ repo }),
     archiveAccount: archiveAccount({ repo }),
-    adjustAccountBalance: adjustAccountBalance({ repo }),
     listAccounts: listAccounts({ repo }),
     findAccountById: findAccountById({ repo }),
     createCategory: createCategory({ repo: categoryRepo }),

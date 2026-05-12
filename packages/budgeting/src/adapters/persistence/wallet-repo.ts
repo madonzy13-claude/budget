@@ -194,31 +194,43 @@ export class DrizzleWalletRepo implements WalletRepo {
     if (r.isErr()) throw r.error;
   }
 
-  async recordAdjustment(
+  /**
+   * setBalance — overwrites current_balance to the absolute value.
+   * Enforces WALT-04: rejects if the supplied currency differs from the
+   * wallet's currency. No row in dropped `account_balance_adjustments`.
+   * Writes audit + outbox events.
+   */
+  async setBalance(
     tenantId: string,
     walletId: string,
-    delta: { amount: string; currency: string },
-    reason: string,
+    amount: { amount: string; currency: string },
     actorUserId: string,
   ): Promise<void> {
     const tid = TenantId(tenantId);
     const uid = UserId(actorUserId);
 
     const r = await withTenantTx(tid, uid, async (tx) => {
-      // Insert balance adjustment record
-      const adjId = crypto.randomUUID();
-      await tx.execute(
-        sql`INSERT INTO budgeting.account_balance_adjustments
-              (id, tenant_id, wallet_id, delta_amount, delta_currency, reason, actor_user_id)
-            VALUES
-              (${adjId}::uuid, ${tenantId}::uuid, ${walletId}::uuid,
-               ${delta.amount}::numeric, ${delta.currency}, ${reason}, ${actorUserId}::uuid)`,
+      const before = await tx.execute<{
+        currency: string;
+        current_balance: string;
+      }>(
+        sql`SELECT currency, current_balance::text
+            FROM budgeting.wallets
+            WHERE id = ${walletId}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
+      const beforeRow = (before as any).rows?.[0] ?? (before as any)[0];
+      if (!beforeRow) {
+        throw new Error("Wallet not found");
+      }
+      if (beforeRow.currency !== amount.currency) {
+        throw new Error(
+          `Balance currency ${amount.currency} != wallet currency ${beforeRow.currency} (WALT-04 immutable)`,
+        );
+      }
 
-      // Update current_balance synchronously (D-05-e)
       await tx.execute(
         sql`UPDATE budgeting.wallets
-            SET current_balance = current_balance + ${delta.amount}::numeric
+            SET current_balance = ${amount.amount}::numeric
             WHERE id = ${walletId}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
 
@@ -228,46 +240,23 @@ export class DrizzleWalletRepo implements WalletRepo {
         entityId: walletId,
         action: "update",
         actorUserId: uid,
-        before: null,
-        after: {
-          adjustmentId: adjId,
-          delta: delta.amount,
-          currency: delta.currency,
-          reason,
-        },
+        before: { currentBalance: beforeRow.current_balance },
+        after: { currentBalance: amount.amount, currency: amount.currency },
       });
 
       await writeOutbox(tx, {
         tenantId: tid,
         aggregateType: "wallet",
         aggregateId: walletId,
-        eventType: "budgeting.wallet.balance_adjusted",
+        eventType: "budgeting.wallet.balance_set",
         payload: {
-          adjustmentId: adjId,
-          delta: delta.amount,
-          currency: delta.currency,
+          currentBalance: amount.amount,
+          currency: amount.currency,
           actorUserId,
         },
       });
     });
 
     if (r.isErr()) throw r.error;
-  }
-
-  /**
-   * applyDelta — used inside ledger writer tx (D-05-e, plan 02-06).
-   * Does NOT open its own transaction.
-   */
-  async applyDelta(
-    tx: unknown,
-    walletId: string,
-    deltaAmountStr: string,
-  ): Promise<void> {
-    const drizzleTx = tx as { execute: (q: unknown) => Promise<unknown> };
-    await drizzleTx.execute(
-      sql`UPDATE budgeting.wallets
-          SET current_balance = current_balance + ${deltaAmountStr}::numeric
-          WHERE id = ${walletId}::uuid`,
-    );
   }
 }

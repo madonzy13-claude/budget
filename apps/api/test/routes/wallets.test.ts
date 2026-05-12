@@ -63,8 +63,8 @@ async function buildApp(userId: string, tenantId: string) {
     await import("@budget/budgeting/src/application/create-wallet");
   const { archiveWallet } =
     await import("@budget/budgeting/src/application/archive-wallet");
-  const { adjustWalletBalance } =
-    await import("@budget/budgeting/src/application/adjust-wallet-balance");
+  const { setWalletBalance } =
+    await import("@budget/budgeting/src/application/set-wallet-balance");
   const { listWallets } =
     await import("@budget/budgeting/src/application/list-wallets");
   const { findWalletById } =
@@ -75,7 +75,7 @@ async function buildApp(userId: string, tenantId: string) {
     budgeting: {
       createWallet: createWallet({ repo }),
       archiveWallet: archiveWallet({ repo }),
-      adjustWalletBalance: adjustWalletBalance({ repo }),
+      setWalletBalance: setWalletBalance({ repo }),
       listWallets: listWallets({ repo }),
       findWalletById: findWalletById({ repo }),
     },

@@ -13,7 +13,7 @@ export { createWallet } from "./application/create-wallet";
 export { archiveWallet } from "./application/archive-wallet";
 export { listWallets } from "./application/list-wallets";
 export { findWalletById } from "./application/find-wallet-by-id";
-export { adjustWalletBalance } from "./application/adjust-wallet-balance";
+export { setWalletBalance } from "./application/set-wallet-balance";
 
 // Contract types
 export type {

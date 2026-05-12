@@ -33,13 +33,18 @@ export type CreateAccountInput = CreateWalletInput;
 /** @deprecated use WalletDto */
 export type AccountDto = WalletDto;
 
-export const adjustBalanceSchema = z.object({
-  amount: z.string().regex(/^-?\d+(\.\d+)?$/), // signed decimal
+/**
+ * setBalanceSchema — used by PUT /wallets/:id/balance (D-PH2-09 amended).
+ * Overwrites current_balance to an absolute value. No `reason` field —
+ * wallet balance edits are not separately audited via a dedicated table
+ * (the old account_balance_adjustments table was dropped by migration 0013).
+ */
+export const setBalanceSchema = z.object({
+  amount: z.string().regex(/^-?\d+(\.\d+)?$/), // signed decimal (negative allowed for overdraft)
   currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
-  reason: z.string().min(1).max(500),
 });
 
-export type AdjustBalanceInput = z.infer<typeof adjustBalanceSchema>;
+export type SetBalanceInput = z.infer<typeof setBalanceSchema>;
 
 // ---------------------------------------------------------------------------
 // Category schemas (BDGT-01..06) — scope dropped in Plan 01-02 (D-13)
@@ -292,8 +297,14 @@ export const cadenceSchema = z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]);
  */
 export const cadenceSpecSchema = z.discriminatedUnion("cadence", [
   z.object({ cadence: z.literal("DAILY") }),
-  z.object({ cadence: z.literal("WEEKLY"), weekly_dow: z.number().int().min(0).max(6) }),
-  z.object({ cadence: z.literal("MONTHLY"), cadence_anchor: z.number().int().min(1).max(31) }),
+  z.object({
+    cadence: z.literal("WEEKLY"),
+    weekly_dow: z.number().int().min(0).max(6),
+  }),
+  z.object({
+    cadence: z.literal("MONTHLY"),
+    cadence_anchor: z.number().int().min(1).max(31),
+  }),
   z.object({
     cadence: z.literal("YEARLY"),
     yearly_month: z.number().int().min(1).max(12),

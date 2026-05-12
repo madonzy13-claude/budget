@@ -1,6 +1,12 @@
 /**
  * wallet-repo.ts — Port interface for Wallet persistence (renamed from account-repo.ts)
  * Domain layer: no Drizzle imports.
+ *
+ * D-PH2-09 (amended in Phase 2 gap-closure): wallet balance is fully
+ * decoupled from transactions. Only setBalance (full absolute value)
+ * mutates current_balance. The old delta-based recordAdjustment +
+ * applyDelta paths were removed when budgeting.account_balance_adjustments
+ * was dropped by migration 0013.
  */
 import type { Wallet } from "../domain/wallet";
 
@@ -13,21 +19,15 @@ export interface WalletRepo {
     walletId: string,
     actorUserId: string,
   ): Promise<void>;
-  recordAdjustment(
+  /**
+   * setBalance — overwrites current_balance to an absolute value.
+   * Throws if `amount.currency !== wallet.currency` (WALT-04 immutable).
+   * Writes an audit row but NOT a separate adjustments-table row.
+   */
+  setBalance(
     tenantId: string,
     walletId: string,
-    delta: { amount: string; currency: string },
-    reason: string,
+    amount: { amount: string; currency: string },
     actorUserId: string,
-  ): Promise<void>;
-  /**
-   * applyDelta — updates current_balance in-place inside an existing tx.
-   * Used by ledger writer (plan 02-06) to update balance synchronously (D-05-e).
-   * Does NOT open its own transaction.
-   */
-  applyDelta(
-    tx: unknown,
-    walletId: string,
-    deltaAmountStr: string,
   ): Promise<void>;
 }
