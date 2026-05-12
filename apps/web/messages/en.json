@@ -551,6 +551,14 @@
         "title": "Settings",
         "placeholder": "Budget identity, cushion toggle, recurring rules, and members land in Phase 6."
       }
+    },
+    "tasks": {
+      "banner": {
+        "trigger": { "aria": "Show pending tasks" },
+        "collapse": { "aria": "Hide pending tasks" }
+      },
+      "count": "{count, plural, one {# task pending} other {# tasks pending}}",
+      "actionComingSoon": "Coming in Phase 7"
     }
   }
 }
