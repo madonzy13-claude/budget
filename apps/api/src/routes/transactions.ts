@@ -1,7 +1,7 @@
 /**
- * transactions.ts — /budgets/:budgetId/transactions route factory (v1.1)
+ * transactions.ts — /transactions route factory (v1.1)
  *
- * Six sub-routes per D-PH2-08:
+ * Budget-scoped sub-routes per D-PH2-08:
  *   POST   /budgets/:budgetId/transactions               — create (TXN-03)
  *   PATCH  /budgets/:budgetId/transactions/:txId         — edit + FX re-compute (TXN-04,06)
  *   POST   /budgets/:budgetId/transactions/:txId/confirm — draft → confirmed (TXN-03)
@@ -9,7 +9,10 @@
  *   GET    /budgets/:budgetId/transactions?month=YYYY-MM  — list for month (TXN-05)
  *   GET    /budgets/:budgetId/transactions/:txId         — single row
  *
- * Removed routes (TXN-08): /income, /transfer, /:id/history, /:id/correct, /bulk-recategorize
+ * Cross-budget routes (mounted at /transactions):
+ *   POST   /transactions/bulk-recategorize               — bulk update categoryId (EXPN-10)
+ *
+ * Removed (TXN-08): /income, /transfer, /:id/history, /:id/correct
  *
  * T-02-01: currency_original validated as 3-char ISO.
  * T-02-02: amount_converted_cents NEVER read from client body — computed server-side.
@@ -29,15 +32,16 @@ import {
   editTransaction,
   type EditTransactionDeps,
 } from "@budget/budgeting/src/application/edit-transaction";
+import type { BootedDeps } from "../boot";
 
 // ──────────────────────────────────────────────────────────────────────
-// Deps interface — only fxProvider is injected (for testability).
-// Repo + getBudgetCurrency are wired internally.
+// Deps interface — accepts BootedDeps for full module access.
+// Can also be passed { fxProvider } for budget-scoped-only tests.
 // ──────────────────────────────────────────────────────────────────────
 
-export interface TransactionRouteDeps {
-  fxProvider: CreateTransactionDeps["fxProvider"];
-}
+export type TransactionRouteDeps =
+  | Pick<BootedDeps, "budgeting">
+  | { fxProvider: CreateTransactionDeps["fxProvider"] };
 
 // ──────────────────────────────────────────────────────────────────────
 // Zod schemas
@@ -125,6 +129,16 @@ function serializeRow(row: {
 export function createTransactionsRoute(deps: TransactionRouteDeps) {
   const app = new Hono<{ Variables: Record<string, unknown> }>();
 
+  // Resolve fxProvider from either deps shape
+  const fxProvider = "budgeting" in deps
+    ? deps.budgeting.fxProvider
+    : (deps as { fxProvider: CreateTransactionDeps["fxProvider"] }).fxProvider;
+
+  // Resolve bulkRecategorize from budgeting module if available
+  const bulkRecategorizeFn = "budgeting" in deps
+    ? deps.budgeting.bulkRecategorize
+    : null;
+
   // Wire repo and services (instantiated once per route factory call)
   const transactionRepo = new DrizzleTransactionRepo();
 
@@ -145,13 +159,13 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
 
   const createTxService = createTransaction({
     transactionRepo,
-    fxProvider: deps.fxProvider,
+    fxProvider,
     getBudgetCurrency,
   });
 
   const editTxService = editTransaction({
     transactionRepo,
-    fxProvider: deps.fxProvider,
+    fxProvider,
     getBudgetCurrency,
   });
 
@@ -301,6 +315,45 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     if (!row) return c.json({ error: "not_found" }, 404);
 
     return c.json({ transaction: serializeRow(row) }, 200);
+  });
+
+  // ── POST /bulk-recategorize — bulk update categoryId (EXPN-10) ────────
+  // NOTE: Hono matches routes in registration order. This must be registered
+  // BEFORE /:txId to avoid "bulk-recategorize" being captured as txId.
+  // If bulkRecategorize is not available in deps, respond 501.
+  app.post("/bulk-recategorize", async (c) => {
+    if (!bulkRecategorizeFn) {
+      return c.json({ error: "bulk-recategorize not available" }, 501);
+    }
+
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+
+    const bulkSchema = z.object({
+      transactionIds: z.array(z.string().uuid()).min(1).max(500),
+      newCategoryId: z.string().uuid(),
+    });
+
+    const parsed = bulkSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+    }
+
+    const tenantId = pickTenant(c);
+    const userId = pickUser(c);
+
+    const r = await bulkRecategorizeFn({
+      tenantId,
+      transactionIds: parsed.data.transactionIds,
+      newCategoryId: parsed.data.newCategoryId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      return c.json({ error: r.error.message }, 422);
+    }
+
+    return c.json(r.value, 200);
   });
 
   return app;

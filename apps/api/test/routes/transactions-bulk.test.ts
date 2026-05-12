@@ -1,5 +1,6 @@
 /**
  * transactions-bulk.test.ts — Integration tests for POST /transactions/bulk-recategorize.
+ * v1.1: uses tenancy.budgets + budgeting.wallets + v1.1 transaction shape.
  */
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Hono } from "hono";
@@ -20,7 +21,6 @@ async function createFixture(label: string) {
   const client = await pool.connect();
   const userId = crypto.randomUUID();
   const tenantId = crypto.randomUUID();
-  const accountId = crypto.randomUUID();
   const categoryAId = crypto.randomUUID();
   const categoryBId = crypto.randomUUID();
 
@@ -40,11 +40,6 @@ async function createFixture(label: string) {
     await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
     await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
     await client.query(
-      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Checking', 'SPENDINGS', 'EUR', 100000.0000, now(), $3)`,
-      [accountId, tenantId, userId],
-    );
-    await client.query(
       `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
        VALUES ($1, $2, 'CatA', now(), $3),
               ($4, $2, 'CatB', now(), $3)`,
@@ -59,7 +54,7 @@ async function createFixture(label: string) {
     await pool.end();
   }
 
-  return { userId, tenantId, accountId, categoryAId, categoryBId };
+  return { userId, tenantId, categoryAId, categoryBId };
 }
 
 async function buildApp(userId: string, tenantId: string) {
@@ -72,8 +67,7 @@ async function buildApp(userId: string, tenantId: string) {
 
   const fxCache = new DrizzleFxRateCacheRepo(workerPool());
   const budgeting = createBudgetingModule({ fxCache });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const deps = { budgeting } as any;
+  const deps = { budgeting };
 
   const app = new Hono();
   app.use(async (c, next) => {
@@ -85,43 +79,43 @@ async function buildApp(userId: string, tenantId: string) {
   });
   app.use(createIdempotencyMiddleware());
   app.route("/transactions", createTransactionsRoute(deps));
-  return app;
+  app.route("/budgets/:budgetId/transactions", createTransactionsRoute(deps));
+  return { app, budgetId: tenantId };
 }
 
-async function createExpense(
-  app: Awaited<ReturnType<typeof buildApp>>,
-  accountId: string,
+async function createTransaction(
+  app: Awaited<ReturnType<typeof buildApp>>["app"],
+  budgetId: string,
   categoryId: string,
-  amount: string,
+  amount: number,
   date: string,
 ) {
-  const res = await app.request("/transactions", {
+  const res = await app.request(`/budgets/${budgetId}/transactions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Idempotency-Key": crypto.randomUUID(),
     },
     body: JSON.stringify({
-      kind: "EXPENSE",
-      amountOrig: amount,
-      currencyOrig: "EUR",
-      transactionDate: date,
-      accountId,
-      categoryId,
-      note: "bulk-test",
+      date,
+      category_id: categoryId,
+      amount_original_cents: amount,
     }),
   });
-  expect(res.status).toBe(201);
-  return (await res.json()) as { ledgerId: string };
+  if (res.status !== 201) {
+    throw new Error(`createTransaction failed: ${res.status} ${await res.text()}`);
+  }
+  const body = (await res.json()) as { transaction: { id: string } };
+  return body.transaction.id;
 }
 
 describe("POST /transactions/bulk-recategorize", () => {
   it("happy path: 3 ids in CatA → bulk to CatB → 200 with 3 succeeded", async () => {
     const f = await createFixture("happy");
-    const app = await buildApp(f.userId, f.tenantId);
-    const a = (await createExpense(app, f.accountId, f.categoryAId, "10.00", "2026-05-01")).ledgerId;
-    const b = (await createExpense(app, f.accountId, f.categoryAId, "20.00", "2026-05-02")).ledgerId;
-    const c = (await createExpense(app, f.accountId, f.categoryAId, "30.00", "2026-05-03")).ledgerId;
+    const { app, budgetId } = await buildApp(f.userId, f.tenantId);
+    const a = await createTransaction(app, budgetId, f.categoryAId, 1000, "2026-05-01");
+    const b = await createTransaction(app, budgetId, f.categoryAId, 2000, "2026-05-02");
+    const c = await createTransaction(app, budgetId, f.categoryAId, 3000, "2026-05-03");
 
     const res = await app.request("/transactions/bulk-recategorize", {
       method: "POST",
@@ -147,7 +141,7 @@ describe("POST /transactions/bulk-recategorize", () => {
 
   it("validation error on empty ids array → 422", async () => {
     const f = await createFixture("validation");
-    const app = await buildApp(f.userId, f.tenantId);
+    const { app } = await buildApp(f.userId, f.tenantId);
 
     const res = await app.request("/transactions/bulk-recategorize", {
       method: "POST",
@@ -165,8 +159,8 @@ describe("POST /transactions/bulk-recategorize", () => {
 
   it("idempotent replay: second POST with same Idempotency-Key returns cached body", async () => {
     const f = await createFixture("idempotent");
-    const app = await buildApp(f.userId, f.tenantId);
-    const a = (await createExpense(app, f.accountId, f.categoryAId, "10.00", "2026-05-01")).ledgerId;
+    const { app, budgetId } = await buildApp(f.userId, f.tenantId);
+    const a = await createTransaction(app, budgetId, f.categoryAId, 1000, "2026-05-01");
 
     const idemKey = crypto.randomUUID();
     const r1 = await app.request("/transactions/bulk-recategorize", {
