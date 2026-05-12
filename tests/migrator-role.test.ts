@@ -4,7 +4,7 @@ import { Pool } from "pg";
 
 beforeAll(async () => {
   await startTestcontainer();
-});
+}, 120_000);
 
 test("migrator role identity", async () => {
   const pool = new Pool({

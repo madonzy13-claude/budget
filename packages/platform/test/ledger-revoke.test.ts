@@ -5,7 +5,7 @@ import { withInfraTx } from "../src/db/tx";
 
 beforeAll(async () => {
   await startTestcontainer();
-});
+}, 120_000);
 
 // PC-28: pg_catalog reads do not require a tenant or user GUC; use withInfraTx instead of
 // raw migratorPool().connect(). The testcontainer helper is the only raw-client call site

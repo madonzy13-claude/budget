@@ -13,7 +13,7 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.APP_URL = "http://localhost:3000";
   await startTestcontainer();
-});
+}, 120_000);
 
 test("signUp creates user, sends verification email, persists locale + display_currency", async () => {
   const email = `test-signup-${Date.now()}@example.com`;
@@ -61,9 +61,7 @@ test("signUp persists DEK row in shared_kernel.user_keys (PC-09)", async () => {
     const pool = appPool();
     const client = await pool.connect();
     try {
-      await client.query(
-        `SET LOCAL app.current_user_id = '${r.value.userId}'`,
-      );
+      await client.query(`SET LOCAL app.current_user_id = '${r.value.userId}'`);
       const row = await client.query(
         `SELECT cipher_dek, nonce FROM shared_kernel.user_keys WHERE user_id = $1`,
         [r.value.userId],

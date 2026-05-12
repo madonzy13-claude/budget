@@ -4,7 +4,8 @@ registry = "https://registry.npmjs.org/"
 [test]
 coverage = true
 # Integration tests use testcontainers which need extra time to start Postgres
-timeout = 30000
+# (Docker pull + role/schema bootstrap + drizzle migrate). 120s gives ample margin.
+timeout = 120000
 # Limit concurrency to avoid Drizzle module singleton / GUC contamination across
 # parallel test files that share the same Postgres connection pool.
 smaxConcurrency = 4

@@ -11,7 +11,7 @@ import { TenantId, UserId } from "@budget/shared-kernel";
 
 beforeAll(async () => {
   await startTestcontainer();
-});
+}, 120_000);
 
 test("withTenantTxRead empty array → TenantContextError", async () => {
   const r = await withTenantTxRead(

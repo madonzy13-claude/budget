@@ -15,7 +15,7 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.APP_URL = "http://localhost:3000";
   await startTestcontainer();
-});
+}, 120_000);
 
 test("listSessions returns sessions for user", async () => {
   const email = `sessions-${Date.now()}@example.com`;

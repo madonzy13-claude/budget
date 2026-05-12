@@ -9,7 +9,7 @@ import { TenantId, UserId } from "@budget/shared-kernel";
 
 beforeAll(async () => {
   await startTestcontainer();
-});
+}, 120_000);
 
 const T = TenantId("00000000-0000-0000-0000-0000000000b0");
 const U = UserId("00000000-0000-0000-0000-0000000000b1");
