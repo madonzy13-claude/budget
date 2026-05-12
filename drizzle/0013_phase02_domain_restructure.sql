@@ -380,98 +380,118 @@ CREATE INDEX IF NOT EXISTS budget_share_links_active_idx
 
 --> statement-breakpoint
 
-CREATE OR REPLACE VIEW budgeting.category_reserve_balance AS
-WITH RECURSIVE months AS (
-  SELECT
-    cl.budget_id,
-    cl.category_id,
-    cl.tenant_id,
-    LEAST(
-      COALESCE(date_trunc('month', MIN(cl.effective_from))::date, date_trunc('month', CURRENT_DATE)::date),
-      COALESCE(date_trunc('month', MIN(e.date))::date,           date_trunc('month', CURRENT_DATE)::date)
-    ) AS month_start
-  FROM budgeting.category_limits cl
-  LEFT JOIN budgeting.expense_ledger e
-    ON e.category_id = cl.category_id AND e.deleted_at IS NULL
-  GROUP BY cl.budget_id, cl.category_id, cl.tenant_id
+-- 02-06 follow-up gap fix: original view DDL references columns that do not
+-- exist on the v1.1 schema (`cl.budget_id` on category_limits, `e.date` on
+-- expense_ledger) and contains two recursive-CTE bugs. Result: on a fresh
+-- schema apply (testcontainer / new env) this statement raises 42703 and the
+-- migration aborts before 0014 can run. Wrap in EXECUTE + EXCEPTION so the
+-- broken DDL is silently swallowed; migration 0014 (next in the journal) does
+-- a DROP+CREATE that produces the correct view. On already-migrated DBs that
+-- have 0013 in the journal with the old hash, re-applying this fixed 0013
+-- still hits the broken-DDL parse error inside EXECUTE, the EXCEPTION handler
+-- preserves the post-0014 view, and the journal records the new hash.
+DO $do$
+BEGIN
+  EXECUTE $view$
+    CREATE OR REPLACE VIEW budgeting.category_reserve_balance AS
+    WITH RECURSIVE months AS (
+      SELECT
+        cl.budget_id,
+        cl.category_id,
+        cl.tenant_id,
+        LEAST(
+          COALESCE(date_trunc('month', MIN(cl.effective_from))::date, date_trunc('month', CURRENT_DATE)::date),
+          COALESCE(date_trunc('month', MIN(e.date))::date,           date_trunc('month', CURRENT_DATE)::date)
+        ) AS month_start
+      FROM budgeting.category_limits cl
+      LEFT JOIN budgeting.expense_ledger e
+        ON e.category_id = cl.category_id AND e.deleted_at IS NULL
+      GROUP BY cl.budget_id, cl.category_id, cl.tenant_id
 
-  UNION ALL
+      UNION ALL
 
-  SELECT budget_id, category_id, tenant_id,
-         (month_start + INTERVAL '1 month')::date
-  FROM months
-  WHERE month_start < date_trunc('month', CURRENT_DATE)::date
-),
-monthly_spent AS (
-  SELECT
-    e.budget_id, e.category_id,
-    date_trunc('month', e.transaction_date)::date AS month_start,
-    SUM(CASE WHEN e.kind = 'SPENDING' THEN e.amount_converted_cents
-             WHEN e.kind = 'INCOME'   THEN -e.amount_converted_cents
-             ELSE 0 END) AS spent_cents
-  FROM budgeting.expense_ledger e
-  WHERE e.confirmed_at IS NOT NULL AND e.deleted_at IS NULL
-  GROUP BY e.budget_id, e.category_id, date_trunc('month', e.transaction_date)
-),
-mode_per_month AS (
-  SELECT DISTINCT
-    m.budget_id, m.month_start,
-    COALESCE(
-      (SELECT bmh.mode FROM budgeting.budget_mode_history bmh
-       WHERE bmh.budget_id = m.budget_id
-         AND bmh.effective_from <= m.month_start
-         AND (bmh.effective_to IS NULL OR bmh.effective_to > m.month_start)
-       ORDER BY bmh.effective_from DESC LIMIT 1),
-      'NORMAL'
-    ) AS mode
-  FROM months m
-),
-budget_per_month AS (
-  SELECT
-    cl.budget_id, cl.category_id, cl.tenant_id, m.month_start,
-    CASE WHEN mpm.mode = 'CUSHION' THEN COALESCE(cl.cushion_amount_cents, 0)
-         ELSE COALESCE(cl.planned_amount_cents, 0) END AS active_budget_cents
-  FROM months m
-  JOIN budgeting.category_limits cl
-    ON cl.category_id = m.category_id
-   AND cl.budget_id  = m.budget_id
-   AND cl.effective_from <= m.month_start
-   AND (cl.effective_to IS NULL OR cl.effective_to > m.month_start)
-  LEFT JOIN mode_per_month mpm
-    ON mpm.budget_id = m.budget_id AND mpm.month_start = m.month_start
-),
-reserve_accum AS (
-  SELECT
-    bpm.budget_id, bpm.category_id, bpm.tenant_id, bpm.month_start,
-    GREATEST(0, bpm.active_budget_cents - COALESCE(ms.spent_cents, 0)) AS reserve_cents
-  FROM budget_per_month bpm
-  LEFT JOIN monthly_spent ms
-    ON ms.budget_id = bpm.budget_id AND ms.category_id = bpm.category_id AND ms.month_start = bpm.month_start
-  WHERE bpm.month_start = (SELECT MIN(month_start) FROM budget_per_month bpm2
-                           WHERE bpm2.budget_id = bpm.budget_id AND bpm2.category_id = bpm.category_id)
+      SELECT budget_id, category_id, tenant_id,
+             (month_start + INTERVAL '1 month')::date
+      FROM months
+      WHERE month_start < date_trunc('month', CURRENT_DATE)::date
+    ),
+    monthly_spent AS (
+      SELECT
+        e.budget_id, e.category_id,
+        date_trunc('month', e.transaction_date)::date AS month_start,
+        SUM(CASE WHEN e.kind = 'SPENDING' THEN e.amount_converted_cents
+                 WHEN e.kind = 'INCOME'   THEN -e.amount_converted_cents
+                 ELSE 0 END) AS spent_cents
+      FROM budgeting.expense_ledger e
+      WHERE e.confirmed_at IS NOT NULL AND e.deleted_at IS NULL
+      GROUP BY e.budget_id, e.category_id, date_trunc('month', e.transaction_date)
+    ),
+    mode_per_month AS (
+      SELECT DISTINCT
+        m.budget_id, m.month_start,
+        COALESCE(
+          (SELECT bmh.mode FROM budgeting.budget_mode_history bmh
+           WHERE bmh.budget_id = m.budget_id
+             AND bmh.effective_from <= m.month_start
+             AND (bmh.effective_to IS NULL OR bmh.effective_to > m.month_start)
+           ORDER BY bmh.effective_from DESC LIMIT 1),
+          'NORMAL'
+        ) AS mode
+      FROM months m
+    ),
+    budget_per_month AS (
+      SELECT
+        cl.budget_id, cl.category_id, cl.tenant_id, m.month_start,
+        CASE WHEN mpm.mode = 'CUSHION' THEN COALESCE(cl.cushion_amount_cents, 0)
+             ELSE COALESCE(cl.planned_amount_cents, 0) END AS active_budget_cents
+      FROM months m
+      JOIN budgeting.category_limits cl
+        ON cl.category_id = m.category_id
+       AND cl.budget_id  = m.budget_id
+       AND cl.effective_from <= m.month_start
+       AND (cl.effective_to IS NULL OR cl.effective_to > m.month_start)
+      LEFT JOIN mode_per_month mpm
+        ON mpm.budget_id = m.budget_id AND mpm.month_start = m.month_start
+    ),
+    reserve_accum AS (
+      SELECT
+        bpm.budget_id, bpm.category_id, bpm.tenant_id, bpm.month_start,
+        GREATEST(0, bpm.active_budget_cents - COALESCE(ms.spent_cents, 0)) AS reserve_cents
+      FROM budget_per_month bpm
+      LEFT JOIN monthly_spent ms
+        ON ms.budget_id = bpm.budget_id AND ms.category_id = bpm.category_id AND ms.month_start = bpm.month_start
+      WHERE bpm.month_start = (SELECT MIN(month_start) FROM budget_per_month bpm2
+                               WHERE bpm2.budget_id = bpm.budget_id AND bpm2.category_id = bpm.category_id)
 
-  UNION ALL
+      UNION ALL
 
-  SELECT
-    bpm.budget_id, bpm.category_id, bpm.tenant_id, bpm.month_start,
-    GREATEST(0,
-      ra.reserve_cents + bpm.active_budget_cents - COALESCE(ms.spent_cents, 0)
-    ) AS reserve_cents
-  FROM reserve_accum ra
-  JOIN budget_per_month bpm
-    ON bpm.budget_id = ra.budget_id
-   AND bpm.category_id = ra.category_id
-   AND bpm.month_start = (ra.month_start + INTERVAL '1 month')::date
-  LEFT JOIN monthly_spent ms
-    ON ms.budget_id = bpm.budget_id AND ms.category_id = bpm.category_id AND ms.month_start = bpm.month_start
-)
-SELECT
-  budget_id,
-  category_id,
-  tenant_id,
-  reserve_cents AS balance_cents
-FROM reserve_accum ra1
-WHERE month_start = (
-  SELECT MAX(month_start) FROM reserve_accum ra2
-  WHERE ra2.budget_id = ra1.budget_id AND ra2.category_id = ra1.category_id
-);
+      SELECT
+        bpm.budget_id, bpm.category_id, bpm.tenant_id, bpm.month_start,
+        GREATEST(0,
+          ra.reserve_cents + bpm.active_budget_cents - COALESCE(ms.spent_cents, 0)
+        ) AS reserve_cents
+      FROM reserve_accum ra
+      JOIN budget_per_month bpm
+        ON bpm.budget_id = ra.budget_id
+       AND bpm.category_id = ra.category_id
+       AND bpm.month_start = (ra.month_start + INTERVAL '1 month')::date
+      LEFT JOIN monthly_spent ms
+        ON ms.budget_id = bpm.budget_id AND ms.category_id = bpm.category_id AND ms.month_start = bpm.month_start
+    )
+    SELECT
+      budget_id,
+      category_id,
+      tenant_id,
+      reserve_cents AS balance_cents
+    FROM reserve_accum ra1
+    WHERE month_start = (
+      SELECT MAX(month_start) FROM reserve_accum ra2
+      WHERE ra2.budget_id = ra1.budget_id AND ra2.category_id = ra1.category_id
+    );
+  $view$;
+EXCEPTION WHEN OTHERS THEN
+  -- Original DDL is broken on the v1.1 schema; 0014 will create the correct
+  -- view immediately after. Suppress so the migration journal can advance.
+  NULL;
+END
+$do$;
