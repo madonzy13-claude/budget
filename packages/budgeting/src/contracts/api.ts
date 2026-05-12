@@ -231,61 +231,6 @@ export const createTransactionSchema = z.discriminatedUnion("kind", [
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 
 // ---------------------------------------------------------------------------
-// Correction schemas (EXPN-06, plan 02-07)
-// ---------------------------------------------------------------------------
-
-/** Edits that can be applied via the correction-row path. */
-const correctionEditsSchema = z
-  .object({
-    amountOrig: z
-      .string()
-      .regex(/^\d+(\.\d{1,4})?$/)
-      .refine((v) => parseFloat(v) > 0, "amount must be positive")
-      .optional(),
-    currencyOrig: z
-      .string()
-      .regex(/^[A-Z0-9]{3,5}$/)
-      .optional(),
-    transactionDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-    categoryId: z.string().uuid().nullable().optional(),
-    accountId: z.string().uuid().optional(),
-    note: z.string().max(500).nullable().optional(),
-    // FX result (computed server-side if amount/currency/date changed):
-    amountDefault: z
-      .string()
-      .regex(/^\d+(\.\d{1,4})?$/)
-      .optional(),
-    fxRate: z
-      .string()
-      .regex(/^\d+(\.\d+)?$/)
-      .optional(),
-    fxRateDate: z.string().optional(),
-    fxProvider: z.string().optional(),
-  })
-  .refine(
-    (d) => Object.keys(d).length > 0,
-    "At least one field must be provided for correction",
-  );
-
-const fxPreviewCorrectionSchema = z
-  .object({
-    rate: z.string().regex(/^\d+(\.\d+)?$/),
-    fxRateDate: z.string(),
-  })
-  .optional()
-  .nullable();
-
-export const correctTransactionSchema = z.object({
-  edits: correctionEditsSchema,
-  fxPreview: fxPreviewCorrectionSchema,
-});
-
-export type CorrectTransactionInput = z.infer<typeof correctTransactionSchema>;
-
-// ---------------------------------------------------------------------------
 // Recurring rules schemas (EXPN-08, plan 02-08)
 // ---------------------------------------------------------------------------
 
@@ -484,6 +429,7 @@ export const bulkRecategorizeSchema = z.object({
 
 export type BulkRecategorizeBody = z.infer<typeof bulkRecategorizeSchema>;
 
+/** @deprecated v1.0 DTO shape — use TransactionRow from ports/transaction-repo instead */
 export interface TransactionDto {
   id: string;
   tenantId: string;
@@ -500,7 +446,6 @@ export interface TransactionDto {
   accountId: string;
   categoryId: string | null;
   transferGroupId: string | null;
-  correctsId: string | null;
   createdAt: string;
   isStale: boolean;
 }

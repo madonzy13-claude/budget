@@ -38,7 +38,6 @@ import { createTransaction } from "../application/create-transaction";
 import { getLatestTransactions } from "../application/get-latest-transactions";
 import { listSupportedCurrencies } from "../application/list-supported-currencies";
 import { editTransaction } from "../application/edit-transaction";
-import { getTransactionHistory } from "../application/get-transaction-history";
 import { createRecurringRule } from "../application/create-recurring-rule";
 import { updateRecurringRule } from "../application/update-recurring-rule";
 import { deleteRecurringRule } from "../application/delete-recurring-rule";
@@ -88,7 +87,6 @@ export interface BudgetingModule {
   createTransaction: ReturnType<typeof createTransaction>;
   getLatestTransactions: ReturnType<typeof getLatestTransactions>;
   editTransaction: ReturnType<typeof editTransaction>;
-  getTransactionHistory: ReturnType<typeof getTransactionHistory>;
   listSupportedCurrencies: typeof listSupportedCurrencies;
   /** Exposed for plan 02-08 createInTx cross-plan contract */
   transactionRepo: DrizzleTransactionRepo;
@@ -176,7 +174,6 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       fxProvider,
       getWorkspaceDefaultCurrency,
     }),
-    getTransactionHistory: getTransactionHistory({ transactionRepo }),
     listSupportedCurrencies,
     transactionRepo,
     // Plan 02-08 / 02-02
