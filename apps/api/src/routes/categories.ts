@@ -72,7 +72,8 @@ export function createCategoriesRoute(deps: BootedDeps) {
       // Sanitize any other internal failure — never leak raw SQL/Drizzle errors.
       return serverError(c, "create_category_failed", r.error);
     }
-    return c.json(r.value, 201);
+    // UAT Defect 2: wrap in { category } so client can safely destructure `data.category.id`
+    return c.json({ category: r.value }, 201);
   });
 
   // GET /categories — list

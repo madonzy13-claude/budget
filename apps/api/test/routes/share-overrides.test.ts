@@ -21,8 +21,14 @@ async function createTestUser(): Promise<{ userId: string; tenantId: string }> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at) VALUES ($1, $2, 'Test', true, now(), now())`, [userId, email]);
-    await client.query(`INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'SO WS', 'PRIVATE', 'EUR', $3, 1, now())`, [tenantId, `ws-so-${tenantId.slice(0, 8)}`, userId]);
+    await client.query(
+      `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at) VALUES ($1, $2, 'Test', true, now(), now())`,
+      [userId, email],
+    );
+    await client.query(
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'SO WS', 'PRIVATE', 'EUR', $3, 1, now())`,
+      [tenantId, `ws-so-${tenantId.slice(0, 8)}`, userId],
+    );
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -36,16 +42,26 @@ async function createTestUser(): Promise<{ userId: string; tenantId: string }> {
 
 async function buildApp(userId: string, tenantId: string) {
   const { createCategoriesRoute } = await import("../../src/routes/categories");
-  const { createShareOverridesRoute } = await import("../../src/routes/share-overrides");
-  const { DrizzleCategoryRepo } = await import("@budget/budgeting/src/adapters/persistence/category-repo");
-  const { DrizzleShareOverrideRepo } = await import("@budget/budgeting/src/adapters/persistence/share-override-repo");
-  const { createCategory } = await import("@budget/budgeting/src/application/create-category");
-  const { archiveCategory } = await import("@budget/budgeting/src/application/archive-category");
-  const { listCategories } = await import("@budget/budgeting/src/application/list-categories");
-  const { findCategoryById } = await import("@budget/budgeting/src/application/find-category-by-id");
-  const { renameCategory } = await import("@budget/budgeting/src/application/rename-category");
-  const { setShareOverrides } = await import("@budget/budgeting/src/application/set-share-overrides");
-  const { listShareOverrides } = await import("@budget/budgeting/src/application/list-share-overrides");
+  const { createShareOverridesRoute } =
+    await import("../../src/routes/share-overrides");
+  const { DrizzleCategoryRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/category-repo");
+  const { DrizzleShareOverrideRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/share-override-repo");
+  const { createCategory } =
+    await import("@budget/budgeting/src/application/create-category");
+  const { archiveCategory } =
+    await import("@budget/budgeting/src/application/archive-category");
+  const { listCategories } =
+    await import("@budget/budgeting/src/application/list-categories");
+  const { findCategoryById } =
+    await import("@budget/budgeting/src/application/find-category-by-id");
+  const { renameCategory } =
+    await import("@budget/budgeting/src/application/rename-category");
+  const { setShareOverrides } =
+    await import("@budget/budgeting/src/application/set-share-overrides");
+  const { listShareOverrides } =
+    await import("@budget/budgeting/src/application/list-share-overrides");
 
   const repo = new DrizzleCategoryRepo();
   const shareRepo = new DrizzleShareOverrideRepo();
@@ -83,58 +99,70 @@ describe("PUT /categories/:id/share-overrides", () => {
 
   it("sets valid overrides summing to 100% → 200", async () => {
     const app = await buildApp(testUserId, testTenantId);
-    const cat = await (await app.request("/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Share Cat", scope: "SHARED" }),
-    })).json();
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Share Cat", scope: "SHARED" }),
+      })
+    ).json();
 
     const userId2 = crypto.randomUUID();
-    const res = await app.request(`/categories/${cat.id}/share-overrides`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        entries: [
-          { userId: testUserId, percentage: "50" },
-          { userId: userId2, percentage: "50" },
-        ],
-      }),
-    });
+    const res = await app.request(
+      `/categories/${cat.category.id}/share-overrides`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entries: [
+            { userId: testUserId, percentage: "50" },
+            { userId: userId2, percentage: "50" },
+          ],
+        }),
+      },
+    );
     expect(res.status).toBe(200);
   });
 
   it("returns 422 when overrides sum to ≠ 100%", async () => {
     const app = await buildApp(testUserId, testTenantId);
-    const cat = await (await app.request("/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Bad Share Cat", scope: "SHARED" }),
-    })).json();
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Bad Share Cat", scope: "SHARED" }),
+      })
+    ).json();
 
     const userId2 = crypto.randomUUID();
-    const res = await app.request(`/categories/${cat.id}/share-overrides`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        entries: [
-          { userId: testUserId, percentage: "60" },
-          { userId: userId2, percentage: "30" },
-        ],
-      }),
-    });
+    const res = await app.request(
+      `/categories/${cat.category.id}/share-overrides`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entries: [
+            { userId: testUserId, percentage: "60" },
+            { userId: userId2, percentage: "30" },
+          ],
+        }),
+      },
+    );
     expect(res.status).toBe(422);
   });
 
   it("GET /categories/:id/share-overrides returns list", async () => {
     const app = await buildApp(testUserId, testTenantId);
-    const cat = await (await app.request("/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "List Share Cat", scope: "SHARED" }),
-    })).json();
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "List Share Cat", scope: "SHARED" }),
+      })
+    ).json();
 
     const userId2 = crypto.randomUUID();
-    await app.request(`/categories/${cat.id}/share-overrides`, {
+    await app.request(`/categories/${cat.category.id}/share-overrides`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -145,7 +173,9 @@ describe("PUT /categories/:id/share-overrides", () => {
       }),
     });
 
-    const res = await app.request(`/categories/${cat.id}/share-overrides`);
+    const res = await app.request(
+      `/categories/${cat.category.id}/share-overrides`,
+    );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.overrides).toHaveLength(2);
