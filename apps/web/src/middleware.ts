@@ -40,9 +40,13 @@ export default function middleware(request: NextRequest) {
     return res;
   }
 
-  // Authenticated → redirect away from auth pages
+  // Authenticated → redirect away from auth pages to the Phase 3 home (`/`)
+  // which renders the per-budget card grid via `(app)/page.tsx`. The legacy
+  // v1.0 destination `/${locale}/budgets` has no `page.tsx` after Phase 3
+  // restructure (only `[id]/` and `new/` subroutes exist) so redirecting there
+  // produced a 404 for every authenticated post-sign-in landing.
   if (isAuthenticated && AUTH_ROUTES.some((r) => bare.startsWith(r))) {
-    return NextResponse.redirect(new URL(`/${locale}/budgets`, request.url));
+    return NextResponse.redirect(new URL(`/${locale}`, request.url));
   }
 
   // Unauthenticated → redirect away from protected pages

@@ -57,10 +57,27 @@ Given(
     if (!dbUrl) throw new Error("DATABASE_URL_APP not set — cannot seed task");
     const pool = new Pool({ connectionString: dbUrl });
     try {
-      await pool.query(
-        `INSERT INTO budgeting.tasks (id, tenant_id, budget_id, kind, payload_json, status) VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, '{}'::jsonb, 'PENDING')`,
-        [freshUser.budgetId, kind],
-      );
+      // budgeting.tasks has FORCE ROW LEVEL SECURITY scoped by
+      // `app.tenant_ids` (plural, postgres array literal). Without the GUC,
+      // INSERT fails the policy check. Wrap in a tx and set the GUC so the
+      // test-only seed mirrors the production withTenantTx contract.
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+          `{${freshUser.budgetId}}`,
+        ]);
+        await client.query(
+          `INSERT INTO budgeting.tasks (id, tenant_id, budget_id, kind, payload_json, status) VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, '{}'::jsonb, 'PENDING')`,
+          [freshUser.budgetId, kind],
+        );
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
     } finally {
       await pool.end();
     }
@@ -69,6 +86,10 @@ Given(
 
 When("I open the home page", async ({ page }) => {
   await page.goto("/en");
+  // Wait for hydration so subsequent click handlers (router.push, onClick) fire.
+  await page
+    .waitForLoadState("networkidle", { timeout: 10000 })
+    .catch(() => {});
 });
 
 When(
@@ -80,6 +101,9 @@ When(
       );
     }
     await page.goto(`/en/budgets/${freshUser.budgetId}`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
   },
 );
 
@@ -89,6 +113,9 @@ When(
     if (freshUser.budgetName !== name)
       throw new Error(`Unknown budget '${name}'`);
     await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
   },
 );
 
@@ -109,7 +136,13 @@ When('I click the "+" new-budget button', async ({ page }) => {
 
 When("I click the {string} tab pill", async ({ page }, slug: string) => {
   const bdp = new BdpPo(page);
+  const before = page.url();
   await bdp.pill(slug.toLowerCase() as BdpTabSlug).click();
+  // Wait for the SPA route hop so subsequent Browser-Back / URL-end assertions
+  // observe the new history entry.
+  await page
+    .waitForURL((url) => url.toString() !== before, { timeout: 5000 })
+    .catch(() => {});
 });
 
 When("I press the browser Back button", async ({ page }) => {
@@ -123,7 +156,11 @@ When("I click the task banner", async ({ page }) => {
 
 When("I click the card for {string}", async ({ page }, name: string) => {
   const home = new HomePo(page);
+  const before = page.url();
   await home.card(name).click();
+  await page
+    .waitForURL((url) => url.toString() !== before, { timeout: 5000 })
+    .catch(() => {});
 });
 
 Then("I see the {string} budget section", async ({ page }, label: string) => {
@@ -152,6 +189,12 @@ Then(
 );
 
 Then("the URL contains {string}", async ({ page }, fragment: string) => {
+  // Wait for client-side navigation (Next.js router.push) to settle. Without
+  // this wait, the URL check fires synchronously and misses the SPA hop that
+  // hasn't happened yet.
+  await page
+    .waitForURL((url) => url.toString().includes(fragment), { timeout: 5000 })
+    .catch(() => {});
   const url = page.url();
   if (!url.includes(fragment)) {
     throw new Error(`URL ${url} does not contain ${fragment}`);
@@ -159,6 +202,9 @@ Then("the URL contains {string}", async ({ page }, fragment: string) => {
 });
 
 Then("the URL ends with {string}", async ({ page }, suffix: string) => {
+  await page
+    .waitForURL((url) => url.toString().endsWith(suffix), { timeout: 5000 })
+    .catch(() => {});
   const url = page.url();
   if (!url.endsWith(suffix)) {
     throw new Error(`URL ${url} does not end with ${suffix}`);
@@ -166,13 +212,15 @@ Then("the URL ends with {string}", async ({ page }, suffix: string) => {
 });
 
 Then(
-  'the URL contains "/budgets/" followed by the budget id and "/spendings"',
-  async ({ page, freshUser }) => {
+  "the URL contains {string} followed by the budget id and {string}",
+  async ({ page, freshUser }, prefix: string, suffix: string) => {
+    const expected = `${prefix}${freshUser.budgetId}${suffix}`;
+    await page
+      .waitForURL((url) => url.toString().includes(expected), { timeout: 5000 })
+      .catch(() => {});
     const url = page.url();
-    if (!url.includes(`/budgets/${freshUser.budgetId}/spendings`)) {
-      throw new Error(
-        `URL ${url} did not contain /budgets/${freshUser.budgetId}/spendings`,
-      );
+    if (!url.includes(expected)) {
+      throw new Error(`URL ${url} did not contain ${expected}`);
     }
   },
 );

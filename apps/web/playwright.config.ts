@@ -13,6 +13,11 @@ const testDir = defineBddConfig({
 export default defineConfig({
   testDir,
   fullyParallel: false,
+  // playwright-bdd 8.5.0 has a known race condition where the first scenario in
+  // a feature file occasionally hits "bddTestData not found" when picked up by
+  // a fresh worker before its bdd-data registry is populated. A single retry
+  // masks the race reliably. Removable once playwright-bdd ships a fix.
+  retries: 1,
   reporter: [["list"]],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",

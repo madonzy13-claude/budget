@@ -132,6 +132,21 @@ describe("BudgetSwitcher", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("trigger falls back to first budget's name when activeBudgetId is null but budgets are non-empty (home-page contract)", () => {
+    render(
+      <BudgetSwitcher
+        budgets={mockBudgets}
+        activeBudgetId={null}
+        locale="en"
+      />,
+    );
+    // The trigger should advertise the first budget (mockBudgets[0] = "My Budget"),
+    // NOT the empty-state copy — the user has budgets, the URL just has no UUID.
+    const trigger = screen.getByLabelText("Switch budget");
+    expect(trigger.textContent).toContain("My Budget");
+    expect(trigger.textContent).not.toContain("No budgets yet");
+  });
+
   it("empty state: no menuitemradio rows, trigger shows i18n empty label, CTA routes to /budgets/new", async () => {
     const user = userEvent.setup();
     render(<BudgetSwitcher budgets={[]} activeBudgetId={null} locale="en" />);

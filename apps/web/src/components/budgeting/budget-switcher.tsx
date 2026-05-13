@@ -46,7 +46,15 @@ export function BudgetSwitcher({
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const active = budgets.find((b) => b.id === activeBudgetId) ?? null;
+  // The "active" budget is what the trigger advertises. Priority:
+  //   1. Budget whose UUID is in the URL (middleware-injected x-pathname → layout).
+  //   2. First budget in the list (used on the home page where no UUID is in URL).
+  // Without (2) the trigger on `/` would always render the empty-state label
+  // ("No budgets yet") even when the user has budgets — which contradicts the
+  // NAV-01 contract (trigger displays the current budget) and the
+  // nav-switcher.feature scenario.
+  const explicitActive = budgets.find((b) => b.id === activeBudgetId) ?? null;
+  const active = explicitActive ?? budgets[0] ?? null;
   const privateB = budgets.filter((b) => b.kind === "PRIVATE");
   const sharedB = budgets.filter((b) => b.kind === "SHARED");
   const isEmpty = budgets.length === 0;

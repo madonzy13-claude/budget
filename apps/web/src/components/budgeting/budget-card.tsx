@@ -80,9 +80,9 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
           className="h-4 w-4 text-[var(--body-on-dark)]"
           aria-hidden="true"
         />
-        <span className="flex-1 text-title-sm text-[var(--body-on-dark)] truncate">
+        <h3 className="flex-1 text-title-sm font-medium text-[var(--body-on-dark)] truncate">
           {budget.name}
-        </span>
+        </h3>
         <Badge variant="secondary" className="text-caption uppercase">
           {budget.kind}
         </Badge>

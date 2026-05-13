@@ -59,10 +59,120 @@ export function parseSetCookieToPlaywright(
   };
 }
 
+function extractSetCookies(headers: Headers): string[] {
+  const headersAny = headers as unknown as {
+    getSetCookie?: () => string[];
+    get: (k: string) => string | null;
+  };
+  if (typeof headersAny.getSetCookie === "function") {
+    return headersAny.getSetCookie();
+  }
+  const single = headersAny.get("set-cookie");
+  return single ? [single] : [];
+}
+
+function mailpitBaseUrl(): string {
+  return process.env.MAILPIT_URL ?? "http://localhost:8025";
+}
+
+interface MailpitMessageMeta {
+  ID: string;
+  Subject?: string;
+  To?: Array<{ Address?: string }>;
+}
+interface MailpitMessageBody {
+  HTML?: string;
+  Text?: string;
+}
+
 /**
- * Programmatic Better Auth signup. The web stack proxies `/auth/*` to the API
- * server's Better Auth handler, so a same-origin POST against PLAYWRIGHT_BASE_URL
- * works. Mirrors https://www.better-auth.com/docs/integrations/playwright.
+ * Poll mailpit for the most recent verification email addressed to {email} and
+ * return the verification URL embedded in the message body. Better Auth is
+ * configured with `requireEmailVerification: true` + `autoSignIn: false`
+ * (better-auth.ts) so the signup POST issues NO session cookie — the cookie is
+ * only minted when the user follows the verify URL (`autoSignInAfterVerification`).
+ * This poller closes that gap for the programmatic E2E fixture.
+ */
+async function fetchVerificationUrl(
+  email: string,
+  baseUrl: string,
+): Promise<string> {
+  const mailpit = mailpitBaseUrl();
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    const list = (await fetch(
+      `${mailpit}/api/v1/messages?query=to:${encodeURIComponent(email)}`,
+    )
+      .then((r) => r.json() as Promise<{ messages?: MailpitMessageMeta[] }>)
+      .catch(() => ({}))) as { messages?: MailpitMessageMeta[] };
+    const msg = list.messages?.find(
+      (m) =>
+        m.To?.[0]?.Address === email &&
+        typeof m.Subject === "string" &&
+        m.Subject.toLowerCase().includes("verify"),
+    );
+    if (msg) {
+      const detail = (await fetch(`${mailpit}/api/v1/message/${msg.ID}`).then(
+        (r) => r.json() as Promise<MailpitMessageBody>,
+      )) as MailpitMessageBody;
+      const body = detail.HTML ?? detail.Text ?? "";
+      // Better Auth verify URL pattern: <BASE>/auth/verify-email?token=...&callbackURL=...
+      const m1 = body.match(/https?:\/\/[^\s"'<>]+verify-email[^\s"'<>]*/);
+      if (m1) return m1[0];
+      const m2 = body.match(
+        /https?:\/\/[^\s"'<>]+\/auth\/[^\s"'<>]+token=[^\s"'<>]+/,
+      );
+      if (m2) return m2[0];
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  // Fallback hint: caller's baseUrl is unused except for diagnostics.
+  void baseUrl;
+  throw new Error(
+    `mailpit verification email never arrived for ${email} (15s)`,
+  );
+}
+
+/**
+ * Follow the verify URL through any redirect chain, accumulating the session
+ * cookie set by Better Auth (`autoSignInAfterVerification`). Returns the parsed
+ * cookies in `addCookies()` shape.
+ */
+async function followVerifyChain(
+  verifyUrl: string,
+  baseUrl: string,
+): Promise<ParsedCookie[]> {
+  const collected: ParsedCookie[] = [];
+  let location: string | null = verifyUrl;
+  let safety = 6;
+  let cookieHeader = "";
+  while (location && safety-- > 0) {
+    const url = new URL(location, baseUrl).toString();
+    const res: Response = await fetch(url, {
+      method: "GET",
+      redirect: "manual",
+      headers: {
+        Origin: baseUrl,
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      },
+    });
+    const setCookies = extractSetCookies(res.headers);
+    for (const line of setCookies) {
+      const parsed = parseSetCookieToPlaywright(line, baseUrl);
+      if (parsed) collected.push(parsed);
+    }
+    cookieHeader = collected.map((c) => `${c.name}=${c.value}`).join("; ");
+    location = res.headers.get("location");
+  }
+  return collected;
+}
+
+/**
+ * Programmatic Better Auth signup followed by mailpit-driven email verification
+ * so the fixture obtains a real session cookie. The web stack proxies
+ * `/auth/*` to the API server's Better Auth handler, so a same-origin POST
+ * against PLAYWRIGHT_BASE_URL works. Origin header is set explicitly because
+ * Better Auth gates non-trusted origins via `trustedOrigins`.
  */
 export async function signUpViaHttp(
   baseUrl: string,
@@ -72,29 +182,36 @@ export async function signUpViaHttp(
 ): Promise<{ userId: string; setCookieHeaders: string[] }> {
   const res = await fetch(`${baseUrl}/auth/sign-up/email`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", Origin: baseUrl },
     body: JSON.stringify({ email, password, name }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
     throw new Error(`signUpEmail failed (${res.status}): ${body}`);
   }
-  // Node 20+ exposes getSetCookie(); fall back to raw header if absent.
-  const headersAny = res.headers as unknown as {
-    getSetCookie?: () => string[];
-    get: (k: string) => string | null;
-  };
-  const setCookie =
-    typeof headersAny.getSetCookie === "function"
-      ? headersAny.getSetCookie()
-      : headersAny.get("set-cookie")
-        ? [headersAny.get("set-cookie") as string]
-        : [];
   const body = (await res.json().catch(() => ({}))) as {
     user?: { id?: string };
-    token?: string;
   };
-  return { userId: body.user?.id ?? "", setCookieHeaders: setCookie };
+  const userId = body.user?.id ?? "";
+  if (!userId) {
+    throw new Error("signup did not return a user id");
+  }
+
+  // Better Auth: requireEmailVerification=true + autoSignIn=false. The signup
+  // POST cannot return a session cookie. Walk through mailpit to get the
+  // verification URL, follow it (autoSignInAfterVerification mints the cookie).
+  const verifyUrl = await fetchVerificationUrl(email, baseUrl);
+  const cookies = await followVerifyChain(verifyUrl, baseUrl);
+  if (cookies.length === 0) {
+    throw new Error(
+      `verify-email chain produced no cookies — autoSignInAfterVerification did not engage for ${email}`,
+    );
+  }
+  const setCookieHeaders = cookies.map(
+    (c) =>
+      `${c.name}=${c.value}; Path=${c.path}; Domain=${c.domain}${c.httpOnly ? "; HttpOnly" : ""}${c.secure ? "; Secure" : ""}${c.sameSite ? `; SameSite=${c.sameSite}` : ""}`,
+  );
+  return { userId, setCookieHeaders };
 }
 
 /** Create a budget via the API using the freshly-acquired session cookies. */
@@ -105,7 +222,11 @@ export async function createBudgetViaHttp(
 ): Promise<string> {
   const res = await fetch(`${baseUrl}/api/budgets`, {
     method: "POST",
-    headers: { "content-type": "application/json", cookie: cookieHeader },
+    headers: {
+      "content-type": "application/json",
+      cookie: cookieHeader,
+      Origin: baseUrl,
+    },
     body: JSON.stringify({ name, kind: "PRIVATE", default_currency: "USD" }),
   });
   if (!res.ok) {
@@ -126,14 +247,13 @@ export const test = base.extend<{ freshUser: FreshUser }>({
     const password = "Test1234!Phase3";
     const name = "Phase 3 E2E User";
 
-    // 1. Sign up via Better Auth proxy.
+    // 1. Sign up + verify via mailpit so a session cookie exists.
     const { userId, setCookieHeaders } = await signUpViaHttp(
       baseUrl,
       email,
       password,
       name,
     );
-    if (!userId) throw new Error("signup did not return a user id");
 
     // 2. Copy session cookies into the Playwright browser context.
     const cookies = setCookieHeaders
@@ -149,7 +269,7 @@ export const test = base.extend<{ freshUser: FreshUser }>({
     // 3. Build a Cookie header for subsequent API calls.
     const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 
-    // 4. Create a budget via the API (auth.api.createOrganization under the hood).
+    // 4. Create a budget via the API.
     const budgetName = "My E2E Budget";
     const budgetId = await createBudgetViaHttp(
       baseUrl,
@@ -158,7 +278,6 @@ export const test = base.extend<{ freshUser: FreshUser }>({
     );
 
     await use({ email, password, userId, budgetId, budgetName });
-    // Cleanup deferred: CLAUDE.md mandates real PG; dev DB is non-persistent.
   },
 });
 
