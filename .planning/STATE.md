@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Budget Restructure
 status: executing
-stopped_at: Phase 3 UI-SPEC approved
-last_updated: "2026-05-12T23:54:29.046Z"
-last_activity: 2026-05-12
+stopped_at: Phase 3 complete (Plan 03-07)
+last_updated: "2026-05-13T00:12:00.000Z"
+last_activity: 2026-05-13
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 16
-  percent: 94
+  completed_plans: 17
+  percent: 100
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 ## Current Position
 
-Phase: 03 (navigation-home-bdp-frame) — EXECUTING
-Plan: 6 of 7
-Status: Ready to execute
-Last activity: 2026-05-12
+Phase: 03 (navigation-home-bdp-frame) — COMPLETE
+Plan: 7 of 7
+Status: Phase 3 done; ready to plan Phase 4 (Spendings Grid)
+Last activity: 2026-05-13
 
 ## Phase 3 Plans
 
@@ -83,6 +83,7 @@ _Updated after each plan completion_
 | Phase 03-navigation-home-bdp-frame P04 | 8min | 3 tasks | 11 files |
 | Phase 3 P5 | 11min | 2 tasks | 9 files |
 | Phase 03 P06 | 12 min | 3 tasks | 15 files |
+| Phase 03 P07 | 17 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 3]: Plan 3-5: Async-RSC + RTL test pattern — await Component({props}) then render(ui); mock @/lib/budget-fetch.server + next-intl/server.getTranslations
 - [Phase ?]: Plan 03-06: i18n bdp.tab.\* nested {label, title, placeholder} shape locked upfront in Task 1 (BLOCKER #11 resolution)
 - [Phase ?]: Plan 03-06: TaskBanner 60s polling test asserts DELTA across vi.advanceTimersByTimeAsync(60_000) rather than exact mount-time call count
+- [Phase 3]: Plan 03-07: Better Auth cookie-copy via /auth/sign-up/email POST + context.addCookies() — preferred over UI form-fill because it survives sign-in form evolution
+- [Phase 3]: Plan 03-07: Dynamic `import('pg')` in E2E task-seeding step keeps pg out of the web bundle
+- [Phase 3]: Plan 03-07: DATABASE_URL_APP rewriter (@db: -> @localhost:) lets E2E steps run from host AND inside compose net
+- [Phase 3]: Plan 03-07: Empty-user step inlines signup (rather than swapping fixtures) because playwright-bdd binds steps to a single test extender
 
 ### Pending Todos
 
@@ -179,8 +184,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-12T23:54:28.976Z
-Stopped at: Phase 3 UI-SPEC approved
+Last session: 2026-05-13T00:12:00.000Z
+Stopped at: Phase 3 complete — Plan 03-07 closed
 Resume file: None
 
 ## v1.0 History (archived)

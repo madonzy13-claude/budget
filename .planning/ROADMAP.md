@@ -90,7 +90,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 03-04-PLAN.md — BudgetSwitcher Popover + NewBudgetButton + TopNav + rewrite (app)/layout.tsx (NAV-01..04)
 - [x] 03-05-PLAN.md — Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero (HOME-01..04)
 - [x] 03-06-PLAN.md — BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tab pages + /budgets/new (BDP-01..05)
-- [ ] 03-07-PLAN.md — PL/UK i18n + playwright-bdd Gherkin features + Makefile test-e2e target (14 reqs)
+- [x] 03-07-PLAN.md — PL/UK i18n + playwright-bdd Gherkin features + Makefile test-e2e target (14 reqs)
       **UI hint**: yes
 
 ### Phase 4: Spendings Grid
@@ -218,16 +218,16 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 Within Phase 5, the Reserves and Wallets tabs are parallel-eligible at the plan level.
 Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan level.
 
-| Phase                                       | Plans Complete | Status      | Completed |
-| ------------------------------------------- | -------------- | ----------- | --------- |
-| 1. Schema Migration & Rename Foundation     | 0/TBD          | Not started | -         |
-| 2. Domain & API Restructure                 | 0/TBD          | Not started | -         |
-| 3. Navigation, Home & BDP Frame             | 5/7            | In Progress |           |
-| 4. Spendings Grid                           | 0/TBD          | Not started | -         |
-| 5. Reserves & Wallets Tabs                  | 0/TBD          | Not started | -         |
-| 6. Settings, Onboarding & Share UI          | 0/TBD          | Not started | -         |
-| 7. Tasks Queue                              | 0/TBD          | Not started | -         |
-| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -         |
+| Phase                                       | Plans Complete | Status      | Completed  |
+| ------------------------------------------- | -------------- | ----------- | ---------- |
+| 1. Schema Migration & Rename Foundation     | 0/TBD          | Not started | -          |
+| 2. Domain & API Restructure                 | 0/TBD          | Not started | -          |
+| 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
+| 4. Spendings Grid                           | 0/TBD          | Not started | -          |
+| 5. Reserves & Wallets Tabs                  | 0/TBD          | Not started | -          |
+| 6. Settings, Onboarding & Share UI          | 0/TBD          | Not started | -          |
+| 7. Tasks Queue                              | 0/TBD          | Not started | -          |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |
 
 ---
 
