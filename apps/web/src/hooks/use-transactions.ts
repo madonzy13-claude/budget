@@ -45,18 +45,21 @@ interface TxnRowSnake {
 }
 
 export function mapTxnRowToDTO(row: TxnRowSnake): TxnDTO {
+  // exactOptionalPropertyTypes: conditionally spread optional fields to avoid
+  // assigning `undefined` to optional-string properties (string | undefined ≠ string).
   return {
     id: row.id,
     categoryId: row.category_id,
     amountConvertedCents: String(row.amount_converted_cents),
     currencyConverted: row.currency_converted ?? row.currency_original ?? "EUR",
-    amountOriginalCents:
-      row.amount_original_cents != null
-        ? String(row.amount_original_cents)
-        : undefined,
-    currencyOriginal: row.currency_original,
-    fxRate: row.fx_rate,
-    fxAsOf: row.fx_as_of,
+    ...(row.amount_original_cents != null
+      ? { amountOriginalCents: String(row.amount_original_cents) }
+      : {}),
+    ...(row.currency_original != null
+      ? { currencyOriginal: row.currency_original }
+      : {}),
+    ...(row.fx_rate != null ? { fxRate: row.fx_rate } : {}),
+    ...(row.fx_as_of != null ? { fxAsOf: row.fx_as_of } : {}),
     note: row.note ?? null,
     transactionDate: row.transaction_date ?? row.date ?? "",
     confirmedAt: row.confirmed_at,
