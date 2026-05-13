@@ -2,8 +2,16 @@
  * categories.ts — /categories route factory
  * BDGT-01..06: category CRUD + archive + rename.
  * T-2-05: RLS provides tenant isolation at DB layer.
+ *
+ * Phase 4 additions (mounted under /budgets/:budgetId/categories):
+ *   PUT /sort-order — drag-reorder (GRID-09, D-PH4-D2)
+ *
+ * Legacy root mounts (/categories) are preserved per phasing decision;
+ * cleanup deferred to Plan 04-05 Task 4 after Plan 04-04 rewires the client.
  */
 import { Hono } from "hono";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
 import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
 
@@ -109,6 +117,45 @@ export function createCategoriesRoute(deps: BootedDeps) {
 
     if (r.isErr()) return c.json({ error: r.error.message }, 422);
     return c.json(r.value);
+  });
+
+  // PUT /sort-order — reorder categories (GRID-09)
+  const sortOrderSchema = z.object({
+    orderedIds: z.array(z.string().uuid()).max(200, "too_many_ids"),
+  });
+
+  app.put("/sort-order", zValidator("json", sortOrderSchema), async (c) => {
+    const session = c.get("session");
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const budgetId = c.req.param("budgetId"); // present when mounted under /budgets/:budgetId
+
+    // Tenant-mismatch guard (T-04-02-08)
+    if (budgetId && budgetId !== tenantId) {
+      return c.json({ error: "tenant_mismatch" }, 403);
+    }
+
+    const { orderedIds } = c.req.valid("json");
+
+    const r = await deps.budgeting.reorderCategories({
+      tenantId,
+      budgetId: budgetId ?? tenantId,
+      orderedIds,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      const msg = r.error.message;
+      if (msg === "orderedIds_empty" || msg === "duplicate_ids") {
+        return c.json({ error: msg }, 422);
+      }
+      if (msg === "orderedIds_mismatch") {
+        return c.json({ error: "orderedIds_mismatch" }, 422);
+      }
+      return serverError(c, "reorder_categories_failed", r.error);
+    }
+
+    return c.body(null, 204);
   });
 
   // PATCH /categories/:id — rename

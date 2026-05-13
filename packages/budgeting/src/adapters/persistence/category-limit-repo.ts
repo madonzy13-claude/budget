@@ -52,6 +52,12 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
     const uid = UserId(input.actorUserId);
 
     const r = await withTenantTx(tid, uid, async (tx) => {
+      // Pitfall 3: SCD-2 race guard — advisory lock prevents concurrent PATCHes
+      // on the same (tenant, category) from producing two overlapping 'open' rows.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${input.tenantId} || '::' || ${input.categoryId} || '::category_limits'))`,
+      );
+
       // 1. Snapshot the previous open row
       const before = await tx.execute<{
         id: string;
@@ -184,6 +190,41 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
     if (r.isErr()) throw r.error;
     if (!r.value) return null;
     return rowToDto(r.value);
+  }
+
+  async effectiveForMonth(
+    tenantId: string,
+    _budgetId: string,
+    monthStart: string,
+  ): Promise<Map<string, { planned: bigint; cushion: bigint }>> {
+    // v1.1 invariant: budget_id === tenant_id; category_limits are tenant-scoped
+    const tid = TenantId(tenantId);
+    const uid = UserId(tenantId);
+
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      const result = await tx.execute<{
+        category_id: string;
+        normal_amount: string;
+        cushion_amount: string;
+      }>(sql`
+        SELECT category_id::text, normal_amount::text, cushion_amount::text
+          FROM budgeting.category_limits
+         WHERE tenant_id = ${tenantId}::uuid
+           AND effective_from <= ${monthStart}::date
+           AND (effective_to IS NULL OR effective_to > ${monthStart}::date)
+      `);
+      return result.rows;
+    });
+
+    if (r.isErr()) throw r.error;
+    const m = new Map<string, { planned: bigint; cushion: bigint }>();
+    for (const row of r.value) {
+      m.set(row.category_id, {
+        planned: BigInt(row.normal_amount),
+        cushion: BigInt(row.cushion_amount),
+      });
+    }
+    return m;
   }
 
   async listForCategory(

@@ -34,6 +34,7 @@ import { createRecurringRulesRoute } from "./routes/recurring-rules";
 import { createTasksRoute } from "./routes/tasks";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import { createShareJoinRoute } from "./routes/share-join";
+import { createSpendingsSummaryRoute } from "./routes/spendings-summary";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -75,6 +76,24 @@ export function createApp(deps: BootedDeps) {
   // cross-tenant attempts. Phase 7 will extend this sub-router with POST/
   // PATCH/DELETE without reshaping the read surface.
   app.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
+
+  // Phase 4: budget-scoped routes under /budgets/:budgetId/
+  // /budgets/* requireAuth fence (line 68) already covers these prefixes.
+  // requireWorkspace added per sub-route via middleware below.
+  app.use("/budgets/:budgetId/spendings-summary/*", requireWorkspace);
+  app.use("/budgets/:budgetId/categories/*", requireWorkspace);
+  app.use("/budgets/:budgetId/recurring-rules/*", requireWorkspace);
+
+  app.route(
+    "/budgets/:budgetId/spendings-summary",
+    createSpendingsSummaryRoute(deps),
+  );
+  app.route("/budgets/:budgetId/categories", createCategoriesRoute(deps));
+  app.route(
+    "/budgets/:budgetId/recurring-rules",
+    createRecurringRulesRoute(deps),
+  );
+
   app.route("/settings", settingsRoutesFactory(deps));
   app.route("/currencies", createCurrenciesRoute(deps));
 

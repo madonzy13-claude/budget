@@ -23,6 +23,16 @@ import { createBudgetHomeSummaryRepo } from "@budget/budgeting/src/adapters/pers
 import { getBudgetHomeSummary } from "@budget/budgeting/src/application/get-budget-home-summary";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
 import { listPendingTasks } from "@budget/budgeting/src/application/list-pending-tasks";
+import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
+import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
+import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
+import { createReserveBalanceRepo } from "@budget/budgeting/src/adapters/persistence/reserve-balance-repo";
+import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
+import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
+import { reorderCategories } from "@budget/budgeting/src/application/reorder-categories";
+import { dismissDraft } from "@budget/budgeting/src/application/dismiss-draft";
+import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
+import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
 import { UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
 
@@ -43,6 +53,14 @@ export interface BootedDeps {
     getBudgetHomeSummary: ReturnType<typeof getBudgetHomeSummary>;
     /** BDP-03: list PENDING tasks for the banner read path. */
     listPendingTasks: ReturnType<typeof listPendingTasks>;
+    /** GRID-09: PUT sort-order drag-reorder persistence */
+    reorderCategories: ReturnType<typeof reorderCategories>;
+    /** RECR-06: per-occurrence dismiss */
+    dismissDraft: ReturnType<typeof dismissDraft>;
+    /** RECR-03/04: per-occurrence confirm (CASE B) */
+    confirmDraft: ReturnType<typeof confirmDraft>;
+    /** GRID-02/15, RSCM-03/04: 5-row spendings header read */
+    getSpendingsSummary: ReturnType<typeof getSpendingsSummary>;
   };
 }
 
@@ -145,9 +163,36 @@ export async function boot(): Promise<BootedDeps> {
   const taskRepo = createTaskRepo();
   const listPendingTasksService = listPendingTasks({ taskRepo });
 
+  // Phase 4 repos + services
+  const categoryRepo = new DrizzleCategoryRepo();
+  const categoryLimitRepo = new DrizzleCategoryLimitRepo();
+  const transactionRepo = new DrizzleTransactionRepo();
+  const reserveBalanceRepo = createReserveBalanceRepo();
+  const spendingsSummaryRepo = createSpendingsSummaryRepo();
+  const expenseLedgerDraftPortRepo = new DrizzleExpenseLedgerDraftPortRepo();
+
+  const reorderCategoriesService = reorderCategories({ repo: categoryRepo });
+  const dismissDraftService = dismissDraft({
+    repo: expenseLedgerDraftPortRepo,
+  });
+  const confirmDraftService = confirmDraft({
+    repo: expenseLedgerDraftPortRepo,
+  });
+  const getSpendingsSummaryService = getSpendingsSummary({
+    categoryRepo,
+    categoryLimitRepo,
+    transactionRepo,
+    reserveBalanceRepo,
+    summaryRepo: spendingsSummaryRepo,
+  });
+
   const budgeting = Object.assign(baseBudgeting, {
     getBudgetHomeSummary: homeSummaryService,
     listPendingTasks: listPendingTasksService,
+    reorderCategories: reorderCategoriesService,
+    dismissDraft: dismissDraftService,
+    confirmDraft: confirmDraftService,
+    getSpendingsSummary: getSpendingsSummaryService,
   });
 
   logger.info({ region: env.REGION }, "apps/api booted");

@@ -6,21 +6,34 @@
  * PATCH  /recurring-rules/:id        — update rule (REQUIRES applyToFuture; D-01-d)
  * DELETE /recurring-rules/:id        — soft-delete (sets active=false)
  *
+ * Phase 4 additions (mounted under /budgets/:budgetId/recurring-rules):
+ *   POST /drafts/:draftId/dismiss — per-occurrence dismiss (RECR-06)
+ *   POST /drafts/:draftId/confirm — per-occurrence confirm (RECR-03/04, CASE B)
+ *
  * v1.1 changes (Plan 02-02):
  *   - Cadence extended to DAILY|WEEKLY|MONTHLY|YEARLY with per-cadence Zod validation
  *   - kind field removed (all rules produce SPENDING drafts per D-PH2-09)
  *   - accountId/walletId removed (categorical-only per TXN-02)
  *   - yearly_month exposed in response
+ *
+ * Legacy root mounts preserved per phasing decision; cleanup in Plan 04-05 Task 4.
  */
 import { Hono } from "hono";
 import { z } from "zod";
 import type { BootedDeps } from "../boot";
+import { serverError } from "../middleware/server-error";
 
 // Re-export discriminated union from contracts for route use
 const cadenceSpecSchema = z.discriminatedUnion("cadence", [
   z.object({ cadence: z.literal("DAILY") }),
-  z.object({ cadence: z.literal("WEEKLY"), weekly_dow: z.number().int().min(0).max(6) }),
-  z.object({ cadence: z.literal("MONTHLY"), cadence_anchor: z.number().int().min(1).max(31) }),
+  z.object({
+    cadence: z.literal("WEEKLY"),
+    weekly_dow: z.number().int().min(0).max(6),
+  }),
+  z.object({
+    cadence: z.literal("MONTHLY"),
+    cadence_anchor: z.number().int().min(1).max(31),
+  }),
   z.object({
     cadence: z.literal("YEARLY"),
     yearly_month: z.number().int().min(1).max(12),
@@ -39,7 +52,10 @@ const createRuleBaseSchema = z.object({
   first_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
-const createRuleSchema = z.intersection(createRuleBaseSchema, cadenceSpecSchema);
+const createRuleSchema = z.intersection(
+  createRuleBaseSchema,
+  cadenceSpecSchema,
+);
 
 const updateRuleEditsSchema = z
   .object({
@@ -48,7 +64,10 @@ const updateRuleEditsSchema = z
       .regex(/^\d+(\.\d{1,4})?$/)
       .refine((v) => parseFloat(v) > 0, "amount must be positive")
       .optional(),
-    currency: z.string().regex(/^[A-Z0-9]{3,5}$/).optional(),
+    currency: z
+      .string()
+      .regex(/^[A-Z0-9]{3,5}$/)
+      .optional(),
     categoryId: z.string().uuid().nullable().optional(),
     note: z.string().max(500).nullable().optional(),
     active: z.boolean().optional(),
@@ -187,6 +206,68 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
     if (r.isErr()) {
       return c.json({ error: r.error.message }, 422);
     }
+    return c.body(null, 204);
+  });
+
+  // POST /drafts/:draftId/dismiss — per-occurrence dismiss (RECR-06)
+  // Mounted under /budgets/:budgetId/recurring-rules via app.ts Phase 4 wiring.
+  app.post("/drafts/:draftId/dismiss", async (c) => {
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
+    const { draftId } = c.req.param();
+    const budgetId = c.req.param("budgetId");
+
+    if (budgetId && budgetId !== tenantId) {
+      return c.json({ error: "tenant_mismatch" }, 403);
+    }
+
+    const r = await deps.budgeting.dismissDraft({
+      tenantId,
+      draftId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      const e = r.error as { kind?: string; message: string };
+      if (e.kind === "DraftNotFound")
+        return c.json({ error: "not_found" }, 404);
+      if (e.kind === "AlreadyConfirmed")
+        return c.json({ error: "already_confirmed" }, 409);
+      return serverError(c, "dismiss_draft_failed", r.error);
+    }
+
+    return c.body(null, 204);
+  });
+
+  // POST /drafts/:draftId/confirm — per-occurrence confirm (RECR-03/04, CASE B)
+  // Mounted under /budgets/:budgetId/recurring-rules via app.ts Phase 4 wiring.
+  app.post("/drafts/:draftId/confirm", async (c) => {
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
+    const { draftId } = c.req.param();
+    const budgetId = c.req.param("budgetId");
+
+    if (budgetId && budgetId !== tenantId) {
+      return c.json({ error: "tenant_mismatch" }, 403);
+    }
+
+    const r = await deps.budgeting.confirmDraft({
+      tenantId,
+      draftId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      const e = r.error as { kind?: string };
+      if (e.kind === "DraftNotFound")
+        return c.json({ error: "not_found" }, 404);
+      if (e.kind === "AlreadyConfirmed")
+        return c.json({ error: "already_confirmed" }, 409);
+      if (e.kind === "AlreadyDismissed")
+        return c.json({ error: "already_dismissed" }, 409);
+      return serverError(c, "confirm_draft_failed", r.error);
+    }
+
     return c.body(null, 204);
   });
 
