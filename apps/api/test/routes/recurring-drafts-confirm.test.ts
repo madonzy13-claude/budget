@@ -15,15 +15,10 @@ import { Hono } from "hono";
 import { Pool } from "pg";
 
 const DB_URL_RAW = process.env.DATABASE_URL_APP;
-if (!DB_URL_RAW) throw new Error("DATABASE_URL_APP required for integration tests");
+if (!DB_URL_RAW)
+  throw new Error("DATABASE_URL_APP required for integration tests");
 process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
-
-const MIGRATOR_URL_RAW = process.env.DATABASE_URL_MIGRATOR;
-if (MIGRATOR_URL_RAW) {
-  process.env.DATABASE_URL_MIGRATOR = MIGRATOR_URL_RAW.replace("@db:", "@localhost:");
-}
-const SUPERUSER_URL = (process.env.DATABASE_URL_MIGRATOR ?? DB_URL).replace("@db:", "@localhost:");
 
 const { resetPools } = await import("@budget/platform");
 resetPools();
@@ -44,7 +39,9 @@ async function createFixture(): Promise<Fixture> {
   const ruleId = crypto.randomUUID();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
     await client.query(
       `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
        VALUES ($1, $2, 'Confirm Test', true, now(), now())`,
@@ -55,7 +52,9 @@ async function createFixture(): Promise<Fixture> {
        VALUES ($1, $2, 'Confirm WS', 'PRIVATE', 'USD', $3, 1, now())`,
       [tenantId, `ws-confirm-${tenantId.slice(0, 8)}`, userId],
     );
-    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [`{"${tenantId}"}`]);
+    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{"${tenantId}"}`,
+    ]);
     await client.query(
       `INSERT INTO budgeting.recurring_rules
          (id, tenant_id, amount, currency, cadence, cadence_anchor, active, next_due_date, actor_user_id)
@@ -87,8 +86,12 @@ async function seedDraft(
   const offset = ++_draftDateOffset;
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [`{"${tenantId}"}`]);
-    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [SYSTEM_USER]);
+    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{"${tenantId}"}`,
+    ]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      SYSTEM_USER,
+    ]);
     await client.query(
       `INSERT INTO budgeting.expense_ledger
          (id, tenant_id, budget_id, transaction_date, amount_original_cents, currency_original,
@@ -109,11 +112,12 @@ async function seedDraft(
 }
 
 async function buildApp(userId: string, tenantId: string) {
-  const { createRecurringRulesRoute } = await import("../../src/routes/recurring-rules");
-  const { DrizzleExpenseLedgerDraftPortRepo } = await import(
-    "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo"
-  );
-  const { confirmDraft } = await import("@budget/budgeting/src/application/confirm-draft");
+  const { createRecurringRulesRoute } =
+    await import("../../src/routes/recurring-rules");
+  const { DrizzleExpenseLedgerDraftPortRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo");
+  const { confirmDraft } =
+    await import("@budget/budgeting/src/application/confirm-draft");
 
   const repo = new DrizzleExpenseLedgerDraftPortRepo();
   const deps = {
@@ -129,7 +133,10 @@ async function buildApp(userId: string, tenantId: string) {
     c.set("userId", userId);
     await next();
   });
-  app.route("/budgets/:budgetId/recurring-rules", createRecurringRulesRoute(deps));
+  app.route(
+    "/budgets/:budgetId/recurring-rules",
+    createRecurringRulesRoute(deps),
+  );
   return app;
 }
 
@@ -180,7 +187,9 @@ describe("POST /budgets/:budgetId/recurring-rules/drafts/:draftId/confirm", () =
   });
 
   it("returns 409 already_confirmed when confirmed twice", async () => {
-    const draftId = await seedDraft(fix.tenantId, fix.ruleId, { confirmedAt: true });
+    const draftId = await seedDraft(fix.tenantId, fix.ruleId, {
+      confirmedAt: true,
+    });
     const app = await buildApp(fix.userId, fix.tenantId);
     const res = await app.request(
       `/budgets/${fix.tenantId}/recurring-rules/drafts/${draftId}/confirm`,
@@ -192,7 +201,9 @@ describe("POST /budgets/:budgetId/recurring-rules/drafts/:draftId/confirm", () =
   });
 
   it("returns 409 already_dismissed when draft was dismissed first", async () => {
-    const draftId = await seedDraft(fix.tenantId, fix.ruleId, { dismissedAt: true });
+    const draftId = await seedDraft(fix.tenantId, fix.ruleId, {
+      dismissedAt: true,
+    });
     const app = await buildApp(fix.userId, fix.tenantId);
     const res = await app.request(
       `/budgets/${fix.tenantId}/recurring-rules/drafts/${draftId}/confirm`,
