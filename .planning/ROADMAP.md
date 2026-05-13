@@ -106,7 +106,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. Arrow keys ←/→ shift the month without leaving the Spendings tab and the current month label updates; past months render the same grid in read-only quick-entry mode (transaction pen-edit still works); on mobile the grid horizontal-scrolls cleanly
 5. When pg-boss materializes a recurring rule, the resulting pending-draft renders as a highlighted row (distinct background per DESIGN.md) in its target category column; user clicks "Confirm" → row transitions to normal styling and `confirmed_at = now()`; user can edit a draft before confirming via pen icon; user can dismiss a draft without confirming; the standalone pending-drafts-inbox page is gone
 
-**Plans**: pending
+**Plans** (5):
+
+- [ ] 04-01-PLAN.md — Wave 0 prep: dnd-kit + temporal-polyfill install, schema spike, extracted Phase 2 field primitives, i18n grid.\* stubs, e2e scaffolding, tenant-leak ci-gate 6->9, v1.0 surface deletes (GRID-12, RECR-07)
+- [ ] 04-02-PLAN.md — Backend: PUT /categories/sort-order + GET /spendings-summary + POST /recurring-rules/drafts/:id/dismiss + SCD-2 race lock + 4 integration tests + [BLOCKING] schema push (GRID-04, GRID-09, GRID-15, RECR-04, RECR-06, RSCM-03, RSCM-04)
+- [ ] 04-03-PLAN.md — Client primitives: useRevealActions + MonthNavigator + QuickEntryInput + TransactionRow + DraftRow + ColumnHeader + AddCategoryColumn + 7 hooks + 2 lib utils + 9 Vitest tests (GRID-01..03, 05, 06, 08, 10, 11, 13, 14, RECR-03..06)
+- [ ] 04-04-PLAN.md — Grid composition: TransactionSlider + CategorySlider + CategoryColumn + SpendingsGridClient (dnd-kit) + RSC page shell + delete v1.0 forms (GRID-01, 02, 04, 07, 08, 09, 13, RECR-05, RSCM-03)
+- [ ] 04-05-PLAN.md — E2E: 15 playwright-bdd .feature files (incl. 2 regression-guards no-hover-reveal + category-cell-no-inline-edit) + impeccable sweep + make ci-gate + make test-e2e + user UAT (all GRID/RECR/RSCM)
+
 **UI hint**: yes
 
 ### Phase 5: Reserves & Wallets Tabs
