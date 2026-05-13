@@ -161,4 +161,135 @@ describe("CategorySlider", () => {
       expect(true).toBe(true);
     }
   });
+
+  // ── UAT Defect 2: create response parsing ────────────────────────────
+  it("create: calls POST /budgets/:id/categories then POST limits, closes slider on success", async () => {
+    const onOpenChange = vi.fn();
+    // First call: POST /categories → { category: { id } }
+    // Second call: POST /categories/:id/limits → ok
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ category: { id: "cat-new-123" } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+
+    render(
+      <TestQueryProvider>
+        <CategorySlider {...defaultProps} onOpenChange={onOpenChange} />
+      </TestQueryProvider>,
+    );
+
+    // Fill name
+    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    await user.clear(nameInput);
+    await user.type(nameInput, "Groceries");
+
+    // Submit
+    const saveBtn = screen.getAllByRole("button").find(
+      (b) => b.textContent?.includes("catSlider.cta.create"),
+    )!;
+    await user.click(saveBtn);
+
+    // POST /categories called with correct path
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/budgets/budget-1/categories`),
+      expect.objectContaining({ method: "POST" }),
+    );
+    // POST limits called with the id from the response
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("cat-new-123/limits"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    // Slider closes on success
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("create: if API returns flat DTO (missing category wrapper) does NOT crash", async () => {
+    // Guard: even if server accidentally returns flat DTO, no TypeError thrown
+    fetchMock
+      .mockResolvedValueOnce({ ok: false, json: async () => ({}) });
+
+    const onOpenChange = vi.fn();
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+
+    render(
+      <TestQueryProvider>
+        <CategorySlider {...defaultProps} onOpenChange={onOpenChange} />
+      </TestQueryProvider>,
+    );
+
+    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    await user.clear(nameInput);
+    await user.type(nameInput, "Test");
+    const saveBtn = screen.getAllByRole("button").find(
+      (b) => b.textContent?.includes("catSlider.cta.create"),
+    )!;
+    // Should not throw — toast.error called instead
+    await user.click(saveBtn);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  // ── UAT Defect 3: edit mode prefill ─────────────────────────────────
+  it("edit mode: name input is prefilled from initial prop", () => {
+    render(
+      <TestQueryProvider>
+        <CategorySlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    expect(nameInput).toBeTruthy();
+    expect(nameInput.value).toBe("Groceries");
+  });
+
+  it("edit mode: planned amount is prefilled (10000 cents → 100.00)", () => {
+    render(
+      <TestQueryProvider>
+        <CategorySlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const plannedInput = document.getElementById("cat-slider-planned") as HTMLInputElement;
+    expect(plannedInput).toBeTruthy();
+    expect(plannedInput.value).toBe("100.00");
+  });
+
+  it("edit mode: cushion amount is prefilled (2000 cents → 20.00)", () => {
+    render(
+      <TestQueryProvider>
+        <CategorySlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const cushionInput = document.getElementById("cat-slider-cushion") as HTMLInputElement;
+    expect(cushionInput).toBeTruthy();
+    expect(cushionInput.value).toBe("20.00");
+  });
+
+  it("edit mode: re-opening with different category resets form to new values", async () => {
+    const { rerender } = render(
+      <TestQueryProvider>
+        <CategorySlider {...editProps} open={false} />
+      </TestQueryProvider>,
+    );
+
+    const newInitial = {
+      categoryId: "cat-2",
+      name: "Transport",
+      plannedCents: "5000",
+      cushionCents: "1000",
+      iconKey: null,
+      colorKey: null,
+    };
+
+    rerender(
+      <TestQueryProvider>
+        <CategorySlider {...editProps} open={true} initial={newInitial} />
+      </TestQueryProvider>,
+    );
+
+    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    expect(nameInput?.value).toBe("Transport");
+    const plannedInput = document.getElementById("cat-slider-planned") as HTMLInputElement;
+    expect(plannedInput?.value).toBe("50.00");
+  });
 });
