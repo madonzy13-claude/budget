@@ -13,6 +13,7 @@
 import { Temporal } from "temporal-polyfill";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
+import { mapTxnRowToDTO } from "@/hooks/use-transactions";
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
@@ -52,10 +53,27 @@ export default async function SpendingsPage({
     ? ((await categoriesRes.json()) as { categories: unknown[] }).categories
     : [];
   const transactions = txnsRes.ok
-    ? ((await txnsRes.json()) as { transactions: unknown[] }).transactions
+    ? (
+        (
+          (await txnsRes.json()) as {
+            transactions: Parameters<typeof mapTxnRowToDTO>[0][];
+          }
+        ).transactions ?? []
+      ).map(mapTxnRowToDTO)
     : [];
   const drafts = draftsRes.ok
-    ? ((await draftsRes.json()) as { transactions: unknown[] }).transactions
+    ? (
+        (
+          (await draftsRes.json()) as {
+            transactions: (Parameters<typeof mapTxnRowToDTO>[0] & {
+              rule_name?: string;
+            })[];
+          }
+        ).transactions ?? []
+      ).map((row) => ({
+        ...mapTxnRowToDTO(row),
+        ruleName: row.rule_name ?? "",
+      }))
     : [];
   const summary = summaryRes.ok
     ? await summaryRes.json()
@@ -70,13 +88,27 @@ export default async function SpendingsPage({
   return (
     <SpendingsGridClient
       budgetId={budgetId}
-      budgetCurrency={(summary as { budgetCurrency?: string }).budgetCurrency ?? "USD"}
+      budgetCurrency={
+        (summary as { budgetCurrency?: string }).budgetCurrency ?? "USD"
+      }
       budgetTz={(summary as { budgetTz?: string }).budgetTz ?? "UTC"}
       month={month}
-      initialCategories={categories as Parameters<typeof SpendingsGridClient>[0]["initialCategories"]}
-      initialTransactions={transactions as Parameters<typeof SpendingsGridClient>[0]["initialTransactions"]}
-      initialDrafts={drafts as Parameters<typeof SpendingsGridClient>[0]["initialDrafts"]}
-      initialSummary={summary as Parameters<typeof SpendingsGridClient>[0]["initialSummary"]}
+      initialCategories={
+        categories as Parameters<
+          typeof SpendingsGridClient
+        >[0]["initialCategories"]
+      }
+      initialTransactions={
+        transactions as Parameters<
+          typeof SpendingsGridClient
+        >[0]["initialTransactions"]
+      }
+      initialDrafts={
+        drafts as Parameters<typeof SpendingsGridClient>[0]["initialDrafts"]
+      }
+      initialSummary={
+        summary as Parameters<typeof SpendingsGridClient>[0]["initialSummary"]
+      }
     />
   );
 }
