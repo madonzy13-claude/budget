@@ -63,15 +63,9 @@ const editFormSchema = z.object({
 
 type EditFormValues = z.infer<typeof editFormSchema>;
 
-function generateIdempotencyKey(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => {
-    const n = parseInt(c, 10);
-    return (n ^ ((Math.random() * 16) >> (n / 4))).toString(16);
-  });
-}
+// generateIdempotencyKey extracted to @/lib/idempotency (Plan 04-01, D-PH4-S2).
+// This form is scheduled for deletion in Plan 04-04.
+import { generateIdempotencyKey } from "@/lib/idempotency";
 
 export function TransactionEditForm({
   transaction,
@@ -116,14 +110,17 @@ export function TransactionEditForm({
     }
 
     try {
-      const res = await clientApiFetch(`/transactions/${transaction.id}/correct`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": idempotencyKey,
+      const res = await clientApiFetch(
+        `/transactions/${transaction.id}/correct`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body: JSON.stringify({ edits }),
         },
-        body: JSON.stringify({ edits }),
-      });
+      );
 
       if (res.status === 409) {
         const data = (await res.json()) as { error: string };
@@ -164,13 +161,18 @@ export function TransactionEditForm({
 
         {/* Kind — immutable, shown as disabled text with hint */}
         <div className="space-y-1">
-          <label className="text-sm font-medium text-[var(--muted-foreground)]">Kind</label>
+          <label className="text-sm font-medium text-[var(--muted-foreground)]">
+            Kind
+          </label>
           <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-2 bg-[var(--surface-elevated-dark)] opacity-60">
             <span className="text-sm text-[var(--body)]">
-              {transaction.kind.charAt(0) + transaction.kind.slice(1).toLowerCase()}
+              {transaction.kind.charAt(0) +
+                transaction.kind.slice(1).toLowerCase()}
             </span>
           </div>
-          <p className="text-xs text-[var(--muted-foreground)]">{t("transactions.edit.kindFieldHint")}</p>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {t("transactions.edit.kindFieldHint")}
+          </p>
         </div>
 
         {/* Amount */}
@@ -187,7 +189,12 @@ export function TransactionEditForm({
                   placeholder="0.00"
                   aria-label={t("transactions.capture.amountLabel")}
                   data-testid="amount-input"
-                  style={{ fontSize: "40px", fontFamily: "var(--font-binom)", fontWeight: 600, height: "64px" }}
+                  style={{
+                    fontSize: "40px",
+                    fontFamily: "var(--font-binom)",
+                    fontWeight: 600,
+                    height: "64px",
+                  }}
                   {...field}
                 />
               </FormControl>

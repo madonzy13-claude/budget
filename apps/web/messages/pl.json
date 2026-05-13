@@ -565,5 +565,119 @@
       "count": "{count, plural, one {# zadanie oczekujące} few {# zadania oczekujące} many {# zadań oczekujących} other {# zadań oczekujących}}",
       "actionComingSoon": "Wkrótce w fazie 7"
     }
+  },
+  "grid": {
+    "txnSlider": {
+      "cta": {
+        "create": "Save transaction",
+        "save": "Save changes"
+      },
+      "header": {
+        "create": "New transaction",
+        "edit": "Edit transaction"
+      },
+      "field": {
+        "date": "Date",
+        "category": "Category",
+        "amount": "Amount",
+        "currency": "Currency",
+        "note": "Note (optional)"
+      },
+      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})"
+    },
+    "catSlider": {
+      "cta": {
+        "create": "Create category",
+        "save": "Save changes"
+      },
+      "header": {
+        "create": "New category",
+        "edit": "Edit category"
+      },
+      "field": {
+        "name": "Name",
+        "planned": "Planned monthly",
+        "cushion": "Cushion monthly",
+        "icon": "Icon",
+        "color": "Color"
+      }
+    },
+    "draft": {
+      "action": {
+        "confirm": "Confirm",
+        "dismiss": "Dismiss"
+      }
+    },
+    "row": {
+      "action": {
+        "edit": "Edit"
+      }
+    },
+    "txn": {
+      "action": {
+        "delete": "Delete",
+        "retry": "Retry"
+      }
+    },
+    "quickEntry": {
+      "placeholder": "Add expense…",
+      "helper": {
+        "current": "Press Enter to save",
+        "past": "Saves as {date}"
+      }
+    },
+    "monthNav": {
+      "prev": "Previous month",
+      "next": "Next month",
+      "shortcut": "Cmd + ← or → to navigate months"
+    },
+    "addCategory": {
+      "trigger": "Add category"
+    },
+    "emptyState": {
+      "noCategories": {
+        "title": "No categories yet",
+        "body": "Add your first category to start tracking spendings.",
+        "cta": "Add category"
+      },
+      "noTxns": "No transactions this month",
+      "noTxnsPast": "Nothing recorded for this month"
+    },
+    "error": {
+      "quickEntry": "Couldn't save — tap to retry",
+      "sliderSave": "Couldn't save changes. Check your connection and try again.",
+      "reorderSave": "Couldn't save new order. The columns have been restored.",
+      "invalidAmount": "Enter a positive number",
+      "fxStale": "Exchange rate has updated. Review the new amount and save again."
+    },
+    "confirm": {
+      "deleteTxn": {
+        "title": "Delete transaction?",
+        "body": "This will permanently remove the transaction from {month}. This action cannot be undone.",
+        "cta": "Delete",
+        "cancel": "Cancel"
+      },
+      "dismissDraft": {
+        "title": "Skip {ruleName} for {month}?",
+        "body": "The recurring rule will keep running. Next month's draft will appear as scheduled.",
+        "cta": "Skip this month",
+        "cancel": "Cancel"
+      }
+    },
+    "header": {
+      "row2": {
+        "planned": "planned",
+        "cushion": "cushion"
+      },
+      "row3": {
+        "overspent": "overspent"
+      },
+      "row4": {
+        "reservesUsed": "reserves used"
+      },
+      "row5": {
+        "balance": "balance"
+      }
+    }
   }
 }

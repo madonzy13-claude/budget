@@ -87,18 +87,9 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-function generateIdempotencyKey(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => {
-    const n = parseInt(c, 10);
-    return (n ^ ((Math.random() * 16) >> (n / 4))).toString(16);
-  });
-}
+// generateIdempotencyKey extracted to @/lib/idempotency (Plan 04-01, D-PH4-S2).
+// This form is scheduled for deletion in Plan 04-04.
+import { generateIdempotencyKey } from "@/lib/idempotency";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
