@@ -75,4 +75,16 @@ export interface TransactionRepo {
     month: string, // 'YYYY-MM'
     confirmed: boolean | "any",
   ): Promise<TransactionRow[]>;
+
+  /**
+   * Returns confirmed SPENDING totals per category for a given month range.
+   * Keys: categoryId → bigint cents (amount_converted_cents sum).
+   * Categories with no spend are absent from the map (treat as 0n at call site).
+   */
+  spendByCategoryForMonth(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string, // YYYY-MM-01
+    monthEnd: string, // YYYY-MM-01 of next month (exclusive upper bound)
+  ): Promise<Map<string, bigint>>;
 }

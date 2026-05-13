@@ -18,9 +18,10 @@ function rowToCategory(row: {
   archived_at: Date | null;
   created_at: Date;
   actor_user_id: string;
+  sort_index?: number;
 }): Category {
   const { Category: CategoryClass } = require("../../domain/category");
-  return new CategoryClass(
+  const cat = new CategoryClass(
     row.id,
     row.tenant_id,
     row.name,
@@ -29,6 +30,9 @@ function rowToCategory(row: {
     new Date(row.created_at),
     row.actor_user_id,
   );
+  // Attach sort_index as a plain property (domain class does not track it — adapter concern)
+  (cat as any).sortIndex = row.sort_index ?? 0;
+  return cat;
 }
 
 export class DrizzleCategoryRepo implements CategoryRepo {
@@ -87,8 +91,9 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         archived_at: Date | null;
         created_at: Date;
         actor_user_id: string;
+        sort_index: number;
       }>(
-        sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id
+        sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id, sort_index
             FROM budgeting.categories
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
@@ -111,21 +116,79 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         archived_at: Date | null;
         created_at: Date;
         actor_user_id: string;
+        sort_index: number;
       }>(
         includeArchived
-          ? sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id
+          ? sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id, sort_index
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
-                ORDER BY created_at ASC`
-          : sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id
+                ORDER BY sort_index ASC, created_at ASC`
+          : sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id, sort_index
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid AND archived_at IS NULL
-                ORDER BY created_at ASC`,
+                ORDER BY sort_index ASC, created_at ASC`,
       );
       return result.rows;
     });
     if (r.isErr()) throw r.error;
     return r.value.map(rowToCategory);
+  }
+
+  async listForBudget(
+    tenantId: string,
+    budgetId: string,
+    includeArchived: boolean,
+  ): Promise<Category[]> {
+    // v1.1 invariant: budget_id === tenant_id; categories are tenant-scoped
+    return this.list(tenantId, includeArchived);
+  }
+
+  async reorder(
+    tenantId: string,
+    _budgetId: string,
+    orderedIds: string[],
+    actorUserId: string,
+  ): Promise<void> {
+    const tid = TenantId(tenantId);
+    const uid = UserId(actorUserId);
+
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      // Build VALUES (id::uuid, sort_index) pairs
+      const rows = orderedIds.map((id, idx) => sql`(${id}::uuid, ${idx + 1})`);
+      const result = await tx.execute(
+        sql`UPDATE budgeting.categories
+               SET sort_index = data.idx
+             FROM (VALUES ${sql.join(rows, sql`, `)}) AS data(id, idx)
+             WHERE budgeting.categories.id = data.id
+               AND budgeting.categories.tenant_id = ${tenantId}::uuid`,
+      );
+
+      const rowCount =
+        (result as any).rowCount ?? (result as any).rows?.length ?? 0;
+      if (rowCount !== orderedIds.length) {
+        throw new Error("orderedIds_mismatch");
+      }
+
+      await writeAudit(tx, {
+        tenantId: tid,
+        entityType: "category",
+        entityId: tenantId, // budget/tenant id as aggregate anchor
+        action: "update",
+        actorUserId: uid,
+        before: null,
+        after: { orderedIds },
+      });
+
+      await writeOutbox(tx, {
+        tenantId: tid,
+        aggregateType: "category",
+        aggregateId: tenantId,
+        eventType: "budgeting.category.reordered",
+        payload: { orderedIds, actorUserId },
+      });
+    });
+
+    if (r.isErr()) throw r.error;
   }
 
   async archive(

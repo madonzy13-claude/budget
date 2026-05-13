@@ -340,4 +340,46 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     if (r.isErr()) throw r.error;
     return r.value.map(dbRowToTransactionRow);
   }
+
+  async spendByCategoryForMonth(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ): Promise<Map<string, bigint>> {
+    const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(SYSTEM_USER_ID),
+      async (tx) => {
+        const drizzleTx = tx as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        const res = await drizzleTx.execute(sql`
+          SELECT category_id::text, SUM(amount_converted_cents)::text AS spent_cents
+            FROM budgeting.expense_ledger
+           WHERE tenant_id = ${tenantId}::uuid
+             AND budget_id = ${budgetId}::uuid
+             AND kind = 'SPENDING'
+             AND transaction_date >= ${monthStart}::date
+             AND transaction_date < ${monthEnd}::date
+             AND confirmed_at IS NOT NULL
+             AND deleted_at IS NULL
+           GROUP BY category_id
+        `);
+        const m = new Map<string, bigint>();
+        for (const row of res.rows as Array<{
+          category_id: string;
+          spent_cents: string;
+        }>) {
+          if (row.category_id) {
+            m.set(row.category_id, BigInt(row.spent_cents));
+          }
+        }
+        return m;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
 }

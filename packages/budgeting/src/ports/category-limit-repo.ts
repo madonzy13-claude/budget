@@ -39,4 +39,14 @@ export interface CategoryLimitRepo {
     tenantId: string,
     categoryId: string,
   ): Promise<CategoryLimitRow[]>;
+  /**
+   * Returns effective planned + cushion amounts for all categories in a budget
+   * for a given month start date (SCD-2 predicate).
+   * Keys: categoryId → { planned: bigint, cushion: bigint } in cents.
+   */
+  effectiveForMonth(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string, // YYYY-MM-DD
+  ): Promise<Map<string, { planned: bigint; cushion: bigint }>>;
 }
