@@ -12,10 +12,26 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
-import type { TxnDTO } from "./use-transactions";
+import { mapTxnRowToDTO, type TxnDTO } from "./use-transactions";
 
 export interface DraftDTO extends TxnDTO {
   ruleName: string;
+}
+
+interface DraftRowSnake {
+  id: string;
+  category_id: string;
+  amount_converted_cents: string | number;
+  currency_converted?: string;
+  currency_original?: string;
+  amount_original_cents?: string | number;
+  fx_rate?: string;
+  fx_as_of?: string;
+  note?: string | null;
+  date?: string;
+  transaction_date?: string;
+  confirmed_at: string | null;
+  rule_name?: string;
 }
 
 export function useDrafts(
@@ -31,8 +47,11 @@ export function useDrafts(
         `/budgets/${budgetId}/transactions?month=${month}&confirmed=false`,
       );
       if (!res.ok) throw new Error("drafts_fetch_failed");
-      const body = await res.json();
-      return (body.transactions ?? []) as DraftDTO[];
+      const body = (await res.json()) as { transactions?: DraftRowSnake[] };
+      return (body.transactions ?? []).map((row) => ({
+        ...mapTxnRowToDTO(row),
+        ruleName: row.rule_name ?? "",
+      }));
     },
     staleTime: 30_000,
   });

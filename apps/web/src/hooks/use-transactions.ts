@@ -28,6 +28,41 @@ export interface TxnDTO {
   unsent?: boolean;
 }
 
+interface TxnRowSnake {
+  id: string;
+  category_id: string;
+  amount_converted_cents: string | number;
+  currency_converted?: string;
+  currency_original?: string;
+  amount_original_cents?: string | number;
+  fx_rate?: string;
+  fx_as_of?: string;
+  note?: string | null;
+  date?: string;
+  transaction_date?: string;
+  confirmed_at: string | null;
+  rule_name?: string;
+}
+
+export function mapTxnRowToDTO(row: TxnRowSnake): TxnDTO {
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    amountConvertedCents: String(row.amount_converted_cents),
+    currencyConverted: row.currency_converted ?? row.currency_original ?? "EUR",
+    amountOriginalCents:
+      row.amount_original_cents != null
+        ? String(row.amount_original_cents)
+        : undefined,
+    currencyOriginal: row.currency_original,
+    fxRate: row.fx_rate,
+    fxAsOf: row.fx_as_of,
+    note: row.note ?? null,
+    transactionDate: row.transaction_date ?? row.date ?? "",
+    confirmedAt: row.confirmed_at,
+  };
+}
+
 export function useTransactions(
   budgetId: string,
   month: string,
@@ -41,9 +76,8 @@ export function useTransactions(
         `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
       );
       if (!res.ok) throw new Error("transactions_fetch_failed");
-      const body = await res.json();
-      // Phase 2 transactions endpoint returns { transactions: TxnDTO[] }
-      return (body.transactions ?? []) as TxnDTO[];
+      const body = (await res.json()) as { transactions?: TxnRowSnake[] };
+      return (body.transactions ?? []).map(mapTxnRowToDTO);
     },
     staleTime: 30_000,
   });
