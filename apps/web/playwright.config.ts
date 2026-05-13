@@ -2,11 +2,17 @@ import { defineConfig, devices } from "@playwright/test";
 import { defineBddConfig } from "playwright-bdd";
 
 const testDir = defineBddConfig({
-  features: "e2e/features/**/*.feature",
+  features: [
+    "e2e/features/**/*.feature",
+    "../../tests/e2e/features/**/*.feature",
+  ],
   steps: [
     "e2e/page-objects/**/*.ts",
     "e2e/fixtures/**/*.ts",
     "e2e/steps/**/*.ts",
+    "../../tests/e2e/steps/**/*.ts",
+    "../../tests/e2e/fixtures/**/*.ts",
+    "../../tests/e2e/pages/**/*.ts",
   ],
 });
 
@@ -23,5 +29,11 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "mobile",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 } },
+    },
+  ],
 });
