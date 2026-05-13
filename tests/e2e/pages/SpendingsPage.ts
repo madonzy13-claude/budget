@@ -1,13 +1,9 @@
-import { expect, type Page, type Locator } from "@playwright/test";
+import { type Page, type Locator } from "@playwright/test";
 
 export class SpendingsPage {
   constructor(private readonly page: Page) {}
 
-  async goto(
-    locale: string,
-    budgetId: string,
-    month?: string,
-  ): Promise<void> {
+  async goto(locale: string, budgetId: string, month?: string): Promise<void> {
     const url = month
       ? `/${locale}/budgets/${budgetId}/spendings?month=${month}`
       : `/${locale}/budgets/${budgetId}/spendings`;
@@ -19,15 +15,11 @@ export class SpendingsPage {
   }
 
   quickEntryInput(categoryName: string): Locator {
-    return this.page.getByTestId(
-      `quick-entry-${categoryName.toLowerCase()}`,
-    );
+    return this.page.getByTestId(`quick-entry-${categoryName.toLowerCase()}`);
   }
 
   columnHeader(categoryName: string): Locator {
-    return this.page.getByTestId(
-      `column-header-${categoryName.toLowerCase()}`,
-    );
+    return this.page.getByTestId(`column-header-${categoryName.toLowerCase()}`);
   }
 
   monthLabel(): Locator {
