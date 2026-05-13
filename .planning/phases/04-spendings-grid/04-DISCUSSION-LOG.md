@@ -202,6 +202,73 @@
 
 ---
 
+---
+
+## Universal interaction model (clarification round, post-initial discussion)
+
+User flagged that the initial draft-row "inline action buttons on hover/tap" answer was meant as a **grid-wide pattern**, not just for drafts. Same hover-reveal-options + click-quick-edit applies to txn rows, empty (quick-entry) slots, and category headers.
+
+### Q-IM1 — Click on a cell, what happens?
+
+| Option                                     | Description                                              | Selected |
+| ------------------------------------------ | -------------------------------------------------------- | -------- |
+| Cell becomes inline-editable (Excel-style) | Click = input mode immediately                           |          |
+| Click opens slider pre-filled              | Click = same as pen icon                                 |          |
+| Click selects, double-click inline-edits   | Single click highlights; double-click enters inline edit | ✓        |
+
+**User's choice:** Initially "Click selects, double-click inline-edits" — then user pivoted in the same answer notes: **"I changed my mind - click shows options, double click - quick edit. Same for recurring drafts"**. Final rule: hover OR click = reveal options; double-click = inline quick-edit.
+
+### Q-IM2 — What does "empty cell" mean?
+
+| Option                                 | Description                      | Selected |
+| -------------------------------------- | -------------------------------- | -------- |
+| Bottom quick-entry slot of each column | The blank input at column bottom | ✓        |
+| Blank rows below last txn in column    | Empty vertical space             |          |
+| Both                                   | Bottom input + blank rows        |          |
+
+**User's choice:** Bottom quick-entry slot only.
+
+### Q-IM3 — When does the slider actually open?
+
+| Option                                        | Description                                                 | Selected |
+| --------------------------------------------- | ----------------------------------------------------------- | -------- |
+| Only via pen icon in hover-revealed options   | Click cell = inline quick-edit; pen icon = full slider edit | ✓        |
+| Only for category edit + create (dashed +)    | Txns entirely inline                                        |          |
+| Pen icon + click on certain cells (note/date) | Mixed — amount inline, note/date open slider                |          |
+
+**User's choice:** Pen icon in revealed options is the only slider entry point.
+
+### Q-IM4 — What does double-click on a txn row inline-edit?
+
+| Option                                                                                           | Description                                                                                      | Selected |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------- |
+| The cell you double-clicked                                                                      | Excel cell-by-cell; amount/note each own targets                                                 |          |
+| Amount only (most common edit)                                                                   | Double-click anywhere → amount editable; others need slider                                      |          |
+| Whole row becomes editable inline                                                                | All visible fields turn into inputs at once                                                      |          |
+| User free-text: "in cell only amount is visible and not a note, etc. So only amount is editable" | Amount is the only visible field in a cell → amount-only inline edit; everything else via slider | ✓        |
+
+**User's choice:** Amount only — because amount is the only field visible inside the cell. Other fields (note, date, currency, category) require slider via pen.
+
+### Q-IM5 — Double-click on category header cells?
+
+| Option                                                                                 | Description                                      | Selected |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- |
+| Yes — double-click planned cell edits planned; double-click cushion cell edits cushion | SCD-2 versioning applies; name cell same pattern |          |
+| Category never inline — always slider                                                  | Hover/click → pen icon → slider with all fields  | ✓        |
+
+**User's choice:** Category cells are never inline-editable. Always slider via pen. Reason: slider also carries icon/color/cushion-mode controls users should see together.
+
+### Q-IM6 — Draft row double-click behavior?
+
+| Option                                                                                | Description                                 | Selected |
+| ------------------------------------------------------------------------------------- | ------------------------------------------- | -------- |
+| Yes — double-click amount cell edits amount, then Enter button promotes (Recommended) | Tweak draft amount inline before promoting  | ✓        |
+| No — draft rows only editable via slider (pen icon)                                   | Drafts treated as read-only until confirmed |          |
+
+**User's choice:** Yes — double-click amount → edit → Enter promotes the draft with the new amount in one shot. Confirm button (revealed in options) is the no-edit promote path.
+
+---
+
 ## Claude's Discretion
 
 - Client cache lib choice for optimistic mutations + retry queue (recommendation: TanStack Query).

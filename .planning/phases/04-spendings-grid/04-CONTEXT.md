@@ -10,14 +10,15 @@ Phase 4 ships the **Excel-like Spendings tab** — the core product surface insi
 
 - Column-per-category grid (current month by default, `?month=YYYY-MM` for others).
 - 5-row column header: `name` · `planned-or-cushion` · `overspent` (computed) · `reserves-used` (computed) · `balance` (computed). Active budget = `cushion` when `budget.cushion_mode_enabled` else `planned`. Overspent = `max(0, spent − active_budget − reserve_used)`.
-- Bottom **quick-entry input** per column — numeric + Enter → POST `EXPENSE` txn (date defaults: today for current month, last-day-of-month for past months; category = this column; currency = budget default; note = null).
-- Below header, current-month txns for that category, newest first; hover/tap reveals pen icon → opens **Transaction slider**.
-- Pen icon on column header → opens **Category slider** in edit mode (planned + cushion, saved as SCD-2 `category_limits` version).
+- Bottom **quick-entry input** per column — numeric + Enter → POST `EXPENSE` txn (date defaults: today for current month, last-day-of-month for past months; category = this column; currency = budget default; note = null). Hover/click on the bottom slot also reveals options (acts as quick-entry affordance).
+- Below header, current-month txns for that category, newest first.
+- **Universal interaction model** (applies to every row: txn, draft, bottom quick-entry slot, category header cells): hover (desktop) OR single click reveals action options as floating icons. Double-click triggers inline quick-edit (cell turns into input, Enter saves, Esc cancels). Mobile: single tap reveals options; double-tap inline-edits. Pen icon in revealed options opens the corresponding slider for full-field editing.
+- Pen icon on column header → opens **Category slider** in edit mode (planned + cushion, saved as SCD-2 `category_limits` version). Category cells (name, planned, cushion) are NEVER inline-editable — they always route to the slider, because the slider also carries icon + color + cushion-mode controls.
 - Dashed `+` column at far right → opens Category slider in create mode (name, planned, cushion, optional icon/color); locked position, not draggable, not droppable.
 - Drag-to-reorder column headers (drag handle = GripVertical lucide icon); persists to `categories.sort_index` per-budget.
 - Month navigation: dedicated `‹ ›` buttons + Cmd/Ctrl + ←/→ keyboard shortcut; plain arrow keys reserved for input/cursor (deliberate softening of GRID-10 to prevent accidental jumps while typing — see Specific Ideas).
 - Past months fully editable (NOT read-only as success-criterion 4 wording suggests; see Specific Ideas for user override).
-- **Recurring drafts** rendered inline in their target column as highlighted rows with `[Confirm] [Edit] [Dismiss]` inline actions. Confirm → promotes draft to txn (`confirmed_at = now()`). Edit → opens Transaction slider pre-filled. Dismiss → marks `dismissed_at = now()` on this occurrence only; rule keeps running.
+- **Recurring drafts** rendered inline in their target column as highlighted rows. Hover/click reveals options `[Confirm] [✏ Edit-via-slider] [× Dismiss]`. Double-click on the amount cell inline-edits the amount; Enter promotes the draft to a real txn with the edited amount. Confirm button (revealed in options) promotes unchanged. Edit (pen icon) opens Transaction slider pre-filled for full-field edit. Dismiss marks `dismissed_at = now()` on this occurrence only; rule keeps running.
 - **Real-time reserve-deduction**: when a quick-entry txn pushes a category over its active budget, row 4 of header updates within ~200ms via optimistic local recompute; background refetch reconciles within 1–2s.
 - Delete from v1.0 surface: `transaction-search-bar.tsx`, `transaction-filter-chips.tsx`, `bulk-action-bar.tsx`, `transaction-capture-form.tsx`, `transaction-capture-sheet.tsx`, the standalone pending-drafts-inbox page (GRID-12, RECR-07).
 
@@ -27,6 +28,15 @@ Phase 4 ships the **Excel-like Spendings tab** — the core product surface insi
 
 <decisions>
 ## Implementation Decisions
+
+### Interaction model (universal)
+
+- **D-PH4-INT1:** **Hover OR click reveals options** on every interactive surface — txn rows, draft rows, bottom quick-entry slot, category header cells. Desktop: hover or click → floating action icons appear (pen, delete, draft-specific Confirm/Dismiss). Mobile: single tap = same reveal (no hover available). Reveal is the primary discoverability channel.
+- **D-PH4-INT2:** **Double-click (desktop) / double-tap (mobile) = inline quick-edit**. Cell becomes input in place. Enter saves; Esc cancels. NOT click-once — click is reserved for option reveal.
+- **D-PH4-INT3:** **Inline-edit scope is narrow** — only fields _visible in the cell_ are inline-editable. For txn rows, only **amount** is visible → only amount is inline-editable. Note, date, currency, category require slider via pen.
+- **D-PH4-INT4:** **Category cells are NEVER inline-editable** — name, planned, cushion all open the Category slider via pen icon. Reason: slider carries the icon/color/cushion-mode controls; users editing a category should see and adjust all of these together.
+- **D-PH4-INT5:** **Draft rows follow the same model**. Double-click amount → input mode → Enter = save edit AND promote draft (single keystroke shortcut). Confirm button (revealed in options) promotes unchanged. Pen icon → full slider edit. Dismiss icon → per-occurrence skip with confirmation dialog.
+- **D-PH4-INT6:** **Slider opens only via pen icon in revealed options** — never on plain click of a cell. Keeps the inline-edit and slider-edit paths visually distinct.
 
 ### Side-slider architecture
 
@@ -54,14 +64,14 @@ Phase 4 ships the **Excel-like Spendings tab** — the core product surface insi
 ### Recurring drafts + reserve refresh
 
 - **D-PH4-R1:** **Draft row visual** — `surface-elevated-dark` background tint (one step lighter than canvas) + 3px **dashed yellow left border** as decoration. Yellow on the left edge is decoration-only; the solid yellow `Confirm` button keeps the "yellow = primary action" DESIGN.md rule.
-- **D-PH4-R2:** **Inline action buttons** on draft rows, revealed on hover (desktop) or tap-to-expand (mobile): `[Confirm]` (button-primary-pill yellow), `[✏ Edit]` (text button → opens Transaction slider pre-filled with draft values), `[× Dismiss]` (muted icon button). Confirm is single-click — happy path is fast.
+- **D-PH4-R2:** **Hover/click reveals action options** on draft rows (universal pattern per D-PH4-INT1): `[Confirm]` (button-primary-pill yellow → promotes unchanged), `[✏ Edit]` (pen icon → opens Transaction slider pre-filled), `[× Dismiss]` (muted icon → per-occurrence skip). Plus per D-PH4-INT5: **double-click amount cell → inline edit → Enter promotes draft with the new amount in one shot** (power-user shortcut). Confirm-button-click is the no-edit path; double-click+Enter is the edit-and-promote path.
 - **D-PH4-R3:** **Dismiss semantics** — sets `dismissed_at = now()` on the pending draft (this occurrence only). The recurring rule **keeps running** and will materialize next month's draft on schedule. Lightweight confirmation dialog: "Skip [Rule name] for [Month]?". No accidental rule-killing.
 - **D-PH4-R4:** **Reserve-deduction refresh strategy** — optimistic local recompute on quick-entry: client knows `spent_after = spent_before + amount_default`, recomputes `overspent / reserves_used / balance` using the locked formula (`max(0, spent − active_budget − reserve_used)`) and renders header within ~50ms. Background `GET /budgets/:id/spendings-summary?month=YYYY-MM` reconciles within 1–2s; on mismatch, swap silently with server values (no flicker). No SSE/WebSocket (deferred to Phase 8).
 - **D-PH4-R5:** Background revalidate also triggers after Confirm/Dismiss/category-edit/drag-reorder for consistency.
 
 ### Engineering discipline
 
-- **D-PH4-E1:** **Phase 4 is the BDD-rewrite frontier for the grid** — every user-facing flow ships with a `.feature` scenario in `tests/e2e/features/spendings/` per the project's CLAUDE.md TDD-First rule. Minimum scenarios: quick-entry happy path, optimistic-with-retry, drag-reorder persistence, dashed-+ create-category, month-nav (button + Cmd/Ctrl-arrow), draft confirm/edit/dismiss, past-month quick-entry → last-day-of-month, mobile horizontal-scroll.
+- **D-PH4-E1:** **Phase 4 is the BDD-rewrite frontier for the grid** — every user-facing flow ships with a `.feature` scenario in `tests/e2e/features/spendings/` per the project's CLAUDE.md TDD-First rule. Minimum scenarios: quick-entry happy path, optimistic-with-retry, drag-reorder persistence, dashed-+ create-category, month-nav (button + Cmd/Ctrl-arrow), draft confirm-unchanged, draft double-click-edit-and-promote, draft dismiss, past-month quick-entry → last-day-of-month, mobile horizontal-scroll, **hover-reveals-options on every row type** (txn, draft, bottom slot, category header), **double-click-inline-edits amount on txn rows**, **double-click on category cells does NOT inline-edit** (always slider).
 - **D-PH4-E2:** **Vitest component tests** for every new client component (`TransactionSlider`, `CategorySlider`, `SpendingsGrid`, `ColumnHeader`, `QuickEntryInput`, `DraftRow`, drag-reorder hook); >= 80% domain coverage threshold preserved.
 - **D-PH4-E3:** **Backend integration tests** for the new PUT sort-order route, draft confirm/dismiss endpoints (if not already in Phase 2), and the `spendings-summary` query — real Postgres, tenant-leak gate in CI.
 - **D-PH4-E4:** No DB mocking. Run `make test`, `make test-e2e`, `make ci-gate` before marking phase verified — per memory `Always test with Docker turned on`.
@@ -187,6 +197,8 @@ Phase 4 ships the **Excel-like Spendings tab** — the core product surface insi
 - **Manual retry, no auto-retry** — user explicitly chose visible retry icon over silent auto-retry. Failed sends stay visible until user acts.
 - **Drag handle, not whole-row drag** — explicit affordance per user pick; prevents conflicts with horizontal-scroll on mobile.
 - **Two sliders, not one** — user rejected unified-slider abstraction; clean Transaction-vs-Category domain split.
+- **Universal hover/click-reveals-options + double-click-inline-edits interaction model** — user pivoted from initial draft-only inline-button pattern to a grid-wide rule: every interactive surface (txn row, draft row, bottom quick-entry slot, category header cell) reveals action options on hover/click; double-click triggers inline quick-edit; pen icon in revealed options opens slider for full edit. Inline-edit is scoped to fields visible in the cell (txn rows: amount only; category cells: never — always slider). This is the most important UX rule of Phase 4 — every component design must respect it.
+- **Draft double-click amount + Enter = edit-and-promote in one keystroke** — power-user shortcut layered on top of the Confirm button. Both paths land at the same end state (`confirmed_at = now()` + new txn).
 
 </specifics>
 
