@@ -18,7 +18,15 @@
  * Pattern mirrors categories-schema.ts MIG-07 sort_index header comment.
  */
 import { sql } from "drizzle-orm";
-import { pgPolicy, uuid, text, numeric, date, timestamp, bigint, boolean } from "drizzle-orm/pg-core";
+import {
+  pgPolicy,
+  uuid,
+  text,
+  numeric,
+  date,
+  timestamp,
+  bigint,
+} from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
 /**
@@ -35,8 +43,12 @@ export const expenseLedger = budgeting.table(
     categoryId: uuid("category_id"),
     recurringRuleId: uuid("recurring_rule_id"),
     currencyOriginal: text("currency_original").notNull(),
-    amountOriginalCents: bigint("amount_original_cents", { mode: "bigint" }).notNull().default(BigInt(0)),
-    amountConvertedCents: bigint("amount_converted_cents", { mode: "bigint" }).notNull().default(BigInt(0)),
+    amountOriginalCents: bigint("amount_original_cents", { mode: "bigint" })
+      .notNull()
+      .default(BigInt(0)),
+    amountConvertedCents: bigint("amount_converted_cents", { mode: "bigint" })
+      .notNull()
+      .default(BigInt(0)),
     fxRate: numeric("fx_rate", { precision: 19, scale: 8 }).notNull(),
     fxAsOf: date("fx_as_of").notNull(),
     transactionDate: date("transaction_date").notNull(),
@@ -47,8 +59,12 @@ export const expenseLedger = budgeting.table(
     // SET when user taps "Dismiss" on a draft row (POST .../drafts/:id/dismiss).
     dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     pgPolicy("expense_ledger_tenant_isolation", {
