@@ -20,10 +20,13 @@ export interface MonthNavigatorProps {
 
 export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
   const t = useTranslations("grid.monthNav");
-  const { monthStr, prev, next, today, isCurrentMonth } = useMonthParam(budgetTz);
+  const { monthStr, prev, next, today, isCurrentMonth } =
+    useMonthParam(budgetTz);
 
   // Format month label
-  const [year, monthNum] = monthStr.split("-").map(Number);
+  const parts = monthStr.split("-");
+  const year = parseInt(parts[0] ?? "2000", 10);
+  const monthNum = parseInt(parts[1] ?? "1", 10);
   const monthLabel = new Intl.DateTimeFormat("en", {
     month: "long",
     year: "numeric",
@@ -35,11 +38,7 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
       if (!(e.metaKey || e.ctrlKey)) return;
       const el = document.activeElement as HTMLElement | null;
       const tag = el?.tagName?.toUpperCase();
-      if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        el?.isContentEditable
-      )
+      if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable)
         return;
       if (e.key === "ArrowLeft") {
         e.preventDefault();

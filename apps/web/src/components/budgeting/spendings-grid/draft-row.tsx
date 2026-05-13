@@ -52,9 +52,7 @@ export function DraftRow({ draft, budgetId, month, onEdit }: DraftRowProps) {
 
   function handleDoubleClick(e: React.MouseEvent) {
     e.stopPropagation();
-    setEditValue(
-      (parseInt(draft.amountConvertedCents, 10) / 100).toString(),
-    );
+    setEditValue((parseInt(draft.amountConvertedCents, 10) / 100).toString());
     setEditing(true);
     setRevealed(false);
   }
@@ -63,10 +61,11 @@ export function DraftRow({ draft, budgetId, month, onEdit }: DraftRowProps) {
     if (e.key === "Enter") {
       e.preventDefault();
       const cents = parseDecimal(editValue);
-      confirmMutation.mutate({
-        draftId: draft.id,
-        amountOverride: cents ?? undefined,
-      });
+      const mutateInput: import("@/hooks/use-confirm-draft").ConfirmDraftInput =
+        cents !== null
+          ? { draftId: draft.id, amountOverride: cents }
+          : { draftId: draft.id };
+      confirmMutation.mutate(mutateInput);
       setEditing(false);
     }
     if (e.key === "Escape") {
@@ -135,7 +134,10 @@ export function DraftRow({ draft, budgetId, month, onEdit }: DraftRowProps) {
             }}
             className="flex h-7 w-7 items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
           >
-            <Pencil className="h-4 w-4 text-[var(--body-on-dark)]" aria-hidden="true" />
+            <Pencil
+              className="h-4 w-4 text-[var(--body-on-dark)]"
+              aria-hidden="true"
+            />
           </button>
           <button
             type="button"
