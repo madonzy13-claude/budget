@@ -23,8 +23,14 @@ async function createTestUser(): Promise<{ userId: string; tenantId: string }> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at) VALUES ($1, $2, 'Test', true, now(), now())`, [userId, email]);
-    await client.query(`INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'Lmt WS', 'PRIVATE', 'EUR', $3, 1, now())`, [tenantId, `ws-lmt-${tenantId.slice(0, 8)}`, userId]);
+    await client.query(
+      `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at) VALUES ($1, $2, 'Test', true, now(), now())`,
+      [userId, email],
+    );
+    await client.query(
+      `INSERT INTO tenancy.budgets (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at) VALUES ($1, $2, 'Lmt WS', 'PRIVATE', 'EUR', $3, 1, now())`,
+      [tenantId, `ws-lmt-${tenantId.slice(0, 8)}`, userId],
+    );
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -38,16 +44,26 @@ async function createTestUser(): Promise<{ userId: string; tenantId: string }> {
 
 async function buildApp(userId: string, tenantId: string) {
   const { createCategoriesRoute } = await import("../../src/routes/categories");
-  const { createCategoryLimitsRoute } = await import("../../src/routes/category-limits");
-  const { DrizzleCategoryRepo } = await import("@budget/budgeting/src/adapters/persistence/category-repo");
-  const { DrizzleCategoryLimitRepo } = await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
-  const { createCategory } = await import("@budget/budgeting/src/application/create-category");
-  const { archiveCategory } = await import("@budget/budgeting/src/application/archive-category");
-  const { listCategories } = await import("@budget/budgeting/src/application/list-categories");
-  const { findCategoryById } = await import("@budget/budgeting/src/application/find-category-by-id");
-  const { renameCategory } = await import("@budget/budgeting/src/application/rename-category");
-  const { setCategoryLimit } = await import("@budget/budgeting/src/application/set-category-limit");
-  const { getEffectiveLimit } = await import("@budget/budgeting/src/application/get-effective-limit");
+  const { createCategoryLimitsRoute } =
+    await import("../../src/routes/category-limits");
+  const { DrizzleCategoryRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/category-repo");
+  const { DrizzleCategoryLimitRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+  const { createCategory } =
+    await import("@budget/budgeting/src/application/create-category");
+  const { archiveCategory } =
+    await import("@budget/budgeting/src/application/archive-category");
+  const { listCategories } =
+    await import("@budget/budgeting/src/application/list-categories");
+  const { findCategoryById } =
+    await import("@budget/budgeting/src/application/find-category-by-id");
+  const { renameCategory } =
+    await import("@budget/budgeting/src/application/rename-category");
+  const { setCategoryLimit } =
+    await import("@budget/budgeting/src/application/set-category-limit");
+  const { getEffectiveLimit } =
+    await import("@budget/budgeting/src/application/get-effective-limit");
 
   const repo = new DrizzleCategoryRepo();
   const limitRepo = new DrizzleCategoryLimitRepo();
@@ -95,7 +111,7 @@ describe("Category limits SCD-2 via HTTP", () => {
     const cat = await catRes.json();
 
     // Set Jan 1 limit
-    await app.request(`/categories/${cat.id}/limits`, {
+    await app.request(`/categories/${cat.category.id}/limits`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -108,7 +124,7 @@ describe("Category limits SCD-2 via HTTP", () => {
     });
 
     // Set May 1 limit (closes Jan row)
-    await app.request(`/categories/${cat.id}/limits`, {
+    await app.request(`/categories/${cat.category.id}/limits`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -121,12 +137,16 @@ describe("Category limits SCD-2 via HTTP", () => {
     });
 
     // Apr lookup → Jan limit
-    const aprRes = await app.request(`/categories/${cat.id}/limits/effective?date=2026-04-30`);
+    const aprRes = await app.request(
+      `/categories/${cat.category.id}/limits/effective?date=2026-04-30`,
+    );
     const apr = await aprRes.json();
     expect(apr.normalAmount).toBe("100000");
 
     // May lookup → May limit
-    const mayRes = await app.request(`/categories/${cat.id}/limits/effective?date=2026-05-01`);
+    const mayRes = await app.request(
+      `/categories/${cat.category.id}/limits/effective?date=2026-05-01`,
+    );
     const may = await mayRes.json();
     expect(may.normalAmount).toBe("120000");
   });
@@ -141,7 +161,9 @@ describe("Category limits SCD-2 via HTTP", () => {
     });
     const cat = await catRes.json();
 
-    const res = await app.request(`/categories/${cat.id}/limits/effective`);
+    const res = await app.request(
+      `/categories/${cat.category.id}/limits/effective`,
+    );
     expect(res.status).toBe(404);
   });
 
@@ -160,7 +182,7 @@ describe("Category limits SCD-2 via HTTP", () => {
     // Fire 3 concurrent limit-sets for different effective dates.
     // The advisory lock in category-limit-repo ensures only one open row exists.
     await Promise.all([
-      app.request(`/categories/${cat.id}/limits`, {
+      app.request(`/categories/${cat.category.id}/limits`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -171,7 +193,7 @@ describe("Category limits SCD-2 via HTTP", () => {
           effectiveFrom: "2026-01-01",
         }),
       }),
-      app.request(`/categories/${cat.id}/limits`, {
+      app.request(`/categories/${cat.category.id}/limits`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -182,7 +204,7 @@ describe("Category limits SCD-2 via HTTP", () => {
           effectiveFrom: "2026-03-01",
         }),
       }),
-      app.request(`/categories/${cat.id}/limits`, {
+      app.request(`/categories/${cat.category.id}/limits`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -203,15 +225,21 @@ describe("Category limits SCD-2 via HTTP", () => {
     let openCount = -1;
     try {
       await verifyClient.query(`BEGIN`);
-      await verifyClient.query(`SELECT set_config('app.tenant_ids', $1, false)`, [`{"${t2.tenantId}"}`]);
-      await verifyClient.query(`SELECT set_config('app.current_user_id', $1, false)`, [t2.userId]);
+      await verifyClient.query(
+        `SELECT set_config('app.tenant_ids', $1, false)`,
+        [`{"${t2.tenantId}"}`],
+      );
+      await verifyClient.query(
+        `SELECT set_config('app.current_user_id', $1, false)`,
+        [t2.userId],
+      );
       const { rows } = await verifyClient.query(
         `SELECT count(*) AS open_count
            FROM budgeting.category_limits
           WHERE tenant_id = $1::uuid
             AND category_id = $2::uuid
             AND effective_to IS NULL`,
-        [t2.tenantId, cat.id],
+        [t2.tenantId, cat.category.id],
       );
       await verifyClient.query(`COMMIT`);
       openCount = Number(rows[0].open_count);

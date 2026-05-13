@@ -6,7 +6,7 @@
  * Create flow: POST /categories → POST /categories/:id/limits (SCD-2).
  * Edit flow: PATCH /categories/:id + POST /categories/:id/limits.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -127,6 +127,20 @@ export function CategorySlider({
   });
 
   const { isSubmitting } = form.formState;
+
+  // UAT Defect 3: RHF defaultValues only apply on first mount. When the slider
+  // reopens (or switches category), call reset() so edit mode prefills correctly.
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: initial?.name ?? "",
+        plannedCents: initial?.plannedCents ? centsToDecimal(initial.plannedCents) : "0",
+        cushionCents: initial?.cushionCents ? centsToDecimal(initial.cushionCents) : "0",
+        iconKey: initial?.iconKey ?? null,
+        colorKey: initial?.colorKey ?? null,
+      });
+    }
+  }, [open, initial?.categoryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onSubmit(values: FormValues) {
     const today = new Date().toISOString().slice(0, 10);

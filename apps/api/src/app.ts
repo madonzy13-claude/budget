@@ -83,6 +83,7 @@ export function createApp(deps: BootedDeps) {
   app.use("/budgets/:budgetId/spendings-summary/*", requireWorkspace);
   app.use("/budgets/:budgetId/categories/*", requireWorkspace);
   app.use("/budgets/:budgetId/recurring-rules/*", requireWorkspace);
+  app.use("/budgets/:budgetId/transactions/*", requireWorkspace);
 
   app.route(
     "/budgets/:budgetId/spendings-summary",
@@ -93,6 +94,9 @@ export function createApp(deps: BootedDeps) {
     "/budgets/:budgetId/recurring-rules",
     createRecurringRulesRoute(deps),
   );
+  // UAT Defect 1: transactions were only mounted at /transactions (cross-budget root),
+  // not under /budgets/:budgetId/transactions. Phase 4 hooks call the nested path.
+  app.route("/budgets/:budgetId/transactions", createTransactionsRoute(deps));
 
   app.route("/settings", settingsRoutesFactory(deps));
   app.route("/currencies", createCurrenciesRoute(deps));
