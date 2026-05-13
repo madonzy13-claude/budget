@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 03 — navigation-home-bdp-frame
+**Current focus:** Phase 04 — spendings-grid (Phase 03 verified)
 
 ## Current Position
 
