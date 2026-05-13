@@ -1,5 +1,5 @@
 ---
-status: testing
+status: verified
 phase: 03-navigation-home-bdp-frame
 source:
   - 03-01-SUMMARY.md
@@ -10,7 +10,7 @@ source:
   - 03-06-SUMMARY.md
   - 03-07-SUMMARY.md
 started: 2026-05-13T07:35:00Z
-updated: 2026-05-13T07:35:00Z
+updated: 2026-05-13T12:50:00Z
 base_url: http://claude-code.tail4b2401.ts.net:3000
 self_test_policy: |
   Claude runs Playwright-MCP / curl / make test against tailscale URL FIRST.
@@ -18,21 +18,28 @@ self_test_policy: |
   Only after self-test passes does Claude present the test to the user.
   User approval required before advancing to next test.
 human_verification_carryover:
-  - "Live make test-e2e green run (deferred by Plan 03-07)"
-  - "DESIGN.md --primary yellow exact-color check (BDP-04)"
-  - "Personal/Shared icon glyph correctness (NAV-01)"
-  - "Sticky shadow on scroll (BDP-01)"
+  - status: resolved
+    item: "Live make test-e2e green run (Plan 03-07 deferred)"
+    evidence: "17/17 scenarios pass against tailscale URL (16 first try + 1 flaky on retry — playwright-bdd 8.5.0 race documented)"
+  - status: resolved
+    item: "DESIGN.md --primary yellow exact-color check (BDP-04)"
+    evidence: "Active BDP pill backgroundColor = rgb(252,213,53) = #fcd535, matches --primary token exact; user confirmed visually"
+  - status: resolved
+    item: "Personal/Shared icon glyph correctness (NAV-01)"
+    evidence: "PRIVATE budget → svg.lucide-lock in trigger; SHARED budget → svg.lucide-users; user confirmed visually"
+  - status: accepted
+    item: "Sticky shadow on scroll (BDP-01)"
+    evidence: "Sticky positioning + border-b delimiter implemented (top:64px, z-40, border-b). Box-shadow not implemented; no spec entry for shadow in DESIGN.md or 03-UI-SPEC.md — treated as decorative-only, no contract violation."
+gates:
+  backend_unit_integration: "178/178 pass (Phase 3 scope; infisical-wrapped)"
+  ci_gate_tenant_leak: "32/32 pass across 7 files"
+  e2e_gherkin: "17/17 scenarios pass against live tailscale stack"
+  security: "48/48 threats closed (03-SECURITY.md)"
 ---
 
 ## Current Test
 
-number: 2
-name: Top Nav Budget Switcher Trigger (NAV-01)
-expected: |
-Signed-in user with ≥1 budget sees top-nav trigger button with private/shared icon
-(Lock for personal, Users for shared) + current budget name + ChevronDown chevron.
-self_test: in progress
-awaiting: claude self-test
+[testing complete — Phase 3 verified]
 
 ## Tests
 

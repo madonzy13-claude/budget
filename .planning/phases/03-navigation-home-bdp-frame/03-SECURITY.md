@@ -1,7 +1,7 @@
 ---
 phase: 03
 slug: navigation-home-bdp-frame
-status: secured
+status: verified
 asvs_level: 1
 audited_at: 2026-05-13
 threats_total: 48
