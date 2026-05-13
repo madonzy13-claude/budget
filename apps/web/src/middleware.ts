@@ -64,6 +64,13 @@ export default function middleware(request: NextRequest) {
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
   const intlRes = intlMiddleware(request);
+
+  // If next-intl returns a redirect (status 3xx — e.g. bare `/` → `/${defaultLocale}`),
+  // return that response verbatim. Wrapping it in NextResponse.next() would
+  // strip the redirect status and leave only the Location header on a 200,
+  // which browsers do not follow — producing the blank-page-on-/ regression.
+  if (intlRes.status >= 300 && intlRes.status < 400) return intlRes;
+
   const merged = NextResponse.next({ request: { headers: requestHeaders } });
   intlRes.headers.forEach((value, key) => merged.headers.set(key, value));
   intlRes.cookies
