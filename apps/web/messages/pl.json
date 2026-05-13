@@ -179,7 +179,12 @@
       "addButton": "Dodaj budżet"
     },
     "kindPrivate": "Prywatny",
-    "kindShared": "Wspólny"
+    "kindShared": "Wspólny",
+    "new": {
+      "title": "Utwórz budżet",
+      "placeholder": "Kreator wprowadzający pojawi się w fazie 6.",
+      "backToHome": "Powrót do strony głównej"
+    }
   },
   "budget": {
     "shares": {
@@ -255,7 +260,23 @@
     "budget": "Budżet",
     "wallets": "Portfele",
     "transactions": "Transakcje",
-    "recurring": "Cykliczne"
+    "recurring": "Cykliczne",
+    "budgetSwitcher": {
+      "trigger": {
+        "aria": "Przełącz budżet"
+      }
+    },
+    "switcher": {
+      "personal": "Osobiste",
+      "shared": "Współdzielone",
+      "empty": {
+        "trigger": "Brak budżetów",
+        "body": "Użyj +, aby utworzyć pierwszy budżet.",
+        "cta": "Utwórz budżet"
+      }
+    },
+    "newBudget": "Nowy budżet",
+    "newBudgetTooltip": "Utwórz nowy budżet"
   },
   "onboarding": {
     "eyebrow": "Krok 1 z 3",
@@ -493,6 +514,56 @@
       "NORMAL": "Normalny",
       "CUSHION": "Poduszka",
       "save": "Zmień tryb"
+    }
+  },
+  "home": {
+    "heading": "Moje budżety",
+    "card": {
+      "spent": "Wydano w tym miesiącu",
+      "wallets": "Łącznie portfele",
+      "overspentHeading": "Przekroczono",
+      "allOnBudget": "Wszystkie kategorie w budżecie",
+      "error": "Nie udało się załadować podsumowania. Kliknij, aby otworzyć.",
+      "openAria": "Otwórz {budgetName}"
+    },
+    "chart": { "placeholder": "Wkrótce: statystyki" },
+    "empty": {
+      "heading": "Witaj — skonfigurujmy Twój pierwszy budżet",
+      "body": "Utwórz budżet, aby śledzić wydatki, portfele i rezerwy.",
+      "cta": "Utwórz pierwszy budżet"
+    }
+  },
+  "bdp": {
+    "tab": {
+      "aria": "Zakładki szczegółów budżetu",
+      "spendings": {
+        "label": "Wydatki",
+        "title": "Wydatki",
+        "placeholder": "Excel-podobna siatka kategorii pojawi się w fazie 4."
+      },
+      "reserves": {
+        "label": "Rezerwy",
+        "title": "Rezerwy",
+        "placeholder": "Salda rezerw na kategorię pojawią się w fazie 5."
+      },
+      "wallets": {
+        "label": "Portfele",
+        "title": "Portfele",
+        "placeholder": "Edytowalne wiersze portfeli pojawią się w fazie 5."
+      },
+      "settings": {
+        "label": "Ustawienia",
+        "title": "Ustawienia",
+        "placeholder": "Tożsamość budżetu, przełącznik poduszki, reguły cykliczne i członkowie pojawią się w fazie 6."
+      }
+    },
+    "tasks": {
+      "banner": {
+        "trigger": { "aria": "Pokaż oczekujące zadania" },
+        "collapse": { "aria": "Ukryj oczekujące zadania" }
+      },
+      "count": "{count, plural, one {# zadanie oczekujące} few {# zadania oczekujące} many {# zadań oczekujących} other {# zadań oczekujących}}",
+      "actionComingSoon": "Wkrótce w fazie 7"
     }
   }
 }
