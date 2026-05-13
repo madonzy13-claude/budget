@@ -69,11 +69,11 @@
 
 ### Q3 — Mobile drag affordance
 
-| Option                                                | Description                              | Selected |
-| ----------------------------------------------------- | ---------------------------------------- | -------- |
-| Explicit grip icon (GripVertical) on hover/long-press | Clear affordance, no scroll conflicts    | ✓        |
-| Long-press anywhere on header                         | Conflicts with horizontal-scroll gesture |          |
-| Edit-mode toggle                                      | "Rearrange" button enters reorder mode   |          |
+| Option                                           | Description                              | Selected |
+| ------------------------------------------------ | ---------------------------------------- | -------- |
+| Explicit grip icon (GripVertical) always visible | Clear affordance, no scroll conflicts    | ✓        |
+| Long-press anywhere on header                    | Conflicts with horizontal-scroll gesture |          |
+| Edit-mode toggle                                 | "Rearrange" button enters reorder mode   |          |
 
 **User's choice:** Explicit grip icon.
 
@@ -174,7 +174,7 @@
 
 | Option                            | Description                      | Selected |
 | --------------------------------- | -------------------------------- | -------- |
-| Inline buttons on hover/tap       | Discoverable; 1-click happy path | ✓        |
+| Inline buttons on click/tap       | Discoverable; 1-click happy path | ✓        |
 | Single-tap row opens slider       | Slower happy path                |          |
 | Swipe-left mobile / hover desktop | Inconsistent across breakpoints  |          |
 
@@ -206,7 +206,7 @@
 
 ## Universal interaction model (clarification round, post-initial discussion)
 
-User flagged that the initial draft-row "inline action buttons on hover/tap" answer was meant as a **grid-wide pattern**, not just for drafts. Same hover-reveal-options + click-quick-edit applies to txn rows, empty (quick-entry) slots, and category headers.
+User flagged that the initial draft-row "inline action buttons on hover/tap" answer was meant as a **grid-wide pattern**, not just for drafts. Then refined further: **NO hover anywhere — click only reveals options; double-click inline-edits.** Applies to txn rows, draft rows, bottom quick-entry slot, and category headers identically across desktop and mobile.
 
 ### Q-IM1 — Click on a cell, what happens?
 
@@ -216,7 +216,7 @@ User flagged that the initial draft-row "inline action buttons on hover/tap" ans
 | Click opens slider pre-filled              | Click = same as pen icon                                 |          |
 | Click selects, double-click inline-edits   | Single click highlights; double-click enters inline edit | ✓        |
 
-**User's choice:** Initially "Click selects, double-click inline-edits" — then user pivoted in the same answer notes: **"I changed my mind - click shows options, double click - quick edit. Same for recurring drafts"**. Final rule: hover OR click = reveal options; double-click = inline quick-edit.
+**User's choice:** Initially "Click selects, double-click inline-edits" — then user pivoted in the same answer notes: **"I changed my mind - click shows options, double click - quick edit. Same for recurring drafts"**. Then a **follow-up correction**: **"important, not hover!!! click and double click"** — confirming hover is NOT part of the model. Final rule: **single click reveals options; double-click inline-edits. Hover does nothing.**
 
 ### Q-IM2 — What does "empty cell" mean?
 
@@ -230,11 +230,11 @@ User flagged that the initial draft-row "inline action buttons on hover/tap" ans
 
 ### Q-IM3 — When does the slider actually open?
 
-| Option                                        | Description                                                 | Selected |
-| --------------------------------------------- | ----------------------------------------------------------- | -------- |
-| Only via pen icon in hover-revealed options   | Click cell = inline quick-edit; pen icon = full slider edit | ✓        |
-| Only for category edit + create (dashed +)    | Txns entirely inline                                        |          |
-| Pen icon + click on certain cells (note/date) | Mixed — amount inline, note/date open slider                |          |
+| Option                                        | Description                                              | Selected |
+| --------------------------------------------- | -------------------------------------------------------- | -------- |
+| Only via pen icon in click-revealed options   | Click cell = reveal options; pen icon = full slider edit | ✓        |
+| Only for category edit + create (dashed +)    | Txns entirely inline                                     |          |
+| Pen icon + click on certain cells (note/date) | Mixed — amount inline, note/date open slider             |          |
 
 **User's choice:** Pen icon in revealed options is the only slider entry point.
 
@@ -254,7 +254,7 @@ User flagged that the initial draft-row "inline action buttons on hover/tap" ans
 | Option                                                                                 | Description                                      | Selected |
 | -------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- |
 | Yes — double-click planned cell edits planned; double-click cushion cell edits cushion | SCD-2 versioning applies; name cell same pattern |          |
-| Category never inline — always slider                                                  | Hover/click → pen icon → slider with all fields  | ✓        |
+| Category never inline — always slider                                                  | Click → pen icon → slider with all fields        | ✓        |
 
 **User's choice:** Category cells are never inline-editable. Always slider via pen. Reason: slider also carries icon/color/cushion-mode controls users should see together.
 
