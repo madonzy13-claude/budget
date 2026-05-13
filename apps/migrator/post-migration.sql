@@ -688,9 +688,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.tasks TO app_role, worker_role
 
 -- Phase 2 v1.1: column-level GRANT UPDATE on editable expense_ledger columns
 -- (lifts REVOKE UPDATE for PATCH /transactions; preserves append-only for id/tenant_id/budget_id/created_at)
+-- Phase 4 plan 04-02: added dismissed_at (per-occurrence recurring draft dismiss, RECR-06)
 GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, currency_original,
               amount_converted_cents, fx_rate, fx_as_of, kind, recurring_rule_id,
-              confirmed_at, deleted_at, updated_at)
+              confirmed_at, dismissed_at, deleted_at, updated_at)
   ON budgeting.expense_ledger TO app_role;
 
 -- Phase 2 plan 02-03: GRANT on reserves auto-compute view

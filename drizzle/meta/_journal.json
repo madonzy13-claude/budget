@@ -127,6 +127,20 @@
       "when": 1747440000000,
       "tag": "0017_reserve_view_security_invoker",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1747526400000,
+      "tag": "0018_phase04_expense_ledger_dismissed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1747612800000,
+      "tag": "0019_phase04_budgets_timezone",
+      "breakpoints": true
     }
   ]
 }

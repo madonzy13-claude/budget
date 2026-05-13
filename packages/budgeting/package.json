@@ -77,7 +77,15 @@
     "./src/application/get-budget-home-summary": "./src/application/get-budget-home-summary.ts",
     "./src/ports/task-repo": "./src/ports/task-repo.ts",
     "./src/adapters/persistence/task-repo": "./src/adapters/persistence/task-repo.ts",
-    "./src/application/list-pending-tasks": "./src/application/list-pending-tasks.ts"
+    "./src/application/list-pending-tasks": "./src/application/list-pending-tasks.ts",
+    "./src/application/reorder-categories": "./src/application/reorder-categories.ts",
+    "./src/application/dismiss-draft": "./src/application/dismiss-draft.ts",
+    "./src/application/confirm-draft": "./src/application/confirm-draft.ts",
+    "./src/application/get-spendings-summary": "./src/application/get-spendings-summary.ts",
+    "./src/ports/expense-ledger-draft-port-repo": "./src/ports/expense-ledger-draft-port-repo.ts",
+    "./src/ports/spendings-summary-repo": "./src/ports/spendings-summary-repo.ts",
+    "./src/adapters/persistence/expense-ledger-draft-port-repo": "./src/adapters/persistence/expense-ledger-draft-port-repo.ts",
+    "./src/adapters/persistence/spendings-summary-repo": "./src/adapters/persistence/spendings-summary-repo.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

@@ -153,8 +153,9 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     const uid = UserId(actorUserId);
 
     const r = await withTenantTx(tid, uid, async (tx) => {
-      // Build VALUES (id::uuid, sort_index) pairs
-      const rows = orderedIds.map((id, idx) => sql`(${id}::uuid, ${idx + 1})`);
+      // Build VALUES (id::uuid, sort_index) pairs — cast idx to INTEGER explicitly
+      // to avoid "column sort_index is of type integer but expression is of type text"
+      const rows = orderedIds.map((id, idx) => sql`(${id}::uuid, ${idx + 1}::integer)`);
       const result = await tx.execute(
         sql`UPDATE budgeting.categories
                SET sort_index = data.idx

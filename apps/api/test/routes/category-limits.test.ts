@@ -1,6 +1,7 @@
 /**
  * category-limits.test.ts — Integration tests for category limits API
  * Focuses on SCD-2 effective-dated behavior via HTTP routes.
+ * Phase 4 addendum (plan 04-02): concurrent SCD-2 advisory lock test (Pitfall 3).
  */
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Hono } from "hono";
@@ -142,5 +143,82 @@ describe("Category limits SCD-2 via HTTP", () => {
 
     const res = await app.request(`/categories/${cat.id}/limits/effective`);
     expect(res.status).toBe(404);
+  });
+
+  it("concurrent SCD-2 writes do not produce overlapping open rows (Pitfall 3 advisory lock)", async () => {
+    // Create a fresh tenant + category to isolate from other tests
+    const t2 = await createTestUser();
+    const app = await buildApp(t2.userId, t2.tenantId);
+
+    const catRes = await app.request("/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Concurrent Limit Cat", scope: "SHARED" }),
+    });
+    const cat = await catRes.json();
+
+    // Fire 3 concurrent limit-sets for different effective dates.
+    // The advisory lock in category-limit-repo ensures only one open row exists.
+    await Promise.all([
+      app.request(`/categories/${cat.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: "10000",
+          normalCurrency: "EUR",
+          cushionAmount: "11000",
+          cushionCurrency: "EUR",
+          effectiveFrom: "2026-01-01",
+        }),
+      }),
+      app.request(`/categories/${cat.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: "20000",
+          normalCurrency: "EUR",
+          cushionAmount: "22000",
+          cushionCurrency: "EUR",
+          effectiveFrom: "2026-03-01",
+        }),
+      }),
+      app.request(`/categories/${cat.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: "30000",
+          normalCurrency: "EUR",
+          cushionAmount: "33000",
+          cushionCurrency: "EUR",
+          effectiveFrom: "2026-06-01",
+        }),
+      }),
+    ]);
+
+    // After concurrent writes: no overlapping open rows (effective_to IS NULL count = 1)
+    // Use app_role with explicit tenant RLS context for the verification query
+    const { Pool } = await import("pg");
+    const verifyPool = new Pool({ connectionString: DB_URL });
+    const verifyClient = await verifyPool.connect();
+    let openCount = -1;
+    try {
+      await verifyClient.query(`BEGIN`);
+      await verifyClient.query(`SELECT set_config('app.tenant_ids', $1, false)`, [`{"${t2.tenantId}"}`]);
+      await verifyClient.query(`SELECT set_config('app.current_user_id', $1, false)`, [t2.userId]);
+      const { rows } = await verifyClient.query(
+        `SELECT count(*) AS open_count
+           FROM budgeting.category_limits
+          WHERE tenant_id = $1::uuid
+            AND category_id = $2::uuid
+            AND effective_to IS NULL`,
+        [t2.tenantId, cat.id],
+      );
+      await verifyClient.query(`COMMIT`);
+      openCount = Number(rows[0].open_count);
+    } finally {
+      verifyClient.release();
+      await verifyPool.end();
+    }
+    expect(openCount).toBe(1);
   });
 });
