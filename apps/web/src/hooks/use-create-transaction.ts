@@ -13,6 +13,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
+import { mapTxnRowToDTO } from "./use-transactions";
 
 export interface CreateTransactionInput {
   categoryId: string;
@@ -121,11 +122,15 @@ export function useCreateTransaction(budgetId: string, month: string) {
     },
 
     onSuccess: (serverRow, _input, ctx) => {
+      // T-04-uat: serverRow is raw snake_case from serializeRow. Map to camelCase
+      // TxnDTO so transactionsByCatId.get(categoryId) finds the row immediately,
+      // without waiting for the invalidation refetch in onSettled.
+      const mapped = mapTxnRowToDTO(serverRow);
       qc.setQueryData(["transactions", budgetId, month], (old: unknown) => {
         const arr = Array.isArray(old) ? old : [];
         return arr.map((t: Record<string, unknown>) =>
           t.id === ctx?.optimisticId
-            ? { ...serverRow, pending: false, unsent: false }
+            ? { ...mapped, pending: false, unsent: false }
             : t,
         );
       });

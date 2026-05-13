@@ -95,17 +95,33 @@ describe("useTransactions", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
-  it("returns transactions array from body.transactions", async () => {
-    const txns = [{ id: "t1", amountConvertedCents: "1000" }];
+  it("maps snake_case API response to camelCase TxnDTO", async () => {
+    // API returns snake_case; queryFn applies mapTxnRowToDTO
+    const snakeRow = {
+      id: "t1",
+      category_id: "cat-abc",
+      amount_converted_cents: 1000,
+      currency_original: "EUR",
+      confirmed_at: null,
+      date: "2026-05-01",
+    };
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ transactions: txns }),
+      json: async () => ({ transactions: [snakeRow] }),
     });
 
     const { result } = renderHook(() => useTransactions(BUDGET_ID, MONTH), {
       wrapper,
     });
 
-    await waitFor(() => expect(result.current.data).toEqual(txns));
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    const row = result.current.data![0]!;
+    expect(row.id).toBe("t1");
+    expect(row.categoryId).toBe("cat-abc");
+    expect(row.amountConvertedCents).toBe("1000");
+    expect(row.transactionDate).toBe("2026-05-01");
+    // snake_case keys must NOT appear
+    expect((row as Record<string, unknown>).category_id).toBeUndefined();
+    expect((row as Record<string, unknown>).amount_converted_cents).toBeUndefined();
   });
 });
