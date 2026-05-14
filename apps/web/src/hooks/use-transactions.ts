@@ -11,60 +11,14 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import {
+  mapTxnRowToDTO,
+  type TxnDTO,
+  type TxnRowSnake,
+} from "@/lib/txn-mapper";
 
-export interface TxnDTO {
-  id: string;
-  categoryId: string;
-  amountConvertedCents: string;
-  currencyConverted: string;
-  amountOriginalCents?: string;
-  currencyOriginal?: string;
-  fxRate?: string;
-  fxAsOf?: string;
-  note?: string | null;
-  transactionDate: string;
-  confirmedAt: string | null;
-  pending?: boolean;
-  unsent?: boolean;
-}
-
-interface TxnRowSnake {
-  id: string;
-  category_id: string;
-  amount_converted_cents: string | number;
-  currency_converted?: string;
-  currency_original?: string;
-  amount_original_cents?: string | number;
-  fx_rate?: string;
-  fx_as_of?: string;
-  note?: string | null;
-  date?: string;
-  transaction_date?: string;
-  confirmed_at: string | null;
-  rule_name?: string;
-}
-
-export function mapTxnRowToDTO(row: TxnRowSnake): TxnDTO {
-  // exactOptionalPropertyTypes: conditionally spread optional fields to avoid
-  // assigning `undefined` to optional-string properties (string | undefined ≠ string).
-  return {
-    id: row.id,
-    categoryId: row.category_id,
-    amountConvertedCents: String(row.amount_converted_cents),
-    currencyConverted: row.currency_converted ?? row.currency_original ?? "EUR",
-    ...(row.amount_original_cents != null
-      ? { amountOriginalCents: String(row.amount_original_cents) }
-      : {}),
-    ...(row.currency_original != null
-      ? { currencyOriginal: row.currency_original }
-      : {}),
-    ...(row.fx_rate != null ? { fxRate: row.fx_rate } : {}),
-    ...(row.fx_as_of != null ? { fxAsOf: row.fx_as_of } : {}),
-    note: row.note ?? null,
-    transactionDate: row.transaction_date ?? row.date ?? "",
-    confirmedAt: row.confirmed_at,
-  };
-}
+export { mapTxnRowToDTO };
+export type { TxnDTO, TxnRowSnake };
 
 export function useTransactions(
   budgetId: string,

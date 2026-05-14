@@ -13,7 +13,7 @@
 import { Temporal } from "temporal-polyfill";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
-import { mapTxnRowToDTO } from "@/hooks/use-transactions";
+import { mapTxnRowToDTO } from "@/lib/txn-mapper";
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
