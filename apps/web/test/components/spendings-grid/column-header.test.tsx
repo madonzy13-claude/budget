@@ -57,7 +57,7 @@ describe("ColumnHeader", () => {
 
   it("grip element has touch-action:none (D-PH4-D3)", () => {
     renderHeader();
-    const grip = document.querySelector('[data-testid="column-header-grip"]');
+    const grip = document.querySelector('[data-testid="drag-grip-groceries"]');
     expect(grip).toBeTruthy();
     const style = grip?.getAttribute("style") ?? "";
     const className = grip?.className ?? "";
@@ -83,7 +83,7 @@ describe("ColumnHeader", () => {
     if (nameCell) fireEvent.click(nameCell);
     else fireEvent.click(screen.getByTestId("column-header-groceries"));
     // After click, edit button should be visible
-    const editBtn = document.querySelector('[data-testid="column-header-edit"]');
+    const editBtn = document.querySelector('[data-testid="column-header-pen-groceries"]');
     expect(editBtn).toBeTruthy();
   });
 
@@ -102,7 +102,7 @@ describe("ColumnHeader", () => {
     const nameCell = document.querySelector('[data-testid="column-header-name-cell"]');
     if (nameCell) fireEvent.click(nameCell);
     else fireEvent.click(screen.getByTestId("column-header-groceries"));
-    const editBtn = document.querySelector('[data-testid="column-header-edit"]');
+    const editBtn = document.querySelector('[data-testid="column-header-pen-groceries"]');
     if (editBtn) fireEvent.click(editBtn);
     expect(onEdit).toHaveBeenCalledWith("cat-1");
   });

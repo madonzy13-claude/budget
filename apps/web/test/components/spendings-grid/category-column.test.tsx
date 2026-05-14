@@ -153,7 +153,7 @@ describe("CategoryColumn", () => {
 
   it("dragGripProps spread on ColumnHeader grip only (NOT on column body)", () => {
     renderColumn();
-    const grip = document.querySelector("[data-testid='column-header-grip']");
+    const grip = document.querySelector("[data-testid='drag-grip-groceries']");
     expect(grip).toBeTruthy();
     // grip has the listener attribute (spread from useSortable.listeners)
     expect(grip?.getAttribute("data-sortable-listener")).toBe("mock");

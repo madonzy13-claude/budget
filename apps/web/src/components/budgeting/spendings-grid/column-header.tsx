@@ -76,7 +76,7 @@ export function ColumnHeader({
       >
         {/* GripVertical — always visible, touch-none, D-PH4-D3 */}
         <span
-          data-testid="column-header-grip"
+          data-testid={`drag-grip-${category.name.toLowerCase()}`}
           style={{ touchAction: "none" }}
           className="touch-none cursor-grab text-[var(--muted-foreground)]"
           {...dragGripProps}
@@ -89,7 +89,7 @@ export function ColumnHeader({
         {revealed && (
           <button
             type="button"
-            data-testid="column-header-edit"
+            data-testid={`column-header-pen-${category.name.toLowerCase()}`}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(category.id);

@@ -249,7 +249,7 @@ describe("SpendingsGridClient", () => {
     const nameCells = document.querySelectorAll("[data-testid='column-header-name-cell']");
     expect(nameCells.length).toBeGreaterThan(0);
     fireEvent.click(nameCells[0]!);
-    const editBtn = document.querySelector("[data-testid='column-header-edit']");
+    const editBtn = document.querySelector("[data-testid='column-header-pen-groceries']");
     expect(editBtn).toBeTruthy();
     fireEvent.click(editBtn!);
     // CategorySlider should open (look for cat slider content)

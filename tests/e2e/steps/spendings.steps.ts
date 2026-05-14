@@ -292,6 +292,17 @@ When(
 );
 
 When(
+  "I single-click the column header {string}",
+  async ({ page }, catName: string) => {
+    const spendings = new SpendingsPage(page);
+    await spendings
+      .columnHeader(catName)
+      .getByTestId("column-header-name-cell")
+      .click();
+  },
+);
+
+When(
   "I double-click the amount cell on transaction {string}",
   async ({ page }, amount: string) => {
     const spendings = new SpendingsPage(page);
@@ -418,6 +429,12 @@ When(
 Then("I see the spendings grid container", async ({ page }) => {
   const spendings = new SpendingsPage(page);
   await expect(spendings.gridContainer()).toBeVisible({ timeout: 15000 });
+});
+
+Then("I see the CategorySlider is open", async ({ page }) => {
+  await expect(
+    page.locator('[data-testid="cat-slider-content"]'),
+  ).toBeVisible({ timeout: 10000 });
 });
 
 Then(
