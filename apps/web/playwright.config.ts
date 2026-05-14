@@ -2,6 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 import { defineBddConfig } from "playwright-bdd";
 
 const testDir = defineBddConfig({
+  // featuresRoot must be the repo root: feature files live both in
+  // apps/web/e2e/features and the top-level tests/e2e/features tree.
+  // Without this, playwright-bdd rejects the out-of-apps/web features.
+  featuresRoot: "../..",
   features: [
     "e2e/features/**/*.feature",
     "../../tests/e2e/features/**/*.feature",
@@ -33,7 +37,10 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     {
       name: "mobile",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 } },
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+      },
     },
   ],
 });
