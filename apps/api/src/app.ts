@@ -90,6 +90,10 @@ export function createApp(deps: BootedDeps) {
     createSpendingsSummaryRoute(deps),
   );
   app.route("/budgets/:budgetId/categories", createCategoriesRoute(deps));
+  // UAT Defect 5: category-limits were only mounted at root /categories, not
+  // under the budget-scoped path. CategorySlider POSTs to
+  // /budgets/:budgetId/categories/:id/limits on create/edit.
+  app.route("/budgets/:budgetId/categories", createCategoryLimitsRoute(deps));
   app.route(
     "/budgets/:budgetId/recurring-rules",
     createRecurringRulesRoute(deps),
