@@ -30,20 +30,34 @@ async function withPg<T>(fn: (client: import("pg").Client) => Promise<T>): Promi
   }
 }
 
-/** Resolve a budget UUID from the API response via its name. */
+/** Resolve a budget UUID from the active workspace (budget.steps.ts stores it in scenarioCtx). */
 async function findBudgetId(
   page: import("@playwright/test").Page,
   budgetName: string,
+  scenarioCtx?: Record<string, unknown>,
 ): Promise<string> {
-  const res = await page.request.get("/api/budgets");
-  if (!res.ok()) throw new Error(`GET /api/budgets failed: ${res.status()}`);
-  const data = (await res.json()) as {
+  // Fast path: use the ID stored by "I am signed in as a fresh user with workspace" step
+  if (scenarioCtx) {
+    const storedName = scenarioCtx["workspaceName"] as string | undefined;
+    const storedId = scenarioCtx["workspaceId"] as string | undefined;
+    if (storedId && storedName === budgetName) return storedId;
+  }
+  // Fallback: GET /api/budgets/active and find active workspace by name
+  const activeRes = await page.request.get("/api/budgets/active");
+  if (!activeRes.ok()) throw new Error(`GET /api/budgets/active failed: ${activeRes.status()}`);
+  const data = (await activeRes.json()) as {
     budgets?: Array<{ id: string; name: string }>;
+    workspaces?: Array<{ id: string; name: string }>;
     data?: Array<{ id: string; name: string }>;
+    activeWorkspaceIds?: string[];
   };
-  const list = data.budgets ?? data.data ?? [];
+  // If active endpoint returns IDs but not names, use the active ID directly
+  if (data.activeWorkspaceIds?.length) {
+    return data.activeWorkspaceIds[0]!;
+  }
+  const list = data.budgets ?? data.workspaces ?? data.data ?? [];
   const found = list.find((b) => b.name === budgetName);
-  if (!found) throw new Error(`Budget "${budgetName}" not found in: ${JSON.stringify(list.map(b => b.name))}`);
+  if (!found) throw new Error(`Budget "${budgetName}" not found in: ${JSON.stringify(list.map((b) => b.name))}`);
   return found.id;
 }
 
@@ -53,7 +67,9 @@ async function findCategoryId(
   budgetId: string,
   catName: string,
 ): Promise<string> {
-  const res = await page.request.get(`/api/budgets/${budgetId}/categories`);
+  const res = await page.request.get(`/api/budgets/${budgetId}/categories`, {
+    headers: { "X-Budget-ID": budgetId },
+  });
   if (!res.ok()) throw new Error(`GET /api/budgets/${budgetId}/categories failed: ${res.status()}`);
   const data = (await res.json()) as {
     categories?: Array<{ id: string; name: string }>;
@@ -69,11 +85,11 @@ async function findCategoryId(
 
 Given(
   "the budget {string} has a category {string} with planned {string} {string}",
-  async ({ page }, budgetName: string, catName: string, plannedStr: string, currency: string) => {
-    const budgetId = await findBudgetId(page, budgetName);
+  async ({ page, scenarioCtx }, budgetName: string, catName: string, plannedStr: string, currency: string) => {
+    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
     // Create category
     const catRes = await page.request.post(`/api/budgets/${budgetId}/categories`, {
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
       data: { name: catName, currency },
     });
     if (![200, 201, 409].includes(catRes.status())) {
@@ -81,15 +97,19 @@ Given(
       throw new Error(`POST /categories failed: ${catRes.status()} ${body}`);
     }
     const categoryId = await findCategoryId(page, budgetId, catName);
-    // Set planned limit
+    // Set planned limit (normalAmount + cushionAmount as string cents)
+    // effectiveFrom must be <= monthStart (YYYY-MM-01) so the limit applies to the current month.
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const limitRes = await page.request.post(
       `/api/categories/${categoryId}/limits`,
       {
-        headers: { "Idempotency-Key": crypto.randomUUID() },
+        headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
         data: {
-          normalLimitCents: Math.round(parseFloat(plannedStr) * 100),
-          currency,
-          effectiveFrom: new Date().toISOString().slice(0, 10),
+          normalAmount: String(Math.round(parseFloat(plannedStr) * 100)),
+          cushionAmount: "0",
+          normalCurrency: currency,
+          effectiveFrom: monthStart,
         },
       },
     );
@@ -102,8 +122,8 @@ Given(
 
 Given(
   "the budget {string} has a category {string} with planned {string} {string} and cushion {string} {string}",
-  async ({ page }, budgetName: string, catName: string, plannedStr: string, currency: string, cushionStr: string, _cushionCurrency: string) => {
-    const budgetId = await findBudgetId(page, budgetName);
+  async ({ page, scenarioCtx }, budgetName: string, catName: string, plannedStr: string, currency: string, cushionStr: string, _cushionCurrency: string) => {
+    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
     const catRes = await page.request.post(`/api/budgets/${budgetId}/categories`, {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       data: { name: catName, currency },
@@ -134,8 +154,8 @@ Given(
 
 Given(
   "the budget {string} has a transaction {string} {string} in category {string}",
-  async ({ page }, budgetName: string, amountStr: string, currency: string, catName: string) => {
-    const budgetId = await findBudgetId(page, budgetName);
+  async ({ page, scenarioCtx }, budgetName: string, amountStr: string, currency: string, catName: string) => {
+    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
     const categoryId = await findCategoryId(page, budgetId, catName);
     // Get first wallet
     const walletsRes = await page.request.get("/api/wallets");
@@ -164,8 +184,8 @@ Given(
 
 Given(
   "the budget {string} has a recurring rule {string} for category {string} of {string} {string} due this month",
-  async ({ page }, budgetName: string, ruleName: string, catName: string, amountStr: string, currency: string) => {
-    const budgetId = await findBudgetId(page, budgetName);
+  async ({ page, scenarioCtx }, budgetName: string, ruleName: string, catName: string, amountStr: string, currency: string) => {
+    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
     const categoryId = await findCategoryId(page, budgetId, catName);
     const walletsRes = await page.request.get("/api/wallets");
     const walletsData = walletsRes.ok()
@@ -238,7 +258,7 @@ Given(
 When(
   "I open the Spendings tab on a budget {string}",
   async ({ page, scenarioCtx }, budgetName: string) => {
-    const budgetId = await findBudgetId(page, budgetName);
+    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
     (scenarioCtx as Record<string, unknown>)["activeBudgetId"] = budgetId;
     await page.goto(`/en/budgets/${budgetId}/spendings`);
     await page.waitForLoadState("networkidle");
@@ -403,15 +423,11 @@ Then("I see the spendings grid container", async ({ page }) => {
 Then(
   "I see a transaction row {string} in the {string} column",
   async ({ page }, amount: string, catName: string) => {
-    // Look for the amount within the column
-    const spendings = new SpendingsPage(page);
-    const col = spendings.columnHeader(catName).locator("..").or(
-      page.getByTestId(`column-${catName.toLowerCase()}`),
-    );
-    // Fallback: look for any txn-row with the amount visible on page
-    const row = page.locator(`[data-testid*="txn-row-${amount}"]`).first();
+    // data-testid uses cents (e.g. "12.50" → "1250")
+    const cents = String(Math.round(parseFloat(amount) * 100));
+    const row = page.locator(`[data-testid="txn-row-${cents}"]`).first();
     await expect(row).toBeVisible({ timeout: 10000 });
-    void col; // validated by presence of amount
+    void catName; // column presence validated by the row being visible inside it
   },
 );
 

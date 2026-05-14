@@ -32,9 +32,12 @@ Given(
     });
     expect(create.ok()).toBeTruthy();
     const { id: workspaceId } = (await create.json()) as { id: string };
+    // Store for use by spendings.steps.ts findBudgetId (avoids GET /api/budgets which doesn't exist)
+    (scenarioCtx as Record<string, unknown>)["workspaceId"] = workspaceId;
+    (scenarioCtx as Record<string, unknown>)["workspaceName"] = workspaceName;
 
     const activate = await page.request.put("/api/budgets/active", {
-      data: { budgetIds: [workspaceId] },
+      data: { workspaceIds: [workspaceId] },
     });
     expect(activate.ok()).toBeTruthy();
 

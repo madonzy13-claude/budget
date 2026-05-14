@@ -168,6 +168,7 @@ export function ColumnHeader({
           {t("row5.balance")}
         </span>
         <span
+          data-testid={`column-header-${category.name.toLowerCase()}-balance`}
           className={cn(
             "text-sm font-semibold tabular-nums",
             balanceCents > 0n

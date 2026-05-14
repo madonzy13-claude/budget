@@ -54,5 +54,11 @@ docker-compose.override.yml.example
 .planning
 
 # Local Postgres bind-mount (commit 1aebb09) — never send to build context
+data
+data/**
 /data
 /data/**
+
+# Orchestrator scratch — agent worktrees, planning, caches
+.claude
+.claude/**
