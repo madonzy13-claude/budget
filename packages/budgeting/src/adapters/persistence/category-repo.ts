@@ -41,14 +41,19 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     const uid = UserId(category.actorUserId);
 
     const r = await withTenantTx(tid, uid, async (tx) => {
+      // sort_index = max existing + 1 so a freshly created category lands
+      // last (rightmost) in the grid instead of defaulting to 0.
       await tx.execute(
         sql`INSERT INTO budgeting.categories
-              (id, tenant_id, name, parent_id, archived_at, created_at, actor_user_id)
+              (id, tenant_id, name, parent_id, archived_at, created_at, actor_user_id, sort_index)
             VALUES
               (${category.id}::uuid, ${category.tenantId}::uuid, ${category.name},
                ${category.parentId ? sql`${category.parentId}::uuid` : sql`NULL`},
                ${category.archivedAt?.toISOString() ?? null},
-               ${category.createdAt.toISOString()}, ${category.actorUserId}::uuid)`,
+               ${category.createdAt.toISOString()}, ${category.actorUserId}::uuid,
+               (SELECT COALESCE(MAX(sort_index), -1) + 1
+                  FROM budgeting.categories
+                 WHERE tenant_id = ${category.tenantId}::uuid))`,
       );
 
       await writeAudit(tx, {

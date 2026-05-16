@@ -603,8 +603,10 @@
       }
     },
     "draft": {
+      "sectionTitle": "До підтвердження",
       "action": {
         "confirm": "Confirm",
+        "edit": "Edit",
         "dismiss": "Dismiss"
       }
     },
@@ -620,11 +622,8 @@
       }
     },
     "quickEntry": {
-      "placeholder": "Add expense…",
-      "helper": {
-        "current": "Press Enter to save",
-        "past": "Saves as {date}"
-      }
+      "placeholder": "…",
+      "title": "expenses"
     },
     "monthNav": {
       "prev": "Previous month",
@@ -651,9 +650,10 @@
       "fxStale": "Exchange rate has updated. Review the new amount and save again."
     },
     "confirm": {
+      "discardChanges": "У вас є незбережені зміни. Скасувати їх?",
       "deleteTxn": {
         "title": "Delete transaction?",
-        "body": "This will permanently remove the transaction from {month}. This action cannot be undone.",
+        "body": "This will permanently remove {amount} on {date}. This action cannot be undone.",
         "cta": "Delete",
         "cancel": "Cancel"
       },
@@ -676,7 +676,7 @@
         "reservesUsed": "reserves used"
       },
       "row5": {
-        "balance": "balance"
+        "balance": "left"
       }
     }
   }

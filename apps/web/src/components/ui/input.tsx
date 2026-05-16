@@ -16,7 +16,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          "flex h-10 w-full min-w-0 px-3 py-2 text-sm",
+          // text-base on mobile (16px) prevents iOS Safari from zooming the
+          // viewport when the input is focused; desktop drops back to text-sm.
+          "flex h-10 w-full min-w-0 px-3 py-2 text-base sm:text-sm",
           "rounded-[var(--radius-md)] border border-[var(--input)]",
           "bg-[color-mix(in_oklab,var(--card)_92%,transparent)]",
           "text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]",

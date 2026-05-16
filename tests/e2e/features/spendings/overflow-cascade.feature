@@ -7,9 +7,9 @@ Feature: Overflow cascade when reserve exhausted (RSCM-04)
     When I open the Spendings tab on a budget "Family"
     And I type "90.00" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
-    Then I see a transaction row "90.00" in the "Groceries" column
-    And I see the column "Groceries" header balance shows "10.00"
+    Then I see a transaction row "90" in the "Groceries" column
+    And I see the column "Groceries" header balance shows "10"
     When I type "50.00" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
-    Then I see a transaction row "50.00" in the "Groceries" column
-    And I see the column "Groceries" header overspent shows "40.00"
+    Then I see a transaction row "50" in the "Groceries" column
+    And I see the column "Groceries" header overspent shows "40"

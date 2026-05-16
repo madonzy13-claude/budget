@@ -48,7 +48,7 @@ export function BdpTabs({ locale, budgetId }: BdpTabsProps) {
   return (
     <nav
       aria-label={t("aria")}
-      className="flex h-12 items-center gap-2 px-4 sm:px-6"
+      className="flex h-12 items-center justify-center gap-2 px-4 sm:px-6"
     >
       {TABS.map(({ slug, icon: Icon }) => {
         const href = `/${locale}/budgets/${budgetId}/${slug}`;

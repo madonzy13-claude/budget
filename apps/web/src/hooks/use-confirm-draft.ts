@@ -38,7 +38,9 @@ export function useConfirmDraft(budgetId: string, month: string) {
         },
       );
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      // Server returns 204 No Content — calling res.json() on empty body
+      // throws SyntaxError. Return null instead.
+      return null;
     },
 
     onSettled: () => {

@@ -37,7 +37,6 @@ function renderHeader(props = {}) {
       category={category}
       summary={summary}
       cushionModeEnabled={false}
-      budgetCurrency="USD"
       onEdit={vi.fn()}
       {...props}
     />,
@@ -105,5 +104,13 @@ describe("ColumnHeader", () => {
     const editBtn = document.querySelector('[data-testid="column-header-pen-groceries"]');
     if (editBtn) fireEvent.click(editBtn);
     expect(onEdit).toHaveBeenCalledWith("cat-1");
+  });
+
+  it("clamps the Left row to 0 when the category is overspent (negative balance)", () => {
+    renderHeader({
+      summary: { ...summary, balanceCents: "-52900", overspentCents: "52900" },
+    });
+    const left = screen.getByTestId("column-header-groceries-balance");
+    expect(left.textContent).toBe("0");
   });
 });

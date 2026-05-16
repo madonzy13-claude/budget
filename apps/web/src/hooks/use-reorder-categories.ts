@@ -30,7 +30,10 @@ export function useReorderCategories(budgetId: string) {
         },
       );
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      // PUT /categories/sort-order returns 204 No Content — there is no body
+      // to parse. Calling res.json() on an empty body throws and would make a
+      // successful reorder look like a failure (optimistic rollback).
+      return null;
     },
 
     onMutate: async (input) => {

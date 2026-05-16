@@ -8,6 +8,11 @@ const LOCALES = ["en", "pl", "uk"];
 const AUTH_ROUTES = ["/sign-in", "/sign-up"];
 const PROTECTED_ROUTES = ["/onboarding", "/budgets", "/settings"];
 const SESSION_COOKIE = "better-auth.session_token";
+// Holds the signed-in user's account locale (set on sign-in + by Settings,
+// kept in sync by LocaleCookieSync). Logged-in users are redirected so the
+// URL locale always matches this. Logged-out users keep whatever locale the
+// URL carries.
+const ACCOUNT_LOCALE_COOKIE = "budget-locale";
 
 function extractLocale(pathname: string): string {
   const segment = pathname.split("/")[1] ?? "";
@@ -38,6 +43,23 @@ export default function middleware(request: NextRequest) {
     const res = intlMiddleware(request);
     res.cookies.delete(SESSION_COOKIE);
     return res;
+  }
+
+  // Logged-in users: the account locale is authoritative. If the URL carries a
+  // different locale, redirect to the same path in the account locale. Only
+  // Settings changes the account locale (and the cookie). Logged-out users are
+  // left alone — for them the URL locale wins.
+  if (isAuthenticated) {
+    const accountLocale = request.cookies.get(ACCOUNT_LOCALE_COOKIE)?.value;
+    if (
+      accountLocale &&
+      LOCALES.includes(accountLocale) &&
+      locale !== accountLocale
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/${accountLocale}${bare === "/" ? "" : bare}`;
+      return NextResponse.redirect(url);
+    }
   }
 
   // Authenticated → redirect away from auth pages to the Phase 3 home (`/`)

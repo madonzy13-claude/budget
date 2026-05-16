@@ -103,7 +103,6 @@ function renderColumn(overrides = {}) {
         drafts={[draft1]}
         budgetId="budget-1"
         month="2026-05"
-        isPastMonth={false}
         resolvedQuickEntryDate="2026-05-13"
         onEditTxn={vi.fn()}
         onEditDraft={vi.fn()}
@@ -125,7 +124,7 @@ describe("CategoryColumn", () => {
     expect(screen.getByTestId("column-header-groceries")).toBeTruthy();
   });
 
-  it("renders QuickEntryInput at bottom", () => {
+  it("renders QuickEntryInput", () => {
     renderColumn();
     // QuickEntryInput has data-testid quick-entry-{name.toLowerCase()}
     expect(screen.getByTestId("quick-entry-groceries")).toBeTruthy();

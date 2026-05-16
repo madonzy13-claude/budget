@@ -241,6 +241,8 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
 
   // POST /drafts/:draftId/confirm — per-occurrence confirm (RECR-03/04, CASE B)
   // Mounted under /budgets/:budgetId/recurring-rules via app.ts Phase 4 wiring.
+  // Optional body: { amount_override_cents: number } — set when user inline-edits
+  // the draft amount before confirming (D-PH4-INT5).
   app.post("/drafts/:draftId/confirm", async (c) => {
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
@@ -251,10 +253,22 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
       return c.json({ error: "tenant_mismatch" }, 403);
     }
 
+    const body = await c.req.json().catch(() => ({}));
+    const overrideRaw = (body as Record<string, unknown>)?.amount_override_cents;
+    let amountOverrideCents: number | undefined;
+    if (overrideRaw !== undefined && overrideRaw !== null) {
+      const n = typeof overrideRaw === "number" ? overrideRaw : Number(overrideRaw);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+        return c.json({ error: "invalid_amount_override" }, 422);
+      }
+      amountOverrideCents = n;
+    }
+
     const r = await deps.budgeting.confirmDraft({
       tenantId,
       draftId,
       actorUserId: userId,
+      amountOverrideCents,
     });
 
     if (r.isErr()) {

@@ -187,12 +187,6 @@ Given(
   async ({ page, scenarioCtx }, budgetName: string, ruleName: string, catName: string, amountStr: string, currency: string) => {
     const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
     const categoryId = await findCategoryId(page, budgetId, catName);
-    const walletsRes = await page.request.get("/api/wallets");
-    const walletsData = walletsRes.ok()
-      ? (await walletsRes.json() as { accounts: Array<{ id: string }> })
-      : { accounts: [] };
-    const accountId = walletsData.accounts[0]?.id;
-    if (!accountId) throw new Error("No wallet — run 'I have a checking account' first");
     const today = new Date();
     const firstDueDate = new Date(
       today.getUTCFullYear(),
@@ -200,17 +194,14 @@ Given(
       today.getUTCDate(),
     ).toISOString().slice(0, 10);
     const res = await page.request.post(`/api/budgets/${budgetId}/recurring-rules`, {
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
       data: {
-        accountId,
-        categoryId,
+        category_id: categoryId,
         amount: amountStr,
         currency,
-        kind: "EXPENSE",
         cadence: "MONTHLY",
-        cadenceAnchor: today.getUTCDate(),
-        weeklyDow: null,
-        firstDueDate,
+        cadence_anchor: today.getUTCDate(),
+        first_due_date: firstDueDate,
         note: ruleName,
       },
     });
@@ -219,7 +210,9 @@ Given(
       throw new Error(`POST /recurring-rules failed: ${res.status()} ${body}`);
     }
     // Seed a PENDING draft for this rule so it shows in the spendings grid
-    const rulesRes = await page.request.get(`/api/budgets/${budgetId}/recurring-rules`);
+    const rulesRes = await page.request.get(`/api/budgets/${budgetId}/recurring-rules`, {
+      headers: { "X-Budget-ID": budgetId },
+    });
     if (rulesRes.ok()) {
       const rulesData = (await rulesRes.json()) as {
         rules?: Array<{ id: string; note: string | null }>;
@@ -231,7 +224,7 @@ Given(
         await page.request.post(
           `/api/recurring-rules/${rule.id}/_seed-draft`,
           {
-            headers: { "Idempotency-Key": crypto.randomUUID() },
+            headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
             data: { dueDate: firstDueDate, amount: amountStr, currency },
           },
         ).catch(() => {

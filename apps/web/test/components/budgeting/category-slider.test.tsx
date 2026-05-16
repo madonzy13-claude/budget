@@ -3,7 +3,8 @@
  * TDD RED: write tests before implementation.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TestQueryProvider } from "../../setup/query-client";
 
 const fetchMock = vi.fn();
@@ -18,6 +19,10 @@ vi.mock("next-intl", () => ({
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
@@ -118,6 +123,41 @@ describe("CategorySlider", () => {
     // No currency picker select for planned/cushion
     const currencyPicker = document.querySelector("[data-testid='currency-picker']");
     expect(currencyPicker).toBeNull();
+  });
+
+  it("create flow: limits POST sends amounts as digit strings (setLimitSchema expects z.string)", async () => {
+    const user = userEvent.setup();
+    render(
+      <TestQueryProvider>
+        <CategorySlider {...defaultProps} />
+      </TestQueryProvider>,
+    );
+    await user.type(document.querySelector("#cat-slider-name") as HTMLElement, "Travel");
+    const planned = document.querySelector("#cat-slider-planned") as HTMLInputElement;
+    await user.clear(planned);
+    await user.type(planned, "100");
+    const saveBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("catSlider.cta.create"))!;
+    await user.click(saveBtn);
+
+    await waitFor(() => {
+      const limitsCall = fetchMock.mock.calls.find((c) =>
+        String(c[0]).includes("/limits"),
+      );
+      expect(limitsCall).toBeTruthy();
+    });
+    const limitsCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes("/limits"),
+    )!;
+    const body = JSON.parse((limitsCall[1] as { body: string }).body);
+    expect(typeof body.normalAmount).toBe("string");
+    expect(body.normalAmount).toMatch(/^\d+$/);
+    expect(typeof body.cushionAmount).toBe("string");
+    expect(body.cushionAmount).toMatch(/^\d+$/);
+    // effectiveFrom must anchor to the first of the month so the limit is
+    // visible in the current month's spendings-summary.
+    expect(body.effectiveFrom).toMatch(/^\d{4}-\d{2}-01$/);
   });
 
   it("validation: name required; save button present", () => {
@@ -243,7 +283,7 @@ describe("CategorySlider", () => {
     expect(nameInput.value).toBe("Groceries");
   });
 
-  it("edit mode: planned amount is prefilled (10000 cents → 100.00)", () => {
+  it("edit mode: planned amount is prefilled (10000 cents → 100, bare format)", () => {
     render(
       <TestQueryProvider>
         <CategorySlider {...editProps} />
@@ -251,10 +291,10 @@ describe("CategorySlider", () => {
     );
     const plannedInput = document.getElementById("cat-slider-planned") as HTMLInputElement;
     expect(plannedInput).toBeTruthy();
-    expect(plannedInput.value).toBe("100.00");
+    expect(plannedInput.value).toBe("100");
   });
 
-  it("edit mode: cushion amount is prefilled (2000 cents → 20.00)", () => {
+  it("edit mode: cushion amount is prefilled (2000 cents → 20, bare format)", () => {
     render(
       <TestQueryProvider>
         <CategorySlider {...editProps} />
@@ -262,7 +302,45 @@ describe("CategorySlider", () => {
     );
     const cushionInput = document.getElementById("cat-slider-cushion") as HTMLInputElement;
     expect(cushionInput).toBeTruthy();
-    expect(cushionInput.value).toBe("20.00");
+    expect(cushionInput.value).toBe("20");
+  });
+
+  it("edit mode: saving with prefilled decimal amounts submits PATCH + limits (schema accepts decimals)", async () => {
+    // Regression: centsToDecimal prefills planned/cushion as "100.00"/"20.00".
+    // The form schema must accept those decimal strings — an integer-only
+    // regex blocks zodResolver, handleSubmit never fires, and the slider
+    // silently stays open with no network request.
+    const onOpenChange = vi.fn();
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) }) // PATCH
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) }); // POST limits
+
+    const user = userEvent.setup();
+    render(
+      <TestQueryProvider>
+        <CategorySlider {...editProps} onOpenChange={onOpenChange} />
+      </TestQueryProvider>,
+    );
+
+    const saveBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("catSlider.cta.save"))!;
+    await user.click(saveBtn);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(`/budgets/budget-1/categories/cat-1`),
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
+    const limitsCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes("cat-1/limits"),
+    )!;
+    expect(limitsCall).toBeTruthy();
+    const body = JSON.parse((limitsCall[1] as { body: string }).body);
+    expect(body.normalAmount).toBe("10000");
+    expect(body.cushionAmount).toBe("2000");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("edit mode: re-opening with different category resets form to new values", async () => {
@@ -290,6 +368,6 @@ describe("CategorySlider", () => {
     const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
     expect(nameInput?.value).toBe("Transport");
     const plannedInput = document.getElementById("cat-slider-planned") as HTMLInputElement;
-    expect(plannedInput?.value).toBe("50.00");
+    expect(plannedInput?.value).toBe("50");
   });
 });

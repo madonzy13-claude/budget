@@ -29,7 +29,6 @@ const defaultProps = {
   budgetId: "budget-1",
   month: "2026-05",
   budgetCurrency: "USD",
-  isPastMonth: false,
   resolvedDate: "2026-05-13",
 };
 
@@ -104,12 +103,38 @@ describe("QuickEntryInput", () => {
   });
 
   it("uses resolvedDate prop as transaction date (past month)", async () => {
-    renderInput({ isPastMonth: true, resolvedDate: "2026-04-30" });
+    renderInput({ resolvedDate: "2026-04-30" });
     const input = screen.getByTestId("quick-entry-groceries");
     await userEvent.type(input, "10");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockMutate).toHaveBeenCalledWith(
       expect.objectContaining({ date: "2026-04-30" }),
     );
+  });
+
+  it("submits a valid amount on blur", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "12.50");
+    fireEvent.blur(input);
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 1250 }),
+    );
+  });
+
+  it("blur with an invalid value does NOT mutate and shows no toast", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "1.234");
+    fireEvent.blur(input);
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it("blur with empty input does nothing", () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    fireEvent.blur(input);
+    expect(mockMutate).not.toHaveBeenCalled();
   });
 });

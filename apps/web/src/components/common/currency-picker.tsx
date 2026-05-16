@@ -79,7 +79,14 @@ export function CurrencyPicker({
       disabled={disabled}
     >
       <SelectTrigger aria-label={ariaLabel ?? t("picker.aria_label")}>
-        <SelectValue placeholder={effectivePlaceholder} />
+        {/* Trigger displays only the 3-letter code so it stays compact even in
+            narrow form fields. Dropdown items keep the full code + name + symbol
+            for selection clarity. */}
+        <SelectValue placeholder={effectivePlaceholder}>
+          {value ? (
+            <span className="num text-[var(--primary)]">{value}</span>
+          ) : null}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {items.map((item) => {

@@ -1,6 +1,5 @@
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { BrandMark } from "@/components/common/brand-mark";
-import { LocaleSelect } from "@/components/settings/locale-select";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import {
   BudgetSwitcher,
@@ -49,7 +48,6 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
         <NewBudgetButton locale={locale} />
       </div>
       <div className="flex items-center gap-3">
-        <LocaleSelect initialLocale={locale} />
         <SignOutButton locale={locale} />
       </div>
     </div>

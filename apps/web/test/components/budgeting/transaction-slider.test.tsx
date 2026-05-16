@@ -115,6 +115,94 @@ describe("TransactionSlider", () => {
     expect(labels.some((l) => l.includes("txn.action.delete"))).toBe(true);
   });
 
+  it("edit mode: date / amount / note inputs are prefilled from initial", () => {
+    render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    const amount = document.getElementById(
+      "txn-slider-amount",
+    ) as HTMLInputElement;
+    const note = document.getElementById("txn-slider-note") as HTMLInputElement;
+    expect(date.value).toBe("2026-05-10");
+    // bare format: 5000 cents → "50" (no trailing .00); a non-zero fraction
+    // would be padded to two digits.
+    expect(amount.value).toBe("50");
+    expect(note.value).toBe("Lunch");
+  });
+
+  it("edit mode: Save sends snake_case body with integer cents (API contract)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ transaction: {} }),
+    });
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const user = userEvent.setup();
+    render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const amount = document.getElementById(
+      "txn-slider-amount",
+    ) as HTMLInputElement;
+    await user.clear(amount);
+    await user.type(amount, "50");
+    const save = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("txnSlider.cta.save"))!;
+    await user.click(save);
+
+    const patchCall = fetchMock.mock.calls.find(
+      (c) =>
+        (c[1] as { method?: string })?.method === "PATCH" &&
+        String(c[0]).includes("/transactions/tx-1"),
+    );
+    expect(patchCall).toBeTruthy();
+    const body = JSON.parse((patchCall![1] as { body: string }).body);
+    expect(body.category_id).toBe("cat-1");
+    expect(body.date).toBe("2026-05-10");
+    expect(body.amount_original_cents).toBe(5000);
+    expect(typeof body.amount_original_cents).toBe("number");
+    expect(body.currency_original).toBe("USD");
+    // camelCase variants must NOT be sent
+    expect(body.categoryId).toBeUndefined();
+    expect(body.amountOrig).toBeUndefined();
+    expect(body.currencyOrig).toBeUndefined();
+  });
+
+  it("edit mode: re-opening with a different transaction resets the form to the new values", () => {
+    const { rerender } = render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} open={false} />
+      </TestQueryProvider>,
+    );
+    const newInitial = {
+      txId: "tx-2",
+      date: "2026-04-22",
+      categoryId: "cat-2",
+      amountOriginalCents: "9900",
+      currencyOriginal: "USD",
+      note: "Cab",
+    };
+    rerender(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} open={true} initial={newInitial} />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    const amount = document.getElementById(
+      "txn-slider-amount",
+    ) as HTMLInputElement;
+    const note = document.getElementById("txn-slider-note") as HTMLInputElement;
+    expect(date.value).toBe("2026-04-22");
+    expect(amount.value).toBe("99");
+    expect(note.value).toBe("Cab");
+  });
+
   it("Sheet has className including w-screen and sm:w-[480px]", () => {
     const { container } = render(
       <TestQueryProvider>

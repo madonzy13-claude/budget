@@ -28,3 +28,23 @@ export function centsToDisplay(
     maximumFractionDigits: 2,
   }).format(neg ? -Number(num) : Number(num));
 }
+
+/**
+ * Bare amount formatter — no currency symbol. Drops a `.00` fraction
+ * (`50000` → `500`) but pads any non-zero fraction to two digits
+ * (`320` → `3.20`, `10` → `0.10`). Negative amounts get a leading minus.
+ */
+export function centsToBare(cents: string | bigint, locale = "en"): string {
+  const big = typeof cents === "string" ? BigInt(cents) : cents;
+  const neg = big < 0n;
+  const abs = neg ? -big : big;
+  const whole = abs / 100n;
+  const frac = abs % 100n;
+  const hasFrac = frac !== 0n;
+  const num = Number(`${whole.toString()}.${frac.toString().padStart(2, "0")}`);
+  const formatted = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: hasFrac ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(num);
+  return neg ? `-${formatted}` : formatted;
+}

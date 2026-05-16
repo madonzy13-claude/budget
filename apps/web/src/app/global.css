@@ -153,10 +153,30 @@
   body {
     background-color: var(--canvas-dark);
     color: var(--body-on-dark);
+    /* Suppress iOS Safari rubber-band / pull-to-refresh AND its
+       auto-scroll-focused-input behavior: pinning the document height +
+       hiding overflow on BOTH html and body leaves no document-level
+       scroll surface for Safari to shift when a text input is focused.
+       html alone isn't enough — iOS falls back to whichever ancestor is
+       scrollable, so we lock both. Internal scroll containers handle
+       their own overflow. */
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
   }
 
   body {
     font-feature-settings: "ss01" 1, "cv11" 1, "rlig" 1, "calt" 1;
+  }
+
+  /* Disable iOS Safari double-tap-to-zoom across the app while keeping panning
+     and pinch-zoom available for accessibility. touch-action does NOT inherit,
+     so the universal selector ensures every element handling touches carries
+     it. */
+  html,
+  body,
+  * {
+    touch-action: manipulation;
   }
 
   /* Selection inherits brand voltage */
@@ -169,6 +189,16 @@
   :focus-visible {
     outline: 2px solid color-mix(in oklab, var(--info) 60%, transparent);
     outline-offset: 2px;
+  }
+
+  /* While a transaction amount is being inline-edited, unpin the column
+     sticky bands so the keyboard-available viewport is fully usable. The
+     row containing the input scrolls normally; the sticky header scrolls
+     off the top with it. !important is required because the Tailwind
+     `sticky` utility lives in the utilities layer (higher specificity than
+     this base layer rule). Restored when editing ends. */
+  [data-editing-amount="true"] [data-testid^="column-sticky-"] {
+    position: relative !important;
   }
 }
 

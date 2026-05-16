@@ -19,7 +19,8 @@ const SelectTrigger = React.forwardRef<
       "flex h-10 w-full items-center justify-between gap-2 px-3 py-2",
       "rounded-[var(--radius-md)] border border-[var(--input)]",
       "bg-[color-mix(in_oklab,var(--card)_92%,transparent)]",
-      "text-sm text-[var(--foreground)]",
+      // text-base on mobile keeps iOS Safari from zooming on focus.
+      "text-base sm:text-sm text-[var(--foreground)]",
       "[&>span]:line-clamp-1 placeholder:text-[var(--muted-foreground)]",
       "transition-colors",
       "focus-visible:outline-2 focus-visible:outline-offset-2",

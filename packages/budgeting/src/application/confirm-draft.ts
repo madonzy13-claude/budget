@@ -14,6 +14,7 @@ export interface ConfirmDraftInput {
   tenantId: string;
   draftId: string;
   actorUserId: string;
+  amountOverrideCents?: number;
 }
 
 export type ConfirmDraftError =
@@ -31,6 +32,7 @@ export function confirmDraft(deps: ConfirmDraftDeps) {
         input.tenantId,
         input.draftId,
         input.actorUserId,
+        input.amountOverrideCents,
       );
       if (outcome === "not_found") {
         const e = Object.assign(new Error("draft_not_found"), {

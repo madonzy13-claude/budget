@@ -35,10 +35,11 @@ export function LocaleSelect({ initialLocale }: LocaleSelectProps) {
         throw new Error("Failed to update locale");
       }
       toast.success(t("save_success"));
+      // Account locale is authoritative for logged-in users — persist it to the
+      // `budget-locale` cookie so middleware keeps the URL locale in sync.
+      document.cookie = `budget-locale=${newLocale}; path=/; max-age=31536000; samesite=lax`;
       // Replace the leading /<locale>/ segment in the URL so the page
-      // re-renders with messages for the chosen language. Persistence is
-      // URL-driven; the DB row keeps the user's preference for any future
-      // session-aware redirects.
+      // re-renders with messages for the chosen language.
       const next = pathname.replace(/^\/(en|pl|uk)/, `/${newLocale}`);
       router.replace(next || `/${newLocale}`);
       router.refresh();

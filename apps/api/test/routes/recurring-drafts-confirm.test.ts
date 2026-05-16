@@ -234,4 +234,61 @@ describe("POST /budgets/:budgetId/recurring-rules/drafts/:draftId/confirm", () =
     );
     expect(res.status).toBe(403);
   });
+
+  it("with amount_override_cents — promotes draft at the new amount (RECR-05 / D-PH4-INT5)", async () => {
+    const draftId = await seedDraft(fix.tenantId, fix.ruleId);
+    const app = await buildApp(fix.userId, fix.tenantId);
+    const res = await app.request(
+      `/budgets/${fix.tenantId}/recurring-rules/drafts/${draftId}/confirm`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount_override_cents: 6000 }),
+      },
+    );
+    expect(res.status).toBe(204);
+
+    const checkPool = new Pool({ connectionString: DB_URL });
+    const checkClient = await checkPool.connect();
+    let row: { amount_original_cents: string; amount_converted_cents: string; confirmed_at: Date | null } | undefined;
+    try {
+      await checkClient.query(`BEGIN`);
+      await checkClient.query(
+        `SELECT set_config('app.tenant_ids', $1, false)`,
+        [`{"${fix.tenantId}"}`],
+      );
+      await checkClient.query(
+        `SELECT set_config('app.current_user_id', $1, false)`,
+        [fix.userId],
+      );
+      const { rows } = await checkClient.query(
+        `SELECT amount_original_cents, amount_converted_cents, confirmed_at
+           FROM budgeting.expense_ledger
+          WHERE id = $1::uuid AND tenant_id = $2::uuid`,
+        [draftId, fix.tenantId],
+      );
+      await checkClient.query(`COMMIT`);
+      row = rows[0];
+    } finally {
+      checkClient.release();
+      await checkPool.end();
+    }
+    expect(row?.confirmed_at).not.toBeNull();
+    expect(String(row?.amount_original_cents)).toBe("6000");
+    expect(String(row?.amount_converted_cents)).toBe("6000");
+  });
+
+  it("rejects negative / non-integer amount_override_cents → 422", async () => {
+    const draftId = await seedDraft(fix.tenantId, fix.ruleId);
+    const app = await buildApp(fix.userId, fix.tenantId);
+    const res = await app.request(
+      `/budgets/${fix.tenantId}/recurring-rules/drafts/${draftId}/confirm`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount_override_cents: -100 }),
+      },
+    );
+    expect(res.status).toBe(422);
+  });
 });

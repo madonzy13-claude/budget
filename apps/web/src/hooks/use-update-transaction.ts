@@ -9,6 +9,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
+import { mapTxnRowToDTO } from "@/lib/txn-mapper";
 
 export interface UpdateTransactionInput {
   txId: string;
@@ -76,11 +77,15 @@ export function useUpdateTransaction(budgetId: string, month: string) {
     },
 
     onSuccess: (serverRow, input) => {
+      // serverRow is raw snake_case from serializeRow — map to the camelCase
+      // TxnDTO the grid reads, otherwise the row renders blank until the
+      // onSettled refetch and visibly flickers out and back in.
+      const mapped = mapTxnRowToDTO(serverRow);
       qc.setQueryData(["transactions", budgetId, month], (old: unknown) => {
         const arr = Array.isArray(old) ? old : [];
         return arr.map((t: Record<string, unknown>) =>
           t.id === input.txId
-            ? { ...serverRow, pending: false, unsent: false }
+            ? { ...mapped, pending: false, unsent: false }
             : t,
         );
       });

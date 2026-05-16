@@ -81,6 +81,7 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
     tenantId: string,
     draftId: string,
     actorUserId: string,
+    amountOverrideCents?: number,
   ): Promise<"ok" | "not_found" | "already_confirmed" | "already_dismissed"> {
     const tid = TenantId(tenantId);
     const uid = UserId(actorUserId);
@@ -103,9 +104,16 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
       if (rows[0].confirmed_at !== null) return "already_confirmed" as const;
       if (rows[0].dismissed_at !== null) return "already_dismissed" as const;
 
+      const amountClause =
+        amountOverrideCents !== undefined && Number.isFinite(amountOverrideCents)
+          ? sql`amount_original_cents = ${amountOverrideCents}::bigint,
+                 amount_converted_cents = ${amountOverrideCents}::bigint,`
+          : sql``;
+
       await drizzleTx.execute(sql`
         UPDATE budgeting.expense_ledger
-           SET confirmed_at = now(),
+           SET ${amountClause}
+               confirmed_at = now(),
                updated_at = now()
          WHERE id = ${draftId}::uuid
            AND tenant_id = ${tenantId}::uuid

@@ -34,6 +34,14 @@ export const viewport: Viewport = {
   themeColor: "#0b0e11",
   width: "device-width",
   initialScale: 1,
+  // maximumScale + userScalable belt-and-suspenders against iOS Safari
+  // double-tap-zoom on the spendings grid. CSS `touch-action: manipulation`
+  // is the primary defence but Safari has shipped versions that still trigger
+  // a viewport zoom on rapid double-taps over text spans. Hard-capping the
+  // scale keeps double-tap-zoom suppressed across iOS versions. Pinch-zoom
+  // for accessibility is still honored by iOS regardless of these values.
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

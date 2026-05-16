@@ -2,7 +2,7 @@
   "name": "Budget",
   "short_name": "Budget",
   "description": "Family budgeting and wealth tracker",
-  "start_url": "/en/workspaces",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0f172a",

@@ -12,7 +12,8 @@
  * TouchSensor (delay:200, tolerance:8), KeyboardSensor (sortableKeyboardCoordinates).
  * Drag listeners scoped to grip handle only — NOT on column body.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   PointerSensor,
@@ -90,8 +91,36 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
   const txns = useTransactions(budgetId, month, { initialData: props.initialTransactions });
   const drafts = useDrafts(budgetId, month, { initialData: props.initialDrafts });
 
+  const qc = useQueryClient();
   const [localCategoryOrder, setLocalCategoryOrder] = useState<CategoryDTO[]>(props.initialCategories);
+  // Re-sync when the RSC re-fetches (e.g. after CategorySlider create/edit
+  // calls router.refresh()). useState + React Query initialData both hydrate
+  // only once, so without this the grid keeps the stale list/summary.
+  useEffect(() => {
+    setLocalCategoryOrder(props.initialCategories);
+    qc.setQueryData(["spendings-summary", budgetId, month], props.initialSummary);
+    qc.setQueryData(["transactions", budgetId, month], props.initialTransactions);
+    qc.setQueryData(["drafts", budgetId, month], props.initialDrafts);
+  }, [
+    props.initialCategories,
+    props.initialSummary,
+    props.initialTransactions,
+    props.initialDrafts,
+    qc,
+    budgetId,
+    month,
+  ]);
   const reorder = useReorderCategories(budgetId);
+
+  // Track whether the grid is scrolled FAR ENOUGH that at least HALF a
+  // transaction row is hidden behind the sticky header band. A txn row is
+  // min-h-[40px] + py-1 ≈ 48px; threshold at 20px = ~half-row hidden.
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [gridScrolled, setGridScrolled] = useState(false);
+  function handleGridScroll() {
+    const t = (gridRef.current?.scrollTop ?? 0) > 20;
+    setGridScrolled((prev) => (prev === t ? prev : t));
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -204,15 +233,33 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     <>
       <MonthNavigator month={month} budgetTz={budgetTz} />
       <div
+        ref={gridRef}
+        onScroll={handleGridScroll}
         data-testid="spendings-grid"
-        className="overflow-x-auto px-[var(--spacing-xl)] sm:px-[var(--spacing-md)] pb-6"
+        // The grid is its own scroll container for both axes. Bounded height
+        // (viewport minus the top app-bar + month nav, ~160px) lets the
+        // sticky column-header band stick to the top of THIS container while
+        // transactions scroll vertically and long category rows scroll
+        // horizontally. Page body itself does not scroll horizontally.
+        // pt-6 here would create a visible padding strip above the sticky
+        // header band — scrolled content showed through it. Use mt-4 for the
+        // breathing-room gap (lives OUTSIDE the scroll container so the
+        // sticky band still pins flush at the wrapper's top edge).
+        // overscroll-contain keeps a rapid vertical swipe from bleeding into
+        // the page and dragging the whole document.
+        // 100svh (small viewport height) — iOS Safari's URL bar collapses on
+        // scroll and changes 100vh out from under us; svh stays fixed to the
+        // smaller (URL-bar-expanded) state so the wrapper doesn't grow
+        // beyond the visible area when the bar hides.
+        style={{ overscrollBehavior: "contain" }}
+        className="mt-4 overflow-auto max-h-[calc(100svh-176px)] px-3 sm:px-6 pb-6"
       >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-fit mx-auto">
             <SortableContext
               items={localCategoryOrder.map((c) => c.id)}
               strategy={horizontalListSortingStrategy}
@@ -226,9 +273,9 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
                   budgetCurrency={budgetCurrency}
                   transactions={transactionsByCatId.get(c.id) ?? []}
                   drafts={draftsByCatId.get(c.id) ?? []}
+                  gridScrolled={gridScrolled}
                   budgetId={budgetId}
                   month={month}
-                  isPastMonth={!isCurrentMonth}
                   resolvedQuickEntryDate={resolvedQuickEntryDate}
                   onEditTxn={(txId) =>
                     setTxSlider({ open: true, mode: "edit", txId })

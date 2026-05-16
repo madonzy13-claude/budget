@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/server-session";
 import { SiteFooter } from "@/components/common/site-footer";
+import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
 import { TopNav } from "@/components/budgeting/top-nav";
 
 interface AppLayoutProps {
@@ -42,6 +43,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
+      <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
       <header className="sticky top-0 z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
         <TopNav locale={locale} activeBudgetId={activeBudgetId} />
       </header>

@@ -21,7 +21,6 @@ export interface QuickEntryInputProps {
   budgetId: string;
   month: string; // YYYY-MM viewed
   budgetCurrency: string;
-  isPastMonth: boolean;
   resolvedDate: string; // ISO YYYY-MM-DD — passed in, computed by parent
 }
 
@@ -31,7 +30,6 @@ export function QuickEntryInput({
   budgetId,
   month,
   budgetCurrency,
-  isPastMonth,
   resolvedDate,
 }: QuickEntryInputProps) {
   const t = useTranslations("grid.quickEntry");
@@ -40,34 +38,47 @@ export function QuickEntryInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const { mutate } = useCreateTransaction(budgetId, month);
 
+  // silent = blur path: don't toast on an invalid value, just leave it.
+  function submit(silent = false) {
+    if (!value.trim()) return;
+    const cents = parseDecimal(value);
+    if (cents === null) {
+      if (!silent) toast.error(tError("quickEntry"));
+      return;
+    }
+    // D-PH4-Q1: clear input first, then optimistic insert
+    setValue("");
+    mutate({
+      categoryId,
+      amountCents: cents,
+      date: resolvedDate,
+      currency: budgetCurrency,
+      note: null,
+    });
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
       setValue("");
       return;
     }
-    if (e.key === "Enter") {
-      if (!value.trim()) return;
-      const cents = parseDecimal(value);
-      if (cents === null) {
-        toast.error(tError("quickEntry"));
-        return;
-      }
-      // D-PH4-Q1: clear input first, then optimistic insert
-      setValue("");
-      mutate({
-        categoryId,
-        amountCents: cents,
-        date: resolvedDate,
-        currency: budgetCurrency,
-        note: null,
-      });
-    }
+    if (e.key === "Enter") submit();
   }
 
   const testId = `quick-entry-${categoryName.toLowerCase()}`;
 
   return (
-    <div className="px-2 py-1">
+    <div
+      // touch-action: pan-x — keep the quick-entry slot from scrolling the
+      // grid vertically when the finger lands on it. iOS Safari sometimes
+      // honors touch-action on text inputs poorly, so set it explicitly on
+      // both the wrapper and the input element.
+      style={{ touchAction: "pan-x" }}
+      className="border-t border-[var(--hairline-dark)] px-2 py-1.5"
+    >
+      <p className="mb-1 text-[10px] text-[var(--muted-foreground)]">
+        {t("title")}
+      </p>
       <input
         ref={inputRef}
         data-testid={testId}
@@ -76,15 +87,12 @@ export function QuickEntryInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
+        onBlur={() => submit(true)}
         placeholder={t("placeholder")}
         aria-label={`Add expense to ${categoryName}`}
-        className="h-9 w-full rounded border border-[var(--hairline-dark)] bg-transparent px-3 text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+        style={{ touchAction: "pan-x" }}
+        className="h-9 w-full rounded border border-[var(--hairline-dark)] bg-transparent px-3 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
       />
-      {isPastMonth && (
-        <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-          {t("helper.past", { date: resolvedDate })}
-        </p>
-      )}
     </div>
   );
 }

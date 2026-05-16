@@ -15,5 +15,6 @@ export interface ExpenseLedgerDraftPortRepo {
     tenantId: string,
     draftId: string,
     actorUserId: string,
+    amountOverrideCents?: number,
   ): Promise<"ok" | "not_found" | "already_confirmed" | "already_dismissed">;
 }

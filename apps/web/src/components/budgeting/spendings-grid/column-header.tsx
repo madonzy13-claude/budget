@@ -9,7 +9,7 @@
 import { useTranslations, useLocale } from "next-intl";
 import { GripVertical, Pencil } from "lucide-react";
 import { useRevealActions } from "./reveal-actions";
-import { centsToDisplay } from "@/lib/cents-format";
+import { centsToBare } from "@/lib/cents-format";
 import { cn } from "@/lib/utils";
 
 export interface ColumnHeaderProps {
@@ -30,7 +30,6 @@ export interface ColumnHeaderProps {
     balanceCents: string;
   };
   cushionModeEnabled: boolean;
-  budgetCurrency: string;
   dragGripProps?: Record<string, unknown>;
   onEdit: (categoryId: string) => void;
 }
@@ -39,7 +38,6 @@ export function ColumnHeader({
   category,
   summary,
   cushionModeEnabled,
-  budgetCurrency,
   dragGripProps = {},
   onEdit,
 }: ColumnHeaderProps) {
@@ -50,6 +48,8 @@ export function ColumnHeader({
   const balanceCents = BigInt(summary.balanceCents);
   const overspentCents = BigInt(summary.overspentCents);
   const reserveUsedCents = BigInt(summary.reserveUsedCents);
+  // "Left" never shows negative — overspend is surfaced by the overspent row.
+  const displayBalanceCents = balanceCents < 0n ? 0n : balanceCents;
 
   function handleDoubleClick(e: React.MouseEvent) {
     // D-PH4-INT4: NO-OP on category cells
@@ -60,7 +60,7 @@ export function ColumnHeader({
   return (
     <div
       data-testid={`column-header-${category.name.toLowerCase()}`}
-      className="flex w-[160px] flex-col border-r border-[var(--hairline-dark)]"
+      className="flex w-full flex-col"
     >
       {/* Row 1: Grip + Name + Pen (revealed on click) */}
       <div
@@ -111,9 +111,8 @@ export function ColumnHeader({
           {cushionModeEnabled ? t("row2.cushion") : t("row2.planned")}
         </span>
         <span className="text-sm font-medium tabular-nums text-[var(--body-on-dark)]">
-          {centsToDisplay(
+          {centsToBare(
             cushionModeEnabled ? summary.cushionCents : summary.plannedCents,
-            budgetCurrency,
             locale,
           )}
         </span>
@@ -128,6 +127,7 @@ export function ColumnHeader({
           {t("row3.overspent")}
         </span>
         <span
+          data-testid={`column-header-${category.name.toLowerCase()}-overspent`}
           className={cn(
             "text-sm tabular-nums",
             overspentCents > 0n
@@ -135,7 +135,7 @@ export function ColumnHeader({
               : "text-[var(--muted-foreground)]",
           )}
         >
-          {centsToDisplay(summary.overspentCents, budgetCurrency, locale)}
+          {centsToBare(summary.overspentCents, locale)}
         </span>
       </div>
 
@@ -148,6 +148,7 @@ export function ColumnHeader({
           {t("row4.reservesUsed")}
         </span>
         <span
+          data-testid={`column-header-${category.name.toLowerCase()}-reserves-used`}
           className={cn(
             "text-sm tabular-nums",
             reserveUsedCents > 0n
@@ -155,7 +156,7 @@ export function ColumnHeader({
               : "text-[var(--muted-foreground)]",
           )}
         >
-          {centsToDisplay(summary.reserveUsedCents, budgetCurrency, locale)}
+          {centsToBare(summary.reserveUsedCents, locale)}
         </span>
       </div>
 
@@ -171,14 +172,12 @@ export function ColumnHeader({
           data-testid={`column-header-${category.name.toLowerCase()}-balance`}
           className={cn(
             "text-sm font-semibold tabular-nums",
-            balanceCents > 0n
+            displayBalanceCents > 0n
               ? "text-[var(--trading-up, #26a69a)]"
-              : balanceCents < 0n
-                ? "text-[var(--destructive)]"
-                : "text-[var(--muted-foreground)]",
+              : "text-[var(--muted-foreground)]",
           )}
         >
-          {centsToDisplay(summary.balanceCents, budgetCurrency, locale)}
+          {centsToBare(displayBalanceCents.toString(), locale)}
         </span>
       </div>
     </div>

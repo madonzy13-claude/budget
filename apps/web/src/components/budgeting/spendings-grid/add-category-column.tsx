@@ -31,7 +31,7 @@ export function AddCategoryColumn({ onClick }: AddCategoryColumnProps) {
       onClick={onClick}
       onKeyDown={handleKeyDown}
       aria-label={t("trigger")}
-      className="flex h-[170px] w-[160px] flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)] cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--info)]"
+      className="flex min-h-[170px] w-[140px] sm:w-[160px] flex-shrink-0 flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)] cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--info)]"
     >
       <Plus
         className="h-6 w-6 text-[var(--muted-foreground)]"

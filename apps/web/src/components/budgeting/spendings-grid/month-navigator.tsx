@@ -56,7 +56,7 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
   return (
     <div
       className={cn(
-        "flex h-12 items-center gap-2 px-4",
+        "relative flex h-12 items-center justify-center gap-2 px-4",
         "sticky top-[112px] z-10 bg-[var(--canvas-dark)]",
         "border-b border-[var(--hairline-dark)]",
         className,
@@ -96,7 +96,7 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
           type="button"
           data-testid="month-navigator-today"
           onClick={today}
-          className="ml-auto flex h-8 items-center gap-1 rounded px-3 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)]"
+          className="absolute right-4 flex h-8 items-center gap-1 rounded px-3 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)]"
         >
           <RotateCcw className="h-3 w-3" aria-hidden="true" />
           Today

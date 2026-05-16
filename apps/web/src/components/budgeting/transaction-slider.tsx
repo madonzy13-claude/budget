@@ -6,13 +6,15 @@
  * Composes DateInput, AmountInput, CurrencyPicker, FxPreviewLine, FxFreshnessBadge.
  * Delete confirmation via AlertDialog (T-04-04-08 mitigation).
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { centsToDisplay } from "@/lib/cents-format";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Sheet,
   SheetContent,
@@ -96,9 +98,18 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function centsToDecimal(cents: string): string {
+// Prefill the amount field using the same rules as the grid (centsToBare):
+// drop a `.00` fraction (`3600` → "36"), pad a non-zero fraction to two digits
+// (`4250` → "42.50"). Returns a raw period-separated string — no locale
+// separators — so parseFloat round-trips it on submit.
+function centsToInputValue(cents: string): string {
   const n = parseInt(cents, 10);
-  return (n / 100).toFixed(2);
+  const abs = Math.abs(n);
+  const whole = Math.floor(abs / 100);
+  const frac = abs % 100;
+  const sign = n < 0 ? "-" : "";
+  if (frac === 0) return `${sign}${whole}`;
+  return `${sign}${whole}.${frac.toString().padStart(2, "0")}`;
 }
 
 export function TransactionSlider({
@@ -113,11 +124,25 @@ export function TransactionSlider({
   prefillCategoryId,
 }: TransactionSliderProps) {
   const t = useTranslations("grid");
+  const locale = useLocale();
+  const qc = useQueryClient();
   const [idempotencyKey] = useState(() => generateIdempotencyKey());
+
+  function invalidateGrid() {
+    qc.invalidateQueries({ queryKey: ["transactions", budgetId, month] });
+    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId, month] });
+    qc.invalidateQueries({ queryKey: ["drafts", budgetId, month] });
+  }
   const [fxPreview, setFxPreview] = useState<FxQuote | null>(null);
   const [fxLoading, setFxLoading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Sheet outside-detection callbacks read the latest deleteOpen via a ref so
+  // a stale closure can't race with a fast user tap on the AlertDialog cancel.
+  const deleteOpenRef = useRef(false);
+  useEffect(() => {
+    deleteOpenRef.current = deleteOpen;
+  }, [deleteOpen]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -125,7 +150,7 @@ export function TransactionSlider({
       date: initial?.date ?? todayIso(),
       categoryId: initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
       amountOrig: initial?.amountOriginalCents
-        ? centsToDecimal(initial.amountOriginalCents)
+        ? centsToInputValue(initial.amountOriginalCents)
         : "",
       currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
       note: initial?.note ?? "",
@@ -136,6 +161,43 @@ export function TransactionSlider({
   const currencyOrig = form.watch("currencyOrig");
   const amountOrig = form.watch("amountOrig");
   const date = form.watch("date");
+
+  // Confirm before closing if the form has unsaved edits. Save/delete bypass
+  // this because they reset the form / leave through an intentional path.
+  // Also: while the delete-confirmation AlertDialog is owning the interaction,
+  // ignore any close attempt that bubbles up to the Sheet.
+  function handleOpenChange(next: boolean) {
+    if (!next && deleteOpenRef.current) return;
+    if (!next && form.formState.isDirty && !isSubmitting && !isDeleting) {
+      if (
+        typeof window !== "undefined" &&
+        !window.confirm(t("confirm.discardChanges"))
+      ) {
+        return;
+      }
+    }
+    onOpenChange(next);
+  }
+
+  // RHF defaultValues only apply on first mount. The slider is permanently
+  // mounted with open toggled by parent state, and edit mode receives `initial`
+  // only when the pen chip is clicked — so without an explicit reset() the form
+  // keeps its first-mount defaults (today / empty) instead of the txn values.
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        date: initial?.date ?? todayIso(),
+        categoryId:
+          initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
+        amountOrig: initial?.amountOriginalCents
+          ? centsToInputValue(initial.amountOriginalCents)
+          : "",
+        currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
+        note: initial?.note ?? "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initial?.txId]);
 
   const fetchFxPreview = useCallback(async () => {
     if (!currencyOrig || currencyOrig === budgetCurrency) {
@@ -171,15 +233,15 @@ export function TransactionSlider({
   }, [fetchFxPreview]);
 
   async function onSubmit(values: FormValues) {
+    // API contract is snake_case with integer cents (createSchema / patchSchema).
+    // Sending camelCase keys here would silently drop most fields server-side.
+    const amountCents = Math.round(parseFloat(values.amountOrig) * 100);
     const body: Record<string, unknown> = {
-      categoryId: values.categoryId,
       date: values.date,
-      amountOrig: values.amountOrig,
-      currencyOrig: values.currencyOrig,
+      category_id: values.categoryId,
+      amount_original_cents: amountCents,
+      currency_original: values.currencyOrig,
       ...(values.note ? { note: values.note } : {}),
-      ...(fxPreview && values.currencyOrig !== budgetCurrency
-        ? { fxPreview: { rate: fxPreview.rate, fxRateDate: fxPreview.fxRateDate } }
-        : {}),
     };
 
     let res: Response;
@@ -218,6 +280,7 @@ export function TransactionSlider({
       return;
     }
 
+    invalidateGrid();
     onOpenChange(false);
   }
 
@@ -231,6 +294,7 @@ export function TransactionSlider({
       );
       if (res.ok) {
         setDeleteOpen(false);
+        invalidateGrid();
         onOpenChange(false);
       } else {
         toast.error(t("error.sliderSave"));
@@ -252,11 +316,27 @@ export function TransactionSlider({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={handleOpenChange}>
         <SheetContent
           side="right"
           className="w-screen sm:w-[480px] sm:max-w-[480px] bg-[var(--surface-card-dark)] p-0 flex flex-col overflow-y-auto"
           data-testid="txn-slider-content"
+          // The delete-confirmation AlertDialog renders in its own portal, so
+          // Radix's outside-detection treats clicks/escape inside it as
+          // "outside" the Sheet and would close both. Keep the Sheet open
+          // while the AlertDialog owns the interaction.
+          onPointerDownOutside={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
         >
           <SheetHeader className="px-6 py-4 border-b border-[var(--hairline-dark)]">
             <SheetTitle className="text-xl font-semibold text-[var(--body-on-dark)]">
@@ -272,12 +352,12 @@ export function TransactionSlider({
               className="flex flex-col flex-1 px-6 py-4 gap-4"
               noValidate
             >
-              {/* Date */}
+              {/* Date — capped width so it doesn't stretch across the form */}
               <FormField
                 control={form.control}
                 name="date"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="max-w-[12rem]">
                     <FormLabel className="text-sm text-[var(--muted-foreground)]">
                       {t("txnSlider.field.date")}
                     </FormLabel>
@@ -418,7 +498,7 @@ export function TransactionSlider({
                     variant="destructive"
                     onClick={() => setDeleteOpen(true)}
                     disabled={isSubmitting || isDeleting}
-                    className="flex-1"
+                    className="h-12 w-full sm:flex-1"
                   >
                     {t("txn.action.delete")}
                   </Button>
@@ -427,7 +507,7 @@ export function TransactionSlider({
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
+                  className="h-12 w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -445,11 +525,34 @@ export function TransactionSlider({
 
       {/* Delete confirmation AlertDialog (T-04-04-08 mitigation) */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          // Focus the destructive action so a single Enter key confirms.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            const btn = document.querySelector<HTMLButtonElement>(
+              '[data-testid="txn-slider-delete-confirm"]',
+            );
+            btn?.focus();
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>{t("confirm.deleteTxn.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("confirm.deleteTxn.body", { month })}
+              {t("confirm.deleteTxn.body", {
+                amount: initial
+                  ? centsToDisplay(
+                      initial.amountOriginalCents,
+                      initial.currencyOriginal,
+                      locale,
+                    )
+                  : "",
+                date: initial
+                  ? new Date(`${initial.date}T00:00:00`).toLocaleDateString(
+                      locale,
+                      { year: "numeric", month: "long", day: "numeric" },
+                    )
+                  : "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -457,6 +560,7 @@ export function TransactionSlider({
               {t("confirm.deleteTxn.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
+              data-testid="txn-slider-delete-confirm"
               onClick={() => void handleDelete()}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

@@ -7,5 +7,5 @@ Feature: Real-time reserve deduction on quick-entry (RSCM-03)
     When I open the Spendings tab on a budget "Family"
     And I type "95.00" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
-    Then I see a transaction row "95.00" in the "Groceries" column
-    And I see the column "Groceries" header balance shows "5.00"
+    Then I see a transaction row "95" in the "Groceries" column
+    And I see the column "Groceries" header balance shows "5"

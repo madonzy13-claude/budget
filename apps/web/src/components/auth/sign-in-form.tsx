@@ -72,7 +72,17 @@ export function SignInForm({ locale }: SignInFormProps) {
       return;
     }
 
-    router.push(`/${locale}/budgets`);
+    // The account locale is authoritative for logged-in users. Persist it to
+    // the `budget-locale` cookie so middleware can keep the URL locale in sync,
+    // and land the user directly on their locale's home.
+    const accountLocale = (
+      result.data as { user?: { locale?: string } } | null
+    )?.user?.locale;
+    const targetLocale = accountLocale ?? locale;
+    if (accountLocale) {
+      document.cookie = `budget-locale=${accountLocale}; path=/; max-age=31536000; samesite=lax`;
+    }
+    router.push(`/${targetLocale}`);
     router.refresh();
   }
 

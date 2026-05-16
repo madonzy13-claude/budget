@@ -29,7 +29,10 @@ export function useDismissDraft(budgetId: string, month: string) {
         },
       );
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      // Server returns 204 No Content on success — calling res.json() on an
+      // empty body throws SyntaxError, which silently fails the mutation
+      // and rolls the row back. Return null instead.
+      return null;
     },
 
     onSettled: () => {

@@ -6,12 +6,13 @@
  * Create flow: POST /categories → POST /categories/:id/limits (SCD-2).
  * Edit flow: PATCH /categories/:id + POST /categories/:id/limits.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, ShoppingCart, Home, Car, Utensils, Heart, Briefcase, Music, BookOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -83,23 +84,40 @@ export interface CategorySliderProps {
   txnsCount?: number;
 }
 
+// plannedCents/cushionCents hold the raw decimal-string input ("60", "60.00")
+// — decimalToCents() converts to integer cents at submit. The regex must accept
+// the decimal form: edit mode prefills these via centsToDecimal ("60.00"), and
+// an integer-only regex would silently block zodResolver / handleSubmit.
+const amountField = z.string().regex(/^\d+(\.\d{1,2})?$/);
+
 const schema = z.object({
   name: z.string().min(1).max(60),
-  plannedCents: z.string().regex(/^\d+$/),
-  cushionCents: z.string().regex(/^\d+$/),
+  plannedCents: amountField,
+  cushionCents: amountField,
   iconKey: z.string().nullable(),
   colorKey: z.string().nullable(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
+// Bare format matching the grid's centsToBare: drop a `.00` fraction
+// (`10000` → "100"), pad a non-zero fraction to two digits (`320` → "3.20").
+// Returns a raw period-separated string so parseFloat round-trips on submit.
 function centsToDecimal(cents: string): string {
   const n = parseInt(cents, 10);
-  return (n / 100).toFixed(2);
+  const abs = Math.abs(n);
+  const whole = Math.floor(abs / 100);
+  const frac = abs % 100;
+  const sign = n < 0 ? "-" : "";
+  if (frac === 0) return `${sign}${whole}`;
+  return `${sign}${whole}.${frac.toString().padStart(2, "0")}`;
 }
 
-function decimalToCents(decimal: string): number {
-  return Math.round(parseFloat(decimal) * 100);
+// Returns a digit string — setLimitSchema validates normalAmount/cushionAmount
+// as z.string().regex(/^\d+$/) (bigint cents over the wire). Sending a number
+// fails validation with a 422.
+function decimalToCents(decimal: string): string {
+  return String(Math.round(parseFloat(decimal) * 100));
 }
 
 export function CategorySlider({
@@ -112,8 +130,13 @@ export function CategorySlider({
   txnsCount = 0,
 }: CategorySliderProps) {
   const t = useTranslations("grid");
+  const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const deleteOpenRef = useRef(false);
+  useEffect(() => {
+    deleteOpenRef.current = deleteOpen;
+  }, [deleteOpen]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -143,7 +166,10 @@ export function CategorySlider({
   }, [open, initial?.categoryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onSubmit(values: FormValues) {
-    const today = new Date().toISOString().slice(0, 10);
+    // SCD-2 limits are evaluated as-of the month start by spendings-summary —
+    // a mid-month effectiveFrom would leave the new limit invisible for the
+    // current month. Anchor to the first of the current month.
+    const effectiveFrom = `${new Date().toISOString().slice(0, 7)}-01`;
     const normalAmount = decimalToCents(values.plannedCents);
     const cushionAmount = decimalToCents(values.cushionCents);
 
@@ -172,7 +198,7 @@ export function CategorySlider({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ normalAmount, cushionAmount, effectiveFrom: today }),
+          body: JSON.stringify({ normalAmount, cushionAmount, effectiveFrom }),
         },
       );
 
@@ -197,7 +223,7 @@ export function CategorySlider({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ normalAmount, cushionAmount, effectiveFrom: today }),
+            body: JSON.stringify({ normalAmount, cushionAmount, effectiveFrom }),
           },
         ),
       ]);
@@ -209,6 +235,8 @@ export function CategorySlider({
     }
 
     onOpenChange(false);
+    // Re-run the RSC fetch so the grid reflects the new/edited category.
+    router.refresh();
   }
 
   async function handleDelete() {
@@ -235,11 +263,31 @@ export function CategorySlider({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet
+        open={open}
+        onOpenChange={(next) => {
+          // While the delete AlertDialog owns the interaction, ignore any
+          // close request that bubbles up to the Sheet.
+          if (!next && deleteOpenRef.current) return;
+          onOpenChange(next);
+        }}
+      >
         <SheetContent
           side="right"
           className="w-screen sm:w-[480px] sm:max-w-[480px] bg-[var(--surface-card-dark)] p-0 flex flex-col overflow-y-auto"
           data-testid="cat-slider-content"
+          onPointerDownOutside={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (deleteOpenRef.current) e.preventDefault();
+          }}
         >
           <SheetHeader className="px-6 py-4 border-b border-[var(--hairline-dark)]">
             <SheetTitle className="text-xl font-semibold text-[var(--body-on-dark)]">
@@ -407,7 +455,7 @@ export function CategorySlider({
                     disabled={isSubmitting || isDeleting || txnsCount > 0}
                     aria-disabled={txnsCount > 0 ? "true" : undefined}
                     title={txnsCount > 0 ? "Cannot delete category with existing transactions" : undefined}
-                    className="flex-1"
+                    className="h-12 w-full sm:flex-1"
                   >
                     {t("txn.action.delete")}
                   </Button>
@@ -416,7 +464,7 @@ export function CategorySlider({
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
+                  className="h-12 w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

@@ -331,6 +331,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
               AND transaction_date >= ${firstDay}::date
               AND transaction_date < ${nextMonth}::date
               AND deleted_at IS NULL
+              AND dismissed_at IS NULL
               AND ${confirmedFilter}
             ORDER BY transaction_date DESC, created_at DESC`,
         );

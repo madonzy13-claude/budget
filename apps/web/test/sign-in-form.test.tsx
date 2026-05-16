@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SignInForm } from "../src/components/auth/sign-in-form";
+import { signIn } from "../src/lib/auth-client";
 
 // Mock next-intl
 vi.mock("next-intl", () => ({
@@ -21,9 +22,15 @@ vi.mock("next-intl", () => ({
     },
 }));
 
+// Shared router spies so tests can assert on navigation.
+const { pushMock, refreshMock } = vi.hoisted(() => ({
+  pushMock: vi.fn(),
+  refreshMock: vi.fn(),
+}));
+
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
 
 // Mock auth client
@@ -43,6 +50,11 @@ vi.mock("../src/lib/auth-client", () => ({
 }));
 
 describe("SignInForm", () => {
+  beforeEach(() => {
+    pushMock.mockClear();
+    refreshMock.mockClear();
+  });
+
   it("renders without crashing", () => {
     const { container } = render(<SignInForm locale="en" />);
     expect(container.querySelector("form")).toBeTruthy();
@@ -63,5 +75,39 @@ describe("SignInForm", () => {
     render(<SignInForm locale="en" />);
     const button = screen.getByRole("button", { name: /sign in/i });
     expect(button).not.toBeDisabled();
+  });
+
+  it("redirects to the locale home on successful sign-in, not the non-existent /budgets route", async () => {
+    render(<SignInForm locale="en" />);
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: "Password1!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalled());
+    expect(pushMock).toHaveBeenCalledWith("/en");
+    expect(pushMock).not.toHaveBeenCalledWith("/en/budgets");
+  });
+
+  it("sets the budget-locale cookie and redirects to the account locale", async () => {
+    (signIn.email as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: { user: { locale: "uk" } },
+      error: null,
+    });
+    render(<SignInForm locale="en" />);
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: "Password1!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalled());
+    expect(pushMock).toHaveBeenCalledWith("/uk");
+    expect(document.cookie).toContain("budget-locale=uk");
   });
 });

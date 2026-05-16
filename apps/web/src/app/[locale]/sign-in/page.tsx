@@ -11,6 +11,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { BrandMark } from "@/components/common/brand-mark";
+import { PublicLocaleSwitcher } from "@/components/common/public-locale-switcher";
 import { SiteFooter } from "@/components/common/site-footer";
 
 interface SignInPageProps {
@@ -41,11 +42,7 @@ export default async function SignInPage({
       <header className="border-b border-[var(--hairline-dark)]">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <BrandMark href={`/${locale}`} />
-          <div className="text-nav-link text-[var(--muted-foreground)]">
-            <span className="num text-[13px] uppercase tracking-wide">
-              {locale.toUpperCase()}
-            </span>
-          </div>
+          <PublicLocaleSwitcher current={locale} />
         </div>
       </header>
 

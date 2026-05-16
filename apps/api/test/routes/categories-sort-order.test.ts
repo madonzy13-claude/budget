@@ -168,4 +168,52 @@ describe("PUT /budgets/:budgetId/categories/sort-order", () => {
     );
     expect(res.status).toBe(403);
   });
+
+  it("create() assigns an incrementing sort_index — a new category lands last", async () => {
+    const { DrizzleCategoryRepo } = await import(
+      "@budget/budgeting/src/adapters/persistence/category-repo"
+    );
+    const repo = new DrizzleCategoryRepo();
+    const f = await createFixture();
+    const id1 = crypto.randomUUID();
+    const id2 = crypto.randomUUID();
+    // repo.create() reads id/tenantId/name/parentId/archivedAt/createdAt/actorUserId.
+    const mkCat = (id: string, name: string) =>
+      ({
+        id,
+        tenantId: f.tenantId,
+        name,
+        parentId: null,
+        archivedAt: null,
+        createdAt: new Date(),
+        actorUserId: f.userId,
+      }) as unknown as Parameters<DrizzleCategoryRepo["create"]>[0];
+    await repo.create(mkCat(id1, "First"));
+    await repo.create(mkCat(id2, "Second"));
+
+    const pool = new Pool({ connectionString: DB_URL });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{"${f.tenantId}"}`,
+      ]);
+      await client.query(
+        `SELECT set_config('app.current_user_id', $1, true)`,
+        [f.userId],
+      );
+      const r = await client.query(
+        `SELECT id, sort_index FROM budgeting.categories WHERE tenant_id = $1`,
+        [f.tenantId],
+      );
+      await client.query("COMMIT");
+      const byId = Object.fromEntries(
+        r.rows.map((x) => [x.id, x.sort_index]),
+      );
+      expect(byId[id2]).toBeGreaterThan(byId[id1]);
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  });
 });
