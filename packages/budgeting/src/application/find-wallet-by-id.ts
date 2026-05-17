@@ -22,7 +22,7 @@ export function findWalletById(deps: FindWalletByIdDeps) {
         name: wallet.name,
         walletType: wallet.walletType,
         currency: wallet.currency,
-        currentBalance: wallet.currentBalance.amount.toFixed(4),
+        currentBalanceCents: wallet.currentBalance.amount.times("100").toFixed(0),
         archivedAt: wallet.archivedAt ? wallet.archivedAt.toISOString() : null,
         createdAt: wallet.createdAt.toISOString(),
       });

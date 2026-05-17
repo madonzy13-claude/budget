@@ -71,7 +71,7 @@ export function createWallet(deps: CreateWalletDeps) {
       name: wallet.name,
       walletType: wallet.walletType,
       currency: wallet.currency,
-      currentBalance: "0",
+      currentBalanceCents: "0",
       archivedAt: null,
       createdAt: now.toISOString(),
     });

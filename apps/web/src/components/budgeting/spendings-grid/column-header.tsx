@@ -8,6 +8,7 @@
  */
 import { useTranslations, useLocale } from "next-intl";
 import { Pencil } from "lucide-react";
+import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useRevealActions } from "./reveal-actions";
 import { centsToBare } from "@/lib/cents-format";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,7 @@ export interface ColumnHeaderProps {
     balanceCents: string;
   };
   cushionModeEnabled: boolean;
-  dragGripProps?: Record<string, unknown>;
+  dragGripProps?: DraggableSyntheticListeners;
   onEdit: (categoryId: string) => void;
   // D-PH5-R11 cascading-hide surface 2: when false, "Reserves used" row is hidden.
   // Default true preserves existing UX for all existing budgets.
@@ -42,7 +43,7 @@ export function ColumnHeader({
   category,
   summary,
   cushionModeEnabled,
-  dragGripProps = {},
+  dragGripProps = undefined,
   onEdit,
   reservesEnabled = true,
 }: ColumnHeaderProps) {

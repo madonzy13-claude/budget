@@ -96,10 +96,8 @@ export class ReservesPage {
     const handle = this.row(categoryId).getByRole("button", {
       name: /drag|move/i,
     });
-    await handle.hover();
-    await this.page.mouse.down();
-    await this.excludedSection().hover();
-    await this.page.mouse.up();
+    // Use dragTo which handles pointer events correctly for dnd-kit PointerSensor.
+    await handle.dragTo(this.excludedSection(), { force: true });
     await this.page.waitForLoadState("networkidle");
   }
 
@@ -107,10 +105,8 @@ export class ReservesPage {
     const handle = this.row(categoryId).getByRole("button", {
       name: /drag|move/i,
     });
-    await handle.hover();
-    await this.page.mouse.down();
-    await this.activeSection().hover();
-    await this.page.mouse.up();
+    // Use dragTo which handles pointer events correctly for dnd-kit PointerSensor.
+    await handle.dragTo(this.activeSection(), { force: true });
     await this.page.waitForLoadState("networkidle");
   }
 }

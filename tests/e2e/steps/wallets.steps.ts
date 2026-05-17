@@ -60,8 +60,8 @@ Given(
     const wallet = (await res.json()) as { id: string };
 
     // Set the amount via PUT /wallets/:id/balance
+    // API expects { amount: "1234.56", currency: "EUR" } as string decimal
     if (amount && parseFloat(amount) !== 0) {
-      const amountCents = Math.round(parseFloat(amount) * 100);
       const balRes = await page.request.put(
         `/api/wallets/${wallet.id}/balance`,
         {
@@ -69,7 +69,7 @@ Given(
             "Idempotency-Key": crypto.randomUUID(),
             "X-Budget-ID": budgetId,
           },
-          data: { amountCents, currency: currency.toUpperCase() },
+          data: { amount: parseFloat(amount).toFixed(2), currency: currency.toUpperCase() },
         },
       );
       if (!balRes.ok()) {

@@ -41,7 +41,11 @@ export function ReservesTableRow({
       : null;
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n);
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      currencyDisplay: "code",
+    }).format(n);
 
   const rowClass = [
     "flex min-h-[48px] items-center gap-3 rounded-[var(--radius-md)]",

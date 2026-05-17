@@ -26,9 +26,11 @@ export function ReservesTotalsFooter({
   const t = useTranslations("bdp.tab.reserves");
 
   const fmt = (cents: string) =>
-    new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
-      Number(cents) / 100,
-    );
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      currencyDisplay: "code",
+    }).format(Number(cents) / 100);
 
   const m = BigInt(mismatchCents);
   const variant: "overfunded" | "underfunded" | "reconciled" =
@@ -73,8 +75,8 @@ export function ReservesTotalsFooter({
 
       <MismatchChip
         variant={variant}
-        amountFormatted={amountFormatted}
-        helperText={helperText}
+        {...(amountFormatted !== undefined && { amountFormatted })}
+        {...(helperText !== undefined && { helperText })}
       />
     </div>
   );

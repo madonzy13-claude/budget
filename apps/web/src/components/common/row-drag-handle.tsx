@@ -8,11 +8,12 @@
  */
 import * as React from "react";
 import { GripVertical } from "lucide-react";
+import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 
 export interface RowDragHandleProps {
   name: string; // Used in testid + aria-label
-  listeners?: Record<string, unknown>;
-  attributes?: Record<string, unknown>;
+  listeners?: DraggableSyntheticListeners;
+  attributes?: DraggableAttributes;
   className?: string;
   ariaLabel?: string;
 }

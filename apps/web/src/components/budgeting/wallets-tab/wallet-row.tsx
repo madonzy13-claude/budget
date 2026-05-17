@@ -249,7 +249,7 @@ function PersistedRow({
             renderEditor={(draft, onChange) => (
               <CurrencyPicker
                 value={draft}
-                onChange={(v: string) => onChange(v)}
+                onSelect={(v: string) => onChange(v)}
               />
             )}
             onSave={(v) => onUpdate({ currency: v })}

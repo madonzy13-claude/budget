@@ -26,6 +26,7 @@ import {
 } from "@dnd-kit/core";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
@@ -45,6 +46,7 @@ export function WalletsSectionedList({
   budgetCurrency,
   initial,
 }: WalletsSectionedListProps) {
+  const t = useTranslations("bdp.tab.wallets.toast");
   const { data: wallets = initial } = useWallets(budgetId, initial);
   const updateMut = useUpdateWallet(budgetId);
   const createMut = useCreateWallet(budgetId);
@@ -73,18 +75,30 @@ export function WalletsSectionedList({
     const w = wallets.find((x) => x.id === String(active.id));
     if (!w || w.walletType === newType) return;
 
+    // Capture wallet name before mutation for toast message
+    const walletName = w.name;
+    const originalType = w.walletType;
+
     updateMut.mutate(
       { walletId: w.id, walletType: newType },
       {
         onSuccess: () =>
-          toast.success("bdp.tab.wallets.toast.moved", {
+          toast.success(t("moved", { name: walletName, sectionLabel: newType }), {
             description: undefined,
           }),
         onError: (err: Error & { code?: string | null }) => {
           if (err?.code === "reserve_currency_mismatch") {
-            // useUpdateWallet already toasts reserveCurrencyOnEdit
+            // D-PH5-W8: show translated toast with budget currency (not raw i18n key).
+            // use-update-wallet's onError also fires, but we override with translated msg.
+            toast.error(
+              t("reserveCurrencyRejected", {
+                budgetCcy: budgetCurrency,
+                name: walletName,
+                originalSectionLabel: originalType,
+              }),
+            );
           }
-          // useUpdateWallet.onError already handles rollback + toast
+          // Non-mismatch errors: useUpdateWallet.onError already handles + toasts.
         },
       },
     );

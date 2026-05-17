@@ -136,10 +136,8 @@ export class WalletsPage {
       name: /drag|move/i,
     });
     const targetSection = this.section(targetType);
-    await handle.hover();
-    await this.page.mouse.down();
-    await targetSection.hover();
-    await this.page.mouse.up();
+    // Use dragTo which handles pointer events correctly for dnd-kit PointerSensor.
+    await handle.dragTo(targetSection, { force: true });
     await this.page.waitForLoadState("networkidle");
   }
 

@@ -20,7 +20,8 @@ export interface WalletDto {
   name: string;
   walletType: string;
   currency: string;
-  currentBalance: string;
+  /** Balance expressed as integer cents string (e.g. "25000" = 250.00). */
+  currentBalanceCents: string;
   archivedAt: string | null;
   createdAt: string;
 }

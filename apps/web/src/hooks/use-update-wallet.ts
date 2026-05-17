@@ -104,9 +104,9 @@ export function useUpdateWallet(budgetId: string) {
       if (ctx?.previous) {
         qc.setQueryData(["budget", budgetId, "wallets"], ctx.previous);
       }
-      if (err?.code === "reserve_currency_mismatch") {
-        toast.error("bdp.tab.wallets.toast.reserveCurrencyOnEdit");
-      } else {
+      // reserve_currency_mismatch: the component (wallets-sectioned-list) shows a
+      // translated toast with budget currency context. Skip generic toast here.
+      if (err?.code !== "reserve_currency_mismatch") {
         toast.error("bdp.tab.wallets.toast.saveFailed");
       }
     },

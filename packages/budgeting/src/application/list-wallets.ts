@@ -25,7 +25,7 @@ export function listWallets(deps: ListWalletsDeps) {
           name: w.name,
           walletType: w.walletType,
           currency: w.currency,
-          currentBalance: w.currentBalance.amount.toFixed(4),
+          currentBalanceCents: w.currentBalance.amount.times("100").toFixed(0),
           archivedAt: w.archivedAt ? w.archivedAt.toISOString() : null,
           createdAt: w.createdAt.toISOString(),
         })),
