@@ -8,7 +8,14 @@
  *   - ADD sort_index INTEGER NOT NULL DEFAULT 0 (MIG-07; UI drag-reorder in Phase 4)
  */
 import { sql } from "drizzle-orm";
-import { pgPolicy, uuid, text, integer, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgPolicy,
+  uuid,
+  text,
+  boolean,
+  integer,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
 export const categories = budgeting.table(
@@ -25,6 +32,9 @@ export const categories = budgeting.table(
       .defaultNow()
       .notNull(),
     actorUserId: uuid("actor_user_id").notNull(),
+    // Phase 5 (D-PH5-R10): excluded categories are hidden from reserve math totals.
+    // Drag between Active/Excluded sections on the Reserves tab toggles this flag.
+    reserveExcluded: boolean("reserve_excluded").notNull().default(false),
   },
   (t) => [
     pgPolicy("categories_tenant_isolation", {

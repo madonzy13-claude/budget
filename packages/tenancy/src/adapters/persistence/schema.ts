@@ -37,6 +37,10 @@ export const budgets = tenancy.table(
     cushionModeEnabled: boolean("cushion_mode_enabled")
       .notNull()
       .default(false),
+    // Phase 5 (D-PH5-R11): global reserves toggle. When false, Reserves tab pill,
+    // spendings grid reserve row, and top reserve pill are all hidden. Toggle UI
+    // lives in Phase 6 Settings; default true preserves existing UX.
+    reservesEnabled: boolean("reserves_enabled").notNull().default(true),
   },
   (t) => [
     pgPolicy("budgets_tenant_isolation", {
