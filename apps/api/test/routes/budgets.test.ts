@@ -80,6 +80,82 @@ describe("Budgets route (renamed from workspaces)", () => {
     expect(res.status).toBe(404);
   });
 
+  it("GET /budgets/:id returns 200 with reservesEnabled=true for a known budget", async () => {
+    const app = buildApp({
+      user: { id: "user-001", email: "test@test.com", locale: "en" },
+    });
+    // Patch the fake deps' workspaceRepo to return a budget with reservesEnabled
+    const { budgetsRoutesFactory } = require("../../src/routes/budgets");
+    const app2 = new Hono();
+    app2.use(async (c: any, next: any) => {
+      c.set("session", { user: { id: "user-001", email: "test@test.com" } } as any);
+      c.set("tenantIds", ["budget-001"]);
+      await next();
+    });
+    const fakeDeps2 = {
+      tenancy: {
+        workspaceRepo: {
+          findById: async (id: string) =>
+            id === "budget-001"
+              ? {
+                  id: "budget-001",
+                  slug: "abc123",
+                  name: "Test Budget",
+                  kind: "PRIVATE" as const,
+                  default_currency: "USD",
+                  ownerUserId: "user-001",
+                  memberCount: 1,
+                  createdAt: new Date(),
+                  cushionModeEnabled: false,
+                  reservesEnabled: true,
+                }
+              : null,
+          listForUser: async () => [],
+          listMembers: async () => [],
+        },
+        memberShareRepo: { list: async () => [], update: async () => {} },
+      },
+      identity: {
+        userRepo: {
+          getActiveWorkspaceIds: async () => [] as string[],
+          setActiveWorkspaceIds: async () => {},
+          findById: async () => null,
+          updateLocale: async () => {},
+        },
+        auth: { api: { createOrganization: async () => ({}) } },
+      },
+    } as any;
+    app2.route("/budgets", budgetsRoutesFactory(fakeDeps2));
+    const res = await app2.request("/budgets/budget-001");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.reservesEnabled).toBe(true);
+    expect(body.id).toBe("budget-001");
+  });
+
+  it("GET /budgets/:id returns 404 when budget not in tenantIds", async () => {
+    const { budgetsRoutesFactory } = require("../../src/routes/budgets");
+    const app3 = new Hono();
+    app3.use(async (c: any, next: any) => {
+      c.set("session", { user: { id: "user-001" } } as any);
+      c.set("tenantIds", ["other-budget"]);
+      await next();
+    });
+    const fakeDeps3 = {
+      tenancy: {
+        workspaceRepo: { findById: async () => null, listForUser: async () => [], listMembers: async () => [] },
+        memberShareRepo: { list: async () => [], update: async () => {} },
+      },
+      identity: {
+        userRepo: { getActiveWorkspaceIds: async () => [], setActiveWorkspaceIds: async () => {}, findById: async () => null, updateLocale: async () => {} },
+        auth: { api: {} },
+      },
+    } as any;
+    app3.route("/budgets", budgetsRoutesFactory(fakeDeps3));
+    const res = await app3.request("/budgets/budget-001");
+    expect(res.status).toBe(404);
+  });
+
   it("POST /workspaces returns 404", async () => {
     const app = buildApp({
       user: { id: "user-001", email: "test@test.com", locale: "en" },

@@ -10,6 +10,8 @@ export interface BudgetDTO {
   memberCount: number;
   createdAt: Date;
   cushionModeEnabled?: boolean;
+  // D-PH5-R11: global reserves toggle; default true preserves existing UX.
+  reservesEnabled?: boolean;
 }
 
 export interface MemberDTO {

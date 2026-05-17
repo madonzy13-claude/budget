@@ -81,6 +81,34 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     }
   });
 
+  // GET /budgets/:id — fetch single budget meta (D-PH5-R11: surfaces reservesEnabled flag)
+  // Membership check: budgetId must be in session's tenantIds (same pattern as home-summary:248-254).
+  r.get("/:id", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    const budget = await deps.tenancy.workspaceRepo.findById(budgetId);
+    if (!budget) return c.json({ error: "not_found" }, 404);
+
+    return c.json({
+      id: budget.id,
+      name: budget.name,
+      slug: budget.slug,
+      kind: budget.kind,
+      defaultCurrency: budget.default_currency,
+      ownerUserId: budget.ownerUserId,
+      memberCount: budget.memberCount,
+      cushionModeEnabled: budget.cushionModeEnabled ?? false,
+      reservesEnabled: budget.reservesEnabled ?? true,
+    });
+  });
+
   // POST /budgets/:id/invitations — invite member
   // Bypasses Better Auth's createInvitation: its findMemberByOrgId SELECT runs
   // without app.current_user_id GUC and is filtered out by RLS in CI (app_role
