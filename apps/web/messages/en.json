@@ -544,7 +544,11 @@
       "reserves": {
         "label": "Reserves",
         "title": "Reserves",
-        "section": { "active": "Active", "excluded": "Excluded" },
+        "section": {
+          "active": "Active",
+          "excluded": "Excluded",
+          "excludedEmpty": "No excluded categories"
+        },
         "column": {
           "category": "Category",
           "balance": "Reserve balance",
