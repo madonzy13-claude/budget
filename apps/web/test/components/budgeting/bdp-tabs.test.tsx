@@ -87,6 +87,51 @@ describe("BdpTabs", () => {
     expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
   });
 
+  // D-PH5-R11: cascading-hide surface 1 — reservesEnabled prop
+  describe("reservesEnabled cascading-hide (D-PH5-R11 surface 1)", () => {
+    it("no prop (undefined) → defaults to true → renders all 4 pills including Reserves", () => {
+      mockPathname = "/en/budgets/abc/spendings";
+      render(<BdpTabs locale="en" budgetId="abc" />);
+      const links = screen.getAllByRole("link");
+      expect(links.length).toBe(4);
+      expect(screen.getByRole("link", { name: "Reserves" })).toBeTruthy();
+    });
+
+    it("reservesEnabled={true} → renders all 4 pills including Reserves", () => {
+      mockPathname = "/en/budgets/abc/spendings";
+      render(<BdpTabs locale="en" budgetId="abc" reservesEnabled={true} />);
+      const links = screen.getAllByRole("link");
+      expect(links.length).toBe(4);
+      expect(screen.getByRole("link", { name: "Reserves" })).toBeTruthy();
+    });
+
+    it("reservesEnabled={false} → renders 3 pills; Reserves is NOT in DOM", () => {
+      mockPathname = "/en/budgets/abc/spendings";
+      render(<BdpTabs locale="en" budgetId="abc" reservesEnabled={false} />);
+      const links = screen.getAllByRole("link");
+      expect(links.length).toBe(3);
+      const labels = links.map((l) => l.getAttribute("aria-label"));
+      expect(labels).toContain("Spendings");
+      expect(labels).toContain("Wallets");
+      expect(labels).toContain("Settings");
+      expect(labels).not.toContain("Reserves");
+      expect(screen.queryByRole("link", { name: "Reserves" })).toBeNull();
+    });
+
+    it("reservesEnabled={false} + activeSlug=reserves → does not crash; no pill is active-current", () => {
+      mockPathname = "/en/budgets/abc/reserves";
+      render(<BdpTabs locale="en" budgetId="abc" reservesEnabled={false} />);
+      // Should not throw — reserves tab hidden
+      const links = screen.getAllByRole("link");
+      expect(links.length).toBe(3);
+      // None of the visible links should have aria-current=page pointing at /reserves
+      const activePills = links.filter(
+        (l) => l.getAttribute("aria-current") === "page",
+      );
+      expect(activePills.length).toBe(0);
+    });
+  });
+
   it("inactive pills' label span carries 'hidden sm:inline' classes (mobile-collapse)", () => {
     mockPathname = "/en/budgets/abc/spendings";
     render(<BdpTabs locale="en" budgetId="abc" />);
