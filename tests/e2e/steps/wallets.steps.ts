@@ -93,24 +93,9 @@ When(
   },
 );
 
-When("I click {string}", async ({ page }, label: string) => {
-  // Route "Add {type} wallet" labels to section-typed add buttons
-  const addMatch = label.match(/^Add (spendings|cushion|reserve) wallet$/i);
-  if (addMatch) {
-    const wallets = new WalletsPage(page);
-    await wallets
-      .addButton(
-        addMatch[1]!.toLowerCase() as "spendings" | "cushion" | "reserve",
-      )
-      .click();
-    return;
-  }
-  // Generic button click
-  await page
-    .getByRole("button", { name: new RegExp(label, "i") })
-    .first()
-    .click();
-});
+// NOTE: "I click {string}" is defined in budget.steps.ts (generic button click).
+// Section-specific add buttons use the testid add-wallet-{type}.
+// Feature files use: When I click "Add spendings wallet" → budget.steps.ts handles it.
 
 When(
   "I edit the wallet {string} name to {string}",
