@@ -29,6 +29,9 @@ import { cn } from "@/lib/utils";
 interface BdpTabsProps {
   locale: string;
   budgetId: string;
+  // D-PH5-R11 cascading-hide surface 1: when false, Reserves pill is hidden.
+  // Default true preserves existing UX for all existing budgets.
+  reservesEnabled?: boolean;
 }
 
 const TABS: ReadonlyArray<{
@@ -41,16 +44,25 @@ const TABS: ReadonlyArray<{
   { slug: "settings", icon: Settings },
 ];
 
-export function BdpTabs({ locale, budgetId }: BdpTabsProps) {
+export function BdpTabs({
+  locale,
+  budgetId,
+  reservesEnabled = true,
+}: BdpTabsProps) {
   const pathname = usePathname() ?? "";
   const t = useTranslations("bdp.tab");
+
+  // D-PH5-R11: filter Reserves pill when reserves are disabled.
+  const visibleTabs = reservesEnabled
+    ? TABS
+    : TABS.filter((t) => t.slug !== "reserves");
 
   return (
     <nav
       aria-label={t("aria")}
       className="flex h-12 items-center justify-center gap-2 px-4 sm:px-6"
     >
-      {TABS.map(({ slug, icon: Icon }) => {
+      {visibleTabs.map(({ slug, icon: Icon }) => {
         const href = `/${locale}/budgets/${budgetId}/${slug}`;
         const active = pathname.startsWith(href);
         const label = t(`${slug}.label`);

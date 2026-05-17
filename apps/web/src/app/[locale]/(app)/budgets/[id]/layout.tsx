@@ -42,7 +42,14 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
   const { locale, id } = await params;
 
   // Membership check — fetch active budgets and confirm `id` is among them.
-  const activeRes = await serverApiFetch(null, "/budgets/active");
+  // Also fetch budget meta to read reservesEnabled (D-PH5-R11 cascading-hide surface 1).
+  // Next.js dedupes identical fetch URLs within the same render pass.
+  const [activeRes, budgetRes, initialTasks] = await Promise.all([
+    serverApiFetch(null, "/budgets/active"),
+    serverApiFetch(id, `/budgets/${id}`),
+    fetchInitialTasks(id),
+  ]);
+
   if (activeRes.ok) {
     const body = (await activeRes.json()) as {
       budgets?: Array<{ id: string }>;
@@ -52,7 +59,11 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
     if (!list.some((b) => b.id === id)) redirect(`/${locale}`);
   }
 
-  const initialTasks = await fetchInitialTasks(id);
+  // D-PH5-R11: read reservesEnabled; default true preserves existing UX.
+  const reservesEnabled = budgetRes.ok
+    ? (((await budgetRes.json()) as { reservesEnabled?: boolean })
+        .reservesEnabled ?? true)
+    : true;
 
   return (
     <>
@@ -67,7 +78,11 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
             initialTasks={initialTasks}
           />
         ) : null}
-        <BdpTabs locale={locale} budgetId={id} />
+        <BdpTabs
+          locale={locale}
+          budgetId={id}
+          reservesEnabled={reservesEnabled}
+        />
       </div>
       {children}
     </>
