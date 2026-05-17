@@ -30,4 +30,22 @@ export interface WalletRepo {
     amount: { amount: string; currency: string },
     actorUserId: string,
   ): Promise<void>;
+
+  /**
+   * update — partial PATCH of name / amount / walletType / currency in a single transaction.
+   * Each provided field is mutated; absent fields are untouched.
+   * Writes ONE audit row covering the whole patch + ONE outbox event "budgeting.wallet.updated".
+   * Throws if walletId not found for tenant.
+   */
+  update(
+    tenantId: string,
+    walletId: string,
+    patch: {
+      name?: string;
+      amount?: string;
+      currency?: string;
+      walletType?: import("../domain/wallet").WalletType;
+    },
+    actorUserId: string,
+  ): Promise<void>;
 }

@@ -3,7 +3,7 @@
  * MUST NOT be imported by domain/application layers (dep-cruiser).
  * Each write: withTenantTx → SQL → writeAudit → writeOutbox.
  */
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId, Money } from "@budget/shared-kernel";
 import type { Wallet } from "../../domain/wallet";
@@ -254,6 +254,94 @@ export class DrizzleWalletRepo implements WalletRepo {
           currency: amount.currency,
           actorUserId,
         },
+      });
+    });
+
+    if (r.isErr()) throw r.error;
+  }
+
+  /**
+   * update — partial PATCH of name / walletType / currency / amount.
+   * Mirrors setBalance shape (lines 203-261): SELECT before → UPDATE → audit + outbox.
+   * UI inline-edit path; setBalance remains the worker-job path (D-PH2-09).
+   */
+  async update(
+    tenantId: string,
+    walletId: string,
+    patch: {
+      name?: string;
+      amount?: string;
+      currency?: string;
+      walletType?: import("../../domain/wallet").WalletType;
+    },
+    actorUserId: string,
+  ): Promise<void> {
+    const tid = TenantId(tenantId);
+    const uid = UserId(actorUserId);
+
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      // SELECT before state
+      const before = await tx.execute<{
+        name: string;
+        wallet_type: string;
+        currency: string;
+        current_balance: string;
+      }>(
+        sql`SELECT name, wallet_type, currency, current_balance::text
+            FROM budgeting.wallets
+            WHERE id = ${walletId}::uuid AND tenant_id = ${tenantId}::uuid`,
+      );
+      const beforeRow = (before as any).rows?.[0] ?? (before as any)[0];
+      if (!beforeRow) {
+        throw new Error("Wallet not found");
+      }
+
+      // Build SET fragments for non-undefined patch fields
+      const sets: SQL[] = [];
+      if (patch.name !== undefined) sets.push(sql`name = ${patch.name}`);
+      if (patch.walletType !== undefined)
+        sets.push(sql`wallet_type = ${patch.walletType}`);
+      if (patch.currency !== undefined)
+        sets.push(sql`currency = ${patch.currency}`);
+      if (patch.amount !== undefined)
+        sets.push(sql`current_balance = ${patch.amount}::numeric`);
+
+      if (sets.length === 0) return; // no-op patch
+
+      await tx.execute(
+        sql`UPDATE budgeting.wallets
+            SET ${sql.join(sets, sql`, `)}
+            WHERE id = ${walletId}::uuid AND tenant_id = ${tenantId}::uuid`,
+      );
+
+      const afterState = {
+        name: patch.name ?? beforeRow.name,
+        walletType: patch.walletType ?? beforeRow.wallet_type,
+        currency: patch.currency ?? beforeRow.currency,
+        currentBalance: patch.amount ?? beforeRow.current_balance,
+      };
+
+      await writeAudit(tx, {
+        tenantId: tid,
+        entityType: "wallet",
+        entityId: walletId,
+        action: "update",
+        actorUserId: uid,
+        before: {
+          name: beforeRow.name,
+          walletType: beforeRow.wallet_type,
+          currency: beforeRow.currency,
+          currentBalance: beforeRow.current_balance,
+        },
+        after: afterState,
+      });
+
+      await writeOutbox(tx, {
+        tenantId: tid,
+        aggregateType: "wallet",
+        aggregateId: walletId,
+        eventType: "budgeting.wallet.updated",
+        payload: { patch, actorUserId },
       });
     });
 
