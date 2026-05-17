@@ -415,6 +415,64 @@ export const bulkRecategorizeSchema = z.object({
 
 export type BulkRecategorizeBody = z.infer<typeof bulkRecategorizeSchema>;
 
+// ─── Phase 5 Wallets PATCH ─────────────────────────────────────────────────
+/**
+ * updateWalletSchema — partial PATCH body for /wallets/:id.
+ * Whitelist exactly four fields (mass-assignment defense, T-05-13).
+ * `.strict()` rejects unknown keys. `.refine` rejects empty body.
+ * Reserve-currency invariant enforced in the application use case (Plan 03).
+ */
+export const updateWalletSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    amount: z
+      .string()
+      .regex(/^-?\d+(\.\d{1,4})?$/, "amount must be numeric")
+      .optional(),
+    walletType: walletTypeSchema.optional(),
+    currency: z
+      .string()
+      .regex(/^[A-Z0-9]{3,5}$/, "currency must be 3-5 uppercase chars")
+      .optional(),
+  })
+  .strict()
+  .refine((d) => Object.keys(d).length > 0, { message: "empty_body" });
+
+export type UpdateWalletBody = z.infer<typeof updateWalletSchema>;
+
+// ─── Phase 5 Reserves Adjustment ───────────────────────────────────────────
+/**
+ * reserveAdjustmentSchema — body for POST /budgets/:id/reserves/:catId/adjust.
+ * deltaCents is signed (negative = withdraw).
+ */
+export const reserveAdjustmentSchema = z
+  .object({
+    deltaCents: z
+      .number()
+      .int()
+      .refine((n) => n !== 0, { message: "delta_zero" }),
+    note: z.string().trim().max(280).optional(),
+  })
+  .strict();
+
+export type ReserveAdjustmentBody = z.infer<typeof reserveAdjustmentSchema>;
+
+// ─── Phase 5 Category Reserve Exclude ──────────────────────────────────────
+/**
+ * categoryReserveExcludeSchema — body for PATCH /budgets/:id/categories/:catId/reserve-excluded.
+ */
+export const categoryReserveExcludeSchema = z
+  .object({
+    excluded: z.boolean(),
+  })
+  .strict();
+
+export type CategoryReserveExcludeBody = z.infer<
+  typeof categoryReserveExcludeSchema
+>;
+
+// ---------------------------------------------------------------------------
+
 /** @deprecated v1.0 DTO shape — use TransactionRow from ports/transaction-repo instead */
 export interface TransactionDto {
   id: string;
