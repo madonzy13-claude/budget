@@ -54,6 +54,13 @@ import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
 import { createReserveBalanceRepo } from "../adapters/persistence/reserve-balance-repo";
 import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
+import { DrizzleCategoryReserveAdjustmentsRepo } from "../adapters/persistence/category-reserve-adjustments-repo";
+import { DrizzleReservesSummaryRepo } from "../adapters/persistence/reserves-summary-repo";
+import { DrizzleCategoriesRepo } from "../adapters/persistence/categories-repo";
+import { updateWallet } from "../application/update-wallet";
+import { adjustCategoryReserve } from "../application/adjust-category-reserve";
+import { toggleCategoryReserveExcluded } from "../application/toggle-category-reserve-excluded";
+import { getReservesSummary } from "../application/get-reserves-summary";
 
 export interface BudgetingDeps {
   fxCache: FxRateCacheRepo;
@@ -107,6 +114,29 @@ export interface BudgetingModule {
   replayProjections: ReturnType<typeof replayProjections>;
   // Plan 02-03: reserve balance read-model
   reserveBalanceRepo: ReserveBalanceRepo;
+  // Plan 05-03: reserves + wallet mutation use cases
+  updateWallet: ReturnType<typeof updateWallet>;
+  adjustCategoryReserve: ReturnType<typeof adjustCategoryReserve>;
+  toggleCategoryReserveExcluded: ReturnType<
+    typeof toggleCategoryReserveExcluded
+  >;
+  getReservesSummary: ReturnType<typeof getReservesSummary>;
+}
+
+/** Checks budgets.reserves_enabled for the given tenantId. */
+async function isReservesEnabled(tenantId: string): Promise<boolean> {
+  const r = await withInfraTx(async (tx) => {
+    const drizzleTx = tx as {
+      execute: (
+        q: unknown,
+      ) => Promise<{ rows: Array<{ reserves_enabled: boolean }> }>;
+    };
+    const rs = await drizzleTx.execute(
+      sql`SELECT reserves_enabled FROM tenancy.budgets WHERE id = ${tenantId}::uuid LIMIT 1`,
+    );
+    return rs.rows[0]?.reserves_enabled ?? true;
+  });
+  return r.isOk() ? r.value : true;
 }
 
 /** Resolves budget default_currency from tenancy.budgets (renamed from workspaces in v1.1). */
@@ -137,6 +167,10 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   const recurringRuleRepo = new DrizzleRecurringRuleRepo();
   const recurringDraftRepo = new ExpenseLedgerDraftRepo();
   const fxProvider = new FrankfurterFxProvider(deps.fxCache);
+  // Plan 05-03: new repos
+  const adjustmentsRepo = new DrizzleCategoryReserveAdjustmentsRepo();
+  const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
+  const categoriesRepo = new DrizzleCategoriesRepo();
 
   return {
     fxProvider,
@@ -196,5 +230,25 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     replayProjections: replayProjections(),
     // Plan 02-03: reserve balance read-model
     reserveBalanceRepo: createReserveBalanceRepo(),
+    // Plan 05-03: reserves + wallet mutation use cases
+    updateWallet: updateWallet({
+      repo,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+    }),
+    adjustCategoryReserve: adjustCategoryReserve({
+      adjustmentsRepo,
+      categoriesRepo,
+      isReservesEnabled,
+    }),
+    toggleCategoryReserveExcluded: toggleCategoryReserveExcluded({
+      repo: categoriesRepo,
+    }),
+    getReservesSummary: getReservesSummary({
+      reserveBalanceRepo: createReserveBalanceRepo(),
+      reservesSummaryRepo,
+      categoriesRepo,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
+    }),
   };
 }
