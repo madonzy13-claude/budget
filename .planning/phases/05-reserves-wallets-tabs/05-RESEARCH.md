@@ -614,25 +614,35 @@ export default async function WalletsPage({ params }: PageProps) {
 | A6  | The existing Phase 2 `GET /budgets/:id/reserves` has no production consumer (safe to change shape).                                    | Pitfall 1                     | If wrong: silent regression. Mitigation: grep `["budget", id, "reserves"]` and `/reserves` paths in `apps/web/**` before changing shape (confirmed empty by my read). |
 | A7  | The `tenancy.budgets.default_currency` column is queryable from `withTenantTx` (RLS allows) for the reserve-currency invariant lookup. | Pattern 2                     | If RLS blocks: use `withInfraTx` like `getBudgetCurrency()` in `reserve-balance-repo.ts:30`.                                                                          |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **WALT-04 currency immutability vs D-PH5-W5 inline-edit Currency cell.**
-   - What we know: Domain enforces immutability (`wallet.ts:31`). CONTEXT.md D-PH5-W5 says "click any cell becomes editable" — implying Currency is editable.
-   - What's unclear: Does "any cell" include Currency, or did the user mean "any of the editable cells (Name, Amount)" while Currency stays display-only per WALT-04?
-   - Recommendation: **Plan with Currency as READ-ONLY** (rendered as plain text, no `<InlineEditCell>` wrapper) and note in PR description. If user disagrees during e2e review, follow-up ticket rescinds WALT-04 and adds the mutator. This keeps the immutability invariant intact and ships the most defensive interpretation.
+> **Resolution note (2026-05-17, plan-phase follow-up round Q10–Q17):** All four questions resolved during scope-expansion conversation captured in `05-DISCUSSION-LOG.md`. Original recommendations preserved below for historical context but **the locked decisions in CONTEXT.md D-PH5-R7..R13 + D-PH5-W12 take precedence**. Executors MUST follow the RESOLVED entries below, NOT the original recommendations.
 
-2. **Mismatch totals row visual placement — sticky vs static?**
-   - What we know: D-PH5-R1 mandates totals; Claude's Discretion says sticky bottom recommended.
-   - What's unclear: Sticky needs the table to be a scroll container — fine on mobile, possibly awkward on desktop short tables.
-   - Recommendation: Static footer row on desktop; sticky-bottom on mobile via Tailwind responsive class. Decide during sketch.
+1. **WALT-04 currency immutability vs D-PH5-W5 inline-edit Currency cell.** **RESOLVED — WALT-04 RESCINDED.**
+   - Original recommendation (now SUPERSEDED): Plan with Currency as READ-ONLY; defer rescinding to follow-up ticket.
+   - **Final decision (DISCUSSION-LOG Q10, locked as D-PH5-W12):** Currency cell IS inline-editable. WALT-04 immutability rescinded for Phase 5. Plan 02 removes `readonly` from `currency` field and rewrites `canChangeCurrency()` to return `ok(undefined)`. Plan 03 use case `update-wallet.ts` enforces the reserve-currency invariant on EVERY effective-RESERVE PATCH (not just type-changes) — fires when `effectiveType === 'RESERVE' && effectiveCurrency !== budgetCurrency`. UI: non-reserve wallet currency cell wraps `<InlineEditCell>`; reserve-section currency cell renders read-only (UI-level guard against the 422 trip).
+   - Why the change: User confirmed editable in Q10 ("Editable, server validates"). Domain rescission keeps the invariant where it belongs (use case + server) rather than UI display-only.
 
-3. **In-section reorder — defer or ship?**
-   - What we know: Claude's discretion. Not WALT-\* mandated. Needs new `sort_index` column.
-   - Recommendation: **Defer** (matches CONTEXT.md "deferred ideas"). Cross-section drag alone is the win.
+2. **Mismatch totals row visual placement — sticky vs static?** **RESOLVED — STICKY-BOTTOM ALWAYS (both viewports).**
+   - Original recommendation: Static on desktop, sticky on mobile.
+   - **Final decision (DISCUSSION-LOG Q17, locked as D-PH5-R12):** Sticky-bottom on BOTH desktop AND mobile. Mismatch chip must remain visible during scroll on long category lists. UI-SPEC lines 460+ accept mobile virtual-keyboard occlusion as known UX nit (not blocking).
 
-4. **Should the Actions column placeholder be tappable (open a Phase 7 placeholder dialog) or fully inert?**
-   - What we know: D-PH5-R6 says "muted lucide MoreHorizontal" placeholder, ROADMAP success-criterion #5 says "inert this phase".
-   - Recommendation: Fully inert (no `onClick`). Removes the Phase 7 coupling temptation.
+3. **In-section reorder — defer or ship?** **RESOLVED — DEFERRED.**
+   - Final decision: Defer (matches CONTEXT.md "deferred ideas"). Cross-section drag alone is the Phase 5 win. Reconsider in a future ticket if user feedback shows in-section ordering matters.
+
+4. **Should the Actions column placeholder be tappable (open a Phase 7 placeholder dialog) or fully inert?** **RESOLVED — FULLY INERT.**
+   - Final decision: Fully inert (no `onClick`, `aria-hidden="true"`). Phase 7 owns the task-surface wiring. UI-SPEC line 518 verifies inert state via grep test.
+
+> **Scope expansion follow-up (DISCUSSION-LOG Q11–Q16, locked as D-PH5-R7..R13 + D-PH5-W12) that this RESEARCH predates:**
+>
+> - New `category_reserve_adjustments` table (append-only ledger) — Plan 01 + 02
+> - `categories.reserve_excluded` column + Active/Excluded sections with drag-between in Reserves tab — Plan 01 + 03 + 06
+> - `budgets.reserves_enabled` column + cascading hide (tab pill, spendings row, top reserve pill) — Plan 01 + 07
+> - Manual rebalance via inline-edit of reserve balance cell (writes adjustment delta) — Plan 03 + 06
+> - Mismatch chip (`<MismatchChip>` overfunded/underfunded/reconciled variants) on sticky totals row — Plan 04 + 06
+> - No transfer modal — transfer = two independent inline edits with mismatch bucket reflecting in-flight delta — Plan 06
+>
+> All of the above are documented in CONTEXT.md, PATTERNS.md, and the 8 plan files. RESEARCH.md's Pattern 1/2/3 sections still apply as the FOUNDATION for the new endpoints + UI; the expansion is additive.
 
 ## Environment Availability
 

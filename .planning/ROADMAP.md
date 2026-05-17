@@ -129,8 +129,17 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. Clicking `+ Add wallet` at the bottom spawns a blank row with focus on Name; hovering a row reveals a trash icon that triggers a confirmation, then deletes; wallet balances do not auto-update from transactions (manual snapshots only); the type label is display-only — no income or transfer ledger affects it
 5. Reserves tab Actions column wires to the Phase 7 task model surface (top-up / withdraw) but stays inert in this phase; both tabs render correctly on mobile and respect the per-budget tenant context
 
-**Plans**: pending
-**UI hint**: yes
+**Plans** (8 — schema → backend → atoms+routes → tabs+cascade → e2e):
+
+- [ ] 05-01-PLAN.md — Wave 1: Migration 0020 (category_reserve_adjustments + RLS + indexes; categories.reserve_excluded; budgets.reserves_enabled; VIEW DROP+CREATE) + Drizzle TS mirror + tenant-leak fixture (+1 covered table) + [BLOCKING] `make migrate` (RSRV-01..03, 05..07)
+- [ ] 05-02-PLAN.md — Wave 2: Wallet domain mutators (rename/changeType/changeCurrency/setAmount) + WalletRepo.update + new CategoryReserveAdjustments + ReservesSummary + Categories.setReserveExcluded repos + Zod schemas (WALT-01..03, 06, 07; RSRV-01, 02, 06)
+- [ ] 05-03-PLAN.md — Wave 3: Application use cases (updateWallet w/ reserve-currency invariant, adjustCategoryReserve, toggleCategoryReserveExcluded, getReservesSummary) + 4 HTTP routes (PATCH /wallets/:id, POST /reserves/:catId/adjust, PATCH /categories/:id/reserve-excluded, REWRITE GET /reserves) + integration tests (all WALT-_ + all RSRV-_)
+- [ ] 05-04-PLAN.md — Wave 3 (parallel): Shared FE atoms `<InlineEditCell>` + `<DashedAddButton>` + `<RowDragHandle>` lift + `<MismatchChip>` + Phase 4 callsite refactor + EN i18n keys for both tabs (WALT-03, 04; RSRV-01, 06, 07)
+- [ ] 05-05-PLAN.md — Wave 4: Wallets tab end-to-end (RSC page + `<WalletsSectionedList>` + 3 sections + per-section drop zones + inline-edit + soft-archive + cross-tab invalidation hook) + delete v1.0 accounts-_ legacy (all WALT-_)
+- [ ] 05-06-PLAN.md — Wave 4 (parallel): Reserves tab end-to-end (RSC page + `<ReservesTableClient>` + Active/Excluded sections + inline-edit reserve balance via computed delta + sticky totals footer + `<MismatchChip>` variants) (all RSRV-\*)
+- [ ] 05-07-PLAN.md — Wave 4 (parallel): `reserves_enabled` cascading hide — BdpTabs filters Reserves pill + spendings grid row 4 conditional + `GET /budgets/:id` DTO carries the flag (RSRV-04, 06)
+- [ ] 05-08-PLAN.md — Wave 5 (final, autonomous=false): 6 playwright-bdd `@phase5` features + new ReservesPage + rewritten WalletsPage Page Objects + step bindings + full `make test && bun run test && make ci-gate && make test-e2e` green + impeccable DESIGN.md sweep (all WALT-_ + all RSRV-_)
+      **UI hint**: yes
 
 ### Phase 6: Settings, Onboarding & Share UI
 
