@@ -7,10 +7,11 @@
  * D-PH4-INT1: Single click on name cell reveals [Pen] — no hover.
  */
 import { useTranslations, useLocale } from "next-intl";
-import { GripVertical, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useRevealActions } from "./reveal-actions";
 import { centsToBare } from "@/lib/cents-format";
 import { cn } from "@/lib/utils";
+import { RowDragHandle } from "@/components/common/row-drag-handle";
 
 export interface ColumnHeaderProps {
   category: {
@@ -75,14 +76,7 @@ export function ColumnHeader({
         )}
       >
         {/* GripVertical — always visible, touch-none, D-PH4-D3 */}
-        <span
-          data-testid={`drag-grip-${category.name.toLowerCase()}`}
-          style={{ touchAction: "none" }}
-          className="touch-none cursor-grab text-[var(--muted-foreground)]"
-          {...dragGripProps}
-        >
-          <GripVertical className="h-4 w-4" aria-hidden="true" />
-        </span>
+        <RowDragHandle name={category.name} listeners={dragGripProps} />
         <span className="flex-1 truncate text-sm font-medium text-[var(--body-on-dark)]">
           {category.name}
         </span>
@@ -97,7 +91,10 @@ export function ColumnHeader({
             }}
             className="flex h-6 w-6 items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
           >
-            <Pencil className="h-3.5 w-3.5 text-[var(--body-on-dark)]" aria-hidden="true" />
+            <Pencil
+              className="h-3.5 w-3.5 text-[var(--body-on-dark)]"
+              aria-hidden="true"
+            />
           </button>
         )}
       </div>
