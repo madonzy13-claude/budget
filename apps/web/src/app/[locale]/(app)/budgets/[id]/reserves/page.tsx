@@ -1,22 +1,38 @@
-import { getTranslations } from "next-intl/server";
-
 /**
- * /budgets/[id]/reserves — placeholder until Phase 5 ships per-category
- * reserve balances.
+ * /budgets/[id]/reserves — RSC page for Reserves tab.
+ *
+ * Fetches GET /reserves server-side and passes initial data to client island.
+ * Fallback initial state (server error / first load) contains excludedRows: []
+ * so the client island renders gracefully before any user interaction.
+ *
+ * W-3: initial data carries both rows + excludedRows from the single /reserves fetch.
+ * No separate GET /categories fetch is made anywhere on this page.
  */
+import { serverApiFetch } from "@/lib/budget-fetch.server";
+import { ReservesTableClient } from "@/components/budgeting/reserves-tab/reserves-table-client";
+
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
 }
 
 export default async function ReservesPage({ params }: PageProps) {
-  const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "bdp.tab.reserves" });
-  return (
-    <main className="mx-auto max-w-[1280px] px-6 pt-8 sm:px-8">
-      <h1 className="text-title-lg text-[var(--body-on-dark)]">{t("title")}</h1>
-      <p className="mt-2 text-base text-[var(--muted-foreground)]">
-        {t("placeholder")}
-      </p>
-    </main>
-  );
+  const { id: budgetId } = await params;
+
+  const res = await serverApiFetch(budgetId, `/budgets/${budgetId}/reserves`);
+
+  const initial = res.ok
+    ? await res.json()
+    : {
+        rows: [],
+        excludedRows: [],
+        totals: {
+          totalCategoryReservesCents: "0",
+          totalReserveWalletAmountCents: "0",
+          mismatchCents: "0",
+          disabled: false,
+          budgetCurrency: "EUR",
+        },
+      };
+
+  return <ReservesTableClient budgetId={budgetId} initial={initial} />;
 }
