@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: completed
-stopped_at: Phase 04 UI-SPEC approved
-last_updated: "2026-05-14T08:32:55.407Z"
+stopped_at: Phase 5 context gathered
+last_updated: "2026-05-17T08:45:19.184Z"
 last_activity: 2026-05-14 -- Phase 04 marked complete
 progress:
   total_phases: 8
@@ -184,9 +184,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-13T14:30:04.534Z
-Stopped at: Phase 04 UI-SPEC approved
-Resume file: .planning/phases/04-spendings-grid/04-UI-SPEC.md
+Last session: 2026-05-17T08:45:19.152Z
+Stopped at: Phase 5 context gathered
+Resume file: .planning/phases/05-reserves-wallets-tabs/05-CONTEXT.md
 
 ## v1.0 History (archived)
 
