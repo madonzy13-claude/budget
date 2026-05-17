@@ -697,6 +697,13 @@ GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, curren
 -- Phase 2 plan 02-03: GRANT on reserves auto-compute view
 GRANT SELECT ON budgeting.category_reserve_balance TO app_role, worker_role;
 
+-- Phase 5 plan 05-01: category_reserve_adjustments (append-only ledger, D-PH5-R8)
+-- FORCE RLS was applied by migration 0020 via ALTER TABLE ... FORCE ROW LEVEL SECURITY.
+-- GRANTs: INSERT only for app_role (append-only); SELECT for both roles; no UPDATE/DELETE.
+ALTER TABLE budgeting.category_reserve_adjustments FORCE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT ON budgeting.category_reserve_adjustments TO app_role, worker_role;
+REVOKE UPDATE, DELETE ON budgeting.category_reserve_adjustments FROM app_role, worker_role;
+
 -- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
 GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;
 GRANT SELECT ON tenancy.budget_share_links TO worker_role;
