@@ -14,7 +14,6 @@ Ship the two remaining BDP tabs that share data-table primitives:
 **In scope:** Reserves data endpoint, share math, mismatch surfacing (silent — math only), 3-section Wallets layout, per-row drag-between-sections, inline cell edit + autosave, soft-archive delete, dashed `+ Add wallet` button per section, mobile parity.
 
 **Out of scope (deferred to later phases):**
-
 - Phase 7: Reserves tab Actions column (top-up / withdraw task surface), reserve-mismatch task generation, mismatch banner UI
 - Phase 6: Settings tab (recurring rules CRUD, members, danger zone, cushion toggle)
 - Multi-currency reserve-type wallets — explicitly **rejected** in this phase (server validation enforces reserve-type wallets MUST equal budget currency)
@@ -45,7 +44,7 @@ Ship the two remaining BDP tabs that share data-table primitives:
   - **Second tap on same cell** (or **double-tap** on a cell directly): cell becomes editable.
   - **Tap outside or scroll** → blur saves.
   - Both "single-tap-then-tap-cell" AND "double-tap-cell" paths are valid entry points to inline edit (per user spec).
-- **D-PH5-W7 (drag-to-move-between-sections):** Each wallet row has a **drag handle on the left side** (reuse Phase 4 `<RowDragHandle>` lucide `GripVertical` pattern). Long-press (mobile) / mouse-drag (desktop) grabs the row; drop into another section's drop zone changes the wallet's type and persists via PATCH /wallets/:id `{type: NEW_TYPE}`. Drag within the same section can ALSO reorder if cheap — defer to planning whether to support in-section reorder this phase (not required by WALT-\* but visually expected once drag exists).
+- **D-PH5-W7 (drag-to-move-between-sections):** Each wallet row has a **drag handle on the left side** (reuse Phase 4 `<RowDragHandle>` lucide `GripVertical` pattern). Long-press (mobile) / mouse-drag (desktop) grabs the row; drop into another section's drop zone changes the wallet's type and persists via PATCH /wallets/:id `{type: NEW_TYPE}`. Drag within the same section can ALSO reorder if cheap — defer to planning whether to support in-section reorder this phase (not required by WALT-* but visually expected once drag exists).
 - **D-PH5-W8 (Reserve-section drag validation):** Dropping a non-budget-currency wallet into the Reserve section MUST be rejected by the server (per D-PH5-R3 below) and shown to the user as an inline error (toast: "Reserve wallets must be in budget currency {CCY}"). Row snaps back to its original section optimistically on error.
 
 ### Reserves tab data shape + share math
@@ -94,7 +93,7 @@ Ship the two remaining BDP tabs that share data-table primitives:
 
 - **Layout primitive sharing** — Reserves and Wallets diverged enough that a shared `<DataTable>` parent component would be over-abstraction. Build separate components (`<ReservesTable>`, `<WalletsSectionedList>`) and reuse small shared atoms: `<RowDragHandle>` (already exists from Phase 4 categories), `<InlineEditCell>` (new, see below), `<DashedAddButton>` (new, generalizes Phase 4 `+ category` dashed column), `<TableRowHover>` (DESIGN.md token application). Atoms live in `apps/web/src/components/ui/` or `apps/web/src/components/budgeting/`.
 - **`<InlineEditCell>` primitive** — new atom that wraps `<input>` / `<select>`, handles the click-to-edit + blur-to-save lifecycle, surfaces optimistic save state (spinner / error icon) and toast trigger. Will likely be reused in Phase 6 Settings (budget name edit). Don't over-design — solve Wallets' needs first; extract additional flex if Phase 6 actually needs it.
-- **In-section reorder** — drag-within-section reorder is NOT required by WALT-\* but a natural UX consequence of the cross-section drag affordance. Planning agent decides: ship with manual `sort_index` (cheap, no schema change since wallets already have created_at ordering — would need a new column) OR defer to a separate ticket. Suggestion: defer; section grouping is the primary affordance.
+- **In-section reorder** — drag-within-section reorder is NOT required by WALT-* but a natural UX consequence of the cross-section drag affordance. Planning agent decides: ship with manual `sort_index` (cheap, no schema change since wallets already have created_at ordering — would need a new column) OR defer to a separate ticket. Suggestion: defer; section grouping is the primary affordance.
 - **Drag-drop drop-zone visuals** — section background tint on drag-over, drop-line indicator. Standard @dnd-kit patterns.
 - **Mobile drag activation delay** — default @dnd-kit `PointerSensor` with `activationConstraint: { delay: 300, tolerance: 5 }` to avoid drag-on-tap. Same calibration as Phase 4 row-drag.
 - **Reserves tab footer row visual** — bold or subtle? Position (sticky bottom or inline)? Pick during sketch; recommendation: sticky bottom-of-table totals row with `Σ` glyph prefix.
@@ -103,39 +102,33 @@ Ship the two remaining BDP tabs that share data-table primitives:
 </decisions>
 
 <canonical_refs>
-
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Roadmap & requirements
-
 - `.planning/ROADMAP.md` §Phase 5 (lines 119–133) — phase goal, dependencies, requirements list, success criteria
 - `.planning/REQUIREMENTS.md` §Reserves Tab (RSRV-01…RSRV-07) — auto-compute spec, share math, isolation, edge cases
 - `.planning/REQUIREMENTS.md` §Wallets Tab (WALT-01…WALT-07) — inline-edit, +Add, type semantics, manual snapshots
-- `.planning/REQUIREMENTS.md` §Reserves Auto-Compute (RSCM-\*) — VIEW behavior already implemented in Phase 2
+- `.planning/REQUIREMENTS.md` §Reserves Auto-Compute (RSCM-*) — VIEW behavior already implemented in Phase 2
 
 ### Milestone spec
-
 - `.planning/v1.1-SPEC.md` §4 Reserves tab (lines 95–110) — table columns, share math, reconciliation task
 - `.planning/v1.1-SPEC.md` §5 Wallets tab (lines 111–125) — inline-edit row, type as single-select, no popup, no archive
 - `.planning/v1.1-SPEC.md` §8 Reserves auto-compute algorithm (lines 174–190) — formula reference (Phase 2 VIEW implements)
 - `.planning/v1.1-SPEC.md` §9 Tasks queue — `tasks.reserve_topup` row is Phase 7; this phase ships totals only
 
 ### Project conventions
-
 - `/home/claude/budget/CLAUDE.md` — TDD-first, no DB mocks, hexagonal per context, Money at adapter boundary, DESIGN.md authority, impeccable sweep before close, Docker on for verification
 - `.planning/PROJECT.md` §Key Decisions — Bun/Hono/Drizzle stack, RLS + tenant_id, mobile-first PWA
 - `DESIGN.md` — Binance dark canvas, single yellow accent (yellow only for primary actions; +Add dashed buttons NOT yellow), Inter + IBM Plex Sans
 
 ### Phase 3 carry-forward (locked decisions still in force)
-
 - `.planning/phases/03-navigation-home-bdp-frame/03-CONTEXT.md` §BDP tab frame — placeholders `reserves/page.tsx` + `wallets/page.tsx` already mounted in `apps/web/src/app/[locale]/(app)/budgets/[id]/`. Phase 5 fills them in.
 - §BDP tab frame D-PH3-03 — lucide icons reserved: `Coins` for Reserves, `Wallet` for Wallets (mobile icon-only treatment ≤480px)
 - §Implementation Decisions Routing & legacy cleanup — separate Next.js routes per tab; pills `<Link>` for SPA nav
 
 ### Phase 4 carry-forward (locked decisions still in force)
-
 - `.planning/phases/04-spendings-grid/04-CONTEXT.md` §Reusable Assets — Sheet primitive, lucide icons, BinancePlex amount input, currency picker, Phase 2 field components in `apps/web/src/components/budgeting/fields/`
 - §Implementation Decisions Drag-reorder — `<RowDragHandle>` lucide `GripVertical` + @dnd-kit. Phase 5 reuses this primitive directly.
 - §Specific Ideas dashed `+` column pattern — generalize as `<DashedAddButton>` atom for Wallets `+ Add wallet` per section
@@ -143,7 +136,6 @@ Ship the two remaining BDP tabs that share data-table primitives:
 - §Interaction model — Phase 5 EXPLICITLY softens `D-PH4-INT1` (no-hover rule) for Wallets only; Spendings grid keeps no-hover discipline. Documented as D-PH5-W4 above.
 
 ### Phase 2 backend touchpoints
-
 - `apps/api/src/routes/wallets.ts` — POST / GET (list, by-id) / archive / PUT /balance already implemented. **New for Phase 5:** PATCH /wallets/:id (partial update for inline-edit of name/currency/amount/type — verify if exists or add).
 - `apps/api/src/routes/budgets.ts` — **New for Phase 5:** GET /budgets/:id/reserves endpoint (composed read from `category_reserve_balance` VIEW + wallets table).
 - `packages/budgeting/src/adapters/persistence/wallet-repo.ts` — existing Drizzle adapter; extend if PATCH not present
@@ -152,7 +144,6 @@ Ship the two remaining BDP tabs that share data-table primitives:
 - `packages/budgeting/src/contracts/api.ts` — Zod schemas; add `updateWalletSchema` + reserve-currency-constraint validation
 
 ### CI gates & tests
-
 - `make test` — bun:test backend unit + integration (new tests for /reserves endpoint, wallet PATCH, reserve-currency constraint)
 - `make test-e2e` — Playwright BDD (Gherkin) for add → edit → drag → delete → reserves-share flow
 - `make ci-gate` — multi-tenant leak gate; new /reserves endpoint must pass cross-tenant 404 test
@@ -161,11 +152,9 @@ Ship the two remaining BDP tabs that share data-table primitives:
 </canonical_refs>
 
 <code_context>
-
 ## Existing Code Insights
 
 ### Reusable Assets
-
 - **`<RowDragHandle>`** (Phase 4 category drag-reorder) — lucide `GripVertical` + @dnd-kit primitive; lift to shared atom for cross-section wallet drag
 - **`<DashedAddButton>` pattern** (Phase 4 `+ category` dashed column) — generalize as shared atom; Wallets uses one per section, Phase 6 Settings may reuse
 - **lucide-react icons** already in deps: `Coins` (Reserves header), `Wallet` (Wallets header), `GripVertical` (drag), `Trash2` (delete), `MoreHorizontal` (Actions placeholder), `Plus` (add buttons)
@@ -175,15 +164,13 @@ Ship the two remaining BDP tabs that share data-table primitives:
 - **Toast/notification primitive** (Phase 4 autosave confirmations) — reuse exact API/positioning
 
 ### Established Patterns
-
 - **RSC page shell + client island** — Phase 3 + 4 model. `reserves/page.tsx` and `wallets/page.tsx` are RSCs that fetch initial data and render client islands.
 - **Optimistic mutation + revalidate** — TanStack Query `onMutate` / `onError` / `onSettled` lifecycle. Pattern proven in Phase 4 quick-entry; reuse for inline-edit + drag.
 - **URL-driven state for navigation** — Phase 3 tabs. No new URL params needed this phase (no month/filter selectors on Reserves or Wallets).
 - **Money value object at adapter boundary** — domain stays UI-agnostic; client receives `{ balanceCents, currency }` and formats via `Intl.NumberFormat`. Same as Phase 3 home cards.
-- **Multi-tenant isolation** — every new endpoint MUST include explicit `tenant_id` predicate; cross-tenant write returns 404. Phase 4 audit pattern (T-04-\* threats) applies to all new endpoints.
+- **Multi-tenant isolation** — every new endpoint MUST include explicit `tenant_id` predicate; cross-tenant write returns 404. Phase 4 audit pattern (T-04-* threats) applies to all new endpoints.
 
 ### Integration Points
-
 - **Reserves tab init** → `GET /budgets/:id/reserves` (NEW endpoint). Composed read: joins `category_reserve_balance` VIEW + active categories + sum of reserve-type wallets, returns `rows[]` + `totals{}`.
 - **Wallet inline cell edit** → `PATCH /wallets/:id` (verify exists; if not, add). Partial body `{ name? | currency? | amount? | type? }`. Server validates currency constraint for reserve-type wallets.
 - **Drag-to-section** → same `PATCH /wallets/:id` with `{ type: NEW_TYPE }`. If new type = RESERVE and current currency ≠ budget currency → 422 with error code; client snaps back + shows toast.
@@ -214,19 +201,18 @@ Ship the two remaining BDP tabs that share data-table primitives:
 - **Restore-archived-wallets UI** — user chose no toggle this phase. If users complain, add a "Show archived" toggle in Phase 6 Settings or a separate ticket.
 - **Multi-currency reserve-type wallets** — explicitly rejected this phase to simplify share math. If users want it later, a future phase would need to introduce FX snapshotting per reserve wallet + drift-detection. Significant scope.
 - **Reserve-mismatch banner + RESERVE_TOPUP task generation** — Phase 7 owns this. This phase ships totals + math only.
-- **In-section reorder (drag within a section)** — natural consequence of cross-section drag but not strictly required by WALT-\*. Planning may defer to a separate ticket (needs new `sort_index` column on wallets).
+- **In-section reorder (drag within a section)** — natural consequence of cross-section drag but not strictly required by WALT-*. Planning may defer to a separate ticket (needs new `sort_index` column on wallets).
 - **Wallet detail / transaction-history view** — out of scope (WALT-07: wallets are manual snapshots, no ledger).
 - **Bulk operations on wallets** (multi-select delete, bulk currency change) — out of scope.
 - **Insights / charts using reserve-share data** — Phase out of scope (v1.1 ships placeholder dashboard only).
 - **Restore-archived modal / soft-delete recovery flow** — defer to Phase 6 Settings if needed.
 
 ### Reviewed Todos (not folded)
-
 None — no pending todos matched Phase 5 scope (todo.match-phase returned 0 matches).
 
 </deferred>
 
 ---
 
-_Phase: 5-Reserves & Wallets Tabs_
-_Context gathered: 2026-05-17_
+*Phase: 5-Reserves & Wallets Tabs*
+*Context gathered: 2026-05-17*
