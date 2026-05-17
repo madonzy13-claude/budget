@@ -115,9 +115,19 @@ export class WalletsPage {
     const editor = this.page
       .getByTestId(`wallet-amount-${walletId}-editor`)
       .locator("input");
+    // Uncontrolled input: fill() dispatches input+change events and works
+    // reliably across React renders without reformatting interference.
     await editor.fill(newAmount);
     await editor.blur();
     await this.page.waitForLoadState("networkidle");
+    // Confirm the PATCH completed — failed saves show data-state="failed" with ring.
+    await this.amountCell(walletId).waitFor({ state: "visible", timeout: 10000 });
+    const state = await this.amountCell(walletId).getAttribute("data-state");
+    if (state === "failed") {
+      throw new Error(
+        `editAmount: wallet ${walletId} amount edit failed — cell shows data-state="failed"`,
+      );
+    }
   }
 
   async editCurrency(walletId: string, newCurrency: string): Promise<void> {
@@ -135,9 +145,25 @@ export class WalletsPage {
     const handle = this.row(walletId).getByRole("button", {
       name: /drag|move/i,
     });
-    const targetSection = this.section(targetType);
-    // Use dragTo which handles pointer events correctly for dnd-kit PointerSensor.
-    await handle.dragTo(targetSection, { force: true });
+    const target = this.section(targetType);
+
+    // dnd-kit PointerSensor needs pointer events dispatched globally.
+    // Use page.mouse with steps for realistic movement.
+    const handleBox = await handle.boundingBox();
+    const targetBox = await target.boundingBox();
+    if (!handleBox || !targetBox) throw new Error("DnD: bounding boxes unavailable");
+
+    const fromX = handleBox.x + handleBox.width / 2;
+    const fromY = handleBox.y + handleBox.height / 2;
+    const toX = targetBox.x + targetBox.width / 2;
+    const toY = targetBox.y + targetBox.height / 2;
+
+    await this.page.mouse.move(fromX, fromY);
+    await this.page.mouse.down();
+    // Move in steps so PointerSensor activation distance (4px) is satisfied.
+    await this.page.mouse.move(fromX + 5, fromY + 5, { steps: 3 });
+    await this.page.mouse.move(toX, toY, { steps: 10 });
+    await this.page.mouse.up();
     await this.page.waitForLoadState("networkidle");
   }
 

@@ -85,6 +85,8 @@ export class ReservesPage {
     const editor = this.page
       .getByTestId(`reserves-balance-${categoryId}-editor`)
       .locator("input");
+    // Uncontrolled input (defaultValue): fill() works reliably without
+    // reformatting interference on each keystroke.
     await editor.fill(newAmount);
     await editor.blur();
     await this.page.waitForLoadState("networkidle");
@@ -93,20 +95,38 @@ export class ReservesPage {
   // ── Drag between sections ───────────────────────────────────────────────────
 
   async dragToExcluded(categoryId: string): Promise<void> {
-    const handle = this.row(categoryId).getByRole("button", {
-      name: /drag|move/i,
-    });
-    // Use dragTo which handles pointer events correctly for dnd-kit PointerSensor.
-    await handle.dragTo(this.excludedSection(), { force: true });
-    await this.page.waitForLoadState("networkidle");
+    await this._dndKitDrag(
+      this.row(categoryId).getByRole("button", { name: /drag|move/i }),
+      this.excludedSection(),
+    );
   }
 
   async dragToActive(categoryId: string): Promise<void> {
-    const handle = this.row(categoryId).getByRole("button", {
-      name: /drag|move/i,
-    });
-    // Use dragTo which handles pointer events correctly for dnd-kit PointerSensor.
-    await handle.dragTo(this.activeSection(), { force: true });
+    await this._dndKitDrag(
+      this.row(categoryId).getByRole("button", { name: /drag|move/i }),
+      this.activeSection(),
+    );
+  }
+
+  /** dnd-kit drag using page.mouse — PointerSensor requires pointer events on document. */
+  private async _dndKitDrag(
+    handle: import("@playwright/test").Locator,
+    target: import("@playwright/test").Locator,
+  ): Promise<void> {
+    const handleBox = await handle.boundingBox();
+    const targetBox = await target.boundingBox();
+    if (!handleBox || !targetBox) throw new Error("DnD: bounding boxes unavailable");
+
+    const fromX = handleBox.x + handleBox.width / 2;
+    const fromY = handleBox.y + handleBox.height / 2;
+    const toX = targetBox.x + targetBox.width / 2;
+    const toY = targetBox.y + targetBox.height / 2;
+
+    await this.page.mouse.move(fromX, fromY);
+    await this.page.mouse.down();
+    await this.page.mouse.move(fromX + 5, fromY + 5, { steps: 3 });
+    await this.page.mouse.move(toX, toY, { steps: 10 });
+    await this.page.mouse.up();
     await this.page.waitForLoadState("networkidle");
   }
 }

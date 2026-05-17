@@ -79,29 +79,26 @@ export function WalletsSectionedList({
     const walletName = w.name;
     const originalType = w.walletType;
 
-    updateMut.mutate(
-      { walletId: w.id, walletType: newType },
-      {
-        onSuccess: () =>
-          toast.success(t("moved", { name: walletName, sectionLabel: newType }), {
-            description: undefined,
+    // D-PH5-W8: use mutateAsync + try/catch so the per-call error branch
+    // runs in the same microtask as the drag handler (avoids per-call
+    // callback lifecycle issues with fire-and-forget mutate()).
+    updateMut.mutateAsync({ walletId: w.id, walletType: newType }).then(() => {
+      toast.success(t("moved", { name: walletName, sectionLabel: newType }), {
+        description: undefined,
+      });
+    }).catch((err: Error & { code?: string | null }) => {
+      if (err?.code === "reserve_currency_mismatch") {
+        // D-PH5-W8: show translated toast with budget currency (not raw i18n key).
+        toast.error(
+          t("reserveCurrencyRejected", {
+            budgetCcy: budgetCurrency,
+            name: walletName,
+            originalSectionLabel: originalType,
           }),
-        onError: (err: Error & { code?: string | null }) => {
-          if (err?.code === "reserve_currency_mismatch") {
-            // D-PH5-W8: show translated toast with budget currency (not raw i18n key).
-            // use-update-wallet's onError also fires, but we override with translated msg.
-            toast.error(
-              t("reserveCurrencyRejected", {
-                budgetCcy: budgetCurrency,
-                name: walletName,
-                originalSectionLabel: originalType,
-              }),
-            );
-          }
-          // Non-mismatch errors: useUpdateWallet.onError already handles + toasts.
-        },
-      },
-    );
+        );
+      }
+      // Non-mismatch errors: useUpdateWallet.onError already handled the toast.
+    });
   }
 
   const grouped: Record<WalletType, WalletDto[]> = {

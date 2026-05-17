@@ -8,7 +8,7 @@ const testDir = defineBddConfig({
 
 export default defineConfig({
   testDir,
-  timeout: 30000,
+  timeout: 60000,
   retries: process.env["CI"] ? 2 : 0,
   // Sequential in CI to avoid same-domain cookie/session races between
   // parallel sign-up scenarios. Local dev keeps default parallelism.

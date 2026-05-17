@@ -257,32 +257,30 @@ function PersistedRow({
         )}
       </div>
 
-      {/* Amount — numeric, editable */}
+      {/* Amount — numeric, editable.
+           Uses defaultValue (uncontrolled) so the user can type freely
+           without the controlled reformatter clobbering each keystroke.
+           draft holds the raw decimal string the user typed.
+           onSave sends it directly as the decimal amount string. */}
       <div className="w-[120px] text-right sm:w-[160px]" data-inline-cell>
         <InlineEditCell
-          value={wallet.currentBalanceCents}
+          value={(Number(wallet.currentBalanceCents) / 100).toFixed(2)}
           ariaLabel={t("amountAria")}
           testId={`wallet-amount-${wallet.id}`}
           render={(v) => (
-            <span className="text-num-md">
-              {(Number(v) / 100).toFixed(2)}
-            </span>
+            <span className="text-num-md">{v}</span>
           )}
           renderEditor={(draft, onChange) => (
             <Input
               autoFocus
               type="text"
               inputMode="decimal"
-              value={(Number(draft) / 100).toFixed(2)}
-              onChange={(e) =>
-                onChange(
-                  String(Math.round(Number(e.target.value || "0") * 100)),
-                )
-              }
+              defaultValue={draft}
+              onChange={(e) => onChange(e.target.value)}
               className="h-9 text-right"
             />
           )}
-          onSave={(v) => onUpdate({ amount: (Number(v) / 100).toFixed(2) })}
+          onSave={(v) => onUpdate({ amount: v })}
         />
       </div>
 

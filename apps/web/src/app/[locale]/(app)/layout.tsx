@@ -4,6 +4,7 @@ import { getServerSession } from "@/lib/server-session";
 import { SiteFooter } from "@/components/common/site-footer";
 import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
 import { TopNav } from "@/components/budgeting/top-nav";
+import { Toaster } from "@/components/ui/sonner";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -49,6 +50,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       </header>
       <main className="flex-1">{children}</main>
       <SiteFooter />
+      <Toaster />
     </div>
   );
 }

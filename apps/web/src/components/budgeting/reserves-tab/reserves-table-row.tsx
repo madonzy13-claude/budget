@@ -94,27 +94,26 @@ export function ReservesTableRow({
               {fmt(Number(v) / 100)}
             </span>
           )}
-          renderEditor={(draft, onChange, onCommit, onCancel) => (
+          renderEditor={(draft, onChange, _onCommit, onCancel) => (
             <Input
               autoFocus
               type="text"
               inputMode="decimal"
-              value={(Number(draft) / 100).toFixed(2)}
-              onChange={(e) =>
-                onChange(
-                  String(Math.round(Number(e.target.value || "0") * 100)),
-                )
-              }
-              onBlur={onCommit}
+              defaultValue={(Number(draft) / 100).toFixed(2)}
+              onChange={(e) => onChange(e.target.value)}
+              // No onBlur here — InlineEditCell wrapper div handles commit-on-blur.
+              // Putting onBlur={onCommit} here AND on the wrapper causes double-submit.
               onKeyDown={(e) => {
                 if (e.key === "Escape") onCancel();
-                if (e.key === "Enter") onCommit();
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
               className="h-9 text-right"
             />
           )}
           onSave={async (v) => {
-            await onUpdate(BigInt(v));
+            // v is the raw decimal string the user typed (e.g. "800.00")
+            const cents = BigInt(Math.round(Number(v || "0") * 100));
+            await onUpdate(cents);
           }}
         />
       </div>
