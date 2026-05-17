@@ -544,12 +544,83 @@
       "reserves": {
         "label": "Reserves",
         "title": "Reserves",
-        "placeholder": "Per-category reserve balances land in Phase 5."
+        "section": { "active": "Active", "excluded": "Excluded" },
+        "column": {
+          "category": "Category",
+          "balance": "Reserve balance",
+          "share": "Wallet share",
+          "actions": "Actions"
+        },
+        "totals": {
+          "categoriesLabel": "Σ category reserves",
+          "walletsLabel": "Σ reserve wallets"
+        },
+        "mismatch": {
+          "overfunded": {
+            "title": "+{amount} overfunded",
+            "helper": "Reduce reserve wallet or distribute to categories."
+          },
+          "underfunded": {
+            "title": "−{amount} underfunded",
+            "helper": "Top up reserve wallet or reduce category reserves."
+          },
+          "reconciled": { "title": "Reconciled" }
+        },
+        "toast": {
+          "saved": "Reserve updated",
+          "saveFailed": "Couldn't save reserve. Check your connection and try again.",
+          "excluded": "{category} excluded from reserves",
+          "included": "{category} included in reserves",
+          "toggleFailed": "Couldn't update reserve status. Try again."
+        }
       },
       "wallets": {
         "label": "Wallets",
         "title": "Wallets",
-        "placeholder": "Inline-editable wallet rows land in Phase 5."
+        "section": {
+          "spendings": "Spendings wallets",
+          "cushion": "Cushion wallets",
+          "reserve": "Reserve wallets"
+        },
+        "sectionLabel": {
+          "spendings": "Spendings",
+          "cushion": "Cushion",
+          "reserve": "Reserve"
+        },
+        "add": {
+          "spendings": "Add spendings wallet",
+          "cushion": "Add cushion wallet",
+          "reserve": "Add reserve wallet"
+        },
+        "row": {
+          "namePlaceholder": "Wallet name",
+          "nameAria": "Wallet name. Click to edit.",
+          "currencyAria": "Currency. Click to edit.",
+          "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
+          "amountAria": "Amount. Click to edit.",
+          "dragHandleAria": "Drag to move {name} to another section.",
+          "trashAria": "Delete wallet {name}."
+        },
+        "toast": {
+          "saved": "Wallet updated",
+          "saveFailed": "Couldn't save wallet. Check your connection and try again.",
+          "created": "Wallet created",
+          "createFailed": "Couldn't create wallet. Try again.",
+          "archived": "Wallet deleted",
+          "archiveFailed": "Couldn't delete wallet. Try again.",
+          "moved": "Moved {name} to {sectionLabel}",
+          "moveFailed": "Couldn't move {name}. It stayed in {originalSectionLabel}.",
+          "reserveCurrencyRejected": "Reserve wallets must be in {budgetCcy}. {name} stayed in {originalSectionLabel}.",
+          "reserveCurrencyOnEdit": "Reserve wallets must be in {budgetCcy}. Change rolled back."
+        },
+        "confirm": {
+          "delete": {
+            "title": "Delete wallet '{name}'?",
+            "body": "This can't be undone here.",
+            "cta": "Delete",
+            "cancel": "Cancel"
+          }
+        }
       },
       "settings": {
         "label": "Settings",
