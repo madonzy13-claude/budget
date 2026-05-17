@@ -14,6 +14,7 @@ import { UserId } from "@budget/shared-kernel";
 import { DrizzleBudgetShareLinkRepo } from "@budget/tenancy/src/adapters/persistence/budget-share-link-repo";
 import { createShareLink } from "@budget/tenancy/src/application/create-share-link";
 import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-link";
+import { serverError } from "../middleware/server-error";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -270,28 +271,71 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     return c.json(result.value);
   });
 
-  // GET /budgets/:id/reserves — per-category reserve balances (RSCM-01, RSCM-02)
+  // GET /budgets/:id/reserves — D-PH5-R1 composed-read shape (Phase 5 Plan 03 rewrite).
+  // Returns {rows, excludedRows, totals} with share math + disabled flag.
+  // REPLACES the original Plan 02-03 minimal body (D-PH5-R11 cascading hide).
+  // T-05-01: tenantIds gate (same pattern as home-summary:248-254).
   r.get("/:id/reserves", async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const budgetId = c.req.param("id");
-    const tenantId = budgetId; // v1.1: budget_id === tenant_id
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
 
-    const balances = await deps.budgeting.reserveBalanceRepo.getForBudget(
+    const result = await deps.budgeting.getReservesSummary({
+      tenantId: budgetId,
       budgetId,
-      tenantId,
-      new Date(),
-    );
+    });
+    if (result.isErr())
+      return serverError(c, "reserves_summary_failed", result.error);
+    return c.json(result.value, 200);
+  });
 
-    const reserves = Array.from(balances.entries()).map(
-      ([categoryId, money]) => ({
-        categoryId,
-        balanceCents: money.amount.times("100").toFixed(0),
-      }),
-    );
+  // POST /budgets/:id/reserves/:categoryId/adjust — append-only reserve adjustment.
+  // T-05-05: use case rejects if category.reserve_excluded = true → 422.
+  // T-05-01: tenantIds gate prevents cross-tenant access.
+  r.post("/:id/reserves/:categoryId/adjust", async (c) => {
+    const { reserveAdjustmentSchema } =
+      await import("@budget/budgeting/src/contracts/api");
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
 
-    return c.json({ budgetId, reserves });
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId))
+      return c.json({ error: "not_found" }, 404);
+
+    const userId = (c.get("userId") as string) ?? (session as any)?.user?.id;
+    const categoryId = c.req.param("categoryId");
+
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+
+    const parsed = reserveAdjustmentSchema.safeParse(body);
+    if (!parsed.success)
+      return c.json(
+        {
+          error: parsed.error.issues[0]?.message ?? "validation_error",
+          issues: parsed.error.issues,
+        },
+        422,
+      );
+
+    const result = await deps.budgeting.adjustCategoryReserve({
+      ...parsed.data,
+      tenantId: budgetId,
+      categoryId,
+      actorUserId: userId,
+    });
+    if (result.isErr()) {
+      const m = result.error.message;
+      if (m === "not_found") return c.json({ error: "not_found" }, 404);
+      return c.json({ error: m }, 422);
+    }
+    return c.json(result.value, 200);
   });
 
   // POST /budgets/:id/share — create share link (owner only, SHRD-01)

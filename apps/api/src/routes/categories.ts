@@ -182,5 +182,59 @@ export function createCategoriesRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // PATCH /categories/:id/reserve-excluded — toggle reserve_excluded flag.
+  //
+  // W-2 two-layer defense:
+  //   Layer 1 (Route guard): URL budgetId must match caller's tenantId.
+  //     Mismatch → 403 `tenant_mismatch` (fires BEFORE use case, T-05-04).
+  //   Layer 2 (Use case): categoriesRepo.findById returns null for cross-tenant
+  //     categoryId under explicit tenant predicate → 404 `not_found`.
+  //
+  // The route is mounted under /budgets/:budgetId/categories — budgetId is
+  // available via c.req.param("budgetId"). When mounted at root /categories
+  // (legacy), budgetId is undefined and the guard collapses to pickTenant only.
+  app.patch("/:id/reserve-excluded", async (c) => {
+    const { categoryReserveExcludeSchema } =
+      await import("@budget/budgeting/src/contracts/api");
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? (session as any)?.user?.id;
+    const { id: categoryId } = c.req.param();
+
+    // Layer 1: route guard — URL budgetId must match caller's tenantId.
+    // Only fires when mounted under /budgets/:budgetId (Phase 4+ pattern).
+    const budgetId = c.req.param("budgetId");
+    if (budgetId && budgetId !== tenantId) {
+      return c.json({ error: "tenant_mismatch" }, 403);
+    }
+
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+
+    const parsed = categoryReserveExcludeSchema.safeParse(body);
+    if (!parsed.success)
+      return c.json(
+        { error: "validation_error", issues: parsed.error.issues },
+        422,
+      );
+
+    // Layer 2: use case — foreign categoryId returns null via explicit tenant predicate → 404.
+    const r = await deps.budgeting.toggleCategoryReserveExcluded({
+      tenantId,
+      categoryId,
+      excluded: parsed.data.excluded,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      const m = r.error.message;
+      if (m === "not_found") return c.json({ error: "not_found" }, 404);
+      return c.json({ error: m }, 422);
+    }
+    return c.json(r.value, 200);
+  });
+
   return app;
 }

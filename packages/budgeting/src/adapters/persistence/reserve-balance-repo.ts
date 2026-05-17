@@ -91,11 +91,16 @@ export function createReserveBalanceRepo(): ReserveBalanceRepo {
      */
     async getExcludedForBudget(budgetId, tenantId, _asOf) {
       const currency = await getBudgetCurrency(budgetId);
-      const r = await withInfraTx(async (tx) => {
-        const drizzleTx = tx as {
-          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
-        };
-        const result = await drizzleTx.execute(sql`
+      const r = await withTenantTx(
+        TenantId(tenantId),
+        UserId("system"),
+        async (tx) => {
+          const drizzleTx = tx as {
+            execute: (
+              q: unknown,
+            ) => Promise<{ rows: Record<string, unknown>[] }>;
+          };
+          const result = await drizzleTx.execute(sql`
           WITH RECURSIVE months AS (
             SELECT
               cl.tenant_id AS budget_id,
@@ -233,8 +238,9 @@ export function createReserveBalanceRepo(): ReserveBalanceRepo {
             AND c.reserve_excluded = TRUE
           ORDER BY ra.budget_id, ra.category_id, ra.month_start DESC
         `);
-        return result.rows;
-      });
+          return result.rows;
+        },
+      );
       if (r.isErr()) throw r.error;
       const map = new Map<string, Money>();
       for (const row of r.value) {

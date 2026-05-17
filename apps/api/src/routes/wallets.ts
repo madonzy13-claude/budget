@@ -109,6 +109,46 @@ export function createWalletsRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // PATCH /wallets/:id — partial update (Phase 5: D-PH5-W1..W12)
+  // Enforces reserve-currency invariant on every effective-RESERVE PATCH (Pitfall 4).
+  app.patch("/:id", async (c) => {
+    const { updateWalletSchema } =
+      await import("@budget/budgeting/src/contracts/api");
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const { id: walletId } = c.req.param();
+
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+
+    const parsed = updateWalletSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: parsed.error.issues[0]?.message ?? "validation_error",
+          issues: parsed.error.issues,
+        },
+        422,
+      );
+    }
+
+    const r = await deps.budgeting.updateWallet({
+      ...parsed.data,
+      tenantId,
+      walletId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      const msg = r.error.message;
+      if (msg === "not_found") return c.json({ error: "not_found" }, 404);
+      return c.json({ error: msg }, 422);
+    }
+    return c.json(r.value, 200);
+  });
+
   // PUT /wallets/:id/balance — overwrite current_balance to absolute value
   // (D-PH2-09 amended: wallet balance fully decoupled from transactions)
   app.put("/:id/balance", async (c) => {

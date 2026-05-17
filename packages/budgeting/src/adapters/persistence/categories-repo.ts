@@ -4,15 +4,11 @@
  * Each write: withTenantTx → SELECT before → UPDATE → writeAudit → writeOutbox.
  * Pattern: mirrors wallet-repo.ts setBalance (lines 203-261) / rename-category shape.
  * Plan 05-02 (setReserveExcluded).
- * Plan 05-03 (findById, list — needed by use-case guard lookups).
+ * Plan 05-03 (findById, list — read helpers for use-case guards, use withTenantTx
+ *   so they run on DATABASE_URL_APP pool, not the worker pool, matching test setup).
  */
 import { sql } from "drizzle-orm";
-import {
-  withTenantTx,
-  writeAudit,
-  writeOutbox,
-  withInfraTx,
-} from "@budget/platform";
+import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { CategoriesRepo, CategoryRow } from "../../ports/categories-repo";
 
@@ -76,15 +72,17 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
 
   /**
    * Find a single category by id for the given tenant.
-   * Uses withInfraTx (BYPASSRLS) so RLS cross-tenant filtering is enforced
-   * by the explicit tenant_id predicate — same pattern as reserve-balance-repo.
-   * Returns null when not found (RLS or missing row).
+   * Uses withTenantTx (DATABASE_URL_APP pool) — same pool as integration tests.
+   * Explicit tenant_id predicate enforces cross-tenant isolation (RLS also active).
+   * Returns null when not found.
    */
   async findById(
     tenantId: string,
     categoryId: string,
   ): Promise<CategoryRow | null> {
-    const r = await withInfraTx(async (tx) => {
+    const tid = TenantId(tenantId);
+    const uid = UserId("system");
+    const r = await withTenantTx(tid, uid, async (tx) => {
       const result = await tx.execute<{
         id: string;
         name: string;
@@ -117,7 +115,9 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
    * categories — callers partition by reserveExcluded.
    */
   async list(tenantId: string): Promise<CategoryRow[]> {
-    const r = await withInfraTx(async (tx) => {
+    const tid = TenantId(tenantId);
+    const uid = UserId("system");
+    const r = await withTenantTx(tid, uid, async (tx) => {
       const result = await tx.execute<{
         id: string;
         name: string;

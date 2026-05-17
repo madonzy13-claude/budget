@@ -85,7 +85,16 @@
     "./src/ports/expense-ledger-draft-port-repo": "./src/ports/expense-ledger-draft-port-repo.ts",
     "./src/ports/spendings-summary-repo": "./src/ports/spendings-summary-repo.ts",
     "./src/adapters/persistence/expense-ledger-draft-port-repo": "./src/adapters/persistence/expense-ledger-draft-port-repo.ts",
-    "./src/adapters/persistence/spendings-summary-repo": "./src/adapters/persistence/spendings-summary-repo.ts"
+    "./src/adapters/persistence/spendings-summary-repo": "./src/adapters/persistence/spendings-summary-repo.ts",
+    "./src/application/update-wallet": "./src/application/update-wallet.ts",
+    "./src/application/adjust-category-reserve": "./src/application/adjust-category-reserve.ts",
+    "./src/application/toggle-category-reserve-excluded": "./src/application/toggle-category-reserve-excluded.ts",
+    "./src/application/get-reserves-summary": "./src/application/get-reserves-summary.ts",
+    "./src/ports/categories-repo": "./src/ports/categories-repo.ts",
+    "./src/adapters/persistence/categories-repo": "./src/adapters/persistence/categories-repo.ts",
+    "./src/ports/reserves-summary-repo": "./src/ports/reserves-summary-repo.ts",
+    "./src/adapters/persistence/reserves-summary-repo": "./src/adapters/persistence/reserves-summary-repo.ts",
+    "./src/adapters/persistence/category-reserve-adjustments-repo": "./src/adapters/persistence/category-reserve-adjustments-repo.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
