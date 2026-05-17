@@ -62,3 +62,5 @@ data/**
 # Orchestrator scratch — agent worktrees, planning, caches
 .claude
 .claude/**
+.claude/worktrees/**
+.claude/worktrees/budget-data/**
