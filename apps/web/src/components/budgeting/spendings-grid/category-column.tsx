@@ -49,6 +49,8 @@ export interface CategoryColumnProps {
   budgetId: string;
   month: string;
   resolvedQuickEntryDate: string;
+  // D-PH5-R11 cascading-hide surface 2: forwarded to ColumnHeader.
+  reservesEnabled?: boolean;
   onEditTxn: (txId: string) => void;
   onEditDraft: (draftId: string) => void;
   onEditCategory: (categoryId: string) => void;
@@ -65,6 +67,7 @@ export function CategoryColumn({
   budgetId,
   month,
   resolvedQuickEntryDate,
+  reservesEnabled = true,
   onEditTxn,
   onEditDraft,
   onEditCategory,
@@ -141,6 +144,7 @@ export function CategoryColumn({
           cushionModeEnabled={cushionModeEnabled}
           dragGripProps={listeners ?? {}}
           onEdit={onEditCategory}
+          reservesEnabled={reservesEnabled}
         />
 
         <QuickEntryInput

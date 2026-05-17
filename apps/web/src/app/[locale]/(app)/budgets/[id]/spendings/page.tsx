@@ -33,21 +33,25 @@ export default async function SpendingsPage({
       ? monthParam
       : Temporal.Now.plainDateISO().toPlainYearMonth().toString();
 
-  const [categoriesRes, txnsRes, draftsRes, summaryRes] = await Promise.all([
-    serverApiFetch(budgetId, `/budgets/${budgetId}/categories`),
-    serverApiFetch(
-      budgetId,
-      `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
-    ),
-    serverApiFetch(
-      budgetId,
-      `/budgets/${budgetId}/transactions?month=${month}&confirmed=false`,
-    ),
-    serverApiFetch(
-      budgetId,
-      `/budgets/${budgetId}/spendings-summary?month=${month}`,
-    ),
-  ]);
+  const [categoriesRes, txnsRes, draftsRes, summaryRes, budgetRes] =
+    await Promise.all([
+      serverApiFetch(budgetId, `/budgets/${budgetId}/categories`),
+      serverApiFetch(
+        budgetId,
+        `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
+      ),
+      serverApiFetch(
+        budgetId,
+        `/budgets/${budgetId}/transactions?month=${month}&confirmed=false`,
+      ),
+      serverApiFetch(
+        budgetId,
+        `/budgets/${budgetId}/spendings-summary?month=${month}`,
+      ),
+      // D-PH5-R11: fetch budget meta to read reservesEnabled for column-header hide (surface 2).
+      // Next.js dedupes this fetch if layout.tsx already fetched /budgets/:id in the same pass.
+      serverApiFetch(budgetId, `/budgets/${budgetId}`),
+    ]);
 
   const categories = categoriesRes.ok
     ? ((await categoriesRes.json()) as { categories: unknown[] }).categories
@@ -85,6 +89,12 @@ export default async function SpendingsPage({
         month,
       };
 
+  // D-PH5-R11: read reservesEnabled; default true preserves existing UX.
+  const reservesEnabled = budgetRes.ok
+    ? (((await budgetRes.json()) as { reservesEnabled?: boolean })
+        .reservesEnabled ?? true)
+    : true;
+
   return (
     <SpendingsGridClient
       budgetId={budgetId}
@@ -93,6 +103,7 @@ export default async function SpendingsPage({
       }
       budgetTz={(summary as { budgetTz?: string }).budgetTz ?? "UTC"}
       month={month}
+      reservesEnabled={reservesEnabled}
       initialCategories={
         categories as Parameters<
           typeof SpendingsGridClient

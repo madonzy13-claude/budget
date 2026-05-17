@@ -33,6 +33,9 @@ export interface ColumnHeaderProps {
   cushionModeEnabled: boolean;
   dragGripProps?: Record<string, unknown>;
   onEdit: (categoryId: string) => void;
+  // D-PH5-R11 cascading-hide surface 2: when false, "Reserves used" row is hidden.
+  // Default true preserves existing UX for all existing budgets.
+  reservesEnabled?: boolean;
 }
 
 export function ColumnHeader({
@@ -41,6 +44,7 @@ export function ColumnHeader({
   cushionModeEnabled,
   dragGripProps = {},
   onEdit,
+  reservesEnabled = true,
 }: ColumnHeaderProps) {
   const t = useTranslations("grid.header");
   const locale = useLocale();
@@ -136,26 +140,28 @@ export function ColumnHeader({
         </span>
       </div>
 
-      {/* Row 4: Reserves used */}
-      <div
-        onDoubleClick={handleDoubleClick}
-        className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
-      >
-        <span className="text-[10px] text-[var(--muted-foreground)]">
-          {t("row4.reservesUsed")}
-        </span>
-        <span
-          data-testid={`column-header-${category.name.toLowerCase()}-reserves-used`}
-          className={cn(
-            "text-sm tabular-nums",
-            reserveUsedCents > 0n
-              ? "text-[var(--body-on-dark)]"
-              : "text-[var(--muted-foreground)]",
-          )}
+      {/* Row 4: Reserves used — hidden when reservesEnabled=false (D-PH5-R11 surface 2) */}
+      {reservesEnabled && (
+        <div
+          onDoubleClick={handleDoubleClick}
+          className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
-          {centsToBare(summary.reserveUsedCents, locale)}
-        </span>
-      </div>
+          <span className="text-[10px] text-[var(--muted-foreground)]">
+            {t("row4.reservesUsed")}
+          </span>
+          <span
+            data-testid={`column-header-${category.name.toLowerCase()}-reserves-used`}
+            className={cn(
+              "text-sm tabular-nums",
+              reserveUsedCents > 0n
+                ? "text-[var(--body-on-dark)]"
+                : "text-[var(--muted-foreground)]",
+            )}
+          >
+            {centsToBare(summary.reserveUsedCents, locale)}
+          </span>
+        </div>
+      )}
 
       {/* Row 5: Balance */}
       <div

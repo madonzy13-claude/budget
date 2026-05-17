@@ -38,7 +38,10 @@ import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
 import { useReorderCategories } from "@/hooks/use-reorder-categories";
 import { useMonthParam } from "@/hooks/use-month-param";
-import { useSpendingsSummary, type SpendingsSummaryDTO } from "@/hooks/use-spendings-summary";
+import {
+  useSpendingsSummary,
+  type SpendingsSummaryDTO,
+} from "@/hooks/use-spendings-summary";
 import { useTransactions, type TxnDTO } from "@/hooks/use-transactions";
 import { useDrafts, type DraftDTO } from "@/hooks/use-drafts";
 import type { SpendingsSummaryCategoryDTO } from "./category-column";
@@ -60,6 +63,8 @@ export interface SpendingsGridClientProps {
   initialTransactions: TxnDTO[];
   initialDrafts: DraftDTO[];
   initialSummary: SpendingsSummaryDTO;
+  // D-PH5-R11 cascading-hide surface 2: when false, Reserves used row is hidden in column headers.
+  reservesEnabled?: boolean;
 }
 
 function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
@@ -80,7 +85,7 @@ function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
 }
 
 export function SpendingsGridClient(props: SpendingsGridClientProps) {
-  const { budgetId, budgetCurrency, budgetTz } = props;
+  const { budgetId, budgetCurrency, budgetTz, reservesEnabled = true } = props;
 
   const { monthStr, isCurrentMonth } = useMonthParam(budgetTz);
   const month = monthStr;
@@ -88,18 +93,30 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
   // Query hooks: hydrate from RSC initialData; live data after first refetch.
   // queryKey contract: must match mutation hooks' invalidate keys (Plan 04-03 hooks).
   const summary = useSpendingsSummary(budgetId, month, props.initialSummary);
-  const txns = useTransactions(budgetId, month, { initialData: props.initialTransactions });
-  const drafts = useDrafts(budgetId, month, { initialData: props.initialDrafts });
+  const txns = useTransactions(budgetId, month, {
+    initialData: props.initialTransactions,
+  });
+  const drafts = useDrafts(budgetId, month, {
+    initialData: props.initialDrafts,
+  });
 
   const qc = useQueryClient();
-  const [localCategoryOrder, setLocalCategoryOrder] = useState<CategoryDTO[]>(props.initialCategories);
+  const [localCategoryOrder, setLocalCategoryOrder] = useState<CategoryDTO[]>(
+    props.initialCategories,
+  );
   // Re-sync when the RSC re-fetches (e.g. after CategorySlider create/edit
   // calls router.refresh()). useState + React Query initialData both hydrate
   // only once, so without this the grid keeps the stale list/summary.
   useEffect(() => {
     setLocalCategoryOrder(props.initialCategories);
-    qc.setQueryData(["spendings-summary", budgetId, month], props.initialSummary);
-    qc.setQueryData(["transactions", budgetId, month], props.initialTransactions);
+    qc.setQueryData(
+      ["spendings-summary", budgetId, month],
+      props.initialSummary,
+    );
+    qc.setQueryData(
+      ["transactions", budgetId, month],
+      props.initialTransactions,
+    );
     qc.setQueryData(["drafts", budgetId, month], props.initialDrafts);
   }, [
     props.initialCategories,
@@ -124,8 +141,12 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
   // Slider state machine
@@ -167,7 +188,8 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
   // These Maps MUST come from useTransactions/useDrafts hook .data — NOT from props directly,
   // because the hooks reflect live cache state after optimistic mutations + revalidates.
   const summaryByCatId = useMemo(
-    () => new Map((summary.data?.categories ?? []).map((c) => [c.categoryId, c])),
+    () =>
+      new Map((summary.data?.categories ?? []).map((c) => [c.categoryId, c])),
     [summary.data],
   );
 
@@ -201,7 +223,9 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     if (!txSlider.txId) return undefined;
     const allTxns = txns.data ?? [];
     const allDrafts = drafts.data ?? [];
-    const found = [...allTxns, ...allDrafts].find((t) => t.id === txSlider.txId);
+    const found = [...allTxns, ...allDrafts].find(
+      (t) => t.id === txSlider.txId,
+    );
     if (!found) return undefined;
     return {
       txId: found.id,
@@ -268,7 +292,9 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
                 <CategoryColumn
                   key={c.id}
                   category={c}
-                  summary={summaryByCatId.get(c.id) ?? defaultEmptySummary(c.id)}
+                  summary={
+                    summaryByCatId.get(c.id) ?? defaultEmptySummary(c.id)
+                  }
                   cushionModeEnabled={summary.data?.cushionModeEnabled ?? false}
                   budgetCurrency={budgetCurrency}
                   transactions={transactionsByCatId.get(c.id) ?? []}
@@ -277,6 +303,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
                   budgetId={budgetId}
                   month={month}
                   resolvedQuickEntryDate={resolvedQuickEntryDate}
+                  reservesEnabled={reservesEnabled}
                   onEditTxn={(txId) =>
                     setTxSlider({ open: true, mode: "edit", txId })
                   }
