@@ -141,6 +141,13 @@
       "when": 1747612800000,
       "tag": "0019_phase04_budgets_timezone",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1747699200000,
+      "tag": "0020_phase05_reserves_rebalance",
+      "breakpoints": true
     }
   ]
 }
