@@ -1,0 +1,60 @@
+"use client";
+/**
+ * mismatch-chip.tsx — Three-variant reserve mismatch status chip.
+ *
+ * D-PH5-R12: overfunded + underfunded use --destructive border + text;
+ *            reconciled uses --hairline-dark border + --muted-strong text.
+ * Read-only this phase — no onClick, no tabIndex (Phase 7 may wire CTA).
+ * role="status" so screen readers re-announce when variant changes.
+ */
+import * as React from "react";
+import { AlertTriangle, Check } from "lucide-react";
+
+export type MismatchVariant = "overfunded" | "underfunded" | "reconciled";
+
+export interface MismatchChipProps {
+  variant: MismatchVariant;
+  amountFormatted?: string;
+  helperText?: string;
+}
+
+export function MismatchChip({
+  variant,
+  amountFormatted,
+  helperText,
+}: MismatchChipProps) {
+  const isReconciled = variant === "reconciled";
+  const Icon = isReconciled ? Check : AlertTriangle;
+
+  const borderClass = isReconciled
+    ? "border-[var(--hairline-dark)]"
+    : "border-[var(--destructive)]";
+  const amountColor = isReconciled
+    ? "text-[var(--muted-strong)]"
+    : "text-[var(--destructive)]";
+  const helperColor = isReconciled
+    ? "text-[var(--muted-strong)]"
+    : "text-[var(--muted-foreground)]";
+
+  const titleLabel = isReconciled ? "Reconciled" : (amountFormatted ?? "");
+
+  return (
+    <div
+      data-testid={`mismatch-chip-${variant}`}
+      role="status"
+      className={[
+        "inline-flex h-[32px] items-center gap-2",
+        "rounded-[var(--radius-md)] border bg-transparent px-3 text-sm",
+        borderClass,
+      ].join(" ")}
+    >
+      <Icon className={`h-4 w-4 ${amountColor}`} aria-hidden={true} />
+      <span className={`text-title-sm font-semibold ${amountColor}`}>
+        {titleLabel}
+      </span>
+      {helperText && (
+        <span className={`text-caption ${helperColor}`}>{helperText}</span>
+      )}
+    </div>
+  );
+}
