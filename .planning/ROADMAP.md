@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 2: Domain & API Restructure** — Rename domain entities, strip Transaction, update recurring-engine for extended cadence, wire reserves auto-compute SQL view, ship share-link backend routes; all `/budgets/*` and `/wallets/*` HTTP routes live
 - [x] **Phase 3: Navigation, Home & BDP Frame** — Top-nav budget switcher dropdown, combined home page with per-budget cards + placeholder chart, BDP tab shell with sticky pills + task banner skeleton
 - [x] **Phase 4: Spendings Grid** — The Excel-like core: column-per-category grid, quick-entry, pen-icon side sliders, drag-reorder, arrow-key month navigation, recurring drafts as highlighted rows, real-time reserve-deduction display _(UAT closed: 16/17 pass, 1 skipped — Test 4 retry blocked by shared-stack; security audited 35/35 closed — see 04-SECURITY.md)_
-- [ ] **Phase 5: Reserves & Wallets Tabs** — Reserves table with per-category isolated balances + wallet-share column, Wallets tab with always-inline editable rows (name/currency/amount/type) and add/delete
+- [x] **Phase 5: Reserves & Wallets Tabs** — Reserves table with per-category isolated balances + wallet-share column, Wallets tab with always-inline editable rows (name/currency/amount/type) and add/delete (completed 2026-05-17)
 - [ ] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow
 - [ ] **Phase 7: Tasks Queue** — Banner-with-expand UI, deterministic generators (reserve-mismatch, draft-due, stale-wallet, month-end), kind-specific resolution actions, auto-resolve on state change
 - [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
@@ -131,14 +131,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Plans** (8 — schema → backend → atoms+routes → tabs+cascade → e2e):
 
-- [ ] 05-01-PLAN.md — Wave 1: Migration 0020 (category_reserve_adjustments + RLS + indexes; categories.reserve_excluded; budgets.reserves_enabled; VIEW DROP+CREATE) + Drizzle TS mirror + tenant-leak fixture (+1 covered table) + [BLOCKING] `make migrate` (RSRV-01..03, 05..07)
-- [ ] 05-02-PLAN.md — Wave 2: Wallet domain mutators (rename/changeType/changeCurrency/setAmount) + WalletRepo.update + new CategoryReserveAdjustments + ReservesSummary + Categories.setReserveExcluded repos + Zod schemas (WALT-01..03, 06, 07; RSRV-01, 02, 06)
-- [ ] 05-03-PLAN.md — Wave 3: Application use cases (updateWallet w/ reserve-currency invariant, adjustCategoryReserve, toggleCategoryReserveExcluded, getReservesSummary) + 4 HTTP routes (PATCH /wallets/:id, POST /reserves/:catId/adjust, PATCH /categories/:id/reserve-excluded, REWRITE GET /reserves) + integration tests (all WALT-_ + all RSRV-_)
-- [ ] 05-04-PLAN.md — Wave 3 (parallel): Shared FE atoms `<InlineEditCell>` + `<DashedAddButton>` + `<RowDragHandle>` lift + `<MismatchChip>` + Phase 4 callsite refactor + EN i18n keys for both tabs (WALT-03, 04; RSRV-01, 06, 07)
-- [ ] 05-05-PLAN.md — Wave 4: Wallets tab end-to-end (RSC page + `<WalletsSectionedList>` + 3 sections + per-section drop zones + inline-edit + soft-archive + cross-tab invalidation hook) + delete v1.0 accounts-_ legacy (all WALT-_)
-- [ ] 05-06-PLAN.md — Wave 4 (parallel): Reserves tab end-to-end (RSC page + `<ReservesTableClient>` + Active/Excluded sections + inline-edit reserve balance via computed delta + sticky totals footer + `<MismatchChip>` variants) (all RSRV-\*)
-- [ ] 05-07-PLAN.md — Wave 4 (parallel): `reserves_enabled` cascading hide — BdpTabs filters Reserves pill + spendings grid row 4 conditional + `GET /budgets/:id` DTO carries the flag (RSRV-04, 06)
-- [ ] 05-08-PLAN.md — Wave 5 (final, autonomous=false): 6 playwright-bdd `@phase5` features + new ReservesPage + rewritten WalletsPage Page Objects + step bindings + full `make test && bun run test && make ci-gate && make test-e2e` green + impeccable DESIGN.md sweep (all WALT-_ + all RSRV-_)
+- [x] 05-01-PLAN.md — Wave 1: Migration 0020 (category_reserve_adjustments + RLS + indexes; categories.reserve_excluded; budgets.reserves_enabled; VIEW DROP+CREATE) + Drizzle TS mirror + tenant-leak fixture (+1 covered table) + [BLOCKING] `make migrate` (RSRV-01..03, 05..07)
+- [x] 05-02-PLAN.md — Wave 2: Wallet domain mutators (rename/changeType/changeCurrency/setAmount) + WalletRepo.update + new CategoryReserveAdjustments + ReservesSummary + Categories.setReserveExcluded repos + Zod schemas (WALT-01..03, 06, 07; RSRV-01, 02, 06)
+- [x] 05-03-PLAN.md — Wave 3: Application use cases (updateWallet w/ reserve-currency invariant, adjustCategoryReserve, toggleCategoryReserveExcluded, getReservesSummary) + 4 HTTP routes (PATCH /wallets/:id, POST /reserves/:catId/adjust, PATCH /categories/:id/reserve-excluded, REWRITE GET /reserves) + integration tests (all WALT-_ + all RSRV-_)
+- [x] 05-04-PLAN.md — Wave 3 (parallel): Shared FE atoms `<InlineEditCell>` + `<DashedAddButton>` + `<RowDragHandle>` lift + `<MismatchChip>` + Phase 4 callsite refactor + EN i18n keys for both tabs (WALT-03, 04; RSRV-01, 06, 07)
+- [x] 05-05-PLAN.md — Wave 4: Wallets tab end-to-end (RSC page + `<WalletsSectionedList>` + 3 sections + per-section drop zones + inline-edit + soft-archive + cross-tab invalidation hook) + delete v1.0 accounts-_ legacy (all WALT-_)
+- [x] 05-06-PLAN.md — Wave 4 (parallel): Reserves tab end-to-end (RSC page + `<ReservesTableClient>` + Active/Excluded sections + inline-edit reserve balance via computed delta + sticky totals footer + `<MismatchChip>` variants) (all RSRV-\*)
+- [x] 05-07-PLAN.md — Wave 4 (parallel): `reserves_enabled` cascading hide — BdpTabs filters Reserves pill + spendings grid row 4 conditional + `GET /budgets/:id` DTO carries the flag (RSRV-04, 06)
+- [x] 05-08-PLAN.md — Wave 5 (final, autonomous=false): 6 playwright-bdd `@phase5` features + new ReservesPage + rewritten WalletsPage Page Objects + step bindings + full `make test && bun run test && make ci-gate && make test-e2e` green + impeccable DESIGN.md sweep (all WALT-_ + all RSRV-_)
       **UI hint**: yes
 
 ### Phase 6: Settings, Onboarding & Share UI
@@ -240,7 +240,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 2. Domain & API Restructure                 | 0/TBD          | Not started | -          |
 | 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
 | 4. Spendings Grid                           | 0/TBD          | Not started | -          |
-| 5. Reserves & Wallets Tabs                  | 0/TBD          | Not started | -          |
+| 5. Reserves & Wallets Tabs                  | 8/8            | Complete    | 2026-05-17 |
 | 6. Settings, Onboarding & Share UI          | 0/TBD          | Not started | -          |
 | 7. Tasks Queue                              | 0/TBD          | Not started | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |

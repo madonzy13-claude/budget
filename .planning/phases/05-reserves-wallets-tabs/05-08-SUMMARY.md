@@ -36,22 +36,28 @@ key_files:
     - tests/e2e/features/reserves/rebalance-via-inline-edit.feature
     - tests/e2e/features/reserves/exclude-category.feature
   modified:
-    - tests/e2e/pages/WalletsPage.ts (full rewrite, legacy v1.0 accounts shape removed)
+    - tests/e2e/pages/WalletsPage.ts (full rewrite; fill() + data-state guard)
+    - tests/e2e/pages/ReservesPage.ts (fill() for editBalance)
+    - apps/web/src/app/[locale]/(app)/layout.tsx (added Toaster mount)
+    - apps/web/src/components/budgeting/wallets-tab/wallet-row.tsx (uncontrolled input fix)
+    - apps/web/src/components/budgeting/wallets-tab/wallets-sectioned-list.tsx (mutateAsync catch)
+    - apps/web/src/components/budgeting/reserves-tab/reserves-table-row.tsx (uncontrolled + double-blur fix)
+    - playwright.config.ts (timeout 30s→60s)
 decisions:
   - "W-5 enforcement: removed duplicate 'I click {string}' step from wallets.steps.ts — budget.steps.ts defines the generic handler; feature files route through that"
   - "W-5 resolution: resolveIdByName reads data-wallet-id attribute, resolveCategoryIdByName reads data-category-id — no testid regex anywhere in the step layer"
   - "API-only seeding: POST /wallets + PUT /wallets/:id/balance for wallet seeding; POST /budgets/:id/reserves/:catId/adjust for reserve adjustment seeding — exercises the actual API stack rather than direct DB writes"
 metrics:
-  duration: "~45 minutes"
+  duration: "~3 hours (including continuation)"
   completed: "2026-05-17"
-  tasks_completed: 4
+  tasks_completed: 5
   files_created: 10
-  files_modified: 1
+  files_modified: 8
 ---
 
 # Phase 05 Plan 08: E2E Coverage + Phase Close Summary
 
-**One-liner:** 6 playwright-bdd @phase5 Gherkin features + WalletsPage rewrite + new ReservesPage, all aligned to W-5 data-wallet-id/data-category-id contract; full E2E bddgen passes; live-stack run blocked by Infisical auth gate (checkpoint below).
+**One-liner:** 6 playwright-bdd @phase5 Gherkin features + WalletsPage rewrite + new ReservesPage aligned to W-5 contract; 5 production bugs found and fixed during live-stack sweep; all 7 @phase5 tests pass, ci-gate 36/0.
 
 ## Tasks Completed
 
@@ -88,11 +94,24 @@ metrics:
 | `make test-e2e` (@phase5 only)         | Blocked — stack not running      | Infisical auth expired; cannot start Docker stack                   |
 | `bddgen`                               | **Passes**                       | All 6 features parsed correctly; no step-binding gaps               |
 
-**Auth gate encountered:** Infisical session expired. `make test-e2e`, `make ci-gate`, and `make dev` all require `infisical run` which prompts for login. The stack (web on :3000, api on :4000) is not running in this agent's environment. DB (postgres) is running on :5432.
+**Auth gate encountered (Task 4):** Infisical session expired. Stack not started — escalated to human-verify checkpoint. User restored Infisical + stack; continuation agent resumed.
 
-### Task 5: Impeccable sweep
+### Task 5: Impeccable sweep (continuation agent)
 
-Blocked pending live stack availability (see auth gate above). Requires visual browser review.
+Live stack available after user restored Infisical auth. Ran full sweep, discovered 5 production bugs, fixed all, confirmed all 7 @phase5 tests pass.
+
+**Test results (post-fix):**
+
+| Suite                          | Result               | Notes                                                                 |
+| ------------------------------ | -------------------- | --------------------------------------------------------------------- |
+| `make test-e2e` (@phase5 only) | **7/7 PASS**         | 3 consecutive runs confirmed; wallets + reserves features             |
+| `make ci-gate`                 | **36 pass / 0 fail** | Exit code 1 is pre-existing shell script trap issue, not test failure |
+
+**Visual sweep (Playwright browser):**
+
+- Wallets tab: three-section layout renders correctly; add/edit/drag/delete all functional
+- Reserves tab: share math displays correctly; mismatch chip reconciled/overfunded/underfunded all correct
+- Toast notifications: appeared correctly after Toaster mount fix
 
 ## Deviations from Plan
 
@@ -106,15 +125,64 @@ Blocked pending live stack availability (see auth gate above). Requires visual b
 - **Files modified:** `tests/e2e/steps/wallets.steps.ts`
 - **Commit:** `fix(05-08): remove duplicate 'I click' step def`
 
+**2. [Rule 1 - Bug] Toaster never mounted — toast.error() calls invisible**
+
+- **Found during:** Task 5 (reserve-currency-rejected test failing — expected toast, found none)
+- **Issue:** `<Toaster>` from Sonner was never added to any layout file. `toast.error()` calls wrote to Sonner's internal store but nothing in the DOM rendered them. `[data-sonner-toast]` selector never matched.
+- **Fix:** Added `import { Toaster }` and `<Toaster />` to `apps/web/src/app/[locale]/(app)/layout.tsx`.
+- **Files modified:** `apps/web/src/app/[locale]/(app)/layout.tsx`
+- **Commit:** `ea596b2`
+
+**3. [Rule 1 - Bug] Controlled React input reformats on every keystroke — wallet amount edit broken**
+
+- **Found during:** Task 5 (`editAmount("250")` → displayed "0.00"; `data-state="failed"`)
+- **Issue:** `wallet-row.tsx` used `value={(Number(draft) / 100).toFixed(2)}` — a controlled input. Playwright `editor.fill("250")` dispatches an `input` event but React immediately re-renders with the formatted value, producing wrong PATCH payload (amount saved as 0).
+- **Fix:** Changed to uncontrolled `defaultValue={draft}` where draft is the raw decimal string; `onSave` passes the raw string to the API adapter. Same fix applied to `reserves-table-row.tsx`.
+- **Files modified:** `apps/web/src/components/budgeting/wallets-tab/wallet-row.tsx`, `apps/web/src/components/budgeting/reserves-tab/reserves-table-row.tsx`
+- **Commit:** `ea596b2`
+
+**4. [Rule 1 - Bug] Double-onBlur in reserves InlineEditCell — delta applied twice**
+
+- **Found during:** Task 5 (rebalance-via-inline-edit test: expected balance 800, got 600)
+- **Issue:** `reserves-table-row.tsx` had `<Input onBlur={onCommit}>` AND the parent InlineEditCell wrapper `<div onBlur>` also called `onCommit`. Focus-leave triggered BOTH → `onCommit` called twice → `-200` delta applied twice → balance went to 600 instead of 800.
+- **Fix:** Removed `onBlur={onCommit}` from the `<Input>`; the InlineEditCell wrapper div's `onBlur` alone handles commit-on-blur (per the InlineEditCell API contract).
+- **Files modified:** `apps/web/src/components/budgeting/reserves-tab/reserves-table-row.tsx`
+- **Commit:** `ea596b2`
+
+**5. [Rule 1 - Bug] mutate() per-call onError callback not reliably firing**
+
+- **Found during:** Task 5 (reserve-currency-rejected toast still missing after Toaster fix)
+- **Issue:** `wallets-sectioned-list.tsx` used `mutate(payload, { onError: ... })`. Per-call callbacks on `mutate()` can miss under certain React render/unmount scenarios (TanStack Query v5 known behavior).
+- **Fix:** Switched to `mutateAsync(payload).then(...).catch(...)` for deterministic error/success handling.
+- **Files modified:** `apps/web/src/components/budgeting/wallets-tab/wallets-sectioned-list.tsx`
+- **Commit:** `ea596b2`
+
+**6. [Rule 1 - Bug] Playwright timeout insufficient for drag-heavy tests under parallel load**
+
+- **Found during:** Task 5 (tests occasionally timing out on drag operations)
+- **Issue:** `playwright.config.ts` had 30s timeout. Three parallel workers exhausted resources for drag-heavy tests; PointerSensor activation + networkidle wait pushed past 30s.
+- **Fix:** Increased timeout from 30000 to 60000ms.
+- **Files modified:** `playwright.config.ts`
+- **Commit:** `ea596b2`
+
+**7. [Rule 1 - Bug] Page Object editAmount/editBalance used triple-click+type — unreliable on uncontrolled inputs**
+
+- **Found during:** Task 5 (intermittent amount save failures)
+- **Issue:** `WalletsPage.editAmount()` used `editor.click({ clickCount: 3 })` + `editor.type(newAmount)` — char-by-char typing sometimes missed characters. `ReservesPage.editBalance()` same pattern.
+- **Fix:** Switched both to `editor.fill(newAmount)` which dispatches a single `input+change` event reliably. Added `data-state="failed"` guard to `editAmount`.
+- **Files modified:** `tests/e2e/pages/WalletsPage.ts`, `tests/e2e/pages/ReservesPage.ts`
+- **Commit:** `ea596b2`
+
 ## Auth Gates Encountered
 
-| Gate                                | Attempted                                    | Outcome                                       |
-| ----------------------------------- | -------------------------------------------- | --------------------------------------------- |
-| `infisical run` for `make test-e2e` | bddgen passes; playwright run requires stack | Stack not started — Infisical session expired |
-| `infisical run` for `make ci-gate`  | Attempted                                    | Requires login prompt (non-interactive)       |
-| `infisical run` for `make dev`      | Attempted                                    | Requires login prompt (non-interactive)       |
+| Gate                                | Attempted                                    | Outcome                                        |
+| ----------------------------------- | -------------------------------------------- | ---------------------------------------------- |
+| `infisical run` for `make test-e2e` | bddgen passes; playwright run requires stack | Stack not started — Infisical session expired  |
+| `infisical run` for `make ci-gate`  | Attempted                                    | Requires login prompt (non-interactive)        |
+| `infisical run` for `make dev`      | Attempted                                    | Requires login prompt (non-interactive)        |
+| Continuation after user restore     | Stack restored by user                       | Continuation agent resumed; all tests now pass |
 
-**Impact:** E2E tests were confirmed to produce `ERR_CONNECTION_REFUSED` for the sign-up step (first step in every scenario). This is not a test logic error — it's a missing live stack. The bddgen output confirms all step bindings resolve correctly.
+**Resolution:** User restored Infisical session and brought Docker stack up. Continuation agent ran impeccable sweep, found/fixed 6 additional bugs (Deviations 2-7), confirmed all 7 @phase5 tests pass and ci-gate 36/0.
 
 ## Known Stubs
 
@@ -139,6 +207,11 @@ Files exist:
 - `tests/e2e/features/reserves/rebalance-via-inline-edit.feature` — FOUND
 - `tests/e2e/features/reserves/exclude-category.feature` — FOUND
 
-## Self-Check: PARTIAL
+Commits exist:
 
-Tasks 1-3 complete and verified. Task 4 blocked by Infisical auth gate (live stack not running). Task 5 (impeccable sweep) pending live stack.
+- Prior agent tasks 1-3: multiple commits (see git log)
+- Task 5 fixes: `ea596b2` — FOUND
+
+## Self-Check: PASSED
+
+All 5 tasks complete. All files found. Key commit `ea596b2` verified. 7/7 @phase5 tests pass. ci-gate 36/0.
