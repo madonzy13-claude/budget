@@ -141,7 +141,7 @@ function DraftRow({
       </div>
 
       {/* Currency — read-only in draft state */}
-      <div className="w-[72px] sm:w-[96px]">
+      <div className="w-[44px] sm:w-[96px]">
         <span
           className="text-[var(--muted-foreground)]"
           aria-label={t("currencyReadOnlyAria", { ccy: budgetCurrency })}
@@ -151,13 +151,14 @@ function DraftRow({
       </div>
 
       {/* Amount — always 0.00 in draft state */}
-      <div className="w-[120px] text-right sm:w-[160px]">
+      <div className="w-[88px] text-right sm:w-[160px]">
         <span className="text-num-md text-[var(--muted-foreground)]">0.00</span>
       </div>
 
-      {/* UAT-PH5-T3-14: Share placeholder for column alignment with persisted rows */}
+      {/* UAT-PH5-T3-14: Share placeholder for column alignment with persisted rows.
+          UAT-PH5-T3-24: hidden on mobile to mirror the persisted-row layout. */}
       <div
-        className="w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:w-[80px]"
+        className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]"
         aria-hidden="true"
       >
         —
@@ -280,8 +281,9 @@ function PersistedRow({
         />
       </div>
 
-      {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise */}
-      <div className="w-[72px] sm:w-[96px]" data-inline-cell>
+      {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
+          UAT-PH5-T3-24: narrower on mobile so name + amount have room. */}
+      <div className="w-[44px] sm:w-[96px]" data-inline-cell>
         {isReserveSection ? (
           <span
             className="text-num-md"
@@ -311,7 +313,7 @@ function PersistedRow({
            without the controlled reformatter clobbering each keystroke.
            draft holds the raw decimal string the user typed.
            onSave sends it directly as the decimal amount string. */}
-      <div className="w-[120px] text-right sm:w-[160px]" data-inline-cell>
+      <div className="w-[88px] text-right sm:w-[160px]" data-inline-cell>
         <InlineEditCell
           // Persisted value passed to the editor is still the full decimal
           // so the user can edit the raw string (e.g. "10.50" not "10.5").
@@ -343,10 +345,13 @@ function PersistedRow({
       </div>
 
       {/* UAT-PH5-T3-14: Share — wallet's slice of its section's total.
-          Em-dash when the section sum is zero (no meaningful ratio). */}
+          Em-dash when the section sum is zero (no meaningful ratio).
+          UAT-PH5-T3-24: hidden on mobile so the row's name + amount fit
+          the 390 px viewport without truncation. The metric is
+          desktop-only signal. */}
       <div
         data-testid={`wallet-share-${wallet.id}`}
-        className="w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:w-[80px]"
+        className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]"
         aria-label={t("shareAria", { name: wallet.name })}
       >
         {sectionTotalCents > 0
