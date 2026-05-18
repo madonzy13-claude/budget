@@ -35,7 +35,17 @@ export function centsToDisplay(
  * (`320` → `3.20`, `10` → `0.10`). Negative amounts get a leading minus.
  */
 export function centsToBare(cents: string | bigint, locale = "en"): string {
-  const big = typeof cents === "string" ? BigInt(cents) : cents;
+  // UAT-PH5-T3-29: optimistic mutations can briefly set this to "NaN" when
+  // the user enters a non-numeric amount (e.g. "123,45" before locale
+  // normalisation lands). BigInt("NaN") throws SyntaxError mid-render and
+  // crashes the page. Coerce to 0 instead so the row stays visible while
+  // the server rejects the bad value with a 422 and the rollback fires.
+  let big: bigint;
+  try {
+    big = typeof cents === "string" ? BigInt(cents) : cents;
+  } catch {
+    big = 0n;
+  }
   const neg = big < 0n;
   const abs = neg ? -big : big;
   const whole = abs / 100n;

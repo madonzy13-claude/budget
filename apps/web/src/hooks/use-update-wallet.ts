@@ -87,11 +87,20 @@ export function useUpdateWallet(budgetId: string) {
                   ? { currency: input.currency.toUpperCase() }
                   : {}),
                 ...(input.amount !== undefined
-                  ? {
-                      currentBalanceCents: String(
-                        Math.round(Number(input.amount) * 100),
-                      ),
-                    }
+                  ? (() => {
+                      // UAT-PH5-T3-29: guard the optimistic update against a
+                      // non-numeric amount string (e.g. "123,45" if locale
+                      // normalisation didn't run). Without this Number()
+                      // returns NaN, which propagates to centsToBare → BigInt
+                      // → SyntaxError mid-render. Skip the optimistic
+                      // currentBalanceCents patch when the value is bad and
+                      // let the server's 422 + rollback handle the recovery.
+                      const n = Number(input.amount);
+                      if (!Number.isFinite(n)) return {};
+                      return {
+                        currentBalanceCents: String(Math.round(n * 100)),
+                      };
+                    })()
                   : {}),
                 ...(input.walletType !== undefined
                   ? { walletType: input.walletType }

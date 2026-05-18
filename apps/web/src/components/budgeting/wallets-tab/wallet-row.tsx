@@ -346,11 +346,15 @@ function PersistedRow({
               type="text"
               inputMode="decimal"
               defaultValue={draft}
-              onChange={(e) => onChange(e.target.value)}
+              // UAT-PH5-T3-29: accept comma as the decimal separator
+              // (PL/UK locales) and translate to the dot the server +
+              // domain layer expect. The input still displays whatever
+              // the user typed because `defaultValue` is uncontrolled.
+              onChange={(e) => onChange(e.target.value.replace(",", "."))}
               className="h-9 text-right"
             />
           )}
-          onSave={(v) => onUpdate({ amount: v })}
+          onSave={(v) => onUpdate({ amount: v.replace(",", ".") })}
         />
       </div>
 
