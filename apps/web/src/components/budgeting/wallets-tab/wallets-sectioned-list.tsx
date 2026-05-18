@@ -56,6 +56,19 @@ export function WalletsSectionedList({
   initial,
 }: WalletsSectionedListProps) {
   const t = useTranslations("bdp.tab.wallets.toast");
+  // UAT-PH5-T3-33: separate translator for the full section labels
+  // ("Spendings wallets", "Cushion wallets", "Reserve wallets") so the
+  // move toast reads "Moved Savings to Cushion wallets" instead of the
+  // raw enum "CUSHION".
+  const tSection = useTranslations("bdp.tab.wallets.section");
+  const sectionLabelFor = (kind: WalletDto["walletType"]) =>
+    tSection(
+      kind === "SPENDINGS"
+        ? "spendings"
+        : kind === "CUSHION"
+          ? "cushion"
+          : "reserve",
+    );
   const { data: wallets = initial } = useWallets(budgetId, initial);
   const updateMut = useUpdateWallet(budgetId);
   const createMut = useCreateWallet(budgetId);
@@ -162,9 +175,13 @@ export function WalletsSectionedList({
     updateMut
       .mutateAsync({ walletId: w.id, walletType: newType })
       .then(() => {
-        toast.success(t("moved", { name: walletName, sectionLabel: newType }), {
-          description: undefined,
-        });
+        toast.success(
+          t("moved", {
+            name: walletName,
+            sectionLabel: sectionLabelFor(newType),
+          }),
+          { description: undefined },
+        );
       })
       .catch((err: Error & { code?: string | null }) => {
         if (err?.code === "reserve_currency_mismatch") {
@@ -173,7 +190,7 @@ export function WalletsSectionedList({
             t("reserveCurrencyRejected", {
               budgetCcy: budgetCurrency,
               name: walletName,
-              originalSectionLabel: originalType,
+              originalSectionLabel: sectionLabelFor(originalType),
             }),
           );
         }
