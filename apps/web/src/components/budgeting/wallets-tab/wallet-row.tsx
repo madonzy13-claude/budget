@@ -315,9 +315,12 @@ function PersistedRow({
            onSave sends it directly as the decimal amount string. */}
       <div className="w-[88px] text-right sm:w-[160px]" data-inline-cell>
         <InlineEditCell
-          // Persisted value passed to the editor is still the full decimal
-          // so the user can edit the raw string (e.g. "10.50" not "10.5").
-          value={(Number(wallet.currentBalanceCents) / 100).toFixed(2)}
+          // UAT-PH5-T3-25: editor seed mirrors the display formatting —
+          // centsToBare drops a `.00` fraction so "10" enters the input
+          // as "10" not "10.00". Non-zero fractions still pad to 2 digits.
+          // Locale grouping (commas/spaces) is stripped so the value is a
+          // valid decimal string the user can edit.
+          value={centsToBare(wallet.currentBalanceCents).replace(/[, ]/g, "")}
           ariaLabel={t("amountAria")}
           testId={`wallet-amount-${wallet.id}`}
           render={() => (
