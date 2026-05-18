@@ -32,6 +32,9 @@ interface WalletSectionProps {
   budgetCurrency: string;
   /** null when no draft is active for this section */
   draft: DraftState | null;
+  // UAT-PH5-T3-22: true when a drag is in progress and the pointer is over
+  // anywhere in this section (background, an internal row, or the +Add CTA).
+  isDropEligible?: boolean;
   onUpdate: (
     id: string,
     patch: {
@@ -60,6 +63,7 @@ export function WalletSection({
   wallets,
   budgetCurrency,
   draft,
+  isDropEligible,
   onUpdate,
   onArchive,
   onAdd,
@@ -69,6 +73,11 @@ export function WalletSection({
   const t = useTranslations("bdp.tab.wallets");
   const { setNodeRef, isOver } = useDroppable({ id: `section-${type}` });
   const sectionKey = SECTION_KEY_MAP[type];
+  // UAT-PH5-T3-22: highlight the section when the pointer is over either
+  // the section background OR any row inside it (parent passes the latter
+  // as `isDropEligible`). Without this the highlight only kicked in over
+  // the +Add CTA area, which is jarring during the drop hover.
+  const highlight = isOver || !!isDropEligible;
 
   return (
     <section
@@ -76,7 +85,7 @@ export function WalletSection({
       data-testid={`wallet-section-${type}`}
       className={[
         "flex flex-col gap-2 rounded-[var(--radius-lg)] p-2",
-        isOver
+        highlight
           ? "bg-[var(--surface-elevated-dark)]/60 ring-2 ring-dashed ring-[var(--info-ring)]"
           : "",
       ]

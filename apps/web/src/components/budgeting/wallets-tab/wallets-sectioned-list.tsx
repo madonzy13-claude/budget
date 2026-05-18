@@ -24,6 +24,7 @@ import {
   TouchSensor,
   KeyboardSensor,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useState, useCallback } from "react";
@@ -70,6 +71,11 @@ export function WalletsSectionedList({
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const activeDragged =
     activeDragId != null ? wallets.find((w) => w.id === activeDragId) : null;
+  // UAT-PH5-T3-22: section currently under the pointer during a drag. Used
+  // by WalletSection to apply the blue drop-eligible highlight even when
+  // the pointer is over an internal row (and not the section background or
+  // the +Add CTA). Resolved from the live `over.id` in onDragOver below.
+  const [overSection, setOverSection] = useState<WalletType | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -83,8 +89,23 @@ export function WalletsSectionedList({
     setActiveDragId(String(e.active.id));
   }
 
+  // UAT-PH5-T3-22: resolve any drop target id to its parent section so the
+  // section can render the drop-eligible highlight regardless of whether
+  // the pointer is over the background, a sibling row, or the +Add row.
+  function resolveSection(id: string | null | undefined): WalletType | null {
+    if (!id) return null;
+    if (id.startsWith("section-")) return id.slice("section-".length) as WalletType;
+    const w = wallets.find((x) => x.id === id);
+    return w ? w.walletType : null;
+  }
+
+  function handleDragOver(e: DragOverEvent) {
+    setOverSection(resolveSection(e.over ? String(e.over.id) : null));
+  }
+
   function handleDragEnd(e: DragEndEvent) {
     setActiveDragId(null);
+    setOverSection(null);
     const { active, over } = e;
     if (!over) return;
     const activeId = String(active.id);
@@ -228,8 +249,12 @@ export function WalletsSectionedList({
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveDragId(null)}
+      onDragCancel={() => {
+        setActiveDragId(null);
+        setOverSection(null);
+      }}
     >
       <div className="flex flex-col gap-4 p-4 sm:p-6">
         {(["SPENDINGS", "CUSHION", "RESERVE"] as const).map((type) => (
@@ -239,6 +264,10 @@ export function WalletsSectionedList({
             budgetCurrency={budgetCurrency}
             wallets={grouped[type]}
             draft={drafts[type] ?? null}
+            // UAT-PH5-T3-22: true while a drag is in progress AND the
+            // pointer is anywhere inside this section (background, row, or
+            // +Add CTA). Drives the blue ring on the section.
+            isDropEligible={overSection === type && activeDragId !== null}
             onUpdate={async (id, patch) => {
               await updateMut.mutateAsync({ walletId: id, ...patch });
             }}
@@ -253,7 +282,15 @@ export function WalletsSectionedList({
           loses the dragged row visually as the pointer crosses a context
           boundary. The source row still renders at 0.5 opacity in its section
           so the user sees where it'll snap back if they cancel. */}
-      <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.25, 1, 0.5, 1)" }}>
+      {/* UAT-PH5-T3-21: disable dropAnimation. Otherwise the overlay
+          animates back to the SOURCE row's live position on drop — but the
+          source row has already moved (optimistic reorder fires in
+          onDragEnd before the overlay animation), so the ghost first jumps
+          back to the old position and then the row jumps forward to the
+          new one. Killing the drop animation makes the handoff invisible:
+          ghost disappears, the reordered row is already where it should
+          be. */}
+      <DragOverlay dropAnimation={null}>
         {activeDragged ? (
           <WalletDragGhost
             name={activeDragged.name}

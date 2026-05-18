@@ -220,11 +220,14 @@ function PersistedRow({
       data-row-drop-over={isRowDropOver || undefined}
       style={{
         transform: CSS.Transform.toString(transform),
-        // UAT-PH5-T3-18: fall back to an explicit transform transition when
-        // dnd-kit didn't emit one for this frame, so the row always animates
-        // back into place instead of snapping.
+        // UAT-PH5-T3-21: dnd-kit emits transition="" on the first frame of
+        // a drag (no neighbour reorder yet) and the bare-string-OR matters
+        // here — `??` would treat "" as a real value and not fall back.
+        // Use a logical OR so empty AND null both fall through to the
+        // explicit transform transition; rows animate from the very first
+        // frame, including the direction reversal case.
         transition:
-          transition ?? "transform 220ms cubic-bezier(0.25, 1, 0.5, 1)",
+          transition || "transform 220ms cubic-bezier(0.25, 1, 0.5, 1)",
         opacity: isDragging ? 0.3 : 1,
       }}
       onClick={handleRowClick}
