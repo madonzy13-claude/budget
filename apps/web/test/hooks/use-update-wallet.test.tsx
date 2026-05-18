@@ -176,7 +176,7 @@ describe("useUpdateWallet", () => {
     expect(nameAtRollback).toBe("Cash");
   });
 
-  it("on reserve_currency_mismatch error: toasts reserveCurrencyOnEdit", async () => {
+  it("on reserve_currency_mismatch error: hook suppresses toast (component owns translated toast with budget-currency context — D-PH5-W8)", async () => {
     const qc = makeClient([SPENDINGS_WALLET]);
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -191,12 +191,14 @@ describe("useUpdateWallet", () => {
     result.current.mutate({ walletId: "wallet-1", currency: "USD" });
     await waitFor(() => expect(result.current.isError).toBe(true));
 
-    expect(mockToastError).toHaveBeenCalledWith(
-      "bdp.tab.wallets.toast.reserveCurrencyOnEdit",
-    );
-    // Must NOT call the generic save-failed key
+    // Hook must NOT fire the generic save-failed toast — the drag handler in
+    // wallets-sectioned-list.tsx fires a translated toast that includes the
+    // budget currency, wallet name, and original section label.
     expect(mockToastError).not.toHaveBeenCalledWith(
       "bdp.tab.wallets.toast.saveFailed",
+    );
+    expect(mockToastError).not.toHaveBeenCalledWith(
+      "bdp.tab.wallets.toast.reserveCurrencyOnEdit",
     );
   });
 

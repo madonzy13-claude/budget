@@ -81,6 +81,37 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     }
   });
 
+  // GET /budgets/active — list active budgets (registered BEFORE /:id so Hono
+  // matches the static path; otherwise `/active` collapses to `:id = "active"`
+  // and 404s on the membership check.
+  // v1.1 IA consistency: response carries BOTH `budgets` (canonical, v1.1) AND
+  // `workspaces` (legacy alias) so existing web call sites keep working.
+  r.get("/active", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const userId = session.user.id;
+    const memberships = await deps.tenancy.workspaceRepo.listForUser(userId);
+    return c.json({ budgets: memberships, workspaces: memberships });
+  });
+
+  // PUT /budgets/active — set active budgets (D-07, TENT-12). Registered next
+  // to the matching GET to keep static-path priority over `/:id`.
+  r.put("/active", zValidator("json", activeSchema), async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const body = c.req.valid("json");
+    const userId = session.user.id;
+
+    const memberships = await deps.tenancy.workspaceRepo.listForUser(userId);
+    const membershipIds = new Set(memberships.map((w) => w.id));
+    const safeIds = body.workspaceIds.filter((id) => membershipIds.has(id));
+
+    await deps.identity.userRepo.setActiveWorkspaceIds(UserId(userId), safeIds);
+    return c.json({ ok: true, activeWorkspaceIds: safeIds });
+  });
+
   // GET /budgets/:id — fetch single budget meta (D-PH5-R11: surfaces reservesEnabled flag)
   // Membership check: budgetId must be in session's tenantIds (same pattern as home-summary:248-254).
   r.get("/:id", async (c) => {
@@ -428,37 +459,6 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       console.error("[share-link:revoke] failed:", msg);
       throw e;
     }
-  });
-
-  // GET /budgets/active — list active budgets
-  // v1.1 IA consistency: response now carries BOTH `budgets` (canonical, v1.1)
-  // AND `workspaces` (legacy alias) so existing web call sites keep working
-  // for one Phase 3 wave (03-RESEARCH §"Data Contracts" §4). Plans 03-04 / 03-05
-  // read `body.budgets ?? body.workspaces`.
-  r.get("/active", async (c) => {
-    const session = c.get("session");
-    if (!session) return c.json({ error: "unauthorized" }, 401);
-
-    const userId = session.user.id;
-    const memberships = await deps.tenancy.workspaceRepo.listForUser(userId);
-    return c.json({ budgets: memberships, workspaces: memberships });
-  });
-
-  // PUT /budgets/active — set active budgets (D-07, TENT-12)
-  r.put("/active", zValidator("json", activeSchema), async (c) => {
-    const session = c.get("session");
-    if (!session) return c.json({ error: "unauthorized" }, 401);
-
-    const body = c.req.valid("json");
-    const userId = session.user.id;
-
-    // Intersect submitted IDs with actual memberships (defense in depth)
-    const memberships = await deps.tenancy.workspaceRepo.listForUser(userId);
-    const membershipIds = new Set(memberships.map((w) => w.id));
-    const safeIds = body.workspaceIds.filter((id) => membershipIds.has(id));
-
-    await deps.identity.userRepo.setActiveWorkspaceIds(UserId(userId), safeIds);
-    return c.json({ ok: true, activeWorkspaceIds: safeIds });
   });
 
   return r;

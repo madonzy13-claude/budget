@@ -156,6 +156,58 @@ describe("Budgets route (renamed from workspaces)", () => {
     expect(res.status).toBe(404);
   });
 
+  it("GET /budgets/active returns 200 and lists memberships (must beat /:id route in Hono priority)", async () => {
+    // Regression guard for Phase 5: GET /budgets/:id (D-PH5-R11) was added
+    // BEFORE GET /budgets/active in the factory; Hono then matched
+    // `/active` as `:id = "active"` and returned 404. /active must be
+    // registered first so the static path wins.
+    const { budgetsRoutesFactory } = require("../../src/routes/budgets");
+    const app = new Hono();
+    app.use(async (c: any, next: any) => {
+      c.set("session", { user: { id: "user-001" } } as any);
+      c.set("tenantIds", []);
+      await next();
+    });
+    const fakeDeps = {
+      tenancy: {
+        workspaceRepo: {
+          findById: async () => null,
+          listForUser: async () => [
+            {
+              id: "budget-001",
+              slug: "abc123",
+              name: "Budget One",
+              kind: "PRIVATE",
+              default_currency: "USD",
+              ownerUserId: "user-001",
+              memberCount: 1,
+              createdAt: new Date(),
+              cushionModeEnabled: false,
+            },
+          ],
+          listMembers: async () => [],
+        },
+        memberShareRepo: { list: async () => [], update: async () => {} },
+      },
+      identity: {
+        userRepo: {
+          getActiveWorkspaceIds: async () => [],
+          setActiveWorkspaceIds: async () => {},
+          findById: async () => null,
+          updateLocale: async () => {},
+        },
+        auth: { api: {} },
+      },
+    } as any;
+    app.route("/budgets", budgetsRoutesFactory(fakeDeps));
+    const res = await app.request("/budgets/active");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.budgets).toHaveLength(1);
+    expect(body.budgets[0].id).toBe("budget-001");
+    expect(body.workspaces).toHaveLength(1);
+  });
+
   it("POST /workspaces returns 404", async () => {
     const app = buildApp({
       user: { id: "user-001", email: "test@test.com", locale: "en" },

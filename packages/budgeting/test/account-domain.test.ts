@@ -47,11 +47,15 @@ function makeWallet(
 
 describe("Wallet domain (via account-domain compat test)", () => {
   describe("canChangeCurrency()", () => {
-    test("always returns err — currency is immutable per WALT-04", () => {
+    // D-PH5-W12 (Phase 5): WALT-04 rescinded at the domain layer. The
+    // reserve-currency invariant moved to the use-case layer (update-wallet.ts)
+    // so it can call budgetCurrencyOf(tenantId) without domain ↔ tenancy
+    // coupling. Domain now returns ok(undefined) unconditionally; route-level
+    // and E2E tests (reserve-currency-rejected.feature) enforce the invariant.
+    test("returns ok unconditionally — invariant moved to use-case layer (D-PH5-W12)", () => {
       const wal = makeWallet();
       const result = wal.canChangeCurrency();
-      expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toMatch(/immutable/i);
+      expect(result.isOk()).toBe(true);
     });
   });
 
