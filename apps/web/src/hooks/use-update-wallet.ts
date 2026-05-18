@@ -19,6 +19,10 @@ export interface UpdateWalletInput {
   amount?: string; // numeric string (cents expressed as decimal, e.g. "10.50")
   currency?: string;
   walletType?: WalletDto["walletType"];
+  // UAT-PH5-T3-1x: optional presentation customization. `null` clears the
+  // value back to default (no color / no icon).
+  color?: string | null;
+  icon?: string | null;
 }
 
 /**
@@ -92,6 +96,9 @@ export function useUpdateWallet(budgetId: string) {
                 ...(input.walletType !== undefined
                   ? { walletType: input.walletType }
                   : {}),
+                // UAT-PH5-T3-1x: presentation customization optimistic update.
+                ...(input.color !== undefined ? { color: input.color } : {}),
+                ...(input.icon !== undefined ? { icon: input.icon } : {}),
               }
             : w,
         );

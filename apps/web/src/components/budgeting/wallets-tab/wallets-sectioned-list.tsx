@@ -31,6 +31,7 @@ import { useWallets, type WalletDto } from "@/hooks/use-wallets";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
 import { useArchiveWallet } from "@/hooks/use-archive-wallet";
+import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
 
 type WalletType = WalletDto["walletType"];
@@ -51,6 +52,7 @@ export function WalletsSectionedList({
   const updateMut = useUpdateWallet(budgetId);
   const createMut = useCreateWallet(budgetId);
   const archiveMut = useArchiveWallet(budgetId);
+  const reorderMut = useReorderWallets(budgetId);
 
   // W-4 staged-add state: per-section draft tracker
   // Only one draft per section at a time (idempotent set in handleAdd).
@@ -69,12 +71,50 @@ export function WalletsSectionedList({
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over) return;
+    const activeId = String(active.id);
     const droppedId = String(over.id);
+    const dragged = wallets.find((x) => x.id === activeId);
+    if (!dragged) return;
+
+    // UAT-PH5-T3-1x: intra-section reorder when the drop target is another
+    // row in the same section. Cross-section moves continue to drop on the
+    // section background (id = "section-<TYPE>").
+    if (droppedId.startsWith("row-")) {
+      const targetId = droppedId.slice("row-".length);
+      if (targetId === activeId) return;
+      const target = wallets.find((x) => x.id === targetId);
+      if (!target) return;
+      if (target.walletType !== dragged.walletType) {
+        // Cross-section: treat as section change to the target's section.
+        return handleCrossSectionDrop(dragged, target.walletType);
+      }
+      // Build new section order: remove active from its position, insert at
+      // target's position so dropping ON a row places the dragged row in
+      // front of that target (standard list-reorder semantics).
+      const sectionIds = wallets
+        .filter((w) => w.walletType === dragged.walletType)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+        .map((w) => w.id);
+      const fromIdx = sectionIds.indexOf(activeId);
+      const toIdx = sectionIds.indexOf(targetId);
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+      sectionIds.splice(fromIdx, 1);
+      sectionIds.splice(toIdx, 0, activeId);
+      reorderMut.mutate({
+        walletType: dragged.walletType,
+        orderedIds: sectionIds,
+      });
+      return;
+    }
+
     if (!droppedId.startsWith("section-")) return;
     const newType = droppedId.slice("section-".length) as WalletType;
-    const w = wallets.find((x) => x.id === String(active.id));
-    if (!w || w.walletType === newType) return;
+    if (dragged.walletType === newType) return;
+    return handleCrossSectionDrop(dragged, newType);
+  }
 
+  function handleCrossSectionDrop(w: WalletDto, newType: WalletType) {
+    if (w.walletType === newType) return;
     // Capture wallet name before mutation for toast message
     const walletName = w.name;
     const originalType = w.walletType;
@@ -101,10 +141,15 @@ export function WalletsSectionedList({
     });
   }
 
+  // UAT-PH5-T3-1x: render each section in sortOrder so intra-section reorder
+  // is reflected visually. The API already sorts, but list mutations may
+  // return wallets in cached order — sort defensively here too.
+  const bySort = (a: WalletDto, b: WalletDto) =>
+    (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
   const grouped: Record<WalletType, WalletDto[]> = {
-    SPENDINGS: wallets.filter((w) => w.walletType === "SPENDINGS"),
-    CUSHION: wallets.filter((w) => w.walletType === "CUSHION"),
-    RESERVE: wallets.filter((w) => w.walletType === "RESERVE"),
+    SPENDINGS: wallets.filter((w) => w.walletType === "SPENDINGS").sort(bySort),
+    CUSHION: wallets.filter((w) => w.walletType === "CUSHION").sort(bySort),
+    RESERVE: wallets.filter((w) => w.walletType === "RESERVE").sort(bySort),
   };
 
   // ── W-4 staged-add handlers ───────────────────────────────────────────────

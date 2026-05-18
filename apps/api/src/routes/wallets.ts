@@ -149,6 +149,47 @@ export function createWalletsRoute(deps: BootedDeps) {
     return c.json(r.value, 200);
   });
 
+  // UAT-PH5-T3-1x — POST /wallets/reorder
+  // Body: { walletType, orderedIds }. Updates sort_order so the listed wallets
+  // appear in the supplied order within their section. Tenant + walletType
+  // membership re-validated server-side (defence in depth).
+  app.post("/reorder", async (c) => {
+    const { reorderWalletsSchema } = await import(
+      "@budget/budgeting/src/contracts/api"
+    );
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+    const parsed = reorderWalletsSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: parsed.error.issues[0]?.message ?? "validation_error",
+          issues: parsed.error.issues,
+        },
+        422,
+      );
+    }
+
+    const r = await deps.budgeting.reorderWallets({
+      tenantId,
+      actorUserId: userId,
+      walletType: parsed.data.walletType,
+      orderedIds: parsed.data.orderedIds,
+    });
+    if (r.isErr()) {
+      const msg = r.error.message;
+      if (msg === "wallet_id_not_in_section")
+        return c.json({ error: msg }, 422);
+      return c.json({ error: msg }, 422);
+    }
+    return c.json(r.value, 200);
+  });
+
   // PUT /wallets/:id/balance — overwrite current_balance to absolute value
   // (D-PH2-09 amended: wallet balance fully decoupled from transactions)
   app.put("/:id/balance", async (c) => {

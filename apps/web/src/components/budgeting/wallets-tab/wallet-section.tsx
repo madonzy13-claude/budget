@@ -30,7 +30,14 @@ interface WalletSectionProps {
   draft: DraftState | null;
   onUpdate: (
     id: string,
-    patch: { name?: string; amount?: string; currency?: string },
+    patch: {
+      name?: string;
+      amount?: string;
+      currency?: string;
+      // UAT-PH5-T3-1x: presentation customization (null clears).
+      color?: string | null;
+      icon?: string | null;
+    },
   ) => Promise<void>;
   onArchive: (id: string) => void;
   onAdd: () => void;

@@ -59,6 +59,9 @@ export function createWallet(deps: CreateWalletDeps) {
       now,
       input.actorUserId,
     );
+    // UAT-PH5-T3-1x: carry optional presentation customization into INSERT.
+    wallet.color = (input as any).color ?? null;
+    wallet.icon = (input as any).icon ?? null;
 
     try {
       await deps.repo.create(wallet);
@@ -74,6 +77,11 @@ export function createWallet(deps: CreateWalletDeps) {
       currentBalanceCents: "0",
       archivedAt: null,
       createdAt: now.toISOString(),
+      color: wallet.color,
+      icon: wallet.icon,
+      // Repo computes the real sortOrder on INSERT; the DTO's sortOrder
+      // matters only after the subsequent list refetch, so 0 here is fine.
+      sortOrder: 0,
     });
   };
 }

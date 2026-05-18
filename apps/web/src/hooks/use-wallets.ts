@@ -15,6 +15,10 @@ export interface WalletDto {
   currency: string;
   currentBalanceCents: string;
   archivedAt: string | null;
+  // UAT-PH5-T3-1x: presentation-only customization + intra-section pos.
+  color?: string | null;
+  icon?: string | null;
+  sortOrder?: number;
 }
 
 export function useWallets(budgetId: string, initialData?: WalletDto[]) {

@@ -37,6 +37,34 @@ discovered_polish_during_test3:
     summary: Lock glyph removed from PRIVATE budgets in switcher trigger and rows; Users glyph still marks SHARED so the social affordance reads at a glance
     fix: apps/web/src/components/budgeting/budget-switcher.tsx — drop Lock import + conditional renders only Users on SHARED
     test_added: budget-switcher.test.tsx — no .lucide-lock anywhere in trigger or popover; SHARED rows still carry .lucide-users
+  - id: UAT-PH5-T3-11
+    severity: cosmetic
+    summary: Editable cells now use cursor-text (I-beam) on hover instead of cursor-pointer
+    fix: apps/web/src/components/common/inline-edit-cell.tsx
+    test_added: inline-edit-cell.test.tsx — cursor-text on enabled cells, cursor-default when disabled
+  - id: UAT-PH5-T3-12
+    severity: minor
+    summary: Wallet row no longer jumps width on hover — trash slot reserved in layout with invisible/group-hover:visible
+    fix: apps/web/src/components/budgeting/wallets-tab/wallet-row.tsx
+    test_added: wallet-row.test.tsx — invisible + group-hover:visible, never `hidden`
+  - id: UAT-PH5-T3-13
+    severity: minor
+    summary: Switcher polish — no leading spacer column on rows; checkmark only on selected; chevron-only trigger when no active budget; 20-char no-truncate label; active id derived client-side via usePathname
+    fix: apps/web/src/components/budgeting/budget-switcher.tsx
+    test_added: budget-switcher.test.tsx — chevron-only trigger, no Check anywhere when activeBudgetId null, path-derived active match for UUID budget, no leading spacer on inactive rows
+  - id: UAT-PH5-T3-14
+    severity: minor
+    summary: Share column added per wallet — % of section total or em-dash when section sum is 0
+    fix: apps/web/src/components/budgeting/wallets-tab/wallet-row.tsx, wallet-section.tsx
+    test_added: wallet-row.test.tsx — percent and em-dash branches
+  - id: UAT-PH5-T3-15
+    severity: major
+    summary: Intra-section wallet reorder via drag (UAT-T3 sort within type)
+    fix: drizzle/0021_phase05_uat_wallet_polish.sql (sort_order column); packages/budgeting/* (port, repo, contract, use case, factory wiring); apps/api/src/routes/wallets.ts (POST /wallets/reorder); apps/web/src/hooks/use-reorder-wallets.ts; wallet-row.tsx adds row-level droppable; wallets-sectioned-list.tsx detects row drops and calls reorder vs cross-section update
+  - id: UAT-PH5-T3-16
+    severity: major
+    summary: Per-wallet color + icon picker (popover with 8 colors + 12 curated lucide icons); default null/null renders a dashed placeholder circle; selected icon renders in selected color
+    fix: drizzle/0021_phase05_uat_wallet_polish.sql (color + icon columns); domain/repo/contract/use-case + factory; apps/web/src/components/budgeting/wallets-tab/wallet-customizer.tsx; hook + row integration
 source:
   - 05-01-SUMMARY.md
   - 05-02-SUMMARY.md

@@ -12,6 +12,13 @@ import type { Money } from "@budget/shared-kernel";
 export type WalletType = "SPENDINGS" | "CUSHION" | "RESERVE";
 
 export class Wallet {
+  // UAT-PH5-T3-1x: presentation-only customization (color + icon) and
+  // intra-section ordering (sortOrder). Hydrated by the repo from the new
+  // columns added in drizzle/0021_phase05_uat_wallet_polish.sql.
+  public color: string | null = null;
+  public icon: string | null = null;
+  public sortOrder: number = 0;
+
   constructor(
     public readonly id: string,
     public readonly tenantId: string,

@@ -30,6 +30,9 @@ export interface UpdateWalletInput {
   amount?: string;
   currency?: string;
   walletType?: WalletType;
+  // UAT-PH5-T3-1x: presentation-only customization. `null` clears the value.
+  color?: string | null;
+  icon?: string | null;
 }
 
 export interface UpdateWalletResult {
@@ -89,12 +92,17 @@ export function updateWallet(deps: UpdateWalletDeps) {
         amount?: string;
         currency?: string;
         walletType?: WalletType;
+        color?: string | null;
+        icon?: string | null;
       } = {};
       if (input.name !== undefined) patch.name = input.name;
       if (input.amount !== undefined) patch.amount = input.amount;
       if (input.currency !== undefined)
         patch.currency = input.currency.toUpperCase();
       if (input.walletType !== undefined) patch.walletType = input.walletType;
+      // UAT-PH5-T3-1x: forward color/icon (including explicit null to clear).
+      if (input.color !== undefined) patch.color = input.color;
+      if (input.icon !== undefined) patch.icon = input.icon;
 
       await deps.repo.update(
         input.tenantId,

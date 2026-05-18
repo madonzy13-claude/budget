@@ -7,11 +7,36 @@ import { z } from "zod";
 // Wallet schemas (renamed from Account in Plan 01-02, v1.1 schema)
 export const walletTypeSchema = z.enum(["SPENDINGS", "CUSHION", "RESERVE"]);
 
+// UAT-PH5-T3-1x: per-wallet color + icon. Optional on create; can be patched
+// later via updateWalletSchema. Color is a hex string ("#RRGGBB") or a known
+// token (we accept anything 1..32 chars and let the frontend canonicalize the
+// palette). Icon is a lucide-react icon name (slug form, e.g. "piggy-bank").
+const walletColorSchema = z
+  .string()
+  .min(1)
+  .max(32)
+  .regex(/^[#A-Za-z0-9_-]+$/);
+const walletIconSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9-]+$/);
+
 export const createWalletSchema = z.object({
   name: z.string().min(1).max(120),
   walletType: walletTypeSchema,
   currency: z.string().regex(/^[A-Z0-9]{3,5}$/), // 3-char fiat or 3-5-char crypto
+  color: walletColorSchema.nullish(),
+  icon: walletIconSchema.nullish(),
 });
+
+// UAT-PH5-T3-1x: reorder a section's wallets by sending the new ordered list
+// of wallet ids. Server applies positions 1..N within that section.
+export const reorderWalletsSchema = z.object({
+  walletType: walletTypeSchema,
+  orderedIds: z.array(z.string().uuid()).min(1).max(200),
+});
+export type ReorderWalletsInput = z.infer<typeof reorderWalletsSchema>;
 
 export type CreateWalletInput = z.infer<typeof createWalletSchema>;
 
@@ -24,6 +49,10 @@ export interface WalletDto {
   currentBalanceCents: string;
   archivedAt: string | null;
   createdAt: string;
+  // UAT-PH5-T3-1x: presentation-only customization + intra-section position.
+  color: string | null;
+  icon: string | null;
+  sortOrder: number;
 }
 
 // Backward-compat aliases — Plan 01-03 (route layer) removes these
@@ -419,9 +448,11 @@ export type BulkRecategorizeBody = z.infer<typeof bulkRecategorizeSchema>;
 // ─── Phase 5 Wallets PATCH ─────────────────────────────────────────────────
 /**
  * updateWalletSchema — partial PATCH body for /wallets/:id.
- * Whitelist exactly four fields (mass-assignment defense, T-05-13).
+ * Whitelist of fields (mass-assignment defense, T-05-13).
  * `.strict()` rejects unknown keys. `.refine` rejects empty body.
  * Reserve-currency invariant enforced in the application use case (Plan 03).
+ * UAT-PH5-T3-1x: `color` and `icon` are presentation-only and nullable —
+ * sending null clears the customization back to "no color / no icon".
  */
 export const updateWalletSchema = z
   .object({
@@ -435,6 +466,8 @@ export const updateWalletSchema = z
       .string()
       .regex(/^[A-Z0-9]{3,5}$/, "currency must be 3-5 uppercase chars")
       .optional(),
+    color: walletColorSchema.nullable().optional(),
+    icon: walletIconSchema.nullable().optional(),
   })
   .strict()
   .refine((d) => Object.keys(d).length > 0, { message: "empty_body" });

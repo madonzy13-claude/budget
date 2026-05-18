@@ -28,6 +28,10 @@ export function listWallets(deps: ListWalletsDeps) {
           currentBalanceCents: w.currentBalance.amount.times("100").toFixed(0),
           archivedAt: w.archivedAt ? w.archivedAt.toISOString() : null,
           createdAt: w.createdAt.toISOString(),
+          // UAT-PH5-T3-1x: presentation-only customization + intra-section pos.
+          color: (w as any).color ?? null,
+          icon: (w as any).icon ?? null,
+          sortOrder: Number((w as any).sortOrder ?? 0),
         })),
       );
     } catch (e) {

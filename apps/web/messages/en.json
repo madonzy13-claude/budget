@@ -611,6 +611,7 @@
           "saveFailed": "Couldn't save wallet. Check your connection and try again.",
           "created": "Wallet created",
           "createFailed": "Couldn't create wallet. Try again.",
+          "reorderFailed": "Couldn't save the new order. Reverting.",
           "archived": "Wallet deleted",
           "archiveFailed": "Couldn't delete wallet. Try again.",
           "moved": "Moved {name} to {sectionLabel}",

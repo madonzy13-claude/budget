@@ -16,7 +16,7 @@
  * D-PH5-W5: Hover reveals trash on desktop (group-hover:flex).
  * D-PH5-W6: Mobile first-tap sets data-selected → trash appears.
  */
-import { useDraggable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Trash2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
@@ -25,6 +25,7 @@ import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
 import { WalletDeleteConfirm } from "./wallet-delete-confirm";
+import { WalletCustomizer, iconByName } from "./wallet-customizer";
 import type { WalletDto } from "@/hooks/use-wallets";
 
 type WalletType = WalletDto["walletType"];
@@ -40,6 +41,8 @@ interface PersistedProps {
     name?: string;
     amount?: string;
     currency?: string;
+    color?: string | null;
+    icon?: string | null;
   }) => Promise<void>;
   onArchive: () => void;
   isReserveSection: boolean;
@@ -184,6 +187,19 @@ function PersistedRow({
     id: wallet.id,
   });
 
+  // UAT-PH5-T3-1x: each row is ALSO a drop target so dropping on a sibling
+  // row triggers intra-section reorder. Cross-section moves still drop on the
+  // section background (id="section-<TYPE>"); intra-section drops resolve to
+  // this row's id and the parent handler reorders. The droppable id uses a
+  // distinct namespace ("row-<id>") so the parent can tell drop sources apart.
+  const { setNodeRef: setDropRef, isOver: isRowDropOver } = useDroppable({
+    id: `row-${wallet.id}`,
+  });
+  const combinedRef = (node: HTMLElement | null) => {
+    setNodeRef(node);
+    setDropRef(node);
+  };
+
   // Mobile: first tap on row → selected state (reveals trash)
   const handleRowClick = (e: React.MouseEvent) => {
     // Only for non-cell clicks on mobile
@@ -196,10 +212,11 @@ function PersistedRow({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={combinedRef}
       data-testid="wallet-row"
       data-wallet-id={wallet.id}
       data-selected={selected || undefined}
+      data-row-drop-over={isRowDropOver || undefined}
       style={
         transform
           ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -213,6 +230,16 @@ function PersistedRow({
         listeners={listeners}
         attributes={attributes}
         ariaLabel={t("dragHandleAria", { name: wallet.name })}
+      />
+
+      {/* UAT-PH5-T3-1x: per-wallet color + icon trigger. Renders a placeholder
+          dashed circle when both are null; otherwise the chosen icon in the
+          chosen color. Opens a popover to pick / clear. */}
+      <WalletCustomizer
+        color={wallet.color ?? null}
+        icon={wallet.icon ?? null}
+        onChange={(patch) => onUpdate(patch).catch(() => {})}
+        ariaLabel={`Customize ${wallet.name} appearance`}
       />
 
       {/* Name — editable */}

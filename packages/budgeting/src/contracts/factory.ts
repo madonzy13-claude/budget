@@ -58,6 +58,7 @@ import { DrizzleCategoryReserveAdjustmentsRepo } from "../adapters/persistence/c
 import { DrizzleReservesSummaryRepo } from "../adapters/persistence/reserves-summary-repo";
 import { DrizzleCategoriesRepo } from "../adapters/persistence/categories-repo";
 import { updateWallet } from "../application/update-wallet";
+import { reorderWallets } from "../application/reorder-wallets";
 import { adjustCategoryReserve } from "../application/adjust-category-reserve";
 import { toggleCategoryReserveExcluded } from "../application/toggle-category-reserve-excluded";
 import { getReservesSummary } from "../application/get-reserves-summary";
@@ -116,6 +117,8 @@ export interface BudgetingModule {
   reserveBalanceRepo: ReserveBalanceRepo;
   // Plan 05-03: reserves + wallet mutation use cases
   updateWallet: ReturnType<typeof updateWallet>;
+  // UAT-PH5-T3-1x: persist intra-section drag reorder
+  reorderWallets: ReturnType<typeof reorderWallets>;
   adjustCategoryReserve: ReturnType<typeof adjustCategoryReserve>;
   toggleCategoryReserveExcluded: ReturnType<
     typeof toggleCategoryReserveExcluded
@@ -235,6 +238,8 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       repo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
     }),
+    // UAT-PH5-T3-1x: intra-section reorder
+    reorderWallets: reorderWallets({ repo }),
     adjustCategoryReserve: adjustCategoryReserve({
       adjustmentsRepo,
       categoriesRepo,

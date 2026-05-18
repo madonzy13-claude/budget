@@ -45,7 +45,22 @@ export interface WalletRepo {
       amount?: string;
       currency?: string;
       walletType?: import("../domain/wallet").WalletType;
+      // UAT-PH5-T3-1x: presentation customization (null clears).
+      color?: string | null;
+      icon?: string | null;
     },
     actorUserId: string,
+  ): Promise<void>;
+
+  /**
+   * UAT-PH5-T3-1x — reorderWithinType.
+   * Sets sort_order on each id in orderedIds to its 1-based position. Caller
+   * must ensure every id belongs to the same wallet_type and tenant. Writes
+   * one outbox event "budgeting.wallets.reordered".
+   */
+  reorderWithinType?(
+    tenantId: string,
+    actorUserId: string,
+    orderedIds: string[],
   ): Promise<void>;
 }
