@@ -622,7 +622,7 @@
         },
         "confirm": {
           "delete": {
-            "title": "Delete wallet '{name}'?",
+            "title": "Delete wallet ''{name}''?",
             "body": "This can't be undone here.",
             "cta": "Delete",
             "cancel": "Cancel"
