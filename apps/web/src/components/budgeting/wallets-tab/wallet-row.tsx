@@ -151,7 +151,7 @@ function DraftRow({
       </div>
 
       {/* Amount — always 0.00 in draft state */}
-      <div className="w-[88px] text-right sm:w-[160px]">
+      <div className="w-[96px] text-right sm:w-[160px]">
         <span className="text-num-md text-[var(--muted-foreground)]">0.00</span>
       </div>
 
@@ -253,14 +253,17 @@ function PersistedRow({
         ariaLabel={`Customize ${wallet.name} appearance`}
       />
 
-      {/* Name — editable */}
-      <div className="flex-1" data-inline-cell>
+      {/* Name — editable. UAT-PH5-T3-26: `min-w-0` allows the flex item to
+          shrink below its content width so the right-side columns (currency,
+          amount) stay anchored at consistent X positions regardless of how
+          long the wallet name is. */}
+      <div className="min-w-0 flex-1" data-inline-cell>
         <InlineEditCell
           value={wallet.name}
           ariaLabel={t("nameAria")}
           testId={`wallet-name-${wallet.id}`}
           render={(v) => (
-            <span>
+            <span className="block truncate">
               {v || (
                 <span className="text-[var(--muted-foreground)]">
                   {t("namePlaceholder")}
@@ -283,7 +286,7 @@ function PersistedRow({
 
       {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
           UAT-PH5-T3-24: narrower on mobile so name + amount have room. */}
-      <div className="w-[44px] sm:w-[96px]" data-inline-cell>
+      <div className="w-[36px] sm:w-[96px]" data-inline-cell>
         {isReserveSection ? (
           <span
             className="text-num-md"
@@ -313,14 +316,18 @@ function PersistedRow({
            without the controlled reformatter clobbering each keystroke.
            draft holds the raw decimal string the user typed.
            onSave sends it directly as the decimal amount string. */}
-      <div className="w-[88px] text-right sm:w-[160px]" data-inline-cell>
+      <div className="w-[96px] text-right sm:w-[160px]" data-inline-cell>
         <InlineEditCell
           // UAT-PH5-T3-25: editor seed mirrors the display formatting —
           // centsToBare drops a `.00` fraction so "10" enters the input
           // as "10" not "10.00". Non-zero fractions still pad to 2 digits.
-          // Locale grouping (commas/spaces) is stripped so the value is a
-          // valid decimal string the user can edit.
-          value={centsToBare(wallet.currentBalanceCents).replace(/[, ]/g, "")}
+          // UAT-PH5-T3-27: strip all non-decimal-input characters (group
+          // separators, narrow no-break spaces, NBSP) so the value is a
+          // clean editable decimal regardless of the user's locale.
+          value={centsToBare(wallet.currentBalanceCents).replace(
+            /[^0-9.-]/g,
+            "",
+          )}
           ariaLabel={t("amountAria")}
           testId={`wallet-amount-${wallet.id}`}
           render={() => (
