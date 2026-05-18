@@ -200,7 +200,6 @@ function PersistedRow({
 }: PersistedProps) {
   const t = useTranslations("bdp.tab.wallets.row");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selected, setSelected] = useState(false);
 
   // UAT-PH5-T3-17: switch from useDraggable + useDroppable to useSortable so
   // siblings animate out of the way while a row is dragged (matches the
@@ -218,22 +217,27 @@ function PersistedRow({
     isOver: isRowDropOver,
   } = useSortable({ id: wallet.id });
 
-  // Mobile: first tap on row → selected state (reveals trash)
-  const handleRowClick = (e: React.MouseEvent) => {
-    // Only for non-cell clicks on mobile
-    const target = e.target as HTMLElement;
-    if (target.closest("[data-inline-cell]") || target.closest("button")) {
-      return;
-    }
-    setSelected((s) => !s);
-  };
-
+  // UAT-PH5-T3-32: iOS-style swipe-left to reveal Delete on mobile. The
+  // wrapper is a horizontally-scrollable flex container with two snap
+  // points; the inner row is one snap target (resting state) and the
+  // trailing Delete button is the other (revealed state). Pure CSS, no
+  // JS gesture lib needed. Desktop disables the scroll/snap entirely and
+  // uses the existing hover-revealed trash button instead.
   return (
+    <div
+      className={[
+        "flex snap-x snap-mandatory overflow-x-auto",
+        "[-ms-overflow-style:none] [scrollbar-width:none]",
+        "[&::-webkit-scrollbar]:hidden",
+        // Desktop: no swipe — wrapper collapses into the section flow.
+        "sm:snap-none sm:overflow-x-visible",
+      ].join(" ")}
+      data-wallet-row-wrapper={wallet.id}
+    >
     <div
       ref={setNodeRef}
       data-testid="wallet-row"
       data-wallet-id={wallet.id}
-      data-selected={selected || undefined}
       data-row-drop-over={isRowDropOver || undefined}
       // UAT-PH5-T3-23: transition lives on the className so EVERY transform
       // change animates — including the very first sibling-shift of a drag.
@@ -249,8 +253,7 @@ function PersistedRow({
         // user feedback.
         visibility: isDragging ? "hidden" : undefined,
       }}
-      onClick={handleRowClick}
-      className="group flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+      className="group flex min-h-[56px] min-w-full shrink-0 snap-start items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px] sm:min-w-0 sm:flex-1"
     >
       <RowDragHandle
         name={wallet.name || "wallet"}
@@ -398,7 +401,7 @@ function PersistedRow({
           : "—"}
       </div>
 
-      {/* Trash — desktop: hover; mobile: first-tap selected state */}
+      {/* Trash — desktop only. Hover-revealed; mobile uses swipe instead. */}
       <button
         data-testid={`wallet-trash-${wallet.id}`}
         aria-label={t("trashAria", { name: wallet.name })}
@@ -407,32 +410,43 @@ function PersistedRow({
           setConfirmOpen(true);
         }}
         className={[
-          "flex h-7 w-7 items-center justify-center rounded",
+          // UAT-PH5-T3-32: desktop-only (mobile reveal moved to swipe).
+          "hidden h-7 w-7 items-center justify-center rounded sm:flex",
           "text-[var(--destructive)]",
-          // UAT-PH5-T3-12: keep the slot in layout always so the row never
-          // jumps width/height on hover. Toggle visibility instead of mount.
-          // Desktop: reveal on hover via group; mobile: reveal on selected.
           "invisible group-hover:visible",
-          // UAT-PH5-T3-19: hovering the trash should read as a clickable
-          // affordance — use the standard pointer cursor.
           "cursor-pointer",
-          selected ? "!visible" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        ].join(" ")}
       >
         <Trash2 className="h-4 w-4" aria-hidden="true" />
       </button>
+    </div>
+    {/* UAT-PH5-T3-32: mobile-only swipe-revealed Delete. Sits as a second
+        snap target after the row; user swipes left, the row scrolls out
+        and the button is exposed. Tap → open confirm dialog. Desktop
+        hides this entirely; the hover trash above takes over. */}
+    <button
+      data-testid={`wallet-swipe-delete-${wallet.id}`}
+      aria-label={t("trashAria", { name: wallet.name })}
+      onClick={() => setConfirmOpen(true)}
+      className={[
+        "ml-2 flex w-20 shrink-0 snap-end items-center justify-center",
+        "rounded-[var(--radius-md)] bg-[var(--destructive)]",
+        "text-body-md font-medium text-white",
+        "cursor-pointer sm:hidden",
+      ].join(" ")}
+    >
+      {t("swipeDeleteCta")}
+    </button>
 
-      <WalletDeleteConfirm
-        name={wallet.name}
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onConfirm={() => {
-          onArchive();
-          setConfirmOpen(false);
-        }}
-      />
+    <WalletDeleteConfirm
+      name={wallet.name}
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      onConfirm={() => {
+        onArchive();
+        setConfirmOpen(false);
+      }}
+    />
     </div>
   );
 }

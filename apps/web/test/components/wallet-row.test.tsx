@@ -220,11 +220,13 @@ describe("WalletRow — persisted mode", () => {
     expect(share).toHaveTextContent("—");
   });
 
-  // UAT-PH5-T3-12: the trash slot stays in the row layout always so the row
-  // never shifts width/height on hover. Visibility is toggled with `invisible`
-  // / `group-hover:visible`, NOT `hidden` / `group-hover:flex` which removed
-  // the box from layout and made neighbouring cells jump.
-  it("trash button reserves layout space (invisible by default; never `hidden`)", () => {
+  // UAT-PH5-T3-12 + T3-32: the desktop trash slot stays in the row layout
+  // on the breakpoints where it shows, so the row never shifts width/height
+  // on hover. On mobile the trash is replaced by the swipe-revealed Delete
+  // button (T3-32) — `hidden sm:flex` is the intended pattern: hidden on
+  // mobile, in-flow on desktop. Once visible the button toggles `invisible`
+  // / `group-hover:visible` exactly as before.
+  it("trash button is desktop-only and reserves layout when visible", () => {
     render(
       <WalletRow
         mode="persisted"
@@ -236,10 +238,30 @@ describe("WalletRow — persisted mode", () => {
       />,
     );
     const trashBtn = screen.getByTestId(`wallet-trash-${SPENDINGS_WALLET.id}`);
+    // Mobile-hidden, desktop-visible.
+    expect(trashBtn.className).toMatch(/(^|\s)hidden(\s|$)/);
+    expect(trashBtn.className).toContain("sm:flex");
+    // Desktop hover affordance still in place.
     expect(trashBtn.className).toContain("invisible");
     expect(trashBtn.className).toContain("group-hover:visible");
-    expect(trashBtn.className).not.toContain(" hidden ");
-    expect(trashBtn.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+  });
+
+  // UAT-PH5-T3-32: mobile swipe-delete button rendered alongside the row,
+  // sm:hidden on desktop, opens the same confirm dialog when tapped.
+  it("renders the mobile swipe-delete button (sm:hidden)", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    const swipeBtn = screen.getByTestId(`wallet-swipe-delete-${SPENDINGS_WALLET.id}`);
+    expect(swipeBtn).toBeInTheDocument();
+    expect(swipeBtn.className).toContain("sm:hidden");
   });
 
   it("trash button click opens the AlertDialog", async () => {

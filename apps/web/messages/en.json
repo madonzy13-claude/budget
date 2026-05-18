@@ -604,7 +604,8 @@
           "amountAria": "Amount. Click to edit.",
           "shareAria": "{name} share of section total.",
           "dragHandleAria": "Drag to move {name} to another section.",
-          "trashAria": "Delete wallet {name}."
+          "trashAria": "Delete wallet {name}.",
+          "swipeDeleteCta": "Delete"
         },
         "toast": {
           "saved": "Wallet updated",

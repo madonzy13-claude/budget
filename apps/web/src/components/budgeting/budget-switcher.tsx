@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Check, ChevronDown, Plus, Users } from "lucide-react";
+import { ChevronDown, Plus, Users } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -113,7 +113,16 @@ export function BudgetSwitcher({
           />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="z-[60] min-w-[256px] p-0">
+      <PopoverContent
+        align="start"
+        className="z-[60] min-w-[256px] p-0"
+        // UAT-PH5-T3-31: skip auto-focus on open. Radix's default focused
+        // the first row, which surfaced a blue focus ring on the first
+        // budget item that read as "first item is selected". The
+        // dropdown is a navigation menu, not a form — opening it should
+        // not preselect any row.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         {/* UAT-PH5-T3-05: suppress section heading when only one kind exists.
             The heading is only useful when both Personal AND Shared groups are
             visible so the user can disambiguate. With one kind, the label is
@@ -208,12 +217,13 @@ function BudgetGroup({
               "cursor-pointer",
             )}
           >
-            {/* UAT-PH5-T3-13: no leading spacer column. The active row gets
-                a Check directly before its name; inactive rows start with
-                the kind icon (SHARED only) or the name itself. */}
+            {/* UAT-PH5-T3-13 / T3-31: active row carries a small yellow dot
+                instead of a check glyph — same role as a radio "selected"
+                indicator but quieter visually. Inactive rows have no
+                leading marker (no spacer column either). */}
             {isActive && (
-              <Check
-                className="size-4 text-[var(--on-dark)]"
+              <span
+                className="size-2 shrink-0 rounded-full bg-[var(--primary)]"
                 aria-hidden="true"
               />
             )}
