@@ -602,6 +602,7 @@
           "currencyAria": "Currency. Click to edit.",
           "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
           "amountAria": "Amount. Click to edit.",
+          "shareAria": "{name} share of section total.",
           "dragHandleAria": "Drag to move {name} to another section.",
           "trashAria": "Delete wallet {name}."
         },

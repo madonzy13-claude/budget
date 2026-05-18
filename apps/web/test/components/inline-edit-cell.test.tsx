@@ -86,6 +86,23 @@ describe("InlineEditCell", () => {
       expect(btn).toHaveAttribute("aria-label", "edit cell");
       expect(btn).toHaveAttribute("tabindex", "0");
     });
+
+    // UAT-PH5-T3-11: hover cursor reads as text-edit (I-beam) so the user
+    // knows the cell is editable as text. Previously `cursor-pointer`, which
+    // read as "this is a link/button" rather than "click to edit text".
+    it("resting cell has cursor-text class (text-edit I-beam on hover)", () => {
+      renderCell("hello");
+      const btn = screen.getByRole("button");
+      expect(btn.className).toContain("cursor-text");
+      expect(btn.className).not.toContain("cursor-pointer");
+    });
+
+    it("disabled cell falls back to cursor-default (not text)", () => {
+      renderCell("hello", { disabled: true });
+      const btn = screen.getByRole("button");
+      expect(btn.className).toContain("cursor-default");
+      expect(btn.className).not.toContain("cursor-text");
+    });
   });
 
   describe("click to edit", () => {

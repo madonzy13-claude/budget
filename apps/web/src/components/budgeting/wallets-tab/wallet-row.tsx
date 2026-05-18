@@ -33,6 +33,9 @@ interface PersistedProps {
   mode: "persisted";
   wallet: WalletDto;
   budgetCurrency: string;
+  // UAT-PH5-T3-14: sum of currentBalanceCents across all wallets in the same
+  // section, supplied by WalletSection. Used to compute the Share column.
+  sectionTotalCents: number;
   onUpdate: (patch: {
     name?: string;
     amount?: string;
@@ -147,6 +150,14 @@ function DraftRow({
         <span className="text-num-md text-[var(--muted-foreground)]">0.00</span>
       </div>
 
+      {/* UAT-PH5-T3-14: Share placeholder for column alignment with persisted rows */}
+      <div
+        className="w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:w-[80px]"
+        aria-hidden="true"
+      >
+        —
+      </div>
+
       {/* Trash placeholder — no trash on draft rows */}
       <div className="w-7" aria-hidden="true" />
     </div>
@@ -160,6 +171,7 @@ function DraftRow({
 function PersistedRow({
   wallet,
   budgetCurrency,
+  sectionTotalCents,
   onUpdate,
   onArchive,
   isReserveSection,
@@ -284,6 +296,18 @@ function PersistedRow({
         />
       </div>
 
+      {/* UAT-PH5-T3-14: Share — wallet's slice of its section's total.
+          Em-dash when the section sum is zero (no meaningful ratio). */}
+      <div
+        data-testid={`wallet-share-${wallet.id}`}
+        className="w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:w-[80px]"
+        aria-label={t("shareAria", { name: wallet.name })}
+      >
+        {sectionTotalCents > 0
+          ? `${((Number(wallet.currentBalanceCents) / sectionTotalCents) * 100).toFixed(0)}%`
+          : "—"}
+      </div>
+
       {/* Trash — desktop: hover; mobile: first-tap selected state */}
       <button
         data-testid={`wallet-trash-${wallet.id}`}
@@ -293,11 +317,13 @@ function PersistedRow({
           setConfirmOpen(true);
         }}
         className={[
-          "h-7 w-7 items-center justify-center rounded",
+          "flex h-7 w-7 items-center justify-center rounded",
           "text-[var(--destructive)]",
-          // Desktop: reveal on hover via group; mobile: reveal on selected
-          "hidden group-hover:flex",
-          selected ? "!flex" : "",
+          // UAT-PH5-T3-12: keep the slot in layout always so the row never
+          // jumps width/height on hover. Toggle visibility instead of mount.
+          // Desktop: reveal on hover via group; mobile: reveal on selected.
+          "invisible group-hover:visible",
+          selected ? "!visible" : "",
         ]
           .filter(Boolean)
           .join(" ")}

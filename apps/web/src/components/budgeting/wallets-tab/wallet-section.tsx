@@ -76,17 +76,29 @@ export function WalletSection({
         {t(`section.${sectionKey}`)}
       </h3>
 
-      {wallets.map((w) => (
-        <WalletRow
-          key={w.id}
-          mode="persisted"
-          wallet={w}
-          budgetCurrency={budgetCurrency}
-          onUpdate={(patch) => onUpdate(w.id, patch)}
-          onArchive={() => onArchive(w.id)}
-          isReserveSection={type === "RESERVE"}
-        />
-      ))}
+      {/* UAT-PH5-T3-14: section total drives the Share column on each row.
+          Sum is taken across raw cents — mixed-currency sections still
+          compute a share ratio (the user explicitly asked for "share within
+          wallet group" with no qualifier). When the total is 0 every row
+          renders an em-dash share. */}
+      {(() => {
+        const sectionTotalCents = wallets.reduce(
+          (acc, w) => acc + Number(w.currentBalanceCents),
+          0,
+        );
+        return wallets.map((w) => (
+          <WalletRow
+            key={w.id}
+            mode="persisted"
+            wallet={w}
+            budgetCurrency={budgetCurrency}
+            sectionTotalCents={sectionTotalCents}
+            onUpdate={(patch) => onUpdate(w.id, patch)}
+            onArchive={() => onArchive(w.id)}
+            isReserveSection={type === "RESERVE"}
+          />
+        ));
+      })()}
 
       {draft && (
         <WalletRow

@@ -24,6 +24,7 @@ vi.mock("next-intl", () => ({
       "currencyAria": "Currency. Click to edit.",
       "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
       "amountAria": "Amount. Click to edit.",
+      "shareAria": "{name} share of section total.",
       "dragHandleAria": "Drag to move {name} to another section.",
       "trashAria": "Delete wallet {name}.",
       "title": "Delete wallet '{name}'?",
@@ -157,6 +158,62 @@ describe("WalletRow — persisted mode", () => {
     // Should have aria-label indicating read-only
     const readOnlySpan = screen.getByLabelText(/Currency EUR/);
     expect(readOnlySpan).toBeInTheDocument();
+  });
+
+  // UAT-PH5-T3-14: Share column renders wallet's share of section total.
+  it("renders Share column = wallet.amount / sectionTotalCents as %", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        sectionTotalCents={20000}
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    // SPENDINGS_WALLET cents = 5000 / sectionTotal 20000 = 25%
+    const share = screen.getByTestId(`wallet-share-${SPENDINGS_WALLET.id}`);
+    expect(share).toHaveTextContent("25%");
+  });
+
+  it("Share column renders em-dash when sectionTotalCents = 0", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={{ ...SPENDINGS_WALLET, currentBalanceCents: "0" }}
+        budgetCurrency="EUR"
+        sectionTotalCents={0}
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    const share = screen.getByTestId(`wallet-share-${SPENDINGS_WALLET.id}`);
+    expect(share).toHaveTextContent("—");
+  });
+
+  // UAT-PH5-T3-12: the trash slot stays in the row layout always so the row
+  // never shifts width/height on hover. Visibility is toggled with `invisible`
+  // / `group-hover:visible`, NOT `hidden` / `group-hover:flex` which removed
+  // the box from layout and made neighbouring cells jump.
+  it("trash button reserves layout space (invisible by default; never `hidden`)", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    const trashBtn = screen.getByTestId(`wallet-trash-${SPENDINGS_WALLET.id}`);
+    expect(trashBtn.className).toContain("invisible");
+    expect(trashBtn.className).toContain("group-hover:visible");
+    expect(trashBtn.className).not.toContain(" hidden ");
+    expect(trashBtn.className).not.toMatch(/(^|\s)hidden(\s|$)/);
   });
 
   it("trash button click opens the AlertDialog", async () => {

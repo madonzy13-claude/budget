@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Check, ChevronDown, Plus, Users } from "lucide-react";
 import {
@@ -39,22 +39,29 @@ export interface BudgetSwitcherProps {
  */
 export function BudgetSwitcher({
   budgets,
-  activeBudgetId,
+  activeBudgetId: activeBudgetIdProp,
   locale,
 }: BudgetSwitcherProps) {
   const t = useTranslations();
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // The "active" budget is what the trigger advertises. Priority:
-  //   1. Budget whose UUID is in the URL (middleware-injected x-pathname → layout).
-  //   2. First budget in the list (used on the home page where no UUID is in URL).
-  // Without (2) the trigger on `/` would always render the empty-state label
-  // ("No budgets yet") even when the user has budgets — which contradicts the
-  // NAV-01 contract (trigger displays the current budget) and the
-  // nav-switcher.feature scenario.
-  const explicitActive = budgets.find((b) => b.id === activeBudgetId) ?? null;
-  const active = explicitActive ?? budgets[0] ?? null;
+  // UAT-PH5-T3-13: "selected" means the user is currently inside that
+  // budget's page (URL carries its UUID). On the home page there is no
+  // active budget — the trigger collapses to the chevron with no text and
+  // no row in the dropdown carries a checkmark.
+  //
+  // The SSR layout tries to pass activeBudgetId via the middleware-injected
+  // x-pathname header, but that header doesn't survive the merge with the
+  // next-intl middleware in our setup. We derive the active id client-side
+  // from `usePathname()` as the source of truth — it's a "use client" island
+  // so this is cheap and always reflects the current route.
+  const activeBudgetId = useMemo(() => {
+    const fromPath = extractActiveBudgetIdFromPath(pathname);
+    return fromPath ?? activeBudgetIdProp;
+  }, [pathname, activeBudgetIdProp]);
+  const active = budgets.find((b) => b.id === activeBudgetId) ?? null;
   const privateB = budgets.filter((b) => b.kind === "PRIVATE");
   const sharedB = budgets.filter((b) => b.kind === "SHARED");
   const isEmpty = budgets.length === 0;
@@ -74,7 +81,9 @@ export function BudgetSwitcher({
     [router, locale, activeBudgetId],
   );
 
-  const triggerLabel = active?.name ?? t("nav.switcher.empty.trigger");
+  // UAT-PH5-T3-13: trigger label only renders when a budget is actually
+  // active. No active → chevron-only trigger.
+  const triggerLabel = active?.name ?? null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -92,9 +101,12 @@ export function BudgetSwitcher({
               aria-hidden="true"
             />
           )}
-          <span className="text-title-sm max-w-[24ch] truncate sm:max-w-[12ch]">
-            {triggerLabel}
-          </span>
+          {/* UAT-PH5-T3-13: show up to 20 characters with no truncation. The
+              label is omitted entirely when there is no active budget so the
+              header collapses to a bare chevron on the home page. */}
+          {triggerLabel && (
+            <span className="text-title-sm max-w-[20ch]">{triggerLabel}</span>
+          )}
           <ChevronDown
             className="size-4 text-[var(--muted-foreground)]"
             aria-hidden="true"
@@ -150,6 +162,15 @@ export function BudgetSwitcher({
   );
 }
 
+/** UAT-PH5-T3-13: extract `<uuid>` from `/<locale>/budgets/<uuid>/...`. */
+function extractActiveBudgetIdFromPath(p: string | null): string | null {
+  if (!p) return null;
+  const m = p.match(
+    /\/budgets\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i,
+  );
+  return m ? (m[1] ?? null) : null;
+}
+
 function BudgetGroup({
   rows,
   heading,
@@ -183,14 +204,15 @@ function BudgetGroup({
               "hover:bg-[var(--surface-elevated-dark)]",
             )}
           >
-            <span className="inline-flex size-4 items-center justify-center">
-              {isActive && (
-                <Check
-                  className="size-4 text-[var(--on-dark)]"
-                  aria-hidden="true"
-                />
-              )}
-            </span>
+            {/* UAT-PH5-T3-13: no leading spacer column. The active row gets
+                a Check directly before its name; inactive rows start with
+                the kind icon (SHARED only) or the name itself. */}
+            {isActive && (
+              <Check
+                className="size-4 text-[var(--on-dark)]"
+                aria-hidden="true"
+              />
+            )}
             {/* UAT-PH5-T3-06: only render Users glyph for SHARED. PRIVATE
                 rows have no kind icon — the row's name alone is enough and
                 the dropdown is grouped (when relevant) by Personal heading. */}

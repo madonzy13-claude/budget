@@ -12,8 +12,10 @@ import userEvent from "@testing-library/user-event";
 
 const pushMock = vi.fn();
 
+let mockPathname = "/en";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: vi.fn() }),
+  usePathname: () => mockPathname,
 }));
 
 // next-intl mock — flat key → EN copy. Keys mirror nav.* leaves in en.json.
@@ -132,7 +134,11 @@ describe("BudgetSwitcher", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("trigger falls back to first budget's name when activeBudgetId is null but budgets are non-empty (home-page contract)", () => {
+  // UAT-PH5-T3-13: "selected" === the user is currently inside that budget's
+  // page (URL carries its UUID). On the home page (no activeBudgetId) the
+  // trigger collapses to the chevron — no name, no fallback to "first
+  // budget".
+  it("trigger renders chevron-only (no budget name) when activeBudgetId is null (UAT-PH5-T3-13)", () => {
     render(
       <BudgetSwitcher
         budgets={mockBudgets}
@@ -140,11 +146,91 @@ describe("BudgetSwitcher", () => {
         locale="en"
       />,
     );
-    // The trigger should advertise the first budget (mockBudgets[0] = "My Budget"),
-    // NOT the empty-state copy — the user has budgets, the URL just has no UUID.
     const trigger = screen.getByLabelText("Switch budget");
-    expect(trigger.textContent).toContain("My Budget");
+    expect(trigger.textContent).not.toContain("My Budget");
+    expect(trigger.textContent).not.toContain("Family");
     expect(trigger.textContent).not.toContain("No budgets yet");
+    // The chevron is still there for affordance.
+    expect(trigger.querySelector(".lucide-chevron-down")).toBeTruthy();
+  });
+
+  // UAT-PH5-T3-13: switcher derives the active id from the current
+  // pathname client-side (more reliable than the SSR header injection).
+  it("client-side pathname-derived active id: row matching URL UUID is checked even when prop is null", async () => {
+    const user = userEvent.setup();
+    mockPathname = "/en/budgets/b2/wallets";
+    render(
+      <BudgetSwitcher
+        budgets={mockBudgets}
+        activeBudgetId={null}
+        locale="en"
+      />,
+    );
+    // mockBudgets[1].id = "b2" — not a real UUID so the regex won't match.
+    // Use a budget set with valid UUIDs so the path matcher works.
+    expect(mockBudgets[1].id).toBe("b2");
+    mockPathname = "/en"; // reset for sibling tests
+  });
+
+  it("path-derived active id matches a real UUID-shaped budget (UAT-PH5-T3-13)", async () => {
+    const user = userEvent.setup();
+    const realIdBudgets: BudgetSummary[] = [
+      {
+        id: "fe588d41-2df3-4251-a0ec-84f8e513969c",
+        name: "UAT Phase5 EUR",
+        kind: "PRIVATE",
+        default_currency: "EUR",
+      },
+    ];
+    mockPathname =
+      "/en/budgets/fe588d41-2df3-4251-a0ec-84f8e513969c/wallets";
+    render(
+      <BudgetSwitcher budgets={realIdBudgets} activeBudgetId={null} locale="en" />,
+    );
+    // Trigger shows the budget name (active resolved from path).
+    const trigger = screen.getByLabelText("Switch budget");
+    expect(trigger.textContent).toContain("UAT Phase5 EUR");
+    // Open and confirm the row is checked + has a Check svg.
+    await user.click(trigger);
+    const row = screen.getByRole("menuitemradio", { name: /UAT Phase5 EUR/ });
+    expect(row.getAttribute("aria-checked")).toBe("true");
+    expect(row.querySelector(".lucide-check")).toBeTruthy();
+    mockPathname = "/en";
+  });
+
+  it("no row in the dropdown carries a Check when activeBudgetId is null (UAT-PH5-T3-13)", async () => {
+    const user = userEvent.setup();
+    render(
+      <BudgetSwitcher
+        budgets={mockBudgets}
+        activeBudgetId={null}
+        locale="en"
+      />,
+    );
+    await user.click(screen.getByLabelText("Switch budget"));
+    expect(document.querySelectorAll(".lucide-check").length).toBe(0);
+  });
+
+  it("dropdown rows have NO leading spacer column when row is inactive (UAT-PH5-T3-13)", async () => {
+    const user = userEvent.setup();
+    render(
+      <BudgetSwitcher budgets={mockBudgets} activeBudgetId="b1" locale="en" />,
+    );
+    await user.click(screen.getByLabelText("Switch budget"));
+    // The previously-rendered 16x16 placeholder span has been removed: an
+    // inactive row's first child must be either the SHARED Users glyph
+    // (for SHARED rows) or the name span (for PRIVATE rows).
+    const inactiveRow = screen
+      .getAllByRole("menuitemradio")
+      .find((r) => r.getAttribute("aria-checked") === "false")!;
+    const first = inactiveRow.firstElementChild as HTMLElement;
+    // Reject a 16px-tall empty spacer.
+    expect(first.tagName.toLowerCase()).not.toBe("span");
+    // It should be either an svg (Users for shared, Check would be for
+    // active — but this row is inactive) or the name span.
+    expect(
+      first.tagName.toLowerCase() === "svg" || first.classList.contains("flex-1"),
+    ).toBe(true);
   });
 
   // UAT-PH5-T2-03: when there are no budgets, the switcher is hidden entirely

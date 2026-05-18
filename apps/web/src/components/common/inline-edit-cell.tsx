@@ -102,7 +102,9 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
         aria-label={props.ariaLabel}
         aria-disabled={props.disabled}
         className={[
-          props.disabled ? "cursor-default" : "cursor-pointer",
+          // UAT-PH5-T3-11: I-beam on hover so the editable affordance reads
+          // as "click to edit text" instead of "navigate / click button".
+          props.disabled ? "cursor-default" : "cursor-text",
           failed ? "ring-1 ring-[var(--destructive)]" : "",
         ]
           .filter(Boolean)
