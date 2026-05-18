@@ -17,12 +17,14 @@
  */
 import {
   DndContext,
+  DragOverlay,
   useSensors,
   useSensor,
   PointerSensor,
   TouchSensor,
   KeyboardSensor,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
@@ -60,6 +62,15 @@ export function WalletsSectionedList({
     {},
   );
 
+  // UAT-PH5-T3-18: active drag id drives the <DragOverlay> preview. With
+  // multiple SortableContexts (one per section) cross-section drags would
+  // otherwise visually drop the row from its source section the moment the
+  // pointer crosses a section boundary. DragOverlay keeps a copy pinned to
+  // the pointer regardless of which context is currently the drop target.
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const activeDragged =
+    activeDragId != null ? wallets.find((w) => w.id === activeDragId) : null;
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, {
@@ -68,7 +79,12 @@ export function WalletsSectionedList({
     useSensor(KeyboardSensor),
   );
 
+  function handleDragStart(e: DragStartEvent) {
+    setActiveDragId(String(e.active.id));
+  }
+
   function handleDragEnd(e: DragEndEvent) {
+    setActiveDragId(null);
     const { active, over } = e;
     if (!over) return;
     const activeId = String(active.id);
@@ -209,7 +225,12 @@ export function WalletsSectionedList({
   );
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveDragId(null)}
+    >
       <div className="flex flex-col gap-4 p-4 sm:p-6">
         {(["SPENDINGS", "CUSHION", "RESERVE"] as const).map((type) => (
           <WalletSection
@@ -228,6 +249,67 @@ export function WalletsSectionedList({
           />
         ))}
       </div>
+      {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
+          loses the dragged row visually as the pointer crosses a context
+          boundary. The source row still renders at 0.5 opacity in its section
+          so the user sees where it'll snap back if they cancel. */}
+      <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.25, 1, 0.5, 1)" }}>
+        {activeDragged ? (
+          <WalletDragGhost
+            name={activeDragged.name}
+            currency={activeDragged.currency}
+            currentBalanceCents={activeDragged.currentBalanceCents}
+            color={activeDragged.color ?? null}
+            icon={activeDragged.icon ?? null}
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
+  );
+}
+
+/**
+ * UAT-PH5-T3-18 — lightweight preview rendered inside DragOverlay. We can't
+ * reuse <WalletRow> directly because it calls useSortable which only works
+ * inside a SortableContext. The ghost mirrors the row's visual signature
+ * (icon + name + currency + amount) so the user sees what they're moving.
+ */
+function WalletDragGhost({
+  name,
+  currency,
+  currentBalanceCents,
+  color,
+  icon,
+}: {
+  name: string;
+  currency: string;
+  currentBalanceCents: string;
+  color: string | null;
+  icon: string | null;
+}) {
+  const { iconByName } = require("./wallet-customizer") as typeof import("./wallet-customizer");
+  const { centsToBare } = require("@/lib/cents-format") as typeof import("@/lib/cents-format");
+  const Icon = iconByName(icon);
+  return (
+    <div
+      data-testid="wallet-drag-ghost"
+      className="flex min-h-[48px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 shadow-lg ring-1 ring-[var(--hairline-dark)]"
+    >
+      <span
+        className="inline-flex size-7 items-center justify-center"
+        style={{ color: color ?? "var(--muted-foreground)" }}
+      >
+        {Icon ? <Icon className="size-4" /> : null}
+      </span>
+      <span className="flex-1 truncate text-body-md text-[var(--body-on-dark)]">
+        {name || "Untitled wallet"}
+      </span>
+      <span className="w-[72px] sm:w-[96px] text-num-md text-[var(--muted-foreground)]">
+        {currency}
+      </span>
+      <span className="w-[120px] text-right text-num-md sm:w-[160px]">
+        {centsToBare(currentBalanceCents)}
+      </span>
+    </div>
   );
 }

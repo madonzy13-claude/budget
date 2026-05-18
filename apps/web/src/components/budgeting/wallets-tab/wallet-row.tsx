@@ -27,6 +27,7 @@ import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
 import { WalletDeleteConfirm } from "./wallet-delete-confirm";
 import { WalletCustomizer, iconByName } from "./wallet-customizer";
+import { centsToBare } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
 type WalletType = WalletDto["walletType"];
@@ -219,8 +220,12 @@ function PersistedRow({
       data-row-drop-over={isRowDropOver || undefined}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
+        // UAT-PH5-T3-18: fall back to an explicit transform transition when
+        // dnd-kit didn't emit one for this frame, so the row always animates
+        // back into place instead of snapping.
+        transition:
+          transition ?? "transform 220ms cubic-bezier(0.25, 1, 0.5, 1)",
+        opacity: isDragging ? 0.3 : 1,
       }}
       onClick={handleRowClick}
       className="group flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
@@ -303,11 +308,20 @@ function PersistedRow({
            onSave sends it directly as the decimal amount string. */}
       <div className="w-[120px] text-right sm:w-[160px]" data-inline-cell>
         <InlineEditCell
+          // Persisted value passed to the editor is still the full decimal
+          // so the user can edit the raw string (e.g. "10.50" not "10.5").
           value={(Number(wallet.currentBalanceCents) / 100).toFixed(2)}
           ariaLabel={t("amountAria")}
           testId={`wallet-amount-${wallet.id}`}
-          render={(v) => (
-            <span className="text-num-md">{v}</span>
+          render={() => (
+            // UAT-PH5-T3-20: format the resting amount with the same rules
+            // as the spendings grid — drop the `.00` fraction, pad non-zero
+            // fractions to two digits, locale-aware grouping. `value` above
+            // is reserved for the editor; display uses centsToBare directly
+            // so "0" renders as "0" not "0.00", "1050" as "10.50".
+            <span className="text-num-md">
+              {centsToBare(wallet.currentBalanceCents)}
+            </span>
           )}
           renderEditor={(draft, onChange) => (
             <Input
@@ -350,6 +364,9 @@ function PersistedRow({
           // jumps width/height on hover. Toggle visibility instead of mount.
           // Desktop: reveal on hover via group; mobile: reveal on selected.
           "invisible group-hover:visible",
+          // UAT-PH5-T3-19: hovering the trash should read as a clickable
+          // affordance — use the standard pointer cursor.
+          "cursor-pointer",
           selected ? "!visible" : "",
         ]
           .filter(Boolean)

@@ -91,7 +91,7 @@ export function BudgetSwitcher({
         <button
           type="button"
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
-          className="inline-flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--on-dark)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--on-dark)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
         >
           {/* UAT-PH5-T3-06: drop the Lock glyph for PRIVATE — Users still
               marks SHARED so the social affordance reads at a glance. */}
@@ -152,6 +152,8 @@ export function BudgetSwitcher({
             "flex h-10 w-full items-center gap-2 px-4 text-left",
             "text-body-md text-[var(--primary)]",
             "hover:bg-[var(--surface-elevated-dark)]",
+            // UAT-PH5-T3-19: clickable affordance.
+            "cursor-pointer",
           )}
         >
           <Plus className="size-4" aria-hidden="true" />
@@ -202,6 +204,8 @@ function BudgetGroup({
             className={cn(
               "flex h-10 w-full items-center gap-2 px-4 text-left",
               "hover:bg-[var(--surface-elevated-dark)]",
+              // UAT-PH5-T3-19: clickable affordance on every dropdown row.
+              "cursor-pointer",
             )}
           >
             {/* UAT-PH5-T3-13: no leading spacer column. The active row gets
