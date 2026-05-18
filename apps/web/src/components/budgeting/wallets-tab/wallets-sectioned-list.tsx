@@ -76,41 +76,35 @@ export function WalletsSectionedList({
     const dragged = wallets.find((x) => x.id === activeId);
     if (!dragged) return;
 
-    // UAT-PH5-T3-1x: intra-section reorder when the drop target is another
-    // row in the same section. Cross-section moves continue to drop on the
-    // section background (id = "section-<TYPE>").
-    if (droppedId.startsWith("row-")) {
-      const targetId = droppedId.slice("row-".length);
-      if (targetId === activeId) return;
-      const target = wallets.find((x) => x.id === targetId);
-      if (!target) return;
-      if (target.walletType !== dragged.walletType) {
-        // Cross-section: treat as section change to the target's section.
-        return handleCrossSectionDrop(dragged, target.walletType);
-      }
-      // Build new section order: remove active from its position, insert at
-      // target's position so dropping ON a row places the dragged row in
-      // front of that target (standard list-reorder semantics).
-      const sectionIds = wallets
-        .filter((w) => w.walletType === dragged.walletType)
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-        .map((w) => w.id);
-      const fromIdx = sectionIds.indexOf(activeId);
-      const toIdx = sectionIds.indexOf(targetId);
-      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
-      sectionIds.splice(fromIdx, 1);
-      sectionIds.splice(toIdx, 0, activeId);
-      reorderMut.mutate({
-        walletType: dragged.walletType,
-        orderedIds: sectionIds,
-      });
-      return;
+    // Section background drop (cross-section move).
+    if (droppedId.startsWith("section-")) {
+      const newType = droppedId.slice("section-".length) as WalletType;
+      if (dragged.walletType === newType) return;
+      return handleCrossSectionDrop(dragged, newType);
     }
 
-    if (!droppedId.startsWith("section-")) return;
-    const newType = droppedId.slice("section-".length) as WalletType;
-    if (dragged.walletType === newType) return;
-    return handleCrossSectionDrop(dragged, newType);
+    // UAT-PH5-T3-17: with useSortable the drop target id IS the target
+    // wallet's id (bare). Same section → intra reorder. Different section →
+    // treat as cross-section move into the target's section.
+    if (droppedId === activeId) return;
+    const target = wallets.find((x) => x.id === droppedId);
+    if (!target) return;
+    if (target.walletType !== dragged.walletType) {
+      return handleCrossSectionDrop(dragged, target.walletType);
+    }
+    const sectionIds = wallets
+      .filter((w) => w.walletType === dragged.walletType)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((w) => w.id);
+    const fromIdx = sectionIds.indexOf(activeId);
+    const toIdx = sectionIds.indexOf(droppedId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+    sectionIds.splice(fromIdx, 1);
+    sectionIds.splice(toIdx, 0, activeId);
+    reorderMut.mutate({
+      walletType: dragged.walletType,
+      orderedIds: sectionIds,
+    });
   }
 
   function handleCrossSectionDrop(w: WalletDto, newType: WalletType) {

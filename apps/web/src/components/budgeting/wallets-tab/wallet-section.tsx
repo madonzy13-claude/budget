@@ -10,6 +10,10 @@
  * D-PH5-W9: Draft row renders ABOVE the DashedAddButton when active.
  */
 import { useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { WalletRow } from "./wallet-row";
@@ -87,24 +91,36 @@ export function WalletSection({
           Sum is taken across raw cents — mixed-currency sections still
           compute a share ratio (the user explicitly asked for "share within
           wallet group" with no qualifier). When the total is 0 every row
-          renders an em-dash share. */}
+          renders an em-dash share.
+
+          UAT-PH5-T3-17: wrap rows in a SortableContext per section so
+          siblings animate out of the way while a wallet is dragged inside
+          its own section. Cross-section moves still drop on the section
+          background (useDroppable id="section-<TYPE>") wired below. */}
       {(() => {
         const sectionTotalCents = wallets.reduce(
           (acc, w) => acc + Number(w.currentBalanceCents),
           0,
         );
-        return wallets.map((w) => (
-          <WalletRow
-            key={w.id}
-            mode="persisted"
-            wallet={w}
-            budgetCurrency={budgetCurrency}
-            sectionTotalCents={sectionTotalCents}
-            onUpdate={(patch) => onUpdate(w.id, patch)}
-            onArchive={() => onArchive(w.id)}
-            isReserveSection={type === "RESERVE"}
-          />
-        ));
+        return (
+          <SortableContext
+            items={wallets.map((w) => w.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {wallets.map((w) => (
+              <WalletRow
+                key={w.id}
+                mode="persisted"
+                wallet={w}
+                budgetCurrency={budgetCurrency}
+                sectionTotalCents={sectionTotalCents}
+                onUpdate={(patch) => onUpdate(w.id, patch)}
+                onArchive={() => onArchive(w.id)}
+                isReserveSection={type === "RESERVE"}
+              />
+            ))}
+          </SortableContext>
+        );
       })()}
 
       {draft && (

@@ -50,12 +50,38 @@ vi.mock("@dnd-kit/core", () => ({
     setNodeRef: vi.fn(),
     transform: null,
   }),
+  useDroppable: () => ({ setNodeRef: vi.fn(), isOver: false }),
   DndContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useSensor: vi.fn(),
   useSensors: vi.fn(() => []),
   PointerSensor: vi.fn(),
   TouchSensor: vi.fn(),
   KeyboardSensor: vi.fn(),
+}));
+
+// UAT-PH5-T3-17: wallet-row now uses useSortable for the spendings-grid-style
+// "siblings make room" animation. The sortable hook is a thin layer on top of
+// useDraggable + useDroppable; mock it identically for unit-test purposes.
+vi.mock("@dnd-kit/sortable", () => ({
+  useSortable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+    isOver: false,
+  }),
+  SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  verticalListSortingStrategy: undefined,
+}));
+
+// Mock @dnd-kit/utilities — only CSS.Transform.toString used by wallet-row.
+vi.mock("@dnd-kit/utilities", () => ({
+  CSS: {
+    Transform: { toString: () => undefined },
+    Translate: { toString: () => undefined },
+  },
 }));
 
 // Mock sonner

@@ -16,7 +16,8 @@
  * D-PH5-W5: Hover reveals trash on desktop (group-hover:flex).
  * D-PH5-W6: Mobile first-tap sets data-selected → trash appears.
  */
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Trash2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
@@ -183,22 +184,21 @@ function PersistedRow({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selected, setSelected] = useState(false);
 
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id: wallet.id,
-  });
-
-  // UAT-PH5-T3-1x: each row is ALSO a drop target so dropping on a sibling
-  // row triggers intra-section reorder. Cross-section moves still drop on the
-  // section background (id="section-<TYPE>"); intra-section drops resolve to
-  // this row's id and the parent handler reorders. The droppable id uses a
-  // distinct namespace ("row-<id>") so the parent can tell drop sources apart.
-  const { setNodeRef: setDropRef, isOver: isRowDropOver } = useDroppable({
-    id: `row-${wallet.id}`,
-  });
-  const combinedRef = (node: HTMLElement | null) => {
-    setNodeRef(node);
-    setDropRef(node);
-  };
+  // UAT-PH5-T3-17: switch from useDraggable + useDroppable to useSortable so
+  // siblings animate out of the way while a row is dragged (matches the
+  // spendings-grid category column feel). The sortable id is the bare wallet
+  // id; cross-section drops still resolve to the section's useDroppable
+  // background id ("section-<TYPE>"). See wallet-section.tsx for the
+  // SortableContext that scopes per-section reorder.
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver: isRowDropOver,
+  } = useSortable({ id: wallet.id });
 
   // Mobile: first tap on row → selected state (reveals trash)
   const handleRowClick = (e: React.MouseEvent) => {
@@ -212,16 +212,16 @@ function PersistedRow({
 
   return (
     <div
-      ref={combinedRef}
+      ref={setNodeRef}
       data-testid="wallet-row"
       data-wallet-id={wallet.id}
       data-selected={selected || undefined}
       data-row-drop-over={isRowDropOver || undefined}
-      style={
-        transform
-          ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-          : undefined
-      }
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
       onClick={handleRowClick}
       className="group flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
     >
