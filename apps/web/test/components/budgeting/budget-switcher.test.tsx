@@ -173,7 +173,10 @@ describe("BudgetSwitcher", () => {
     expect(pushMock).toHaveBeenCalledWith("/en/budgets/new");
   });
 
-  it("hides the Shared section heading entirely if no SHARED budgets exist", async () => {
+  // UAT-PH5-T3-05: when only one kind of budget exists (all PRIVATE or all
+  // SHARED), the section heading is redundant and is suppressed. The heading
+  // only adds signal when both kinds are present.
+  it("only PRIVATE budgets → no 'Personal' AND no 'Shared' heading rendered (UAT-PH5-T3-05)", async () => {
     const user = userEvent.setup();
     const onlyPrivate: BudgetSummary[] = [
       { id: "p1", name: "Solo", kind: "PRIVATE", default_currency: "USD" },
@@ -182,8 +185,53 @@ describe("BudgetSwitcher", () => {
       <BudgetSwitcher budgets={onlyPrivate} activeBudgetId="p1" locale="en" />,
     );
     await user.click(screen.getByLabelText("Switch budget"));
-    expect(screen.getByText("Personal")).toBeTruthy();
+    expect(screen.queryByText("Personal")).toBeNull();
     expect(screen.queryByText("Shared")).toBeNull();
+    // The row itself is still rendered.
+    expect(screen.getByRole("menuitemradio", { name: /Solo/ })).toBeTruthy();
+  });
+
+  it("only SHARED budgets → no 'Personal' AND no 'Shared' heading rendered (UAT-PH5-T3-05)", async () => {
+    const user = userEvent.setup();
+    const onlyShared: BudgetSummary[] = [
+      { id: "s1", name: "Family", kind: "SHARED", default_currency: "EUR" },
+    ];
+    render(
+      <BudgetSwitcher budgets={onlyShared} activeBudgetId="s1" locale="en" />,
+    );
+    await user.click(screen.getByLabelText("Switch budget"));
+    expect(screen.queryByText("Personal")).toBeNull();
+    expect(screen.queryByText("Shared")).toBeNull();
+    expect(screen.getByRole("menuitemradio", { name: /Family/ })).toBeTruthy();
+  });
+
+  it("mixed PRIVATE and SHARED budgets → BOTH headings rendered (heading only suppressed in single-kind case)", async () => {
+    const user = userEvent.setup();
+    render(
+      <BudgetSwitcher budgets={mockBudgets} activeBudgetId="b1" locale="en" />,
+    );
+    await user.click(screen.getByLabelText("Switch budget"));
+    expect(screen.getByText("Personal")).toBeTruthy();
+    expect(screen.getByText("Shared")).toBeTruthy();
+  });
+
+  // UAT-PH5-T3-06: PRIVATE budgets no longer carry a Lock glyph in the
+  // trigger or the dropdown row. The Users glyph still marks SHARED budgets.
+  it("PRIVATE budgets render NO Lock icon in trigger or rows (UAT-PH5-T3-06)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <BudgetSwitcher budgets={mockBudgets} activeBudgetId="b1" locale="en" />,
+    );
+    // Trigger: no lock svg.
+    expect(container.querySelector(".lucide-lock")).toBeNull();
+    await user.click(screen.getByLabelText("Switch budget"));
+    // Popover content (portalled) also carries no lock svg anywhere.
+    expect(document.querySelectorAll(".lucide-lock").length).toBe(0);
+    // SHARED rows still carry a Users svg.
+    const sharedRow = screen
+      .getAllByRole("menuitemradio")
+      .find((r) => r.textContent?.includes("Family"));
+    expect(sharedRow?.querySelector(".lucide-users")).toBeTruthy();
   });
 
   it("PopoverContent carries `z-[60]` class (above sticky top-nav z-50 and BDP sticky wrapper z-40)", async () => {

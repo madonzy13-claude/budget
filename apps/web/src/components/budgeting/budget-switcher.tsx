@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Check, ChevronDown, Lock, Plus, Users } from "lucide-react";
+import { Check, ChevronDown, Plus, Users } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -84,18 +84,14 @@ export function BudgetSwitcher({
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
           className="inline-flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--on-dark)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
         >
-          {active &&
-            (active.kind === "PRIVATE" ? (
-              <Lock
-                className="size-4 text-[var(--muted-foreground)]"
-                aria-hidden="true"
-              />
-            ) : (
-              <Users
-                className="size-4 text-[var(--muted-foreground)]"
-                aria-hidden="true"
-              />
-            ))}
+          {/* UAT-PH5-T3-06: drop the Lock glyph for PRIVATE — Users still
+              marks SHARED so the social affordance reads at a glance. */}
+          {active && active.kind === "SHARED" && (
+            <Users
+              className="size-4 text-[var(--muted-foreground)]"
+              aria-hidden="true"
+            />
+          )}
           <span className="text-title-sm max-w-[24ch] truncate sm:max-w-[12ch]">
             {triggerLabel}
           </span>
@@ -106,10 +102,14 @@ export function BudgetSwitcher({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="z-[60] min-w-[256px] p-0">
+        {/* UAT-PH5-T3-05: suppress section heading when only one kind exists.
+            The heading is only useful when both Personal AND Shared groups are
+            visible so the user can disambiguate. With one kind, the label is
+            noise. */}
         {privateB.length > 0 && (
           <BudgetGroup
             rows={privateB}
-            heading={t("nav.switcher.personal")}
+            heading={sharedB.length > 0 ? t("nav.switcher.personal") : null}
             onPick={onPick}
             activeId={activeBudgetId}
           />
@@ -120,7 +120,7 @@ export function BudgetSwitcher({
         {sharedB.length > 0 && (
           <BudgetGroup
             rows={sharedB}
-            heading={t("nav.switcher.shared")}
+            heading={privateB.length > 0 ? t("nav.switcher.shared") : null}
             onPick={onPick}
             activeId={activeBudgetId}
           />
@@ -157,18 +157,20 @@ function BudgetGroup({
   activeId,
 }: {
   rows: BudgetSummary[];
-  heading: string;
+  // UAT-PH5-T3-05: heading is optional — suppressed when only one kind exists.
+  heading: string | null;
   onPick: (id: string) => void;
   activeId: string | null;
 }) {
   return (
     <div className="py-2">
-      <div className="px-4 pb-1 text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
-        {heading}
-      </div>
+      {heading && (
+        <div className="px-4 pb-1 text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
+          {heading}
+        </div>
+      )}
       {rows.map((b) => {
         const isActive = b.id === activeId;
-        const Icon = b.kind === "PRIVATE" ? Lock : Users;
         return (
           <button
             key={b.id}
@@ -189,10 +191,15 @@ function BudgetGroup({
                 />
               )}
             </span>
-            <Icon
-              className="size-4 text-[var(--muted-foreground)]"
-              aria-hidden="true"
-            />
+            {/* UAT-PH5-T3-06: only render Users glyph for SHARED. PRIVATE
+                rows have no kind icon — the row's name alone is enough and
+                the dropdown is grouped (when relevant) by Personal heading. */}
+            {b.kind === "SHARED" && (
+              <Users
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
+            )}
             <span className="flex-1 truncate text-body-md text-[var(--on-dark)]">
               {b.name}
             </span>

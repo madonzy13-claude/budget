@@ -22,6 +22,21 @@ discovered_polish_during_test2:
     summary: Header "+" New budget button removed; "Create budget" item added at end of switcher dropdown; switcher hidden entirely when 0 budgets
     fix: apps/web/src/components/budgeting/top-nav.tsx, budget-switcher.tsx, deleted new-budget-button.tsx + test
     test_updated: budget-switcher.test.tsx (empty-state returns null, trailing CTA)
+discovered_polish_during_test3:
+  - id: UAT-PH5-T3-04
+    severity: major
+    summary: Wallets and Reserves tabs full-bleed on desktop; constrain to mx-auto max-w-[1280px] like Settings (Spendings keeps full width because it's a horizontally scrolling grid)
+    fix: apps/web/src/app/[locale]/(app)/budgets/[id]/wallets/page.tsx, .../reserves/page.tsx — wrap client island in centered max-w container
+  - id: UAT-PH5-T3-05
+    severity: minor
+    summary: Switcher dropdown Personal/Shared heading is noise when only one kind exists; suppress it
+    fix: apps/web/src/components/budgeting/budget-switcher.tsx — pass heading={null} when single-kind; BudgetGroup omits the heading div on null
+    test_added: budget-switcher.test.tsx — only-PRIVATE and only-SHARED single-kind suppression + mixed mode still shows both headings
+  - id: UAT-PH5-T3-06
+    severity: minor
+    summary: Lock glyph removed from PRIVATE budgets in switcher trigger and rows; Users glyph still marks SHARED so the social affordance reads at a glance
+    fix: apps/web/src/components/budgeting/budget-switcher.tsx — drop Lock import + conditional renders only Users on SHARED
+    test_added: budget-switcher.test.tsx — no .lucide-lock anywhere in trigger or popover; SHARED rows still carry .lucide-users
 source:
   - 05-01-SUMMARY.md
   - 05-02-SUMMARY.md
@@ -55,13 +70,12 @@ pre_uat_verification:
 
 ## Current Test
 
-number: 2
-name: Wallets tab loads with three sections (WALT-01)
+number: 3
+name: Add a Spendings wallet via staged-add (WALT-02, D-PH5-W9)
 expected: |
-Click Wallets pill → /budgets/[id]/wallets. Page shows three section
-headers: Spendings, Reserve, Cushion. Seeded Checking wallet appears in
-Spendings, seeded Savings wallet appears in Reserve. Section totals
-render in EUR.
+Click +Add row in Spendings → empty draft row appears inline with focused
+Name input. NO POST fires while typing. Type a name, blur Name field →
+POST /wallets fires; draft row promotes to a persisted row.
 awaiting: user response
 
 ## Tests
@@ -76,7 +90,9 @@ notes: Initially blocked by PH5-REGRESSION-01 (/budgets/active routed to /:id, s
 ### 2. Wallets tab loads with three sections (WALT-01)
 
 expected: Click Wallets pill → /budgets/[id]/wallets. Page shows three section headers: Spendings, Reserve, Cushion. Each section can be empty or hold rows; section totals render with budget currency.
-result: [pending]
+result: pass
+verified_by: claude-playwright+user
+notes: Surfaced 3 polish items (UAT-PH5-T2-01..03) — DashedAddButton 2px→1px, Wallets pill default, header "+" replaced by switcher CTA + null-when-empty. All shipped at HEAD; Vitest 36/36 across affected suites.
 
 ### 3. Add a Spendings wallet via staged-add (WALT-02, D-PH5-W9)
 
@@ -146,9 +162,9 @@ result: [pending]
 ## Summary
 
 total: 15
-passed: 1
+passed: 2
 issues: 0
-pending: 14
+pending: 13
 skipped: 0
 blocked: 0
 

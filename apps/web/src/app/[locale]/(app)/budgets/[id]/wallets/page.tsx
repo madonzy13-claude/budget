@@ -38,11 +38,16 @@ export default async function WalletsPage({ params }: PageProps) {
   const budgetCurrency =
     budget?.defaultCurrency ?? budget?.default_currency ?? "EUR";
 
+  // UAT-PH5-T3-04: constrain wallets to the same centered 1280px column the
+  // Settings tab uses. Spendings stays full-bleed because it's a horizontally
+  // scrolling grid.
   return (
-    <WalletsSectionedList
-      budgetId={budgetId}
-      budgetCurrency={budgetCurrency}
-      initial={wallets}
-    />
+    <div className="mx-auto w-full max-w-[1280px]">
+      <WalletsSectionedList
+        budgetId={budgetId}
+        budgetCurrency={budgetCurrency}
+        initial={wallets}
+      />
+    </div>
   );
 }

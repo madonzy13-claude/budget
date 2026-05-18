@@ -34,5 +34,10 @@ export default async function ReservesPage({ params }: PageProps) {
         },
       };
 
-  return <ReservesTableClient budgetId={budgetId} initial={initial} />;
+  // UAT-PH5-T3-04: constrain reserves to the same centered 1280px column.
+  return (
+    <div className="mx-auto w-full max-w-[1280px]">
+      <ReservesTableClient budgetId={budgetId} initial={initial} />
+    </div>
+  );
 }
