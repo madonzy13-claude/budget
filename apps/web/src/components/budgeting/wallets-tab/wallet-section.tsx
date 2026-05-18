@@ -17,6 +17,7 @@ import {
 import { useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { WalletRow } from "./wallet-row";
+import { centsToBare } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
 type WalletType = WalletDto["walletType"];
@@ -111,39 +112,53 @@ export function WalletSection({
           (acc, w) => acc + Number(w.currentBalanceCents),
           0,
         );
+        // UAT-PH5-T3-30: dynamic amount-column width. Find the longest
+        // formatted amount in this section and size every amount cell to
+        // exactly fit it (+ a hair of slack). Short values like "0" or
+        // "456" no longer leave a 95-px gap between the currency code and
+        // the right-aligned number. Name's `flex-1` absorbs the slack.
+        // Min 4ch ("0.00"-ish) keeps the column readable when every
+        // wallet is empty.
+        const maxAmountChars = Math.max(
+          4,
+          ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
+        );
         return (
-          <SortableContext
-            items={wallets.map((w) => w.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {wallets.map((w) => (
+          <>
+            <SortableContext
+              items={wallets.map((w) => w.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {wallets.map((w) => (
+                <WalletRow
+                  key={w.id}
+                  mode="persisted"
+                  wallet={w}
+                  budgetCurrency={budgetCurrency}
+                  sectionTotalCents={sectionTotalCents}
+                  maxAmountChars={maxAmountChars}
+                  onUpdate={(patch) => onUpdate(w.id, patch)}
+                  onArchive={() => onArchive(w.id)}
+                  isReserveSection={type === "RESERVE"}
+                />
+              ))}
+            </SortableContext>
+            {draft && (
               <WalletRow
-                key={w.id}
-                mode="persisted"
-                wallet={w}
+                key="__draft__"
+                mode="draft"
+                sectionType={type}
                 budgetCurrency={budgetCurrency}
-                sectionTotalCents={sectionTotalCents}
-                onUpdate={(patch) => onUpdate(w.id, patch)}
-                onArchive={() => onArchive(w.id)}
-                isReserveSection={type === "RESERVE"}
+                maxAmountChars={maxAmountChars}
+                pending={draft.pending}
+                error={draft.error}
+                onCommit={onCommitDraft}
+                onDiscard={onDiscardDraft}
               />
-            ))}
-          </SortableContext>
+            )}
+          </>
         );
       })()}
-
-      {draft && (
-        <WalletRow
-          key="__draft__"
-          mode="draft"
-          sectionType={type}
-          budgetCurrency={budgetCurrency}
-          pending={draft.pending}
-          error={draft.error}
-          onCommit={onCommitDraft}
-          onDiscard={onDiscardDraft}
-        />
-      )}
 
       <DashedAddButton
         onClick={onAdd}

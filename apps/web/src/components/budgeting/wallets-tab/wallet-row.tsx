@@ -32,6 +32,10 @@ import type { WalletDto } from "@/hooks/use-wallets";
 
 type WalletType = WalletDto["walletType"];
 
+// UAT-PH5-T3-30: floor for the dynamic amount column. Covers "0.00"-ish
+// values when the whole section is empty so the column never collapses.
+const MIN_AMOUNT_CHARS = 4;
+
 interface PersistedProps {
   mode: "persisted";
   wallet: WalletDto;
@@ -39,6 +43,11 @@ interface PersistedProps {
   // UAT-PH5-T3-14: sum of currentBalanceCents across all wallets in the same
   // section, supplied by WalletSection. Used to compute the Share column.
   sectionTotalCents: number;
+  // UAT-PH5-T3-30: longest formatted-amount char length across the section.
+  // Drives the dynamic min-width of the amount column so short balances
+  // ("0", "456") don't leave a wide gap between currency and amount.
+  // Optional — falls back to MIN_AMOUNT_CHARS when omitted (unit tests).
+  maxAmountChars?: number;
   onUpdate: (patch: {
     name?: string;
     amount?: string;
@@ -54,6 +63,7 @@ interface DraftProps {
   mode: "draft";
   sectionType: WalletType;
   budgetCurrency: string;
+  maxAmountChars?: number;
   onCommit: (name: string) => Promise<void>; // fires POST on non-empty blur
   onDiscard: () => void; // fires on empty blur OR Escape
   pending: boolean; // POST in-flight
@@ -76,6 +86,7 @@ export function WalletRow(props: PersistedProps | DraftProps) {
 
 function DraftRow({
   budgetCurrency,
+  maxAmountChars,
   onCommit,
   onDiscard,
   pending,
@@ -150,8 +161,12 @@ function DraftRow({
         </span>
       </div>
 
-      {/* Amount — always 0.00 in draft state */}
-      <div className="w-[96px] text-right sm:w-[160px]">
+      {/* Amount — always 0.00 in draft state.
+          UAT-PH5-T3-30: width tracks the section's longest amount. */}
+      <div
+        className="text-right tabular-nums"
+        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+      >
         <span className="text-num-md text-[var(--muted-foreground)]">0.00</span>
       </div>
 
@@ -178,6 +193,7 @@ function PersistedRow({
   wallet,
   budgetCurrency,
   sectionTotalCents,
+  maxAmountChars,
   onUpdate,
   onArchive,
   isReserveSection,
@@ -315,8 +331,17 @@ function PersistedRow({
            Uses defaultValue (uncontrolled) so the user can type freely
            without the controlled reformatter clobbering each keystroke.
            draft holds the raw decimal string the user typed.
-           onSave sends it directly as the decimal amount string. */}
-      <div className="w-[96px] text-right sm:w-[160px]" data-inline-cell>
+           onSave sends it directly as the decimal amount string.
+           UAT-PH5-T3-30: dynamic min-width based on the section's longest
+           formatted amount + 1ch of slack. Short balances like "0" or
+           "456" no longer leave a wide visual gap between the currency
+           code and the right-aligned number. `tabular-nums` keeps digit
+           widths uniform so rows in the same section align column-perfect. */}
+      <div
+        className="text-right tabular-nums"
+        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+        data-inline-cell
+      >
         <InlineEditCell
           // UAT-PH5-T3-25: editor seed mirrors the display formatting —
           // centsToBare drops a `.00` fraction so "10" enters the input
