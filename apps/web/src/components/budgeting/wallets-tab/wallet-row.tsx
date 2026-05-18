@@ -218,20 +218,22 @@ function PersistedRow({
       data-wallet-id={wallet.id}
       data-selected={selected || undefined}
       data-row-drop-over={isRowDropOver || undefined}
+      // UAT-PH5-T3-23: transition lives on the className so EVERY transform
+      // change animates — including the very first sibling-shift of a drag.
+      // dnd-kit's per-frame `transition` value was unreliable on the first
+      // pointer move ("", undefined, then a real string) which read as a
+      // direction-specific jump. Letting Tailwind own the transition rule
+      // removes that timing dependency entirely.
       style={{
         transform: CSS.Transform.toString(transform),
-        // UAT-PH5-T3-21: dnd-kit emits transition="" on the first frame of
-        // a drag (no neighbour reorder yet) and the bare-string-OR matters
-        // here — `??` would treat "" as a real value and not fall back.
-        // Use a logical OR so empty AND null both fall through to the
-        // explicit transform transition; rows animate from the very first
-        // frame, including the direction reversal case.
-        transition:
-          transition || "transform 220ms cubic-bezier(0.25, 1, 0.5, 1)",
-        opacity: isDragging ? 0.3 : 1,
+        // Source row hidden completely during drag — the <DragOverlay>
+        // ghost stands in. Previously kept at 0.3 to indicate snap-back
+        // position; that ghost-row artefact has been removed per
+        // user feedback.
+        visibility: isDragging ? "hidden" : undefined,
       }}
       onClick={handleRowClick}
-      className="group flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+      className="group flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
     >
       <RowDragHandle
         name={wallet.name || "wallet"}

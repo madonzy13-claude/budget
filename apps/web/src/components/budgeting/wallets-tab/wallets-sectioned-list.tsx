@@ -264,10 +264,15 @@ export function WalletsSectionedList({
             budgetCurrency={budgetCurrency}
             wallets={grouped[type]}
             draft={drafts[type] ?? null}
-            // UAT-PH5-T3-22: true while a drag is in progress AND the
-            // pointer is anywhere inside this section (background, row, or
-            // +Add CTA). Drives the blue ring on the section.
-            isDropEligible={overSection === type && activeDragId !== null}
+            // UAT-PH5-T3-22 / T3-23: highlight only on cross-section drags.
+            // Within the same section reordering is shown by neighbour rows
+            // sliding aside — the blue ring would be visual noise.
+            isDropEligible={
+              overSection === type &&
+              activeDragId !== null &&
+              activeDragged != null &&
+              activeDragged.walletType !== type
+            }
             onUpdate={async (id, patch) => {
               await updateMut.mutateAsync({ walletId: id, ...patch });
             }}
