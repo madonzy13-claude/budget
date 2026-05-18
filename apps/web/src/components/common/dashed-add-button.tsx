@@ -33,9 +33,10 @@ export function DashedAddButton({
     }
   };
 
+  // UAT-PH5-T2-01: match add-category-column border weight (1px) — was 2px.
   const defaultCls =
     "flex w-full min-h-[44px] flex-row items-center justify-center gap-2 " +
-    "rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--muted-foreground)]/80 " +
+    "rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)] " +
     "bg-transparent hover:bg-[var(--secondary)]/40 hover:border-[var(--foreground)] " +
     "cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 " +
     "focus-visible:ring-offset-2 focus-visible:ring-[var(--info)] " +

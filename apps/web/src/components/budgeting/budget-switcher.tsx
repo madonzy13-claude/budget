@@ -59,18 +59,22 @@ export function BudgetSwitcher({
   const sharedB = budgets.filter((b) => b.kind === "SHARED");
   const isEmpty = budgets.length === 0;
 
+  // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
+  // hidden entirely. The home page renders its own "Create your first
+  // budget" empty state, so the header stays clean and the create flow lives
+  // there instead of behind a switcher dropdown.
+  if (isEmpty) return null;
+
   const onPick = useCallback(
     (id: string) => {
       setOpen(false);
       if (id === activeBudgetId) return;
-      router.push(`/${locale}/budgets/${id}/spendings`);
+      router.push(`/${locale}/budgets/${id}/wallets`);
     },
     [router, locale, activeBudgetId],
   );
 
-  const triggerLabel = isEmpty
-    ? t("nav.switcher.empty.trigger")
-    : (active?.name ?? t("nav.switcher.empty.trigger"));
+  const triggerLabel = active?.name ?? t("nav.switcher.empty.trigger");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -80,8 +84,7 @@ export function BudgetSwitcher({
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
           className="inline-flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--on-dark)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
         >
-          {!isEmpty &&
-            active &&
+          {active &&
             (active.kind === "PRIVATE" ? (
               <Lock
                 className="size-4 text-[var(--muted-foreground)]"
@@ -103,46 +106,45 @@ export function BudgetSwitcher({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="z-[60] min-w-[256px] p-0">
-        {isEmpty ? (
-          <div className="space-y-3 p-4">
-            <p className="text-sm text-[var(--muted-foreground)]">
-              {t("nav.switcher.empty.body")}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                router.push(`/${locale}/budgets/new`);
-              }}
-              className="inline-flex items-center gap-2 text-sm font-medium text-[var(--primary)] hover:underline"
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              {t("nav.switcher.empty.cta")}
-            </button>
-          </div>
-        ) : (
-          <>
-            {privateB.length > 0 && (
-              <BudgetGroup
-                rows={privateB}
-                heading={t("nav.switcher.personal")}
-                onPick={onPick}
-                activeId={activeBudgetId}
-              />
-            )}
-            {privateB.length > 0 && sharedB.length > 0 && (
-              <div className="h-px bg-[var(--hairline-dark)]" />
-            )}
-            {sharedB.length > 0 && (
-              <BudgetGroup
-                rows={sharedB}
-                heading={t("nav.switcher.shared")}
-                onPick={onPick}
-                activeId={activeBudgetId}
-              />
-            )}
-          </>
+        {privateB.length > 0 && (
+          <BudgetGroup
+            rows={privateB}
+            heading={t("nav.switcher.personal")}
+            onPick={onPick}
+            activeId={activeBudgetId}
+          />
         )}
+        {privateB.length > 0 && sharedB.length > 0 && (
+          <div className="h-px bg-[var(--hairline-dark)]" />
+        )}
+        {sharedB.length > 0 && (
+          <BudgetGroup
+            rows={sharedB}
+            heading={t("nav.switcher.shared")}
+            onPick={onPick}
+            activeId={activeBudgetId}
+          />
+        )}
+        {/* UAT-PH5-T2-03: trailing "Create budget" item replaces the removed
+            header "+" button. Styled like an empty-state CTA: muted icon, full-
+            width row inside the popover. */}
+        <div className="h-px bg-[var(--hairline-dark)]" />
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            setOpen(false);
+            router.push(`/${locale}/budgets/new`);
+          }}
+          className={cn(
+            "flex h-10 w-full items-center gap-2 px-4 text-left",
+            "text-body-md text-[var(--primary)]",
+            "hover:bg-[var(--surface-elevated-dark)]",
+          )}
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          <span className="flex-1 truncate">{t("nav.switcher.empty.cta")}</span>
+        </button>
       </PopoverContent>
     </Popover>
   );

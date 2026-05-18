@@ -85,6 +85,14 @@ describe("DashedAddButton", () => {
     expect(btn.className).toContain("border-dashed");
   });
 
+  // UAT-PH5-T2-01: Match add-category-column thickness (1px) — was border-2 (2px).
+  it("default class uses 1px dashed border (matches add-category-column)", () => {
+    render(<DashedAddButton onClick={vi.fn()} label="Add" />);
+    const btn = screen.getByRole("button");
+    expect(btn.className).toContain(" border ");
+    expect(btn.className).not.toContain("border-2");
+  });
+
   it("default class contains muted-foreground border color", () => {
     render(<DashedAddButton onClick={vi.fn()} label="Add" />);
     const btn = screen.getByRole("button");

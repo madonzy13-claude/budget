@@ -34,13 +34,16 @@ interface BdpTabsProps {
   reservesEnabled?: boolean;
 }
 
+// UAT-PH5-T2-02: Wallets surfaced first per user feedback. Order now is
+// Wallets → Spendings → Reserves → Settings. The /budgets/[id] index page
+// redirects to /wallets accordingly.
 const TABS: ReadonlyArray<{
-  slug: "spendings" | "reserves" | "wallets" | "settings";
+  slug: "wallets" | "spendings" | "reserves" | "settings";
   icon: LucideIcon;
 }> = [
+  { slug: "wallets", icon: Wallet },
   { slug: "spendings", icon: LayoutGrid },
   { slug: "reserves", icon: Coins },
-  { slug: "wallets", icon: Wallet },
   { slug: "settings", icon: Settings },
 ];
 

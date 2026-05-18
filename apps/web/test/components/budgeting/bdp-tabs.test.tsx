@@ -31,13 +31,14 @@ vi.mock("next-intl", () => ({
 import { BdpTabs } from "@/components/budgeting/bdp-tabs";
 
 describe("BdpTabs", () => {
-  it("renders 4 Link elements in order: Spendings, Reserves, Wallets, Settings", () => {
-    mockPathname = "/en/budgets/abc/spendings";
+  // UAT-PH5-T2-02: pill order reordered — Wallets first per user feedback.
+  it("renders 4 Link elements in order: Wallets, Spendings, Reserves, Settings", () => {
+    mockPathname = "/en/budgets/abc/wallets";
     render(<BdpTabs locale="en" budgetId="abc" />);
     const links = screen.getAllByRole("link");
     expect(links.length).toBe(4);
     const labels = links.map((l) => l.getAttribute("aria-label"));
-    expect(labels).toEqual(["Spendings", "Reserves", "Wallets", "Settings"]);
+    expect(labels).toEqual(["Wallets", "Spendings", "Reserves", "Settings"]);
   });
 
   it('active pill has aria-current="page" when pathname matches its href', () => {
@@ -105,15 +106,13 @@ describe("BdpTabs", () => {
       expect(screen.getByRole("link", { name: "Reserves" })).toBeTruthy();
     });
 
-    it("reservesEnabled={false} → renders 3 pills; Reserves is NOT in DOM", () => {
+    it("reservesEnabled={false} → renders 3 pills in order Wallets, Spendings, Settings", () => {
       mockPathname = "/en/budgets/abc/spendings";
       render(<BdpTabs locale="en" budgetId="abc" reservesEnabled={false} />);
       const links = screen.getAllByRole("link");
       expect(links.length).toBe(3);
       const labels = links.map((l) => l.getAttribute("aria-label"));
-      expect(labels).toContain("Spendings");
-      expect(labels).toContain("Wallets");
-      expect(labels).toContain("Settings");
+      expect(labels).toEqual(["Wallets", "Spendings", "Settings"]);
       expect(labels).not.toContain("Reserves");
       expect(screen.queryByRole("link", { name: "Reserves" })).toBeNull();
     });

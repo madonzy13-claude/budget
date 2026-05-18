@@ -105,7 +105,7 @@ describe("BudgetSwitcher", () => {
     expect(screen.getByText("PLN")).toBeTruthy();
   });
 
-  it("router.push('/en/budgets/${id}/spendings') when a non-active row is clicked", async () => {
+  it("router.push('/en/budgets/${id}/wallets') when a non-active row is clicked (UAT-PH5-T2-02)", async () => {
     const user = userEvent.setup();
     render(
       <BudgetSwitcher budgets={mockBudgets} activeBudgetId="b1" locale="en" />,
@@ -117,7 +117,7 @@ describe("BudgetSwitcher", () => {
     )!;
     await user.click(nonActive);
     expect(pushMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith("/en/budgets/b2/spendings");
+    expect(pushMock).toHaveBeenCalledWith("/en/budgets/b2/wallets");
   });
 
   it("does NOT call router.push when the active row is clicked", async () => {
@@ -147,16 +147,27 @@ describe("BudgetSwitcher", () => {
     expect(trigger.textContent).not.toContain("No budgets yet");
   });
 
-  it("empty state: no menuitemradio rows, trigger shows i18n empty label, CTA routes to /budgets/new", async () => {
+  // UAT-PH5-T2-03: when there are no budgets, the switcher is hidden entirely
+  // from the header. The home page renders its own "Create your first budget"
+  // empty state, so the header chrome can stay clean.
+  it("empty state: BudgetSwitcher renders nothing (no trigger, no popover) — UAT-PH5-T2-03", () => {
+    const { container } = render(
+      <BudgetSwitcher budgets={[]} activeBudgetId={null} locale="en" />,
+    );
+    expect(container.querySelector("button")).toBeNull();
+    expect(screen.queryByLabelText("Switch budget")).toBeNull();
+    expect(screen.queryByText("No budgets yet")).toBeNull();
+  });
+
+  // UAT-PH5-T2-03: populated dropdown includes a trailing "Create budget" CTA
+  // (last row) in place of the removed header "+" button.
+  it("populated dropdown shows 'Create budget' as the last item; clicking it routes to /budgets/new", async () => {
     const user = userEvent.setup();
-    render(<BudgetSwitcher budgets={[]} activeBudgetId={null} locale="en" />);
-    // Trigger label is the empty-state copy.
-    expect(screen.getByText("No budgets yet")).toBeTruthy();
+    render(
+      <BudgetSwitcher budgets={mockBudgets} activeBudgetId="b1" locale="en" />,
+    );
     await user.click(screen.getByLabelText("Switch budget"));
-    // No menuitemradio rows.
-    expect(screen.queryAllByRole("menuitemradio").length).toBe(0);
-    // CTA present + routes correctly.
-    const cta = screen.getByText("Create budget");
+    const cta = screen.getByRole("menuitem", { name: /create budget/i });
     expect(cta).toBeTruthy();
     await user.click(cta);
     expect(pushMock).toHaveBeenCalledWith("/en/budgets/new");

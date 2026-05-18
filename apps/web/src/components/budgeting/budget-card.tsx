@@ -70,7 +70,7 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
 
   return (
     <Link
-      href={`/${locale}/budgets/${budget.id}/spendings`}
+      href={`/${locale}/budgets/${budget.id}/wallets`}
       aria-label={t("card.openAria", { budgetName: budget.name })}
       className="group block rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-transparent transition-all hover:border-[var(--primary)] hover:scale-[1.01] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--info-ring)] focus-visible:outline-offset-2"
     >

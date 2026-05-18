@@ -5,7 +5,6 @@ import {
   BudgetSwitcher,
   type BudgetSummary,
 } from "@/components/budgeting/budget-switcher";
-import { NewBudgetButton } from "@/components/budgeting/new-budget-button";
 
 interface TopNavProps {
   locale: string;
@@ -45,7 +44,6 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
           activeBudgetId={activeBudgetId}
           locale={locale}
         />
-        <NewBudgetButton locale={locale} />
       </div>
       <div className="flex items-center gap-3">
         <SignOutButton locale={locale} />
