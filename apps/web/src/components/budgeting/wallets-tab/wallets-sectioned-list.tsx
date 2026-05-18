@@ -36,6 +36,11 @@ import { useCreateWallet } from "@/hooks/use-create-wallet";
 import { useArchiveWallet } from "@/hooks/use-archive-wallet";
 import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
+// UAT-PH5-T3-28: import the ghost preview's helpers statically. Inline
+// `require()` worked on dev but blew up on iOS Safari with a
+// client-side exception when the row's DragOverlay first rendered.
+import { iconByName } from "./wallet-customizer";
+import { centsToBare } from "@/lib/cents-format";
 
 type WalletType = WalletDto["walletType"];
 
@@ -94,7 +99,8 @@ export function WalletsSectionedList({
   // the pointer is over the background, a sibling row, or the +Add row.
   function resolveSection(id: string | null | undefined): WalletType | null {
     if (!id) return null;
-    if (id.startsWith("section-")) return id.slice("section-".length) as WalletType;
+    if (id.startsWith("section-"))
+      return id.slice("section-".length) as WalletType;
     const w = wallets.find((x) => x.id === id);
     return w ? w.walletType : null;
   }
@@ -153,23 +159,26 @@ export function WalletsSectionedList({
     // D-PH5-W8: use mutateAsync + try/catch so the per-call error branch
     // runs in the same microtask as the drag handler (avoids per-call
     // callback lifecycle issues with fire-and-forget mutate()).
-    updateMut.mutateAsync({ walletId: w.id, walletType: newType }).then(() => {
-      toast.success(t("moved", { name: walletName, sectionLabel: newType }), {
-        description: undefined,
+    updateMut
+      .mutateAsync({ walletId: w.id, walletType: newType })
+      .then(() => {
+        toast.success(t("moved", { name: walletName, sectionLabel: newType }), {
+          description: undefined,
+        });
+      })
+      .catch((err: Error & { code?: string | null }) => {
+        if (err?.code === "reserve_currency_mismatch") {
+          // D-PH5-W8: show translated toast with budget currency (not raw i18n key).
+          toast.error(
+            t("reserveCurrencyRejected", {
+              budgetCcy: budgetCurrency,
+              name: walletName,
+              originalSectionLabel: originalType,
+            }),
+          );
+        }
+        // Non-mismatch errors: useUpdateWallet.onError already handled the toast.
       });
-    }).catch((err: Error & { code?: string | null }) => {
-      if (err?.code === "reserve_currency_mismatch") {
-        // D-PH5-W8: show translated toast with budget currency (not raw i18n key).
-        toast.error(
-          t("reserveCurrencyRejected", {
-            budgetCcy: budgetCurrency,
-            name: walletName,
-            originalSectionLabel: originalType,
-          }),
-        );
-      }
-      // Non-mismatch errors: useUpdateWallet.onError already handled the toast.
-    });
   }
 
   // UAT-PH5-T3-1x: render each section in sortOrder so intra-section reorder
@@ -329,8 +338,6 @@ function WalletDragGhost({
   color: string | null;
   icon: string | null;
 }) {
-  const { iconByName } = require("./wallet-customizer") as typeof import("./wallet-customizer");
-  const { centsToBare } = require("@/lib/cents-format") as typeof import("@/lib/cents-format");
   const Icon = iconByName(icon);
   return (
     <div
