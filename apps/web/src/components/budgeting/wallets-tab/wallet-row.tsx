@@ -253,7 +253,7 @@ function PersistedRow({
         // user feedback.
         visibility: isDragging ? "hidden" : undefined,
       }}
-      className="group flex min-h-[56px] min-w-full shrink-0 snap-start items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px] sm:min-w-0 sm:flex-1"
+      className="group flex min-h-[56px] w-full shrink-0 snap-start items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px] sm:w-auto sm:flex-1"
     >
       <RowDragHandle
         name={wallet.name || "wallet"}
