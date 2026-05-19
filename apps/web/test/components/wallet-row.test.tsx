@@ -162,9 +162,12 @@ describe("WalletRow — persisted mode", () => {
         isReserveSection={false}
       />,
     );
-    // InlineEditCell renders as role="button" for the resting state
-    const currencyCell = screen.getByTestId(`wallet-currency-${SPENDINGS_WALLET.id}`);
-    expect(currencyCell).toBeInTheDocument();
+    // UAT-PH5-T3-42: CurrencyPicker now renders directly (no
+    // InlineEditCell wrapper) so the picker handles its own
+    // touch/desktop rendering — Radix combobox or native select.
+    // Verify a usable currency control is present.
+    const stub = screen.getByTestId("currency-picker");
+    expect(stub).toBeInTheDocument();
   });
 
   it("RESERVE wallet: Currency cell is plain text with aria-label (read-only per D-PH5-R3)", () => {

@@ -369,6 +369,18 @@ function PersistedRow({
         aria-hidden={offset === 0}
         tabIndex={offset === 0 ? -1 : 0}
         onClick={() => setConfirmOpen(true)}
+        style={{
+          // UAT-PH5-T3-42: fade in with the swipe — at rest the button
+          // sits BEHIND the row but the row's rounded right corner used
+          // to expose a red sliver in the curve. Opacity gates on
+          // offset so the button is fully invisible at rest and reaches
+          // full opacity by the time the row has slid the full
+          // ACTION_W. pointer-events follow visibility so the hidden
+          // button can't catch stray taps either.
+          opacity: Math.min(1, Math.abs(offset) / ACTION_W),
+          pointerEvents: offset === 0 ? "none" : "auto",
+          transition: swiping ? "none" : "opacity 200ms ease-out",
+        }}
         className={[
           "absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center",
           "rounded-[var(--radius-md)] bg-[var(--destructive)]",
@@ -447,7 +459,14 @@ function PersistedRow({
       </div>
 
       {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
-          UAT-PH5-T3-24: narrower on mobile so name + amount have room. */}
+          UAT-PH5-T3-24: narrower on mobile so name + amount have room.
+          UAT-PH5-T3-42: render the CurrencyPicker directly (no
+          InlineEditCell wrapper). On touch devices the picker emits a
+          native <select> which opens the system wheel on the very
+          first tap; the previous two-tap flow (tap cell → tap select)
+          was fragile on iOS Safari. Desktop still works because Radix
+          Select is its own click-to-open trigger. Mutation runs from
+          onSelect directly. */}
       <div className="w-[36px] sm:w-[96px]" data-inline-cell>
         {isReserveSection ? (
           <span
@@ -457,27 +476,10 @@ function PersistedRow({
             {wallet.currency}
           </span>
         ) : (
-          <InlineEditCell
+          <CurrencyPicker
             value={wallet.currency}
-            ariaLabel={t("currencyAria")}
-            testId={`wallet-currency-${wallet.id}`}
-            render={(v) => <span className="text-num-md">{v}</span>}
-            renderEditor={(draft, onChange, onCommit) => (
-              <CurrencyPicker
-                value={draft}
-                onSelect={(v: string) => {
-                  // UAT-PH5-T3-40: commit immediately on picker change.
-                  // Native <select> on iOS closes the system wheel after
-                  // selection and leaves focus on the trigger; there is
-                  // no blur to drive onCommit. Radix Select desktop
-                  // also benefits — the user does not need to click
-                  // outside to save.
-                  onChange(v);
-                  onCommit();
-                }}
-              />
-            )}
-            onSave={(v) => onUpdate({ currency: v })}
+            aria-label={t("currencyAria")}
+            onSelect={(v: string) => onUpdate({ currency: v })}
           />
         )}
       </div>
