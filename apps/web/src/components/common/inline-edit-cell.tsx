@@ -124,11 +124,38 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
   return (
     <div
       data-testid={props.testId ? `${props.testId}-editor` : undefined}
+      // UAT-PH5-T3-36: ancestor scroll containers (e.g. the mobile
+      // wallet row swipe wrapper) read this attribute to relax their
+      // overflow while an editor is active. Without it Radix Select
+      // on touch defers `open` because it detects a scrollable parent.
+      data-editing="true"
       onBlur={(e) => {
-        // Only commit when focus leaves the entire editor container
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+        // UAT-PH5-T3-36: only commit when focus leaves the editor AND
+        // hasn't landed inside a Radix portal that we own (e.g. the
+        // currency Select's listbox, an AlertDialog, etc.). Portals
+        // render in document.body — outside `currentTarget` — so the
+        // naive containment check incorrectly fires onCommit, which
+        // unmounts the editor and detaches the listbox before the
+        // user can tap an option. Defer to the next frame so the
+        // browser has finished moving focus to the new portal node.
+        const editor = e.currentTarget;
+        const relatedTarget = e.relatedTarget as HTMLElement | null;
+        // Fast path: focus moved to an element inside the editor — no commit.
+        if (relatedTarget && editor.contains(relatedTarget)) return;
+        // Defer: lets Radix attach the portal and move focus to it before
+        // we sample document.activeElement.
+        requestAnimationFrame(() => {
+          const active = document.activeElement as HTMLElement | null;
+          if (active && editor.contains(active)) return;
+          if (
+            active?.closest(
+              '[role="listbox"],[role="dialog"],[data-radix-popper-content-wrapper]',
+            )
+          ) {
+            return;
+          }
           onCommit();
-        }
+        });
       }}
       onKeyDown={onEditorKeyDown}
       className="relative"

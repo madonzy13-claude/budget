@@ -249,6 +249,17 @@ function PersistedRow({
         "flex snap-x snap-mandatory overflow-x-auto",
         "[-ms-overflow-style:none] [scrollbar-width:none]",
         "[&::-webkit-scrollbar]:hidden",
+        // UAT-PH5-T3-36: when an inline editor inside the row is
+        // active (Radix Select for currency, text input for name, etc.)
+        // the wrapper relinquishes its overflow-x. Without this, Radix
+        // Select on touch defers `open` because it detects a scrollable
+        // parent and treats the tap as the start of a scroll gesture —
+        // the listbox never appears. InlineEditCell stamps
+        // data-editing="true" on its editor container; we use :has()
+        // to detect it. Modern Safari + Chrome support :has() since
+        // 2022; this is the same selector we already rely on for
+        // group-hover-via-has elsewhere.
+        "has-[[data-editing='true']]:overflow-x-visible has-[[data-editing='true']]:snap-none",
         // Desktop: no swipe — wrapper collapses into the section flow.
         "sm:snap-none sm:overflow-x-visible",
       ].join(" ")}
