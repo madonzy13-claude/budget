@@ -102,14 +102,20 @@ export function ReservesTableRow({
           onSave={async (v) => {
             const cleaned = String(v).replace(",", ".");
             const n = Number(cleaned || "0");
-            const cents = BigInt(Math.round((Number.isFinite(n) ? n : 0) * 100));
+            const cents = BigInt(
+              Math.round((Number.isFinite(n) ? n : 0) * 100),
+            );
             await onUpdate(cents);
           }}
         />
       </div>
 
       {/* Wallet share — em-dash when null OR excluded (D-PH5-R4). Hidden on
-          mobile so the category column has breathing room (T3-45). */}
+          mobile so the category column has breathing room (T3-45).
+          UAT-PH5-T3-50: the amount turns red when this category's
+          reserve balance exceeds the wallet share allocated to it —
+          surfaces the per-row contribution to the global under-funded
+          mismatch. Percent stays muted. */}
       <div className="hidden text-right text-num-md sm:block sm:w-[160px]">
         {sharePct === null || isExcluded ? (
           <span
@@ -119,17 +125,33 @@ export function ReservesTableRow({
             —
           </span>
         ) : (
-          <span>
-            {centsToBare(row.walletShareAmountCents!)}{" "}
-            <span className="text-num-sm text-[var(--muted-foreground)]">
-              ({sharePct.toFixed(0)}%)
-            </span>
-          </span>
+          (() => {
+            const balanceCents = BigInt(row.reserveBalanceCents);
+            const shareCents = BigInt(row.walletShareAmountCents!);
+            const underfunded = balanceCents > shareCents;
+            return (
+              <span>
+                <span
+                  className={
+                    underfunded ? "text-[var(--destructive)]" : undefined
+                  }
+                >
+                  {centsToBare(row.walletShareAmountCents!)}
+                </span>{" "}
+                <span className="text-num-sm text-[var(--muted-foreground)]">
+                  ({sharePct.toFixed(0)}%)
+                </span>
+              </span>
+            );
+          })()
         )}
       </div>
 
       {/* Actions placeholder — hidden on mobile (T3-45). */}
-      <div className="hidden sm:block sm:w-[80px] text-center" aria-hidden="true">
+      <div
+        className="hidden sm:block sm:w-[80px] text-center"
+        aria-hidden="true"
+      >
         <MoreHorizontal className="mx-auto h-4 w-4 text-[var(--muted-strong)]" />
       </div>
     </div>

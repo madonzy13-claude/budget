@@ -39,9 +39,19 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
     if (!editing) setDraft(props.value);
   }, [props.value, editing]);
 
+  // UAT-PH5-T3-50: single-commit guard. Some editor renderers wire
+  // Enter to both `input.blur()` AND propagate to InlineEditCell's own
+  // Enter handler, which fires onCommit twice. The first commit reads
+  // a stale props.value (mutation hasn't settled), so the second
+  // commit re-posts the same delta, double-applying. Track per-edit-
+  // session in a ref so subsequent commits within the same session
+  // no-op until the next beginEdit cycle.
+  const committedRef = React.useRef(false);
+
   const beginEdit = () => {
     if (props.disabled || saving) return;
     setFailed(false);
+    committedRef.current = false;
     setEditing(true);
   };
 
@@ -51,11 +61,17 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
   }, [props.value]);
 
   const onCommit = React.useCallback(async () => {
+    // UAT-PH5-T3-50: refuse re-entry once a commit has been initiated
+    // in this edit session — guards against blur+Enter double-fire that
+    // posted the same delta twice (and pushed the persisted balance
+    // past the user's intended value).
+    if (committedRef.current) return;
     // Use Object.is for value equality (handles primitives + same-ref objects)
     if (Object.is(draft, props.value)) {
       setEditing(false);
       return;
     }
+    committedRef.current = true;
     setSaving(true);
     spinnerTimerRef.current = setTimeout(() => setShowSpinner(true), 200);
     try {
