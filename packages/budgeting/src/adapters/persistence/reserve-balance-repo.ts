@@ -59,10 +59,37 @@ export function createReserveBalanceRepo(): ReserveBalanceRepo {
               q: unknown,
             ) => Promise<{ rows: Record<string, unknown>[] }>;
           };
+          // UAT-PH5-T3-49: the category_reserve_balance VIEW recursion
+          // is bootstrapped from category_limits — categories without
+          // any limit produce no row in the VIEW, so adjustments
+          // recorded against them are silently dropped. Merge the
+          // VIEW with a fallback SUM(delta_cents) from
+          // category_reserve_adjustments for non-excluded categories
+          // that aren't in the VIEW. Categories that ARE in the VIEW
+          // already include adjustments via the VIEW's own JOIN, so
+          // the fallback intentionally excludes them to avoid
+          // double-counting.
           const result = await drizzleTx.execute(
-            sql`SELECT category_id, balance_cents
+            sql`
+              WITH v AS (
+                SELECT category_id, balance_cents
                 FROM budgeting.category_reserve_balance
-                WHERE budget_id = ${budgetId}::uuid`,
+                WHERE budget_id = ${budgetId}::uuid
+              ),
+              adj AS (
+                SELECT a.category_id,
+                       SUM(a.delta_cents)::numeric AS balance_cents
+                FROM budgeting.category_reserve_adjustments a
+                JOIN budgeting.categories c ON c.id = a.category_id
+                WHERE a.tenant_id = ${tenantId}::uuid
+                  AND c.reserve_excluded = false
+                  AND a.category_id NOT IN (SELECT category_id FROM v)
+                GROUP BY a.category_id
+              )
+              SELECT category_id, balance_cents FROM v
+              UNION ALL
+              SELECT category_id, balance_cents FROM adj
+            `,
           );
           return result.rows;
         },
