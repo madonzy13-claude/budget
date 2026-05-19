@@ -155,13 +155,21 @@ export function ReservesTableClient({
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex flex-col gap-4 p-4 pb-20 sm:p-6">
-        {/* Column header row */}
+        {/* Column header row. UAT-PH5-T3-45: hide share + actions on
+            mobile to match the row; shrink the balance column to
+            80 px on mobile so the category name has room. */}
         <div className="flex items-center gap-3 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
           <span className="w-4" aria-hidden="true" />
-          <span className="flex-1">{t("column.category")}</span>
-          <span className="w-[160px] text-right">{t("column.balance")}</span>
-          <span className="w-[200px] text-right">{t("column.share")}</span>
-          <span className="w-[80px] text-center">{t("column.actions")}</span>
+          <span className="min-w-0 flex-1">{t("column.category")}</span>
+          <span className="w-[80px] text-right sm:w-[120px]">
+            {t("column.balance")}
+          </span>
+          <span className="hidden text-right sm:block sm:w-[160px]">
+            {t("column.share")}
+          </span>
+          <span className="hidden text-center sm:block sm:w-[80px]">
+            {t("column.actions")}
+          </span>
         </div>
 
         {/* Active section */}

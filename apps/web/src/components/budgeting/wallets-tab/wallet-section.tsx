@@ -108,10 +108,17 @@ export function WalletSection({
           its own section. Cross-section moves still drop on the section
           background (useDroppable id="section-<TYPE>") wired below. */}
       {(() => {
-        const sectionTotalCents = wallets.reduce(
-          (acc, w) => acc + Number(w.currentBalanceCents),
-          0,
-        );
+        // UAT-PH5-T3-45: per-currency share denominators. Each
+        // currency keeps its own running total so a wallet that lives
+        // alongside siblings in a different currency still gets a
+        // meaningful share % (relative to other wallets in the same
+        // currency), not a 0% from being divided by the mixed sum.
+        const totalsByCurrency: Record<string, number> = {};
+        for (const w of wallets) {
+          totalsByCurrency[w.currency] =
+            (totalsByCurrency[w.currency] ?? 0) +
+            Number(w.currentBalanceCents);
+        }
         // UAT-PH5-T3-30: dynamic amount-column width. Find the longest
         // formatted amount in this section and size every amount cell to
         // exactly fit it (+ a hair of slack). Short values like "0" or
@@ -135,7 +142,7 @@ export function WalletSection({
                   mode="persisted"
                   wallet={w}
                   budgetCurrency={budgetCurrency}
-                  sectionTotalCents={sectionTotalCents}
+                  sectionTotalsByCurrency={totalsByCurrency}
                   maxAmountChars={maxAmountChars}
                   onUpdate={(patch) => onUpdate(w.id, patch)}
                   onArchive={() => onArchive(w.id)}

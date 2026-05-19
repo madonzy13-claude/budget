@@ -40,9 +40,11 @@ interface PersistedProps {
   mode: "persisted";
   wallet: WalletDto;
   budgetCurrency: string;
-  // UAT-PH5-T3-14: sum of currentBalanceCents across all wallets in the same
-  // section, supplied by WalletSection. Used to compute the Share column.
-  sectionTotalCents: number;
+  // UAT-PH5-T3-45: per-currency share denominators. Lookup by
+  // `wallet.currency` so the share column reflects share among
+  // siblings in the SAME currency, not the mixed-currency sum.
+  // Optional — tests that don't exercise the Share column may omit it.
+  sectionTotalsByCurrency?: Record<string, number>;
   // UAT-PH5-T3-30: longest formatted-amount char length across the section.
   // Drives the dynamic min-width of the amount column so short balances
   // ("0", "456") don't leave a wide gap between currency and amount.
@@ -192,7 +194,7 @@ function DraftRow({
 function PersistedRow({
   wallet,
   budgetCurrency,
-  sectionTotalCents,
+  sectionTotalsByCurrency,
   maxAmountChars,
   onUpdate,
   onArchive,
@@ -550,9 +552,12 @@ function PersistedRow({
         className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]"
         aria-label={t("shareAria", { name: wallet.name })}
       >
-        {sectionTotalCents > 0
-          ? `${((Number(wallet.currentBalanceCents) / sectionTotalCents) * 100).toFixed(0)}%`
-          : "—"}
+        {(() => {
+          const denom = sectionTotalsByCurrency?.[wallet.currency] ?? 0;
+          if (denom <= 0) return "—";
+          const pct = (Number(wallet.currentBalanceCents) / denom) * 100;
+          return `${pct.toFixed(0)}%`;
+        })()}
       </div>
 
       {/* Trash — desktop only. Hover-revealed; mobile uses swipe instead. */}

@@ -189,31 +189,32 @@ describe("WalletRow — persisted mode", () => {
     expect(readOnlySpan).toBeInTheDocument();
   });
 
-  // UAT-PH5-T3-14: Share column renders wallet's share of section total.
-  it("renders Share column = wallet.amount / sectionTotalCents as %", () => {
+  // UAT-PH5-T3-14 + T3-45: Share column reflects wallet's share among
+  // same-currency siblings in the section.
+  it("renders Share column = wallet.amount / same-currency total as %", () => {
     render(
       <WalletRow
         mode="persisted"
         wallet={SPENDINGS_WALLET}
         budgetCurrency="EUR"
-        sectionTotalCents={20000}
+        sectionTotalsByCurrency={{ EUR: 20000 }}
         onUpdate={vi.fn().mockResolvedValue(undefined)}
         onArchive={vi.fn()}
         isReserveSection={false}
       />,
     );
-    // SPENDINGS_WALLET cents = 5000 / sectionTotal 20000 = 25%
+    // SPENDINGS_WALLET cents = 5000 / EUR total 20000 = 25%
     const share = screen.getByTestId(`wallet-share-${SPENDINGS_WALLET.id}`);
     expect(share).toHaveTextContent("25%");
   });
 
-  it("Share column renders em-dash when sectionTotalCents = 0", () => {
+  it("Share column renders em-dash when same-currency total = 0", () => {
     render(
       <WalletRow
         mode="persisted"
         wallet={{ ...SPENDINGS_WALLET, currentBalanceCents: "0" }}
         budgetCurrency="EUR"
-        sectionTotalCents={0}
+        sectionTotalsByCurrency={{ EUR: 0 }}
         onUpdate={vi.fn().mockResolvedValue(undefined)}
         onArchive={vi.fn()}
         isReserveSection={false}

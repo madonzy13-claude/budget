@@ -9,6 +9,7 @@
 import * as React from "react";
 import { MismatchChip } from "./mismatch-chip";
 import { useTranslations } from "next-intl";
+import { centsToBare } from "@/lib/cents-format";
 
 export interface ReservesTotalsFooterProps {
   totalCategoryCents: string;
@@ -25,12 +26,8 @@ export function ReservesTotalsFooter({
 }: ReservesTotalsFooterProps) {
   const t = useTranslations("bdp.tab.reserves");
 
-  const fmt = (cents: string) =>
-    new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      currencyDisplay: "code",
-    }).format(Number(cents) / 100);
+  // UAT-PH5-T3-45: bare number formatting to match wallets.
+  const fmt = (cents: string) => centsToBare(cents);
 
   const m = BigInt(mismatchCents);
   const variant: "overfunded" | "underfunded" | "reconciled" =
@@ -50,10 +47,14 @@ export function ReservesTotalsFooter({
     <div
       data-testid="reserves-totals-footer"
       className={[
-        "sticky bottom-0 z-30",
+        // UAT-PH5-T3-45: float as a card inset from the viewport
+        // edges so it visually matches the centered table column.
+        // Extra bottom padding on mobile keeps the red mismatch
+        // chip clear of the iOS home-indicator area.
+        "sticky bottom-4 z-30 mx-4 sm:bottom-6 sm:mx-6",
         "flex flex-col gap-2",
-        "border-t border-[var(--hairline-dark)]",
-        "bg-[var(--surface-card-dark)] px-4 py-3",
+        "rounded-[var(--radius-md)] border border-[var(--hairline-dark)]",
+        "bg-[var(--surface-card-dark)] px-4 py-3 pb-6 sm:pb-3",
         "min-h-[72px] sm:min-h-[56px]",
         "sm:flex-row sm:items-center sm:justify-between",
       ].join(" ")}
