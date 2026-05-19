@@ -2,14 +2,15 @@
 /**
  * use-update-reserve-adjustment.ts — Mutation to POST a reserve balance adjustment.
  *
- * POST /budgets/:id/reserves/:categoryId/adjust
- * body: { deltaCents: number (signed, nonzero), note?: string }
+ * UAT-PH5-T3-54: input is the TARGET expected value (cents, non-negative),
+ * not a signed delta. Server appends `newExpected - oldExpected` to the ledger
+ * and mutates `categories.reserve_actual_cents` via the allocator.
  *
- * D-PH5-R7: caller computes delta = newAbsoluteValue - currentEffectiveBalance.
- * Optimistic: updates the row's reserveBalanceCents in the Active rows cache.
- * W-3: only touches summary.rows (Active); summary.excludedRows is never mutated here.
- * On error: rolls back + toasts bdp.tab.reserves.toast.saveFailed.
- * On success: toasts bdp.tab.reserves.toast.saved + invalidates query.
+ * POST /budgets/:id/reserves/:categoryId/adjust
+ * body: { expectedCents: number, note?: string }
+ *
+ * Optimistic: overwrites reserveBalanceCents on the row to the new target.
+ * W-3: only touches summary.rows (Active); excludedRows untouched.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -18,27 +19,18 @@ import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { ReservesSummaryDto } from "./use-reserves-summary";
 
-/**
- * Compute the signed delta to POST to /adjust.
- * Both inputs are cents as bigints.
- */
-export function computeDelta(newCents: bigint, currentCents: bigint): bigint {
-  return newCents - currentCents;
-}
-
 export function useUpdateReserveAdjustment(budgetId: string) {
   const qc = useQueryClient();
-  // UAT-PH5-T3-35: translate toast strings.
   const t = useTranslations("bdp.tab.reserves.toast");
 
   return useMutation({
     mutationFn: async (input: {
       categoryId: string;
-      deltaCents: number;
+      expectedCents: number;
       note?: string;
     }) => {
-      const body: { deltaCents: number; note?: string } = {
-        deltaCents: input.deltaCents,
+      const body: { expectedCents: number; note?: string } = {
+        expectedCents: input.expectedCents,
       };
       if (input.note !== undefined) body.note = input.note;
 
@@ -75,13 +67,10 @@ export function useUpdateReserveAdjustment(budgetId: string) {
               r.categoryId === input.categoryId
                 ? {
                     ...r,
-                    reserveBalanceCents: (
-                      BigInt(r.reserveBalanceCents) + BigInt(input.deltaCents)
-                    ).toString(),
+                    reserveBalanceCents: input.expectedCents.toString(),
                   }
                 : r,
             ),
-            // W-3: excludedRows are NOT touched — frozen real balances stay intact
           };
         },
       );

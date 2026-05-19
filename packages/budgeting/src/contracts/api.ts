@@ -487,14 +487,13 @@ export type UpdateWalletBody = z.infer<typeof updateWalletSchema>;
 // ─── Phase 5 Reserves Adjustment ───────────────────────────────────────────
 /**
  * reserveAdjustmentSchema — body for POST /budgets/:id/reserves/:catId/adjust.
- * deltaCents is signed (negative = withdraw).
+ * UAT-PH5-T3-54: input is target expected value (non-negative integer cents),
+ * not a signed delta. Server computes delta = newExpected - oldExpected and
+ * appends to category_reserve_adjustments ledger.
  */
 export const reserveAdjustmentSchema = z
   .object({
-    deltaCents: z
-      .number()
-      .int()
-      .refine((n) => n !== 0, { message: "delta_zero" }),
+    expectedCents: z.number().int().min(0),
     note: z.string().trim().max(280).optional(),
   })
   .strict();

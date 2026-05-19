@@ -13,6 +13,7 @@ import {
   uuid,
   text,
   boolean,
+  bigint,
   integer,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -35,6 +36,12 @@ export const categories = budgeting.table(
     // Phase 5 (D-PH5-R10): excluded categories are hidden from reserve math totals.
     // Drag between Active/Excluded sections on the Reserves tab toggles this flag.
     reserveExcluded: boolean("reserve_excluded").notNull().default(false),
+    // UAT-PH5-T3-54: stored "actual" cents per category. Mutated only by
+    // applyExpectedChange / applyExclude / applyWalletDelta events. Never
+    // auto-rebalanced on read. See packages/budgeting/src/domain/reserve-allocator.ts.
+    reserveActualCents: bigint("reserve_actual_cents", { mode: "bigint" })
+      .notNull()
+      .default(0n),
   },
   (t) => [
     pgPolicy("categories_tenant_isolation", {

@@ -1,21 +1,27 @@
 /**
- * get-reserves-summary.ts — Composed read: per-category reserve summary with share math.
+ * get-reserves-summary.ts — Read: per-category reserve summary.
  *
- * D-PH5-R1 shape: { rows, excludedRows, totals }
- *   rows:         Active (non-excluded) categories — share math + totals
- *   excludedRows: Excluded categories — FROZEN REAL balance (W-3), share always null
- *   totals:       Σ Active only (D-PH5-R10); mismatch signed; disabled cascading hide
+ * UAT-PH5-T3-54 (architecture pivot):
+ *   `actual` is a STORED value per category (`categories.reserve_actual_cents`).
+ *   This use case never recomputes or redistributes actual on read — it returns
+ *   the value persisted by previous mutation events (adjust / wallet edit /
+ *   exclude). Walk-by-timestamp and sticky-allocation are GONE.
  *
- * Share math (D-PH5-R2):
- *   walletSharePercent  = (categoryBalance / Σ Active balances) × 100
- *   walletShareAmountCents = (categoryBalance / Σ Active balances) × Σ RESERVE wallet amounts
- *   Both null when Σ Active = 0 OR Σ RESERVE wallets = 0 (D-PH5-R4).
+ *   Share math is trivial:
+ *     walletShareAmountCents = actualCents       (per category)
+ *     walletSharePercent     = actual / Σ Active wallet share × 100
+ *                              (null when Σ wallets = 0)
  *
- * W-3 invariant: excludedRows NEVER synthesize "0" for frozen balance — they use
- * getExcludedForBudget (real math, same accumulation, opposite reserve_excluded filter).
- * "0" appears only when the category genuinely has no limit history AND no adjustments.
+ *   `mismatchCents` is the signed banner number:
+ *     walletPool − Σ Active expected
+ *     Positive  → "wallet has more than needed"
+ *     Negative  → "wallet missing"
  *
- * D-PH5-R11 cascading hide: reserves_enabled=false → rows=[], excludedRows=[], disabled=true.
+ *   W-3: excludedRows show the FROZEN real expected; share always null;
+ *   their stored actual is 0 (released on exclude).
+ *
+ *   D-PH5-R11 cascading hide: reserves_enabled=false → rows=[], excludedRows=[],
+ *   disabled=true.
  *
  * Plan 05-03 / RSRV-01, RSRV-07.
  */
@@ -27,29 +33,24 @@ import type { CategoriesRepo } from "../ports/categories-repo";
 export interface ReservesSummaryRow {
   categoryId: string;
   name: string;
-  /** Integer cents as string (bigint safety). */
   reserveBalanceCents: string;
-  /** Null when Σ Active = 0 OR Σ wallets = 0 (rendered as em-dash by FE). */
   walletSharePercent: number | null;
   walletShareAmountCents: string | null;
 }
 
 export interface ReservesSummaryDto {
-  /** Active (non-excluded) categories — drive share math + totals. */
   rows: ReservesSummaryRow[];
-  /** Excluded categories — FROZEN REAL balance; share always null; NOT in totals. */
   excludedRows: ReservesSummaryRow[];
   totals: {
-    totalCategoryReservesCents: string; // Σ Active only
+    totalCategoryReservesCents: string;
     totalReserveWalletAmountCents: string;
-    mismatchCents: string; // signed; positive = overfunded
+    mismatchCents: string;
     disabled: boolean;
     budgetCurrency: string;
   };
 }
 
 export interface GetReservesSummaryDeps {
-  /** Must expose getForBudget (Active VIEW) AND getExcludedForBudget (Excluded, W-3). */
   reserveBalanceRepo: ReserveBalanceRepo;
   reservesSummaryRepo: ReservesSummaryRepo;
   categoriesRepo: CategoriesRepo;
@@ -82,114 +83,54 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
         });
       }
 
-      // Parallel reads — no data dependency between them.
-      const [
-        activeBalanceMap,
-        excludedBalanceMap,
-        categories,
-        reserveWalletSum,
-        lastAdjustedAt,
-      ] = await Promise.all([
-        deps.reserveBalanceRepo.getForBudget(
-          input.budgetId,
-          input.tenantId,
-          new Date(),
-        ),
-        deps.reserveBalanceRepo.getExcludedForBudget(
-          input.budgetId,
-          input.tenantId,
-          new Date(),
-        ),
-        deps.categoriesRepo.list(input.tenantId),
-        deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
-        deps.reservesSummaryRepo.getLastAdjustedAtPerCategory(input.tenantId),
-      ]);
+      const [activeBalanceMap, excludedBalanceMap, categories, walletPool] =
+        await Promise.all([
+          deps.reserveBalanceRepo.getForBudget(
+            input.budgetId,
+            input.tenantId,
+            new Date(),
+          ),
+          deps.reserveBalanceRepo.getExcludedForBudget(
+            input.budgetId,
+            input.tenantId,
+            new Date(),
+          ),
+          deps.categoriesRepo.list(input.tenantId),
+          deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
+        ]);
 
-      // Partition by reserveExcluded flag.
       const activeCats = categories.filter((c) => !c.reserveExcluded);
       const excludedCats = categories.filter((c) => c.reserveExcluded);
 
-      // Compute Active row balances + total (drives share math).
       let totalCategoryReserves = 0n;
-      const activeRowData: { id: string; name: string; cents: bigint }[] = [];
-      for (const cat of activeCats) {
-        const m = activeBalanceMap.get(cat.id);
-        // Money.amount is a Big instance; .times("100").toFixed(0) rounds to cents.
-        const centsStr = m ? m.amount.times("100").toFixed(0) : "0";
-        const cents = BigInt(centsStr);
-        activeRowData.push({ id: cat.id, name: cat.name, cents });
-        totalCategoryReserves += cents;
-      }
+      const rows: ReservesSummaryRow[] = activeCats.map((c) => {
+        const m = activeBalanceMap.get(c.id);
+        const expectedCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
+        totalCategoryReserves += expectedCents;
+        const actualCents = c.reserveActualCents ?? 0n;
 
-      const totalWallets: bigint = reserveWalletSum;
-
-      // UAT-PH5-T3-51/T3-53: Sticky allocation — the category most
-      // recently modified absorbs the deficit. Walk activeRowData
-      // ordered by last adjustment time ASC; oldest-touched rows get
-      // their full requested balance first, the recently-edited row
-      // gets whatever's left (which may be less than what it asked
-      // for — that's the under-funded mismatch).
-      //
-      // Concrete example user reported: wallets=17, H added then set
-      // to 2, G added then set to 9, then G→25. Without timestamp
-      // ordering, walking by creation order would let G consume the
-      // pool and zero out H. With timestamp ordering: H (last=t1) is
-      // walked first (gets 2), G (last=t3) walked last (gets 15 of 25
-      // requested → mismatch=-10).
-      //
-      // Categories never adjusted are walked FIRST (treated as
-      // -Infinity). Their balance is 0 anyway (no adjustments AND no
-      // limit history), so position doesn't matter for them.
-      //
-      // Canonical creation order is preserved for the OUTPUT rows so
-      // the UI list ordering stays stable; only the allocation walk
-      // uses timestamp order.
-      const allocationOrder = [...activeRowData].sort((a, b) => {
-        const ta = lastAdjustedAt.get(a.id)?.getTime() ?? -Infinity;
-        const tb = lastAdjustedAt.get(b.id)?.getTime() ?? -Infinity;
-        return ta - tb;
-      });
-
-      let availableWallets: bigint = totalWallets;
-      const allocatedMap = new Map<string, bigint>();
-      for (const r of allocationOrder) {
-        const allocated =
-          totalWallets === 0n
-            ? 0n
-            : r.cents <= availableWallets
-              ? r.cents
-              : availableWallets;
-        availableWallets -= allocated;
-        allocatedMap.set(r.id, allocated);
-      }
-
-      const rows: ReservesSummaryRow[] = activeRowData.map((r) => {
-        const allocated = allocatedMap.get(r.id) ?? 0n;
         const sharePct =
-          totalCategoryReserves === 0n || totalWallets === 0n
+          walletPool === 0n
             ? null
-            : Number((allocated * 10000n) / totalWallets) / 100;
-        const shareAmt = sharePct === null ? null : allocated.toString();
+            : Number((actualCents * 10000n) / walletPool) / 100;
+        const shareAmt = walletPool === 0n ? null : actualCents.toString();
+
         return {
-          categoryId: r.id,
-          name: r.name,
-          reserveBalanceCents: r.cents.toString(),
+          categoryId: c.id,
+          name: c.name,
+          reserveBalanceCents: expectedCents.toString(),
           walletSharePercent: sharePct,
           walletShareAmountCents: shareAmt,
         };
       });
 
-      // Build Excluded rows — REAL FROZEN balance from getExcludedForBudget (W-3).
-      // Share is always null (Excluded categories don't participate in share math).
-      // "0" is emitted ONLY when the map has no entry — meaning genuinely zero
-      // (no limit history AND no adjustments), NOT as a placeholder.
-      const excludedRows: ReservesSummaryRow[] = excludedCats.map((cat) => {
-        const m = excludedBalanceMap.get(cat.id);
-        const centsStr = m ? m.amount.times("100").toFixed(0) : "0";
+      const excludedRows: ReservesSummaryRow[] = excludedCats.map((c) => {
+        const m = excludedBalanceMap.get(c.id);
+        const expectedCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
         return {
-          categoryId: cat.id,
-          name: cat.name,
-          reserveBalanceCents: centsStr,
+          categoryId: c.id,
+          name: c.name,
+          reserveBalanceCents: expectedCents.toString(),
           walletSharePercent: null,
           walletShareAmountCents: null,
         };
@@ -200,8 +141,8 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
         excludedRows,
         totals: {
           totalCategoryReservesCents: totalCategoryReserves.toString(),
-          totalReserveWalletAmountCents: totalWallets.toString(),
-          mismatchCents: (totalWallets - totalCategoryReserves).toString(),
+          totalReserveWalletAmountCents: walletPool.toString(),
+          mismatchCents: (walletPool - totalCategoryReserves).toString(),
           disabled: false,
           budgetCurrency,
         },

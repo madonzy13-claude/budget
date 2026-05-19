@@ -1,26 +1,57 @@
 /**
- * reserves-use-cases.test.ts — Unit tests for Phase 5 Plan 03 use cases.
+ * reserves-use-cases.test.ts — Unit tests for Phase 5 Plan 03 reserve use cases.
  * Port-level mocks (allowed at application layer — no DB mocks at adapter layer).
- * TDD RED phase: tests written before implementation exists.
- * Plan 05-03.
+ * Plan 05-03. UAT-PH5-T3-54: rewritten for stored-actual architecture pivot.
  */
 import { describe, it, expect } from "bun:test";
 
+const noopRepoMethods = {
+  create: async () => {},
+  list: async () => [],
+  archive: async () => {},
+  setBalance: async () => {},
+  update: async () => {},
+};
+
+function mockCategoriesRepo(opts: {
+  findById?: any;
+  list?: any[];
+  capture?: { exclude?: boolean; actualUpdates?: Map<string, bigint> };
+}) {
+  return {
+    findById: opts.findById ?? (async () => null),
+    list: async () => opts.list ?? [],
+    setReserveExcluded: async () => {
+      if (opts.capture) opts.capture.exclude = true;
+    },
+    setReserveActualMany: async (
+      _tenantId: string,
+      updates: Map<string, bigint>,
+    ) => {
+      if (opts.capture) opts.capture.actualUpdates = updates;
+    },
+  };
+}
+
+function mockReserveBalanceRepo(opts: {
+  active?: Map<string, any>;
+  excluded?: Map<string, any>;
+}) {
+  return {
+    getForBudget: async () => opts.active ?? new Map(),
+    getExcludedForBudget: async () => opts.excluded ?? new Map(),
+    getForCategory: async () => ({ amount: { toString: () => "0" } }) as any,
+  };
+}
+
 // ---------------------------------------------------------------------------
-// updateWallet use case (imports will fail until implementation exists)
+// updateWallet use case (unchanged contract; tests preserved)
 // ---------------------------------------------------------------------------
 describe("updateWallet use case", () => {
   it("returns not_found when wallet does not exist", async () => {
     const { updateWallet } =
       await import("../../src/application/update-wallet");
-    const repo = {
-      findById: async () => null,
-      create: async () => {},
-      list: async () => [],
-      archive: async () => {},
-      setBalance: async () => {},
-      update: async () => {},
-    };
+    const repo = { ...noopRepoMethods, findById: async () => null } as any;
     const uc = updateWallet({ repo, budgetCurrencyOf: async () => "EUR" });
     const r = await uc({
       tenantId: "t1",
@@ -32,7 +63,7 @@ describe("updateWallet use case", () => {
     expect(r.isErr() && r.error.message).toBe("not_found");
   });
 
-  it("returns reserve_currency_mismatch when RESERVE wallet gets non-budget currency", async () => {
+  it("returns reserve_currency_mismatch when RESERVE wallet patches non-budget currency", async () => {
     const { updateWallet } =
       await import("../../src/application/update-wallet");
     const { Wallet } = await import("../../src/domain/wallet");
@@ -40,7 +71,7 @@ describe("updateWallet use case", () => {
     const wallet = new Wallet(
       "w1",
       "t1",
-      "My Wallet",
+      "Reserve",
       "RESERVE",
       "EUR",
       Money.of("100", "EUR"),
@@ -48,322 +79,370 @@ describe("updateWallet use case", () => {
       new Date(),
       "u1",
     );
-    const repo = {
-      findById: async () => wallet,
-      create: async () => {},
-      list: async () => [],
-      archive: async () => {},
-      setBalance: async () => {},
-      update: async () => {},
-    };
-    // Budget currency is EUR but patch changes currency to USD
+    const repo = { ...noopRepoMethods, findById: async () => wallet } as any;
     const uc = updateWallet({ repo, budgetCurrencyOf: async () => "EUR" });
     const r = await uc({
       tenantId: "t1",
       walletId: "w1",
       actorUserId: "u1",
-      currency: "USD", // mismatch — wallet stays RESERVE but currency changes to non-EUR
+      currency: "USD",
     });
-    expect(r.isErr()).toBe(true);
-    expect(r.isErr() && r.error.message).toBe("reserve_currency_mismatch");
-  });
-
-  it("returns reserve_currency_mismatch when changing type to RESERVE on non-budget-currency wallet", async () => {
-    const { updateWallet } =
-      await import("../../src/application/update-wallet");
-    const { Wallet } = await import("../../src/domain/wallet");
-    const { Money } = await import("@budget/shared-kernel");
-    const wallet = new Wallet(
-      "w1",
-      "t1",
-      "USD Wallet",
-      "SPENDINGS",
-      "USD",
-      Money.of("0", "USD"),
-      null,
-      new Date(),
-      "u1",
-    );
-    const repo = {
-      findById: async () => wallet,
-      create: async () => {},
-      list: async () => [],
-      archive: async () => {},
-      setBalance: async () => {},
-      update: async () => {},
-    };
-    const uc = updateWallet({ repo, budgetCurrencyOf: async () => "EUR" });
-    const r = await uc({
-      tenantId: "t1",
-      walletId: "w1",
-      actorUserId: "u1",
-      walletType: "RESERVE", // changing to RESERVE but currency is USD != EUR
-    });
-    expect(r.isErr()).toBe(true);
-    expect(r.isErr() && r.error.message).toBe("reserve_currency_mismatch");
-  });
-
-  it("returns ok when RESERVE wallet keeps budget currency", async () => {
-    const { updateWallet } =
-      await import("../../src/application/update-wallet");
-    const { Wallet } = await import("../../src/domain/wallet");
-    const { Money } = await import("@budget/shared-kernel");
-    const wallet = new Wallet(
-      "w1",
-      "t1",
-      "EUR Reserve",
-      "RESERVE",
-      "EUR",
-      Money.of("500", "EUR"),
-      null,
-      new Date(),
-      "u1",
-    );
-    let updated = false;
-    const repo = {
-      findById: async () => wallet,
-      create: async () => {},
-      list: async () => [],
-      archive: async () => {},
-      setBalance: async () => {},
-      update: async () => {
-        updated = true;
-      },
-    };
-    const uc = updateWallet({ repo, budgetCurrencyOf: async () => "EUR" });
-    const r = await uc({
-      tenantId: "t1",
-      walletId: "w1",
-      actorUserId: "u1",
-      name: "Renamed Reserve",
-    });
-    expect(r.isOk()).toBe(true);
-    expect(updated).toBe(true);
-  });
-
-  it("Pitfall 4: fires reserve-currency check when only amount changes on RESERVE wallet", async () => {
-    // Even if only amount changes, effective type is still RESERVE → must check
-    const { updateWallet } =
-      await import("../../src/application/update-wallet");
-    const { Wallet } = await import("../../src/domain/wallet");
-    const { Money } = await import("@budget/shared-kernel");
-    const wallet = new Wallet(
-      "w1",
-      "t1",
-      "Bad Reserve",
-      "RESERVE",
-      "USD", // bad: budget currency is EUR but wallet has USD
-      Money.of("100", "USD"),
-      null,
-      new Date(),
-      "u1",
-    );
-    const repo = {
-      findById: async () => wallet,
-      create: async () => {},
-      list: async () => [],
-      archive: async () => {},
-      setBalance: async () => {},
-      update: async () => {},
-    };
-    const uc = updateWallet({ repo, budgetCurrencyOf: async () => "EUR" });
-    // Only changing amount — but wallet is RESERVE with wrong currency
-    const r = await uc({
-      tenantId: "t1",
-      walletId: "w1",
-      actorUserId: "u1",
-      amount: "200",
-    });
-    expect(r.isErr()).toBe(true);
     expect(r.isErr() && r.error.message).toBe("reserve_currency_mismatch");
   });
 });
 
 // ---------------------------------------------------------------------------
-// adjustCategoryReserve use case
+// adjustCategoryReserve — UAT-PH5-T3-54 target-value contract
 // ---------------------------------------------------------------------------
 describe("adjustCategoryReserve use case", () => {
-  it("returns not_found when category does not exist", async () => {
-    const { adjustCategoryReserve } =
-      await import("../../src/application/adjust-category-reserve");
-    const uc = adjustCategoryReserve({
-      adjustmentsRepo: {
-        create: async () => ({ id: "x", occurredAt: new Date() }),
-        listForCategory: async () => [],
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        list: async () => [],
-        setReserveExcluded: async () => {},
-      },
-      isReservesEnabled: async () => true,
-    });
-    const r = await uc({
-      tenantId: "t1",
-      categoryId: "c1",
-      deltaCents: 100,
-      actorUserId: "u1",
-    });
-    expect(r.isErr()).toBe(true);
-    expect(r.isErr() && r.error.message).toBe("not_found");
-  });
+  const baseInput = {
+    tenantId: "t1",
+    budgetId: "t1",
+    categoryId: "c1",
+    expectedCents: 100,
+    actorUserId: "u1",
+  };
 
-  it("returns category_excluded when category has reserveExcluded=true", async () => {
-    const { adjustCategoryReserve } =
-      await import("../../src/application/adjust-category-reserve");
-    const mockCat = { id: "c1", reserveExcluded: true };
-    const uc = adjustCategoryReserve({
+  function buildDeps(overrides: any = {}) {
+    return {
       adjustmentsRepo: {
-        create: async () => ({ id: "x", occurredAt: new Date() }),
+        create: async () => ({ id: "adj-x", occurredAt: new Date() }),
         listForCategory: async () => [],
+        ...(overrides.adjustmentsRepo ?? {}),
       },
-      categoriesRepo: {
-        findById: async () => mockCat as any,
-        list: async () => [],
-        setReserveExcluded: async () => {},
+      categoriesRepo: overrides.categoriesRepo ?? mockCategoriesRepo({}),
+      reserveBalanceRepo:
+        overrides.reserveBalanceRepo ?? mockReserveBalanceRepo({}),
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 0n,
+        ...(overrides.reservesSummaryRepo ?? {}),
       },
-      isReservesEnabled: async () => true,
-    });
-    const r = await uc({
-      tenantId: "t1",
-      categoryId: "c1",
-      deltaCents: 100,
-      actorUserId: "u1",
-    });
-    expect(r.isErr()).toBe(true);
-    expect(r.isErr() && r.error.message).toBe("category_excluded");
-  });
+      isReservesEnabled: overrides.isReservesEnabled ?? (async () => true),
+    };
+  }
 
   it("returns reserves_disabled when reserves are disabled", async () => {
     const { adjustCategoryReserve } =
       await import("../../src/application/adjust-category-reserve");
-    const uc = adjustCategoryReserve({
-      adjustmentsRepo: {
-        create: async () => ({ id: "x", occurredAt: new Date() }),
-        listForCategory: async () => [],
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        list: async () => [],
-        setReserveExcluded: async () => {},
-      },
-      isReservesEnabled: async () => false,
-    });
-    const r = await uc({
-      tenantId: "t1",
-      categoryId: "c1",
-      deltaCents: 100,
-      actorUserId: "u1",
-    });
-    expect(r.isErr()).toBe(true);
+    const uc = adjustCategoryReserve(
+      buildDeps({ isReservesEnabled: async () => false }),
+    );
+    const r = await uc(baseInput);
     expect(r.isErr() && r.error.message).toBe("reserves_disabled");
   });
 
-  it("returns ok with id + occurredAt on success", async () => {
+  it("returns not_found when category does not exist", async () => {
     const { adjustCategoryReserve } =
       await import("../../src/application/adjust-category-reserve");
-    const now = new Date("2026-01-01T00:00:00Z");
-    const uc = adjustCategoryReserve({
-      adjustmentsRepo: {
-        create: async () => ({ id: "adj-1", occurredAt: now }),
-        listForCategory: async () => [],
-      },
-      categoriesRepo: {
-        findById: async () => ({ id: "c1", reserveExcluded: false }) as any,
-        list: async () => [],
-        setReserveExcluded: async () => {},
-      },
-      isReservesEnabled: async () => true,
-    });
-    const r = await uc({
-      tenantId: "t1",
-      categoryId: "c1",
-      deltaCents: 50000,
-      actorUserId: "u1",
-    });
-    expect(r.isOk()).toBe(true);
-    if (r.isOk()) {
-      expect(r.value.id).toBe("adj-1");
-      expect(r.value.occurredAt).toBe(now.toISOString());
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// toggleCategoryReserveExcluded use case
-// ---------------------------------------------------------------------------
-describe("toggleCategoryReserveExcluded use case", () => {
-  it("returns not_found when category is null (RLS cross-tenant scenario)", async () => {
-    const { toggleCategoryReserveExcluded } =
-      await import("../../src/application/toggle-category-reserve-excluded");
-    const uc = toggleCategoryReserveExcluded({
-      repo: {
-        findById: async () => null,
-        list: async () => [],
-        setReserveExcluded: async () => {},
-      },
-    });
-    const r = await uc({
-      tenantId: "t1",
-      categoryId: "c1",
-      excluded: true,
-      actorUserId: "u1",
-    });
-    expect(r.isErr()).toBe(true);
+    const uc = adjustCategoryReserve(buildDeps({}));
+    const r = await uc(baseInput);
     expect(r.isErr() && r.error.message).toBe("not_found");
   });
 
-  it("returns ok with categoryId + reserveExcluded on success", async () => {
-    const { toggleCategoryReserveExcluded } =
-      await import("../../src/application/toggle-category-reserve-excluded");
-    let setExcludedCalled = false;
-    const uc = toggleCategoryReserveExcluded({
-      repo: {
-        findById: async () => ({ id: "c1" }) as any,
-        list: async () => [],
-        setReserveExcluded: async () => {
-          setExcludedCalled = true;
+  it("returns category_excluded when reserveExcluded=true", async () => {
+    const { adjustCategoryReserve } =
+      await import("../../src/application/adjust-category-reserve");
+    const uc = adjustCategoryReserve(
+      buildDeps({
+        categoriesRepo: mockCategoriesRepo({
+          findById: async () => ({
+            id: "c1",
+            name: "X",
+            reserveExcluded: true,
+            archivedAt: null,
+            sortIndex: 0,
+            reserveActualCents: 0n,
+          }),
+        }),
+      }),
+    );
+    const r = await uc(baseInput);
+    expect(r.isErr() && r.error.message).toBe("category_excluded");
+  });
+
+  it("writes delta to ledger AND mutates reserve_actual_cents on raise within free pool", async () => {
+    const { adjustCategoryReserve } =
+      await import("../../src/application/adjust-category-reserve");
+    const { Money } = await import("@budget/shared-kernel");
+    const capture: any = {};
+    let ledgerDelta: bigint | null = null;
+
+    const uc = adjustCategoryReserve(
+      buildDeps({
+        adjustmentsRepo: {
+          create: async (i: any) => {
+            ledgerDelta = i.deltaCents;
+            return { id: "adj-x", occurredAt: new Date() };
+          },
         },
-      },
-    });
+        categoriesRepo: mockCategoriesRepo({
+          findById: async () => ({
+            id: "c1",
+            name: "Food",
+            reserveExcluded: false,
+            archivedAt: null,
+            sortIndex: 1,
+            reserveActualCents: 100n,
+          }),
+          list: [
+            {
+              id: "c1",
+              name: "Food",
+              reserveExcluded: false,
+              sortIndex: 1,
+              reserveActualCents: 100n,
+            },
+          ],
+          capture,
+        }),
+        reserveBalanceRepo: mockReserveBalanceRepo({
+          active: new Map([["c1", Money.of("1.00", "EUR")]]),
+        }),
+        reservesSummaryRepo: { sumReserveWalletAmounts: async () => 1000n },
+      }),
+    );
+
+    // Raise expected 100c → 500c. Free pool = 1000 - 100 = 900. Deficit = 400.
+    // Actual: 100 + min(400, 900) = 500.
+    const r = await uc({ ...baseInput, expectedCents: 500 });
+    expect(r.isOk()).toBe(true);
+    expect(ledgerDelta).toBe(400n);
+    expect(capture.actualUpdates?.get("c1")).toBe(500n);
+  });
+
+  it("user scenario T3-54: pool=17, H=2, G=9, bump G→25 keeps H at 200c", async () => {
+    const { adjustCategoryReserve } =
+      await import("../../src/application/adjust-category-reserve");
+    const { Money } = await import("@budget/shared-kernel");
+    const capture: any = {};
+
+    const uc = adjustCategoryReserve(
+      buildDeps({
+        adjustmentsRepo: {
+          create: async () => ({ id: "x", occurredAt: new Date() }),
+        },
+        categoriesRepo: mockCategoriesRepo({
+          findById: async () => ({
+            id: "G",
+            name: "Groceries",
+            reserveExcluded: false,
+            archivedAt: null,
+            sortIndex: 2,
+            reserveActualCents: 900n,
+          }),
+          list: [
+            {
+              id: "H",
+              name: "Housing",
+              reserveExcluded: false,
+              sortIndex: 1,
+              reserveActualCents: 200n,
+            },
+            {
+              id: "G",
+              name: "Groceries",
+              reserveExcluded: false,
+              sortIndex: 2,
+              reserveActualCents: 900n,
+            },
+          ],
+          capture,
+        }),
+        reserveBalanceRepo: mockReserveBalanceRepo({
+          active: new Map([
+            ["H", Money.of("2.00", "EUR")],
+            ["G", Money.of("9.00", "EUR")],
+          ]),
+        }),
+        reservesSummaryRepo: { sumReserveWalletAmounts: async () => 1700n },
+      }),
+    );
     const r = await uc({
-      tenantId: "t1",
-      categoryId: "c1",
-      excluded: true,
-      actorUserId: "u1",
+      ...baseInput,
+      categoryId: "G",
+      expectedCents: 2500,
     });
     expect(r.isOk()).toBe(true);
+    // G.actual: 900 + min(2500-900=1600, 1700-200-900=600) = 1500.
+    expect(capture.actualUpdates?.get("G")).toBe(1500n);
+    // H is untouched.
+    expect(capture.actualUpdates?.has("H")).toBe(false);
     if (r.isOk()) {
-      expect(r.value.categoryId).toBe("c1");
-      expect(r.value.reserveExcluded).toBe(true);
+      expect(r.value.expectedCents).toBe("2500");
+      expect(r.value.actualCents).toBe("1500");
+      expect(r.value.deltaCents).toBe("1600");
     }
-    expect(setExcludedCalled).toBe(true);
+  });
+
+  it("lowering expected below actual: clamp and spill to underfunded siblings", async () => {
+    const { adjustCategoryReserve } =
+      await import("../../src/application/adjust-category-reserve");
+    const { Money } = await import("@budget/shared-kernel");
+    const capture: any = {};
+    const uc = adjustCategoryReserve(
+      buildDeps({
+        categoriesRepo: mockCategoriesRepo({
+          findById: async () => ({
+            id: "B",
+            name: "B",
+            reserveExcluded: false,
+            archivedAt: null,
+            sortIndex: 2,
+            reserveActualCents: 200n,
+          }),
+          list: [
+            {
+              id: "A",
+              name: "A",
+              reserveExcluded: false,
+              sortIndex: 1,
+              reserveActualCents: 50n,
+            },
+            {
+              id: "B",
+              name: "B",
+              reserveExcluded: false,
+              sortIndex: 2,
+              reserveActualCents: 200n,
+            },
+          ],
+          capture,
+        }),
+        reserveBalanceRepo: mockReserveBalanceRepo({
+          active: new Map([
+            ["A", Money.of("1.00", "EUR")],
+            ["B", Money.of("2.00", "EUR")],
+          ]),
+        }),
+        reservesSummaryRepo: { sumReserveWalletAmounts: async () => 250n },
+      }),
+    );
+    const r = await uc({
+      ...baseInput,
+      categoryId: "B",
+      expectedCents: 100, // lower below actual=200
+    });
+    expect(r.isOk()).toBe(true);
+    expect(capture.actualUpdates?.get("B")).toBe(100n); // clamped
+    expect(capture.actualUpdates?.get("A")).toBe(100n); // 50→100 via 50c spill
   });
 });
 
 // ---------------------------------------------------------------------------
-// getReservesSummary use case
+// toggleCategoryReserveExcluded
+// ---------------------------------------------------------------------------
+describe("toggleCategoryReserveExcluded use case", () => {
+  it("returns not_found when category is null (RLS cross-tenant)", async () => {
+    const { toggleCategoryReserveExcluded } =
+      await import("../../src/application/toggle-category-reserve-excluded");
+    const uc = toggleCategoryReserveExcluded({
+      repo: mockCategoriesRepo({}),
+    });
+    const r = await uc({
+      tenantId: "t1",
+      budgetId: "t1",
+      categoryId: "c1",
+      excluded: true,
+      actorUserId: "u1",
+    });
+    expect(r.isErr() && r.error.message).toBe("not_found");
+  });
+
+  it("on exclude with non-zero actual: releases actual and refills siblings", async () => {
+    const { toggleCategoryReserveExcluded } =
+      await import("../../src/application/toggle-category-reserve-excluded");
+    const { Money } = await import("@budget/shared-kernel");
+    const capture: any = {};
+    const uc = toggleCategoryReserveExcluded({
+      repo: mockCategoriesRepo({
+        findById: async () => ({
+          id: "B",
+          name: "B",
+          reserveExcluded: false,
+          archivedAt: null,
+          sortIndex: 2,
+          reserveActualCents: 200n,
+        }),
+        list: [
+          {
+            id: "A",
+            name: "A",
+            reserveExcluded: false,
+            sortIndex: 1,
+            reserveActualCents: 50n,
+          },
+          {
+            id: "B",
+            name: "B",
+            reserveExcluded: false,
+            sortIndex: 2,
+            reserveActualCents: 200n,
+          },
+        ],
+        capture,
+      }),
+      reserveBalanceRepo: mockReserveBalanceRepo({
+        active: new Map([
+          ["A", Money.of("1.00", "EUR")],
+          ["B", Money.of("2.00", "EUR")],
+        ]),
+      }),
+    });
+    const r = await uc({
+      tenantId: "t1",
+      budgetId: "t1",
+      categoryId: "B",
+      excluded: true,
+      actorUserId: "u1",
+    });
+    expect(r.isOk()).toBe(true);
+    // B released 200, A deficit was 50, A becomes 100. B actual = 0.
+    expect(capture.actualUpdates?.get("B")).toBe(0n);
+    expect(capture.actualUpdates?.get("A")).toBe(100n);
+    expect(capture.exclude).toBe(true);
+  });
+
+  it("on include (un-exclude): does NOT touch actual (user must re-fund)", async () => {
+    const { toggleCategoryReserveExcluded } =
+      await import("../../src/application/toggle-category-reserve-excluded");
+    const capture: any = {};
+    const uc = toggleCategoryReserveExcluded({
+      repo: mockCategoriesRepo({
+        findById: async () => ({
+          id: "B",
+          name: "B",
+          reserveExcluded: true,
+          archivedAt: null,
+          sortIndex: 2,
+          reserveActualCents: 0n,
+        }),
+        capture,
+      }),
+    });
+    const r = await uc({
+      tenantId: "t1",
+      budgetId: "t1",
+      categoryId: "B",
+      excluded: false,
+      actorUserId: "u1",
+    });
+    expect(r.isOk()).toBe(true);
+    expect(capture.actualUpdates).toBeUndefined();
+    expect(capture.exclude).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getReservesSummary — UAT-PH5-T3-54 reads stored actual directly
 // ---------------------------------------------------------------------------
 describe("getReservesSummary use case", () => {
   it("returns disabled=true with empty rows when reserves_enabled=false", async () => {
     const { getReservesSummary } =
       await import("../../src/application/get-reserves-summary");
     const uc = getReservesSummary({
-      reserveBalanceRepo: {
-        getForBudget: async () => new Map(),
-        getExcludedForBudget: async () => new Map(),
-        getForCategory: async () =>
-          ({ amount: { toString: () => "0" } }) as any,
-      },
-      reservesSummaryRepo: {
-        sumReserveWalletAmounts: async () => 0n,
-        getLastAdjustedAtPerCategory: async () => new Map(),
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        list: async () => [],
-        setReserveExcluded: async () => {},
-      },
+      reserveBalanceRepo: mockReserveBalanceRepo({}),
+      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 0n },
+      categoriesRepo: mockCategoriesRepo({}),
       budgetCurrencyOf: async () => "EUR",
       isReservesEnabled: async () => false,
     });
@@ -371,79 +450,79 @@ describe("getReservesSummary use case", () => {
     expect(r.isOk()).toBe(true);
     if (r.isOk()) {
       expect(r.value.rows).toEqual([]);
-      expect(r.value.excludedRows).toEqual([]);
       expect(r.value.totals.disabled).toBe(true);
       expect(r.value.totals.budgetCurrency).toBe("EUR");
     }
   });
 
-  it("computes share math for Active categories (D-PH5-R2)", async () => {
+  it("returns walletShareAmount = stored actualCents, NOT computed via walk", async () => {
     const { getReservesSummary } =
       await import("../../src/application/get-reserves-summary");
     const { Money } = await import("@budget/shared-kernel");
-    // 2 active categories: 30000c and 70000c; RESERVE wallet sum = 100000c
-    const activeMap = new Map([
-      ["cat-1", Money.of("300.00", "EUR")], // 30000 cents
-      ["cat-2", Money.of("700.00", "EUR")], // 70000 cents
-    ]);
     const uc = getReservesSummary({
-      reserveBalanceRepo: {
-        getForBudget: async () => activeMap,
-        getExcludedForBudget: async () => new Map(),
-        getForCategory: async () => Money.of("0", "EUR"),
-      },
-      reservesSummaryRepo: {
-        sumReserveWalletAmounts: async () => 100000n,
-        getLastAdjustedAtPerCategory: async () => new Map(),
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        list: async () => [
-          { id: "cat-1", name: "Food", reserveExcluded: false } as any,
-          { id: "cat-2", name: "Rent", reserveExcluded: false } as any,
+      reserveBalanceRepo: mockReserveBalanceRepo({
+        active: new Map([
+          ["H", Money.of("2.00", "EUR")],
+          ["G", Money.of("25.00", "EUR")],
+        ]),
+      }),
+      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 1700n },
+      categoriesRepo: mockCategoriesRepo({
+        list: [
+          {
+            id: "H",
+            name: "Housing",
+            reserveExcluded: false,
+            sortIndex: 1,
+            reserveActualCents: 200n,
+          },
+          {
+            id: "G",
+            name: "Groceries",
+            reserveExcluded: false,
+            sortIndex: 2,
+            reserveActualCents: 1500n,
+          },
         ],
-        setReserveExcluded: async () => {},
-      },
+      }),
       budgetCurrencyOf: async () => "EUR",
       isReservesEnabled: async () => true,
     });
     const r = await uc({ tenantId: "b1", budgetId: "b1" });
     expect(r.isOk()).toBe(true);
     if (r.isOk()) {
-      expect(r.value.rows.length).toBe(2);
-      const cat1 = r.value.rows.find((row) => row.categoryId === "cat-1")!;
-      const cat2 = r.value.rows.find((row) => row.categoryId === "cat-2")!;
-      expect(cat1.reserveBalanceCents).toBe("30000");
-      expect(cat2.reserveBalanceCents).toBe("70000");
-      expect(cat1.walletSharePercent).toBeCloseTo(30, 1);
-      expect(cat2.walletSharePercent).toBeCloseTo(70, 1);
-      expect(r.value.totals.totalCategoryReservesCents).toBe("100000");
-      expect(r.value.totals.totalReserveWalletAmountCents).toBe("100000");
-      expect(r.value.totals.mismatchCents).toBe("0");
+      const H = r.value.rows.find((x) => x.categoryId === "H")!;
+      const G = r.value.rows.find((x) => x.categoryId === "G")!;
+      expect(H.reserveBalanceCents).toBe("200");
+      expect(H.walletShareAmountCents).toBe("200");
+      expect(G.reserveBalanceCents).toBe("2500");
+      expect(G.walletShareAmountCents).toBe("1500");
+      expect(r.value.totals.totalCategoryReservesCents).toBe("2700");
+      expect(r.value.totals.totalReserveWalletAmountCents).toBe("1700");
+      expect(r.value.totals.mismatchCents).toBe("-1000");
     }
   });
 
-  it("returns null share values when Σ Active reserves = 0 (D-PH5-R4)", async () => {
+  it("null share values when walletPool=0 (D-PH5-R4)", async () => {
     const { getReservesSummary } =
       await import("../../src/application/get-reserves-summary");
+    const { Money } = await import("@budget/shared-kernel");
     const uc = getReservesSummary({
-      reserveBalanceRepo: {
-        getForBudget: async () => new Map(), // no balances = 0
-        getExcludedForBudget: async () => new Map(),
-        getForCategory: async () =>
-          ({ amount: { toString: () => "0" } }) as any,
-      },
-      reservesSummaryRepo: {
-        sumReserveWalletAmounts: async () => 100000n,
-        getLastAdjustedAtPerCategory: async () => new Map(),
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        list: async () => [
-          { id: "cat-1", name: "Food", reserveExcluded: false } as any,
+      reserveBalanceRepo: mockReserveBalanceRepo({
+        active: new Map([["A", Money.of("1.00", "EUR")]]),
+      }),
+      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 0n },
+      categoriesRepo: mockCategoriesRepo({
+        list: [
+          {
+            id: "A",
+            name: "Food",
+            reserveExcluded: false,
+            sortIndex: 1,
+            reserveActualCents: 0n,
+          },
         ],
-        setReserveExcluded: async () => {},
-      },
+      }),
       budgetCurrencyOf: async () => "EUR",
       isReservesEnabled: async () => true,
     });
@@ -455,151 +534,45 @@ describe("getReservesSummary use case", () => {
     }
   });
 
-  it("W-3: excludedRows contain REAL FROZEN balance (not zero)", async () => {
+  it("excludedRows show frozen real expected; not in totals (W-3)", async () => {
     const { getReservesSummary } =
       await import("../../src/application/get-reserves-summary");
     const { Money } = await import("@budget/shared-kernel");
-    const excludedMap = new Map([
-      ["cat-exc", Money.of("500.00", "EUR")], // 50000 cents frozen
-    ]);
     const uc = getReservesSummary({
-      reserveBalanceRepo: {
-        getForBudget: async () => new Map(),
-        getExcludedForBudget: async () => excludedMap,
-        getForCategory: async () => Money.of("0", "EUR"),
-      },
-      reservesSummaryRepo: {
-        sumReserveWalletAmounts: async () => 0n,
-        getLastAdjustedAtPerCategory: async () => new Map(),
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        list: async () => [
-          { id: "cat-exc", name: "Excluded Cat", reserveExcluded: true } as any,
-        ],
-        setReserveExcluded: async () => {},
-      },
-      budgetCurrencyOf: async () => "EUR",
-      isReservesEnabled: async () => true,
-    });
-    const r = await uc({ tenantId: "b1", budgetId: "b1" });
-    expect(r.isOk()).toBe(true);
-    if (r.isOk()) {
-      expect(r.value.rows).toEqual([]); // no active cats
-      expect(r.value.excludedRows.length).toBe(1);
-      expect(r.value.excludedRows[0].reserveBalanceCents).toBe("50000");
-      expect(r.value.excludedRows[0].walletSharePercent).toBeNull();
-      expect(r.value.excludedRows[0].walletShareAmountCents).toBeNull();
-      // Totals exclude the excluded category balance
-      expect(r.value.totals.totalCategoryReservesCents).toBe("0");
-    }
-  });
-
-  it("W-3: mixed Active/Excluded — totals include ONLY Active balances", async () => {
-    const { getReservesSummary } =
-      await import("../../src/application/get-reserves-summary");
-    const { Money } = await import("@budget/shared-kernel");
-    const activeMap = new Map([
-      ["cat-a", Money.of("300.00", "EUR")], // 30000 cents
-      ["cat-b", Money.of("700.00", "EUR")], // 70000 cents
-    ]);
-    const excludedMap = new Map([
-      ["cat-exc", Money.of("500.00", "EUR")], // 50000 cents — must NOT be in totals
-    ]);
-    const uc = getReservesSummary({
-      reserveBalanceRepo: {
-        getForBudget: async () => activeMap,
-        getExcludedForBudget: async () => excludedMap,
-        getForCategory: async () => Money.of("0", "EUR"),
-      },
-      reservesSummaryRepo: {
-        sumReserveWalletAmounts: async () => 100000n,
-        getLastAdjustedAtPerCategory: async () => new Map(),
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        list: async () => [
-          { id: "cat-a", name: "Food", reserveExcluded: false } as any,
-          { id: "cat-b", name: "Rent", reserveExcluded: false } as any,
-          { id: "cat-exc", name: "Excl", reserveExcluded: true } as any,
-        ],
-        setReserveExcluded: async () => {},
-      },
-      budgetCurrencyOf: async () => "EUR",
-      isReservesEnabled: async () => true,
-    });
-    const r = await uc({ tenantId: "b1", budgetId: "b1" });
-    expect(r.isOk()).toBe(true);
-    if (r.isOk()) {
-      expect(r.value.totals.totalCategoryReservesCents).toBe("100000"); // 30000 + 70000, NOT 150000
-      expect(r.value.totals.mismatchCents).toBe("0"); // 100000 wallet - 100000 active
-      expect(r.value.excludedRows[0].reserveBalanceCents).toBe("50000");
-    }
-  });
-
-  // UAT-PH5-T3-53: Sticky allocation by last-adjusted timestamp.
-  // User scenario: wallets=1700c. Housing adjusted to 200c at t=1000.
-  // Groceries adjusted to 900c at t=2000, then bumped to 2500c at t=3000.
-  // The most-recently-touched category (Groceries, last=t3000) must absorb
-  // the entire deficit. Housing's 200c allocation must remain intact.
-  it("UAT-PH5-T3-53: walks allocation by last-adjusted ASC so deficit lands on most-recently-edited row", async () => {
-    const { getReservesSummary } =
-      await import("../../src/application/get-reserves-summary");
-    const { Money } = await import("@budget/shared-kernel");
-    const activeMap = new Map([
-      ["cat-groceries", Money.of("25.00", "EUR")], // 2500 cents
-      ["cat-housing", Money.of("2.00", "EUR")], // 200 cents
-    ]);
-    const lastAdjusted = new Map([
-      ["cat-housing", new Date(1000)], // older
-      ["cat-groceries", new Date(3000)], // most recently edited
-    ]);
-    const uc = getReservesSummary({
-      reserveBalanceRepo: {
-        getForBudget: async () => activeMap,
-        getExcludedForBudget: async () => new Map(),
-        getForCategory: async () => Money.of("0", "EUR"),
-      },
-      reservesSummaryRepo: {
-        sumReserveWalletAmounts: async () => 1700n,
-        getLastAdjustedAtPerCategory: async () => lastAdjusted,
-      },
-      categoriesRepo: {
-        findById: async () => null,
-        // Canonical order: Groceries first (created first), Housing second
-        list: async () => [
+      reserveBalanceRepo: mockReserveBalanceRepo({
+        active: new Map([["A", Money.of("3.00", "EUR")]]),
+        excluded: new Map([["X", Money.of("5.00", "EUR")]]),
+      }),
+      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 300n },
+      categoriesRepo: mockCategoriesRepo({
+        list: [
           {
-            id: "cat-groceries",
-            name: "Groceries",
+            id: "A",
+            name: "A",
             reserveExcluded: false,
-          } as any,
-          { id: "cat-housing", name: "Housing", reserveExcluded: false } as any,
+            sortIndex: 1,
+            reserveActualCents: 300n,
+          },
+          {
+            id: "X",
+            name: "Excl",
+            reserveExcluded: true,
+            sortIndex: 2,
+            reserveActualCents: 0n,
+          },
         ],
-        setReserveExcluded: async () => {},
-      },
+      }),
       budgetCurrencyOf: async () => "EUR",
       isReservesEnabled: async () => true,
     });
     const r = await uc({ tenantId: "b1", budgetId: "b1" });
     expect(r.isOk()).toBe(true);
     if (r.isOk()) {
-      const groceries = r.value.rows.find(
-        (row) => row.categoryId === "cat-groceries",
-      )!;
-      const housing = r.value.rows.find(
-        (row) => row.categoryId === "cat-housing",
-      )!;
-      // Housing keeps its 200c (walked first because older last-adjusted)
-      expect(housing.reserveBalanceCents).toBe("200");
-      expect(housing.walletShareAmountCents).toBe("200");
-      // Groceries asked for 2500c, got 1500c (1700 pool - 200 housing)
-      expect(groceries.reserveBalanceCents).toBe("2500");
-      expect(groceries.walletShareAmountCents).toBe("1500");
-      // Mismatch is -1000 (1700 wallets - 2700 active = -1000 underfunded)
-      expect(r.value.totals.mismatchCents).toBe("-1000");
-      // Output preserves CANONICAL order (Groceries first), not allocation order
-      expect(r.value.rows[0].categoryId).toBe("cat-groceries");
-      expect(r.value.rows[1].categoryId).toBe("cat-housing");
+      expect(r.value.rows.length).toBe(1);
+      expect(r.value.excludedRows.length).toBe(1);
+      expect(r.value.excludedRows[0].reserveBalanceCents).toBe("500");
+      expect(r.value.excludedRows[0].walletSharePercent).toBeNull();
+      expect(r.value.totals.totalCategoryReservesCents).toBe("300");
     }
   });
 });

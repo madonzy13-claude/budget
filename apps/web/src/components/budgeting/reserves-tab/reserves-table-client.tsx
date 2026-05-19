@@ -193,12 +193,12 @@ export function ReservesTableClient({
               currency={budgetCurrency}
               isExcluded={false}
               onUpdate={async (newCents) => {
+                // UAT-PH5-T3-54: API takes target expected value, not delta.
                 const current = BigInt(r.reserveBalanceCents);
-                const delta = Number(newCents - current);
-                if (delta === 0) return;
+                if (newCents === current) return;
                 await updateAdjustment.mutateAsync({
                   categoryId: r.categoryId,
-                  deltaCents: delta,
+                  expectedCents: Number(newCents),
                 });
               }}
             />

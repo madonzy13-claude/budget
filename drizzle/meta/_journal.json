@@ -155,6 +155,13 @@
       "when": 1779100000000,
       "tag": "0021_phase05_uat_wallet_polish",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779300000000,
+      "tag": "0022_phase05_reserve_actual_cents",
+      "breakpoints": true
     }
   ]
 }

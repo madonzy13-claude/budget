@@ -96,6 +96,8 @@ async function buildApp(
       adjustCategoryReserve: adjustCategoryReserve({
         adjustmentsRepo,
         categoriesRepo,
+        reserveBalanceRepo: createReserveBalanceRepo(),
+        reservesSummaryRepo: new DrizzleReservesSummaryRepo(),
         isReservesEnabled,
       }),
       getReservesSummary: getReservesSummary({
@@ -138,33 +140,34 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
     app = await buildApp(fix.userId, fix.budgetId);
   });
 
-  it("200 happy path: adjustment row written, returns {id, occurredAt}", async () => {
+  it("200 happy path: sets expected target, returns expected/actual/delta", async () => {
     const res = await app.request(
       `/budgets/${fix.budgetId}/reserves/${fix.categoryId}/adjust`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deltaCents: 50000, note: "test" }),
+        body: JSON.stringify({ expectedCents: 50000, note: "test" }),
       },
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.id).toBeDefined();
-    expect(body.occurredAt).toBeDefined();
+    expect(body.expectedCents).toBe("50000");
+    expect(body.actualCents).toBeDefined();
+    expect(body.deltaCents).toBeDefined();
   });
 
-  it("200 negative delta: withdrawal row written", async () => {
+  it("200 lower expected: clamps actual, spills to siblings", async () => {
     const res = await app.request(
       `/budgets/${fix.budgetId}/reserves/${fix.categoryId}/adjust`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deltaCents: -25000 }),
+        body: JSON.stringify({ expectedCents: 25000 }),
       },
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.id).toBeDefined();
+    expect(body.expectedCents).toBe("25000");
   });
 
   it("422 category_excluded: pre-set reserveExcluded=true → POST adjust → 422", async () => {
@@ -196,7 +199,7 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deltaCents: 1000 }),
+        body: JSON.stringify({ expectedCents: 1000 }),
       },
     );
     expect(res.status).toBe(422);
@@ -216,7 +219,7 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deltaCents: 1000 }),
+        body: JSON.stringify({ expectedCents: 1000 }),
       },
     );
     expect(res.status).toBe(422);
@@ -224,13 +227,13 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
     expect(body.error).toBe("reserves_disabled");
   });
 
-  it("422 deltaCents=0: Zod rejects", async () => {
+  it("422 expectedCents<0: Zod rejects", async () => {
     const res = await app.request(
       `/budgets/${fix.budgetId}/reserves/${fix.categoryId}/adjust`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deltaCents: 0 }),
+        body: JSON.stringify({ expectedCents: -1 }),
       },
     );
     expect(res.status).toBe(422);
@@ -242,7 +245,7 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deltaCents: 1000, note: "x".repeat(281) }),
+        body: JSON.stringify({ expectedCents: 1000, note: "x".repeat(281) }),
       },
     );
     expect(res.status).toBe(422);
@@ -277,7 +280,7 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deltaCents: 1000 }),
+        body: JSON.stringify({ expectedCents: 1000 }),
       },
     );
     expect(res.status).toBe(404);

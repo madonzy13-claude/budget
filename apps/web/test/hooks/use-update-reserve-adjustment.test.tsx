@@ -1,28 +1,15 @@
 /**
  * use-update-reserve-adjustment.test.tsx
  *
- * TDD: RED gate — written before implementation exists.
- * Tests the computeDelta helper + useUpdateReserveAdjustment mutation hook.
- *
- * Coverage:
- * - computeDelta: signed bigint difference
- * - POST /budgets/:id/reserves/:catId/adjust — correct URL + body + Idempotency-Key
- * - 200 success: invalidates ["budget", id, "reserves"]
- * - 422 error: toast saveFailed + cache rollback
- * - Optimistic: row balance updated in cache while pending
- * - Optimistic: reverts on error
- * - W-3 alignment: excludedRows are untouched by this hook (only rows is modified)
+ * UAT-PH5-T3-54: hook now POSTs target expectedCents (not signed delta).
+ * Optimistic update overwrites reserveBalanceCents to the new target value.
+ * W-3: excludedRows untouched.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import {
-  computeDelta,
-  useUpdateReserveAdjustment,
-} from "../../src/hooks/use-update-reserve-adjustment";
+import { useUpdateReserveAdjustment } from "../../src/hooks/use-update-reserve-adjustment";
 import { TestQueryProvider, makeTestQueryClient } from "../setup/query-client";
 import type { ReservesSummaryDto } from "../../src/hooks/use-reserves-summary";
-
-// ─── mocks ──────────────────────────────────────────────────────────────────
 
 const mockFetch = vi.fn();
 vi.mock("../../src/lib/budget-fetch", () => ({
@@ -39,8 +26,6 @@ vi.mock("sonner", () => ({
     success: (...args: unknown[]) => mockToastSuccess(...args),
   },
 }));
-
-// ─── fixtures ───────────────────────────────────────────────────────────────
 
 const BUDGET_ID = "budget-rsrv-01";
 
@@ -72,24 +57,6 @@ const initialSummary: ReservesSummaryDto = {
   },
 };
 
-// ─── computeDelta unit ───────────────────────────────────────────────────────
-
-describe("computeDelta", () => {
-  it("returns positive delta when newCents > currentCents", () => {
-    expect(computeDelta(50000n, 30000n)).toBe(20000n);
-  });
-
-  it("returns negative delta when newCents < currentCents", () => {
-    expect(computeDelta(10000n, 30000n)).toBe(-20000n);
-  });
-
-  it("returns 0 when values are equal", () => {
-    expect(computeDelta(30000n, 30000n)).toBe(0n);
-  });
-});
-
-// ─── useUpdateReserveAdjustment ──────────────────────────────────────────────
-
 describe("useUpdateReserveAdjustment", () => {
   let client: ReturnType<typeof makeTestQueryClient>;
 
@@ -102,14 +69,17 @@ describe("useUpdateReserveAdjustment", () => {
     mockFetch.mockReset();
     mockToastError.mockReset();
     mockToastSuccess.mockReset();
-    // Seed summary cache
     client.setQueryData(["budget", BUDGET_ID, "reserves"], initialSummary);
   });
 
-  it("calls POST /budgets/:id/reserves/:catId/adjust with correct URL, body, and Idempotency-Key", async () => {
+  it("POSTs expectedCents (target value) with correct URL + idempotency key", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ id: "adj-1", occurredAt: "2026-05-17" }),
+      json: async () => ({
+        expectedCents: "35000",
+        actualCents: "35000",
+        deltaCents: "5000",
+      }),
     });
 
     const { result } = renderHook(() => useUpdateReserveAdjustment(BUDGET_ID), {
@@ -119,7 +89,7 @@ describe("useUpdateReserveAdjustment", () => {
     await act(async () => {
       result.current.mutate({
         categoryId: "cat-A",
-        deltaCents: 5000,
+        expectedCents: 35000,
         note: "manual topup",
       });
     });
@@ -134,7 +104,7 @@ describe("useUpdateReserveAdjustment", () => {
           "Idempotency-Key": "test-idem-key-adj",
           "Content-Type": "application/json",
         }),
-        body: JSON.stringify({ deltaCents: 5000, note: "manual topup" }),
+        body: JSON.stringify({ expectedCents: 35000, note: "manual topup" }),
       }),
     );
   });
@@ -142,7 +112,7 @@ describe("useUpdateReserveAdjustment", () => {
   it("invalidates reserves query on 200 success", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ id: "adj-2", occurredAt: "2026-05-17" }),
+      json: async () => ({ expectedCents: "31000" }),
     });
 
     const invalidateSpy = vi.spyOn(client, "invalidateQueries");
@@ -151,25 +121,21 @@ describe("useUpdateReserveAdjustment", () => {
     });
 
     await act(async () => {
-      result.current.mutate({ categoryId: "cat-A", deltaCents: 1000 });
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 31000 });
     });
 
     await waitFor(() => result.current.isSuccess);
 
     expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        queryKey: ["budget", BUDGET_ID, "reserves"],
-      }),
+      expect.objectContaining({ queryKey: ["budget", BUDGET_ID, "reserves"] }),
     );
   });
 
-  it("toasts saveFailed and rolls back cache on 422 error", async () => {
-    // Spy on setQueryData to capture the rollback value
+  it("toasts saveFailed and rolls back cache on error", async () => {
     let capturedRollback: ReservesSummaryDto | undefined;
     const origSetQueryData = client.setQueryData.bind(client);
     vi.spyOn(client, "setQueryData").mockImplementation(
       (key: unknown, data: unknown) => {
-        // Capture non-function updates to the reserves key
         if (
           Array.isArray(key) &&
           key[2] === "reserves" &&
@@ -195,7 +161,7 @@ describe("useUpdateReserveAdjustment", () => {
     });
 
     await act(async () => {
-      result.current.mutate({ categoryId: "cat-A", deltaCents: 999 });
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 999 });
     });
 
     await waitFor(() => result.current.isError);
@@ -203,13 +169,11 @@ describe("useUpdateReserveAdjustment", () => {
     expect(mockToastError).toHaveBeenCalledWith(
       "bdp.tab.reserves.toast.saveFailed",
     );
-
-    // Rollback should restore original value (captured before onSettled invalidation)
     expect(capturedRollback?.rows[0]?.reserveBalanceCents).toBe("30000");
     vi.restoreAllMocks();
   });
 
-  it("optimistically updates row balance in cache while pending", async () => {
+  it("optimistically overwrites row balance to the new target while pending", async () => {
     let resolveAdjust!: (v: unknown) => void;
     mockFetch.mockReturnValue(
       new Promise((res) => {
@@ -222,10 +186,10 @@ describe("useUpdateReserveAdjustment", () => {
     });
 
     act(() => {
-      result.current.mutate({ categoryId: "cat-A", deltaCents: 5000 });
+      // Target = 35000 (overwrites the 30000 starting value).
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 35000 });
     });
 
-    // Give the optimistic update time to run
     await act(async () => {
       await Promise.resolve();
     });
@@ -235,64 +199,16 @@ describe("useUpdateReserveAdjustment", () => {
       BUDGET_ID,
       "reserves",
     ]);
-    // 30000 + 5000 = 35000
     expect(optimistic?.rows[0]?.reserveBalanceCents).toBe("35000");
-
-    // W-3: excludedRows untouched
     expect(optimistic?.excludedRows[0]?.reserveBalanceCents).toBe("50000");
 
-    // Cleanup
-    resolveAdjust({
-      ok: true,
-      json: async () => ({ id: "x", occurredAt: "" }),
-    });
-  });
-
-  it("reverts optimistic update on error", async () => {
-    // Capture the rollback setQueryData call (before onSettled invalidation clears cache)
-    let capturedRollback: ReservesSummaryDto | undefined;
-    const origSetQueryData = client.setQueryData.bind(client);
-    vi.spyOn(client, "setQueryData").mockImplementation(
-      (key: unknown, data: unknown) => {
-        if (
-          Array.isArray(key) &&
-          key[2] === "reserves" &&
-          typeof data !== "function" &&
-          data !== undefined
-        ) {
-          capturedRollback = data as ReservesSummaryDto;
-        }
-        return origSetQueryData(
-          key as Parameters<typeof origSetQueryData>[0],
-          data as Parameters<typeof origSetQueryData>[1],
-        );
-      },
-    );
-
-    mockFetch.mockResolvedValue({
-      ok: false,
-      text: async () => "server error",
-    });
-
-    const { result } = renderHook(() => useUpdateReserveAdjustment(BUDGET_ID), {
-      wrapper,
-    });
-
-    await act(async () => {
-      result.current.mutate({ categoryId: "cat-A", deltaCents: 9999 });
-    });
-
-    await waitFor(() => result.current.isError);
-
-    // Rollback restores original value; it's captured before onSettled wipes it
-    expect(capturedRollback?.rows[0]?.reserveBalanceCents).toBe("30000");
-    vi.restoreAllMocks();
+    resolveAdjust({ ok: true, json: async () => ({}) });
   });
 
   it("toasts success on 200 response", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ id: "adj-ok", occurredAt: "2026-05-17" }),
+      json: async () => ({ expectedCents: "30100" }),
     });
 
     const { result } = renderHook(() => useUpdateReserveAdjustment(BUDGET_ID), {
@@ -300,7 +216,7 @@ describe("useUpdateReserveAdjustment", () => {
     });
 
     await act(async () => {
-      result.current.mutate({ categoryId: "cat-A", deltaCents: 100 });
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 30100 });
     });
 
     await waitFor(() => result.current.isSuccess);

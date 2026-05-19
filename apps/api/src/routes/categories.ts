@@ -223,6 +223,7 @@ export function createCategoriesRoute(deps: BootedDeps) {
     // Layer 2: use case — foreign categoryId returns null via explicit tenant predicate → 404.
     const r = await deps.budgeting.toggleCategoryReserveExcluded({
       tenantId,
+      budgetId: tenantId,
       categoryId,
       excluded: parsed.data.excluded,
       actorUserId: userId,

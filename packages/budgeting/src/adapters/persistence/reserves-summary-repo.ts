@@ -29,32 +29,4 @@ export class DrizzleReservesSummaryRepo implements ReservesSummaryRepo {
     if (r.isErr()) throw r.error;
     return r.value;
   }
-
-  async getLastAdjustedAtPerCategory(
-    tenantId: string,
-  ): Promise<Map<string, Date>> {
-    const tid = TenantId(tenantId);
-    const uid = UserId(tenantId);
-
-    const r = await withTenantTx(tid, uid, async (tx) => {
-      const result = await tx.execute<{
-        category_id: string;
-        last_at: Date;
-      }>(
-        sql`SELECT category_id, MAX(occurred_at) AS last_at
-            FROM budgeting.category_reserve_adjustments
-            WHERE tenant_id = ${tenantId}::uuid
-            GROUP BY category_id`,
-      );
-      const rows = (result as any).rows ?? result;
-      const map = new Map<string, Date>();
-      for (const row of rows as { category_id: string; last_at: Date }[]) {
-        map.set(row.category_id, new Date(row.last_at));
-      }
-      return map;
-    });
-
-    if (r.isErr()) throw r.error;
-    return r.value;
-  }
 }

@@ -57,8 +57,10 @@ async function findCategoryId(
 // ── Given steps ────────────────────────────────────────────────────────────────
 
 /**
- * Seed a reserve adjustment (deltaCents) for a category.
- * Uses POST /budgets/:id/reserves/:categoryId/adjust.
+ * Seed a reserve adjustment (delta) for a category. The legacy step parses
+ * the delta from the feature file, but the API (UAT-PH5-T3-54) now takes a
+ * target value — so we GET the current expected first, then POST the sum.
+ * POST /budgets/:id/reserves/:categoryId/adjust { expectedCents }.
  */
 Given(
   "the category {string} reserve adjustment is {string} cents",
@@ -66,8 +68,23 @@ Given(
     const budgetId = getBudgetId(scenarioCtx as Record<string, unknown>);
     const categoryId = await findCategoryId(page, budgetId, categoryName);
 
-    // Strip + and commas, parse as integer cents
+    // Strip + and commas, parse as integer cents.
     const deltaCents = parseInt(deltaStr.replace(/[+,]/g, ""), 10);
+
+    // GET current summary to learn this category's current expected value.
+    const sumRes = await page.request.get(`/api/budgets/${budgetId}/reserves`, {
+      headers: { "X-Budget-ID": budgetId },
+    });
+    let currentCents = 0;
+    if (sumRes.ok()) {
+      const sum: any = await sumRes.json();
+      const row = (sum.rows ?? []).find(
+        (r: any) => r.categoryId === categoryId,
+      );
+      if (row?.reserveBalanceCents)
+        currentCents = parseInt(row.reserveBalanceCents, 10);
+    }
+    const expectedCents = currentCents + deltaCents;
 
     const res = await page.request.post(
       `/api/budgets/${budgetId}/reserves/${categoryId}/adjust`,
@@ -76,7 +93,7 @@ Given(
           "Idempotency-Key": crypto.randomUUID(),
           "X-Budget-ID": budgetId,
         },
-        data: { deltaCents },
+        data: { expectedCents },
       },
     );
     if (!res.ok()) {

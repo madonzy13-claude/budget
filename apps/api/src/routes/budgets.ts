@@ -386,6 +386,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     const result = await deps.budgeting.adjustCategoryReserve({
       ...parsed.data,
       tenantId: budgetId,
+      budgetId,
       categoryId,
       actorUserId: userId,
     });

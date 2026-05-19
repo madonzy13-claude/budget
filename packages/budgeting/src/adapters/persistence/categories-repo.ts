@@ -88,8 +88,10 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         name: string;
         reserve_excluded: boolean;
         archived_at: Date | null;
+        sort_index: number;
+        reserve_actual_cents: string | number | bigint;
       }>(
-        sql`SELECT id, name, reserve_excluded, archived_at
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, reserve_actual_cents
             FROM budgeting.categories
             WHERE id = ${categoryId}::uuid
               AND tenant_id = ${tenantId}::uuid
@@ -106,6 +108,8 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
       name: row.name,
       reserveExcluded: row.reserve_excluded,
       archivedAt: row.archived_at ? new Date(row.archived_at) : null,
+      sortIndex: Number(row.sort_index ?? 0),
+      reserveActualCents: BigInt(row.reserve_actual_cents ?? 0),
     };
   }
 
@@ -123,8 +127,10 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         name: string;
         reserve_excluded: boolean;
         archived_at: Date | null;
+        sort_index: number;
+        reserve_actual_cents: string | number | bigint;
       }>(
-        sql`SELECT id, name, reserve_excluded, archived_at
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, reserve_actual_cents
             FROM budgeting.categories
             WHERE tenant_id = ${tenantId}::uuid
               AND archived_at IS NULL
@@ -139,12 +145,93 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         name: string;
         reserve_excluded: boolean;
         archived_at: Date | null;
+        sort_index: number;
+        reserve_actual_cents: string | number | bigint;
       }) => ({
         id: row.id,
         name: row.name,
         reserveExcluded: row.reserve_excluded,
         archivedAt: row.archived_at ? new Date(row.archived_at) : null,
+        sortIndex: Number(row.sort_index ?? 0),
+        reserveActualCents: BigInt(row.reserve_actual_cents ?? 0),
       }),
     );
+  }
+
+  /**
+   * UAT-PH5-T3-54: bulk-write `reserve_actual_cents` for many categories.
+   * Reads before-state once, UPDATEs each row, then writes one audit + one
+   * outbox entry per CHANGED row. Skips rows where new === old.
+   * Single withTenantTx → all-or-nothing.
+   */
+  async setReserveActualMany(
+    tenantId: string,
+    updates: Map<string, bigint>,
+    actorUserId: string,
+  ): Promise<void> {
+    if (updates.size === 0) return;
+    const tid = TenantId(tenantId);
+    const uid = UserId(actorUserId);
+
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      const ids = Array.from(updates.keys());
+
+      // SELECT before state for all affected rows.
+      const before = await tx.execute<{
+        id: string;
+        reserve_actual_cents: string | number | bigint;
+      }>(
+        sql`SELECT id, reserve_actual_cents
+            FROM budgeting.categories
+            WHERE tenant_id = ${tenantId}::uuid
+              AND id = ANY(${sql.raw(`ARRAY[${ids.map((i) => `'${i}'`).join(",")}]::uuid[]`)})`,
+      );
+      const beforeRows = ((before as any).rows ?? before) as {
+        id: string;
+        reserve_actual_cents: string | number | bigint;
+      }[];
+      const beforeMap = new Map<string, bigint>();
+      for (const row of beforeRows) {
+        beforeMap.set(row.id, BigInt(row.reserve_actual_cents ?? 0));
+      }
+      for (const id of ids) {
+        if (!beforeMap.has(id)) {
+          throw new Error(`category ${id} not found`);
+        }
+      }
+
+      // Apply each UPDATE individually for predictability + audit clarity.
+      for (const [id, newCents] of updates) {
+        const oldCents = beforeMap.get(id)!;
+        if (oldCents === newCents) continue;
+        await tx.execute(
+          sql`UPDATE budgeting.categories
+              SET reserve_actual_cents = ${newCents.toString()}::bigint
+              WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
+        );
+        await writeAudit(tx, {
+          tenantId: tid,
+          entityType: "category",
+          entityId: id,
+          action: "update",
+          actorUserId: uid,
+          before: { reserveActualCents: oldCents.toString() },
+          after: { reserveActualCents: newCents.toString() },
+        });
+        await writeOutbox(tx, {
+          tenantId: tid,
+          aggregateType: "category",
+          aggregateId: id,
+          eventType: "budgeting.category.reserve_actual_changed",
+          payload: {
+            oldCents: oldCents.toString(),
+            newCents: newCents.toString(),
+            actorUserId,
+          },
+        });
+      }
+    });
+
+    if (r.isErr()) throw r.error;
   }
 }

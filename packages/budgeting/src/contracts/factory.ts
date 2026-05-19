@@ -180,7 +180,12 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     // Wallet methods (Plan 01-03 route rename)
     createWallet: createWallet({ repo }),
     archiveWallet: archiveWallet({ repo }),
-    setWalletBalance: setWalletBalance({ repo }),
+    setWalletBalance: setWalletBalance({
+      repo,
+      categoriesRepo,
+      reserveBalanceRepo: createReserveBalanceRepo(),
+      reservesSummaryRepo,
+    }),
     listWallets: listWallets({ repo }),
     findWalletById: findWalletById({ repo }),
     // Backward-compat account aliases
@@ -189,7 +194,11 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listAccounts: listAccounts({ repo }),
     findAccountById: findAccountById({ repo }),
     createCategory: createCategory({ repo: categoryRepo }),
-    archiveCategory: archiveCategory({ repo: categoryRepo }),
+    archiveCategory: archiveCategory({
+      repo: categoryRepo,
+      categoriesRepo,
+      reserveBalanceRepo: createReserveBalanceRepo(),
+    }),
     listCategories: listCategories({ repo: categoryRepo }),
     findCategoryById: findCategoryById({ repo: categoryRepo }),
     renameCategory: renameCategory({ repo: categoryRepo }),
@@ -243,10 +252,13 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     adjustCategoryReserve: adjustCategoryReserve({
       adjustmentsRepo,
       categoriesRepo,
+      reserveBalanceRepo: createReserveBalanceRepo(),
+      reservesSummaryRepo,
       isReservesEnabled,
     }),
     toggleCategoryReserveExcluded: toggleCategoryReserveExcluded({
       repo: categoriesRepo,
+      reserveBalanceRepo: createReserveBalanceRepo(),
     }),
     getReservesSummary: getReservesSummary({
       reserveBalanceRepo: createReserveBalanceRepo(),
