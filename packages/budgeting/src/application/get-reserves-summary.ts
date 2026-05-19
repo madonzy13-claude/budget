@@ -121,18 +121,31 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
 
       const totalWallets: bigint = reserveWalletSum;
 
-      // Build Active rows with share math.
+      // UAT-PH5-T3-51: NO automatic rebalancing of already-assigned
+      // reserves. Walk categories in their canonical order and allocate
+      // each row min(balance, remaining wallet pool); excess balance
+      // flows into the global mismatch chip (under-funded). This means:
+      //   - Categories created earlier keep their full requested amount
+      //     when the pool is short.
+      //   - Adding a new category never shrinks the share of a previous
+      //     one (rebalancing was the wrong mental model).
+      //   - Over-funded case (totalWallets > totalCategoryReserves):
+      //     each row gets its full balance, the surplus surfaces in
+      //     mismatchCents as the overfunded chip.
+      let availableWallets: bigint = totalWallets;
       const rows: ReservesSummaryRow[] = activeRowData.map((r) => {
+        const allocated =
+          totalWallets === 0n
+            ? 0n
+            : r.cents <= availableWallets
+              ? r.cents
+              : availableWallets;
+        availableWallets -= allocated;
         const sharePct =
           totalCategoryReserves === 0n || totalWallets === 0n
             ? null
-            : Number((r.cents * 10000n) / totalCategoryReserves) / 100;
-        const shareAmt =
-          sharePct === null
-            ? null
-            : totalCategoryReserves === 0n
-              ? "0"
-              : ((r.cents * totalWallets) / totalCategoryReserves).toString();
+            : Number((allocated * 10000n) / totalWallets) / 100;
+        const shareAmt = sharePct === null ? null : allocated.toString();
         return {
           categoryId: r.id,
           name: r.name,
