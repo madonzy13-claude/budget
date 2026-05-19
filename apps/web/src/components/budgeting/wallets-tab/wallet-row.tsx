@@ -40,11 +40,12 @@ interface PersistedProps {
   mode: "persisted";
   wallet: WalletDto;
   budgetCurrency: string;
-  // UAT-PH5-T3-45: per-currency share denominators. Lookup by
-  // `wallet.currency` so the share column reflects share among
-  // siblings in the SAME currency, not the mixed-currency sum.
-  // Optional — tests that don't exercise the Share column may omit it.
-  sectionTotalsByCurrency?: Record<string, number>;
+  // UAT-PH5-T3-46: section total in the budget's default currency.
+  // Numerator (`wallet.currentBalanceInBudgetCurrencyCents`) shares
+  // the same scale, so the share % is comparable across mixed-
+  // currency sections. Optional — tests that don't exercise Share
+  // may omit it (then row renders em-dash for share).
+  sectionTotalBudgetCents?: number;
   // UAT-PH5-T3-30: longest formatted-amount char length across the section.
   // Drives the dynamic min-width of the amount column so short balances
   // ("0", "456") don't leave a wide gap between currency and amount.
@@ -194,7 +195,7 @@ function DraftRow({
 function PersistedRow({
   wallet,
   budgetCurrency,
-  sectionTotalsByCurrency,
+  sectionTotalBudgetCents,
   maxAmountChars,
   onUpdate,
   onArchive,
@@ -553,9 +554,13 @@ function PersistedRow({
         aria-label={t("shareAria", { name: wallet.name })}
       >
         {(() => {
-          const denom = sectionTotalsByCurrency?.[wallet.currency] ?? 0;
-          if (denom <= 0) return "—";
-          const pct = (Number(wallet.currentBalanceCents) / denom) * 100;
+          if (!sectionTotalBudgetCents || sectionTotalBudgetCents <= 0)
+            return "—";
+          const numer = Number(
+            wallet.currentBalanceInBudgetCurrencyCents ??
+              wallet.currentBalanceCents,
+          );
+          const pct = (numer / sectionTotalBudgetCents) * 100;
           return `${pct.toFixed(0)}%`;
         })()}
       </div>

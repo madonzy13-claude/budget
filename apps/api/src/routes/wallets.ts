@@ -70,6 +70,14 @@ export function createWalletsRoute(deps: BootedDeps) {
   });
 
   // GET /wallets — list wallets
+  //
+  // UAT-PH5-T3-46: enriches each WalletDto with
+  // `currentBalanceInBudgetCurrencyCents` — the balance expressed in the
+  // budget's default currency, converted via the FxProvider. Used by the
+  // UI to compute meaningful Share % across mixed-currency sections.
+  // FX rate is cached daily (Frankfurter source updates ~16:00 CET);
+  // converting N wallets is N rate lookups, each O(1) against the
+  // FX cache. Same-currency wallets short-circuit (no rate fetch).
   app.get("/", async (c) => {
     const tenantId = pickTenant(c);
     const includeArchived = c.req.query("includeArchived") === "true";
@@ -77,7 +85,56 @@ export function createWalletsRoute(deps: BootedDeps) {
     const r = await deps.budgeting.listWallets({ tenantId, includeArchived });
     if (r.isErr()) return serverError(c, "list_wallets_failed", r.error);
 
-    return c.json({ wallets: r.value });
+    const wallets = r.value;
+
+    // Look up the budget's default currency (tenantId === budgetId).
+    const budget = await deps.tenancy.workspaceRepo.findById(tenantId);
+    const budgetCcy = budget?.default_currency;
+
+    if (!budgetCcy || wallets.length === 0) {
+      return c.json({ wallets });
+    }
+
+    // Batch unique source currencies → fetch rate once per pair.
+    const uniqueCurrencies = Array.from(
+      new Set(wallets.map((w) => w.currency)),
+    );
+    const asOf = new Date();
+    const rateByCurrency = new Map<string, string>();
+    await Promise.all(
+      uniqueCurrencies.map(async (from) => {
+        if (from === budgetCcy) {
+          rateByCurrency.set(from, "1");
+          return;
+        }
+        try {
+          const { rate } = await deps.budgeting.fxProvider.rateAsOf(
+            from as any,
+            budgetCcy as any,
+            asOf,
+          );
+          rateByCurrency.set(from, rate);
+        } catch {
+          // Provider failed (network, etc.) — leave undefined; UI falls
+          // back to currentBalanceCents for that wallet's share calc.
+        }
+      }),
+    );
+
+    const SCALE = 1_000_000n;
+    const enriched = wallets.map((w) => {
+      const rate = rateByCurrency.get(w.currency);
+      if (!rate) return w;
+      const cents = BigInt(w.currentBalanceCents);
+      const rateScaled = BigInt(Math.round(Number(rate) * Number(SCALE)));
+      const convertedCents = (cents * rateScaled) / SCALE;
+      return {
+        ...w,
+        currentBalanceInBudgetCurrencyCents: convertedCents.toString(),
+      };
+    });
+
+    return c.json({ wallets: enriched });
   });
 
   // GET /wallets/:id — find by id

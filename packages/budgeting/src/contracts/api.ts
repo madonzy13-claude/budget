@@ -47,6 +47,16 @@ export interface WalletDto {
   currency: string;
   /** Balance expressed as integer cents string (e.g. "25000" = 250.00). */
   currentBalanceCents: string;
+  /**
+   * UAT-PH5-T3-46: balance converted to the budget's default currency
+   * via the FxProvider. Populated by the route layer when budget
+   * currency is known; the use case itself does not perform FX. Reflects
+   * the latest cached FX rate (Frankfurter, daily refresh). Same units
+   * as `currentBalanceCents` (integer cents string). Optional because
+   * tests/standalone callers that bypass the route layer may not
+   * supply it; UI must fall back to `currentBalanceCents` when missing.
+   */
+  currentBalanceInBudgetCurrencyCents?: string;
   archivedAt: string | null;
   createdAt: string;
   // UAT-PH5-T3-1x: presentation-only customization + intra-section position.

@@ -108,17 +108,21 @@ export function WalletSection({
           its own section. Cross-section moves still drop on the section
           background (useDroppable id="section-<TYPE>") wired below. */}
       {(() => {
-        // UAT-PH5-T3-45: per-currency share denominators. Each
-        // currency keeps its own running total so a wallet that lives
-        // alongside siblings in a different currency still gets a
-        // meaningful share % (relative to other wallets in the same
-        // currency), not a 0% from being divided by the mixed sum.
-        const totalsByCurrency: Record<string, number> = {};
-        for (const w of wallets) {
-          totalsByCurrency[w.currency] =
-            (totalsByCurrency[w.currency] ?? 0) +
-            Number(w.currentBalanceCents);
-        }
+        // UAT-PH5-T3-46: single denominator in budget currency. The
+        // server enriches each wallet with
+        // `currentBalanceInBudgetCurrencyCents` (Frankfurter FX, daily
+        // cache). Share % = wallet's budget-currency balance / section
+        // total in budget currency — one scale across mixed
+        // currencies. Falls back to `currentBalanceCents` for callers
+        // that bypass the route layer (legacy tests, fixtures).
+        const inBudgetCcyCents = (w: WalletDto) =>
+          Number(
+            w.currentBalanceInBudgetCurrencyCents ?? w.currentBalanceCents,
+          );
+        const sectionTotalBudgetCents = wallets.reduce(
+          (acc, w) => acc + inBudgetCcyCents(w),
+          0,
+        );
         // UAT-PH5-T3-30: dynamic amount-column width. Find the longest
         // formatted amount in this section and size every amount cell to
         // exactly fit it (+ a hair of slack). Short values like "0" or
@@ -142,7 +146,7 @@ export function WalletSection({
                   mode="persisted"
                   wallet={w}
                   budgetCurrency={budgetCurrency}
-                  sectionTotalsByCurrency={totalsByCurrency}
+                  sectionTotalBudgetCents={sectionTotalBudgetCents}
                   maxAmountChars={maxAmountChars}
                   onUpdate={(patch) => onUpdate(w.id, patch)}
                   onArchive={() => onArchive(w.id)}

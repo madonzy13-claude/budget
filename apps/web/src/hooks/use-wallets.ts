@@ -14,6 +14,14 @@ export interface WalletDto {
   walletType: "SPENDINGS" | "CUSHION" | "RESERVE";
   currency: string;
   currentBalanceCents: string;
+  /**
+   * UAT-PH5-T3-46: server-converted balance expressed in the budget's
+   * default currency (via FxProvider). Used by Share % math to compare
+   * mixed-currency wallets on a single scale. Same units as
+   * currentBalanceCents (integer-cents string). Falls back to
+   * currentBalanceCents on the consumer side when missing.
+   */
+  currentBalanceInBudgetCurrencyCents?: string;
   archivedAt: string | null;
   // UAT-PH5-T3-1x: presentation-only customization + intra-section pos.
   color?: string | null;
