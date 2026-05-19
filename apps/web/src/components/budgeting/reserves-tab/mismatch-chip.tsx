@@ -52,7 +52,10 @@ export function MismatchChip({
       ].join(" ")}
     >
       <Icon className={`h-4 w-4 shrink-0 ${amountColor}`} aria-hidden={true} />
-      <span className={`text-title-sm font-semibold ${amountColor}`}>
+      {/* UAT-PH5-T3-48: keep amount + currency on one line. */}
+      <span
+        className={`whitespace-nowrap text-title-sm font-semibold ${amountColor}`}
+      >
         {titleLabel}
       </span>
       {helperText && (
