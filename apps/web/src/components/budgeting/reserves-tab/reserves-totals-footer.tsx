@@ -62,21 +62,25 @@ export function ReservesTotalsFooter({
       <div className="flex flex-col gap-1 sm:flex-row sm:gap-4">
         <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
           {t("totals.categoriesLabel")}:{" "}
+          {/* UAT-PH5-T3-47: surface currency on the footer totals so
+              the mixed-currency normalisation is explicit. */}
           <span className="text-num-md text-[var(--foreground)]">
-            {fmt(totalCategoryCents)}
+            {currency} {fmt(totalCategoryCents)}
           </span>
         </span>
         <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
           {t("totals.walletsLabel")}:{" "}
           <span className="text-num-md text-[var(--foreground)]">
-            {fmt(totalWalletCents)}
+            {currency} {fmt(totalWalletCents)}
           </span>
         </span>
       </div>
 
       <MismatchChip
         variant={variant}
-        {...(amountFormatted !== undefined && { amountFormatted })}
+        {...(amountFormatted !== undefined && {
+          amountFormatted: `${currency} ${amountFormatted}`,
+        })}
         {...(helperText !== undefined && { helperText })}
       />
     </div>

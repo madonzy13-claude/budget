@@ -43,17 +43,22 @@ export function MismatchChip({
       data-testid={`mismatch-chip-${variant}`}
       role="status"
       className={[
-        "inline-flex h-[32px] items-center gap-2",
-        "rounded-[var(--radius-md)] border bg-transparent px-3 text-sm",
+        // UAT-PH5-T3-47: bigger chip — more padding inside the red
+        // border so the amount + helper copy breathe. Doubles
+        // vertical padding, widens horizontal padding, bumps gap.
+        "inline-flex items-center gap-3 py-2 px-4",
+        "rounded-[var(--radius-md)] border bg-transparent text-sm",
         borderClass,
       ].join(" ")}
     >
-      <Icon className={`h-4 w-4 ${amountColor}`} aria-hidden={true} />
+      <Icon className={`h-4 w-4 shrink-0 ${amountColor}`} aria-hidden={true} />
       <span className={`text-title-sm font-semibold ${amountColor}`}>
         {titleLabel}
       </span>
       {helperText && (
-        <span className={`text-caption ${helperColor}`}>{helperText}</span>
+        <span className={`text-caption leading-tight ${helperColor}`}>
+          {helperText}
+        </span>
       )}
     </div>
   );
