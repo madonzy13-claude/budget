@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Select,
@@ -78,15 +78,19 @@ export function CurrencyPicker({
   // on iOS Safari (even after we removed scrollable parents). The
   // native picker is iOS-friendly, opens the system wheel, and avoids
   // the entire popover positioning + focus-management surface.
-  const [isTouch, setIsTouch] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(pointer: coarse)");
-    setIsTouch(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setIsTouch(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
+  // Lazy initializer so the value is correct on the first render —
+  // CurrencyPicker only mounts inside an inline-edit cell after the
+  // user taps, so this always runs client-side and there is no SSR
+  // mismatch to worry about. Returning the right picker on first paint
+  // avoids a flash of Radix before swapping to native.
+  const [isTouch] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      window.matchMedia("(pointer: coarse)").matches ||
+      window.matchMedia("(hover: none)").matches ||
+      (navigator.maxTouchPoints ?? 0) > 0
+    );
+  });
 
   if (isTouch) {
     return (

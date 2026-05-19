@@ -296,3 +296,21 @@
     padding: 14px 32px;
   }
 }
+
+/* UAT-PH5-T3-41: iOS Safari paints a native focus indicator
+   (outline + box-shadow) on form controls that ignores Tailwind's
+   focus-visible / focus utilities. Strip it globally so our token-
+   driven focus styling is the only thing the user sees. Component
+   classes still drive border color, ring is intentionally none. */
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+[role="combobox"]:focus,
+[role="combobox"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
