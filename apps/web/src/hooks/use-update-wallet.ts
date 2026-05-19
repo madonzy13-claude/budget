@@ -8,6 +8,7 @@
  *            wallet is touched (current type OR new type === RESERVE).
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
@@ -43,6 +44,8 @@ function touchesReserves(
 
 export function useUpdateWallet(budgetId: string) {
   const qc = useQueryClient();
+  // UAT-PH5-T3-35: translate toast strings.
+  const t = useTranslations("bdp.tab.wallets.toast");
 
   return useMutation({
     mutationFn: async (input: UpdateWalletInput) => {
@@ -123,7 +126,7 @@ export function useUpdateWallet(budgetId: string) {
       // reserve_currency_mismatch: the component (wallets-sectioned-list) shows a
       // translated toast with budget currency context. Skip generic toast here.
       if (err?.code !== "reserve_currency_mismatch") {
-        toast.error("bdp.tab.wallets.toast.saveFailed");
+        toast.error(t("saveFailed"));
       }
     },
 

@@ -15,6 +15,7 @@
  * On error: roll back via captured previous snapshot + toast toggleFailed.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
@@ -25,6 +26,8 @@ import type {
 
 export function useToggleCategoryReserveExcluded(budgetId: string) {
   const qc = useQueryClient();
+  // UAT-PH5-T3-35: translate toast strings.
+  const t = useTranslations("bdp.tab.reserves.toast");
 
   return useMutation({
     mutationFn: async (input: {
@@ -141,14 +144,14 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
       if (ctx?.previous !== undefined) {
         qc.setQueryData(["budget", budgetId, "reserves"], ctx.previous);
       }
-      toast.error("bdp.tab.reserves.toast.toggleFailed");
+      toast.error(t("toggleFailed"));
     },
 
     onSuccess: (_data, input) => {
       if (input.excluded) {
-        toast.success("bdp.tab.reserves.toast.excluded");
+        toast.success(t("excluded", { category: input.categoryName }));
       } else {
-        toast.success("bdp.tab.reserves.toast.included");
+        toast.success(t("included", { category: input.categoryName }));
       }
     },
 

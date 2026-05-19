@@ -9,6 +9,7 @@
  * D-PH5-E1: Cross-invalidates reserves when a RESERVE wallet is created.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
@@ -23,6 +24,8 @@ export interface CreateWalletInput {
 
 export function useCreateWallet(budgetId: string) {
   const qc = useQueryClient();
+  // UAT-PH5-T3-35: translate toast strings.
+  const t = useTranslations("bdp.tab.wallets.toast");
 
   return useMutation({
     mutationFn: async (input: CreateWalletInput) => {
@@ -48,8 +51,8 @@ export function useCreateWallet(budgetId: string) {
       return (json.wallet ?? json) as WalletDto;
     },
 
-    onError: () => toast.error("bdp.tab.wallets.toast.createFailed"),
-    onSuccess: () => toast.success("bdp.tab.wallets.toast.created"),
+    onError: () => toast.error(t("createFailed")),
+    onSuccess: () => toast.success(t("created")),
 
     onSettled: (data, _err, input) => {
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "wallets"] });

@@ -200,6 +200,25 @@ function PersistedRow({
 }: PersistedProps) {
   const t = useTranslations("bdp.tab.wallets.row");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // UAT-PH5-T3-32 cont.: ref the swipe wrapper so we can snap the row
+  // back to its resting position when the delete confirm dialog closes
+  // (cancel or X). The mobile swipe leaves the wrapper scrolled to the
+  // delete button; without a programmatic reset the row would stay
+  // mid-swipe after the user dismisses the dialog.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // UAT-PH5-T3-32 cont.: when the dialog closes (cancel or backdrop tap),
+  // animate the wrapper back to scrollLeft = 0 so the row no longer
+  // shows the trailing Delete button. Confirm path also runs this, but
+  // the row unmounts immediately after archive so it has no visible
+  // effect there.
+  useEffect(() => {
+    if (confirmOpen) return;
+    const wrap = wrapperRef.current;
+    if (!wrap) return;
+    if (wrap.scrollLeft === 0) return;
+    wrap.scrollTo({ left: 0, behavior: "smooth" });
+  }, [confirmOpen]);
 
   // UAT-PH5-T3-17: switch from useDraggable + useDroppable to useSortable so
   // siblings animate out of the way while a row is dragged (matches the
@@ -225,6 +244,7 @@ function PersistedRow({
   // uses the existing hover-revealed trash button instead.
   return (
     <div
+      ref={wrapperRef}
       className={[
         "flex snap-x snap-mandatory overflow-x-auto",
         "[-ms-overflow-style:none] [scrollbar-width:none]",

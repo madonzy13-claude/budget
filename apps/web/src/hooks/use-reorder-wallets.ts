@@ -8,6 +8,7 @@
  * (PATCH walletType).
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
@@ -20,6 +21,8 @@ export interface ReorderWalletsInput {
 
 export function useReorderWallets(budgetId: string) {
   const qc = useQueryClient();
+  // UAT-PH5-T3-35: translate toast strings.
+  const t = useTranslations("bdp.tab.wallets.toast");
 
   return useMutation({
     mutationFn: async (input: ReorderWalletsInput) => {
@@ -74,7 +77,7 @@ export function useReorderWallets(budgetId: string) {
       if (ctx?.previous) {
         qc.setQueryData(["budget", budgetId, "wallets"], ctx.previous);
       }
-      toast.error("bdp.tab.wallets.toast.reorderFailed");
+      toast.error(t("reorderFailed"));
     },
 
     onSettled: () => {

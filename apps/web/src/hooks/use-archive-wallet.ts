@@ -6,12 +6,16 @@
  * D-PH5-E1: Cross-invalidates reserves when the archived wallet was RESERVE.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { toast } from "sonner";
 import type { WalletDto } from "./use-wallets";
 
 export function useArchiveWallet(budgetId: string) {
   const qc = useQueryClient();
+  // UAT-PH5-T3-35: translate toast strings instead of leaking the raw
+  // i18n key into the UI. Same pattern as other wallet hooks.
+  const t = useTranslations("bdp.tab.wallets.toast");
 
   return useMutation({
     mutationFn: async (walletId: string) => {
@@ -42,10 +46,10 @@ export function useArchiveWallet(budgetId: string) {
       if (ctx?.previous) {
         qc.setQueryData(["budget", budgetId, "wallets"], ctx.previous);
       }
-      toast.error("bdp.tab.wallets.toast.archiveFailed");
+      toast.error(t("archiveFailed"));
     },
 
-    onSuccess: () => toast.success("bdp.tab.wallets.toast.archived"),
+    onSuccess: () => toast.success(t("archived")),
 
     onSettled: (_data, _err, walletId, ctx) => {
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "wallets"] });

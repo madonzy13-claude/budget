@@ -12,6 +12,7 @@
  * On success: toasts bdp.tab.reserves.toast.saved + invalidates query.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
@@ -27,6 +28,8 @@ export function computeDelta(newCents: bigint, currentCents: bigint): bigint {
 
 export function useUpdateReserveAdjustment(budgetId: string) {
   const qc = useQueryClient();
+  // UAT-PH5-T3-35: translate toast strings.
+  const t = useTranslations("bdp.tab.reserves.toast");
 
   return useMutation({
     mutationFn: async (input: {
@@ -90,11 +93,11 @@ export function useUpdateReserveAdjustment(budgetId: string) {
       if (ctx?.previous !== undefined) {
         qc.setQueryData(["budget", budgetId, "reserves"], ctx.previous);
       }
-      toast.error("bdp.tab.reserves.toast.saveFailed");
+      toast.error(t("saveFailed"));
     },
 
     onSuccess: () => {
-      toast.success("bdp.tab.reserves.toast.saved");
+      toast.success(t("saved"));
     },
 
     onSettled: () => {
