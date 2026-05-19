@@ -101,14 +101,14 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
         onKeyDown={onKeyDown}
         aria-label={props.ariaLabel}
         aria-disabled={props.disabled}
-        // UAT-PH5-T3-36 cont.: `manipulation` tells the browser this
-        // element does not participate in horizontal panning, so a tap
-        // on the resting cell registers as a click immediately. Without
-        // this, the wallet row's swipe wrapper (touch-action: pan-x by
-        // virtue of overflow-x: auto) sometimes interpreted the touch
-        // as the start of a horizontal scroll and revealed the Delete
-        // button momentarily before the click fired.
-        style={{ touchAction: "manipulation" }}
+        // UAT-PH5-T3-38: `pan-y` only — touches on the cell may scroll
+        // the page vertically but must NOT initiate horizontal panning.
+        // The earlier `manipulation` value still permitted pan in both
+        // axes per spec, so iOS Safari momentarily scrolled the wallet
+        // row's swipe wrapper and flashed the Delete button before the
+        // tap registered as a click. `pan-y` blocks horizontal pan
+        // outright from this element, eliminating that flash.
+        style={{ touchAction: "pan-y" }}
         className={[
           // UAT-PH5-T3-11: I-beam on hover so the editable affordance reads
           // as "click to edit text" instead of "navigate / click button".
@@ -137,9 +137,10 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
       // overflow while an editor is active. Without it Radix Select
       // on touch defers `open` because it detects a scrollable parent.
       data-editing="true"
-      // Same rationale as resting cell — the active editor sits inside
-      // the swipe wrapper, taps on it should not begin a pan.
-      style={{ touchAction: "manipulation" }}
+      // Same rationale as resting cell — see UAT-PH5-T3-38. The editor
+      // also disables horizontal pan so typing/tapping inside it never
+      // shifts the swipe wrapper underneath.
+      style={{ touchAction: "pan-y" }}
       onBlur={(e) => {
         // UAT-PH5-T3-36: only commit when focus leaves the editor AND
         // hasn't landed inside a Radix portal that we own (e.g. the

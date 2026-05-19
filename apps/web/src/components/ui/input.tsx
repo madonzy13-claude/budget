@@ -23,8 +23,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           "bg-[color-mix(in_oklab,var(--card)_92%,transparent)]",
           "text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]",
           "transition-colors",
+          // UAT-PH5-T3-38: yellow border on focus, NO shadow/ring.
+          // appearance-none + outline-none + tap-highlight kill the
+          // iOS browser-default focus indicator that was showing as a
+          // blue outline around the cell.
+          "appearance-none [-webkit-tap-highlight-color:transparent]",
           "focus-visible:border-[var(--primary)] focus-visible:outline-none",
-          "focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklab,var(--primary)_45%,transparent)]",
           "disabled:cursor-not-allowed disabled:opacity-50",
           "aria-invalid:border-[var(--trading-down)]",
           "aria-invalid:ring-2 aria-invalid:ring-[color-mix(in_oklab,var(--trading-down)_30%,transparent)]",

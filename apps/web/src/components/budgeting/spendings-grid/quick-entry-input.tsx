@@ -91,7 +91,7 @@ export function QuickEntryInput({
         placeholder={t("placeholder")}
         aria-label={`Add expense to ${categoryName}`}
         style={{ touchAction: "pan-x" }}
-        className="h-9 w-full rounded border border-[var(--hairline-dark)] bg-transparent px-3 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+        className="h-9 w-full appearance-none rounded border border-[var(--hairline-dark)] bg-transparent px-3 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] [-webkit-tap-highlight-color:transparent] focus:border-[var(--primary)] focus:outline-none"
       />
     </div>
   );
