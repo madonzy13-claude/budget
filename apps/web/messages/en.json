@@ -553,6 +553,8 @@
           "category": "Category",
           "balance": "Reserve balance",
           "share": "Wallet share",
+          "expected": "Expected",
+          "actual": "Actual",
           "actions": "Actions"
         },
         "totals": {

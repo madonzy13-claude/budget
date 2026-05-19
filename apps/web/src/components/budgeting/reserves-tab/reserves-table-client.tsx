@@ -155,9 +155,35 @@ export function ReservesTableClient({
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex flex-col gap-4 p-4 pb-20 sm:p-6">
-        {/* UAT-PH5-T3-47: dropped the column header row per user
-            feedback — section titles + row layout carry enough
-            visual structure. */}
+        {/* UAT-PH5-T3-52: mobile-only banner above the table — moves
+            the mismatch + totals up so the user sees the funding state
+            without scrolling, and frees the bottom of the viewport.
+            Desktop renders the bottom footer instead. */}
+        <div className="sm:hidden">
+          <ReservesTotalsFooter
+            totalCategoryCents={summary.data.totals.totalCategoryReservesCents}
+            totalWalletCents={summary.data.totals.totalReserveWalletAmountCents}
+            mismatchCents={summary.data.totals.mismatchCents}
+            currency={budgetCurrency}
+            position="top"
+          />
+        </div>
+
+        {/* UAT-PH5-T3-52: column headers restored, renamed to
+            Category | Expected | Actual. Visible on both viewports. */}
+        <div className="flex items-center gap-3 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+          <span className="w-4" aria-hidden="true" />
+          <span className="min-w-0 flex-1">{t("column.category")}</span>
+          <span className="w-[72px] text-right sm:w-[120px]">
+            {t("column.expected")}
+          </span>
+          <span className="w-[88px] text-right sm:w-[160px]">
+            {t("column.actual")}
+          </span>
+          <span className="hidden text-center sm:block sm:w-[80px]">
+            {t("column.actions")}
+          </span>
+        </div>
 
         {/* Active section */}
         <ActiveSection>
@@ -210,13 +236,16 @@ export function ReservesTableClient({
         </ExcludedSection>
       </div>
 
-      {/* Sticky totals footer — outside the scrollable area padding */}
-      <ReservesTotalsFooter
-        totalCategoryCents={summary.data.totals.totalCategoryReservesCents}
-        totalWalletCents={summary.data.totals.totalReserveWalletAmountCents}
-        mismatchCents={summary.data.totals.mismatchCents}
-        currency={budgetCurrency}
-      />
+      {/* Sticky totals footer — desktop only (T3-52 moved mobile to top). */}
+      <div className="hidden sm:block">
+        <ReservesTotalsFooter
+          totalCategoryCents={summary.data.totals.totalCategoryReservesCents}
+          totalWalletCents={summary.data.totals.totalReserveWalletAmountCents}
+          mismatchCents={summary.data.totals.mismatchCents}
+          currency={budgetCurrency}
+          position="bottom"
+        />
+      </div>
     </DndContext>
   );
 }

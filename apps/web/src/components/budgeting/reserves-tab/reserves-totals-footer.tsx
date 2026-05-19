@@ -16,6 +16,12 @@ export interface ReservesTotalsFooterProps {
   totalWalletCents: string;
   mismatchCents: string;
   currency: string;
+  /**
+   * UAT-PH5-T3-52: "top" → mobile banner above the table; non-sticky,
+   * compact stacked layout. "bottom" → desktop sticky card inset at
+   * bottom-6.
+   */
+  position?: "top" | "bottom";
 }
 
 export function ReservesTotalsFooter({
@@ -23,6 +29,7 @@ export function ReservesTotalsFooter({
   totalWalletCents,
   mismatchCents,
   currency,
+  position = "bottom",
 }: ReservesTotalsFooterProps) {
   const t = useTranslations("bdp.tab.reserves");
 
@@ -47,31 +54,39 @@ export function ReservesTotalsFooter({
     <div
       data-testid="reserves-totals-footer"
       className={[
-        // UAT-PH5-T3-45: float as a card inset from the viewport
-        // edges so it visually matches the centered table column.
-        // Extra bottom padding on mobile keeps the red mismatch
-        // chip clear of the iOS home-indicator area.
-        "sticky bottom-4 z-30 mx-4 sm:bottom-6 sm:mx-6",
-        "flex flex-col gap-2",
         "rounded-[var(--radius-md)] border border-[var(--hairline-dark)]",
-        "bg-[var(--surface-card-dark)] px-4 py-3 pb-6 sm:pb-3",
-        "min-h-[72px] sm:min-h-[56px]",
-        "sm:flex-row sm:items-center sm:justify-between",
+        "bg-[var(--surface-card-dark)]",
+        position === "top"
+          ? // UAT-PH5-T3-52: compact mobile banner. Stacked rows,
+            // tight padding, no sticky positioning — sits inline at
+            // the top of the content area.
+            "mx-4 my-2 flex flex-col gap-2 px-4 py-3"
+          : // Desktop sticky card. Floats inset from the viewport
+            // edges, same look as the wallets-section column.
+            "sticky bottom-6 z-30 mx-6 flex flex-row items-center justify-between gap-3 px-4 py-3 min-h-[56px]",
       ].join(" ")}
     >
-      <div className="flex flex-col gap-1 sm:flex-row sm:gap-4">
+      {/* UAT-PH5-T3-52: two-column key/value layout on mobile; inline
+          row on desktop. Numbers right-align so the column reads as a
+          mini-table. */}
+      <div
+        className={
+          position === "top"
+            ? "grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
+            : "flex flex-row gap-4"
+        }
+      >
         <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-          {t("totals.categoriesLabel")}:{" "}
-          {/* UAT-PH5-T3-48: amount first, currency second. */}
-          <span className="text-num-md text-[var(--foreground)]">
-            {fmt(totalCategoryCents)} {currency}
-          </span>
+          {t("totals.categoriesLabel")}
+        </span>
+        <span className="text-num-md text-right text-[var(--foreground)]">
+          {fmt(totalCategoryCents)} {currency}
         </span>
         <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-          {t("totals.walletsLabel")}:{" "}
-          <span className="text-num-md text-[var(--foreground)]">
-            {fmt(totalWalletCents)} {currency}
-          </span>
+          {t("totals.walletsLabel")}
+        </span>
+        <span className="text-num-md text-right text-[var(--foreground)]">
+          {fmt(totalWalletCents)} {currency}
         </span>
       </div>
 

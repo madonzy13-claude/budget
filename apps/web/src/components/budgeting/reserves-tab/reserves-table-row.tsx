@@ -69,10 +69,11 @@ export function ReservesTableRow({
         {row.name}
       </div>
 
-      {/* Reserve balance — editable on Active, read-only (grayed) on Excluded
-          (D-PH5-R10). UAT-PH5-T3-45: bare number formatting (centsToBare) to
-          match wallets — no currency code in the cell. */}
-      <div className="w-[80px] text-right tabular-nums sm:w-[120px]">
+      {/* Reserve balance ("Expected") — editable on Active, read-only
+          (grayed) on Excluded (D-PH5-R10). UAT-PH5-T3-45: bare number
+          formatting (centsToBare) to match wallets. T3-52: shrunk
+          mobile width to 72 px so the Actual column fits alongside. */}
+      <div className="w-[72px] text-right tabular-nums sm:w-[120px]">
         <InlineEditCell
           value={row.reserveBalanceCents}
           ariaLabel={`Reserve balance for ${row.name}`}
@@ -110,13 +111,12 @@ export function ReservesTableRow({
         />
       </div>
 
-      {/* Wallet share — em-dash when null OR excluded (D-PH5-R4). Hidden on
-          mobile so the category column has breathing room (T3-45).
-          UAT-PH5-T3-50: the amount turns red when this category's
-          reserve balance exceeds the wallet share allocated to it —
-          surfaces the per-row contribution to the global under-funded
-          mismatch. Percent stays muted. */}
-      <div className="hidden text-right text-num-md sm:block sm:w-[160px]">
+      {/* Wallet share ("Actual") — em-dash when null OR excluded
+          (D-PH5-R4). UAT-PH5-T3-50: the amount turns red when this
+          category's reserve balance exceeds the wallet share allocated
+          to it. T3-52: visible on mobile (88 px) so user can see what
+          fraction of the wallet pool actually backs each row. */}
+      <div className="w-[88px] text-right text-num-md sm:w-[160px]">
         {sharePct === null || isExcluded ? (
           <span
             className="text-[var(--muted-foreground)]"
