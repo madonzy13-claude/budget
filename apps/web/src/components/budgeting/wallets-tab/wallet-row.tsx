@@ -200,25 +200,93 @@ function PersistedRow({
 }: PersistedProps) {
   const t = useTranslations("bdp.tab.wallets.row");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // UAT-PH5-T3-32 cont.: ref the swipe wrapper so we can snap the row
-  // back to its resting position when the delete confirm dialog closes
-  // (cancel or X). The mobile swipe leaves the wrapper scrolled to the
-  // delete button; without a programmatic reset the row would stay
-  // mid-swipe after the user dismisses the dialog.
-  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // UAT-PH5-T3-32 cont.: when the dialog closes (cancel or backdrop tap),
-  // animate the wrapper back to scrollLeft = 0 so the row no longer
-  // shows the trailing Delete button. Confirm path also runs this, but
-  // the row unmounts immediately after archive so it has no visible
-  // effect there.
+  // UAT-PH5-T3-38: rewrote mobile swipe-to-delete from CSS-snap to
+  // JS pointer-driven gesture. The CSS approach
+  // (overflow-x: auto + scroll-snap) made iOS Safari treat ANY tap
+  // inside the row as a potential horizontal pan, which:
+  //   1. briefly scrolled the row revealing Delete during taps that
+  //      should just edit a cell,
+  //   2. confused Radix Select (currency dropdown stayed closed because
+  //      Radix detects scrollable parents and defers `open` on touch),
+  //   3. shifted the row underneath text inputs while focused.
+  // JS-driven swipe with explicit intent detection (|dx| > 10 AND
+  // |dx| > |dy| before capture) makes taps register cleanly while
+  // preserving the iOS-Mail-style swipe-to-reveal-Delete feel.
+  const ACTION_W = 88;
+  const [offset, setOffset] = useState(0);
+  const gestureRef = useRef({
+    x: 0,
+    y: 0,
+    base: 0,
+    locked: false,
+    pid: 0,
+  });
+
+  // Reset offset whenever the confirm dialog closes (cancel/escape) or
+  // never opens. After dialog confirm the row unmounts so this has no
+  // visible effect on the delete path.
   useEffect(() => {
-    if (confirmOpen) return;
-    const wrap = wrapperRef.current;
-    if (!wrap) return;
-    if (wrap.scrollLeft === 0) return;
-    wrap.scrollTo({ left: 0, behavior: "smooth" });
-  }, [confirmOpen]);
+    if (!confirmOpen && offset !== 0) setOffset(0);
+  }, [confirmOpen, offset]);
+
+  const isInteractive = (el: HTMLElement | null) => {
+    if (!el) return false;
+    if (el.closest('[data-editing="true"]')) return true;
+    if (el.closest("[data-no-swipe]")) return true;
+    if (el.closest('[data-testid^="drag-grip-"]')) return true;
+    return false;
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Only mobile pointers; desktop uses the hover trash.
+    if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+    if (isInteractive(e.target as HTMLElement)) return;
+    gestureRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      base: offset,
+      locked: false,
+      pid: e.pointerId,
+    };
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const g = gestureRef.current;
+    if (g.pid !== e.pointerId) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (!g.locked) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      // Vertical intent — abandon, let the page scroll.
+      if (Math.abs(dy) > Math.abs(dx)) {
+        gestureRef.current = { x: 0, y: 0, base: 0, locked: false, pid: 0 };
+        return;
+      }
+      g.locked = true;
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        // setPointerCapture is best-effort; if the runtime refuses we
+        // still drive translateX from clientX deltas.
+      }
+    }
+    setOffset(Math.max(-ACTION_W, Math.min(0, g.base + dx)));
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    const g = gestureRef.current;
+    if (g.pid !== e.pointerId) return;
+    if (g.locked) {
+      setOffset((prev) => (prev <= -ACTION_W / 2 ? -ACTION_W : 0));
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // Same best-effort note as above.
+      }
+    }
+    gestureRef.current = { x: 0, y: 0, base: 0, locked: false, pid: 0 };
+  };
 
   // UAT-PH5-T3-17: switch from useDraggable + useDroppable to useSortable so
   // siblings animate out of the way while a row is dragged (matches the
@@ -236,55 +304,62 @@ function PersistedRow({
     isOver: isRowDropOver,
   } = useSortable({ id: wallet.id });
 
-  // UAT-PH5-T3-32: iOS-style swipe-left to reveal Delete on mobile. The
-  // wrapper is a horizontally-scrollable flex container with two snap
-  // points; the inner row is one snap target (resting state) and the
-  // trailing Delete button is the other (revealed state). Pure CSS, no
-  // JS gesture lib needed. Desktop disables the scroll/snap entirely and
-  // uses the existing hover-revealed trash button instead.
+  // Combine the dnd-kit sortable transform with the swipe offset so a
+  // dragged-and-dropped row also keeps its mobile swipe state coherent.
+  const swipeTransform = `translateX(${offset}px)`;
+  const dndTransform = CSS.Transform.toString(transform) ?? "";
+  const combinedTransform =
+    dndTransform && dndTransform !== "none"
+      ? `${dndTransform} ${swipeTransform}`
+      : swipeTransform;
+
   return (
     <div
-      ref={wrapperRef}
-      className={[
-        "flex snap-x snap-mandatory overflow-x-auto",
-        "[-ms-overflow-style:none] [scrollbar-width:none]",
-        "[&::-webkit-scrollbar]:hidden",
-        // UAT-PH5-T3-36: when an inline editor inside the row is
-        // active (Radix Select for currency, text input for name, etc.)
-        // the wrapper relinquishes its overflow-x. Without this, Radix
-        // Select on touch defers `open` because it detects a scrollable
-        // parent and treats the tap as the start of a scroll gesture —
-        // the listbox never appears. InlineEditCell stamps
-        // data-editing="true" on its editor container; we use :has()
-        // to detect it. Modern Safari + Chrome support :has() since
-        // 2022; this is the same selector we already rely on for
-        // group-hover-via-has elsewhere.
-        "has-[[data-editing='true']]:overflow-x-visible has-[[data-editing='true']]:snap-none",
-        // Desktop: no swipe — wrapper collapses into the section flow.
-        "sm:snap-none sm:overflow-x-visible",
-      ].join(" ")}
+      className="relative"
       data-wallet-row-wrapper={wallet.id}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
+      {/* UAT-PH5-T3-38: mobile-only Delete revealed by horizontal swipe.
+          Positioned absolutely behind the row's right edge; the row's
+          opaque background covers it at rest. Slides into view as the
+          row translates left. Tap = open confirm dialog. Desktop hides
+          this entirely (`sm:hidden`) and uses the in-row hover trash. */}
+      <button
+        data-testid={`wallet-swipe-delete-${wallet.id}`}
+        data-no-swipe
+        aria-label={t("trashAria", { name: wallet.name })}
+        aria-hidden={offset === 0}
+        tabIndex={offset === 0 ? -1 : 0}
+        onClick={() => setConfirmOpen(true)}
+        className={[
+          "absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center",
+          "rounded-[var(--radius-md)] bg-[var(--destructive)]",
+          "text-body-md font-medium text-white",
+          "cursor-pointer sm:hidden",
+        ].join(" ")}
+      >
+        {t("swipeDeleteCta")}
+      </button>
     <div
       ref={setNodeRef}
       data-testid="wallet-row"
       data-wallet-id={wallet.id}
       data-row-drop-over={isRowDropOver || undefined}
-      // UAT-PH5-T3-23: transition lives on the className so EVERY transform
-      // change animates — including the very first sibling-shift of a drag.
-      // dnd-kit's per-frame `transition` value was unreliable on the first
-      // pointer move ("", undefined, then a real string) which read as a
-      // direction-specific jump. Letting Tailwind own the transition rule
-      // removes that timing dependency entirely.
+      // UAT-PH5-T3-23 + T3-38: dnd-kit sortable transform + horizontal
+      // swipe offset compose here. transition stays a className so
+      // sibling reorder + swipe settle both animate smoothly.
       style={{
-        transform: CSS.Transform.toString(transform),
+        transform: combinedTransform,
         // Source row hidden completely during drag — the <DragOverlay>
         // ghost stands in. Previously kept at 0.3 to indicate snap-back
         // position; that ghost-row artefact has been removed per
         // user feedback.
         visibility: isDragging ? "hidden" : undefined,
       }}
-      className="group flex min-h-[56px] w-full shrink-0 snap-start items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px] sm:w-auto sm:flex-1"
+      className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
     >
       <RowDragHandle
         name={wallet.name || "wallet"}
@@ -451,23 +526,6 @@ function PersistedRow({
         <Trash2 className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
-    {/* UAT-PH5-T3-32: mobile-only swipe-revealed Delete. Sits as a second
-        snap target after the row; user swipes left, the row scrolls out
-        and the button is exposed. Tap → open confirm dialog. Desktop
-        hides this entirely; the hover trash above takes over. */}
-    <button
-      data-testid={`wallet-swipe-delete-${wallet.id}`}
-      aria-label={t("trashAria", { name: wallet.name })}
-      onClick={() => setConfirmOpen(true)}
-      className={[
-        "ml-2 flex w-20 shrink-0 snap-end items-center justify-center",
-        "rounded-[var(--radius-md)] bg-[var(--destructive)]",
-        "text-body-md font-medium text-white",
-        "cursor-pointer sm:hidden",
-      ].join(" ")}
-    >
-      {t("swipeDeleteCta")}
-    </button>
 
     <WalletDeleteConfirm
       name={wallet.name}

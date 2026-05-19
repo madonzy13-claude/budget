@@ -27,8 +27,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           // appearance-none + outline-none + tap-highlight kill the
           // iOS browser-default focus indicator that was showing as a
           // blue outline around the cell.
+          // UAT-PH5-T3-38: `focus:` not `focus-visible:` — focus-visible
+          // only triggers via keyboard, so a touch tap on iOS never
+          // matched and the browser's default focus chrome bled
+          // through. `focus:` applies for taps too.
           "appearance-none [-webkit-tap-highlight-color:transparent]",
-          "focus-visible:border-[var(--primary)] focus-visible:outline-none",
+          "focus:border-[var(--primary)] focus:outline-none focus:shadow-none",
           "disabled:cursor-not-allowed disabled:opacity-50",
           "aria-invalid:border-[var(--trading-down)]",
           "aria-invalid:ring-2 aria-invalid:ring-[color-mix(in_oklab,var(--trading-down)_30%,transparent)]",
