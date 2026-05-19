@@ -118,30 +118,22 @@ export function CurrencyPicker({
             {effectivePlaceholder}
           </option>
         )}
-        {items.map((item) => {
-          const localizedName = options
-            ? item.label
-            : (() => {
-                try {
-                  return t(`names.${item.value}`);
-                } catch {
-                  return item.label;
-                }
-              })();
-          return (
-            <option
-              key={item.value}
-              value={item.value}
-              data-testid={`currency-option-${item.value}`}
-            >
-              {item.value}
-              {item.symbol ? ` ${item.symbol}` : ""}
-              {localizedName && localizedName !== item.value
-                ? ` — ${localizedName}`
-                : ""}
-            </option>
-          );
-        })}
+        {items.map((item) => (
+          // UAT-PH5-T3-44: 3-letter code only. Native <select> trigger
+          // mirrors the SELECTED option's text content, so any symbol
+          // or localized name we append here would render in the
+          // resting cell ("EUR €" / "EUR — Euro") and overflow.
+          // The iOS picker still shows the 3-letter code, which is
+          // the universally recognised identifier; localized names
+          // live in the desktop Radix variant.
+          <option
+            key={item.value}
+            value={item.value}
+            data-testid={`currency-option-${item.value}`}
+          >
+            {item.value}
+          </option>
+        ))}
       </select>
     );
   }
