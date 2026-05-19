@@ -100,15 +100,17 @@ export function CurrencyPicker({
         disabled={disabled}
         onChange={(e) => onSelect(e.target.value)}
         data-testid="currency-picker-native"
-        // appearance-none + tap-highlight-transparent + focus:border --primary
-        // so the native control matches the InlineEditCell editor design;
-        // outside of focus it still looks like a token-styled field.
+        // UAT-PH5-T3-43: render as bare text. The cell parent
+        // constrains width and the original resting state was a plain
+        // 3-letter span — preserving that look means no border, no
+        // padding, no background, no dropdown arrow. Tapping anywhere
+        // on the text opens the iOS system picker. The 3-letter code
+        // ("EUR") shows in full.
         className={[
           "appearance-none [-webkit-tap-highlight-color:transparent]",
-          "flex h-9 w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--input)]",
-          "bg-[color-mix(in_oklab,var(--card)_92%,transparent)]",
-          "px-3 text-base sm:text-sm text-[var(--foreground)]",
-          "focus:border-[var(--primary)] focus:outline-none focus:shadow-none",
+          "w-full bg-transparent p-0 m-0 border-0",
+          "text-num-md text-[var(--foreground)]",
+          "focus:outline-none focus:shadow-none focus:border-0",
         ].join(" ")}
       >
         {!value && (

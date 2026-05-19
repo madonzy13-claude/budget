@@ -467,7 +467,7 @@ function PersistedRow({
           was fragile on iOS Safari. Desktop still works because Radix
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
-      <div className="w-[36px] sm:w-[96px]" data-inline-cell>
+      <div className="w-[44px] sm:w-[96px]" data-inline-cell>
         {isReserveSection ? (
           <span
             className="text-num-md"
