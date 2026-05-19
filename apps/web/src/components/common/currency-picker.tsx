@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Select,
@@ -71,6 +72,73 @@ export function CurrencyPicker({
         symbol: c.symbol,
         kind: "FIAT",
       }));
+
+  // UAT-PH5-T3-40: render a native <select> on touch devices. Radix
+  // Select uses a portaled custom popover that does not reliably open
+  // on iOS Safari (even after we removed scrollable parents). The
+  // native picker is iOS-friendly, opens the system wheel, and avoids
+  // the entire popover positioning + focus-management surface.
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(pointer: coarse)");
+    setIsTouch(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsTouch(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  if (isTouch) {
+    return (
+      <select
+        aria-label={ariaLabel ?? t("picker.aria_label")}
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(e) => onSelect(e.target.value)}
+        data-testid="currency-picker-native"
+        // appearance-none + tap-highlight-transparent + focus:border --primary
+        // so the native control matches the InlineEditCell editor design;
+        // outside of focus it still looks like a token-styled field.
+        className={[
+          "appearance-none [-webkit-tap-highlight-color:transparent]",
+          "flex h-9 w-full min-w-0 rounded-[var(--radius-md)] border border-[var(--input)]",
+          "bg-[color-mix(in_oklab,var(--card)_92%,transparent)]",
+          "px-3 text-base sm:text-sm text-[var(--foreground)]",
+          "focus:border-[var(--primary)] focus:outline-none focus:shadow-none",
+        ].join(" ")}
+      >
+        {!value && (
+          <option value="" disabled>
+            {effectivePlaceholder}
+          </option>
+        )}
+        {items.map((item) => {
+          const localizedName = options
+            ? item.label
+            : (() => {
+                try {
+                  return t(`names.${item.value}`);
+                } catch {
+                  return item.label;
+                }
+              })();
+          return (
+            <option
+              key={item.value}
+              value={item.value}
+              data-testid={`currency-option-${item.value}`}
+            >
+              {item.value}
+              {item.symbol ? ` ${item.symbol}` : ""}
+              {localizedName && localizedName !== item.value
+                ? ` — ${localizedName}`
+                : ""}
+            </option>
+          );
+        })}
+      </select>
+    );
+  }
 
   return (
     <Select

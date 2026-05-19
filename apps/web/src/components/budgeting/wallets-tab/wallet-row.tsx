@@ -201,92 +201,128 @@ function PersistedRow({
   const t = useTranslations("bdp.tab.wallets.row");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // UAT-PH5-T3-38: rewrote mobile swipe-to-delete from CSS-snap to
-  // JS pointer-driven gesture. The CSS approach
-  // (overflow-x: auto + scroll-snap) made iOS Safari treat ANY tap
-  // inside the row as a potential horizontal pan, which:
-  //   1. briefly scrolled the row revealing Delete during taps that
-  //      should just edit a cell,
-  //   2. confused Radix Select (currency dropdown stayed closed because
-  //      Radix detects scrollable parents and defers `open` on touch),
-  //   3. shifted the row underneath text inputs while focused.
-  // JS-driven swipe with explicit intent detection (|dx| > 10 AND
-  // |dx| > |dy| before capture) makes taps register cleanly while
-  // preserving the iOS-Mail-style swipe-to-reveal-Delete feel.
+  // UAT-PH5-T3-40: native pointer listeners (not React onPointer*) so
+  // we can register with passive:false and call preventDefault during
+  // an active horizontal swipe. React 19's synthetic pointer events
+  // are unreliable for gesture capture on iOS Safari — handlers don't
+  // always fire for synthetic-but-trusted touches, and we cannot
+  // suppress the synthesised click after a swipe-release without
+  // preventDefault on the move sequence. Going native gives us both.
   const ACTION_W = 88;
   const [offset, setOffset] = useState(0);
-  const gestureRef = useRef({
-    x: 0,
-    y: 0,
-    base: 0,
-    locked: false,
-    pid: 0,
-  });
+  const [swiping, setSwiping] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0);
+  const suppressClickUntilRef = useRef(0);
 
-  // Reset offset whenever the confirm dialog closes (cancel/escape) or
-  // never opens. After dialog confirm the row unmounts so this has no
-  // visible effect on the delete path.
   useEffect(() => {
-    if (!confirmOpen && offset !== 0) setOffset(0);
-  }, [confirmOpen, offset]);
+    offsetRef.current = offset;
+  }, [offset]);
 
-  const isInteractive = (el: HTMLElement | null) => {
-    if (!el) return false;
-    if (el.closest('[data-editing="true"]')) return true;
-    if (el.closest("[data-no-swipe]")) return true;
-    if (el.closest('[data-testid^="drag-grip-"]')) return true;
-    return false;
-  };
+  // Reset offset only on the open → closed transition (cancel/X). Earlier
+  // version depended on `offset`, which triggered an infinite reset
+  // during an active swipe because every setOffset re-ran the effect
+  // with `!confirmOpen && offset !== 0` still true.
+  const prevConfirmRef = useRef(false);
+  useEffect(() => {
+    if (prevConfirmRef.current && !confirmOpen) {
+      if (offsetRef.current !== 0) setOffset(0);
+    }
+    prevConfirmRef.current = confirmOpen;
+  }, [confirmOpen]);
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    // Only mobile pointers; desktop uses the hover trash.
-    if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
-    if (isInteractive(e.target as HTMLElement)) return;
-    gestureRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      base: offset,
-      locked: false,
-      pid: e.pointerId,
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const state = { x: 0, y: 0, base: 0, locked: false, pid: -1 };
+
+    const isInteractive = (target: EventTarget | null) => {
+      const node = target as HTMLElement | null;
+      if (!node) return false;
+      if (node.closest('[data-editing="true"]')) return true;
+      if (node.closest("[data-no-swipe]")) return true;
+      if (node.closest('[data-testid^="drag-grip-"]')) return true;
+      return false;
     };
-  };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    const g = gestureRef.current;
-    if (g.pid !== e.pointerId) return;
-    const dx = e.clientX - g.x;
-    const dy = e.clientY - g.y;
-    if (!g.locked) {
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-      // Vertical intent — abandon, let the page scroll.
-      if (Math.abs(dy) > Math.abs(dx)) {
-        gestureRef.current = { x: 0, y: 0, base: 0, locked: false, pid: 0 };
-        return;
-      }
-      g.locked = true;
-      try {
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      } catch {
-        // setPointerCapture is best-effort; if the runtime refuses we
-        // still drive translateX from clientX deltas.
-      }
-    }
-    setOffset(Math.max(-ACTION_W, Math.min(0, g.base + dx)));
-  };
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+      if (isInteractive(e.target)) return;
+      state.x = e.clientX;
+      state.y = e.clientY;
+      state.base = offsetRef.current;
+      state.locked = false;
+      state.pid = e.pointerId;
+    };
 
-  const onPointerUp = (e: React.PointerEvent) => {
-    const g = gestureRef.current;
-    if (g.pid !== e.pointerId) return;
-    if (g.locked) {
-      setOffset((prev) => (prev <= -ACTION_W / 2 ? -ACTION_W : 0));
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {
-        // Same best-effort note as above.
+    const onPointerMove = (e: PointerEvent) => {
+      if (state.pid !== e.pointerId) return;
+      const dx = e.clientX - state.x;
+      const dy = e.clientY - state.y;
+      if (!state.locked) {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          state.pid = -1;
+          return;
+        }
+        state.locked = true;
+        setSwiping(true);
+        try {
+          el.setPointerCapture(e.pointerId);
+        } catch {
+          /* best-effort */
+        }
       }
-    }
-    gestureRef.current = { x: 0, y: 0, base: 0, locked: false, pid: 0 };
-  };
+      // Claim the touch so the browser doesn't try to scroll the page.
+      if (e.cancelable) e.preventDefault();
+      setOffset(Math.max(-ACTION_W, Math.min(0, state.base + dx)));
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (state.pid !== e.pointerId) return;
+      if (state.locked) {
+        const finalOffset =
+          offsetRef.current <= -ACTION_W / 2 ? -ACTION_W : 0;
+        setOffset(finalOffset);
+        setSwiping(false);
+        // Suppress the synthetic click iOS fires immediately after a
+        // touch ends — without this, the click would land on whatever
+        // cell happened to be under the finger at release and open its
+        // editor.
+        suppressClickUntilRef.current = Date.now() + 400;
+        try {
+          el.releasePointerCapture(e.pointerId);
+        } catch {
+          /* best-effort */
+        }
+      }
+      state.x = 0;
+      state.y = 0;
+      state.base = 0;
+      state.locked = false;
+      state.pid = -1;
+    };
+
+    const onClickCapture = (e: MouseEvent) => {
+      if (Date.now() < suppressClickUntilRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    el.addEventListener("pointerdown", onPointerDown);
+    el.addEventListener("pointermove", onPointerMove, { passive: false });
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
+    el.addEventListener("click", onClickCapture, true);
+    return () => {
+      el.removeEventListener("pointerdown", onPointerDown);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerUp);
+      el.removeEventListener("click", onClickCapture, true);
+    };
+  }, []);
 
   // UAT-PH5-T3-17: switch from useDraggable + useDroppable to useSortable so
   // siblings animate out of the way while a row is dragged (matches the
@@ -315,12 +351,11 @@ function PersistedRow({
 
   return (
     <div
+      ref={wrapperRef}
       className="relative"
       data-wallet-row-wrapper={wallet.id}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      // Pointer listeners attached natively in useEffect with
+      // passive:false so preventDefault works during an active swipe.
     >
       {/* UAT-PH5-T3-38: mobile-only Delete revealed by horizontal swipe.
           Positioned absolutely behind the row's right edge; the row's
@@ -353,10 +388,12 @@ function PersistedRow({
       // sibling reorder + swipe settle both animate smoothly.
       style={{
         transform: combinedTransform,
+        // During an active horizontal swipe the row tracks the finger
+        // 1:1, so disable the snap transition; on release we restore
+        // it so the snap animates.
+        transition: swiping ? "none" : undefined,
         // Source row hidden completely during drag — the <DragOverlay>
-        // ghost stands in. Previously kept at 0.3 to indicate snap-back
-        // position; that ghost-row artefact has been removed per
-        // user feedback.
+        // ghost stands in.
         visibility: isDragging ? "hidden" : undefined,
       }}
       className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
@@ -425,10 +462,19 @@ function PersistedRow({
             ariaLabel={t("currencyAria")}
             testId={`wallet-currency-${wallet.id}`}
             render={(v) => <span className="text-num-md">{v}</span>}
-            renderEditor={(draft, onChange) => (
+            renderEditor={(draft, onChange, onCommit) => (
               <CurrencyPicker
                 value={draft}
-                onSelect={(v: string) => onChange(v)}
+                onSelect={(v: string) => {
+                  // UAT-PH5-T3-40: commit immediately on picker change.
+                  // Native <select> on iOS closes the system wheel after
+                  // selection and leaves focus on the trigger; there is
+                  // no blur to drive onCommit. Radix Select desktop
+                  // also benefits — the user does not need to click
+                  // outside to save.
+                  onChange(v);
+                  onCommit();
+                }}
               />
             )}
             onSave={(v) => onUpdate({ currency: v })}
