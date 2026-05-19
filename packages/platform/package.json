@@ -22,8 +22,8 @@
   "devDependencies": {
     "@budget/db": "workspace:*",
     "drizzle-kit": "^0.31.10",
-    "@types/libsodium-wrappers": "^0.7.0",
-    "@types/nodemailer": "^7.0.0",
+    "@types/libsodium-wrappers": "^0.8.2",
+    "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.11.0"
   }
 }
