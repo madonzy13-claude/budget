@@ -67,7 +67,7 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
         data-testid="month-navigator-prev"
         aria-label={t("prev")}
         onClick={prev}
-        className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-[var(--info)]"
+        className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
       >
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       </button>
@@ -86,7 +86,7 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
         data-testid="month-navigator-next"
         aria-label={t("next")}
         onClick={next}
-        className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-[var(--info)]"
+        className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
       >
         <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </button>

@@ -101,6 +101,14 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
         onKeyDown={onKeyDown}
         aria-label={props.ariaLabel}
         aria-disabled={props.disabled}
+        // UAT-PH5-T3-36 cont.: `manipulation` tells the browser this
+        // element does not participate in horizontal panning, so a tap
+        // on the resting cell registers as a click immediately. Without
+        // this, the wallet row's swipe wrapper (touch-action: pan-x by
+        // virtue of overflow-x: auto) sometimes interpreted the touch
+        // as the start of a horizontal scroll and revealed the Delete
+        // button momentarily before the click fired.
+        style={{ touchAction: "manipulation" }}
         className={[
           // UAT-PH5-T3-11: I-beam on hover so the editable affordance reads
           // as "click to edit text" instead of "navigate / click button".
@@ -129,6 +137,9 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
       // overflow while an editor is active. Without it Radix Select
       // on touch defers `open` because it detects a scrollable parent.
       data-editing="true"
+      // Same rationale as resting cell — the active editor sits inside
+      // the swipe wrapper, taps on it should not begin a pan.
+      style={{ touchAction: "manipulation" }}
       onBlur={(e) => {
         // UAT-PH5-T3-36: only commit when focus leaves the editor AND
         // hasn't landed inside a Radix portal that we own (e.g. the
