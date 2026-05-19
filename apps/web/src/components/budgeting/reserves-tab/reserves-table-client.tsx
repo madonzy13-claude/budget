@@ -155,19 +155,15 @@ export function ReservesTableClient({
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex flex-col gap-4 p-4 pb-20 sm:p-6">
-        {/* UAT-PH5-T3-52: mobile-only banner above the table — moves
-            the mismatch + totals up so the user sees the funding state
-            without scrolling, and frees the bottom of the viewport.
-            Desktop renders the bottom footer instead. */}
-        <div className="sm:hidden">
-          <ReservesTotalsFooter
-            totalCategoryCents={summary.data.totals.totalCategoryReservesCents}
-            totalWalletCents={summary.data.totals.totalReserveWalletAmountCents}
-            mismatchCents={summary.data.totals.mismatchCents}
-            currency={budgetCurrency}
-            position="top"
-          />
-        </div>
+        {/* UAT-PH5-T3-53: single top banner on every viewport. Sits
+            inside the page's flex column so its width matches the
+            category list naturally. No more bottom sticky footer. */}
+        <ReservesTotalsFooter
+          totalCategoryCents={summary.data.totals.totalCategoryReservesCents}
+          totalWalletCents={summary.data.totals.totalReserveWalletAmountCents}
+          mismatchCents={summary.data.totals.mismatchCents}
+          currency={budgetCurrency}
+        />
 
         {/* UAT-PH5-T3-52: column headers restored, renamed to
             Category | Expected | Actual. Visible on both viewports. */}
@@ -234,17 +230,6 @@ export function ReservesTableClient({
             </div>
           )}
         </ExcludedSection>
-      </div>
-
-      {/* Sticky totals footer — desktop only (T3-52 moved mobile to top). */}
-      <div className="hidden sm:block">
-        <ReservesTotalsFooter
-          totalCategoryCents={summary.data.totals.totalCategoryReservesCents}
-          totalWalletCents={summary.data.totals.totalReserveWalletAmountCents}
-          mismatchCents={summary.data.totals.mismatchCents}
-          currency={budgetCurrency}
-          position="bottom"
-        />
       </div>
     </DndContext>
   );

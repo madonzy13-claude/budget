@@ -11,4 +11,15 @@ export interface ReservesSummaryRepo {
    * Returns 0n when no rows match.
    */
   sumReserveWalletAmounts(tenantId: string): Promise<bigint>;
+
+  /**
+   * UAT-PH5-T3-53: Last adjustment timestamp per category, used to order
+   * sticky-allocation walks. Categories adjusted most recently are walked
+   * LAST so the deficit when wallet pool < Σ balances falls on the row
+   * the user just modified — not on previously-allocated rows.
+   *
+   * Returns Map<categoryId, Date>. Missing entries mean "never adjusted"
+   * and should sort first (treated as -Infinity).
+   */
+  getLastAdjustedAtPerCategory(tenantId: string): Promise<Map<string, Date>>;
 }

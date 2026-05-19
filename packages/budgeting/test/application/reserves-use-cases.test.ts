@@ -355,7 +355,10 @@ describe("getReservesSummary use case", () => {
         getForCategory: async () =>
           ({ amount: { toString: () => "0" } }) as any,
       },
-      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 0n },
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 0n,
+        getLastAdjustedAtPerCategory: async () => new Map(),
+      },
       categoriesRepo: {
         findById: async () => null,
         list: async () => [],
@@ -389,7 +392,10 @@ describe("getReservesSummary use case", () => {
         getExcludedForBudget: async () => new Map(),
         getForCategory: async () => Money.of("0", "EUR"),
       },
-      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 100000n },
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 100000n,
+        getLastAdjustedAtPerCategory: async () => new Map(),
+      },
       categoriesRepo: {
         findById: async () => null,
         list: async () => [
@@ -427,7 +433,10 @@ describe("getReservesSummary use case", () => {
         getForCategory: async () =>
           ({ amount: { toString: () => "0" } }) as any,
       },
-      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 100000n },
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 100000n,
+        getLastAdjustedAtPerCategory: async () => new Map(),
+      },
       categoriesRepo: {
         findById: async () => null,
         list: async () => [
@@ -459,7 +468,10 @@ describe("getReservesSummary use case", () => {
         getExcludedForBudget: async () => excludedMap,
         getForCategory: async () => Money.of("0", "EUR"),
       },
-      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 0n },
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 0n,
+        getLastAdjustedAtPerCategory: async () => new Map(),
+      },
       categoriesRepo: {
         findById: async () => null,
         list: async () => [
@@ -500,7 +512,10 @@ describe("getReservesSummary use case", () => {
         getExcludedForBudget: async () => excludedMap,
         getForCategory: async () => Money.of("0", "EUR"),
       },
-      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 100000n },
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 100000n,
+        getLastAdjustedAtPerCategory: async () => new Map(),
+      },
       categoriesRepo: {
         findById: async () => null,
         list: async () => [
@@ -519,6 +534,72 @@ describe("getReservesSummary use case", () => {
       expect(r.value.totals.totalCategoryReservesCents).toBe("100000"); // 30000 + 70000, NOT 150000
       expect(r.value.totals.mismatchCents).toBe("0"); // 100000 wallet - 100000 active
       expect(r.value.excludedRows[0].reserveBalanceCents).toBe("50000");
+    }
+  });
+
+  // UAT-PH5-T3-53: Sticky allocation by last-adjusted timestamp.
+  // User scenario: wallets=1700c. Housing adjusted to 200c at t=1000.
+  // Groceries adjusted to 900c at t=2000, then bumped to 2500c at t=3000.
+  // The most-recently-touched category (Groceries, last=t3000) must absorb
+  // the entire deficit. Housing's 200c allocation must remain intact.
+  it("UAT-PH5-T3-53: walks allocation by last-adjusted ASC so deficit lands on most-recently-edited row", async () => {
+    const { getReservesSummary } =
+      await import("../../src/application/get-reserves-summary");
+    const { Money } = await import("@budget/shared-kernel");
+    const activeMap = new Map([
+      ["cat-groceries", Money.of("25.00", "EUR")], // 2500 cents
+      ["cat-housing", Money.of("2.00", "EUR")], // 200 cents
+    ]);
+    const lastAdjusted = new Map([
+      ["cat-housing", new Date(1000)], // older
+      ["cat-groceries", new Date(3000)], // most recently edited
+    ]);
+    const uc = getReservesSummary({
+      reserveBalanceRepo: {
+        getForBudget: async () => activeMap,
+        getExcludedForBudget: async () => new Map(),
+        getForCategory: async () => Money.of("0", "EUR"),
+      },
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 1700n,
+        getLastAdjustedAtPerCategory: async () => lastAdjusted,
+      },
+      categoriesRepo: {
+        findById: async () => null,
+        // Canonical order: Groceries first (created first), Housing second
+        list: async () => [
+          {
+            id: "cat-groceries",
+            name: "Groceries",
+            reserveExcluded: false,
+          } as any,
+          { id: "cat-housing", name: "Housing", reserveExcluded: false } as any,
+        ],
+        setReserveExcluded: async () => {},
+      },
+      budgetCurrencyOf: async () => "EUR",
+      isReservesEnabled: async () => true,
+    });
+    const r = await uc({ tenantId: "b1", budgetId: "b1" });
+    expect(r.isOk()).toBe(true);
+    if (r.isOk()) {
+      const groceries = r.value.rows.find(
+        (row) => row.categoryId === "cat-groceries",
+      )!;
+      const housing = r.value.rows.find(
+        (row) => row.categoryId === "cat-housing",
+      )!;
+      // Housing keeps its 200c (walked first because older last-adjusted)
+      expect(housing.reserveBalanceCents).toBe("200");
+      expect(housing.walletShareAmountCents).toBe("200");
+      // Groceries asked for 2500c, got 1500c (1700 pool - 200 housing)
+      expect(groceries.reserveBalanceCents).toBe("2500");
+      expect(groceries.walletShareAmountCents).toBe("1500");
+      // Mismatch is -1000 (1700 wallets - 2700 active = -1000 underfunded)
+      expect(r.value.totals.mismatchCents).toBe("-1000");
+      // Output preserves CANONICAL order (Groceries first), not allocation order
+      expect(r.value.rows[0].categoryId).toBe("cat-groceries");
+      expect(r.value.rows[1].categoryId).toBe("cat-housing");
     }
   });
 });

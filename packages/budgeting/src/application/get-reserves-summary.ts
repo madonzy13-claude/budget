@@ -88,6 +88,7 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
         excludedBalanceMap,
         categories,
         reserveWalletSum,
+        lastAdjustedAt,
       ] = await Promise.all([
         deps.reserveBalanceRepo.getForBudget(
           input.budgetId,
@@ -101,6 +102,7 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
         ),
         deps.categoriesRepo.list(input.tenantId),
         deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
+        deps.reservesSummaryRepo.getLastAdjustedAtPerCategory(input.tenantId),
       ]);
 
       // Partition by reserveExcluded flag.
@@ -121,19 +123,36 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
 
       const totalWallets: bigint = reserveWalletSum;
 
-      // UAT-PH5-T3-51: NO automatic rebalancing of already-assigned
-      // reserves. Walk categories in their canonical order and allocate
-      // each row min(balance, remaining wallet pool); excess balance
-      // flows into the global mismatch chip (under-funded). This means:
-      //   - Categories created earlier keep their full requested amount
-      //     when the pool is short.
-      //   - Adding a new category never shrinks the share of a previous
-      //     one (rebalancing was the wrong mental model).
-      //   - Over-funded case (totalWallets > totalCategoryReserves):
-      //     each row gets its full balance, the surplus surfaces in
-      //     mismatchCents as the overfunded chip.
+      // UAT-PH5-T3-51/T3-53: Sticky allocation — the category most
+      // recently modified absorbs the deficit. Walk activeRowData
+      // ordered by last adjustment time ASC; oldest-touched rows get
+      // their full requested balance first, the recently-edited row
+      // gets whatever's left (which may be less than what it asked
+      // for — that's the under-funded mismatch).
+      //
+      // Concrete example user reported: wallets=17, H added then set
+      // to 2, G added then set to 9, then G→25. Without timestamp
+      // ordering, walking by creation order would let G consume the
+      // pool and zero out H. With timestamp ordering: H (last=t1) is
+      // walked first (gets 2), G (last=t3) walked last (gets 15 of 25
+      // requested → mismatch=-10).
+      //
+      // Categories never adjusted are walked FIRST (treated as
+      // -Infinity). Their balance is 0 anyway (no adjustments AND no
+      // limit history), so position doesn't matter for them.
+      //
+      // Canonical creation order is preserved for the OUTPUT rows so
+      // the UI list ordering stays stable; only the allocation walk
+      // uses timestamp order.
+      const allocationOrder = [...activeRowData].sort((a, b) => {
+        const ta = lastAdjustedAt.get(a.id)?.getTime() ?? -Infinity;
+        const tb = lastAdjustedAt.get(b.id)?.getTime() ?? -Infinity;
+        return ta - tb;
+      });
+
       let availableWallets: bigint = totalWallets;
-      const rows: ReservesSummaryRow[] = activeRowData.map((r) => {
+      const allocatedMap = new Map<string, bigint>();
+      for (const r of allocationOrder) {
         const allocated =
           totalWallets === 0n
             ? 0n
@@ -141,6 +160,11 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
               ? r.cents
               : availableWallets;
         availableWallets -= allocated;
+        allocatedMap.set(r.id, allocated);
+      }
+
+      const rows: ReservesSummaryRow[] = activeRowData.map((r) => {
+        const allocated = allocatedMap.get(r.id) ?? 0n;
         const sharePct =
           totalCategoryReserves === 0n || totalWallets === 0n
             ? null

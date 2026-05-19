@@ -1,10 +1,13 @@
 "use client";
 /**
- * reserves-totals-footer.tsx — Sticky bottom row with totals + MismatchChip.
+ * reserves-totals-footer.tsx — Totals banner with MismatchChip.
+ *
+ * UAT-PH5-T3-53: Single layout on every viewport. Renders inline at the top
+ * of the reserves column so its width matches the category list naturally.
+ * No sticky positioning, no horizontal margins (parent container handles padding).
  *
  * D-PH5-R12: MismatchChip variant derived from mismatchCents sign.
  * Excluded balances are NOT included in totals (Plan 03 guarantees this server-side).
- * Mobile: min-h-[72px], desktop: min-h-[56px].
  */
 import * as React from "react";
 import { MismatchChip } from "./mismatch-chip";
@@ -16,12 +19,6 @@ export interface ReservesTotalsFooterProps {
   totalWalletCents: string;
   mismatchCents: string;
   currency: string;
-  /**
-   * UAT-PH5-T3-52: "top" → mobile banner above the table; non-sticky,
-   * compact stacked layout. "bottom" → desktop sticky card inset at
-   * bottom-6.
-   */
-  position?: "top" | "bottom";
 }
 
 export function ReservesTotalsFooter({
@@ -29,11 +26,9 @@ export function ReservesTotalsFooter({
   totalWalletCents,
   mismatchCents,
   currency,
-  position = "bottom",
 }: ReservesTotalsFooterProps) {
   const t = useTranslations("bdp.tab.reserves");
 
-  // UAT-PH5-T3-45: bare number formatting to match wallets.
   const fmt = (cents: string) => centsToBare(cents);
 
   const m = BigInt(mismatchCents);
@@ -56,26 +51,11 @@ export function ReservesTotalsFooter({
       className={[
         "rounded-[var(--radius-md)] border border-[var(--hairline-dark)]",
         "bg-[var(--surface-card-dark)]",
-        position === "top"
-          ? // UAT-PH5-T3-52: compact mobile banner. Stacked rows,
-            // tight padding, no sticky positioning — sits inline at
-            // the top of the content area.
-            "mx-4 my-2 flex flex-col gap-2 px-4 py-3"
-          : // Desktop sticky card. Floats inset from the viewport
-            // edges, same look as the wallets-section column.
-            "sticky bottom-6 z-30 mx-6 flex flex-row items-center justify-between gap-3 px-4 py-3 min-h-[56px]",
+        "flex flex-col gap-3 px-4 py-3",
+        "sm:flex-row sm:items-center sm:justify-between",
       ].join(" ")}
     >
-      {/* UAT-PH5-T3-52: two-column key/value layout on mobile; inline
-          row on desktop. Numbers right-align so the column reads as a
-          mini-table. */}
-      <div
-        className={
-          position === "top"
-            ? "grid grid-cols-[1fr_auto] gap-x-3 gap-y-1"
-            : "flex flex-row gap-4"
-        }
-      >
+      <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 sm:flex sm:flex-row sm:gap-4">
         <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
           {t("totals.categoriesLabel")}
         </span>
