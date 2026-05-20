@@ -55,7 +55,7 @@ export function ReservesTotalsFooter({
         "sm:flex-row sm:items-center sm:justify-between",
       ].join(" ")}
     >
-      <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 sm:flex sm:flex-row sm:gap-4">
+      <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 sm:flex sm:flex-row sm:items-baseline sm:gap-4">
         <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
           {t("totals.categoriesLabel")}
         </span>
