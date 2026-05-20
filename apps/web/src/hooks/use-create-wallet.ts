@@ -55,21 +55,29 @@ export function useCreateWallet(budgetId: string) {
     onSuccess: (created) => {
       // Insert the persisted wallet into the cache BEFORE the draft is
       // cleared upstream so the user never sees a frame without their row.
-      // Insert at the END of the matching walletType group — matches the
-      // server sort (wallet_type ASC, sort_order ASC, created_at ASC) so
-      // the row doesn't jump when the refetch resolves.
+      // Wallets are sorted client-side by sortOrder within walletType — the
+      // server returns next-highest sortOrder for new wallets. If the
+      // response omits sortOrder, synthesize MAX(same-type) + 1 so the row
+      // sorts to the END of its group and doesn't visually jump when the
+      // refetch resolves.
       qc.setQueryData<WalletDto[]>(["budget", budgetId, "wallets"], (old) => {
         if (!old) return old;
         if (old.some((w) => w.id === created.id)) return old;
         const sameType = old.filter((w) => w.walletType === created.walletType);
+        const synthesized: WalletDto = {
+          ...created,
+          sortOrder:
+            created.sortOrder ??
+            sameType.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), 0) + 1,
+        };
         if (sameType.length === 0) {
-          return [...old, created];
+          return [...old, synthesized];
         }
         const lastSameType = sameType[sameType.length - 1]!;
         const lastIdx = old.indexOf(lastSameType);
         return [
           ...old.slice(0, lastIdx + 1),
-          created,
+          synthesized,
           ...old.slice(lastIdx + 1),
         ];
       });
