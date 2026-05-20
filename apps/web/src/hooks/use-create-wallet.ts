@@ -64,10 +64,13 @@ export function useCreateWallet(budgetId: string) {
         if (!old) return old;
         if (old.some((w) => w.id === created.id)) return old;
         const sameType = old.filter((w) => w.walletType === created.walletType);
+        // Server response carries sortOrder=0 as a placeholder when the
+        // wallet was just inserted; the real value isn't echoed back.
+        // Always overwrite with MAX(same-type) + 1 so the optimistic row
+        // sorts to the END of its section and matches the refetch.
         const synthesized: WalletDto = {
           ...created,
           sortOrder:
-            created.sortOrder ??
             sameType.reduce((max, w) => Math.max(max, w.sortOrder ?? 0), 0) + 1,
         };
         if (sameType.length === 0) {
