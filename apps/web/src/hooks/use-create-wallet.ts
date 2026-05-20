@@ -52,7 +52,17 @@ export function useCreateWallet(budgetId: string) {
     },
 
     onError: () => toast.error(t("createFailed")),
-    onSuccess: () => toast.success(t("created")),
+    onSuccess: (created) => {
+      // Insert the persisted wallet into the cache BEFORE the draft is
+      // cleared upstream, so the user never sees a frame without their
+      // row. The onSettled refetch will replace this with server truth.
+      qc.setQueryData<WalletDto[]>(["budget", budgetId, "wallets"], (old) => {
+        if (!old) return old;
+        if (old.some((w) => w.id === created.id)) return old;
+        return [...old, created];
+      });
+      toast.success(t("created"));
+    },
 
     onSettled: (data, _err, input) => {
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "wallets"] });
