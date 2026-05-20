@@ -282,7 +282,14 @@ export function WalletsSectionedList({
         setOverSection(null);
       }}
     >
-      <div className="flex flex-col gap-4 p-4 sm:p-6">
+      <div
+        // Page-scoped scroll container (html/body locked overflow:hidden
+        // for PWA touch handling). Mirrors the Reserves tab: bounded height
+        // so tall wallet lists scroll, dnd-kit auto-scrolls during drag,
+        // overscroll-contain stops the swipe from bubbling to the document.
+        style={{ overscrollBehavior: "contain" }}
+        className="flex max-h-[calc(100svh-176px)] flex-col gap-4 overflow-y-auto p-4 sm:p-6"
+      >
         {(["SPENDINGS", "CUSHION", "RESERVE"] as const).map((type) => (
           <WalletSection
             key={type}
