@@ -503,7 +503,7 @@ describe("getReservesSummary use case", () => {
     }
   });
 
-  it("null share values when walletPool=0 (D-PH5-R4)", async () => {
+  it("null share values when Σ active actual=0", async () => {
     const { getReservesSummary } =
       await import("../../src/application/get-reserves-summary");
     const { Money } = await import("@budget/shared-kernel");
@@ -511,7 +511,7 @@ describe("getReservesSummary use case", () => {
       reserveBalanceRepo: mockReserveBalanceRepo({
         active: new Map([["A", Money.of("1.00", "EUR")]]),
       }),
-      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 0n },
+      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 100n },
       categoriesRepo: mockCategoriesRepo({
         list: [
           {
@@ -531,6 +531,53 @@ describe("getReservesSummary use case", () => {
     if (r.isOk()) {
       expect(r.value.rows[0].walletSharePercent).toBeNull();
       expect(r.value.rows[0].walletShareAmountCents).toBeNull();
+    }
+  });
+
+  it("share % computed from Σ active actual (NOT wallet pool)", async () => {
+    // User's scenario: wallet=17, G.actual=12, H.actual=1. Σactual=13.
+    // G should show 12/13 = 92.31% (≈92%); H should show 1/13 = 7.69% (≈8%).
+    const { getReservesSummary } =
+      await import("../../src/application/get-reserves-summary");
+    const { Money } = await import("@budget/shared-kernel");
+    const uc = getReservesSummary({
+      reserveBalanceRepo: mockReserveBalanceRepo({
+        active: new Map([
+          ["G", Money.of("25.00", "EUR")],
+          ["H", Money.of("2.00", "EUR")],
+        ]),
+      }),
+      reservesSummaryRepo: { sumReserveWalletAmounts: async () => 1700n },
+      categoriesRepo: mockCategoriesRepo({
+        list: [
+          {
+            id: "G",
+            name: "Groceries",
+            reserveExcluded: false,
+            sortIndex: 0,
+            reserveActualCents: 1200n,
+          },
+          {
+            id: "H",
+            name: "Housing",
+            reserveExcluded: false,
+            sortIndex: 1,
+            reserveActualCents: 100n,
+          },
+        ],
+      }),
+      budgetCurrencyOf: async () => "EUR",
+      isReservesEnabled: async () => true,
+    });
+    const r = await uc({ tenantId: "b1", budgetId: "b1" });
+    expect(r.isOk()).toBe(true);
+    if (r.isOk()) {
+      const G = r.value.rows.find((x) => x.categoryId === "G")!;
+      const H = r.value.rows.find((x) => x.categoryId === "H")!;
+      expect(G.walletSharePercent).toBeCloseTo(92.3, 1);
+      expect(H.walletSharePercent).toBeCloseTo(7.69, 1);
+      expect(G.walletShareAmountCents).toBe("1200");
+      expect(H.walletShareAmountCents).toBe("100");
     }
   });
 

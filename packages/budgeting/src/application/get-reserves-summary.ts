@@ -102,6 +102,13 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
       const activeCats = categories.filter((c) => !c.reserveExcluded);
       const excludedCats = categories.filter((c) => c.reserveExcluded);
 
+      // UAT-PH5-T3-54: share % is computed against Σ Active ACTUAL (stored),
+      // not the wallet pool. Wallet pool only drives the mismatch banner.
+      const sumActiveActual = activeCats.reduce(
+        (s, c) => s + (c.reserveActualCents ?? 0n),
+        0n,
+      );
+
       let totalCategoryReserves = 0n;
       const rows: ReservesSummaryRow[] = activeCats.map((c) => {
         const m = activeBalanceMap.get(c.id);
@@ -110,10 +117,10 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
         const actualCents = c.reserveActualCents ?? 0n;
 
         const sharePct =
-          walletPool === 0n
+          sumActiveActual === 0n
             ? null
-            : Number((actualCents * 10000n) / walletPool) / 100;
-        const shareAmt = walletPool === 0n ? null : actualCents.toString();
+            : Number((actualCents * 10000n) / sumActiveActual) / 100;
+        const shareAmt = sumActiveActual === 0n ? null : actualCents.toString();
 
         return {
           categoryId: c.id,
