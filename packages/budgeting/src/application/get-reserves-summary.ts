@@ -29,6 +29,7 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
+import { buildReservesSummaryDto } from "./reserves-summary-builder";
 
 export interface ReservesSummaryRow {
   categoryId: string;
@@ -99,61 +100,15 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
           deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
         ]);
 
-      const activeCats = categories.filter((c) => !c.reserveExcluded);
-      const excludedCats = categories.filter((c) => c.reserveExcluded);
-
-      // UAT-PH5-T3-54: share % is computed against Σ Active ACTUAL (stored),
-      // not the wallet pool. Wallet pool only drives the mismatch banner.
-      const sumActiveActual = activeCats.reduce(
-        (s, c) => s + (c.reserveActualCents ?? 0n),
-        0n,
-      );
-
-      let totalCategoryReserves = 0n;
-      const rows: ReservesSummaryRow[] = activeCats.map((c) => {
-        const m = activeBalanceMap.get(c.id);
-        const expectedCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
-        totalCategoryReserves += expectedCents;
-        const actualCents = c.reserveActualCents ?? 0n;
-
-        const sharePct =
-          sumActiveActual === 0n
-            ? null
-            : Number((actualCents * 10000n) / sumActiveActual) / 100;
-        const shareAmt = sumActiveActual === 0n ? null : actualCents.toString();
-
-        return {
-          categoryId: c.id,
-          name: c.name,
-          reserveBalanceCents: expectedCents.toString(),
-          walletSharePercent: sharePct,
-          walletShareAmountCents: shareAmt,
-        };
-      });
-
-      const excludedRows: ReservesSummaryRow[] = excludedCats.map((c) => {
-        const m = excludedBalanceMap.get(c.id);
-        const expectedCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
-        return {
-          categoryId: c.id,
-          name: c.name,
-          reserveBalanceCents: expectedCents.toString(),
-          walletSharePercent: null,
-          walletShareAmountCents: null,
-        };
-      });
-
-      return ok({
-        rows,
-        excludedRows,
-        totals: {
-          totalCategoryReservesCents: totalCategoryReserves.toString(),
-          totalReserveWalletAmountCents: walletPool.toString(),
-          mismatchCents: (walletPool - totalCategoryReserves).toString(),
-          disabled: false,
+      return ok(
+        buildReservesSummaryDto(
+          activeBalanceMap,
+          excludedBalanceMap,
+          categories,
+          walletPool,
           budgetCurrency,
-        },
-      });
+        ),
+      );
     } catch (e) {
       return err(e as Error);
     }

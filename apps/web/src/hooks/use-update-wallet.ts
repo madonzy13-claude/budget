@@ -68,7 +68,13 @@ export function useUpdateWallet(budgetId: string) {
         }
         throw err;
       }
-      return (await res.json()).wallet as WalletDto;
+      const body = (await res.json()) as {
+        wallet: WalletDto;
+        // UAT-PH5-T3-54: server returns the new reserves summary when amount
+        // changes on a RESERVE wallet so the client can skip a refetch.
+        summary?: unknown;
+      };
+      return body;
     },
 
     onMutate: async (input) => {
@@ -130,15 +136,25 @@ export function useUpdateWallet(budgetId: string) {
       }
     },
 
-    onSettled: (_data, _err, input) => {
-      // Read before invalidation so we can check the pre-invalidation type
+    onSuccess: (data) => {
+      // UAT-PH5-T3-54 perf: server returns the new reserves summary in
+      // `summary` for RESERVE wallet amount edits. Snap the cache rather
+      // than invalidating + refetching.
+      if (data?.summary) {
+        qc.setQueryData(["budget", budgetId, "reserves"], data.summary);
+      }
+    },
+
+    onSettled: (data, _err, input) => {
       const current = qc.getQueryData<WalletDto[]>([
         "budget",
         budgetId,
         "wallets",
       ]);
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "wallets"] });
-      if (touchesReserves(current, input)) {
+      // Only fall back to refetching reserves when the server didn't return
+      // an authoritative summary (e.g. error path with a stale cache).
+      if (!data?.summary && touchesReserves(current, input)) {
         qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
       }
     },

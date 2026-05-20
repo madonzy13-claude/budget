@@ -3,22 +3,34 @@
  *
  * Enforces the reserve-currency invariant (D-PH5-R3, Pitfall 4) on EVERY PATCH
  * where the EFFECTIVE wallet type ends up RESERVE — regardless of which field the
- * caller actually changed (type, currency, or both). The domain layer (Wallet) does
- * not enforce this because it needs budgetCurrencyOf(tenantId) — a tenancy lookup
- * that must stay outside the domain aggregate.
+ * caller actually changed (type, currency, or both).
+ *
+ * UAT-PH5-T3-54: when `amount` changes on a RESERVE wallet, applies the same
+ * pool redistribution as setWalletBalance (allocator.applyWalletDelta) and
+ * returns the post-mutation reserves summary so the client skips a refetch.
  *
  * Plan 05-03 / WALT-01..03.
  */
+import Big from "big.js";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { Money } from "@budget/shared-kernel";
 import type { Currency } from "@budget/shared-kernel";
 import type { WalletRepo } from "../ports/wallet-repo";
+import type { CategoriesRepo } from "../ports/categories-repo";
+import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
+import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
 import type { WalletType } from "../domain/wallet";
+import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
+import type { ReservesSummaryDto } from "./get-reserves-summary";
+import { buildReservesSummaryDto } from "./reserves-summary-builder";
 
 export interface UpdateWalletDeps {
   repo: WalletRepo;
-  /** Resolves the budget's default_currency from tenancy.budgets. */
   budgetCurrencyOf: (tenantId: string) => Promise<string>;
+  /** UAT-PH5-T3-54 deps — only used when amount changes on RESERVE wallet. */
+  categoriesRepo?: CategoriesRepo;
+  reserveBalanceRepo?: ReserveBalanceRepo;
+  reservesSummaryRepo?: ReservesSummaryRepo;
 }
 
 export interface UpdateWalletInput {
@@ -26,11 +38,9 @@ export interface UpdateWalletInput {
   walletId: string;
   actorUserId: string;
   name?: string;
-  /** Numeric decimal string from Zod (updateWalletSchema). */
   amount?: string;
   currency?: string;
   walletType?: WalletType;
-  // UAT-PH5-T3-1x: presentation-only customization. `null` clears the value.
   color?: string | null;
   icon?: string | null;
 }
@@ -43,6 +53,8 @@ export interface UpdateWalletResult {
     currency: string;
     currentBalanceCents: string;
   };
+  /** Present when the patch affected a RESERVE wallet's amount. */
+  summary?: ReservesSummaryDto;
 }
 
 export function updateWallet(deps: UpdateWalletDeps) {
@@ -53,21 +65,22 @@ export function updateWallet(deps: UpdateWalletDeps) {
       const wallet = await deps.repo.findById(input.tenantId, input.walletId);
       if (!wallet) return err(new Error("not_found"));
 
-      // Compute effective type + currency AFTER the patch is applied (Pitfall 4).
-      // This fires the check even if the user only changed `amount` on an already-RESERVE
-      // wallet that has a mismatched currency from a previous state inconsistency.
       const effectiveType: WalletType = input.walletType ?? wallet.walletType;
       const effectiveCurrency: string = input.currency ?? wallet.currency;
+      const budgetCcy = await deps.budgetCurrencyOf(input.tenantId);
 
       if (effectiveType === "RESERVE") {
-        const budgetCcy = await deps.budgetCurrencyOf(input.tenantId);
         if (effectiveCurrency.toUpperCase() !== budgetCcy.toUpperCase()) {
           return err(new Error("reserve_currency_mismatch"));
         }
       }
 
-      // Apply domain mutators in defined order: name → walletType → currency → amount.
-      // Abort on first domain error (domain invariants are strict).
+      // Capture pre-mutation pool for reserve redistribution.
+      const wasReserve = wallet.walletType === "RESERVE";
+      const oldWalletCents = BigInt(
+        wallet.currentBalance.amount.times("100").toFixed(0),
+      );
+
       if (input.name !== undefined) {
         const r = wallet.rename(input.name);
         if (r.isErr()) return err(r.error);
@@ -81,7 +94,6 @@ export function updateWallet(deps: UpdateWalletDeps) {
         if (r.isErr()) return err(r.error);
       }
       if (input.amount !== undefined) {
-        // Amount uses wallet.currency AFTER any currency change (post-changeCurrency state).
         const amt = Money.of(input.amount, wallet.currency as Currency);
         const r = wallet.setAmount(amt);
         if (r.isErr()) return err(r.error);
@@ -100,9 +112,94 @@ export function updateWallet(deps: UpdateWalletDeps) {
       if (input.currency !== undefined)
         patch.currency = input.currency.toUpperCase();
       if (input.walletType !== undefined) patch.walletType = input.walletType;
-      // UAT-PH5-T3-1x: forward color/icon (including explicit null to clear).
       if (input.color !== undefined) patch.color = input.color;
       if (input.icon !== undefined) patch.icon = input.icon;
+
+      // UAT-PH5-T3-54: if the wallet was/became RESERVE and amount changed,
+      // redistribute the delta to category actuals BEFORE persisting the
+      // wallet update so the wallet-pool sum query reflects the OLD value.
+      let summary: ReservesSummaryDto | undefined;
+      const isReserveAfter = wallet.walletType === "RESERVE";
+      if (
+        input.amount !== undefined &&
+        (wasReserve || isReserveAfter) &&
+        deps.categoriesRepo &&
+        deps.reserveBalanceRepo &&
+        deps.reservesSummaryRepo
+      ) {
+        const newWalletCents = BigInt(
+          new Big(input.amount).times("100").toFixed(0),
+        );
+        const oldPool = await deps.reservesSummaryRepo.sumReserveWalletAmounts(
+          input.tenantId,
+        );
+        const newPool = wasReserve
+          ? oldPool + (newWalletCents - oldWalletCents)
+          : oldPool + newWalletCents;
+
+        const asOf = new Date();
+        const [activeMap, excludedMap, allCats] = await Promise.all([
+          deps.reserveBalanceRepo.getForBudget(
+            input.tenantId,
+            input.tenantId,
+            asOf,
+          ),
+          deps.reserveBalanceRepo.getExcludedForBudget(
+            input.tenantId,
+            input.tenantId,
+            asOf,
+          ),
+          deps.categoriesRepo.list(input.tenantId),
+        ]);
+
+        const rows: ReserveRow[] = allCats.map((c) => {
+          const m = c.reserveExcluded
+            ? excludedMap.get(c.id)
+            : activeMap.get(c.id);
+          const expectedCents = m
+            ? BigInt(m.amount.times("100").toFixed(0))
+            : 0n;
+          return {
+            categoryId: c.id,
+            sortIndex: c.sortIndex ?? 0,
+            reserveExcluded: c.reserveExcluded,
+            expectedCents,
+            actualCents: c.reserveActualCents ?? 0n,
+          };
+        });
+
+        let newActualMap: Map<string, bigint> | undefined;
+        if (newPool !== oldPool) {
+          const allocResult = applyWalletDelta(rows, oldPool, newPool);
+          const updates = new Map<string, bigint>();
+          for (const after of allocResult.rows) {
+            const before = rows.find((r) => r.categoryId === after.categoryId)!;
+            if (before.actualCents !== after.actualCents) {
+              updates.set(after.categoryId, after.actualCents);
+            }
+          }
+          if (updates.size > 0) {
+            await deps.categoriesRepo.setReserveActualMany(
+              input.tenantId,
+              updates,
+              input.actorUserId,
+            );
+          }
+          newActualMap = new Map<string, bigint>();
+          for (const r of allocResult.rows) {
+            newActualMap.set(r.categoryId, r.actualCents);
+          }
+        }
+
+        summary = buildReservesSummaryDto(
+          activeMap,
+          excludedMap,
+          allCats,
+          newPool,
+          budgetCcy,
+          newActualMap,
+        );
+      }
 
       await deps.repo.update(
         input.tenantId,
@@ -111,7 +208,6 @@ export function updateWallet(deps: UpdateWalletDeps) {
         input.actorUserId,
       );
 
-      // Derive currentBalanceCents from domain object (post-mutation state).
       const balanceCentsStr = wallet.currentBalance.amount
         .times("100")
         .toFixed(0);
@@ -124,6 +220,7 @@ export function updateWallet(deps: UpdateWalletDeps) {
           currency: wallet.currency,
           currentBalanceCents: balanceCentsStr,
         },
+        ...(summary ? { summary } : {}),
       });
     } catch (e) {
       return err(e as Error);

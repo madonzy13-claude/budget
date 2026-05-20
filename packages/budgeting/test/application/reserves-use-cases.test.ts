@@ -118,6 +118,7 @@ describe("adjustCategoryReserve use case", () => {
         ...(overrides.reservesSummaryRepo ?? {}),
       },
       isReservesEnabled: overrides.isReservesEnabled ?? (async () => true),
+      budgetCurrencyOf: overrides.budgetCurrencyOf ?? (async () => "EUR"),
     };
   }
 

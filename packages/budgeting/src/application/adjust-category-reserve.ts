@@ -29,6 +29,8 @@ import {
   applyExpectedChange,
   type ReserveRow,
 } from "../domain/reserve-allocator";
+import type { ReservesSummaryDto } from "./get-reserves-summary";
+import { buildReservesSummaryDto } from "./reserves-summary-builder";
 
 export interface AdjustCategoryReserveDeps {
   adjustmentsRepo: CategoryReserveAdjustmentsRepo;
@@ -36,6 +38,7 @@ export interface AdjustCategoryReserveDeps {
   reserveBalanceRepo: ReserveBalanceRepo;
   reservesSummaryRepo: ReservesSummaryRepo;
   isReservesEnabled: (tenantId: string) => Promise<boolean>;
+  budgetCurrencyOf: (tenantId: string) => Promise<string>;
 }
 
 export interface AdjustCategoryReserveInput {
@@ -56,6 +59,8 @@ export interface AdjustCategoryReserveResult {
   actualCents: string;
   /** Delta written to ledger (0 = no-op). */
   deltaCents: string;
+  /** UAT-PH5-T3-54 perf: full new summary so client skips refetch. */
+  summary: ReservesSummaryDto;
 }
 
 export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
@@ -145,11 +150,42 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
       const finalRow = allocResult.rows.find(
         (r) => r.categoryId === input.categoryId,
       )!;
+
+      // Build the post-mutation summary in memory using updated allCats +
+      // the in-memory active balance map (with the new ledger delta folded
+      // into the target category's expected). Avoid a second view query.
+      const newActualMap = new Map<string, bigint>();
+      for (const r of allocResult.rows) {
+        newActualMap.set(r.categoryId, r.actualCents);
+      }
+      // The active VIEW doesn't yet reflect the just-written ledger row,
+      // so overlay the new expected for THIS category in the map we pass
+      // to the builder. The Money type wraps cents → /100 EUR.
+      const { Money } = await import("@budget/shared-kernel");
+      const overlayMap = new Map(activeMap);
+      if (!targetCat.reserveExcluded) {
+        const newExpectedEuros = (Number(newExpected) / 100).toFixed(2);
+        overlayMap.set(
+          input.categoryId,
+          Money.of(newExpectedEuros, await deps.budgetCurrencyOf(input.tenantId)),
+        );
+      }
+      const budgetCurrency = await deps.budgetCurrencyOf(input.tenantId);
+      const summary = buildReservesSummaryDto(
+        overlayMap,
+        excludedMap,
+        allCats,
+        walletPool,
+        budgetCurrency,
+        newActualMap,
+      );
+
       return ok({
         categoryId: input.categoryId,
         expectedCents: finalRow.expectedCents.toString(),
         actualCents: finalRow.actualCents.toString(),
         deltaCents: delta.toString(),
+        summary,
       });
     } catch (e) {
       return err(e as Error);

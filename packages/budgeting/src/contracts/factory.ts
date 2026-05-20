@@ -185,6 +185,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       categoriesRepo,
       reserveBalanceRepo: createReserveBalanceRepo(),
       reservesSummaryRepo,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
     }),
     listWallets: listWallets({ repo }),
     findWalletById: findWalletById({ repo }),
@@ -246,6 +247,9 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     updateWallet: updateWallet({
       repo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      categoriesRepo,
+      reserveBalanceRepo: createReserveBalanceRepo(),
+      reservesSummaryRepo,
     }),
     // UAT-PH5-T3-1x: intra-section reorder
     reorderWallets: reorderWallets({ repo }),
@@ -255,6 +259,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       reserveBalanceRepo: createReserveBalanceRepo(),
       reservesSummaryRepo,
       isReservesEnabled,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
     }),
     toggleCategoryReserveExcluded: toggleCategoryReserveExcluded({
       repo: categoriesRepo,
