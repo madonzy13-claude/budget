@@ -97,7 +97,7 @@ export function ReservesTableRow({
                 if (e.key === "Escape") onCancel();
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
-              className="h-9 pr-7 text-right"
+              className="h-9 pl-7 text-right"
             />
           )}
           onSave={async (v) => {

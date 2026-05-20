@@ -191,7 +191,7 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
       {props.renderEditor(draft, setDraft, onCommit, onCancel)}
       {showSpinner && (
         <Loader2
-          className="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]"
+          className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]"
           aria-hidden="true"
         />
       )}
