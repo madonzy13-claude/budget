@@ -245,25 +245,32 @@ export function createReserveBalanceRepo(): ReserveBalanceRepo {
              AND ms.category_id = bpm.category_id
              AND ms.month_start = bpm.month_start
           ),
+          latest_past AS (
+            SELECT DISTINCT ON (budget_id, category_id)
+              budget_id, category_id, tenant_id, reserve_cents
+            FROM reserve_accum
+            WHERE month_start < date_trunc('month', CURRENT_DATE)::date
+            ORDER BY budget_id, category_id, month_start DESC
+          ),
           adjustments AS (
             SELECT category_id, SUM(delta_cents) AS adj_total
             FROM budgeting.category_reserve_adjustments
             WHERE tenant_id = ${tenantId}::uuid
             GROUP BY category_id
           )
-          SELECT DISTINCT ON (ra.budget_id, ra.category_id)
-            ra.budget_id,
-            ra.category_id,
-            ra.tenant_id,
-            ra.reserve_cents + COALESCE(adj.adj_total, 0) AS balance_cents
-          FROM reserve_accum ra
-          INNER JOIN budgeting.categories c
-            ON c.id = ra.category_id
+          SELECT
+            c.tenant_id AS budget_id,
+            c.id        AS category_id,
+            c.tenant_id,
+            (COALESCE(lp.reserve_cents, 0) + COALESCE(adj.adj_total, 0)) AS balance_cents
+          FROM budgeting.categories c
+          LEFT JOIN latest_past lp
+            ON lp.category_id = c.id AND lp.budget_id = c.tenant_id
           LEFT JOIN adjustments adj
-            ON adj.category_id = ra.category_id
-          WHERE ra.budget_id = ${budgetId}::uuid
+            ON adj.category_id = c.id
+          WHERE c.tenant_id = ${budgetId}::uuid
             AND c.reserve_excluded = TRUE
-          ORDER BY ra.budget_id, ra.category_id, ra.month_start DESC
+            AND (lp.reserve_cents IS NOT NULL OR adj.adj_total IS NOT NULL)
         `);
           return result.rows;
         },
