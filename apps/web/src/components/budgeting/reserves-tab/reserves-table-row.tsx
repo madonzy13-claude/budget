@@ -81,9 +81,10 @@ export function ReservesTableRow({
           testId={`reserves-balance-${row.categoryId}`}
           render={(v) => (
             <span
-              className={`text-num-md ${isExcluded ? "text-[var(--muted-strong)]" : "text-[var(--foreground)]"}`}
+              className={`text-num-md ${isExcluded ? "text-[var(--muted-foreground)]" : "text-[var(--foreground)]"}`}
+              aria-label={isExcluded ? "No expected reserve" : undefined}
             >
-              {centsToBare(v)}
+              {isExcluded ? "—" : centsToBare(v)}
             </span>
           )}
           renderEditor={(draft, onChange, _onCommit, onCancel) => (
