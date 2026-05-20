@@ -54,12 +54,24 @@ export function useCreateWallet(budgetId: string) {
     onError: () => toast.error(t("createFailed")),
     onSuccess: (created) => {
       // Insert the persisted wallet into the cache BEFORE the draft is
-      // cleared upstream, so the user never sees a frame without their
-      // row. The onSettled refetch will replace this with server truth.
+      // cleared upstream so the user never sees a frame without their row.
+      // Insert at the END of the matching walletType group — matches the
+      // server sort (wallet_type ASC, sort_order ASC, created_at ASC) so
+      // the row doesn't jump when the refetch resolves.
       qc.setQueryData<WalletDto[]>(["budget", budgetId, "wallets"], (old) => {
         if (!old) return old;
         if (old.some((w) => w.id === created.id)) return old;
-        return [...old, created];
+        const sameType = old.filter((w) => w.walletType === created.walletType);
+        if (sameType.length === 0) {
+          return [...old, created];
+        }
+        const lastSameType = sameType[sameType.length - 1]!;
+        const lastIdx = old.indexOf(lastSameType);
+        return [
+          ...old.slice(0, lastIdx + 1),
+          created,
+          ...old.slice(lastIdx + 1),
+        ];
       });
       toast.success(t("created"));
     },
