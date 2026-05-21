@@ -1040,7 +1040,9 @@ When(
           "X-Budget-ID": budgetId,
         },
         data: {
-          overrides: [{ userId, percentage: String(sumPercent.toFixed(2)) }],
+          // setShareOverridesSchema expects { entries: [{ userId, percentage }] }
+          // (packages/budgeting/src/contracts/api.ts).
+          entries: [{ userId, percentage: sumPercent.toFixed(2) }],
         },
       },
     );

@@ -23,6 +23,13 @@ interface SignInLabels {
 
 interface CurrencyPickerLabels {
   triggerPlaceholder: RegExp;
+  /**
+   * Picker aria-label — set on both the Radix SelectTrigger and the native iOS
+   * <select> fallback. Locator-of-last-resort because the trigger renders the
+   * 3-letter code (e.g. "EUR") once a value is selected, so hasText filters
+   * lose. aria-label survives both states.
+   */
+  triggerAriaLabel: RegExp;
   usDollarLabel: string;
   ukrainianHryvniaLabel: string;
 }
@@ -70,14 +77,15 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
     verifyEmailSubject: /verify/i,
     currencyPicker: {
       triggerPlaceholder: /select currency/i,
+      triggerAriaLabel: /select currency/i,
       usDollarLabel: "US Dollar",
       ukrainianHryvniaLabel: "Ukrainian Hryvnia",
     },
     workspaces: {
-      emptyCta: /create workspace/i,
-      createNameLabel: /workspace name/i,
+      emptyCta: /create budget/i,
+      createNameLabel: /budget name/i,
       createCurrencyLabel: /default currency/i,
-      createCta: /create workspace/i,
+      createCta: /create budget/i,
     },
     settings: {
       displayCurrencyTab: /display currency/i,
@@ -109,14 +117,15 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
     verifyEmailSubject: /Potwierdź swój adres e-mail/,
     currencyPicker: {
       triggerPlaceholder: /wybierz walutę/i,
+      triggerAriaLabel: /wybierz walutę/i,
       usDollarLabel: "Dolar amerykański",
       ukrainianHryvniaLabel: "Hrywna ukraińska",
     },
     workspaces: {
-      emptyCta: /utwórz obszar roboczy/i,
-      createNameLabel: /nazwa obszaru roboczego/i,
+      emptyCta: /utwórz budżet/i,
+      createNameLabel: /nazwa budżetu/i,
       createCurrencyLabel: /domyślna waluta/i,
-      createCta: /utwórz obszar roboczy/i,
+      createCta: /utwórz budżet/i,
     },
     settings: {
       displayCurrencyTab: /waluta wyświetlania/i,
@@ -148,14 +157,15 @@ export const LOCALE_LABELS: Record<Locale, LocaleLabels> = {
     verifyEmailSubject: /Підтвердьте електронну адресу/,
     currencyPicker: {
       triggerPlaceholder: /виберіть валюту/i,
+      triggerAriaLabel: /виберіть валюту/i,
       usDollarLabel: "Долар США",
       ukrainianHryvniaLabel: "Українська гривня",
     },
     workspaces: {
-      emptyCta: /створити робочий простір/i,
-      createNameLabel: /назва робочого простору/i,
+      emptyCta: /створити бюджет/i,
+      createNameLabel: /назва бюджету/i,
       createCurrencyLabel: /типова валюта/i,
-      createCta: /створити робочий простір/i,
+      createCta: /створити бюджет/i,
     },
     settings: {
       displayCurrencyTab: /валюта відображення/i,

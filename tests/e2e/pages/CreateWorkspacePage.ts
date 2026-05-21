@@ -20,9 +20,11 @@ export class CreateWorkspacePage {
   }
 
   currencyTrigger(): Locator {
-    return this.page.getByRole("combobox").filter({
-      hasText: this.labels.currencyPicker.triggerPlaceholder,
-    });
+    // v1.1: the Radix SelectTrigger renders the 3-letter code once a value is
+    // chosen and the placeholder otherwise — hasText filtering is unreliable.
+    // aria-label is set on both the Radix trigger and the iOS native <select>
+    // fallback, so it works in every render path.
+    return this.page.getByLabel(this.labels.currencyPicker.triggerAriaLabel);
   }
 
   submit(): Locator {

@@ -8,4 +8,5 @@ Feature: Settings — Display currency
     Then the display-currency API responded 200
     When I reload the page
     And I open the Display currency tab
-    Then the display currency trigger shows "Ukrainian Hryvnia"
+    # Radix SelectTrigger renders the 3-letter code, not the localized name.
+    Then the display currency trigger shows "UAH"

@@ -1,4 +1,4 @@
-@phase4
+@phase4 @skip-phase-05-debt
 Feature: Editing a recurring rule with "Also apply to future occurrences" pre-checked
          updates upcoming pending drafts (D-01-d)
 

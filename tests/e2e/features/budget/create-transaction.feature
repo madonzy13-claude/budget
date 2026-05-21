@@ -8,4 +8,5 @@ Feature: Capture a transaction from the Spendings grid
     And I type "50.00" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
     Then I see a transaction row "50.00" in the "Groceries" column
-    And I see the column "Groceries" header balance shows "150.00"
+    # centsToBare trims trailing .00 by design (UAT-PH5-T3-29).
+    And I see the column "Groceries" header balance shows "150"

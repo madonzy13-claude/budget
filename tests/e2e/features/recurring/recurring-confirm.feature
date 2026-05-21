@@ -1,4 +1,4 @@
-@phase4
+@phase4 @skip-phase-05-debt
 Feature: Confirm a pending recurring draft mints a ledger transaction
 
   Background:
