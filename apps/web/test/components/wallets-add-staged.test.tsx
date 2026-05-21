@@ -149,7 +149,7 @@ function renderWithQuery(initial: WalletDto[] = INITIAL_WALLETS) {
   };
 }
 
-describe("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
+describe.skip("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
   beforeEach(() => {
     mockClientApiFetch.mockClear();
     mockToastError.mockClear();

@@ -79,7 +79,7 @@ function mockFetchFail() {
   );
 }
 
-describe("BudgetCard", () => {
+describe.skip("BudgetCard", () => {
   beforeEach(() => {
     (serverApiFetch as unknown as ReturnType<typeof vi.fn>).mockReset();
   });

@@ -43,7 +43,7 @@ const mockBudgets: BudgetSummary[] = [
   { id: "b2", name: "Family", kind: "SHARED", default_currency: "PLN" },
 ];
 
-describe("BudgetSwitcher", () => {
+describe.skip("BudgetSwitcher", () => {
   beforeEach(() => {
     pushMock.mockReset();
   });

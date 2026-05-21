@@ -90,7 +90,18 @@ jobs:
           # met by definition. Override to 0 just for this CI step.
           sed -i 's/^coverageThreshold = .*/coverageThreshold = 0.0/' bunfig.toml
       - name: bun test (pure unit tests — no DB)
-        run: bun test packages/shared-kernel packages/crypto apps/api/test --timeout 30000
+        # apps/api/test/routes is excluded — those are integration tests that
+        # require Postgres (DATABASE_URL_APP). They run in the Tenant-leak +
+        # Compose-smoke jobs which spin up postgres. Architecture / schema /
+        # middleware tests under apps/api/test stay DB-free.
+        run: |
+          bun test \
+            packages/shared-kernel \
+            packages/crypto \
+            apps/api/test/architecture \
+            apps/api/test/middleware \
+            apps/api/test/schema \
+            --timeout 30000
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4

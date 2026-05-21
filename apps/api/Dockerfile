@@ -1,5 +1,5 @@
 # Stage 1: install workspace dependencies
-FROM oven/bun:1.3-slim AS deps
+FROM oven/bun:1.3.12-slim AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/api/package.json apps/api/
@@ -13,7 +13,7 @@ COPY packages/platform/package.json packages/platform/
 COPY packages/shared-kernel/package.json packages/shared-kernel/
 COPY packages/tenancy/package.json packages/tenancy/
 COPY packages/budgeting/package.json packages/budgeting/
-RUN bun install --frozen-lockfile --production
+RUN bun install --no-save --production
 # bun --production keeps dev-only transitive deps in workspace mode (drizzle-
 # kit / vite / vitest / playwright drag in esbuild Go binaries that flag
 # CRITICAL stdlib CVEs). Strip them — they are never executed at runtime.
