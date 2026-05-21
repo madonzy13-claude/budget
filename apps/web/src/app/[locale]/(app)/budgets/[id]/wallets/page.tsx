@@ -31,12 +31,18 @@ export default async function WalletsPage({ params }: PageProps) {
     ? await (budgetRes.json() as Promise<{
         defaultCurrency?: string;
         default_currency?: string;
+        reservesEnabled?: boolean;
       }>)
     : null;
 
   // GET /budgets/:id returns camelCase `defaultCurrency` per the API route handler
   const budgetCurrency =
     budget?.defaultCurrency ?? budget?.default_currency ?? "EUR";
+
+  // D-PH5-R11 cascading-hide surface 4: when reservesEnabled=false, the
+  // Reserve wallet section disappears from the Wallets tab too. Default
+  // true preserves existing UX when the budget meta fetch fails.
+  const reservesEnabled = budget?.reservesEnabled ?? true;
 
   // UAT-PH5-T3-04: constrain wallets to the same centered 1280px column the
   // Settings tab uses. Spendings stays full-bleed because it's a horizontally
@@ -47,6 +53,7 @@ export default async function WalletsPage({ params }: PageProps) {
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
         initial={wallets}
+        reservesEnabled={reservesEnabled}
       />
     </div>
   );

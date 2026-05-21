@@ -48,12 +48,20 @@ interface WalletsSectionedListProps {
   budgetId: string;
   budgetCurrency: string;
   initial: WalletDto[];
+  /**
+   * D-PH5-R11 cascading-hide surface 4: when false, the Reserve wallet
+   * section is omitted from the Wallets tab (mirrors the Reserves pill
+   * + Spendings column-header row hide). Defaults to true so existing
+   * callers keep their behaviour.
+   */
+  reservesEnabled?: boolean;
 }
 
 export function WalletsSectionedList({
   budgetId,
   budgetCurrency,
   initial,
+  reservesEnabled = true,
 }: WalletsSectionedListProps) {
   const t = useTranslations("bdp.tab.wallets.toast");
   // UAT-PH5-T3-33: separate translator for the full section labels
@@ -290,7 +298,13 @@ export function WalletsSectionedList({
         style={{ overscrollBehavior: "contain" }}
         className="flex max-h-[calc(100svh-176px)] flex-col gap-4 overflow-y-auto p-4 sm:p-6"
       >
-        {(["SPENDINGS", "CUSHION", "RESERVE"] as const).map((type) => (
+        {(
+          [
+            "SPENDINGS",
+            "CUSHION",
+            ...(reservesEnabled ? (["RESERVE"] as const) : []),
+          ] as const
+        ).map((type) => (
           <WalletSection
             key={type}
             type={type}

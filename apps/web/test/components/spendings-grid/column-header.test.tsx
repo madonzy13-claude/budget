@@ -51,7 +51,9 @@ describe("ColumnHeader", () => {
 
   it("renders category name", () => {
     renderHeader();
-    expect(screen.getByTestId("column-header-groceries").textContent).toContain("Groceries");
+    expect(screen.getByTestId("column-header-groceries").textContent).toContain(
+      "Groceries",
+    );
   });
 
   it("grip element has touch-action:none (D-PH4-D3)", () => {
@@ -78,19 +80,54 @@ describe("ColumnHeader", () => {
   it("single click on name reveals pen chip", () => {
     renderHeader();
     // click on the column header area triggers reveal
-    const nameCell = document.querySelector('[data-testid="column-header-name-cell"]');
+    const nameCell = document.querySelector(
+      '[data-testid="column-header-name-cell"]',
+    );
     if (nameCell) fireEvent.click(nameCell);
     else fireEvent.click(screen.getByTestId("column-header-groceries"));
     // After click, edit button should be visible
-    const editBtn = document.querySelector('[data-testid="column-header-pen-groceries"]');
+    const editBtn = document.querySelector(
+      '[data-testid="column-header-pen-groceries"]',
+    );
     expect(editBtn).toBeTruthy();
+  });
+
+  describe("D-PH5-R11 cascading-hide surface 2 — Reserves row", () => {
+    it("reservesEnabled defaults true → renders Reserves used row", () => {
+      renderHeader();
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-groceries-reserves-used"]',
+        ),
+      ).toBeTruthy();
+    });
+
+    it("reservesEnabled={true} → renders Reserves used row", () => {
+      renderHeader({ reservesEnabled: true });
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-groceries-reserves-used"]',
+        ),
+      ).toBeTruthy();
+    });
+
+    it("reservesEnabled={false} → Reserves used row is hidden from DOM", () => {
+      renderHeader({ reservesEnabled: false });
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-groceries-reserves-used"]',
+        ),
+      ).toBeNull();
+    });
   });
 
   it("REGRESSION-GUARD (D-PH4-INT4): double-click on header cell does NOTHING", () => {
     const onEdit = vi.fn();
     renderHeader({ onEdit });
     const header = screen.getByTestId("column-header-groceries");
-    act(() => { fireEvent.doubleClick(header); });
+    act(() => {
+      fireEvent.doubleClick(header);
+    });
     // onEdit should NOT be called from double-click
     expect(onEdit).not.toHaveBeenCalled();
   });
@@ -98,10 +135,14 @@ describe("ColumnHeader", () => {
   it("click pen chip calls onEdit(categoryId)", () => {
     const onEdit = vi.fn();
     renderHeader({ onEdit });
-    const nameCell = document.querySelector('[data-testid="column-header-name-cell"]');
+    const nameCell = document.querySelector(
+      '[data-testid="column-header-name-cell"]',
+    );
     if (nameCell) fireEvent.click(nameCell);
     else fireEvent.click(screen.getByTestId("column-header-groceries"));
-    const editBtn = document.querySelector('[data-testid="column-header-pen-groceries"]');
+    const editBtn = document.querySelector(
+      '[data-testid="column-header-pen-groceries"]',
+    );
     if (editBtn) fireEvent.click(editBtn);
     expect(onEdit).toHaveBeenCalledWith("cat-1");
   });

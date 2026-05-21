@@ -99,6 +99,7 @@ async function buildApp(
         reserveBalanceRepo: createReserveBalanceRepo(),
         reservesSummaryRepo: new DrizzleReservesSummaryRepo(),
         isReservesEnabled,
+        budgetCurrencyOf,
       }),
       getReservesSummary: getReservesSummary({
         reserveBalanceRepo: createReserveBalanceRepo(),

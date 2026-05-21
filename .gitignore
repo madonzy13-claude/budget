@@ -16,3 +16,11 @@ graphify-out/
 
 # Bind-mounted persistent data (postgres datadir)
 /data/
+
+# Ad-hoc UAT scratch — debug scripts, screenshots, MCP playwright dumps
+.playwright-mcp/
+/.uat-*.mjs
+/*.png
+/debug-*.ts
+**/e2e/debug-*.spec.ts
+apps/api/test/routes/debug-*.test.ts

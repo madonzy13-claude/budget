@@ -2,13 +2,21 @@
 /**
  * mismatch-chip.tsx — Three-variant reserve mismatch status chip.
  *
- * D-PH5-R12: overfunded + underfunded use --destructive border + text;
- *            reconciled uses --hairline-dark border + --muted-strong text.
- * Read-only this phase — no onClick, no tabIndex (Phase 7 may wire CTA).
+ * UAT-PH5-T3-56: visually distinct overfunded vs underfunded so the
+ * suggested action reads at a glance.
+ *   - overfunded → amber --warning border/icon/amount, ArrowDownToLine
+ *     icon (suggest reducing the wallet), "+" sign prefix.
+ *   - underfunded → red --destructive border/icon/amount, ArrowUpFromLine
+ *     icon (suggest topping up), "−" sign prefix.
+ *   - reconciled → muted hairline border, Check icon, "Reconciled" label.
+ *
+ * D-PH5-R12 superseded for color: variants now differ by color so the
+ * user sees direction without reading the helper text.
+ * Read-only this phase — no onClick, no tabIndex.
  * role="status" so screen readers re-announce when variant changes.
  */
 import * as React from "react";
-import { AlertTriangle, Check } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Check } from "lucide-react";
 
 export type MismatchVariant = "overfunded" | "underfunded" | "reconciled";
 
@@ -24,37 +32,62 @@ export function MismatchChip({
   helperText,
 }: MismatchChipProps) {
   const isReconciled = variant === "reconciled";
-  const Icon = isReconciled ? Check : AlertTriangle;
+  const isOverfunded = variant === "overfunded";
+
+  // UAT-PH5-T3-56: icon mirrors the imbalance.
+  //   overfunded   → ArrowUpFromLine: line at bottom = baseline reserves,
+  //                  arrow rises ABOVE it (excess sitting in wallet).
+  //   underfunded  → ArrowDownToLine: arrow on top, line at bottom,
+  //                  arrow drops onto the baseline (signal: top-up
+  //                  the wallet up to the line of required reserves).
+  const Icon = isReconciled
+    ? Check
+    : isOverfunded
+      ? ArrowUpFromLine
+      : ArrowDownToLine;
+
+  const accent = isReconciled
+    ? "var(--muted-strong)"
+    : isOverfunded
+      ? "var(--warning)"
+      : "var(--destructive)";
 
   const borderClass = isReconciled
     ? "border-[var(--hairline-dark)]"
-    : "border-[var(--destructive)]";
-  const amountColor = isReconciled
-    ? "text-[var(--muted-strong)]"
-    : "text-[var(--destructive)]";
+    : isOverfunded
+      ? "border-[var(--warning)]"
+      : "border-[var(--destructive)]";
+
   const helperColor = isReconciled
     ? "text-[var(--muted-strong)]"
     : "text-[var(--muted-foreground)]";
 
-  const titleLabel = isReconciled ? "Reconciled" : (amountFormatted ?? "");
+  const sign = isReconciled ? "" : isOverfunded ? "+" : "−";
+
+  const titleLabel = isReconciled
+    ? "Reconciled"
+    : amountFormatted
+      ? `${sign}${amountFormatted}`
+      : "";
 
   return (
     <div
       data-testid={`mismatch-chip-${variant}`}
       role="status"
       className={[
-        // UAT-PH5-T3-47: bigger chip — more padding inside the red
-        // border so the amount + helper copy breathe. Doubles
-        // vertical padding, widens horizontal padding, bumps gap.
         "inline-flex items-center gap-3 py-2 px-4",
         "rounded-[var(--radius-md)] border bg-transparent text-sm",
         borderClass,
       ].join(" ")}
     >
-      <Icon className={`h-4 w-4 shrink-0 ${amountColor}`} aria-hidden={true} />
-      {/* UAT-PH5-T3-48: keep amount + currency on one line. */}
+      <Icon
+        className="h-4 w-4 shrink-0"
+        style={{ color: accent }}
+        aria-hidden={true}
+      />
       <span
-        className={`whitespace-nowrap text-title-sm font-semibold ${amountColor}`}
+        className="whitespace-nowrap text-title-sm font-semibold"
+        style={{ color: accent }}
       >
         {titleLabel}
       </span>

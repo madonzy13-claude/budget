@@ -16,8 +16,7 @@ import type { WalletDto } from "../../src/hooks/use-wallets";
 // Components call: useTranslations("bdp.tab.wallets") → t("section.spendings")
 vi.mock("next-intl", () => ({
   useTranslations:
-    (_ns: string) =>
-    (key: string, params?: Record<string, unknown>) => {
+    (_ns: string) => (key: string, params?: Record<string, unknown>) => {
       const map: Record<string, string> = {
         // Relative keys (as used by component internals)
         "section.spendings": "Spendings wallets",
@@ -29,7 +28,8 @@ vi.mock("next-intl", () => ({
         "row.namePlaceholder": "Wallet name",
         "row.nameAria": "Wallet name. Click to edit.",
         "row.currencyAria": "Currency. Click to edit.",
-        "row.currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
+        "row.currencyReadOnlyAria":
+          "Currency {ccy}. Reserve wallets must match budget currency.",
         "row.amountAria": "Amount. Click to edit.",
         "row.dragHandleAria": "Drag to move {name} to another section.",
         "row.trashAria": "Delete wallet {name}.",
@@ -78,6 +78,9 @@ vi.mock("@dnd-kit/core", () => ({
   PointerSensor: vi.fn(),
   TouchSensor: vi.fn(),
   KeyboardSensor: vi.fn(),
+  DragOverlay: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="drag-overlay">{children}</div>
+  ),
 }));
 
 // Mock clientApiFetch (not called on initial render)
@@ -126,7 +129,10 @@ const INITIAL_WALLETS: WalletDto[] = [
   },
 ];
 
-function renderWithQuery(initial: WalletDto[] = INITIAL_WALLETS) {
+function renderWithQuery(
+  initial: WalletDto[] = INITIAL_WALLETS,
+  opts: { reservesEnabled?: boolean } = {},
+) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -136,6 +142,9 @@ function renderWithQuery(initial: WalletDto[] = INITIAL_WALLETS) {
         budgetId="budget-1"
         budgetCurrency="EUR"
         initial={initial}
+        {...(opts.reservesEnabled !== undefined && {
+          reservesEnabled: opts.reservesEnabled,
+        })}
       />
     </QueryClientProvider>,
   );
@@ -178,6 +187,39 @@ describe("WalletsSectionedList", () => {
   it("renders DndContext wrapping the sections", () => {
     renderWithQuery();
     expect(screen.getByTestId("dnd-context")).toBeInTheDocument();
+  });
+
+  describe("D-PH5-R11 cascading-hide surface 4 — Reserve wallet section", () => {
+    it("reservesEnabled defaults true → Reserve section rendered", () => {
+      renderWithQuery();
+      expect(screen.getByTestId("wallet-section-RESERVE")).toBeInTheDocument();
+      expect(screen.getByText("Reserve wallets")).toBeInTheDocument();
+    });
+
+    it("reservesEnabled={true} explicit → Reserve section rendered", () => {
+      renderWithQuery(INITIAL_WALLETS, { reservesEnabled: true });
+      expect(screen.getByTestId("wallet-section-RESERVE")).toBeInTheDocument();
+    });
+
+    it("reservesEnabled={false} → Reserve section + add-button hidden; existing RESERVE wallets not rendered", () => {
+      renderWithQuery(INITIAL_WALLETS, { reservesEnabled: false });
+      expect(
+        screen.queryByTestId("wallet-section-RESERVE"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("add-wallet-reserve"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Reserve wallets")).not.toBeInTheDocument();
+      // Spendings + Cushion still present
+      expect(
+        screen.getByTestId("wallet-section-SPENDINGS"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("wallet-section-CUSHION")).toBeInTheDocument();
+      // RESERVE-typed wallet w3 not rendered (no section to host it).
+      const rows = screen.queryAllByTestId("wallet-row");
+      const renderedIds = rows.map((r) => r.getAttribute("data-wallet-id"));
+      expect(renderedIds).not.toContain("w3");
+    });
   });
 
   it("renders with empty initial data (no wallet rows)", () => {

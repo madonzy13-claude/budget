@@ -10,4 +10,4 @@ Feature: Reserves — inline-edit writes adjustment + mismatch chip variant chan
     Then the mismatch chip is "reconciled"
     When I edit the reserve balance for "Housing" to "EUR 800.00"
     Then the mismatch chip is "overfunded"
-    And the mismatch chip amount is "EUR 200.00"
+    And the mismatch chip amount is "200 EUR"

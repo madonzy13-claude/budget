@@ -114,31 +114,26 @@ describe("ReservesTableClient — W-3 excluded rows contract", () => {
     expect(activeSection).toContainElement(housingRow);
   });
 
-  it("Excluded section renders the Hobbies row with FROZEN REAL balance (NOT zero, NOT em-dash)", () => {
+  it("Excluded section renders Hobbies as a name-only row (UAT-PH5-T3-55)", () => {
     renderClient();
     const excludedSection = screen.getByTestId("reserves-excluded-section");
     expect(excludedSection).toBeInTheDocument();
 
     const hobbiesRow = screen.getByTestId("reserves-row-B");
     expect(excludedSection).toContainElement(hobbiesRow);
+    expect(hobbiesRow.textContent).toMatch(/Hobbies/);
 
-    // Balance cell must show 500 (50000 cents / 100) — the REAL frozen balance
-    const balanceCell = screen.getByTestId("reserves-balance-B");
-    expect(balanceCell.textContent).toMatch(/500/);
+    // No balance cell, no share dashes on excluded rows.
+    expect(
+      hobbiesRow.querySelector('[data-testid="reserves-balance-B"]'),
+    ).toBeNull();
+    expect(hobbiesRow.querySelector("[aria-label='No share']")).toBeNull();
   });
 
   it("Excluded row has opacity-50 class", () => {
     renderClient();
     const hobbiesRow = screen.getByTestId("reserves-row-B");
     expect(hobbiesRow.className).toContain("opacity-50");
-  });
-
-  it("Excluded row share column renders '—' (not a percentage)", () => {
-    renderClient();
-    const hobbiesRow = screen.getByTestId("reserves-row-B");
-    // The "—" em-dash aria-label is "No share"
-    const emDash = hobbiesRow.querySelector("[aria-label='No share']");
-    expect(emDash).not.toBeNull();
   });
 
   it("clientApiFetch is NEVER called with a /categories path (W-3 single-source-of-truth)", () => {

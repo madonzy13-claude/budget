@@ -624,3 +624,211 @@ describe("getReservesSummary use case", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// archiveWallet use case (UAT-PH5-T3-59)
+// Archiving a RESERVE wallet must recompute category reserve_actual_cents so
+// Σactual stays ≤ Σwallets. Archiving a non-RESERVE wallet must NOT touch
+// the reserve allocator.
+// ---------------------------------------------------------------------------
+describe("archiveWallet use case — reserve pool recalc", () => {
+  function makeReserveWalletStub(balanceCents: bigint) {
+    const archivedAtBox: { value: Date | null } = { value: null };
+    return {
+      id: "w-res",
+      walletType: "RESERVE" as const,
+      archivedAt: null as Date | null,
+      currentBalance: {
+        amount: {
+          times: () => ({ toFixed: () => balanceCents.toString() }),
+        },
+      },
+      archive() {
+        archivedAtBox.value = new Date();
+        (this as any).archivedAt = archivedAtBox.value;
+        return { isErr: () => false } as any;
+      },
+    };
+  }
+
+  function makeSpendingsWalletStub() {
+    return {
+      id: "w-spd",
+      walletType: "SPENDINGS" as const,
+      archivedAt: null as Date | null,
+      currentBalance: {
+        amount: { times: () => ({ toFixed: () => "5000" }) },
+      },
+      archive() {
+        (this as any).archivedAt = new Date();
+        return { isErr: () => false } as any;
+      },
+    };
+  }
+
+  it("archiving the LAST reserve wallet zeros every category's reserve_actual_cents", async () => {
+    const { archiveWallet } =
+      await import("../../src/application/archive-wallet");
+    const wallet = makeReserveWalletStub(10000n); // 100 EUR pool wholly owned by w-res
+    let archived = false;
+    let actualUpdates: Map<string, bigint> | undefined;
+
+    const repo = {
+      ...noopRepoMethods,
+      findById: async () => wallet,
+      archive: async () => {
+        archived = true;
+      },
+    } as any;
+
+    const uc = archiveWallet({
+      repo,
+      categoriesRepo: {
+        list: async () => [
+          {
+            id: "c1",
+            name: "A",
+            reserveExcluded: false,
+            sortIndex: 0,
+            reserveActualCents: 6000n,
+          },
+          {
+            id: "c2",
+            name: "B",
+            reserveExcluded: false,
+            sortIndex: 1,
+            reserveActualCents: 4000n,
+          },
+        ],
+        setReserveActualMany: async (
+          _tenantId: string,
+          updates: Map<string, bigint>,
+        ) => {
+          actualUpdates = updates;
+        },
+      } as any,
+      reserveBalanceRepo: {
+        getForBudget: async () => new Map(),
+        getExcludedForBudget: async () => new Map(),
+      } as any,
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 10000n,
+      } as any,
+    });
+
+    const r = await uc({
+      tenantId: "t1",
+      walletId: "w-res",
+      actorUserId: "u1",
+    });
+
+    expect(r.isOk()).toBe(true);
+    expect(archived).toBe(true);
+    expect(actualUpdates).toBeDefined();
+    // Pool dropped from 10000 to 0 → both categories must be zeroed.
+    expect(actualUpdates!.get("c1")).toBe(0n);
+    expect(actualUpdates!.get("c2")).toBe(0n);
+  });
+
+  it("archiving ONE of multiple reserve wallets shrinks but does not zero actuals", async () => {
+    const { archiveWallet } =
+      await import("../../src/application/archive-wallet");
+    // Pool currently 20000; archiving wallet worth 8000 → new pool 12000.
+    const wallet = makeReserveWalletStub(8000n);
+    let actualUpdates: Map<string, bigint> | undefined;
+
+    const repo = {
+      ...noopRepoMethods,
+      findById: async () => wallet,
+      archive: async () => {},
+    } as any;
+
+    const uc = archiveWallet({
+      repo,
+      categoriesRepo: {
+        list: async () => [
+          {
+            id: "c1",
+            name: "A",
+            reserveExcluded: false,
+            sortIndex: 0,
+            reserveActualCents: 12000n,
+          },
+          {
+            id: "c2",
+            name: "B",
+            reserveExcluded: false,
+            sortIndex: 1,
+            reserveActualCents: 8000n,
+          },
+        ],
+        setReserveActualMany: async (
+          _tenantId: string,
+          updates: Map<string, bigint>,
+        ) => {
+          actualUpdates = updates;
+        },
+      } as any,
+      reserveBalanceRepo: {
+        getForBudget: async () => new Map(),
+        getExcludedForBudget: async () => new Map(),
+      } as any,
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 20000n,
+      } as any,
+    });
+
+    const r = await uc({
+      tenantId: "t1",
+      walletId: "w-res",
+      actorUserId: "u1",
+    });
+
+    expect(r.isOk()).toBe(true);
+    expect(actualUpdates).toBeDefined();
+    // applyWalletDelta deducts bottom-up (sort_index DESC) when newPool < Σactuals.
+    // Σactual was 20000, newPool 12000 → must shed 8000. Bottom row c2 had 8000 → 0.
+    const sum =
+      (actualUpdates!.get("c1") ?? 12000n) +
+      (actualUpdates!.get("c2") ?? 8000n);
+    expect(sum).toBeLessThanOrEqual(12000n);
+  });
+
+  it("archiving a SPENDINGS wallet does NOT touch categories.reserve_actual_cents", async () => {
+    const { archiveWallet } =
+      await import("../../src/application/archive-wallet");
+    const wallet = makeSpendingsWalletStub();
+    let actualUpdatesCalled = false;
+
+    const repo = {
+      ...noopRepoMethods,
+      findById: async () => wallet,
+      archive: async () => {},
+    } as any;
+
+    const uc = archiveWallet({
+      repo,
+      categoriesRepo: {
+        list: async () => [],
+        setReserveActualMany: async () => {
+          actualUpdatesCalled = true;
+        },
+      } as any,
+      reserveBalanceRepo: {
+        getForBudget: async () => new Map(),
+        getExcludedForBudget: async () => new Map(),
+      } as any,
+      reservesSummaryRepo: {
+        sumReserveWalletAmounts: async () => 0n,
+      } as any,
+    });
+
+    const r = await uc({
+      tenantId: "t1",
+      walletId: "w-spd",
+      actorUserId: "u1",
+    });
+    expect(r.isOk()).toBe(true);
+    expect(actualUpdatesCalled).toBe(false);
+  });
+});

@@ -50,11 +50,12 @@ describe("ReservesTotalsFooter", () => {
     expect(screen.getByTestId("mismatch-chip-underfunded")).toBeInTheDocument();
   });
 
-  it("footer wrapper has sticky and bottom-0 classes", () => {
+  it("footer wrapper renders as bordered floating card (T3-45: not sticky)", () => {
     renderFooter("0");
     const footer = screen.getByTestId("reserves-totals-footer");
-    expect(footer.className).toContain("sticky");
-    expect(footer.className).toContain("bottom-0");
+    expect(footer.className).not.toContain("sticky");
+    expect(footer.className).toContain("rounded-[var(--radius-md)]");
+    expect(footer.className).toContain("border");
   });
 
   it("renders the data-testid attribute", () => {

@@ -11,6 +11,11 @@ import { useUpdateReserveAdjustment } from "../../src/hooks/use-update-reserve-a
 import { TestQueryProvider, makeTestQueryClient } from "../setup/query-client";
 import type { ReservesSummaryDto } from "../../src/hooks/use-reserves-summary";
 
+vi.mock("next-intl", () => ({
+  useTranslations: (ns?: string) => (key: string) =>
+    ns ? `${ns}.${key}` : key,
+}));
+
 const mockFetch = vi.fn();
 vi.mock("../../src/lib/budget-fetch", () => ({
   clientApiFetch: (...args: unknown[]) => mockFetch(...args),
@@ -109,13 +114,39 @@ describe("useUpdateReserveAdjustment", () => {
     );
   });
 
-  it("invalidates reserves query on 200 success", async () => {
+  it("snaps cache to server summary on 200 success (no refetch)", async () => {
+    const serverSummary: ReservesSummaryDto = {
+      rows: [
+        {
+          categoryId: "cat-A",
+          name: "Housing",
+          reserveBalanceCents: "31000",
+          walletSharePercent: 100,
+          walletShareAmountCents: "31000",
+        },
+      ],
+      excludedRows: initialSummary.excludedRows,
+      totals: {
+        totalCategoryReservesCents: "31000",
+        totalReserveWalletAmountCents: "31000",
+        mismatchCents: "0",
+        disabled: false,
+        budgetCurrency: "EUR",
+      },
+    };
+
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ expectedCents: "31000" }),
+      json: async () => ({
+        expectedCents: "31000",
+        actualCents: "31000",
+        deltaCents: "1000",
+        summary: serverSummary,
+      }),
     });
 
     const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const setDataSpy = vi.spyOn(client, "setQueryData");
     const { result } = renderHook(() => useUpdateReserveAdjustment(BUDGET_ID), {
       wrapper,
     });
@@ -124,10 +155,12 @@ describe("useUpdateReserveAdjustment", () => {
       result.current.mutate({ categoryId: "cat-A", expectedCents: 31000 });
     });
 
-    await waitFor(() => result.current.isSuccess);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["budget", BUDGET_ID, "reserves"] }),
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect(setDataSpy).toHaveBeenCalledWith(
+      ["budget", BUDGET_ID, "reserves"],
+      serverSummary,
     );
   });
 

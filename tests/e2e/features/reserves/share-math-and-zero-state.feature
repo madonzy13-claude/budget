@@ -9,12 +9,14 @@ Feature: Reserves — share math + em-dash zero state (RSRV-06, D-PH5-R4)
     And the category "Housing" reserve adjustment is "+30000" cents
     And the category "Food" reserve adjustment is "+70000" cents
     When I open the Reserves tab on a budget "Family"
-    Then the row for "Housing" shows wallet share "EUR 300.00 (30.00%)"
-    And the row for "Food" shows wallet share "EUR 700.00 (70.00%)"
+    Then the row for "Housing" shows wallet share "300"
+    And the row for "Housing" shows wallet share "30%"
+    And the row for "Food" shows wallet share "700"
+    And the row for "Food" shows wallet share "70%"
 
-  Scenario: With no reserve wallets the share column is em-dash
+  Scenario: With no reserve wallets actual and share render as zero
     Given I am signed in as a fresh user with workspace "Family"
     And the budget "Family" has a category "Housing" with planned "0.00" "EUR"
     And the category "Housing" reserve adjustment is "+50000" cents
     When I open the Reserves tab on a budget "Family"
-    Then the row for "Housing" shows wallet share "—"
+    Then the row for "Housing" shows wallet share "0%"

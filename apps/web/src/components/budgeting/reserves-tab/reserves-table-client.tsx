@@ -173,27 +173,24 @@ export function ReservesTableClient({
           currency={budgetCurrency}
         />
 
-        {/* UAT-PH5-T3-52: column headers restored, renamed to
-            Category | Expected | Actual. Visible on both viewports. */}
-        <div className="flex items-center gap-3 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-          <span className="w-4" aria-hidden="true" />
-          <span className="min-w-0 flex-1">{t("column.category")}</span>
-          <span className="w-[72px] text-right sm:w-[120px]">
-            {t("column.expected")}
-          </span>
-          <span className="w-[88px] text-right sm:w-[160px]">
-            {t("column.actual")}
-          </span>
-          <span className="hidden text-center sm:block sm:w-[80px]">
-            {t("column.actions")}
-          </span>
-        </div>
-
-        {/* Active section */}
+        {/* Active section — column headers replace the section caption
+            (UAT-PH5-T3-55: dropped "Active" h3; column headers sit
+            where it was, inline above the row list). Actions column
+            removed per same item. */}
         <ActiveSection>
-          <h3 className="px-2 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-            {t("section.active")}
-          </h3>
+          <div className="flex items-center gap-3 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+            <span className="w-4" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{t("column.category")}</span>
+            <span className="w-[72px] text-right sm:w-[120px]">
+              {t("column.expected")}
+            </span>
+            <span className="w-[64px] text-right sm:w-[100px]">
+              {t("column.actual")}
+            </span>
+            <span className="hidden text-right sm:block sm:w-[80px]">
+              {t("column.share")}
+            </span>
+          </div>
           {activeRows.map((r) => (
             <ReservesTableRow
               key={r.categoryId}
@@ -209,6 +206,13 @@ export function ReservesTableClient({
                   expectedCents: Number(newCents),
                 });
               }}
+              onSwipeAction={() =>
+                toggleExcluded.mutate({
+                  categoryId: r.categoryId,
+                  excluded: true,
+                  categoryName: r.name,
+                })
+              }
             />
           ))}
           {activeRows.length === 0 && (
@@ -216,7 +220,8 @@ export function ReservesTableClient({
           )}
         </ActiveSection>
 
-        {/* Excluded section — sourced from excludedRows (W-3 single-source: GET /reserves only) */}
+        {/* Excluded section — name-only rows (UAT-PH5-T3-55: dashes
+            removed) sourced from excludedRows (W-3 single-source). */}
         <ExcludedSection>
           <h3 className="px-2 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
             {t("section.excluded")}
@@ -230,6 +235,13 @@ export function ReservesTableClient({
               onUpdate={async () => {
                 /* disabled — InlineEditCell never calls onSave when disabled */
               }}
+              onSwipeAction={() =>
+                toggleExcluded.mutate({
+                  categoryId: r.categoryId,
+                  excluded: false,
+                  categoryName: r.name,
+                })
+              }
             />
           ))}
           {excludedRows.length === 0 && (

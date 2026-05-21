@@ -1,20 +1,32 @@
 /**
  * reserves-table-row.test.tsx — Vitest+RTL tests for ReservesTableRow.
  *
- * Coverage:
- * - walletSharePercent===null → share cell renders "—"
- * - walletSharePercent present → renders formatted amount + percent
- * - isExcluded=true, reserveBalanceCents="50000" → renders "€500.00" (FROZEN REAL, D-PH5-R10)
- *   AND row has opacity-50 AND share renders "—"
- * - category name present in DOM (T-05-10 — no XSS injection)
- * - data-category-id attribute present (W-5 contract)
+ * Updated for UAT-PH5-T3-55:
+ *   - Actions cell removed (no MoreHorizontal placeholder).
+ *   - Excluded rows render NAME ONLY (no balance, no share dashes).
+ *   - Mobile swipe-action button present per row: "Exclude" on active,
+ *     "Restore" on excluded.
+ *
+ * Remaining coverage:
+ *   - D-PH5-R4: active row with null share → share cell renders "—".
+ *   - D-PH5-R4: active row with share → renders amount + percent.
+ *   - D-PH5-R10: excluded row renders ONLY category name.
+ *   - opacity-50 class for excluded styling.
+ *   - W-5: data-category-id attribute on row.
+ *   - T-05-10: category name in DOM (React auto-escapes).
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ReservesTableRow } from "../../src/components/budgeting/reserves-tab/reserves-table-row";
 import type { ReservesSummaryRow } from "../../src/hooks/use-reserves-summary";
 
-// ─── mock dnd-kit (no DOM drag API in happy-dom) ────────────────────────────
+vi.mock("next-intl", () => ({
+  useTranslations:
+    (ns?: string) => (key: string, vars?: Record<string, unknown>) =>
+      vars
+        ? `${ns ? `${ns}.` : ""}${key}:${JSON.stringify(vars)}`
+        : `${ns ? `${ns}.` : ""}${key}`,
+}));
 
 vi.mock("@dnd-kit/core", () => ({
   useDraggable: () => ({
@@ -34,8 +46,6 @@ vi.mock("@dnd-kit/core", () => ({
   useDroppable: () => ({ setNodeRef: () => {}, isOver: false }),
 }));
 
-// ─── fixtures ────────────────────────────────────────────────────────────────
-
 const noShareRow: ReservesSummaryRow = {
   categoryId: "cat-1",
   name: "Housing",
@@ -48,7 +58,7 @@ const withShareRow: ReservesSummaryRow = {
   categoryId: "cat-2",
   name: "Transport",
   reserveBalanceCents: "20000",
-  walletSharePercent: 30.5,
+  walletSharePercent: 30,
   walletShareAmountCents: "30000",
 };
 
@@ -64,6 +74,7 @@ function renderRow(
   row: ReservesSummaryRow,
   isExcluded = false,
   onUpdate = vi.fn().mockResolvedValue(undefined),
+  onSwipeAction = vi.fn(),
 ) {
   return render(
     <ReservesTableRow
@@ -71,35 +82,59 @@ function renderRow(
       currency="EUR"
       isExcluded={isExcluded}
       onUpdate={onUpdate}
+      onSwipeAction={onSwipeAction}
     />,
   );
 }
 
-// ─── tests ───────────────────────────────────────────────────────────────────
-
 describe("ReservesTableRow", () => {
-  describe("wallet share column — em-dash logic (D-PH5-R4)", () => {
-    it("renders '—' when walletSharePercent is null (Active row with no share)", () => {
+  describe("active row — actual + share columns (D-PH5-R4, UAT-PH5-T3-60 split + T3-61 zero state)", () => {
+    it("renders '0' / '0%' on actual + share cells when walletSharePercent is null", () => {
       renderRow(noShareRow);
-      expect(screen.getByLabelText("No share")).toBeInTheDocument();
+      expect(screen.getByLabelText("Zero actual")).toHaveTextContent("0");
+      expect(screen.getByLabelText("Zero share")).toHaveTextContent("0%");
     });
 
-    it("renders formatted amount and percent when walletSharePercent is set", () => {
+    it("UAT-PH5-T3-64: zero actual is destructive-red when expected > 0", () => {
+      renderRow(noShareRow); // reserveBalanceCents="30000"
+      const actual = screen.getByLabelText("Zero actual");
+      expect(actual.className).toContain("--destructive");
+    });
+
+    it("UAT-PH5-T3-64: zero actual uses --foreground (white) when expected is 0", () => {
+      const zeroExpected: ReservesSummaryRow = {
+        ...noShareRow,
+        reserveBalanceCents: "0",
+      };
+      renderRow(zeroExpected);
+      const actual = screen.getByLabelText("Zero actual");
+      expect(actual.className).toContain("--foreground");
+      expect(actual.className).not.toContain("--destructive");
+      expect(actual.className).not.toContain("--muted-foreground");
+    });
+
+    it("renders percent (Share column) when walletSharePercent is set", () => {
       renderRow(withShareRow);
-      // 30.5% label present
-      expect(screen.getByText(/30\.50%/)).toBeInTheDocument();
+      expect(screen.getByText(/30%/)).toBeInTheDocument();
+    });
+
+    it("balance cell renders bare cents value", () => {
+      renderRow(noShareRow);
+      const balanceCell = screen.getByTestId(
+        `reserves-balance-${noShareRow.categoryId}`,
+      );
+      expect(balanceCell.textContent).toMatch(/300/);
     });
   });
 
-  describe("excluded row (D-PH5-R10)", () => {
-    it("renders the FROZEN REAL reserve balance (not zero, not em-dash)", () => {
+  describe("excluded row (UAT-PH5-T3-55 + D-PH5-R10)", () => {
+    it("renders ONLY the category name — no balance cell, no share cell", () => {
       renderRow(excludedRow, true);
-      // 50000 cents = €500.00 — must be visible
-      // Intl.NumberFormat locale varies; check for 500 in text
-      const balanceCell = screen.getByTestId(
-        `reserves-balance-${excludedRow.categoryId}`,
-      );
-      expect(balanceCell.textContent).toMatch(/500/);
+      expect(screen.getByText("Hobbies")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId(`reserves-balance-${excludedRow.categoryId}`),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("No share")).not.toBeInTheDocument();
     });
 
     it("row has opacity-50 class for excluded styling", () => {
@@ -107,15 +142,25 @@ describe("ReservesTableRow", () => {
       const row = screen.getByTestId(`reserves-row-${excludedRow.categoryId}`);
       expect(row.className).toContain("opacity-50");
     });
+  });
 
-    it("share column renders '—' for excluded row regardless of walletSharePercent", () => {
-      const excludedWithShare: ReservesSummaryRow = {
-        ...excludedRow,
-        walletSharePercent: 99,
-        walletShareAmountCents: "99000",
-      };
-      renderRow(excludedWithShare, true);
-      expect(screen.getByLabelText("No share")).toBeInTheDocument();
+  describe("mobile swipe action button (UAT-PH5-T3-55)", () => {
+    it("renders an Exclude action button on active rows", () => {
+      renderRow(noShareRow, false);
+      const btn = screen.getByTestId(
+        `reserves-swipe-action-${noShareRow.categoryId}`,
+      );
+      expect(btn).toBeInTheDocument();
+      expect(btn.textContent).toMatch(/swipeExcludeCta/);
+    });
+
+    it("renders a Restore action button on excluded rows", () => {
+      renderRow(excludedRow, true);
+      const btn = screen.getByTestId(
+        `reserves-swipe-action-${excludedRow.categoryId}`,
+      );
+      expect(btn).toBeInTheDocument();
+      expect(btn.textContent).toMatch(/swipeRestoreCta/);
     });
   });
 
@@ -131,6 +176,49 @@ describe("ReservesTableRow", () => {
       renderRow(noShareRow);
       const row = screen.getByTestId(`reserves-row-${noShareRow.categoryId}`);
       expect(row).toHaveAttribute("data-category-id", noShareRow.categoryId);
+    });
+  });
+
+  describe("inline-edit balance save (UAT-PH5-T3-57 regression)", () => {
+    it("fires onUpdate when user changes '8' to '800' (was: cents-string collision silenced save)", async () => {
+      const onUpdate = vi.fn().mockResolvedValue(undefined);
+      // reserveBalanceCents = "800" → display shows "8". User types "800"
+      // in the editor. Before the fix, draft="800" collided with the raw
+      // cents-string passed as InlineEditCell value, so the cell's
+      // equality check bailed out as a no-op.
+      const eightEurRow: ReservesSummaryRow = {
+        categoryId: "cat-collision",
+        name: "Collision",
+        reserveBalanceCents: "800",
+        walletSharePercent: null,
+        walletShareAmountCents: null,
+      };
+      renderRow(eightEurRow, false, onUpdate);
+
+      const { fireEvent } = await import("@testing-library/react");
+      // Open editor.
+      const cell = screen.getByTestId(
+        `reserves-balance-${eightEurRow.categoryId}`,
+      );
+      fireEvent.click(cell);
+
+      // The editor wrapper appears with data-editing="true"; its child
+      // <input> carries the initial display value.
+      const editor = screen.getByTestId(
+        `reserves-balance-${eightEurRow.categoryId}-editor`,
+      );
+      const input = editor.querySelector("input") as HTMLInputElement;
+      expect(input).not.toBeNull();
+      // Type "800" then press Enter (InlineEditCell editor's onKeyDown
+      // routes Enter to onCommit directly — sidesteps the blur-rAF dance
+      // that's flaky in happy-dom's activeElement model).
+      fireEvent.change(input, { target: { value: "800" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+      await new Promise((r) => setTimeout(r, 30));
+
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      expect(onUpdate.mock.calls[0][0]).toBe(80000n);
     });
   });
 });

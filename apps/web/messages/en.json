@@ -552,10 +552,16 @@
         "column": {
           "category": "Category",
           "balance": "Reserve balance",
-          "share": "Wallet share",
+          "share": "Share",
           "expected": "Expected",
-          "actual": "Actual",
-          "actions": "Actions"
+          "actual": "Actual"
+        },
+        "row": {
+          "dragHandleAria": "Drag to move {name} between active and excluded.",
+          "swipeExcludeCta": "Exclude",
+          "swipeRestoreCta": "Restore",
+          "excludeAria": "Exclude {name} from reserves.",
+          "restoreAria": "Restore {name} to active reserves."
         },
         "totals": {
           "categoriesLabel": "Σ category reserves",
@@ -564,11 +570,11 @@
         "mismatch": {
           "overfunded": {
             "title": "+{amount} overfunded",
-            "helper": "Reduce reserve wallet or distribute to categories."
+            "helper": "Wallet has more money than reserves need. Reduce the wallet or distribute to categories."
           },
           "underfunded": {
             "title": "−{amount} underfunded",
-            "helper": "Top up reserve wallet or reduce category reserves."
+            "helper": "Wallet doesn't have enough to cover reserves. Top up the wallet or reduce category reserves."
           },
           "reconciled": { "title": "Reconciled" }
         },

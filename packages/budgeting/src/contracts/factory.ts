@@ -179,7 +179,14 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     fxProvider,
     // Wallet methods (Plan 01-03 route rename)
     createWallet: createWallet({ repo }),
-    archiveWallet: archiveWallet({ repo }),
+    // UAT-PH5-T3-59: archive must recalc reserve actuals when a RESERVE
+    // wallet leaves the pool (mirrors setWalletBalance deps).
+    archiveWallet: archiveWallet({
+      repo,
+      categoriesRepo,
+      reserveBalanceRepo: createReserveBalanceRepo(),
+      reservesSummaryRepo,
+    }),
     setWalletBalance: setWalletBalance({
       repo,
       categoriesRepo,

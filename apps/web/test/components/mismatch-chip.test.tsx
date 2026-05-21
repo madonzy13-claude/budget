@@ -1,13 +1,10 @@
 /**
  * mismatch-chip.test.tsx — Vitest+RTL tests for MismatchChip atom.
  *
- * Coverage:
- * - overfunded variant: AlertTriangle icon, destructive color + border, amount + helper
- * - underfunded variant: same destructive treatment
- * - reconciled variant: Check icon, hairline-dark border, muted-strong color, no amount
- * - role="status" on all variants
- * - No onClick handler in any variant
- * - No tabindex (inert)
+ * Updated for UAT-PH5-T3-56: variants use distinct colors.
+ *   - overfunded → --warning border/icon/amount, "+{amount}" prefix
+ *   - underfunded → --destructive border/icon/amount, "−{amount}" prefix
+ *   - reconciled → --hairline-dark border, --muted-strong amount
  */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -26,7 +23,7 @@ describe("MismatchChip", () => {
       expect(screen.getByRole("status")).toBeInTheDocument();
     });
 
-    it("renders the amount text", () => {
+    it("renders the amount with '+' sign prefix", () => {
       render(
         <MismatchChip
           variant="overfunded"
@@ -34,7 +31,7 @@ describe("MismatchChip", () => {
           helperText="Reduce reserve wallet."
         />,
       );
-      expect(screen.getByText("EUR 10.00")).toBeInTheDocument();
+      expect(screen.getByText("+EUR 10.00")).toBeInTheDocument();
     });
 
     it("renders helper text", () => {
@@ -50,18 +47,18 @@ describe("MismatchChip", () => {
       ).toBeInTheDocument();
     });
 
-    it("amount span has destructive color class", () => {
+    it("amount span uses --warning color via inline style", () => {
       render(<MismatchChip variant="overfunded" amountFormatted="EUR 10.00" />);
       const status = screen.getByRole("status");
-      // Amount span should contain --destructive
       const amountEl = status.querySelector("span");
-      expect(amountEl?.className).toContain("--destructive");
+      expect(amountEl?.getAttribute("style")).toContain("--warning");
     });
 
-    it("container has destructive border class", () => {
+    it("container has warning border class", () => {
       render(<MismatchChip variant="overfunded" amountFormatted="EUR 10.00" />);
       const status = screen.getByRole("status");
-      expect(status.className).toContain("--destructive");
+      expect(status.className).toContain("--warning");
+      expect(status.className).not.toContain("--destructive");
     });
   });
 
@@ -77,10 +74,16 @@ describe("MismatchChip", () => {
       expect(screen.getByRole("status")).toBeInTheDocument();
     });
 
-    it("has destructive color (same as overfunded)", () => {
+    it("renders the amount with '−' sign prefix", () => {
+      render(<MismatchChip variant="underfunded" amountFormatted="EUR 5.00" />);
+      expect(screen.getByText("−EUR 5.00")).toBeInTheDocument();
+    });
+
+    it("container has destructive border (distinct from overfunded)", () => {
       render(<MismatchChip variant="underfunded" amountFormatted="EUR 5.00" />);
       const status = screen.getByRole("status");
       expect(status.className).toContain("--destructive");
+      expect(status.className).not.toContain("--warning");
     });
   });
 
@@ -95,16 +98,16 @@ describe("MismatchChip", () => {
       expect(screen.getByText("Reconciled")).toBeInTheDocument();
     });
 
-    it("has hairline-dark border (NOT destructive)", () => {
+    it("has hairline-dark border (no warning / destructive)", () => {
       render(<MismatchChip variant="reconciled" />);
       const status = screen.getByRole("status");
       expect(status.className).toContain("--hairline-dark");
       expect(status.className).not.toContain("--destructive");
+      expect(status.className).not.toContain("--warning");
     });
 
     it("does NOT render amount text when no amountFormatted", () => {
       render(<MismatchChip variant="reconciled" />);
-      // The title label should be "Reconciled", not an amount string
       const spans = screen.getByRole("status").querySelectorAll("span");
       const texts = Array.from(spans).map((s) => s.textContent);
       expect(texts).not.toContain("EUR");
@@ -114,14 +117,12 @@ describe("MismatchChip", () => {
   describe("interactivity constraints (inert)", () => {
     it("has no onClick handler — chip element is not a button", () => {
       render(<MismatchChip variant="overfunded" amountFormatted="EUR 10.00" />);
-      // Should render as div with role=status, not a button role
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 
     it("has no tabIndex (not keyboard-focusable)", () => {
       render(<MismatchChip variant="overfunded" amountFormatted="EUR 10.00" />);
       const status = screen.getByRole("status");
-      // No tabindex attribute set
       expect(status).not.toHaveAttribute("tabindex");
     });
   });
