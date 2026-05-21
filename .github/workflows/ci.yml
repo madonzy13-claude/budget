@@ -26,7 +26,7 @@ jobs:
         with:
           bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: ESLint
         run: bunx eslint apps packages --ext .ts,.tsx --max-warnings 0
       # Prettier --check intentionally NOT enforced as a hard gate — the existing
@@ -43,7 +43,7 @@ jobs:
         with:
           bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Typecheck all workspaces
         run: bun run typecheck
 
@@ -56,7 +56,7 @@ jobs:
         with:
           bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: dependency-cruiser
         run: bunx depcruise --config .dependency-cruiser.cjs --output-type err apps packages
 
@@ -82,7 +82,7 @@ jobs:
         with:
           bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Override bunfig coverage threshold for scoped run
         run: |
           # The scoped run only covers two pure-domain packages, so the global
@@ -111,7 +111,7 @@ jobs:
         with:
           node-version: "20"
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Vitest (via workspace bin so happy-dom resolves)
         run: cd apps/web && bun run test
 
@@ -124,7 +124,7 @@ jobs:
         with:
           bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Generate test .env (drives compose init scripts)
         run: |
           cat > .env <<'EOF'
@@ -175,7 +175,7 @@ jobs:
         with:
           bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Generate test .env from CI placeholders
         run: |
           cat > .env <<'EOF'
@@ -241,7 +241,7 @@ jobs:
         with:
           node-version: "20"
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
       - name: Generate test .env (with mailpit for dev override)
@@ -347,7 +347,7 @@ jobs:
         with:
           bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: bun audit (root)
         run: bun audit --audit-level=high
 
