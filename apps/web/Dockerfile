@@ -35,7 +35,7 @@ ENV NEXT_PUBLIC_API_URL=http://localhost:3001
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=$GIT_COMMIT
 
-RUN cd apps/web && bunx next build --webpack
+RUN cd apps/web && bunx next build
 
 # Stage 3: Runtime
 FROM oven/bun:1.3.12-slim AS runtime
