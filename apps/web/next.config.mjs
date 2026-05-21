@@ -1,5 +1,9 @@
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import createNextIntlPlugin from "next-intl/plugin";
 import withSerwistInit from "@serwist/next";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
@@ -12,6 +16,11 @@ const withSerwist = withSerwistInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  // Force monorepo tracing root so the standalone bundle nests server.js
+  // under `apps/web/server.js` in every environment. Without this, the
+  // Docker `builder` stage (which only sees apps/web after install) emits
+  // a flat `server.js` at the standalone root, breaking the runtime CMD.
+  outputFileTracingRoot: resolve(__dirname, "../.."),
   // CLAUDE.md: Serwist requires Webpack; Turbopack is incompatible (as of May 2026)
   // Next.js 16 defaults to Turbopack. To build with Webpack, use: next build --webpack
   // CI grep gate requires: turbopack: false
