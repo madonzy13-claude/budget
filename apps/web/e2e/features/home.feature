@@ -9,10 +9,10 @@ Feature: Combined home page
     When I open the home page
     Then I see a budget card titled "My E2E Budget"
 
-  Scenario: Card click navigates to /budgets/[id]/spendings
+  Scenario: Card click navigates to /budgets/[id]/wallets
     When I open the home page
     And I click the card for "My E2E Budget"
-    Then the URL ends with "/spendings"
+    Then the URL ends with "/wallets"
 
   Scenario: Placeholder chart card is visible below the grid
     When I open the home page

@@ -119,6 +119,18 @@ When(
   },
 );
 
+When(
+  "I open the BDP spendings tab for {string}",
+  async ({ page, freshUser }, name: string) => {
+    if (freshUser.budgetName !== name)
+      throw new Error(`Unknown budget '${name}'`);
+    await page.goto(`/en/budgets/${freshUser.budgetId}/spendings`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+  },
+);
+
 When("I open the budget switcher", async ({ page }) => {
   const nav = new TopNavPo(page);
   await nav.switcherTrigger().click();

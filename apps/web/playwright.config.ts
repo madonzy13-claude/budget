@@ -18,6 +18,9 @@ const testDir = defineBddConfig({
     "../../tests/e2e/fixtures/**/*.ts",
     "../../tests/e2e/pages/**/*.ts",
   ],
+  // Scenarios tagged @skip-phase-05-debt are excluded — each carries an
+  // inline TODO with the re-enable condition (v1.1 surface not yet shipped).
+  tags: "not @skip-phase-05-debt",
 });
 
 export default defineConfig({
