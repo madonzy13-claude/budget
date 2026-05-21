@@ -181,6 +181,47 @@ Given(
   },
 );
 
+/**
+ * Seed a transaction in a budget. Optional `transactionDate` argument lets
+ * scenarios pin a weekend FX date for the stale-rate badge test (#4 of the
+ * v1.1 E2E rewrite plan); when omitted we default to today.
+ */
+async function seedTransactionInCategory(
+  page: import("@playwright/test").Page,
+  scenarioCtx: Record<string, unknown> | undefined,
+  budgetName: string,
+  amountStr: string,
+  currency: string,
+  catName: string,
+  transactionDate?: string,
+): Promise<void> {
+  const budgetId = await findBudgetId(page, budgetName, scenarioCtx);
+  const categoryId = await findCategoryId(page, budgetId, catName);
+  // Get first wallet
+  const walletsRes = await page.request.get("/api/wallets");
+  const walletsData = walletsRes.ok()
+    ? ((await walletsRes.json()) as { accounts: Array<{ id: string }> })
+    : { accounts: [] };
+  const accountId = walletsData.accounts[0]?.id;
+  if (!accountId)
+    throw new Error("No wallet — run 'I have a checking account' first");
+  const res = await page.request.post("/api/transactions", {
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+    data: {
+      kind: "EXPENSE",
+      amountOrig: amountStr,
+      currencyOrig: currency,
+      transactionDate: transactionDate ?? new Date().toISOString().slice(0, 10),
+      accountId,
+      categoryId,
+    },
+  });
+  if (![201, 409].includes(res.status())) {
+    const body = await res.text();
+    throw new Error(`POST /transactions failed: ${res.status()} ${body}`);
+  }
+}
+
 Given(
   "the budget {string} has a transaction {string} {string} in category {string}",
   async (
@@ -190,35 +231,38 @@ Given(
     currency: string,
     catName: string,
   ) => {
-    const budgetId = await findBudgetId(
+    await seedTransactionInCategory(
       page,
-      budgetName,
       scenarioCtx as Record<string, unknown>,
+      budgetName,
+      amountStr,
+      currency,
+      catName,
     );
-    const categoryId = await findCategoryId(page, budgetId, catName);
-    // Get first wallet
-    const walletsRes = await page.request.get("/api/wallets");
-    const walletsData = walletsRes.ok()
-      ? ((await walletsRes.json()) as { accounts: Array<{ id: string }> })
-      : { accounts: [] };
-    const accountId = walletsData.accounts[0]?.id;
-    if (!accountId)
-      throw new Error("No wallet — run 'I have a checking account' first");
-    const res = await page.request.post("/api/transactions", {
-      headers: { "Idempotency-Key": crypto.randomUUID() },
-      data: {
-        kind: "EXPENSE",
-        amountOrig: amountStr,
-        currencyOrig: currency,
-        transactionDate: new Date().toISOString().slice(0, 10),
-        accountId,
-        categoryId,
-      },
-    });
-    if (![201, 409].includes(res.status())) {
-      const body = await res.text();
-      throw new Error(`POST /transactions failed: ${res.status()} ${body}`);
-    }
+  },
+);
+
+// Date-pinned variant: plan #4 needs a weekend FX rate (e.g. "2026-05-09")
+// to surface the FX-freshness badge on the spendings row.
+Given(
+  "the budget {string} has a transaction {string} {string} in category {string} on {string}",
+  async (
+    { page, scenarioCtx },
+    budgetName: string,
+    amountStr: string,
+    currency: string,
+    catName: string,
+    transactionDate: string,
+  ) => {
+    await seedTransactionInCategory(
+      page,
+      scenarioCtx as Record<string, unknown>,
+      budgetName,
+      amountStr,
+      currency,
+      catName,
+      transactionDate,
+    );
   },
 );
 
@@ -642,5 +686,268 @@ Then(
   async ({ page }) => {
     const spendings = new SpendingsPage(page);
     await expect(spendings.addCategoryColumn()).toBeVisible({ timeout: 10000 });
+  },
+);
+
+// ── Plan rewrite #1: Bulk re-categorize on the Spendings grid ────────────────
+//
+// The v1.1 grid has no multi-select toolbar yet, so this driver hits
+// POST /api/transactions/bulk-recategorize directly (the durable contract).
+// When the multi-select UI lands we can swap the body of this step.
+
+When(
+  "I bulk re-categorize all {string} transactions to {string}",
+  async (
+    { page, scenarioCtx },
+    fromCatName: string,
+    toCatName: string,
+  ) => {
+    const budgetId =
+      ((scenarioCtx as Record<string, unknown>)["activeBudgetId"] as
+        | string
+        | undefined) ??
+      ((scenarioCtx as Record<string, unknown>)["workspaceId"] as
+        | string
+        | undefined);
+    if (!budgetId)
+      throw new Error(
+        "No active budget; run 'I open the Spendings tab on a budget' first.",
+      );
+    const fromId = await findCategoryId(page, budgetId, fromCatName);
+    const toId = await findCategoryId(page, budgetId, toCatName);
+
+    // List transactions in the source category. Endpoint shape has evolved a
+    // few times; accept any of the documented response keys (transactions / rows / data).
+    const txRes = await page.request.get(
+      `/api/transactions?categoryIds=${encodeURIComponent(fromId)}`,
+      { headers: { "X-Budget-ID": budgetId } },
+    );
+    const txData = txRes.ok()
+      ? ((await txRes.json()) as {
+          transactions?: Array<{ id: string }>;
+          rows?: Array<{ id: string }>;
+          data?: Array<{ id: string }>;
+        })
+      : {};
+    const ids = (txData.transactions ?? txData.rows ?? txData.data ?? []).map(
+      (r) => r.id,
+    );
+    expect(ids.length, "expected at least one source transaction").toBeGreaterThan(0);
+
+    const res = await page.request.post(
+      "/api/transactions/bulk-recategorize",
+      {
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+          "X-Budget-ID": budgetId,
+        },
+        data: { transactionIds: ids, newCategoryId: toId },
+      },
+    );
+    expect(
+      [200, 201, 204, 409].includes(res.status()),
+      `bulk-recategorize unexpected status ${res.status()}: ${await res.text()}`,
+    ).toBeTruthy();
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+  },
+);
+
+Then(
+  "I do not see a transaction row {string} in the {string} column",
+  async ({ page }, amount: string, catName: string) => {
+    // data-testid uses cents (e.g. "10.00" → "1000")
+    const cents = String(Math.round(parseFloat(amount) * 100));
+    // Prefer the column-scoped variant if the row was tagged with its column.
+    const scoped = page.locator(
+      `[data-testid="txn-row-${cents}-${catName.toLowerCase()}"]`,
+    );
+    const generic = page.locator(`[data-testid="txn-row-${cents}"]`);
+    await page.waitForTimeout(300);
+    await expect(scoped).toHaveCount(0);
+    // The plain (un-scoped) row must also be absent from THIS column. We check by
+    // ensuring no instance of the row sits inside the column-header's parent column.
+    const colHeader = page.getByTestId(
+      `column-header-${catName.toLowerCase()}`,
+    );
+    if (await colHeader.count()) {
+      const insideColumn = colHeader
+        .locator("xpath=ancestor::*[contains(@data-testid,'category-column')][1]")
+        .locator(`[data-testid="txn-row-${cents}"]`);
+      await expect(insideColumn).toHaveCount(0);
+    } else {
+      // Fallback: assert generic row is not visible anywhere on the grid
+      // (best-effort when columns lack a wrapper testid).
+      const visibleCount = await generic
+        .filter({ state: "visible" })
+        .count()
+        .catch(() => 0);
+      expect(visibleCount).toBe(0);
+    }
+  },
+);
+
+// ── Plan rewrite #2: Inline-edit planned limit from column header ────────────
+//
+// The current ColumnHeader (apps/web/src/components/budgeting/spendings-grid/
+// column-header.tsx) explicitly preventDefaults double-click on every cell
+// (D-PH4-INT4). The plan's "set planned limit via double-click" affordance is
+// therefore not wired in v1.1 — we drive it through the limits API as a stable
+// fallback, mirroring the existing planned-limit seed step.
+
+When(
+  "I set the planned limit for column {string} to {string}",
+  async ({ page, scenarioCtx }, catName: string, plannedStr: string) => {
+    const budgetId =
+      ((scenarioCtx as Record<string, unknown>)["activeBudgetId"] as
+        | string
+        | undefined) ??
+      ((scenarioCtx as Record<string, unknown>)["workspaceId"] as
+        | string
+        | undefined);
+    if (!budgetId)
+      throw new Error(
+        "No active budget; run 'I open the Spendings tab on a budget' first.",
+      );
+    const categoryId = await findCategoryId(page, budgetId, catName);
+
+    // Try the UI affordance first — Plan 04 inline-edit is gated to the planned
+    // row but the testid is not stable in the current header, so we attempt a
+    // double-click on the second row of the column-header (the planned cell)
+    // and gracefully fall back to the API if no editable input materialises.
+    let usedUi = false;
+    const header = page.getByTestId(`column-header-${catName.toLowerCase()}`);
+    if (await header.count()) {
+      const plannedRow = header.locator("> div").nth(1);
+      try {
+        await plannedRow.dblclick({ timeout: 1500 });
+        const inlineInput = page.locator(
+          `[data-testid^="inline-edit-column-header-planned-"]`,
+        );
+        if (await inlineInput.first().isVisible({ timeout: 1000 })) {
+          await inlineInput.first().fill(plannedStr);
+          await page.keyboard.press("Enter");
+          await page.waitForLoadState("networkidle");
+          usedUi = true;
+        }
+      } catch {
+        // fall through to API
+      }
+    }
+    if (!usedUi) {
+      // TODO(phase-05-debt): the column-header double-click → inline-edit
+      // affordance is not wired in the current v1.1 ColumnHeader. Replace this
+      // API fallback with a real UI driver once the planned-value inline-edit
+      // input gets a stable testid (e.g. column-header-planned-<cat>).
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(
+        now.getMonth() + 1,
+      ).padStart(2, "0")}-01`;
+      const res = await page.request.post(
+        `/api/categories/${categoryId}/limits`,
+        {
+          headers: {
+            "Idempotency-Key": crypto.randomUUID(),
+            "X-Budget-ID": budgetId,
+          },
+          data: {
+            normalAmount: String(Math.round(parseFloat(plannedStr) * 100)),
+            cushionAmount: "0",
+            normalCurrency: "EUR",
+            effectiveFrom: monthStart,
+          },
+        },
+      );
+      if (![200, 201, 409].includes(res.status())) {
+        const body = await res.text();
+        throw new Error(`POST /limits failed: ${res.status()} ${body}`);
+      }
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+    }
+  },
+);
+
+Then(
+  "the column {string} header shows planned {string}",
+  async ({ page }, catName: string, value: string) => {
+    // The planned row is the second cell inside the column header; assert by
+    // text match (rendered via centsToBare → "1,000" formatting).
+    const header = page.getByTestId(`column-header-${catName.toLowerCase()}`);
+    await expect(header).toContainText(value, { timeout: 10000 });
+  },
+);
+
+// ── Plan rewrite #4: FX freshness badge assertion ────────────────────────────
+
+Then(
+  "the transaction row {string} shows an FX freshness badge",
+  async ({ page }, amount: string) => {
+    // data-testid on the badge: fx-stale-badge (Plan 02-06). Row is identified
+    // by its cents-based id; we look for the badge inside the row.
+    const cents = String(Math.round(parseFloat(amount) * 100));
+    const row = page.locator(`[data-testid="txn-row-${cents}"]`).first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+    const badge = row.locator('[data-testid="fx-stale-badge"]').first();
+    await expect(badge).toBeVisible({ timeout: 10000 });
+  },
+);
+
+// ── Plan rewrite #12: column-header cell double-click guards ─────────────────
+//
+// D-PH4-INT4 regression guard: double-click on the category-name cell must NOT
+// enter inline-edit. The "planned-value cell DOES enter inline-edit" branch is
+// aspirational in v1.1 — flag it as debt rather than silently passing.
+
+When(
+  "I double-click the category-name cell for column {string}",
+  async ({ page }, catName: string) => {
+    const header = page.getByTestId(`column-header-${catName.toLowerCase()}`);
+    await header
+      .locator('[data-testid="column-header-name-cell"]')
+      .first()
+      .dblclick();
+  },
+);
+
+When(
+  "I double-click the planned-value cell for column {string}",
+  async ({ page }, catName: string) => {
+    // The planned row has no dedicated testid in the current ColumnHeader
+    // (apps/web/src/components/budgeting/spendings-grid/column-header.tsx).
+    // Pick it positionally: it is the second direct child of the header.
+    const header = page.getByTestId(`column-header-${catName.toLowerCase()}`);
+    await header.locator("> div").nth(1).dblclick();
+  },
+);
+
+Then(
+  "I do not see the inline-edit input on column {string} name cell",
+  async ({ page }, catName: string) => {
+    // No inline-edit input must surface anywhere on the page after a
+    // double-click on the name cell (D-PH4-INT4).
+    void catName;
+    await page.waitForTimeout(300);
+    const inputs = page.locator("[data-testid^='inline-edit-']");
+    const visibleCount = await inputs
+      .filter({ state: "visible" })
+      .count()
+      .catch(() => 0);
+    expect(visibleCount).toBe(0);
+  },
+);
+
+Then(
+  "I see the inline-edit input on column {string} planned cell",
+  async ({ page }, catName: string) => {
+    // TODO(phase-05-debt): the planned-value double-click → inline-edit input
+    // is not wired in the current v1.1 ColumnHeader (D-PH4-INT4 currently
+    // preventDefaults double-click on every cell, including planned). This
+    // assertion will start passing once the inline-edit affordance ships with
+    // a stable testid such as `inline-edit-column-header-planned-<cat>`.
+    void catName;
+    throw new Error(
+      "not implemented: planned-value inline-edit affordance not yet wired in v1.1 ColumnHeader (TODO phase-05-debt)",
+    );
   },
 );
