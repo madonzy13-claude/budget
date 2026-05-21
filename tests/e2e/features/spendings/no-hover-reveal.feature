@@ -1,5 +1,5 @@
 @phase4
-Feature: Hover does not reveal action chips (D-PH4-INT1 regression-guard)
+Feature: Hover does not reveal action chips (D-PH4-INT1 regression guard)
 
   Scenario: Pointermove over a transaction row leaves DOM in resting state
     Given I am signed in as a fresh user with workspace "Family"

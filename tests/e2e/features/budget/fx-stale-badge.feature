@@ -1,15 +1,12 @@
-@phase2
+@phase4
 Feature: FX freshness badge surfaces stale-rate transactions
-  Per WARNING 6 (moved from Plan 02-06): the search/filter ledger view is the natural home for
-  the visual scenario asserting "weekend transaction shows 'rate from Friday' badge".
-  D-03-a/b stale-rate UX.
+  Per WARNING 6 (Plan 02-06 / D-03-a/b): a row sourced from a weekend FX rate carries
+  a visible "rate from Friday" indicator so the user can spot non-fresh conversions.
 
-  Background:
-    Given I am signed in as a fresh user with workspace "FX Stale Workspace"
-    And I have a checking account "Main" with currency "EUR"
-
-  Scenario: Weekend transaction shows the FX freshness badge
-    Given I have an expense "Saturday spend" of 100 USD on "2026-05-09"
-    When I open the Transactions page
-    Then I see a transaction in the list with amount "100"
-    And the transaction row shows an FX freshness badge
+  Scenario: Weekend USD expense in an EUR budget shows the FX freshness badge
+    Given I am signed in as a fresh user with workspace "FX Stale"
+    And the budget "FX Stale" has a category "Travel" with planned "0.00" "EUR"
+    And the budget "FX Stale" has a transaction "100.00" "USD" in category "Travel" on "2026-05-09"
+    When I open the Spendings tab on a budget "FX Stale"
+    Then I see a transaction row "100.00" in the "Travel" column
+    And the transaction row "100.00" shows an FX freshness badge

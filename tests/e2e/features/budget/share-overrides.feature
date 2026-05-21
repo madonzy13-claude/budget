@@ -1,22 +1,16 @@
-@phase2
-Feature: Category contribution share overrides
+Feature: Category contribution share overrides — sum-100 invariant (BDGT-08)
+  Per D-06 / TENT-13: per-category contribution percentages must sum to exactly
+  100% (±0.005). The category-share-overrides editor UI is a future deliverable;
+  these scenarios pin the API + DB invariant the editor will drive.
 
-  Scenario: User sets share overrides that sum to 100%
+  Background:
     Given I am signed in as a fresh user with workspace "Family"
-    When I open the Budget page
-    And I create a category "Rent"
-    And I open the share override editor for "Rent"
-    And I set share for member 1 to "60" and member 2 to "40"
-    Then the sum counter shows "Currently 100% — must equal 100%"
-    And the save button is enabled
-    When I save the shares
-    Then I see a success toast
+    And the budget "Family" has a category "Rent" with planned "0.00" "EUR"
 
-  Scenario: Save is disabled when shares do not sum to 100%
-    Given I am signed in as a fresh user with workspace "Family"
-    When I open the Budget page
-    And I create a category "Utilities"
-    And I open the share override editor for "Utilities"
-    And I set share for member 1 to "60" and member 2 to "30"
-    Then the sum counter shows "Currently 90% — must equal 100%"
-    And the save button is disabled
+  Scenario: Sum of overrides equal to 100 is accepted
+    When I PUT category share overrides for "Rent" with shares summing to 100
+    Then the share-overrides API responds 200
+
+  Scenario: Sum of overrides not equal to 100 is rejected
+    When I PUT category share overrides for "Rent" with shares summing to 90
+    Then the share-overrides API responds with a non-2xx status

@@ -1,4 +1,4 @@
-Feature: Currency picker localization
+Feature: Currency picker localization on the onboarding wizard
 
   Scenario Outline: <locale> trigger and dropdown options are localized
     Given a fresh verified user in "<locale>"

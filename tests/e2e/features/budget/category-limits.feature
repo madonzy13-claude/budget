@@ -1,20 +1,17 @@
-@phase2
-Feature: Category budget limits
+@phase4
+Feature: Category effective-dated budget limits (BDGT-03..05)
 
-  Scenario: User sets a budget limit on a category
+  Scenario: User sets a planned limit on a category from the Spendings grid header
     Given I am signed in as a fresh user with workspace "Family"
-    When I open the Budget page
+    When I open the Spendings tab on a budget "Family"
     And I create a category "Housing"
-    And I open the limit editor for "Housing"
-    And I set the normal limit to "100000" and cushion limit to "110000" in "EUR" effective "2026-01-01"
-    And I save the limit
-    Then I see "Housing" in the categories list
+    And I set the planned limit for column "Housing" to "1000.00"
+    Then the column "Housing" header shows planned "1,000"
 
-  Scenario: Budget limit save is persisted and effective lookup works
+  Scenario: A persisted planned limit survives a page reload
     Given I am signed in as a fresh user with workspace "Family"
-    When I open the Budget page
+    When I open the Spendings tab on a budget "Family"
     And I create a category "Groceries"
-    And I open the limit editor for "Groceries"
-    And I set the normal limit to "50000" and cushion limit to "60000" in "EUR" effective "2026-05-01"
-    And I save the limit
-    Then "Groceries" shows a saved limit
+    And I set the planned limit for column "Groceries" to "500.00"
+    And I reload the page
+    Then the column "Groceries" header shows planned "500"

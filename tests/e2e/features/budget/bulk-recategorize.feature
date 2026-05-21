@@ -1,16 +1,21 @@
-@phase2
-Feature: Bulk re-categorize transactions
-  As a household member I can multi-select transactions and re-categorize them; the system writes
-  one correction row per selection in a single tx (Plan 02-09 EXPN-10, atomic-all-or-none).
+@phase4
+Feature: Bulk re-categorize transactions across columns (EXPN-10)
+  As a household member I can move several transactions from one category column to
+  another in a single atomic operation. The originating column loses them and the
+  destination column gains them; no correction-row badge is rendered in v1.1
+  (in-place edit per TXN-08 / D-PH2-07).
 
   Background:
-    Given I am signed in as a fresh user with workspace "Bulk Test Workspace"
-    And I have a checking account "Main" with currency "EUR"
-    And I have a category "Food"
-    And I have a category "Eating Out"
+    Given I am signed in as a fresh user with workspace "Bulk Test"
+    And the budget "Bulk Test" has a category "Food" with planned "0.00" "EUR"
+    And the budget "Bulk Test" has a category "Eating Out" with planned "0.00" "EUR"
+    And the budget "Bulk Test" has a transaction "10.00" "EUR" in category "Food"
+    And the budget "Bulk Test" has a transaction "20.00" "EUR" in category "Food"
 
   Scenario: User bulk re-categorizes 2 transactions to a new category
-    Given I have an expense "Lunch" of 10 EUR on "2026-05-07" in category "Food"
-    And I have an expense "Dinner" of 20 EUR on "2026-05-08" in category "Food"
-    When I bulk re-categorize all "Food" transactions to "Eating Out"
-    Then I see 2 transactions with the "edited" badge
+    When I open the Spendings tab on a budget "Bulk Test"
+    And I bulk re-categorize all "Food" transactions to "Eating Out"
+    Then I see a transaction row "10.00" in the "Eating Out" column
+    And I see a transaction row "20.00" in the "Eating Out" column
+    And I do not see a transaction row "10.00" in the "Food" column
+    And I do not see a transaction row "20.00" in the "Food" column

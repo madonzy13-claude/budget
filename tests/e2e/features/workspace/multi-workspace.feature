@@ -1,30 +1,22 @@
-Feature: Multi-workspace persistence and active selection
-  Phase 1 wires workspace creation + active-workspace storage server-side.
-  The switcher UI is a Phase 2 deliverable; these scenarios pin the persistence
-  contract that the future UI will read from / write to.
+Feature: Multi-budget persistence and active selection
+  Multi-budget membership + active-budget storage is wired server-side via
+  POST /api/budgets, GET /api/budgets/active, PUT /api/budgets/active. The
+  second-budget switcher UI is Phase 6; these scenarios pin the persistence
+  contract that the future UI will read from and write to.
 
-  Scenario: User can create two PRIVATE workspaces in different currencies
+  Scenario: User can create two PRIVATE budgets in different currencies
     Given a fresh verified user in "en"
-    When I navigate to "/en/onboarding"
-    And I fill workspace name "Alpha"
-    And I pick the "USD" currency
-    And I submit the create-workspace form
-    Then I land on a workspace detail page
-    When I navigate to "/en/onboarding"
-    And I fill workspace name "Beta"
-    And I pick the "UAH" currency
-    And I submit the create-workspace form
-    Then I land on a workspace detail page
-    And the active-workspaces endpoint returns 2 workspaces
+    When I POST a new budget "Alpha" with kind "PRIVATE" currency "USD"
+    Then the create-budget API responds 201 with a budget id
+    When I POST a new budget "Beta" with kind "PRIVATE" currency "UAH"
+    Then the create-budget API responds 201 with a budget id
+    And the active-budgets endpoint returns 2 budgets
 
-  Scenario: Active workspace selection persists across reloads
+  Scenario: Active budget selection persists across reloads
     Given a fresh verified user in "en"
-    When I navigate to "/en/onboarding"
-    And I fill workspace name "Solo"
-    And I pick the "USD" currency
-    And I submit the create-workspace form
-    Then I land on a workspace detail page
-    And the active-workspaces endpoint returns 1 workspaces
-    When I set the active workspaces to all owned workspaces
-    And I reload the page
-    Then the active-workspaces endpoint returns the same active selection
+    When I POST a new budget "Solo" with kind "PRIVATE" currency "USD"
+    Then the create-budget API responds 201 with a budget id
+    And the active-budgets endpoint returns 1 budgets
+    When I set the active budgets to all owned budgets
+    And I navigate to "/en"
+    Then the active-budgets endpoint returns the same active selection
