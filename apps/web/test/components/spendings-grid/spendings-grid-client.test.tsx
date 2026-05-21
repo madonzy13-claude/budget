@@ -4,12 +4,14 @@
  * transactionsByCatId/draftsByCatId from hooks (not props), slider open/close.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { TestQueryProvider } from "../../setup/query-client";
 
 // Mock dnd-kit per RESEARCH §Pattern 5
 vi.mock("@dnd-kit/sortable", () => ({
-  SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SortableContext: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   useSortable: () => ({
     attributes: {},
     listeners: {},
@@ -93,7 +95,8 @@ vi.mock("temporal-polyfill", () => ({
 
 // Mock @radix-ui/react-dialog for Sheet
 vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@radix-ui/react-dialog")>();
+  const actual =
+    await importOriginal<typeof import("@radix-ui/react-dialog")>();
   return {
     ...actual,
     Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -103,8 +106,20 @@ vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
 
 const categories = [
-  { id: "cat-1", name: "Groceries", iconKey: null, colorKey: null, sortIndex: 0 },
-  { id: "cat-2", name: "Transport", iconKey: null, colorKey: null, sortIndex: 1 },
+  {
+    id: "cat-1",
+    name: "Groceries",
+    iconKey: null,
+    colorKey: null,
+    sortIndex: 0,
+  },
+  {
+    id: "cat-2",
+    name: "Transport",
+    iconKey: null,
+    colorKey: null,
+    sortIndex: 1,
+  },
 ];
 
 const transactions = [
@@ -246,14 +261,20 @@ describe("SpendingsGridClient", () => {
       </TestQueryProvider>,
     );
     // Click on column header name cell to reveal pen
-    const nameCells = document.querySelectorAll("[data-testid='column-header-name-cell']");
+    const nameCells = document.querySelectorAll(
+      "[data-testid='column-header-name-cell']",
+    );
     expect(nameCells.length).toBeGreaterThan(0);
     fireEvent.click(nameCells[0]!);
-    const editBtn = document.querySelector("[data-testid='column-header-pen-groceries']");
+    const editBtn = document.querySelector(
+      "[data-testid='column-header-pen-groceries']",
+    );
     expect(editBtn).toBeTruthy();
     fireEvent.click(editBtn!);
     // CategorySlider should open (look for cat slider content)
-    expect(document.querySelector("[data-testid='cat-slider-content']")).toBeTruthy();
+    expect(
+      document.querySelector("[data-testid='cat-slider-content']"),
+    ).toBeTruthy();
   });
 
   it("click AddCategoryColumn opens CategorySlider in create mode", () => {
@@ -263,7 +284,9 @@ describe("SpendingsGridClient", () => {
       </TestQueryProvider>,
     );
     fireEvent.click(screen.getByTestId("add-category-column"));
-    expect(document.querySelector("[data-testid='cat-slider-content']")).toBeTruthy();
+    expect(
+      document.querySelector("[data-testid='cat-slider-content']"),
+    ).toBeTruthy();
   });
 
   it("initialTransactions prop is forwarded as useTransactions initialData — hydration check", () => {

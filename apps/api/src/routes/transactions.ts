@@ -28,10 +28,7 @@ import {
   createTransaction,
   type CreateTransactionDeps,
 } from "@budget/budgeting/src/application/create-transaction";
-import {
-  editTransaction,
-  type EditTransactionDeps,
-} from "@budget/budgeting/src/application/edit-transaction";
+import { editTransaction } from "@budget/budgeting/src/application/edit-transaction";
 import type { BootedDeps } from "../boot";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -57,7 +54,10 @@ const createSchema = z.object({
 });
 
 const patchSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   category_id: z.string().uuid().optional(),
   /** Signed — absolute value stored; kind derived from sign if provided */
   amount_original_cents: z.number().int().optional(),
@@ -130,14 +130,15 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
   const app = new Hono<{ Variables: Record<string, unknown> }>();
 
   // Resolve fxProvider from either deps shape
-  const fxProvider = "budgeting" in deps
-    ? deps.budgeting.fxProvider
-    : (deps as { fxProvider: CreateTransactionDeps["fxProvider"] }).fxProvider;
+  const fxProvider =
+    "budgeting" in deps
+      ? deps.budgeting.fxProvider
+      : (deps as { fxProvider: CreateTransactionDeps["fxProvider"] })
+          .fxProvider;
 
   // Resolve bulkRecategorize from budgeting module if available
-  const bulkRecategorizeFn = "budgeting" in deps
-    ? deps.budgeting.bulkRecategorize
-    : null;
+  const bulkRecategorizeFn =
+    "budgeting" in deps ? deps.budgeting.bulkRecategorize : null;
 
   // Wire repo and services (instantiated once per route factory call)
   const transactionRepo = new DrizzleTransactionRepo();
@@ -291,7 +292,10 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     });
 
     if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        422,
+      );
     }
 
     const { month, confirmed } = parsed.data;
@@ -336,7 +340,10 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
 
     const parsed = bulkSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        422,
+      );
     }
 
     const tenantId = pickTenant(c);

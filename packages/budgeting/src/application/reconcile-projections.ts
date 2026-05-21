@@ -126,7 +126,6 @@ export function reconcileProjections() {
                       updated_at = now()`,
           );
           repaired++;
-          // eslint-disable-next-line no-console
           console.log(
             `[reconcile] auto-repaired projection tenant=${input.tenantId} cat=${categoryId} month=${monthStartDate} delta=${delta.toFixed(4)}`,
           );
@@ -148,7 +147,6 @@ export function reconcileProjections() {
             },
           });
           alerted++;
-          // eslint-disable-next-line no-console
           console.warn(
             `[reconcile] DRIFT tenant=${input.tenantId} cat=${categoryId} month=${monthStartDate} fresh=${fresh.toFixed(4)} proj=${projection.toFixed(4)} delta=${delta.toFixed(4)} — alert emitted`,
           );

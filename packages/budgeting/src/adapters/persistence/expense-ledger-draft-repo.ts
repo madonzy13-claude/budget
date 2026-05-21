@@ -8,15 +8,24 @@
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
-import type { RecurringDraftRepo, RecurringDraftRow, DraftEdits } from "../../ports/recurring-draft-repo";
+import type {
+  RecurringDraftRepo,
+  RecurringDraftRow,
+  DraftEdits,
+} from "../../ports/recurring-draft-repo";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
-type DrizzleTx = { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
+type DrizzleTx = {
+  execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+};
 
 function rowToDraftRow(row: Record<string, unknown>): RecurringDraftRow {
   const dateVal = (row.transaction_date ?? row.date) as string | Date;
-  const dueDate = dateVal instanceof Date ? dateVal.toISOString().slice(0, 10) : String(dateVal).slice(0, 10);
+  const dueDate =
+    dateVal instanceof Date
+      ? dateVal.toISOString().slice(0, 10)
+      : String(dateVal).slice(0, 10);
   return {
     id: row.id as string,
     tenantId: row.tenant_id as string,
@@ -33,10 +42,16 @@ function rowToDraftRow(row: Record<string, unknown>): RecurringDraftRow {
 }
 
 export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
-  async findById(tenantId: string, draftId: string): Promise<RecurringDraftRow | null> {
-    const r = await withTenantTx(TenantId(tenantId), UserId(SYSTEM_USER_ID), async (tx) => {
-      const drizzleTx = tx as DrizzleTx;
-      const result = await drizzleTx.execute(sql`
+  async findById(
+    tenantId: string,
+    draftId: string,
+  ): Promise<RecurringDraftRow | null> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(SYSTEM_USER_ID),
+      async (tx) => {
+        const drizzleTx = tx as DrizzleTx;
+        const result = await drizzleTx.execute(sql`
         SELECT * FROM budgeting.expense_ledger
          WHERE id = ${draftId}::uuid
            AND tenant_id = ${tenantId}::uuid
@@ -44,16 +59,20 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
            AND confirmed_at IS NULL
            AND deleted_at IS NULL
       `);
-      return result.rows[0] ? rowToDraftRow(result.rows[0]) : null;
-    });
+        return result.rows[0] ? rowToDraftRow(result.rows[0]) : null;
+      },
+    );
     if (r.isErr()) throw r.error;
     return r.value;
   }
 
   async listPending(tenantId: string): Promise<RecurringDraftRow[]> {
-    const r = await withTenantTx(TenantId(tenantId), UserId(SYSTEM_USER_ID), async (tx) => {
-      const drizzleTx = tx as DrizzleTx;
-      const result = await drizzleTx.execute(sql`
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(SYSTEM_USER_ID),
+      async (tx) => {
+        const drizzleTx = tx as DrizzleTx;
+        const result = await drizzleTx.execute(sql`
         SELECT * FROM budgeting.expense_ledger
          WHERE tenant_id = ${tenantId}::uuid
            AND recurring_rule_id IS NOT NULL
@@ -61,13 +80,18 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
            AND deleted_at IS NULL
          ORDER BY transaction_date ASC
       `);
-      return result.rows.map(rowToDraftRow);
-    });
+        return result.rows.map(rowToDraftRow);
+      },
+    );
     if (r.isErr()) throw r.error;
     return r.value;
   }
 
-  async markConfirmed(tx: unknown, draftId: string, actorUserId: string): Promise<void> {
+  async markConfirmed(
+    tx: unknown,
+    draftId: string,
+    _actorUserId: string,
+  ): Promise<void> {
     const drizzleTx = tx as DrizzleTx;
     await drizzleTx.execute(sql`
       UPDATE budgeting.expense_ledger
@@ -78,7 +102,11 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
     `);
   }
 
-  async markSkipped(tx: unknown, draftId: string, actorUserId: string): Promise<void> {
+  async markSkipped(
+    tx: unknown,
+    draftId: string,
+    _actorUserId: string,
+  ): Promise<void> {
     const drizzleTx = tx as DrizzleTx;
     // "Skip" = soft-delete for drafts
     await drizzleTx.execute(sql`
@@ -97,18 +125,20 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
   ): Promise<string[]> {
     const drizzleTx = tx as DrizzleTx;
 
-    const amountClause = edits.amountOriginalCents !== undefined
-      ? sql`amount_original_cents = ${edits.amountOriginalCents}::bigint, amount_converted_cents = ${edits.amountOriginalCents}::bigint,`
-      : sql``;
-    const currencyClause = edits.currency !== undefined
-      ? sql`currency_original = ${edits.currency},`
-      : sql``;
-    const categoryClause = edits.categoryId !== undefined
-      ? sql`category_id = ${edits.categoryId ?? null}::uuid,`
-      : sql``;
-    const noteClause = edits.note !== undefined
-      ? sql`note = ${edits.note ?? null},`
-      : sql``;
+    const amountClause =
+      edits.amountOriginalCents !== undefined
+        ? sql`amount_original_cents = ${edits.amountOriginalCents}::bigint, amount_converted_cents = ${edits.amountOriginalCents}::bigint,`
+        : sql``;
+    const currencyClause =
+      edits.currency !== undefined
+        ? sql`currency_original = ${edits.currency},`
+        : sql``;
+    const categoryClause =
+      edits.categoryId !== undefined
+        ? sql`category_id = ${edits.categoryId ?? null}::uuid,`
+        : sql``;
+    const noteClause =
+      edits.note !== undefined ? sql`note = ${edits.note ?? null},` : sql``;
 
     const result = await drizzleTx.execute(sql`
       UPDATE budgeting.expense_ledger

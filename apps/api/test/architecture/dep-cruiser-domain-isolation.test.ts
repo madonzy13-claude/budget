@@ -14,7 +14,7 @@
 // isolation rules that Phase 2 code must not regress.
 import { describe, test, expect } from "bun:test";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -56,39 +56,39 @@ const DOMAIN_ISOLATION_CONFIG = {
 };
 
 describe("ENGR-02: dep-cruiser domain isolation", () => {
-  test(
-    "domain isolation rules have 0 violations (domain-no-orm, domain-no-http-framework, domain-no-sibling-adapters, cross-package-only-contracts)",
-    () => {
-      // Write focused config to a temp file
-      const tmpConfig = join(tmpdir(), `dep-cruiser-domain-${Date.now()}.cjs`);
-      writeFileSync(
-        tmpConfig,
-        `/** @type {import('dependency-cruiser').IConfiguration} */\nmodule.exports = ${JSON.stringify(DOMAIN_ISOLATION_CONFIG, null, 2)};`,
+  test("domain isolation rules have 0 violations (domain-no-orm, domain-no-http-framework, domain-no-sibling-adapters, cross-package-only-contracts)", () => {
+    // Write focused config to a temp file
+    const tmpConfig = join(tmpdir(), `dep-cruiser-domain-${Date.now()}.cjs`);
+    writeFileSync(
+      tmpConfig,
+      `/** @type {import('dependency-cruiser').IConfiguration} */\nmodule.exports = ${JSON.stringify(DOMAIN_ISOLATION_CONFIG, null, 2)};`,
+    );
+
+    let result: SpawnSyncReturns<string>;
+    try {
+      result = spawnSync(
+        "npx",
+        ["depcruise", "--config", tmpConfig, "apps", "packages"],
+        {
+          encoding: "utf8",
+          cwd: ROOT,
+          timeout: 120_000,
+        },
       );
-
-      let result: SpawnSyncReturns<string>;
+    } finally {
       try {
-        result = spawnSync(
-          "npx",
-          ["depcruise", "--config", tmpConfig, "apps", "packages"],
-          {
-            encoding: "utf8",
-            cwd: ROOT,
-            timeout: 120_000,
-          },
-        );
-      } finally {
-        try { unlinkSync(tmpConfig); } catch { /* ignore */ }
+        unlinkSync(tmpConfig);
+      } catch {
+        /* ignore */
       }
+    }
 
-      if (result!.status !== 0) {
-        console.error("dep-cruiser domain isolation violations:");
-        console.error(result!.stdout);
-        console.error(result!.stderr);
-      }
+    if (result!.status !== 0) {
+      console.error("dep-cruiser domain isolation violations:");
+      console.error(result!.stdout);
+      console.error(result!.stderr);
+    }
 
-      expect(result!.status).toBe(0);
-    },
-    120_000,
-  );
+    expect(result!.status).toBe(0);
+  }, 120_000);
 });

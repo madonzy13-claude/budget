@@ -6,7 +6,7 @@
  *   Confirming = SET confirmed_at = now(). No separate ledger INSERT needed.
  *   D-PH2-08: unified draft + confirmed view under one transactions resource.
  */
-import { ok, err, type Result } from "@budget/shared-kernel";
+import { type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 
@@ -33,13 +33,20 @@ export class DraftNotFoundError extends Error {
 }
 
 export function confirmRecurringDraft(_deps: Record<string, unknown> = {}) {
-  return async (input: ConfirmRecurringDraftInput): Promise<Result<{ ledgerId: string }, Error>> => {
-    const r = await withTenantTx(TenantId(input.tenantId), UserId(input.actorUserId), async (tx) => {
-      const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
-      const { sql } = await import("drizzle-orm");
+  return async (
+    input: ConfirmRecurringDraftInput,
+  ): Promise<Result<{ ledgerId: string }, Error>> => {
+    const r = await withTenantTx(
+      TenantId(input.tenantId),
+      UserId(input.actorUserId),
+      async (tx) => {
+        const drizzleTx = tx as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        const { sql } = await import("drizzle-orm");
 
-      // SELECT FOR UPDATE to prevent concurrent confirms
-      const draftResult = await drizzleTx.execute(sql`
+        // SELECT FOR UPDATE to prevent concurrent confirms
+        const draftResult = await drizzleTx.execute(sql`
         SELECT id, confirmed_at, deleted_at, recurring_rule_id, transaction_date
           FROM budgeting.expense_ledger
          WHERE id = ${input.draftId}::uuid
@@ -48,47 +55,52 @@ export function confirmRecurringDraft(_deps: Record<string, unknown> = {}) {
          FOR UPDATE
       `);
 
-      if (!draftResult.rows[0]) {
-        throw new DraftNotFoundError(input.draftId);
-      }
+        if (!draftResult.rows[0]) {
+          throw new DraftNotFoundError(input.draftId);
+        }
 
-      const draft = draftResult.rows[0] as Record<string, unknown>;
+        const draft = draftResult.rows[0] as Record<string, unknown>;
 
-      if (draft.confirmed_at != null) {
-        throw new AlreadyConfirmedError(input.draftId);
-      }
-      if (draft.deleted_at != null) {
-        throw new AlreadyConfirmedError(input.draftId);
-      }
+        if (draft.confirmed_at != null) {
+          throw new AlreadyConfirmedError(input.draftId);
+        }
+        if (draft.deleted_at != null) {
+          throw new AlreadyConfirmedError(input.draftId);
+        }
 
-      // Confirm = set confirmed_at = now()
-      await drizzleTx.execute(sql`
+        // Confirm = set confirmed_at = now()
+        await drizzleTx.execute(sql`
         UPDATE budgeting.expense_ledger
            SET confirmed_at = now(),
                updated_at = now()
          WHERE id = ${input.draftId}::uuid
       `);
 
-      await writeAudit(tx, {
-        tenantId: TenantId(input.tenantId),
-        actorUserId: UserId(input.actorUserId),
-        entityType: "expense_ledger",
-        entityId: input.draftId,
-        action: "update" as const,
-        before: { confirmed_at: null },
-        after: { confirmed_at: "now()" },
-      });
+        await writeAudit(tx, {
+          tenantId: TenantId(input.tenantId),
+          actorUserId: UserId(input.actorUserId),
+          entityType: "expense_ledger",
+          entityId: input.draftId,
+          action: "update" as const,
+          before: { confirmed_at: null },
+          after: { confirmed_at: "now()" },
+        });
 
-      await writeOutbox(tx, {
-        tenantId: TenantId(input.tenantId),
-        aggregateType: "expense_ledger",
-        aggregateId: input.draftId,
-        eventType: "budgeting.recurring.confirmed",
-        payload: { draftId: input.draftId, ledgerId: input.draftId, tenantId: input.tenantId },
-      });
+        await writeOutbox(tx, {
+          tenantId: TenantId(input.tenantId),
+          aggregateType: "expense_ledger",
+          aggregateId: input.draftId,
+          eventType: "budgeting.recurring.confirmed",
+          payload: {
+            draftId: input.draftId,
+            ledgerId: input.draftId,
+            tenantId: input.tenantId,
+          },
+        });
 
-      return { ledgerId: input.draftId };
-    });
+        return { ledgerId: input.draftId };
+      },
+    );
 
     return r;
   };

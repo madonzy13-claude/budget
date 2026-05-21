@@ -31,7 +31,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -148,7 +147,8 @@ export function TransactionSlider({
     resolver: zodResolver(schema),
     defaultValues: {
       date: initial?.date ?? todayIso(),
-      categoryId: initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
+      categoryId:
+        initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
       amountOrig: initial?.amountOriginalCents
         ? centsToInputValue(initial.amountOriginalCents)
         : "",
@@ -196,7 +196,6 @@ export function TransactionSlider({
         note: initial?.note ?? "",
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial?.txId]);
 
   const fetchFxPreview = useCallback(async () => {
@@ -305,14 +304,9 @@ export function TransactionSlider({
   }
 
   const showFxLine =
-    !fxLoading &&
-    fxPreview &&
-    currencyOrig !== budgetCurrency &&
-    amountOrig;
+    !fxLoading && fxPreview && currencyOrig !== budgetCurrency && amountOrig;
 
-  const showStaleBadge =
-    fxPreview &&
-    !fxPreview.isStale === false;
+  const showStaleBadge = fxPreview && !fxPreview.isStale === false;
 
   return (
     <>
@@ -454,7 +448,9 @@ export function TransactionSlider({
                 <FxPreviewLine
                   original={{ amount: amountOrig, currency: currencyOrig }}
                   converted={{
-                    amount: (parseFloat(amountOrig) * parseFloat(fxPreview.rate)).toFixed(2),
+                    amount: (
+                      parseFloat(amountOrig) * parseFloat(fxPreview.rate)
+                    ).toFixed(2),
                     currency: budgetCurrency,
                   }}
                   rate={fxPreview.rate}

@@ -1,4 +1,4 @@
-import type PgBoss from "pg-boss";
+import type { PgBoss } from "pg-boss";
 import { withInfraTx, deleteExpiredIdempotency } from "@budget/platform";
 
 /**

@@ -25,7 +25,8 @@ vi.mock("sonner", () => ({
 
 // Mock @radix-ui/react-dialog so Sheet renders children without portal issues
 vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@radix-ui/react-dialog")>();
+  const actual =
+    await importOriginal<typeof import("@radix-ui/react-dialog")>();
   return {
     ...actual,
     Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -209,8 +210,6 @@ describe("TransactionSlider", () => {
         <TransactionSlider {...defaultProps} />
       </TestQueryProvider>,
     );
-    const content = container.querySelector("[data-testid='txn-slider-content'], [class*='w-screen']");
-    // Sheet content element has data attribute or class
     const sheetContent = container.querySelector("[class*='w-screen']");
     expect(sheetContent).toBeTruthy();
   });
@@ -225,7 +224,12 @@ describe("TransactionSlider", () => {
     // Mock fetchMock to return FX data
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ rate: "4.12", fxRateDate: "2026-05-10", provider: "frankfurter", isStale: false }),
+      json: async () => ({
+        rate: "4.12",
+        fxRateDate: "2026-05-10",
+        provider: "frankfurter",
+        isStale: false,
+      }),
     });
     // FX preview should not be visible by default when no fx preview loaded yet
     const fxPreview = c1.querySelector("[data-testid='fx-preview-line']");
@@ -238,9 +242,9 @@ describe("TransactionSlider", () => {
         <TransactionSlider {...editProps} />
       </TestQueryProvider>,
     );
-    const deleteBtn = screen.getAllByRole("button").find(
-      (b) => b.textContent?.includes("txn.action.delete"),
-    );
+    const deleteBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("txn.action.delete"));
     expect(deleteBtn).toBeTruthy();
     fireEvent.click(deleteBtn!);
     // AlertDialog title should appear (mock returns the key)

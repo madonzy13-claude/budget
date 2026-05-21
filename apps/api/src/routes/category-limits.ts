@@ -7,10 +7,8 @@ import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
 
 export function createCategoryLimitsRoute(deps: BootedDeps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const app = new Hono<{ Variables: Record<string, any> }>();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function pickTenant(c: any): string {
     const ids = c.get("tenantIds") as string[] | undefined;
     return ids?.[0] ?? "";
@@ -18,13 +16,17 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
 
   // POST /categories/:id/limits — set effective-dated limit
   app.post("/:id/limits", async (c) => {
-    const { setLimitSchema } = await import("@budget/budgeting/src/contracts/api");
+    const { setLimitSchema } =
+      await import("@budget/budgeting/src/contracts/api");
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
 
     const parsed = setLimitSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        422,
+      );
     }
 
     const session = c.get("session");
@@ -44,9 +46,8 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
       try {
         const userIdForLookup = session?.user?.id;
         if (userIdForLookup) {
-          const memberships = await deps.tenancy.workspaceRepo.listForUser(
-            userIdForLookup,
-          );
+          const memberships =
+            await deps.tenancy.workspaceRepo.listForUser(userIdForLookup);
           const ws = memberships.find((m) => m.id === tenantId);
           if (ws?.default_currency) fallback = ws.default_currency;
         }

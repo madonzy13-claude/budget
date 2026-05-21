@@ -81,14 +81,13 @@ describe("Budgets route (renamed from workspaces)", () => {
   });
 
   it("GET /budgets/:id returns 200 with reservesEnabled=true for a known budget", async () => {
-    const app = buildApp({
-      user: { id: "user-001", email: "test@test.com", locale: "en" },
-    });
     // Patch the fake deps' workspaceRepo to return a budget with reservesEnabled
     const { budgetsRoutesFactory } = require("../../src/routes/budgets");
     const app2 = new Hono();
     app2.use(async (c: any, next: any) => {
-      c.set("session", { user: { id: "user-001", email: "test@test.com" } } as any);
+      c.set("session", {
+        user: { id: "user-001", email: "test@test.com" },
+      } as any);
       c.set("tenantIds", ["budget-001"]);
       await next();
     });
@@ -143,11 +142,20 @@ describe("Budgets route (renamed from workspaces)", () => {
     });
     const fakeDeps3 = {
       tenancy: {
-        workspaceRepo: { findById: async () => null, listForUser: async () => [], listMembers: async () => [] },
+        workspaceRepo: {
+          findById: async () => null,
+          listForUser: async () => [],
+          listMembers: async () => [],
+        },
         memberShareRepo: { list: async () => [], update: async () => {} },
       },
       identity: {
-        userRepo: { getActiveWorkspaceIds: async () => [], setActiveWorkspaceIds: async () => {}, findById: async () => null, updateLocale: async () => {} },
+        userRepo: {
+          getActiveWorkspaceIds: async () => [],
+          setActiveWorkspaceIds: async () => {},
+          findById: async () => null,
+          updateLocale: async () => {},
+        },
         auth: { api: {} },
       },
     } as any;

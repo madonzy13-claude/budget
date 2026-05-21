@@ -7,7 +7,7 @@
  *   - yearlyMonth added for YEARLY cadence
  *   - Cadence extended to DAILY|WEEKLY|MONTHLY|YEARLY
  */
-import { ok, err, type Result } from "@budget/shared-kernel";
+import { err, type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { Temporal } from "temporal-polyfill";
@@ -39,8 +39,10 @@ export class FirstDueDateInPastError extends Error {
   }
 }
 
-export function createRecurringRule(deps: { ruleRepo: RecurringRuleRepo }) {
-  return async (input: CreateRecurringRuleInput): Promise<Result<CreateRecurringRuleResult, Error>> => {
+export function createRecurringRule(_deps: { ruleRepo: RecurringRuleRepo }) {
+  return async (
+    input: CreateRecurringRuleInput,
+  ): Promise<Result<CreateRecurringRuleResult, Error>> => {
     // Validate first_due_date >= today
     const today = Temporal.Now.plainDateISO();
     const firstDue = Temporal.PlainDate.from(input.firstDueDate);
@@ -48,10 +50,15 @@ export function createRecurringRule(deps: { ruleRepo: RecurringRuleRepo }) {
       return err(new FirstDueDateInPastError());
     }
 
-    const r = await withTenantTx(TenantId(input.tenantId), UserId(input.actorUserId), async (tx) => {
-      const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
-      const { sql } = await import("drizzle-orm");
-      const result = await drizzleTx.execute(sql`
+    const r = await withTenantTx(
+      TenantId(input.tenantId),
+      UserId(input.actorUserId),
+      async (tx) => {
+        const drizzleTx = tx as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        const { sql } = await import("drizzle-orm");
+        const result = await drizzleTx.execute(sql`
         INSERT INTO budgeting.recurring_rules
           (tenant_id, category_id, amount, currency, cadence,
            cadence_anchor, weekly_dow, yearly_month,
@@ -64,28 +71,29 @@ export function createRecurringRule(deps: { ruleRepo: RecurringRuleRepo }) {
            ${input.firstDueDate}::date, ${input.actorUserId}::uuid)
         RETURNING id
       `);
-      const ruleId = (result.rows[0] as Record<string, unknown>).id as string;
+        const ruleId = (result.rows[0] as Record<string, unknown>).id as string;
 
-      await writeAudit(tx, {
-        tenantId: TenantId(input.tenantId),
-        actorUserId: UserId(input.actorUserId),
-        entityType: "recurring_rule",
-        entityId: ruleId,
-        action: "create" as const,
-        before: null,
-        after: { amount: input.amount, cadence: input.cadence },
-      });
+        await writeAudit(tx, {
+          tenantId: TenantId(input.tenantId),
+          actorUserId: UserId(input.actorUserId),
+          entityType: "recurring_rule",
+          entityId: ruleId,
+          action: "create" as const,
+          before: null,
+          after: { amount: input.amount, cadence: input.cadence },
+        });
 
-      await writeOutbox(tx, {
-        tenantId: TenantId(input.tenantId),
-        aggregateType: "recurring_rule",
-        aggregateId: ruleId,
-        eventType: "budgeting.recurring.rule.created",
-        payload: { ruleId, tenantId: input.tenantId, cadence: input.cadence },
-      });
+        await writeOutbox(tx, {
+          tenantId: TenantId(input.tenantId),
+          aggregateType: "recurring_rule",
+          aggregateId: ruleId,
+          eventType: "budgeting.recurring.rule.created",
+          payload: { ruleId, tenantId: input.tenantId, cadence: input.cadence },
+        });
 
-      return { ruleId };
-    });
+        return { ruleId };
+      },
+    );
 
     return r;
   };

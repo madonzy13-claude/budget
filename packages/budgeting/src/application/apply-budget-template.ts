@@ -12,6 +12,7 @@ export interface ApplyBudgetTemplateDeps {
 
 export interface ApplyBudgetTemplateFullInput extends ApplyTemplateInput {
   tenantId: string;
+  templateId: string;
   actorUserId: string;
 }
 

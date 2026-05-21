@@ -50,7 +50,10 @@ export interface EditTransactionDeps {
       date: Date,
     ): Promise<{ rate: string; provider: string; isStale: boolean }>;
   };
-  getBudgetCurrency(budgetId: string): Promise<string>;
+  /** Resolve the budget's display currency for FX conversion. */
+  getBudgetCurrency?(budgetId: string): Promise<string>;
+  /** Back-compat alias of {@link getBudgetCurrency}. Either may be supplied. */
+  getWorkspaceDefaultCurrency?(budgetId: string): Promise<string>;
 }
 
 export function editTransaction(deps: EditTransactionDeps) {
@@ -86,7 +89,9 @@ export function editTransaction(deps: EditTransactionDeps) {
     let updateFields: Parameters<TransactionRepo["updateInPlace"]>[1] = {};
 
     if (currencyChanged || dateChanged) {
-      const budgetCurrency = await deps.getBudgetCurrency(original.budgetId);
+      const budgetCurrency = await (
+        deps.getBudgetCurrency ?? deps.getWorkspaceDefaultCurrency!
+      )(original.budgetId);
 
       let newFxRate: string;
       let newAmountConverted: string;
@@ -128,7 +133,9 @@ export function editTransaction(deps: EditTransactionDeps) {
       updateFields.amountOriginalCents = newAmountCents;
       // If amount changed but currency/date did NOT change, recompute converted amount
       if (!currencyChanged && !dateChanged) {
-        const budgetCurrency = await deps.getBudgetCurrency(original.budgetId);
+        const budgetCurrency = await (
+          deps.getBudgetCurrency ?? deps.getWorkspaceDefaultCurrency!
+        )(original.budgetId);
         const currentRate = original.fxRate;
         if (original.currencyOriginal === budgetCurrency) {
           updateFields.amountConvertedCents = newAmountCents;

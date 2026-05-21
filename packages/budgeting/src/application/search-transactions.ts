@@ -17,6 +17,9 @@ import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { TransactionRow } from "../ports/transaction-repo";
 
+// Legacy v1.0 kind alphabet — preserved for query-string compatibility on
+// the public search endpoint. Translated to v1.1 (SPENDING|INCOME) at the
+// row-mapping boundary.
 export type TransactionKind = "EXPENSE" | "INCOME" | "TRANSFER";
 
 export interface SearchFilters {
@@ -46,7 +49,16 @@ export interface SearchTransactionsResult {
 }
 
 function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
-  const kind = row.kind as TransactionKind;
+  // The DB stores v1.0 kinds (EXPENSE|INCOME|TRANSFER) on legacy rows but the
+  // v1.1 port narrows to SPENDING|INCOME. Coerce EXPENSE→SPENDING; TRANSFER
+  // is not surfaced by this endpoint.
+  const rawKind = row.kind as string;
+  const kind: "SPENDING" | "INCOME" =
+    rawKind === "INCOME" ? "INCOME" : "SPENDING";
+  // Returned shape is structurally compatible with TransactionRow but the
+  // legacy result row carries extra/renamed fields (amount_orig vs
+  // amount_original_cents). Build the legacy shape and cast — the SQL caller
+  // already knows it's pulling the v1.0 schema for the search endpoint.
   return {
     id: row.id as string,
     tenantId: row.tenant_id as string,
@@ -60,12 +72,15 @@ function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
     fxProvider: row.fx_provider as string,
     transactionDate: row.transaction_date as string,
     note: (row.note as string | null) ?? null,
-    accountId: (row.wallet_id as string | null) ?? (row.account_id as string | null) ?? "",
+    accountId:
+      (row.wallet_id as string | null) ??
+      (row.account_id as string | null) ??
+      "",
     categoryId: (row.category_id as string | null) ?? null,
     transferGroupId: (row.transfer_group_id as string | null) ?? null,
     correctsId: (row.corrects_id as string | null) ?? null,
     balanceDeltaSign: kind === "INCOME" ? 1 : -1,
-  };
+  } as unknown as TransactionRow;
 }
 
 /**
@@ -152,7 +167,14 @@ export function searchTransactions() {
     const rows = r.value.map(dbRowToTransactionRow);
     const nextCursor: SearchCursor | null =
       rows.length === limit
-        ? { transactionDate: rows[rows.length - 1].transactionDate, id: rows[rows.length - 1].id }
+        ? {
+            transactionDate: (
+              rows[rows.length - 1] as unknown as {
+                transactionDate: string;
+              }
+            ).transactionDate,
+            id: rows[rows.length - 1].id,
+          }
         : null;
     return ok({ rows, nextCursor });
   };

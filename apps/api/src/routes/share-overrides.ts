@@ -7,10 +7,8 @@ import { Hono } from "hono";
 import type { BootedDeps } from "../boot";
 
 export function createShareOverridesRoute(deps: BootedDeps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const app = new Hono<{ Variables: Record<string, any> }>();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function pickTenant(c: any): string {
     const ids = c.get("tenantIds") as string[] | undefined;
     return ids?.[0] ?? "";
@@ -18,15 +16,17 @@ export function createShareOverridesRoute(deps: BootedDeps) {
 
   // PUT /categories/:id/share-overrides — set overrides (replaces all)
   app.put("/:id/share-overrides", async (c) => {
-    const { setShareOverridesSchema } = await import(
-      "@budget/budgeting/src/contracts/api"
-    );
+    const { setShareOverridesSchema } =
+      await import("@budget/budgeting/src/contracts/api");
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
 
     const parsed = setShareOverridesSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        422,
+      );
     }
 
     const session = c.get("session");
@@ -57,7 +57,10 @@ export function createShareOverridesRoute(deps: BootedDeps) {
     const tenantId = pickTenant(c);
     const { id: categoryId } = c.req.param();
 
-    const overrides = await deps.budgeting.listShareOverrides(tenantId, categoryId);
+    const overrides = await deps.budgeting.listShareOverrides(
+      tenantId,
+      categoryId,
+    );
     return c.json({ overrides });
   });
 

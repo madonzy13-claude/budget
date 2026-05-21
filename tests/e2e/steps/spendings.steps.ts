@@ -13,23 +13,6 @@ import { SpendingsPage } from "../pages/SpendingsPage.js";
 
 const { Given, When, Then } = createBdd(test);
 
-// ── DB seed helpers ────────────────────────────────────────────────────────────
-
-/** Thin pg wrapper — dynamically imported so pg stays out of the web bundle. */
-async function withPg<T>(fn: (client: import("pg").Client) => Promise<T>): Promise<T> {
-  const { Client } = await import("pg");
-  const raw = process.env["DATABASE_URL_APP"] ?? process.env["DATABASE_URL"] ?? "";
-  // Support both @db: (inside Docker net) and @localhost: (host-side)
-  const url = raw.replace("@db:", "@localhost:").replace("@db/", "@localhost/");
-  const c = new Client({ connectionString: url });
-  await c.connect();
-  try {
-    return await fn(c);
-  } finally {
-    await c.end();
-  }
-}
-
 /** Resolve a budget UUID from the active workspace (budget.steps.ts stores it in scenarioCtx). */
 async function findBudgetId(
   page: import("@playwright/test").Page,
@@ -44,7 +27,8 @@ async function findBudgetId(
   }
   // Fallback: GET /api/budgets/active and find active workspace by name
   const activeRes = await page.request.get("/api/budgets/active");
-  if (!activeRes.ok()) throw new Error(`GET /api/budgets/active failed: ${activeRes.status()}`);
+  if (!activeRes.ok())
+    throw new Error(`GET /api/budgets/active failed: ${activeRes.status()}`);
   const data = (await activeRes.json()) as {
     budgets?: Array<{ id: string; name: string }>;
     workspaces?: Array<{ id: string; name: string }>;
@@ -57,7 +41,10 @@ async function findBudgetId(
   }
   const list = data.budgets ?? data.workspaces ?? data.data ?? [];
   const found = list.find((b) => b.name === budgetName);
-  if (!found) throw new Error(`Budget "${budgetName}" not found in: ${JSON.stringify(list.map((b) => b.name))}`);
+  if (!found)
+    throw new Error(
+      `Budget "${budgetName}" not found in: ${JSON.stringify(list.map((b) => b.name))}`,
+    );
   return found.id;
 }
 
@@ -70,14 +57,20 @@ async function findCategoryId(
   const res = await page.request.get(`/api/budgets/${budgetId}/categories`, {
     headers: { "X-Budget-ID": budgetId },
   });
-  if (!res.ok()) throw new Error(`GET /api/budgets/${budgetId}/categories failed: ${res.status()}`);
+  if (!res.ok())
+    throw new Error(
+      `GET /api/budgets/${budgetId}/categories failed: ${res.status()}`,
+    );
   const data = (await res.json()) as {
     categories?: Array<{ id: string; name: string }>;
     data?: Array<{ id: string; name: string }>;
   };
   const list = data.categories ?? data.data ?? [];
   const found = list.find((c) => c.name === catName);
-  if (!found) throw new Error(`Category "${catName}" not found in: ${JSON.stringify(list.map(c => c.name))}`);
+  if (!found)
+    throw new Error(
+      `Category "${catName}" not found in: ${JSON.stringify(list.map((c) => c.name))}`,
+    );
   return found.id;
 }
 
@@ -85,13 +78,29 @@ async function findCategoryId(
 
 Given(
   "the budget {string} has a category {string} with planned {string} {string}",
-  async ({ page, scenarioCtx }, budgetName: string, catName: string, plannedStr: string, currency: string) => {
-    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
+  async (
+    { page, scenarioCtx },
+    budgetName: string,
+    catName: string,
+    plannedStr: string,
+    currency: string,
+  ) => {
+    const budgetId = await findBudgetId(
+      page,
+      budgetName,
+      scenarioCtx as Record<string, unknown>,
+    );
     // Create category
-    const catRes = await page.request.post(`/api/budgets/${budgetId}/categories`, {
-      headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
-      data: { name: catName, currency },
-    });
+    const catRes = await page.request.post(
+      `/api/budgets/${budgetId}/categories`,
+      {
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+          "X-Budget-ID": budgetId,
+        },
+        data: { name: catName, currency },
+      },
+    );
     if (![200, 201, 409].includes(catRes.status())) {
       const body = await catRes.text();
       throw new Error(`POST /categories failed: ${catRes.status()} ${body}`);
@@ -104,7 +113,10 @@ Given(
     const limitRes = await page.request.post(
       `/api/categories/${categoryId}/limits`,
       {
-        headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+          "X-Budget-ID": budgetId,
+        },
         data: {
           normalAmount: String(Math.round(parseFloat(plannedStr) * 100)),
           cushionAmount: "0",
@@ -122,12 +134,27 @@ Given(
 
 Given(
   "the budget {string} has a category {string} with planned {string} {string} and cushion {string} {string}",
-  async ({ page, scenarioCtx }, budgetName: string, catName: string, plannedStr: string, currency: string, cushionStr: string, _cushionCurrency: string) => {
-    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
-    const catRes = await page.request.post(`/api/budgets/${budgetId}/categories`, {
-      headers: { "Idempotency-Key": crypto.randomUUID() },
-      data: { name: catName, currency },
-    });
+  async (
+    { page, scenarioCtx },
+    budgetName: string,
+    catName: string,
+    plannedStr: string,
+    currency: string,
+    cushionStr: string,
+    _cushionCurrency: string,
+  ) => {
+    const budgetId = await findBudgetId(
+      page,
+      budgetName,
+      scenarioCtx as Record<string, unknown>,
+    );
+    const catRes = await page.request.post(
+      `/api/budgets/${budgetId}/categories`,
+      {
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        data: { name: catName, currency },
+      },
+    );
     if (![200, 201, 409].includes(catRes.status())) {
       const body = await catRes.text();
       throw new Error(`POST /categories failed: ${catRes.status()} ${body}`);
@@ -147,23 +174,36 @@ Given(
     );
     if (![200, 201, 409].includes(limitRes.status())) {
       const body = await limitRes.text();
-      throw new Error(`POST /limits (cushion) failed: ${limitRes.status()} ${body}`);
+      throw new Error(
+        `POST /limits (cushion) failed: ${limitRes.status()} ${body}`,
+      );
     }
   },
 );
 
 Given(
   "the budget {string} has a transaction {string} {string} in category {string}",
-  async ({ page, scenarioCtx }, budgetName: string, amountStr: string, currency: string, catName: string) => {
-    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
+  async (
+    { page, scenarioCtx },
+    budgetName: string,
+    amountStr: string,
+    currency: string,
+    catName: string,
+  ) => {
+    const budgetId = await findBudgetId(
+      page,
+      budgetName,
+      scenarioCtx as Record<string, unknown>,
+    );
     const categoryId = await findCategoryId(page, budgetId, catName);
     // Get first wallet
     const walletsRes = await page.request.get("/api/wallets");
     const walletsData = walletsRes.ok()
-      ? (await walletsRes.json() as { accounts: Array<{ id: string }> })
+      ? ((await walletsRes.json()) as { accounts: Array<{ id: string }> })
       : { accounts: [] };
     const accountId = walletsData.accounts[0]?.id;
-    if (!accountId) throw new Error("No wallet — run 'I have a checking account' first");
+    if (!accountId)
+      throw new Error("No wallet — run 'I have a checking account' first");
     const res = await page.request.post("/api/transactions", {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       data: {
@@ -184,35 +224,57 @@ Given(
 
 Given(
   "the budget {string} has a recurring rule {string} for category {string} of {string} {string} due this month",
-  async ({ page, scenarioCtx }, budgetName: string, ruleName: string, catName: string, amountStr: string, currency: string) => {
-    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
+  async (
+    { page, scenarioCtx },
+    budgetName: string,
+    ruleName: string,
+    catName: string,
+    amountStr: string,
+    currency: string,
+  ) => {
+    const budgetId = await findBudgetId(
+      page,
+      budgetName,
+      scenarioCtx as Record<string, unknown>,
+    );
     const categoryId = await findCategoryId(page, budgetId, catName);
     const today = new Date();
     const firstDueDate = new Date(
       today.getUTCFullYear(),
       today.getUTCMonth(),
       today.getUTCDate(),
-    ).toISOString().slice(0, 10);
-    const res = await page.request.post(`/api/budgets/${budgetId}/recurring-rules`, {
-      headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
-      data: {
-        category_id: categoryId,
-        amount: amountStr,
-        currency,
-        cadence: "MONTHLY",
-        cadence_anchor: today.getUTCDate(),
-        first_due_date: firstDueDate,
-        note: ruleName,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const res = await page.request.post(
+      `/api/budgets/${budgetId}/recurring-rules`,
+      {
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+          "X-Budget-ID": budgetId,
+        },
+        data: {
+          category_id: categoryId,
+          amount: amountStr,
+          currency,
+          cadence: "MONTHLY",
+          cadence_anchor: today.getUTCDate(),
+          first_due_date: firstDueDate,
+          note: ruleName,
+        },
       },
-    });
+    );
     if (![201, 409].includes(res.status())) {
       const body = await res.text();
       throw new Error(`POST /recurring-rules failed: ${res.status()} ${body}`);
     }
     // Seed a PENDING draft for this rule so it shows in the spendings grid
-    const rulesRes = await page.request.get(`/api/budgets/${budgetId}/recurring-rules`, {
-      headers: { "X-Budget-ID": budgetId },
-    });
+    const rulesRes = await page.request.get(
+      `/api/budgets/${budgetId}/recurring-rules`,
+      {
+        headers: { "X-Budget-ID": budgetId },
+      },
+    );
     if (rulesRes.ok()) {
       const rulesData = (await rulesRes.json()) as {
         rules?: Array<{ id: string; note: string | null }>;
@@ -221,37 +283,42 @@ Given(
       const list = rulesData.rules ?? rulesData.data ?? [];
       const rule = list.find((r) => r.note === ruleName);
       if (rule) {
-        await page.request.post(
-          `/api/recurring-rules/${rule.id}/_seed-draft`,
-          {
-            headers: { "Idempotency-Key": crypto.randomUUID(), "X-Budget-ID": budgetId },
+        await page.request
+          .post(`/api/recurring-rules/${rule.id}/_seed-draft`, {
+            headers: {
+              "Idempotency-Key": crypto.randomUUID(),
+              "X-Budget-ID": budgetId,
+            },
             data: { dueDate: firstDueDate, amount: amountStr, currency },
-          },
-        ).catch(() => {
-          // Seed endpoint optional — warn and continue
-          console.warn(`[spendings e2e] draft seed endpoint not available for rule "${ruleName}"`);
-        });
+          })
+          .catch(() => {
+            // Seed endpoint optional — warn and continue
+            console.warn(
+              `[spendings e2e] draft seed endpoint not available for rule "${ruleName}"`,
+            );
+          });
       }
     }
   },
 );
 
-Given(
-  "I am viewing month {string}",
-  async ({ page }, month: string) => {
-    const url = new URL(page.url());
-    url.searchParams.set("month", month);
-    await page.goto(url.toString());
-    await page.waitForLoadState("networkidle");
-  },
-);
+Given("I am viewing month {string}", async ({ page }, month: string) => {
+  const url = new URL(page.url());
+  url.searchParams.set("month", month);
+  await page.goto(url.toString());
+  await page.waitForLoadState("networkidle");
+});
 
 // ── When steps ─────────────────────────────────────────────────────────────────
 
 When(
   "I open the Spendings tab on a budget {string}",
   async ({ page, scenarioCtx }, budgetName: string) => {
-    const budgetId = await findBudgetId(page, budgetName, scenarioCtx as Record<string, unknown>);
+    const budgetId = await findBudgetId(
+      page,
+      budgetName,
+      scenarioCtx as Record<string, unknown>,
+    );
     (scenarioCtx as Record<string, unknown>)["activeBudgetId"] = budgetId;
     await page.goto(`/en/budgets/${budgetId}/spendings`);
     await page.waitForLoadState("networkidle");
@@ -268,13 +335,10 @@ When(
   },
 );
 
-When(
-  "I press Enter in the quick-entry input",
-  async ({ page }) => {
-    await page.keyboard.press("Enter");
-    await page.waitForLoadState("networkidle");
-  },
-);
+When("I press Enter in the quick-entry input", async ({ page }) => {
+  await page.keyboard.press("Enter");
+  await page.waitForLoadState("networkidle");
+});
 
 When(
   "I single-click the transaction row {string}",
@@ -328,7 +392,9 @@ When(
     const testId = `draft-row-${ruleName.toLowerCase()}`;
     await spendings.revealedActionDismiss(testId).click();
     // Confirm the dismiss dialog
-    const confirmBtn = page.getByRole("button", { name: /confirm|yes|dismiss/i }).last();
+    const confirmBtn = page
+      .getByRole("button", { name: /confirm|yes|dismiss/i })
+      .last();
     if (await confirmBtn.isVisible({ timeout: 3000 })) {
       await confirmBtn.click();
     }
@@ -347,7 +413,6 @@ When(
 When(
   "I drag column {string} before column {string}",
   async ({ page }, sourceCol: string, targetCol: string) => {
-    const spendings = new SpendingsPage(page);
     await page.dragAndDrop(
       `[data-testid="drag-grip-${sourceCol.toLowerCase()}"]`,
       `[data-testid="drag-grip-${targetCol.toLowerCase()}"]`,
@@ -356,42 +421,30 @@ When(
   },
 );
 
-When(
-  "I click the Add category column",
-  async ({ page }) => {
-    const spendings = new SpendingsPage(page);
-    await spendings.addCategoryColumn().click();
-  },
-);
+When("I click the Add category column", async ({ page }) => {
+  const spendings = new SpendingsPage(page);
+  await spendings.addCategoryColumn().click();
+});
 
-When(
-  "I press {string}",
-  async ({ page }, shortcut: string) => {
-    // Convert "Cmd+ArrowLeft" → Meta+ArrowLeft (cross-platform)
-    const key = shortcut
-      .replace(/Cmd\+/g, "Meta+")
-      .replace(/Ctrl\+/g, "Control+");
-    await page.keyboard.press(key);
-  },
-);
+When("I press {string}", async ({ page }, shortcut: string) => {
+  // Convert "Cmd+ArrowLeft" → Meta+ArrowLeft (cross-platform)
+  const key = shortcut
+    .replace(/Cmd\+/g, "Meta+")
+    .replace(/Ctrl\+/g, "Control+");
+  await page.keyboard.press(key);
+});
 
-When(
-  "I click the next month button",
-  async ({ page }) => {
-    const spendings = new SpendingsPage(page);
-    await spendings.monthNextBtn().click();
-    await page.waitForLoadState("networkidle");
-  },
-);
+When("I click the next month button", async ({ page }) => {
+  const spendings = new SpendingsPage(page);
+  await spendings.monthNextBtn().click();
+  await page.waitForLoadState("networkidle");
+});
 
-When(
-  "I click the previous month button",
-  async ({ page }) => {
-    const spendings = new SpendingsPage(page);
-    await spendings.monthPrevBtn().click();
-    await page.waitForLoadState("networkidle");
-  },
-);
+When("I click the previous month button", async ({ page }) => {
+  const spendings = new SpendingsPage(page);
+  await spendings.monthPrevBtn().click();
+  await page.waitForLoadState("networkidle");
+});
 
 When(
   "I move the pointer over the transaction row {string} without clicking",
@@ -425,9 +478,9 @@ Then("I see the spendings grid container", async ({ page }) => {
 });
 
 Then("I see the CategorySlider is open", async ({ page }) => {
-  await expect(
-    page.locator('[data-testid="cat-slider-content"]'),
-  ).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('[data-testid="cat-slider-content"]')).toBeVisible({
+    timeout: 10000,
+  });
 });
 
 Then(
@@ -445,7 +498,10 @@ Then(
   "I see the column {string} header overspent shows {string}",
   async ({ page }, catName: string, value: string) => {
     const spendings = new SpendingsPage(page);
-    await expect(spendings.columnHeaderRow(catName, "overspent")).toContainText(value, { timeout: 10000 });
+    await expect(spendings.columnHeaderRow(catName, "overspent")).toContainText(
+      value,
+      { timeout: 10000 },
+    );
   },
 );
 
@@ -453,7 +509,9 @@ Then(
   "I see the column {string} header reserves used shows {string}",
   async ({ page }, catName: string, value: string) => {
     const spendings = new SpendingsPage(page);
-    await expect(spendings.columnHeaderRow(catName, "reservesUsed")).toContainText(value, { timeout: 10000 });
+    await expect(
+      spendings.columnHeaderRow(catName, "reservesUsed"),
+    ).toContainText(value, { timeout: 10000 });
   },
 );
 
@@ -461,7 +519,10 @@ Then(
   "I see the column {string} header balance shows {string}",
   async ({ page }, catName: string, value: string) => {
     const spendings = new SpendingsPage(page);
-    await expect(spendings.columnHeaderRow(catName, "balance")).toContainText(value, { timeout: 10000 });
+    await expect(spendings.columnHeaderRow(catName, "balance")).toContainText(
+      value,
+      { timeout: 10000 },
+    );
   },
 );
 
@@ -485,10 +546,15 @@ Then(
     // The description is a human-readable string; chips are identified by role or testid pattern
     // We check that no action chip buttons are visible
     void description;
-    const chips = page.locator("[data-testid^='action-pen-'], [data-testid^='action-trash-'], [data-testid^='action-confirm-'], [data-testid^='action-dismiss-']");
+    const chips = page.locator(
+      "[data-testid^='action-pen-'], [data-testid^='action-trash-'], [data-testid^='action-confirm-'], [data-testid^='action-dismiss-']",
+    );
     // Wait briefly to ensure hover effects would have rendered
     await page.waitForTimeout(300);
-    const visibleCount = await chips.filter({ state: "visible" }).count().catch(() => 0);
+    const visibleCount = await chips
+      .filter({ state: "visible" })
+      .count()
+      .catch(() => 0);
     expect(visibleCount).toBe(0);
   },
 );
@@ -509,24 +575,26 @@ Then(
     // No inline-edit input should be present in the DOM
     const inputs = page.locator("[data-testid^='inline-edit-']");
     await page.waitForTimeout(300);
-    const visibleCount = await inputs.filter({ state: "visible" }).count().catch(() => 0);
+    const visibleCount = await inputs
+      .filter({ state: "visible" })
+      .count()
+      .catch(() => 0);
     expect(visibleCount).toBe(0);
   },
 );
 
-Then(
-  "the quick-entry input is in retry state",
-  async ({ page }) => {
-    const retryIcons = page.locator("[data-testid^='quick-entry-retry-']");
-    await expect(retryIcons.first()).toBeVisible({ timeout: 10000 });
-  },
-);
+Then("the quick-entry input is in retry state", async ({ page }) => {
+  const retryIcons = page.locator("[data-testid^='quick-entry-retry-']");
+  await expect(retryIcons.first()).toBeVisible({ timeout: 10000 });
+});
 
 Then(
   "the draft row {string} is no longer visible",
   async ({ page }, ruleName: string) => {
     const spendings = new SpendingsPage(page);
-    await expect(spendings.draftRow(ruleName)).not.toBeVisible({ timeout: 10000 });
+    await expect(spendings.draftRow(ruleName)).not.toBeVisible({
+      timeout: 10000,
+    });
   },
 );
 
@@ -555,18 +623,17 @@ Then(
   },
 );
 
-Then(
-  "I see the month label {string}",
-  async ({ page }, label: string) => {
-    const spendings = new SpendingsPage(page);
-    await expect(spendings.monthLabel()).toContainText(label, { timeout: 10000 });
-  },
-);
+Then("I see the month label {string}", async ({ page }, label: string) => {
+  const spendings = new SpendingsPage(page);
+  await expect(spendings.monthLabel()).toContainText(label, { timeout: 10000 });
+});
 
 Then(
   "the URL has search param month equal to {string}",
   async ({ page }, month: string) => {
-    await expect(page).toHaveURL(new RegExp(`[?&]month=${month}`), { timeout: 10000 });
+    await expect(page).toHaveURL(new RegExp(`[?&]month=${month}`), {
+      timeout: 10000,
+    });
   },
 );
 

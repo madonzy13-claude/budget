@@ -10,7 +10,17 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, ShoppingCart, Home, Car, Utensils, Heart, Briefcase, Music, BookOpen } from "lucide-react";
+import {
+  Loader2,
+  ShoppingCart,
+  Home,
+  Car,
+  Utensils,
+  Heart,
+  Briefcase,
+  Music,
+  BookOpen,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -142,8 +152,12 @@ export function CategorySlider({
     resolver: zodResolver(schema),
     defaultValues: {
       name: initial?.name ?? "",
-      plannedCents: initial?.plannedCents ? centsToDecimal(initial.plannedCents) : "0",
-      cushionCents: initial?.cushionCents ? centsToDecimal(initial.cushionCents) : "0",
+      plannedCents: initial?.plannedCents
+        ? centsToDecimal(initial.plannedCents)
+        : "0",
+      cushionCents: initial?.cushionCents
+        ? centsToDecimal(initial.cushionCents)
+        : "0",
       iconKey: initial?.iconKey ?? null,
       colorKey: initial?.colorKey ?? null,
     },
@@ -157,13 +171,17 @@ export function CategorySlider({
     if (open) {
       form.reset({
         name: initial?.name ?? "",
-        plannedCents: initial?.plannedCents ? centsToDecimal(initial.plannedCents) : "0",
-        cushionCents: initial?.cushionCents ? centsToDecimal(initial.cushionCents) : "0",
+        plannedCents: initial?.plannedCents
+          ? centsToDecimal(initial.plannedCents)
+          : "0",
+        cushionCents: initial?.cushionCents
+          ? centsToDecimal(initial.cushionCents)
+          : "0",
         iconKey: initial?.iconKey ?? null,
         colorKey: initial?.colorKey ?? null,
       });
     }
-  }, [open, initial?.categoryId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, initial?.categoryId]);
 
   async function onSubmit(values: FormValues) {
     // SCD-2 limits are evaluated as-of the month start by spendings-summary —
@@ -175,22 +193,27 @@ export function CategorySlider({
 
     if (mode === "create") {
       // Step 1: POST /categories
-      const createRes = await clientApiFetch(`/budgets/${budgetId}/categories`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: values.name,
-          iconKey: values.iconKey,
-          colorKey: values.colorKey,
-        }),
-      });
+      const createRes = await clientApiFetch(
+        `/budgets/${budgetId}/categories`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: values.name,
+            iconKey: values.iconKey,
+            colorKey: values.colorKey,
+          }),
+        },
+      );
 
       if (!createRes.ok) {
         toast.error(t("error.sliderSave"));
         return;
       }
 
-      const { category } = (await createRes.json()) as { category: { id: string } };
+      const { category } = (await createRes.json()) as {
+        category: { id: string };
+      };
 
       // Step 2: POST /categories/:id/limits
       const limitsRes = await clientApiFetch(
@@ -209,21 +232,28 @@ export function CategorySlider({
     } else {
       // Edit flow: PATCH + POST limits (SCD-2)
       const [patchRes, limitsRes] = await Promise.all([
-        clientApiFetch(`/budgets/${budgetId}/categories/${initial!.categoryId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: values.name,
-            iconKey: values.iconKey,
-            colorKey: values.colorKey,
-          }),
-        }),
+        clientApiFetch(
+          `/budgets/${budgetId}/categories/${initial!.categoryId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: values.name,
+              iconKey: values.iconKey,
+              colorKey: values.colorKey,
+            }),
+          },
+        ),
         clientApiFetch(
           `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ normalAmount, cushionAmount, effectiveFrom }),
+            body: JSON.stringify({
+              normalAmount,
+              cushionAmount,
+              effectiveFrom,
+            }),
           },
         ),
       ]);
@@ -257,9 +287,6 @@ export function CategorySlider({
       setIsDeleting(false);
     }
   }
-
-  const iconKey = form.watch("iconKey");
-  const colorKey = form.watch("colorKey");
 
   return (
     <>
@@ -395,7 +422,9 @@ export function CategorySlider({
                           key={key}
                           type="button"
                           data-testid={`icon-option-${key}`}
-                          onClick={() => field.onChange(field.value === key ? null : key)}
+                          onClick={() =>
+                            field.onChange(field.value === key ? null : key)
+                          }
                           className={cn(
                             "flex h-10 w-10 items-center justify-center rounded-lg border transition-colors",
                             field.value === key
@@ -427,7 +456,9 @@ export function CategorySlider({
                           key={key}
                           type="button"
                           data-testid={`color-option-${key}`}
-                          onClick={() => field.onChange(field.value === key ? null : key)}
+                          onClick={() =>
+                            field.onChange(field.value === key ? null : key)
+                          }
                           className={cn(
                             "flex h-8 w-8 rounded-full border-2 transition-all",
                             field.value === key
@@ -454,7 +485,11 @@ export function CategorySlider({
                     onClick={() => setDeleteOpen(true)}
                     disabled={isSubmitting || isDeleting || txnsCount > 0}
                     aria-disabled={txnsCount > 0 ? "true" : undefined}
-                    title={txnsCount > 0 ? "Cannot delete category with existing transactions" : undefined}
+                    title={
+                      txnsCount > 0
+                        ? "Cannot delete category with existing transactions"
+                        : undefined
+                    }
                     className="h-12 w-full sm:flex-1"
                   >
                     {t("txn.action.delete")}

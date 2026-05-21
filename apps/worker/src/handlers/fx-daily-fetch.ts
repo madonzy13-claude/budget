@@ -17,7 +17,10 @@ import { sql } from "drizzle-orm";
 
 // PgBoss type hint — pg-boss has no default export type we can use directly
 interface PgBossLike {
-  work(queue: string, handler: (job: unknown) => Promise<unknown>): Promise<void>;
+  work(
+    queue: string,
+    handler: (job: unknown) => Promise<unknown>,
+  ): Promise<void>;
 }
 
 export function registerFxDailyFetch(boss: PgBossLike, fxProvider: FxProvider) {
@@ -41,9 +44,10 @@ export function registerFxDailyFetch(boss: PgBossLike, fxProvider: FxProvider) {
     let fetched = 0;
     let failed = 0;
 
+    type FxArg = Parameters<typeof fxProvider.rateAsOf>[0];
     for (const { base, quote } of pairs) {
       try {
-        await fxProvider.rateAsOf(base, quote, today);
+        await fxProvider.rateAsOf(base as FxArg, quote as FxArg, today);
         fetched++;
       } catch {
         failed++;

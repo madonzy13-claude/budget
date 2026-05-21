@@ -5,7 +5,7 @@
  * Inline edit: single click on the amount while revealed; double-click is gone.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransactionRow } from "../../../src/components/budgeting/spendings-grid/transaction-row";
 import { TestQueryProvider } from "../../setup/query-client";
@@ -84,7 +84,9 @@ describe("TransactionRow", () => {
 
   it("shows a tooltip with the locale-formatted date and note on hover", async () => {
     const user = userEvent.setup();
-    renderRow({ txn: { ...txn, transactionDate: "2026-05-14", note: "Weekly shop" } });
+    renderRow({
+      txn: { ...txn, transactionDate: "2026-05-14", note: "Weekly shop" },
+    });
     await user.hover(screen.getByText("15"));
     const tip = await screen.findByTestId("txn-tooltip");
     expect(tip.textContent).toContain("5/14/2026");
@@ -103,19 +105,25 @@ describe("TransactionRow", () => {
   it("hover reveals the edit and delete chips; mouse leave hides them", () => {
     renderRow();
     const row = screen.getByTestId("txn-row-1500");
-    expect(document.querySelector('[data-testid="txn-action-edit"]')).toBeNull();
+    expect(
+      document.querySelector('[data-testid="txn-action-edit"]'),
+    ).toBeNull();
     fireEvent.mouseEnter(row);
     expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
     expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
     fireEvent.mouseLeave(row);
-    expect(document.querySelector('[data-testid="txn-action-edit"]')).toBeNull();
+    expect(
+      document.querySelector('[data-testid="txn-action-edit"]'),
+    ).toBeNull();
   });
 
   it("touch (no hover): a tap reveals the chips", () => {
     setHoverCapable(false);
     renderRow();
     const row = screen.getByTestId("txn-row-1500");
-    expect(document.querySelector('[data-testid="txn-action-edit"]')).toBeNull();
+    expect(
+      document.querySelector('[data-testid="txn-action-edit"]'),
+    ).toBeNull();
     fireEvent.click(row);
     expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
     expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
@@ -124,9 +132,7 @@ describe("TransactionRow", () => {
   it("hover-capable: clicking the amount enters inline edit", () => {
     renderRow();
     fireEvent.click(screen.getByText("15"));
-    expect(
-      document.querySelector('input[inputmode="decimal"]'),
-    ).toBeTruthy();
+    expect(document.querySelector('input[inputmode="decimal"]')).toBeTruthy();
   });
 
   it("touch: a single tap on the amount toggles reveal and does NOT enter inline edit", () => {
@@ -237,11 +243,11 @@ describe("TransactionRow", () => {
   it("action chips carry cursor-pointer", () => {
     renderRow();
     fireEvent.mouseEnter(screen.getByTestId("txn-row-1500"));
-    expect(
-      screen.getByTestId("txn-action-edit").className,
-    ).toContain("cursor-pointer");
-    expect(
-      screen.getByTestId("txn-action-delete").className,
-    ).toContain("cursor-pointer");
+    expect(screen.getByTestId("txn-action-edit").className).toContain(
+      "cursor-pointer",
+    );
+    expect(screen.getByTestId("txn-action-delete").className).toContain(
+      "cursor-pointer",
+    );
   });
 });

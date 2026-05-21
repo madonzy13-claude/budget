@@ -51,7 +51,10 @@ When("I open the Wallets page", async ({ page }) => {
 });
 
 When("I click {string}", async ({ page }, label: string) => {
-  await page.getByRole("button", { name: new RegExp(label, "i") }).first().click();
+  await page
+    .getByRole("button", { name: new RegExp(label, "i") })
+    .first()
+    .click();
 });
 
 When(
@@ -104,8 +107,12 @@ Then(
 When("I archive {string}", async ({ page }, accountName: string) => {
   // Capture browser console / page errors during this step for diagnostics.
   const consoleEvents: string[] = [];
-  page.on("console", (msg) => consoleEvents.push(`${msg.type()}: ${msg.text()}`));
-  page.on("pageerror", (err) => consoleEvents.push(`pageerror: ${err.message}`));
+  page.on("console", (msg) =>
+    consoleEvents.push(`${msg.type()}: ${msg.text()}`),
+  );
+  page.on("pageerror", (err) =>
+    consoleEvents.push(`pageerror: ${err.message}`),
+  );
 
   // Wait for client-island hydration before clicking the archive button.
   await page
@@ -122,7 +129,9 @@ When("I archive {string}", async ({ page }, accountName: string) => {
     tag: el.tagName,
     disabled: (el as HTMLButtonElement).disabled,
     hasOnClickAttr: el.hasAttribute("onclick"),
-    parentHydrated: el.closest("[data-hydrated]")?.getAttribute("data-hydrated"),
+    parentHydrated: el
+      .closest("[data-hydrated]")
+      ?.getAttribute("data-hydrated"),
   }));
 
   const responsePromise = page.waitForResponse(
@@ -134,8 +143,7 @@ When("I archive {string}", async ({ page }, accountName: string) => {
   await archiveBtn.click();
   try {
     await responsePromise;
-  } catch (err) {
-    // Diagnostics on first failure
+  } catch {
     throw new Error(
       `archive POST never observed. handler=${JSON.stringify(handlerInfo)} consoleEvents=${JSON.stringify(consoleEvents)}`,
     );
@@ -143,10 +151,15 @@ When("I archive {string}", async ({ page }, accountName: string) => {
   await page.waitForLoadState("networkidle");
 });
 
-Then("{string} no longer appears in the active list", async ({ page }, accountName: string) => {
-  // Wait for the page to reload / account to disappear
-  await expect(page.getByText(accountName)).not.toBeVisible({ timeout: 10000 });
-});
+Then(
+  "{string} no longer appears in the active list",
+  async ({ page }, accountName: string) => {
+    // Wait for the page to reload / account to disappear
+    await expect(page.getByText(accountName)).not.toBeVisible({
+      timeout: 10000,
+    });
+  },
+);
 
 // ── Budget / Categories steps ──────────────────────────────────────────────
 
@@ -157,43 +170,51 @@ When("I open the Budget page", async ({ page }) => {
   await budgetPage.goto("en");
 });
 
-When(
-  "I create a category {string}",
-  async ({ page }, name: string) => {
-    const res = await page.request.post("/api/categories", {
-      data: { name },
-    });
-    if (!res.ok()) {
-      const body = await res.text();
-      throw new Error(`POST /api/categories failed: ${res.status()} ${body}`);
-    }
-    // Verify GET roundtrip before reloading the page (catches stale render).
-    const list = await page.request.get("/api/categories");
-    if (list.ok()) {
-      const data = (await list.json()) as { categories?: Array<{ name: string }> };
-      const found = (data.categories ?? []).some((c) => c.name === name);
-      if (!found) {
-        throw new Error(
-          `Created category ${name} but GET /api/categories did not return it; got: ${JSON.stringify(data)}`,
-        );
-      }
-    }
-    await page.reload();
+When("I create a category {string}", async ({ page }, name: string) => {
+  const res = await page.request.post("/api/categories", {
+    data: { name },
+  });
+  if (!res.ok()) {
+    const body = await res.text();
+    throw new Error(`POST /api/categories failed: ${res.status()} ${body}`);
   }
-);
-
-When("I open the limit editor for {string}", async ({ page }, _categoryName: string) => {
-  // In the current RSC implementation, limit editor is reached via navigation.
-  // This step is a placeholder — full implementation wired in next phase.
-  // For now just verify the page loaded.
-  await expect(page).toHaveURL(/budget/);
+  // Verify GET roundtrip before reloading the page (catches stale render).
+  const list = await page.request.get("/api/categories");
+  if (list.ok()) {
+    const data = (await list.json()) as {
+      categories?: Array<{ name: string }>;
+    };
+    const found = (data.categories ?? []).some((c) => c.name === name);
+    if (!found) {
+      throw new Error(
+        `Created category ${name} but GET /api/categories did not return it; got: ${JSON.stringify(data)}`,
+      );
+    }
+  }
+  await page.reload();
 });
 
 When(
+  "I open the limit editor for {string}",
+  async ({ page }, _categoryName: string) => {
+    // In the current RSC implementation, limit editor is reached via navigation.
+    // This step is a placeholder — full implementation wired in next phase.
+    // For now just verify the page loaded.
+    await expect(page).toHaveURL(/budget/);
+  },
+);
+
+When(
   "I set the normal limit to {string} and cushion limit to {string} in {string} effective {string}",
-  async ({ page: _page }, _normal: string, _cushion: string, _currency: string, _date: string) => {
+  async (
+    { page: _page },
+    _normal: string,
+    _cushion: string,
+    _currency: string,
+    _date: string,
+  ) => {
     // UI interaction — wired when limit editor is surfaced in budget page.
-  }
+  },
 );
 
 When("I save the limit", async ({ page }) => {
@@ -203,19 +224,25 @@ When("I save the limit", async ({ page }) => {
   }
 });
 
-Then("I see {string} in the categories list", async ({ page }, name: string) => {
-  await expect(page.getByText(name)).toBeVisible({ timeout: 10000 });
-});
+Then(
+  "I see {string} in the categories list",
+  async ({ page }, name: string) => {
+    await expect(page.getByText(name)).toBeVisible({ timeout: 10000 });
+  },
+);
 
 Then("{string} shows a saved limit", async ({ page }, categoryName: string) => {
   // Verify category still visible after limit save
   await expect(page.getByText(categoryName)).toBeVisible({ timeout: 10000 });
 });
 
-When("I open the share override editor for {string}", async ({ page }, _categoryName: string) => {
-  // Placeholder — editor surfaced via category row action.
-  await expect(page).toHaveURL(/budget/);
-});
+When(
+  "I open the share override editor for {string}",
+  async ({ page }, _categoryName: string) => {
+    // Placeholder — editor surfaced via category row action.
+    await expect(page).toHaveURL(/budget/);
+  },
+);
 
 When(
   "I set share for member 1 to {string} and member 2 to {string}",
@@ -226,7 +253,7 @@ When(
       await inputs.nth(0).fill(pct1);
       await inputs.nth(1).fill(pct2);
     }
-  }
+  },
 );
 
 Then(
@@ -237,7 +264,7 @@ Then(
       await expect(counter).toContainText(expectedText);
     }
     // If editor not open in E2E context, skip assertion (unit tests cover this)
-  }
+  },
 );
 
 Then("the save button is enabled", async ({ page }) => {
@@ -256,19 +283,14 @@ Then("the save button is disabled", async ({ page }) => {
 
 When("I save the shares", async ({ page }) => {
   const saveBtn = page.getByRole("button", { name: /save shares/i });
-  if (await saveBtn.isVisible() && await saveBtn.isEnabled()) {
+  if ((await saveBtn.isVisible()) && (await saveBtn.isEnabled())) {
     await saveBtn.click();
   }
 });
 
 Then("I see a success toast", async ({ page }) => {
-  // Sonner renders toast outside main — check for any toast text
-  const toast = page.locator("[data-sonner-toast]").or(
-    page.locator("[role='status']")
-  );
-  // Soft check — toast may disappear quickly
+  // Soft check — toast may disappear quickly; UI feedback is covered by unit tests.
   await page.waitForTimeout(500);
-  // If toast already gone, test still passes (UI feedback verified in unit tests)
 });
 
 // ── Transactions steps ─────────────────────────────────────────────────────
@@ -305,7 +327,13 @@ When("I open the Transactions page", async ({ page }) => {
 
 When(
   "I fill the transaction form with kind {string}, amount {string}, currency {string}, date {string}",
-  async ({ page }, kind: string, amount: string, currency: string, date: string) => {
+  async (
+    { page },
+    kind: string,
+    amount: string,
+    currency: string,
+    date: string,
+  ) => {
     const txPage = new TransactionsPage(page);
     await txPage.selectKind(kind as "EXPENSE" | "INCOME" | "TRANSFER");
     await txPage.fillAmount(amount);
@@ -344,7 +372,9 @@ When(
     const accountSelect = page.getByLabel(/^account$/i).first();
     await accountSelect.click();
     await page
-      .getByRole("option", { name: new RegExp(`${fromAccount} \\(${currency}\\)`, "i") })
+      .getByRole("option", {
+        name: new RegExp(`${fromAccount} \\(${currency}\\)`, "i"),
+      })
       .first()
       .click();
 
@@ -352,7 +382,9 @@ When(
     const toSelect = page.getByLabel(/to account/i).first();
     await toSelect.click();
     await page
-      .getByRole("option", { name: new RegExp(`${toAccount} \\(${currency}\\)`, "i") })
+      .getByRole("option", {
+        name: new RegExp(`${toAccount} \\(${currency}\\)`, "i"),
+      })
       .first()
       .click();
   },
@@ -361,7 +393,9 @@ When(
 Then(
   "I see a transaction in the list with amount {string}",
   async ({ page }, amount: string) => {
-    await expect(page.getByText(amount).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(amount).first()).toBeVisible({
+      timeout: 10000,
+    });
   },
 );
 
@@ -373,12 +407,14 @@ Given(
     // Find account via API to get accountId
     const accountsRes = await page.request.get("/api/wallets");
     const accountsData = accountsRes.ok()
-      ? (await accountsRes.json() as { accounts: Array<{ id: string }> })
+      ? ((await accountsRes.json()) as { accounts: Array<{ id: string }> })
       : { accounts: [] };
     const accountId = accountsData.accounts[0]?.id;
 
     if (!accountId) {
-      throw new Error("No account found — run 'I have a checking account' step first");
+      throw new Error(
+        "No account found — run 'I have a checking account' step first",
+      );
     }
 
     const res = await page.request.post("/api/transactions", {
@@ -424,7 +460,9 @@ When("I save the edit", async ({ page }) => {
 Then(
   "the transaction shows an {string} badge",
   async ({ page }, _badge: string) => {
-    await expect(page.getByTestId(/^edited-badge-/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId(/^edited-badge-/).first()).toBeVisible({
+      timeout: 10000,
+    });
   },
 );
 
@@ -436,23 +474,32 @@ When(
   },
 );
 
-Then("the edit history panel shows {int} rows", async ({ page }, count: number) => {
-  for (let i = 0; i < count; i++) {
-    await expect(page.getByTestId(`chain-row-${i}`)).toBeVisible({ timeout: 10000 });
-  }
-});
+Then(
+  "the edit history panel shows {int} rows",
+  async ({ page }, count: number) => {
+    for (let i = 0; i < count; i++) {
+      await expect(page.getByTestId(`chain-row-${i}`)).toBeVisible({
+        timeout: 10000,
+      });
+    }
+  },
+);
 
 Then(
   "the first history row has amount {string}",
   async ({ page }, amount: string) => {
-    await expect(page.getByTestId("chain-row-0")).toContainText(amount, { timeout: 10000 });
+    await expect(page.getByTestId("chain-row-0")).toContainText(amount, {
+      timeout: 10000,
+    });
   },
 );
 
 Then(
   "the second history row has amount {string}",
   async ({ page }, amount: string) => {
-    await expect(page.getByTestId("chain-row-1")).toContainText(amount, { timeout: 10000 });
+    await expect(page.getByTestId("chain-row-1")).toContainText(amount, {
+      timeout: 10000,
+    });
   },
 );
 
@@ -596,10 +643,13 @@ Given(
   },
 );
 
-Then("I see a pending draft with amount {string}", async ({ page }, amount: string) => {
-  const rp = recurringPage ?? new RecurringPage(page);
-  await rp.expectPendingDraft(amount);
-});
+Then(
+  "I see a pending draft with amount {string}",
+  async ({ page }, amount: string) => {
+    const rp = recurringPage ?? new RecurringPage(page);
+    await rp.expectPendingDraft(amount);
+  },
+);
 
 When("I confirm the pending draft", async ({ page }) => {
   const rp = recurringPage ?? new RecurringPage(page);
@@ -614,18 +664,13 @@ When(
   },
 );
 
-Then(
-  "the {string} checkbox is checked",
-  async ({ page }, label: string) => {
-    const checkbox = page.getByLabel(new RegExp(label, "i"));
-    // Radix Checkbox exposes data-state="checked" or aria-checked="true"
-    const dataState = await checkbox.getAttribute("data-state");
-    const ariaChecked = await checkbox.getAttribute("aria-checked");
-    expect(
-      dataState === "checked" || ariaChecked === "true",
-    ).toBeTruthy();
-  },
-);
+Then("the {string} checkbox is checked", async ({ page }, label: string) => {
+  const checkbox = page.getByLabel(new RegExp(label, "i"));
+  // Radix Checkbox exposes data-state="checked" or aria-checked="true"
+  const dataState = await checkbox.getAttribute("data-state");
+  const ariaChecked = await checkbox.getAttribute("aria-checked");
+  expect(dataState === "checked" || ariaChecked === "true").toBeTruthy();
+});
 
 When(
   "I change the recurring rule amount to {string}",
@@ -637,21 +682,18 @@ When(
 
 // ── Plan 02-09: Search / filter / bulk re-categorize / FX stale badge ──────
 
-Given(
-  "I have a category {string}",
-  async ({ page }, name: string) => {
-    const res = await page.request.post("/api/categories", {
-      headers: { "Idempotency-Key": crypto.randomUUID() },
-      data: { name },
-    });
-    if (![201, 409].includes(res.status())) {
-      const body = await res.text();
-      throw new Error(
-        `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
-      );
-    }
-  },
-);
+Given("I have a category {string}", async ({ page }, name: string) => {
+  const res = await page.request.post("/api/categories", {
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+    data: { name },
+  });
+  if (![201, 409].includes(res.status())) {
+    const body = await res.text();
+    throw new Error(
+      `expected 201/409 from ${res.url()}, got ${res.status()}: ${body}`,
+    );
+  }
+});
 
 async function findCategoryId(
   page: import("@playwright/test").Page,
@@ -659,21 +701,30 @@ async function findCategoryId(
 ): Promise<string> {
   const res = await page.request.get("/api/categories");
   if (!res.ok()) throw new Error("GET /api/categories failed");
-  const data = (await res.json()) as { categories: Array<{ id: string; name: string }> };
+  const data = (await res.json()) as {
+    categories: Array<{ id: string; name: string }>;
+  };
   const hit = data.categories.find((c) => c.name === name);
   if (!hit) throw new Error(`category "${name}" not found`);
   return hit.id;
 }
 
 Given(
-  'I have an expense {string} of {int} EUR on {string} in category {string}',
-  async ({ page }, note: string, amount: number, date: string, categoryName: string) => {
+  "I have an expense {string} of {int} EUR on {string} in category {string}",
+  async (
+    { page },
+    note: string,
+    amount: number,
+    date: string,
+    categoryName: string,
+  ) => {
     const accountsRes = await page.request.get("/api/wallets");
     const { accounts } = (await accountsRes.json()) as {
       accounts: Array<{ id: string }>;
     };
     const accountId = accounts[0]?.id;
-    if (!accountId) throw new Error("no account — run 'I have a checking account' first");
+    if (!accountId)
+      throw new Error("no account — run 'I have a checking account' first");
     const categoryId = await findCategoryId(page, categoryName);
     const res = await page.request.post("/api/transactions", {
       headers: { "Idempotency-Key": crypto.randomUUID() },
@@ -697,14 +748,15 @@ Given(
 );
 
 Given(
-  'I have an expense {string} of {int} USD on {string}',
+  "I have an expense {string} of {int} USD on {string}",
   async ({ page }, note: string, amount: number, date: string) => {
     const accountsRes = await page.request.get("/api/wallets");
     const { accounts } = (await accountsRes.json()) as {
       accounts: Array<{ id: string }>;
     };
     const accountId = accounts[0]?.id;
-    if (!accountId) throw new Error("no account — run 'I have a checking account' first");
+    if (!accountId)
+      throw new Error("no account — run 'I have a checking account' first");
     const res = await page.request.post("/api/transactions", {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       data: {
@@ -755,7 +807,7 @@ When("I search transactions for {string}", async ({ page }, query: string) => {
 });
 
 When(
-  'I bulk re-categorize all {string} transactions to {string}',
+  "I bulk re-categorize all {string} transactions to {string}",
   async ({ page }, fromCategoryName: string, toCategoryName: string) => {
     // API-driven bulk recategorize; the UI shell exists but full select-by-row is out of
     // scope for this scenario — we exercise the contract end-to-end (Plan 02-09 EXPN-10).
@@ -765,7 +817,10 @@ When(
       `/api/transactions?categoryIds=${encodeURIComponent(fromId)}`,
     );
     const txData = txRes.ok()
-      ? ((await txRes.json()) as { transactions?: Array<{ id: string }>; rows?: Array<{ id: string }> })
+      ? ((await txRes.json()) as {
+          transactions?: Array<{ id: string }>;
+          rows?: Array<{ id: string }>;
+        })
       : { transactions: [] };
     const rows = txData.transactions ?? txData.rows ?? [];
     const ids = rows.map((r) => r.id);
@@ -788,11 +843,8 @@ Then(
   },
 );
 
-Then(
-  "the transaction row shows an FX freshness badge",
-  async ({ page }) => {
-    const tx = new TransactionsPage(page);
-    const badge = tx.fxFreshnessBadge().first();
-    await expect(badge).toBeVisible({ timeout: 15000 });
-  },
-);
+Then("the transaction row shows an FX freshness badge", async ({ page }) => {
+  const tx = new TransactionsPage(page);
+  const badge = tx.fxFreshnessBadge().first();
+  await expect(badge).toBeVisible({ timeout: 15000 });
+});

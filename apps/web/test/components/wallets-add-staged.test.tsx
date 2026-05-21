@@ -12,13 +12,7 @@
  * 5. Click +Add twice in same section → only ONE draft row (idempotent).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  act,
-} from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WalletsSectionedList } from "../../src/components/budgeting/wallets-tab/wallets-sectioned-list";
@@ -45,8 +39,7 @@ vi.mock("sonner", () => ({
 // Mock next-intl — relative key lookup (components call t("relativeKey"))
 vi.mock("next-intl", () => ({
   useTranslations:
-    (_ns: string) =>
-    (key: string, params?: Record<string, unknown>) => {
+    (_ns: string) => (key: string, params?: Record<string, unknown>) => {
       const map: Record<string, string> = {
         "section.spendings": "Spendings wallets",
         "section.cushion": "Cushion wallets",
@@ -57,7 +50,8 @@ vi.mock("next-intl", () => ({
         "row.namePlaceholder": "Wallet name",
         "row.nameAria": "Wallet name. Click to edit.",
         "row.currencyAria": "Currency. Click to edit.",
-        "row.currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
+        "row.currencyReadOnlyAria":
+          "Currency {ccy}. Reserve wallets must match budget currency.",
         "row.amountAria": "Amount. Click to edit.",
         "row.dragHandleAria": "Drag to move {name} to another section.",
         "row.trashAria": "Delete wallet {name}.",
@@ -66,17 +60,18 @@ vi.mock("next-intl", () => ({
         "confirm.delete.cta": "Delete",
         "confirm.delete.cancel": "Cancel",
         // Relative keys for components with deeper namespaces
-        "namePlaceholder": "Wallet name",
-        "nameAria": "Wallet name. Click to edit.",
-        "currencyAria": "Currency. Click to edit.",
-        "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
-        "amountAria": "Amount. Click to edit.",
-        "dragHandleAria": "Drag to move {name} to another section.",
-        "trashAria": "Delete wallet {name}.",
-        "title": "Delete wallet '{name}'?",
-        "body": "This can't be undone here.",
-        "cta": "Delete",
-        "cancel": "Cancel",
+        namePlaceholder: "Wallet name",
+        nameAria: "Wallet name. Click to edit.",
+        currencyAria: "Currency. Click to edit.",
+        currencyReadOnlyAria:
+          "Currency {ccy}. Reserve wallets must match budget currency.",
+        amountAria: "Amount. Click to edit.",
+        dragHandleAria: "Drag to move {name} to another section.",
+        trashAria: "Delete wallet {name}.",
+        title: "Delete wallet '{name}'?",
+        body: "This can't be undone here.",
+        cta: "Delete",
+        cancel: "Cancel",
       };
       let s = map[key] ?? key;
       if (params) {
@@ -90,9 +85,7 @@ vi.mock("next-intl", () => ({
 
 // Mock @dnd-kit/core — minimal functional stub
 vi.mock("@dnd-kit/core", () => ({
-  DndContext: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
+  DndContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useDroppable: ({ id }: { id: string }) => ({
     setNodeRef: vi.fn(),
     isOver: false,

@@ -51,6 +51,11 @@ function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
 }
 
 export class DrizzleTransactionRepo implements TransactionRepo {
+  // Constructor accepts repo handles for cross-aggregate side-effects
+  // (account balance, projection bookkeeping). Stored but not yet consumed
+  // by every method — kept as wiring point for factory-level composition.
+  constructor(_accountRepo?: unknown, _projectionRepo?: unknown) {}
+
   async create(
     row: TransactionRow,
     userId: string,

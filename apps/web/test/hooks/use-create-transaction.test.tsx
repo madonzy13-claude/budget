@@ -9,7 +9,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useCreateTransaction } from "../../src/hooks/use-create-transaction";
 import { mapTxnRowToDTO } from "../../src/hooks/use-transactions";
 import { TestQueryProvider, makeTestQueryClient } from "../setup/query-client";
@@ -49,7 +48,9 @@ describe("mapTxnRowToDTO", () => {
       confirmed_at: null,
       date: "2026-05-01",
     };
-    const dto = mapTxnRowToDTO(rowWithDate as Parameters<typeof mapTxnRowToDTO>[0]);
+    const dto = mapTxnRowToDTO(
+      rowWithDate as Parameters<typeof mapTxnRowToDTO>[0],
+    );
     expect(dto.transactionDate).toBe("2026-05-01");
   });
 
@@ -121,19 +122,22 @@ describe("useCreateTransaction — onSuccess cache shape", () => {
   it("stores camelCase TxnDTO in cache after onSuccess (not raw snake_case)", async () => {
     // Seed the cache with a pre-existing optimistic row (matching the id onMutate would set)
     const optimisticId = "opt-test-idem-key";
-    client.setQueryData(["transactions", BUDGET_ID, MONTH], [
-      {
-        id: optimisticId,
-        pending: true,
-        unsent: false,
-        categoryId: CATEGORY_ID,
-        amountConvertedCents: "999",
-        currencyConverted: "EUR",
-        transactionDate: "2026-05-13",
-        confirmedAt: null,
-        note: null,
-      },
-    ]);
+    client.setQueryData(
+      ["transactions", BUDGET_ID, MONTH],
+      [
+        {
+          id: optimisticId,
+          pending: true,
+          unsent: false,
+          categoryId: CATEGORY_ID,
+          amountConvertedCents: "999",
+          currencyConverted: "EUR",
+          transactionDate: "2026-05-13",
+          confirmedAt: null,
+          note: null,
+        },
+      ],
+    );
 
     // POST mutation response
     mockFetch.mockResolvedValueOnce({
@@ -181,7 +185,9 @@ describe("useCreateTransaction — onSuccess cache shape", () => {
     );
 
     // REGRESSION: category_id must NOT appear on mapped row
-    expect((mappedFromServer as Record<string, unknown>).category_id).toBeUndefined();
+    expect(
+      (mappedFromServer as Record<string, unknown>).category_id,
+    ).toBeUndefined();
 
     // camelCase fields MUST be present
     expect(mappedFromServer.categoryId).toBe(CATEGORY_ID);
@@ -209,14 +215,16 @@ describe("useCreateTransaction — onSuccess cache shape", () => {
     // Seed the cache with the server-confirmed row (simulating post-onSuccess state)
     // When onSuccess uses mapTxnRowToDTO, the row has categoryId set correctly.
     const mappedRow = {
-      ...mapTxnRowToDTO(snakeCaseServerRow as Parameters<typeof mapTxnRowToDTO>[0]),
+      ...mapTxnRowToDTO(
+        snakeCaseServerRow as Parameters<typeof mapTxnRowToDTO>[0],
+      ),
       pending: false,
       unsent: false,
     };
 
     // Build the Map as SpendingsGridClient does
     const txns = [mappedRow];
-    const m = new Map<string, typeof mappedRow[]>();
+    const m = new Map<string, (typeof mappedRow)[]>();
     for (const t of txns) {
       const list = m.get(t.categoryId) ?? [];
       list.push(t);

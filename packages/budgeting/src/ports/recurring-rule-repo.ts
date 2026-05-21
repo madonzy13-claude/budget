@@ -8,8 +8,6 @@
  *   - yearlyMonth added for YEARLY cadence
  *   - Cadence extended to DAILY|WEEKLY|MONTHLY|YEARLY
  */
-import type { RecurringRule } from "../domain/recurring-rule";
-
 export interface RecurringRuleEdits {
   amount?: string;
   currency?: string;
@@ -61,11 +59,24 @@ export interface RecurringRuleRepo {
    * Update mutable fields of a rule.
    * Caller owns the tx (tx-bound so update-recurring-rule can batch with draft regeneration).
    */
-  update(tx: unknown, ruleId: string, tenantId: string, edits: RecurringRuleEdits): Promise<void>;
+  update(
+    tx: unknown,
+    ruleId: string,
+    tenantId: string,
+    edits: RecurringRuleEdits,
+  ): Promise<void>;
 
   /** Advance next_due_date on a rule (used by engine after draft generation). */
-  advanceNextDueDate(tx: unknown, ruleId: string, nextDueDate: string): Promise<void>;
+  advanceNextDueDate(
+    tx: unknown,
+    ruleId: string,
+    nextDueDate: string,
+  ): Promise<void>;
 
   /** Soft-delete (set active=false). */
-  deactivate(tenantId: string, ruleId: string, actorUserId: string): Promise<void>;
+  deactivate(
+    tenantId: string,
+    ruleId: string,
+    actorUserId: string,
+  ): Promise<void>;
 }

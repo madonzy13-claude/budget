@@ -9,11 +9,16 @@ import { describe, test, expect, mock } from "bun:test";
 import { Hono } from "hono";
 
 // Minimal neverthrow-compatible result helpers (avoids adding neverthrow to apps/api deps)
-const ok = (val: unknown) => ({ isOk: () => true, isErr: () => false, value: val });
-const err = (e: unknown) => ({ isOk: () => false, isErr: () => true, error: e });
+const ok = (val: unknown) => ({
+  isOk: () => true,
+  isErr: () => false,
+  value: val,
+});
 
 class FakePgBoss {
-  async start() { return this; }
+  async start() {
+    return this;
+  }
   async work() {}
   async schedule() {}
   async createQueue() {}
@@ -38,8 +43,12 @@ mock.module(
   "@budget/budgeting/src/adapters/persistence/budget-template-repo",
   () => ({
     DrizzleBudgetTemplateRepo: class {
-      async createTemplate() { return ok(fakeTemplate); }
-      async listTemplates() { return ok([fakeTemplate]); }
+      async createTemplate() {
+        return ok(fakeTemplate);
+      }
+      async listTemplates() {
+        return ok([fakeTemplate]);
+      }
     },
   }),
 );
@@ -48,21 +57,31 @@ mock.module(
 mock.module("@budget/budgeting/src/contracts/api", () => ({
   createTemplateSchema: {
     safeParse: (body: any) => {
-      if (!body?.name) return { success: false, error: { issues: [{ message: "name required" }] } };
-      return { success: true, data: { name: body.name, items: body.items ?? [] } };
+      if (!body?.name)
+        return {
+          success: false,
+          error: { issues: [{ message: "name required" }] },
+        };
+      return {
+        success: true,
+        data: { name: body.name, items: body.items ?? [] },
+      };
     },
   },
   applyTemplateSchema: {
     safeParse: (body: any) => {
-      if (!body?.targetMonth) return { success: false, error: { issues: [{ message: "targetMonth required" }] } };
+      if (!body?.targetMonth)
+        return {
+          success: false,
+          error: { issues: [{ message: "targetMonth required" }] },
+        };
       return { success: true, data: body };
     },
   },
 }));
 
-const { createBudgetTemplatesRoute } = await import(
-  "../../src/routes/budget-templates"
-);
+const { createBudgetTemplatesRoute } =
+  await import("../../src/routes/budget-templates");
 
 function buildDeps() {
   return {
@@ -93,7 +112,7 @@ describe("GET /budget-templates", () => {
       headers: { "X-Test-Auth": "true" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(Array.isArray(body.templates)).toBe(true);
   });
 
@@ -113,7 +132,7 @@ describe("POST /budget-templates", () => {
       body: JSON.stringify({ name: "Monthly Household", items: [] }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.name).toBe("Monthly Household");
   });
 
@@ -147,7 +166,7 @@ describe("POST /budget-templates/:id/apply", () => {
       body: JSON.stringify({ targetMonth: "2026-05" }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
   });
 

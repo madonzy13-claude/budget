@@ -12,10 +12,17 @@ export interface SetCategoryLimitDeps {
   limitRepo: CategoryLimitRepo;
 }
 
-export interface SetCategoryLimitFullInput extends SetCategoryLimitInput {
+export interface SetCategoryLimitFullInput extends Omit<
+  SetCategoryLimitInput,
+  "normalCurrency" | "cushionAmount" | "cushionCurrency"
+> {
   tenantId: string;
   categoryId: string;
   actorUserId: string;
+  // Route layer resolves these from the active workspace before calling.
+  normalCurrency: string;
+  cushionAmount: string;
+  cushionCurrency: string;
 }
 
 function firstDayOfCurrentMonth(): string {

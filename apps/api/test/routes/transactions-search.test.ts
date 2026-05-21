@@ -9,7 +9,10 @@ const DB_URL = process.env.DATABASE_URL_APP;
 if (!DB_URL) throw new Error("DATABASE_URL_APP required");
 
 if (process.env.DATABASE_URL_WORKER) {
-  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace("@db:", "@localhost:");
+  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace(
+    "@db:",
+    "@localhost:",
+  );
 }
 process.env.DATABASE_URL_APP = DB_URL.replace("@db:", "@localhost:");
 const { resetPools } = await import("@budget/platform");
@@ -26,7 +29,9 @@ async function createFixture(label: string) {
 
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
     await client.query(
       `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
        VALUES ($1, $2, 'Search Route Test', true, now(), now())`,
@@ -37,8 +42,12 @@ async function createFixture(label: string) {
        VALUES ($1, $2, 'Search WS', 'PRIVATE', 'EUR', $3, 1, now())`,
       [tenantId, `ws-srch-${tenantId.slice(0, 8)}`, userId],
     );
-    await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
-    await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
     await client.query(
       `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
        VALUES ($1, $2, 'Checking', 'SPENDINGS', 'EUR', 100000.0000, now(), $3)`,
@@ -63,16 +72,17 @@ async function createFixture(label: string) {
 }
 
 async function buildApp(userId: string, tenantId: string) {
-  const { createTransactionsRoute } = await import("../../src/routes/transactions");
-  const { createBudgetingModule } = await import("@budget/budgeting/src/contracts/factory");
-  const { DrizzleFxRateCacheRepo } = await import(
-    "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo"
-  );
-  const { workerPool, createIdempotencyMiddleware } = await import("@budget/platform");
+  const { createTransactionsRoute } =
+    await import("../../src/routes/transactions");
+  const { createBudgetingModule } =
+    await import("@budget/budgeting/src/contracts/factory");
+  const { DrizzleFxRateCacheRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo");
+  const { workerPool, createIdempotencyMiddleware } =
+    await import("@budget/platform");
 
   const fxCache = new DrizzleFxRateCacheRepo(workerPool());
   const budgeting = createBudgetingModule({ fxCache });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const deps = { budgeting } as any;
 
   const app = new Hono();
@@ -131,11 +141,46 @@ describe("GET /transactions (search + filter)", () => {
     categoryTravelId = f.categoryTravelId;
     app = await buildApp(userId, tenantId);
 
-    await createExpense(app, accountId, categoryFoodId, "10.00", "2026-05-01", "Latte coffee");
-    await createExpense(app, accountId, categoryTravelId, "25.00", "2026-05-03", "Train ticket Paris");
-    await createExpense(app, accountId, categoryFoodId, "5.50", "2026-05-04", "Espresso coffee");
-    await createExpense(app, accountId, categoryTravelId, "120.00", "2026-04-10", "Hotel Lyon");
-    await createExpense(app, accountId, categoryFoodId, "8.00", "2026-04-15", "Sandwich");
+    await createExpense(
+      app,
+      accountId,
+      categoryFoodId,
+      "10.00",
+      "2026-05-01",
+      "Latte coffee",
+    );
+    await createExpense(
+      app,
+      accountId,
+      categoryTravelId,
+      "25.00",
+      "2026-05-03",
+      "Train ticket Paris",
+    );
+    await createExpense(
+      app,
+      accountId,
+      categoryFoodId,
+      "5.50",
+      "2026-05-04",
+      "Espresso coffee",
+    );
+    await createExpense(
+      app,
+      accountId,
+      categoryTravelId,
+      "120.00",
+      "2026-04-10",
+      "Hotel Lyon",
+    );
+    await createExpense(
+      app,
+      accountId,
+      categoryFoodId,
+      "8.00",
+      "2026-04-15",
+      "Sandwich",
+    );
   });
 
   it("no params → returns all 5 latest rows (legacy path)", async () => {
@@ -164,7 +209,9 @@ describe("GET /transactions (search + filter)", () => {
       { method: "GET" },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { transactions: Array<{ transactionDate: string }> };
+    const body = (await res.json()) as {
+      transactions: Array<{ transactionDate: string }>;
+    };
     expect(body.transactions.length).toBe(3);
     for (const t of body.transactions) {
       expect(t.transactionDate >= "2026-05-01").toBe(true);
@@ -178,7 +225,9 @@ describe("GET /transactions (search + filter)", () => {
       { method: "GET" },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { transactions: Array<{ categoryId: string }> };
+    const body = (await res.json()) as {
+      transactions: Array<{ categoryId: string }>;
+    };
     expect(body.transactions.length).toBe(3);
     for (const t of body.transactions) {
       expect(t.categoryId).toBe(categoryFoodId);
@@ -189,7 +238,9 @@ describe("GET /transactions (search + filter)", () => {
     // Force search path with limit=2 + a benign filter (kind=EXPENSE) so the route uses
     // the search use case (which returns nextCursor). Without any filter the route
     // hits the legacy getLatestTransactions path which doesn't return a cursor.
-    const r1 = await app.request("/transactions?limit=2&kind=EXPENSE", { method: "GET" });
+    const r1 = await app.request("/transactions?limit=2&kind=EXPENSE", {
+      method: "GET",
+    });
     expect(r1.status).toBe(200);
     const b1 = (await r1.json()) as {
       transactions: Array<{ id: string }>;

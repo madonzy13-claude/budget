@@ -5,15 +5,21 @@
  * T-13 pattern: raw pg.Client ONLY (no withTenantTx / writeAudit / writeOutbox).
  * This tests the GRANT layer, not the RLS layer.
  */
-import { describe, test, expect, afterAll } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import { Client } from "pg";
 
 // Normalise @db: → @localhost: for host-side test runner (Task 5 pattern)
 if (process.env.DATABASE_URL_APP) {
-  process.env.DATABASE_URL_APP = process.env.DATABASE_URL_APP.replace("@db:", "@localhost:");
+  process.env.DATABASE_URL_APP = process.env.DATABASE_URL_APP.replace(
+    "@db:",
+    "@localhost:",
+  );
 }
 if (process.env.DATABASE_URL_WORKER) {
-  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace("@db:", "@localhost:");
+  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace(
+    "@db:",
+    "@localhost:",
+  );
 }
 
 const APP_URL = process.env.DATABASE_URL_APP;

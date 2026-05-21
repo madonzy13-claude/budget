@@ -157,7 +157,6 @@ describe("BudgetSwitcher", () => {
   // UAT-PH5-T3-13: switcher derives the active id from the current
   // pathname client-side (more reliable than the SSR header injection).
   it("client-side pathname-derived active id: row matching URL UUID is checked even when prop is null", async () => {
-    const user = userEvent.setup();
     mockPathname = "/en/budgets/b2/wallets";
     render(
       <BudgetSwitcher
@@ -182,10 +181,13 @@ describe("BudgetSwitcher", () => {
         default_currency: "EUR",
       },
     ];
-    mockPathname =
-      "/en/budgets/fe588d41-2df3-4251-a0ec-84f8e513969c/wallets";
+    mockPathname = "/en/budgets/fe588d41-2df3-4251-a0ec-84f8e513969c/wallets";
     render(
-      <BudgetSwitcher budgets={realIdBudgets} activeBudgetId={null} locale="en" />,
+      <BudgetSwitcher
+        budgets={realIdBudgets}
+        activeBudgetId={null}
+        locale="en"
+      />,
     );
     // Trigger shows the budget name (active resolved from path).
     const trigger = screen.getByLabelText("Switch budget");
@@ -229,7 +231,8 @@ describe("BudgetSwitcher", () => {
     // It should be either an svg (Users for shared, Check would be for
     // active — but this row is inactive) or the name span.
     expect(
-      first.tagName.toLowerCase() === "svg" || first.classList.contains("flex-1"),
+      first.tagName.toLowerCase() === "svg" ||
+        first.classList.contains("flex-1"),
     ).toBe(true);
   });
 

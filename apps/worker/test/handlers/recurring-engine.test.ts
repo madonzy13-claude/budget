@@ -3,24 +3,32 @@
  * Tests: per-tenant draft generation, idempotency (re-run same day), Pitfall 6 month-end, cross-tenant RLS.
  * Requires Postgres at localhost:5432 (run with infisical wrapper).
  */
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import { Pool } from "pg";
 import { withInfraTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 
-const SYSTEM_USER = "00000000-0000-0000-0000-000000000001";
-const DB_URL = (process.env.DATABASE_URL_APP ?? "").replace("@db:", "@localhost:");
+const DB_URL = (process.env.DATABASE_URL_APP ?? "").replace(
+  "@db:",
+  "@localhost:",
+);
 process.env.DATABASE_URL_APP = DB_URL;
 if (process.env.DATABASE_URL_WORKER) {
-  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace("@db:", "@localhost:");
+  process.env.DATABASE_URL_WORKER = process.env.DATABASE_URL_WORKER.replace(
+    "@db:",
+    "@localhost:",
+  );
 }
 const { resetPools } = await import("@budget/platform");
 resetPools();
 
 // Import AFTER resetPools to ensure pools are configured
-const { runRecurringEngine } = await import("../../src/handlers/recurring-engine");
+const { runRecurringEngine } =
+  await import("../../src/handlers/recurring-engine");
 
-async function seedTenantForEngine(label: string): Promise<{ tenantId: string; userId: string; accountId: string }> {
+async function seedTenantForEngine(
+  label: string,
+): Promise<{ tenantId: string; userId: string; accountId: string }> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   const userId = crypto.randomUUID();
@@ -29,11 +37,17 @@ async function seedTenantForEngine(label: string): Promise<{ tenantId: string; u
 
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
     await client.query(
       `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
        VALUES ($1, $2, $3, true, now(), now())`,
-      [userId, `engine-${label.toLowerCase().replace(/[^a-z0-9]/g, "")}-${userId.slice(0, 8)}@test.local`, label],
+      [
+        userId,
+        `engine-${label.toLowerCase().replace(/[^a-z0-9]/g, "")}-${userId.slice(0, 8)}@test.local`,
+        label,
+      ],
     );
     // v1.1 (MIG-01): workspaces → budgets table
     await client.query(
@@ -41,7 +55,9 @@ async function seedTenantForEngine(label: string): Promise<{ tenantId: string; u
        VALUES ($1, $2, $3, 'PRIVATE', 'USD', $4, 1, now())`,
       [tenantId, `eng-${tenantId.slice(0, 8)}`, label, userId],
     );
-    await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
     // v1.1 (MIG-04): accounts → wallets; kind/scope dropped; wallet_type added
     await client.query(
       `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
@@ -73,14 +89,26 @@ async function seedRuleWithDueDate(
   const ruleId = crypto.randomUUID();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
-    await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
     // v1.1 (02-02): wallet_id + kind dropped; category_id optional.
     await client.query(
       `INSERT INTO budgeting.recurring_rules
          (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor, weekly_dow, active, next_due_date, actor_user_id)
        VALUES ($1, $2, NULL, '200', 'USD', $3, $4, $5, true, $6::date, $7)`,
-      [ruleId, tenantId, cadence, cadenceAnchor, weeklyDow, nextDueDate, userId],
+      [
+        ruleId,
+        tenantId,
+        cadence,
+        cadenceAnchor,
+        weeklyDow,
+        nextDueDate,
+        userId,
+      ],
     );
     await client.query("COMMIT");
   } finally {
@@ -90,13 +118,18 @@ async function seedRuleWithDueDate(
   return ruleId;
 }
 
-async function countDraftsForRule(tenantId: string, ruleId: string): Promise<number> {
+async function countDraftsForRule(
+  tenantId: string,
+  ruleId: string,
+): Promise<number> {
   // RLS-aware: must set app.tenant_ids GUC inside a tx so the SELECT can see rows.
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
     // v1.1 (02-02): recurring_drafts table dropped; drafts live as
     // expense_ledger rows with confirmed_at IS NULL and recurring_rule_id set.
     const r = await client.query(
@@ -116,12 +149,17 @@ async function countDraftsForRule(tenantId: string, ruleId: string): Promise<num
   }
 }
 
-async function getRuleNextDueDate(tenantId: string, ruleId: string): Promise<string> {
+async function getRuleNextDueDate(
+  tenantId: string,
+  ruleId: string,
+): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`);
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
     const r = await client.query(
       `SELECT next_due_date FROM budgeting.recurring_rules WHERE id = $1 AND tenant_id = $2`,
       [ruleId, tenantId],
@@ -129,7 +167,9 @@ async function getRuleNextDueDate(tenantId: string, ruleId: string): Promise<str
     await client.query("COMMIT");
     // Format as YYYY-MM-DD
     const d = r.rows[0]?.next_due_date as Date;
-    return d instanceof Date ? d.toISOString().slice(0, 10) : String(r.rows[0]?.next_due_date);
+    return d instanceof Date
+      ? d.toISOString().slice(0, 10)
+      : String(r.rows[0]?.next_due_date);
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
@@ -142,32 +182,61 @@ async function getRuleNextDueDate(tenantId: string, ruleId: string): Promise<str
 describe("recurring engine handler", () => {
   const TODAY = new Date().toISOString().slice(0, 10);
 
-  test("generates drafts for 2 tenants × 2 rules each (4 drafts total)", { timeout: 15000 }, async () => {
-    const tenantA = await seedTenantForEngine("EngineA");
-    const tenantB = await seedTenantForEngine("EngineB");
+  test(
+    "generates drafts for 2 tenants × 2 rules each (4 drafts total)",
+    { timeout: 15000 },
+    async () => {
+      const tenantA = await seedTenantForEngine("EngineA");
+      const tenantB = await seedTenantForEngine("EngineB");
 
-    const ruleA1 = await seedRuleWithDueDate(tenantA.tenantId, tenantA.accountId, tenantA.userId, TODAY);
-    const ruleA2 = await seedRuleWithDueDate(tenantA.tenantId, tenantA.accountId, tenantA.userId, TODAY);
-    const ruleB1 = await seedRuleWithDueDate(tenantB.tenantId, tenantB.accountId, tenantB.userId, TODAY);
-    const ruleB2 = await seedRuleWithDueDate(tenantB.tenantId, tenantB.accountId, tenantB.userId, TODAY);
+      const ruleA1 = await seedRuleWithDueDate(
+        tenantA.tenantId,
+        tenantA.accountId,
+        tenantA.userId,
+        TODAY,
+      );
+      const ruleA2 = await seedRuleWithDueDate(
+        tenantA.tenantId,
+        tenantA.accountId,
+        tenantA.userId,
+        TODAY,
+      );
+      const ruleB1 = await seedRuleWithDueDate(
+        tenantB.tenantId,
+        tenantB.accountId,
+        tenantB.userId,
+        TODAY,
+      );
+      const ruleB2 = await seedRuleWithDueDate(
+        tenantB.tenantId,
+        tenantB.accountId,
+        tenantB.userId,
+        TODAY,
+      );
 
-    const result = await runRecurringEngine();
-    expect(result.isOk()).toBe(true);
+      const result = await runRecurringEngine();
+      expect(result.isOk()).toBe(true);
 
-    // Each rule should have 1 draft
-    expect(await countDraftsForRule(tenantA.tenantId, ruleA1)).toBe(1);
-    expect(await countDraftsForRule(tenantA.tenantId, ruleA2)).toBe(1);
-    expect(await countDraftsForRule(tenantB.tenantId, ruleB1)).toBe(1);
-    expect(await countDraftsForRule(tenantB.tenantId, ruleB2)).toBe(1);
+      // Each rule should have 1 draft
+      expect(await countDraftsForRule(tenantA.tenantId, ruleA1)).toBe(1);
+      expect(await countDraftsForRule(tenantA.tenantId, ruleA2)).toBe(1);
+      expect(await countDraftsForRule(tenantB.tenantId, ruleB1)).toBe(1);
+      expect(await countDraftsForRule(tenantB.tenantId, ruleB2)).toBe(1);
 
-    // next_due_date advanced
-    const nextDueA1 = await getRuleNextDueDate(tenantA.tenantId, ruleA1);
-    expect(nextDueA1).not.toBe(TODAY);
-  });
+      // next_due_date advanced
+      const nextDueA1 = await getRuleNextDueDate(tenantA.tenantId, ruleA1);
+      expect(nextDueA1).not.toBe(TODAY);
+    },
+  );
 
   test("re-running same day: UNIQUE constraint prevents double-generation (0 new drafts)", async () => {
     const tenant = await seedTenantForEngine("EngineIdempotent");
-    const ruleId = await seedRuleWithDueDate(tenant.tenantId, tenant.accountId, tenant.userId, TODAY);
+    const ruleId = await seedRuleWithDueDate(
+      tenant.tenantId,
+      tenant.accountId,
+      tenant.userId,
+      TODAY,
+    );
 
     // First run
     await runRecurringEngine();
@@ -180,7 +249,9 @@ describe("recurring engine handler", () => {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query(`SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`);
+      await client.query(
+        `SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`,
+      );
       await client.query(
         `UPDATE budgeting.recurring_rules SET next_due_date = $1::date WHERE id = $2`,
         [TODAY, ruleId],
@@ -240,8 +311,12 @@ describe("recurring engine handler", () => {
     const ruleId = crypto.randomUUID();
     try {
       await client.query("BEGIN");
-      await client.query(`SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`);
-      await client.query(`SELECT set_config('app.current_user_id', '${tenant.userId}', true)`);
+      await client.query(
+        `SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`,
+      );
+      await client.query(
+        `SELECT set_config('app.current_user_id', '${tenant.userId}', true)`,
+      );
       // v1.1 (02-02): wallet_id + kind dropped; category_id optional.
       await client.query(
         `INSERT INTO budgeting.recurring_rules
@@ -265,18 +340,26 @@ describe("recurring engine handler", () => {
 
   test("outbox has budgeting.recurring.draft.generated for each draft", async () => {
     const tenant = await seedTenantForEngine("EngineOutbox");
-    const ruleId = await seedRuleWithDueDate(tenant.tenantId, tenant.accountId, tenant.userId, TODAY);
+    const ruleId = await seedRuleWithDueDate(
+      tenant.tenantId,
+      tenant.accountId,
+      tenant.userId,
+      TODAY,
+    );
 
     await runRecurringEngine();
 
     const outboxCheck = await withInfraTx(async (tx) => {
-      const drizzleTx = tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
+      const drizzleTx = tx as {
+        execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+      };
       return drizzleTx.execute(sql`
         SELECT * FROM shared_kernel.outbox
          WHERE event_type = 'budgeting.recurring.draft.generated' AND aggregate_id = ${ruleId}
       `);
     });
     expect(outboxCheck.isOk()).toBe(true);
-    if (outboxCheck.isOk()) expect(outboxCheck.value.rows.length).toBeGreaterThan(0);
+    if (outboxCheck.isOk())
+      expect(outboxCheck.value.rows.length).toBeGreaterThan(0);
   });
 });

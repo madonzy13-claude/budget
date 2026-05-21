@@ -22,9 +22,14 @@ export function findWalletById(deps: FindWalletByIdDeps) {
         name: wallet.name,
         walletType: wallet.walletType,
         currency: wallet.currency,
-        currentBalanceCents: wallet.currentBalance.amount.times("100").toFixed(0),
+        currentBalanceCents: wallet.currentBalance.amount
+          .times("100")
+          .toFixed(0),
         archivedAt: wallet.archivedAt ? wallet.archivedAt.toISOString() : null,
         createdAt: wallet.createdAt.toISOString(),
+        color: wallet.color,
+        icon: wallet.icon,
+        sortOrder: wallet.sortOrder,
       });
     } catch (e) {
       return err(e as Error);

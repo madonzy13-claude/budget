@@ -28,23 +28,33 @@ async function main() {
   await boss.schedule("fx-daily-fetch", "0 17 * * *", null, {
     tz: "Europe/Berlin",
   });
-  registerFxDailyFetch(boss, fxProvider);
+  registerFxDailyFetch(
+    boss as unknown as Parameters<typeof registerFxDailyFetch>[0],
+    fxProvider,
+  );
 
   // Idempotency-key cleanup — hourly, deletes expired rows via worker_role + cleanup pgPolicy
   await boss.createQueue("idempotency-cleanup");
   await boss.schedule("idempotency-cleanup", "0 * * * *"); // hourly
-  registerIdempotencyCleanup(boss);
+  registerIdempotencyCleanup(
+    boss as unknown as Parameters<typeof registerIdempotencyCleanup>[0],
+  );
 
   // Recurring engine — daily 06:00 UTC, scans active rules and generates PENDING drafts (Plan 02-08)
   // T-02-WORKER-FX: pass FxProvider so cross-currency rules use real FX rates with bounds check.
   await boss.createQueue("recurring-engine");
   await boss.schedule("recurring-engine", "0 6 * * *"); // UTC, 5-placeholder format (Pitfall 9)
-  registerRecurringEngine(boss, fxProvider);
+  registerRecurringEngine(
+    boss as unknown as Parameters<typeof registerRecurringEngine>[0],
+    fxProvider,
+  );
 
   // Budgeting reconciliation — hourly drift check on spending_by_category_month (Plan 02-09)
   await boss.createQueue("budgeting-reconciliation");
   await boss.schedule("budgeting-reconciliation", "0 * * * *"); // UTC hourly, 5-placeholder format
-  registerBudgetingReconciliation(boss);
+  registerBudgetingReconciliation(
+    boss as unknown as Parameters<typeof registerBudgetingReconciliation>[0],
+  );
 
   console.log(
     "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC",

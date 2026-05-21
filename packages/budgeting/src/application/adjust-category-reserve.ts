@@ -167,7 +167,12 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
         const newExpectedEuros = (Number(newExpected) / 100).toFixed(2);
         overlayMap.set(
           input.categoryId,
-          Money.of(newExpectedEuros, await deps.budgetCurrencyOf(input.tenantId)),
+          Money.of(
+            newExpectedEuros,
+            (await deps.budgetCurrencyOf(input.tenantId)) as Parameters<
+              typeof Money.of
+            >[1],
+          ),
         );
       }
       const budgetCurrency = await deps.budgetCurrencyOf(input.tenantId);

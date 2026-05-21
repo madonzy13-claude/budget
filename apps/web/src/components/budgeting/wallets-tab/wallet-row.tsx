@@ -26,7 +26,7 @@ import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
 import { WalletDeleteConfirm } from "./wallet-delete-confirm";
-import { WalletCustomizer, iconByName } from "./wallet-customizer";
+import { WalletCustomizer } from "./wallet-customizer";
 import { centsToBare } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
@@ -194,7 +194,7 @@ function DraftRow({
 
 function PersistedRow({
   wallet,
-  budgetCurrency,
+  budgetCurrency: _budgetCurrency,
   sectionTotalBudgetCents,
   maxAmountChars,
   onUpdate,
@@ -284,8 +284,7 @@ function PersistedRow({
     const onPointerUp = (e: PointerEvent) => {
       if (state.pid !== e.pointerId) return;
       if (state.locked) {
-        const finalOffset =
-          offsetRef.current <= -ACTION_W / 2 ? -ACTION_W : 0;
+        const finalOffset = offsetRef.current <= -ACTION_W / 2 ? -ACTION_W : 0;
         setOffset(finalOffset);
         setSwiping(false);
         // Suppress the synthetic click iOS fires immediately after a
@@ -338,7 +337,6 @@ function PersistedRow({
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
     isOver: isRowDropOver,
   } = useSortable({ id: wallet.id });
@@ -393,75 +391,75 @@ function PersistedRow({
       >
         {t("swipeDeleteCta")}
       </button>
-    <div
-      ref={setNodeRef}
-      data-testid="wallet-row"
-      data-wallet-id={wallet.id}
-      data-row-drop-over={isRowDropOver || undefined}
-      // UAT-PH5-T3-23 + T3-38: dnd-kit sortable transform + horizontal
-      // swipe offset compose here. transition stays a className so
-      // sibling reorder + swipe settle both animate smoothly.
-      style={{
-        transform: combinedTransform,
-        // During an active horizontal swipe the row tracks the finger
-        // 1:1, so disable the snap transition; on release we restore
-        // it so the snap animates.
-        transition: swiping ? "none" : undefined,
-        // Source row hidden completely during drag — the <DragOverlay>
-        // ghost stands in.
-        visibility: isDragging ? "hidden" : undefined,
-      }}
-      className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
-    >
-      <RowDragHandle
-        name={wallet.name || "wallet"}
-        listeners={listeners}
-        attributes={attributes}
-        ariaLabel={t("dragHandleAria", { name: wallet.name })}
-      />
+      <div
+        ref={setNodeRef}
+        data-testid="wallet-row"
+        data-wallet-id={wallet.id}
+        data-row-drop-over={isRowDropOver || undefined}
+        // UAT-PH5-T3-23 + T3-38: dnd-kit sortable transform + horizontal
+        // swipe offset compose here. transition stays a className so
+        // sibling reorder + swipe settle both animate smoothly.
+        style={{
+          transform: combinedTransform,
+          // During an active horizontal swipe the row tracks the finger
+          // 1:1, so disable the snap transition; on release we restore
+          // it so the snap animates.
+          transition: swiping ? "none" : undefined,
+          // Source row hidden completely during drag — the <DragOverlay>
+          // ghost stands in.
+          visibility: isDragging ? "hidden" : undefined,
+        }}
+        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+      >
+        <RowDragHandle
+          name={wallet.name || "wallet"}
+          listeners={listeners}
+          attributes={attributes}
+          ariaLabel={t("dragHandleAria", { name: wallet.name })}
+        />
 
-      {/* UAT-PH5-T3-1x: per-wallet color + icon trigger. Renders a placeholder
+        {/* UAT-PH5-T3-1x: per-wallet color + icon trigger. Renders a placeholder
           dashed circle when both are null; otherwise the chosen icon in the
           chosen color. Opens a popover to pick / clear. */}
-      <WalletCustomizer
-        color={wallet.color ?? null}
-        icon={wallet.icon ?? null}
-        onChange={(patch) => onUpdate(patch).catch(() => {})}
-        ariaLabel={`Customize ${wallet.name} appearance`}
-      />
+        <WalletCustomizer
+          color={wallet.color ?? null}
+          icon={wallet.icon ?? null}
+          onChange={(patch) => onUpdate(patch).catch(() => {})}
+          ariaLabel={`Customize ${wallet.name} appearance`}
+        />
 
-      {/* Name — editable. UAT-PH5-T3-26: `min-w-0` allows the flex item to
+        {/* Name — editable. UAT-PH5-T3-26: `min-w-0` allows the flex item to
           shrink below its content width so the right-side columns (currency,
           amount) stay anchored at consistent X positions regardless of how
           long the wallet name is. */}
-      <div className="min-w-0 flex-1" data-inline-cell>
-        <InlineEditCell
-          value={wallet.name}
-          ariaLabel={t("nameAria")}
-          testId={`wallet-name-${wallet.id}`}
-          render={(v) => (
-            <span className="block truncate">
-              {v || (
-                <span className="text-[var(--muted-foreground)]">
-                  {t("namePlaceholder")}
-                </span>
-              )}
-            </span>
-          )}
-          renderEditor={(draft, onChange) => (
-            <Input
-              autoFocus
-              value={draft}
-              onChange={(e) => onChange(e.target.value)}
-              className="h-9"
-              placeholder={t("namePlaceholder")}
-            />
-          )}
-          onSave={(v) => onUpdate({ name: v })}
-        />
-      </div>
+        <div className="min-w-0 flex-1" data-inline-cell>
+          <InlineEditCell
+            value={wallet.name}
+            ariaLabel={t("nameAria")}
+            testId={`wallet-name-${wallet.id}`}
+            render={(v) => (
+              <span className="block truncate">
+                {v || (
+                  <span className="text-[var(--muted-foreground)]">
+                    {t("namePlaceholder")}
+                  </span>
+                )}
+              </span>
+            )}
+            renderEditor={(draft, onChange) => (
+              <Input
+                autoFocus
+                value={draft}
+                onChange={(e) => onChange(e.target.value)}
+                className="h-9"
+                placeholder={t("namePlaceholder")}
+              />
+            )}
+            onSave={(v) => onUpdate({ name: v })}
+          />
+        </div>
 
-      {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
+        {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
           UAT-PH5-T3-24: narrower on mobile so name + amount have room.
           UAT-PH5-T3-42: render the CurrencyPicker directly (no
           InlineEditCell wrapper). On touch devices the picker emits a
@@ -470,24 +468,24 @@ function PersistedRow({
           was fragile on iOS Safari. Desktop still works because Radix
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
-      <div className="w-[44px] sm:w-[96px]" data-inline-cell>
-        {isReserveSection ? (
-          <span
-            className="text-num-md"
-            aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
-          >
-            {wallet.currency}
-          </span>
-        ) : (
-          <CurrencyPicker
-            value={wallet.currency}
-            aria-label={t("currencyAria")}
-            onSelect={(v: string) => onUpdate({ currency: v })}
-          />
-        )}
-      </div>
+        <div className="w-[44px] sm:w-[96px]" data-inline-cell>
+          {isReserveSection ? (
+            <span
+              className="text-num-md"
+              aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
+            >
+              {wallet.currency}
+            </span>
+          ) : (
+            <CurrencyPicker
+              value={wallet.currency}
+              aria-label={t("currencyAria")}
+              onSelect={(v: string) => onUpdate({ currency: v })}
+            />
+          )}
+        </div>
 
-      {/* Amount — numeric, editable.
+        {/* Amount — numeric, editable.
            Uses defaultValue (uncontrolled) so the user can type freely
            without the controlled reformatter clobbering each keystroke.
            draft holds the raw decimal string the user typed.
@@ -497,103 +495,103 @@ function PersistedRow({
            "456" no longer leave a wide visual gap between the currency
            code and the right-aligned number. `tabular-nums` keeps digit
            widths uniform so rows in the same section align column-perfect. */}
-      <div
-        className="text-right tabular-nums"
-        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
-        data-inline-cell
-      >
-        <InlineEditCell
-          // UAT-PH5-T3-25: editor seed mirrors the display formatting —
-          // centsToBare drops a `.00` fraction so "10" enters the input
-          // as "10" not "10.00". Non-zero fractions still pad to 2 digits.
-          // UAT-PH5-T3-27: strip all non-decimal-input characters (group
-          // separators, narrow no-break spaces, NBSP) so the value is a
-          // clean editable decimal regardless of the user's locale.
-          value={centsToBare(wallet.currentBalanceCents).replace(
-            /[^0-9.-]/g,
-            "",
-          )}
-          ariaLabel={t("amountAria")}
-          testId={`wallet-amount-${wallet.id}`}
-          render={() => (
-            // UAT-PH5-T3-20: format the resting amount with the same rules
-            // as the spendings grid — drop the `.00` fraction, pad non-zero
-            // fractions to two digits, locale-aware grouping. `value` above
-            // is reserved for the editor; display uses centsToBare directly
-            // so "0" renders as "0" not "0.00", "1050" as "10.50".
-            <span className="text-num-md">
-              {centsToBare(wallet.currentBalanceCents)}
-            </span>
-          )}
-          renderEditor={(draft, onChange) => (
-            <Input
-              autoFocus
-              type="text"
-              inputMode="decimal"
-              defaultValue={draft}
-              // UAT-PH5-T3-29: accept comma as the decimal separator
-              // (PL/UK locales) and translate to the dot the server +
-              // domain layer expect. The input still displays whatever
-              // the user typed because `defaultValue` is uncontrolled.
-              onChange={(e) => onChange(e.target.value.replace(",", "."))}
-              className="h-9 text-right"
-            />
-          )}
-          onSave={(v) => onUpdate({ amount: v.replace(",", ".") })}
-        />
-      </div>
+        <div
+          className="text-right tabular-nums"
+          style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+          data-inline-cell
+        >
+          <InlineEditCell
+            // UAT-PH5-T3-25: editor seed mirrors the display formatting —
+            // centsToBare drops a `.00` fraction so "10" enters the input
+            // as "10" not "10.00". Non-zero fractions still pad to 2 digits.
+            // UAT-PH5-T3-27: strip all non-decimal-input characters (group
+            // separators, narrow no-break spaces, NBSP) so the value is a
+            // clean editable decimal regardless of the user's locale.
+            value={centsToBare(wallet.currentBalanceCents).replace(
+              /[^0-9.-]/g,
+              "",
+            )}
+            ariaLabel={t("amountAria")}
+            testId={`wallet-amount-${wallet.id}`}
+            render={() => (
+              // UAT-PH5-T3-20: format the resting amount with the same rules
+              // as the spendings grid — drop the `.00` fraction, pad non-zero
+              // fractions to two digits, locale-aware grouping. `value` above
+              // is reserved for the editor; display uses centsToBare directly
+              // so "0" renders as "0" not "0.00", "1050" as "10.50".
+              <span className="text-num-md">
+                {centsToBare(wallet.currentBalanceCents)}
+              </span>
+            )}
+            renderEditor={(draft, onChange) => (
+              <Input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                defaultValue={draft}
+                // UAT-PH5-T3-29: accept comma as the decimal separator
+                // (PL/UK locales) and translate to the dot the server +
+                // domain layer expect. The input still displays whatever
+                // the user typed because `defaultValue` is uncontrolled.
+                onChange={(e) => onChange(e.target.value.replace(",", "."))}
+                className="h-9 text-right"
+              />
+            )}
+            onSave={(v) => onUpdate({ amount: v.replace(",", ".") })}
+          />
+        </div>
 
-      {/* UAT-PH5-T3-14: Share — wallet's slice of its section's total.
+        {/* UAT-PH5-T3-14: Share — wallet's slice of its section's total.
           Em-dash when the section sum is zero (no meaningful ratio).
           UAT-PH5-T3-24: hidden on mobile so the row's name + amount fit
           the 390 px viewport without truncation. The metric is
           desktop-only signal. */}
-      <div
-        data-testid={`wallet-share-${wallet.id}`}
-        className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]"
-        aria-label={t("shareAria", { name: wallet.name })}
-      >
-        {(() => {
-          if (!sectionTotalBudgetCents || sectionTotalBudgetCents <= 0)
-            return "—";
-          const numer = Number(
-            wallet.currentBalanceInBudgetCurrencyCents ??
-              wallet.currentBalanceCents,
-          );
-          const pct = (numer / sectionTotalBudgetCents) * 100;
-          return `${pct.toFixed(0)}%`;
-        })()}
+        <div
+          data-testid={`wallet-share-${wallet.id}`}
+          className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]"
+          aria-label={t("shareAria", { name: wallet.name })}
+        >
+          {(() => {
+            if (!sectionTotalBudgetCents || sectionTotalBudgetCents <= 0)
+              return "—";
+            const numer = Number(
+              wallet.currentBalanceInBudgetCurrencyCents ??
+                wallet.currentBalanceCents,
+            );
+            const pct = (numer / sectionTotalBudgetCents) * 100;
+            return `${pct.toFixed(0)}%`;
+          })()}
+        </div>
+
+        {/* Trash — desktop only. Hover-revealed; mobile uses swipe instead. */}
+        <button
+          data-testid={`wallet-trash-${wallet.id}`}
+          aria-label={t("trashAria", { name: wallet.name })}
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirmOpen(true);
+          }}
+          className={[
+            // UAT-PH5-T3-32: desktop-only (mobile reveal moved to swipe).
+            "hidden h-7 w-7 items-center justify-center rounded sm:flex",
+            "text-[var(--destructive)]",
+            "invisible group-hover:visible",
+            "cursor-pointer",
+          ].join(" ")}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
 
-      {/* Trash — desktop only. Hover-revealed; mobile uses swipe instead. */}
-      <button
-        data-testid={`wallet-trash-${wallet.id}`}
-        aria-label={t("trashAria", { name: wallet.name })}
-        onClick={(e) => {
-          e.stopPropagation();
-          setConfirmOpen(true);
+      <WalletDeleteConfirm
+        name={wallet.name}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={() => {
+          onArchive();
+          setConfirmOpen(false);
         }}
-        className={[
-          // UAT-PH5-T3-32: desktop-only (mobile reveal moved to swipe).
-          "hidden h-7 w-7 items-center justify-center rounded sm:flex",
-          "text-[var(--destructive)]",
-          "invisible group-hover:visible",
-          "cursor-pointer",
-        ].join(" ")}
-      >
-        <Trash2 className="h-4 w-4" aria-hidden="true" />
-      </button>
-    </div>
-
-    <WalletDeleteConfirm
-      name={wallet.name}
-      open={confirmOpen}
-      onOpenChange={setConfirmOpen}
-      onConfirm={() => {
-        onArchive();
-        setConfirmOpen(false);
-      }}
-    />
+      />
     </div>
   );
 }

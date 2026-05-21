@@ -17,10 +17,7 @@ import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
-import {
-  applyExpectedChange,
-  type ReserveRow,
-} from "@/lib/reserve-allocator";
+import { applyExpectedChange, type ReserveRow } from "@/lib/reserve-allocator";
 import type { ReservesSummaryDto } from "./use-reserves-summary";
 
 function summaryToRows(s: ReservesSummaryDto): ReserveRow[] {
@@ -59,7 +56,7 @@ function projectSummary(
   const sumActiveActual = activeRows.reduce((s, r) => s + r.actualCents, 0n);
   const totalExpected = activeRows.reduce((s, r) => s + r.expectedCents, 0n);
 
-  const projectedRows = base.rows.map((row, i) => {
+  const projectedRows = base.rows.map((row) => {
     const r = rows.find(
       (x) => x.categoryId === row.categoryId && !x.reserveExcluded,
     );

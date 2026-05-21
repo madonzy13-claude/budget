@@ -5,7 +5,7 @@
  * set revealed=true. T-04-03-05: any onMouseEnter/hover that reveals actions
  * is a security/UX violation.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useRevealActions } from "../../../src/components/budgeting/spendings-grid/reveal-actions";
 
@@ -33,7 +33,9 @@ describe("useRevealActions", () => {
     act(() => result.current.setRevealed(true));
     // Simulate pointerdown outside the ref (no element attached)
     act(() => {
-      document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      document.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      );
     });
     expect(result.current.revealed).toBe(false);
   });

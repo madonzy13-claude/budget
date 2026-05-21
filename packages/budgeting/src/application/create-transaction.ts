@@ -45,6 +45,8 @@ export interface CreateTransactionResult {
 
 export interface CreateTransactionDeps {
   transactionRepo: TransactionRepo;
+  /** Account/wallet repo, retained for back-compat wiring. Not consumed by the use case. */
+  accountRepo?: unknown;
   fxProvider: {
     rateAsOf(
       from: string,
@@ -52,14 +54,19 @@ export interface CreateTransactionDeps {
       date: Date,
     ): Promise<{ rate: string; provider: string; isStale: boolean }>;
   };
-  getBudgetCurrency(budgetId: string): Promise<string>;
+  /** Resolve the budget's display currency for FX conversion. */
+  getBudgetCurrency?(budgetId: string): Promise<string>;
+  /** Back-compat alias of {@link getBudgetCurrency}. Either may be supplied. */
+  getWorkspaceDefaultCurrency?(budgetId: string): Promise<string>;
 }
 
 export function createTransaction(deps: CreateTransactionDeps) {
   return async (
     input: CreateTransactionInput,
   ): Promise<Result<CreateTransactionResult, Error>> => {
-    const budgetCurrency = await deps.getBudgetCurrency(input.budgetId);
+    const budgetCurrency = await (
+      deps.getBudgetCurrency ?? deps.getWorkspaceDefaultCurrency!
+    )(input.budgetId);
 
     // D-PH2-09: negative amount → INCOME with positive storage
     const rawCents = input.amountOriginalCents;

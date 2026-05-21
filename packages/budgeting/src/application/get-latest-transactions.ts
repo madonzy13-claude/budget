@@ -21,7 +21,18 @@ export function getLatestTransactions(deps: GetLatestTransactionsDeps) {
     input: GetLatestTransactionsInput,
   ): Promise<Result<Transaction[], Error>> => {
     try {
-      const rows = await deps.transactionRepo.listLatest(input.tenantId, {
+      // listLatest is provided by the Drizzle adapter via a method not on the
+      // port interface (legacy). Use a structural cast until the port is widened.
+      const repo = deps.transactionRepo as unknown as {
+        listLatest: (
+          tenantId: string,
+          opts: {
+            limit: number;
+            before?: { transactionDate: string; id: string };
+          },
+        ) => Promise<Transaction[]>;
+      };
+      const rows = await repo.listLatest(input.tenantId, {
         limit: input.limit ?? 50,
         before: input.before,
       });

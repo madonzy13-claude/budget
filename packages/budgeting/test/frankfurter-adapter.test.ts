@@ -2,8 +2,11 @@
  * Unit tests for FrankfurterFxProvider (ENGR-09 ACL).
  * TDD RED: uses in-memory fake cache + mocked fetchFn.
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { FrankfurterFxProvider, NoFxRateAvailable } from "../src/adapters/fx/frankfurter";
+import { describe, test, expect, beforeEach } from "bun:test";
+import {
+  FrankfurterFxProvider,
+  NoFxRateAvailable,
+} from "../src/adapters/fx/frankfurter";
 import type { FxRateCacheRepo } from "../src/ports/fx-rate-cache-repo";
 
 // In-memory fake FxRateCacheRepo
@@ -15,7 +18,11 @@ class FakeFxRateCacheRepo implements FxRateCacheRepo {
     this.store.set(`${base}/${quote}/${date}`, { rate, date });
   }
 
-  setPrior(base: string, quote: string, result: { rate: string; date: string } | null) {
+  setPrior(
+    base: string,
+    quote: string,
+    result: { rate: string; date: string } | null,
+  ) {
     if (result) this.priors.set(`${base}/${quote}`, [result]);
     else this.priors.delete(`${base}/${quote}`);
   }
@@ -24,9 +31,21 @@ class FakeFxRateCacheRepo implements FxRateCacheRepo {
     return this.store.get(`${base}/${quote}/${date}`) ?? null;
   }
 
-  upsertCalls: Array<{ base: string; quote: string; date: string; rate: string; provider: string }> = [];
+  upsertCalls: Array<{
+    base: string;
+    quote: string;
+    date: string;
+    rate: string;
+    provider: string;
+  }> = [];
 
-  async upsert(base: string, quote: string, date: string, rate: string, provider: string) {
+  async upsert(
+    base: string,
+    quote: string,
+    date: string,
+    rate: string,
+    provider: string,
+  ) {
     this.store.set(`${base}/${quote}/${date}`, { rate, date });
     this.upsertCalls.push({ base, quote, date, rate, provider });
   }
@@ -63,7 +82,10 @@ beforeEach(() => {
 describe("FrankfurterFxProvider", () => {
   test("same currency: returns rate=1 immediately without fetch", async () => {
     let fetchCalled = false;
-    const fetchFn = async () => { fetchCalled = true; return {} as Response; };
+    const fetchFn = async () => {
+      fetchCalled = true;
+      return {} as Response;
+    };
     const provider = new FrankfurterFxProvider(cache, fetchFn as typeof fetch);
     const result = await provider.rateAsOf("USD", "USD", TODAY);
     expect(result.rate).toBe("1");
@@ -86,9 +108,13 @@ describe("FrankfurterFxProvider", () => {
     // Simulate: cache has the entry but at an older date
     // Override lookup to return a stale result
     const staleCache: FxRateCacheRepo = {
-      async lookup(_b, _q, _d) { return { rate: "0.85", date: "2026-05-07" }; },
+      async lookup(_b, _q, _d) {
+        return { rate: "0.85", date: "2026-05-07" };
+      },
       async upsert() {},
-      async mostRecentPrior() { return null; },
+      async mostRecentPrior() {
+        return null;
+      },
     };
     const provider = new FrankfurterFxProvider(staleCache, makeFailingFetch());
     const result = await provider.rateAsOf("USD", "EUR", TODAY);
@@ -129,7 +155,9 @@ describe("FrankfurterFxProvider", () => {
 
   test("live failure → fallback miss: throws NoFxRateAvailable", async () => {
     const provider = new FrankfurterFxProvider(cache, makeFailingFetch());
-    await expect(provider.rateAsOf("USD", "EUR", TODAY)).rejects.toBeInstanceOf(NoFxRateAvailable);
+    await expect(provider.rateAsOf("USD", "EUR", TODAY)).rejects.toBeInstanceOf(
+      NoFxRateAvailable,
+    );
   });
 
   test("ACL boundary: result.rate is always string, never number", async () => {

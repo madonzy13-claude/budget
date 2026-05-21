@@ -367,7 +367,8 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     if (!tenantIds || !tenantIds.includes(budgetId))
       return c.json({ error: "not_found" }, 404);
 
-    const userId = (c.get("userId") as string) ?? (session as any)?.user?.id;
+    const userId =
+      ((c as any).get("userId") as string) ?? (session as any)?.user?.id;
     const categoryId = c.req.param("categoryId");
 
     const body = await c.req.json().catch(() => null);
