@@ -19,6 +19,7 @@ COPY apps/worker/package.json ./apps/worker/
 COPY apps/migrator/package.json ./apps/migrator/
 
 # Install all dependencies
+ENV CI=""
 RUN bun install --no-save
 
 # Stage 2: Build
