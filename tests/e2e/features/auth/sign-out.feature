@@ -13,7 +13,7 @@ Feature: Sign Out
   Scenario: After sign-out protected routes redirect to sign-in
     Given a fresh verified user in "en"
     When I click the sign-out button
-    And I navigate to "/en/workspaces"
+    And I navigate to "/en/budgets"
     Then I am redirected to a sign-in page
 
   Scenario: Sign-out button hidden on unauthenticated routes
