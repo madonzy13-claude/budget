@@ -9,7 +9,7 @@ FROM oven/bun:1.3.12-slim AS installer
 WORKDIR /app
 
 # Copy workspace manifests first (cache layer)
-COPY package.json bun.lock* ./
+COPY package.json ./
 COPY tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/ ./packages/
@@ -19,7 +19,6 @@ COPY apps/worker/package.json ./apps/worker/
 COPY apps/migrator/package.json ./apps/migrator/
 
 # Install all dependencies
-ENV CI=""
 RUN bun install --no-save
 
 # Stage 2: Build

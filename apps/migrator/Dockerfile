@@ -1,7 +1,7 @@
 # Stage 1: install workspace dependencies
 FROM oven/bun:1.3.12-slim AS deps
 WORKDIR /app
-COPY package.json bun.lock ./
+COPY package.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
@@ -13,7 +13,6 @@ COPY packages/platform/package.json packages/platform/
 COPY packages/shared-kernel/package.json packages/shared-kernel/
 COPY packages/tenancy/package.json packages/tenancy/
 COPY packages/budgeting/package.json packages/budgeting/
-ENV CI=""
 RUN bun install --no-save --production
 # Strip dev-only transitive deps that ship Go binaries (esbuild / vite /
 # vitest / playwright) — bun --production keeps them in workspace mode.
