@@ -652,9 +652,9 @@ async function seedMonthlyRule(
     // v1.1: rules are categorical. Resolve {budgetId,categoryId} via the active
     // budget stored in scenarioCtx (set by the workspace bootstrap step).
     budgetId =
-      ((scenarioCtx as Record<string, unknown> | undefined)?.[
-        "workspaceId"
-      ] as string | undefined) ??
+      ((scenarioCtx as Record<string, unknown> | undefined)?.["workspaceId"] as
+        | string
+        | undefined) ??
       ((scenarioCtx as Record<string, unknown> | undefined)?.[
         "activeBudgetId"
       ] as string | undefined);
@@ -960,32 +960,8 @@ When("I search transactions for {string}", async ({ page }, query: string) => {
   }
 });
 
-When(
-  "I bulk re-categorize all {string} transactions to {string}",
-  async ({ page }, fromCategoryName: string, toCategoryName: string) => {
-    // API-driven bulk recategorize; the UI shell exists but full select-by-row is out of
-    // scope for this scenario — we exercise the contract end-to-end (Plan 02-09 EXPN-10).
-    const fromId = await findCategoryId(page, fromCategoryName);
-    const toId = await findCategoryId(page, toCategoryName);
-    const txRes = await page.request.get(
-      `/api/transactions?categoryIds=${encodeURIComponent(fromId)}`,
-    );
-    const txData = txRes.ok()
-      ? ((await txRes.json()) as {
-          transactions?: Array<{ id: string }>;
-          rows?: Array<{ id: string }>;
-        })
-      : { transactions: [] };
-    const rows = txData.transactions ?? txData.rows ?? [];
-    const ids = rows.map((r) => r.id);
-    expect(ids.length).toBeGreaterThan(0);
-    const res = await page.request.post("/api/transactions/bulk-recategorize", {
-      headers: { "Idempotency-Key": crypto.randomUUID() },
-      data: { transactionIds: ids, newCategoryId: toId },
-    });
-    expect([200, 409].includes(res.status())).toBeTruthy();
-  },
-);
+// "I bulk re-categorize all ..." moved to spendings.steps.ts (v1.1 variant
+// uses scenarioCtx-scoped budgetId + X-Budget-ID header).
 
 Then(
   "I see {int} transactions with the {string} badge",
@@ -1017,11 +993,7 @@ interface ShareOverridesApiCallState {
 
 When(
   "I PUT category share overrides for {string} with shares summing to {int}",
-  async (
-    { page, scenarioCtx },
-    categoryName: string,
-    sumPercent: number,
-  ) => {
+  async ({ page, scenarioCtx }, categoryName: string, sumPercent: number) => {
     const ctx = scenarioCtx as Record<string, unknown>;
     const budgetId =
       (ctx["workspaceId"] as string | undefined) ??

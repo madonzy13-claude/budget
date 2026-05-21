@@ -697,11 +697,7 @@ Then(
 
 When(
   "I bulk re-categorize all {string} transactions to {string}",
-  async (
-    { page, scenarioCtx },
-    fromCatName: string,
-    toCatName: string,
-  ) => {
+  async ({ page, scenarioCtx }, fromCatName: string, toCatName: string) => {
     const budgetId =
       ((scenarioCtx as Record<string, unknown>)["activeBudgetId"] as
         | string
@@ -732,18 +728,18 @@ When(
     const ids = (txData.transactions ?? txData.rows ?? txData.data ?? []).map(
       (r) => r.id,
     );
-    expect(ids.length, "expected at least one source transaction").toBeGreaterThan(0);
+    expect(
+      ids.length,
+      "expected at least one source transaction",
+    ).toBeGreaterThan(0);
 
-    const res = await page.request.post(
-      "/api/transactions/bulk-recategorize",
-      {
-        headers: {
-          "Idempotency-Key": crypto.randomUUID(),
-          "X-Budget-ID": budgetId,
-        },
-        data: { transactionIds: ids, newCategoryId: toId },
+    const res = await page.request.post("/api/transactions/bulk-recategorize", {
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+        "X-Budget-ID": budgetId,
       },
-    );
+      data: { transactionIds: ids, newCategoryId: toId },
+    });
     expect(
       [200, 201, 204, 409].includes(res.status()),
       `bulk-recategorize unexpected status ${res.status()}: ${await res.text()}`,
@@ -772,7 +768,9 @@ Then(
     );
     if (await colHeader.count()) {
       const insideColumn = colHeader
-        .locator("xpath=ancestor::*[contains(@data-testid,'category-column')][1]")
+        .locator(
+          "xpath=ancestor::*[contains(@data-testid,'category-column')][1]",
+        )
         .locator(`[data-testid="txn-row-${cents}"]`);
       await expect(insideColumn).toHaveCount(0);
     } else {
@@ -939,7 +937,7 @@ Then(
 
 Then(
   "I see the inline-edit input on column {string} planned cell",
-  async ({ page }, catName: string) => {
+  async ({ page: _page }, catName: string) => {
     // TODO(phase-05-debt): the planned-value double-click → inline-edit input
     // is not wired in the current v1.1 ColumnHeader (D-PH4-INT4 currently
     // preventDefaults double-click on every cell, including planned). This
