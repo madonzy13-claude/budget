@@ -35,6 +35,7 @@ import { createTasksRoute } from "./routes/tasks";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import { createShareJoinRoute } from "./routes/share-join";
 import { createSpendingsSummaryRoute } from "./routes/spendings-summary";
+import { budgetMembersRoutesFactory } from "./routes/budget-members";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -69,6 +70,9 @@ export function createApp(deps: BootedDeps) {
   app.use("/budgets/*", requireAuth);
   app.use("/currencies/*", requireAuth);
   app.use("/settings/*", requireAuth);
+  // SETT-05/07: budget members sub-router mounted BEFORE budgetsRoutesFactory
+  // so /:id/members is not swallowed by the /:id param handler in budgetsRoutesFactory.
+  app.route("/budgets", budgetMembersRoutesFactory(deps));
   app.route("/budgets", budgetsRoutesFactory(deps));
   // BDP-03: tasks sub-router mounted under /budgets/:budgetId/tasks. The
   // /budgets/* requireAuth fence above already covers this prefix; the route
