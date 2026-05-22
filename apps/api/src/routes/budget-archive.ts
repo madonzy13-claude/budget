@@ -19,6 +19,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { BootedDeps } from "../boot";
+import { UserId } from "@budget/shared-kernel";
 
 type ArchiveDeps = Pick<BootedDeps, "tenancy" | "identity">;
 
@@ -64,6 +65,21 @@ export function budgetArchiveRoutesFactory(deps: ArchiveDeps) {
       budgetId,
       session.user.id,
     );
+
+    // WR-02: remove archived budget from the caller's active_workspace_ids so
+    // subsequent requests don't still include it in tenantIds.
+    try {
+      const uid = UserId(session.user.id);
+      const currentIds =
+        await deps.identity.userRepo.getActiveWorkspaceIds(uid);
+      const updatedIds = currentIds.filter((id) => id !== budgetId);
+      if (updatedIds.length !== currentIds.length) {
+        await deps.identity.userRepo.setActiveWorkspaceIds(uid, updatedIds);
+      }
+    } catch (e) {
+      // best-effort — tenantGuard now also enforces archived_at IS NULL as primary guard
+      console.error("[archive] failed to remove from active_workspace_ids:", e);
+    }
 
     return c.json({ ok: true, archivedAt: result.archivedAt }, 200);
   });
