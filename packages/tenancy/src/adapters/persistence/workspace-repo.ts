@@ -74,6 +74,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         FROM tenancy.budgets w
         INNER JOIN tenancy.budget_members m ON m.budget_id = w.id
         WHERE m.user_id = ${userId}
+          AND w.archived_at IS NULL
       `);
       return result.rows;
     });
@@ -150,6 +151,38 @@ export class DrizzleBudgetRepo implements BudgetRepo {
     });
     if (r.isErr()) throw r.error;
     return r.value;
+  }
+
+  /** D-09 / SETT-08: soft-delete — sets archived_at = now(). One-way in v1.1. */
+  async archive(
+    budgetId: string,
+    actorUserId: string,
+  ): Promise<{ archivedAt: string }> {
+    const tid = TenantId(budgetId);
+    const uid = UserId(actorUserId);
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      const res = await tx.execute<{ archived_at: Date }>(sql`
+        UPDATE tenancy.budgets
+           SET archived_at = now()
+         WHERE id = ${budgetId}::uuid
+         RETURNING archived_at
+      `);
+      return res.rows[0]?.archived_at ?? new Date();
+    });
+    if (r.isErr()) throw r.error;
+    return { archivedAt: r.value.toISOString() };
+  }
+
+  /** SETT-08: hard-delete — removes the budget row; cascades to child tables. */
+  async hardDelete(budgetId: string, actorUserId: string): Promise<void> {
+    const tid = TenantId(budgetId);
+    const uid = UserId(actorUserId);
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      await tx.execute(
+        sql`DELETE FROM tenancy.budgets WHERE id = ${budgetId}::uuid`,
+      );
+    });
+    if (r.isErr()) throw r.error;
   }
 }
 

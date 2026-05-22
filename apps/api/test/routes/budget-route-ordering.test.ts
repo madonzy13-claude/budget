@@ -19,24 +19,49 @@ describe("Budget route ordering regression (/:id sub-paths not swallowed)", () =
       await next();
     });
 
-    // Try to load all route factories — RED until Plans 06-02/03/04 implement them
-    try {
-      const { budgetsRoutesFactory } = require("../../src/routes/budgets");
-      app.route("/budgets", budgetsRoutesFactory({ tenancy: {}, identity: {} } as any));
-    } catch {
-      // base routes not yet mounted
-    }
+    // Minimal mock deps — enough to satisfy the owner-gate and archive/delete handlers
+    const mockDeps = {
+      tenancy: {
+        workspaceRepo: {
+          listMembers: async () => [
+            { userId: "user-001", role: "owner" },
+          ],
+          findById: async () => ({ name: "My Budget" }),
+          archive: async () => ({ archivedAt: new Date().toISOString() }),
+          hardDelete: async () => {},
+          listForUser: async () => [],
+          updateIdentity: async () => {},
+          hasTransactions: async () => false,
+        },
+      },
+      identity: {
+        auth: {
+          api: {
+            removeMember: async () => ({}),
+          },
+        },
+      },
+    } as any;
+
+    // Sub-path routes MUST be mounted BEFORE the catch-all /:id in budgetsRoutesFactory
+    // (mirrors the order in app.ts — this ordering test enforces that invariant)
     try {
       const { budgetMembersRoutesFactory } = require("../../src/routes/budget-members");
-      app.route("/budgets", budgetMembersRoutesFactory({ tenancy: {}, identity: {} } as any));
+      app.route("/budgets", budgetMembersRoutesFactory(mockDeps));
     } catch {
       // members routes not yet implemented
     }
     try {
       const { budgetArchiveRoutesFactory } = require("../../src/routes/budget-archive");
-      app.route("/budgets", budgetArchiveRoutesFactory({ tenancy: {}, identity: {} } as any));
+      app.route("/budgets", budgetArchiveRoutesFactory(mockDeps));
     } catch {
       // archive/delete routes not yet implemented
+    }
+    try {
+      const { budgetsRoutesFactory } = require("../../src/routes/budgets");
+      app.route("/budgets", budgetsRoutesFactory(mockDeps));
+    } catch {
+      // base routes not yet mounted
     }
 
     return app;

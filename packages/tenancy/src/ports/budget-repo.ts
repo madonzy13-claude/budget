@@ -13,4 +13,11 @@ export interface BudgetRepo {
     actorUserId: string,
   ): Promise<void>;
   hasTransactions(budgetId: string): Promise<boolean>;
+  /** Soft-delete: sets archived_at = now(). One-way in v1.1 — no unarchive. */
+  archive(
+    budgetId: string,
+    actorUserId: string,
+  ): Promise<{ archivedAt: string }>;
+  /** Hard-delete: removes the row (and cascades to child tables). */
+  hardDelete(budgetId: string, actorUserId: string): Promise<void>;
 }
