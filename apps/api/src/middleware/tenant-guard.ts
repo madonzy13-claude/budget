@@ -56,8 +56,10 @@ function buildTenantGuard(bootstrapFn: BootstrapFn): MiddlewareHandler {
         sql.raw(`
           SELECT bm.budget_id::text AS id
             FROM tenancy.budget_members bm
+            JOIN tenancy.budgets b ON b.id = bm.budget_id
            WHERE bm.user_id = '${String(userId)}'
              AND bm.budget_id = '${requestedBudgetId.replace(/[^a-fA-F0-9-]/g, "")}'
+             AND b.archived_at IS NULL
            LIMIT 1
         `),
       );
