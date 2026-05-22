@@ -29,9 +29,9 @@ export function onboardingRoutesFactory(deps: OnboardingDeps) {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
-    const repo = (deps.tenancy as any).onboardingProgressRepo;
+    const repo = deps.tenancy.onboardingProgressRepo;
     if (!repo) {
-      // Fallback for tests with minimal mock
+      // Fallback for tests with minimal mock (repo absent = pre-migration state)
       return c.json({ step: 1, completedAt: null }, 200);
     }
 
@@ -54,7 +54,7 @@ export function onboardingRoutesFactory(deps: OnboardingDeps) {
     // T-06-04-03: ALWAYS use session.user.id — never read user_id from body
     const userId = session.user.id;
 
-    const repo = (deps.tenancy as any).onboardingProgressRepo;
+    const repo = deps.tenancy.onboardingProgressRepo;
     if (repo) {
       await repo.upsert(userId, body.step, body.completedAt ?? null);
     }
