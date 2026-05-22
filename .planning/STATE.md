@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-05-22T14:21:05.331Z"
-last_activity: 2026-05-22 -- Phase 6 planning complete
+stopped_at: "Completed Phase 6 Plan 01 — Wave 0 foundation: onboarding_progress table + budgets.archived_at + Radix primitives + all Wave 0 test scaffolds"
+last_updated: "2026-05-22T15:27:50.976Z"
+last_activity: 2026-05-22
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 38
-  completed_plans: 30
-  percent: 79
+  completed_plans: 31
+  percent: 82
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 05 — reserves-wallets-tabs
+**Current focus:** Phase 6 — settings-onboarding-share-ui
 
 ## Current Position
 
-Phase: 05 — COMPLETE
-Plan: 8 of 8
+Phase: 6 (settings-onboarding-share-ui) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-05-22 -- Phase 6 planning complete
+Last activity: 2026-05-22
 
 ## Phase 3 Plans
 
@@ -166,6 +166,12 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Function ownership fix needed for dev DB (postgres-owned functions from prior superuser post-migration.sql run); fresh DB (CI) creates correctly
 - make ci-gate coverage threshold failure is pre-existing (tenant-leak transitive imports pull uncovered packages); 25/25 security tests pass
 
+### Plan 06-01 Decisions (recorded 2026-05-22, execution)
+
+- D-06/ONBD-07: onboarding_progress is USER-SCOPED (app.current_user_id), not TENANT-SCOPED — one row per user, not per budget; pgPolicy predicate uses nullif(current_setting('app.current_user_id', true), '')::uuid
+- shadcn new-york uses unified radix-ui ^1.4.3 package; accordion.tsx and switch.tsx import from 'radix-ui' directly (not @radix-ui/react-\* sub-packages); this is the current shadcn convention
+- drizzle-kit BigInt serialization bug blocks npx drizzle-kit generate — hand-authored migration 0024 following Phases 1/5 precedent; journal entry registered manually
+
 ### Blockers/Concerns
 
 - None blocking; roadmap is approved and dependency graph is clean
@@ -185,9 +191,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-05-22T13:38:58.470Z
+Last session: 2026-05-22T15:27:50.952Z
 Stopped at: Phase 6 UI-SPEC approved
-Resume file: .planning/phases/06-settings-onboarding-share-ui/06-UI-SPEC.md
+Resume file: None
 
 ## v1.0 History (archived)
 
