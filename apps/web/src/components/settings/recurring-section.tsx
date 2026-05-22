@@ -8,6 +8,7 @@
  * Reuses Phase 4 components verbatim — not forked.
  */
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,10 +29,31 @@ export interface RecurringSectionProps {
   rules?: RecurringRuleListItem[];
 }
 
-export function RecurringSection({ rules = [] }: RecurringSectionProps) {
+export function RecurringSection({
+  budgetId,
+  rules: initialRules = [],
+}: RecurringSectionProps) {
   const t = useTranslations("settings");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editRuleId, setEditRuleId] = useState<string | null>(null);
+
+  const { data: fetchedRules } = useQuery<RecurringRuleListItem[]>({
+    queryKey: ["recurring-rules", budgetId],
+    queryFn: async () => {
+      if (!budgetId) return initialRules;
+      const res = await fetch(`/api/budgets/${budgetId}/recurring-rules`, {
+        credentials: "include",
+        headers: { "X-Budget-ID": budgetId },
+      });
+      if (!res.ok) return initialRules;
+      const data = (await res.json()) as { rules?: RecurringRuleListItem[] };
+      return data.rules ?? [];
+    },
+    enabled: !!budgetId,
+    initialData: initialRules,
+  });
+
+  const rules = fetchedRules ?? initialRules;
 
   const handleEdit = (id: string) => {
     setEditRuleId(id);
