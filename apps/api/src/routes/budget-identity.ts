@@ -81,6 +81,19 @@ export function budgetIdentityRoutesFactory(
     const body = c.req.valid("json");
     const actorUserId = (session as { user: { id: string } }).user.id;
 
+    // T-06-02-00: owner-only gate — non-owner members may not mutate budget identity
+    let patchMembers: { userId: string; role: string }[];
+    try {
+      patchMembers = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+    } catch (e) {
+      console.error("[budget-identity] listMembers failed:", e);
+      return c.json({ error: "internal" }, 500);
+    }
+    const callerEntry = patchMembers.find((m) => m.userId === actorUserId);
+    if (!callerEntry) return c.json({ error: "not_found" }, 404);
+    if (callerEntry.role !== "owner")
+      return c.json({ error: "forbidden" }, 403);
+
     // T-06-02-01: currency lock — reject if budget already has transactions
     if (body.default_currency !== undefined) {
       const hasTx = await deps.tenancy.workspaceRepo.hasTransactions(budgetId);
@@ -109,7 +122,7 @@ export function budgetIdentityRoutesFactory(
           return c.json({ error: "currency_locked" }, 409);
         }
         console.error("[budget-identity] updateIdentity failed:", msg);
-        return c.json({ error: msg }, 422);
+        return c.json({ error: "update_failed" }, 422);
       }
     }
 
