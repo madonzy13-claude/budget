@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS tenancy.onboarding_progress (
 
 -- RLS policy: owner-only access keyed by app.current_user_id (USER-SCOPED, not tenant-scoped)
 ALTER TABLE tenancy.onboarding_progress ENABLE ROW LEVEL SECURITY;
+-- FORCE RLS so the table owner (migrator role) also passes through policies.
+-- Without FORCE, the migrator connection bypasses all RLS predicates.
+-- Co-located here (not only in post-migration.sql) so a manual migration replay is always safe.
+ALTER TABLE tenancy.onboarding_progress FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS onboarding_progress_owner_only ON tenancy.onboarding_progress;
 CREATE POLICY onboarding_progress_owner_only ON tenancy.onboarding_progress
