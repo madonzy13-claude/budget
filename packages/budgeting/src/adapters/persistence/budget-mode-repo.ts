@@ -94,6 +94,14 @@ export class DrizzleBudgetModeRepo implements BudgetModeRepo {
         },
       });
 
+      // Sync tenancy.budgets.cushion_mode_enabled in the same tx so the boolean
+      // never diverges from the SCD-2 history (T-06-02-03 mitigation).
+      await tx.execute(sql`
+        UPDATE tenancy.budgets
+           SET cushion_mode_enabled = ${input.mode === "CUSHION"}
+         WHERE id = ${input.workspaceId}::uuid
+      `);
+
       // Fetch the final state to return
       const final = await tx.execute<{
         id: string;

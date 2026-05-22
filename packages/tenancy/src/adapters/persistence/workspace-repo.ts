@@ -113,6 +113,44 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       joinedAt: row.created_at,
     }));
   }
+
+  async updateIdentity(
+    budgetId: string,
+    patch: { name?: string; defaultCurrency?: string },
+    actorUserId: string,
+  ): Promise<void> {
+    const tid = TenantId(budgetId);
+    const uid = UserId(actorUserId);
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      if (patch.name !== undefined) {
+        await tx.execute(
+          sql`UPDATE tenancy.budgets SET name = ${patch.name} WHERE id = ${budgetId}::uuid`,
+        );
+      }
+      if (patch.defaultCurrency !== undefined) {
+        await tx.execute(
+          sql`UPDATE tenancy.budgets SET default_currency = ${patch.defaultCurrency} WHERE id = ${budgetId}::uuid`,
+        );
+      }
+    });
+    if (r.isErr()) throw r.error;
+  }
+
+  async hasTransactions(budgetId: string): Promise<boolean> {
+    // withInfraTx: infrastructure carve-out — exists query runs in service context,
+    // not user request context (same pattern as findById).
+    const r = await withInfraTx(async (tx) => {
+      const res = await tx.execute<{ exists: boolean }>(sql`
+        SELECT EXISTS(
+          SELECT 1 FROM budgeting.transactions
+          WHERE budget_id = ${budgetId}::uuid AND deleted_at IS NULL
+        ) AS exists
+      `);
+      return res.rows[0]?.exists ?? false;
+    });
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
 }
 
 // Backward-compat alias
