@@ -104,7 +104,13 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             budgetId={budget.id}
             budgetName={budget.name}
             isOwner={isOwner}
-            isLastOwner={isOwner && budget.kind === "PRIVATE"}
+            // WR-06: PRIVATE budgets always have exactly one owner; SHARED budgets
+            // may also have a single owner. We conservatively mark any owner as
+            // potential last-owner — the server's 409 is the authoritative guard.
+            // handleLeave in DangerZoneSection catches the 409 and shows the tooltip msg.
+            isLastOwner={
+              isOwner && (budget.kind === "PRIVATE" || budget.memberCount <= 1)
+            }
           />
         </AccordionContent>
       </AccordionItem>

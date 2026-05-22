@@ -90,6 +90,11 @@ export function DangerZoneSection({
       const res = await api.budgets[":id"].leave.$post({
         param: { id: budgetId },
       });
+      if (res.status === 409) {
+        // last_owner — cannot leave; surface friendly message instead of generic error
+        toast.error(t("danger.last_owner_tooltip"));
+        return;
+      }
       if (!res.ok) throw new Error("Failed to leave budget");
       toast.success(t("danger.left_toast"));
       router.push("/");
