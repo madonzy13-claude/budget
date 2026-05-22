@@ -94,15 +94,21 @@ export class DrizzleBudgetRepo implements BudgetRepo {
 
   async listMembers(budgetId: string): Promise<MemberDTO[]> {
     // withInfraTx: infrastructure carve-out for listing members.
+    // JOIN identity.users to include name/email for display in the members section (WR-05).
     const r = await withInfraTx(async (tx) => {
       const result = await tx.execute<{
         budget_id: string;
         user_id: string;
         role: string;
         created_at: Date;
+        name: string | null;
+        email: string | null;
       }>(
-        sql`SELECT budget_id, user_id, role, created_at
-            FROM tenancy.budget_members WHERE budget_id = ${budgetId}`,
+        sql`SELECT bm.budget_id, bm.user_id, bm.role, bm.created_at,
+                   u.name, u.email
+            FROM tenancy.budget_members bm
+            LEFT JOIN identity.users u ON u.id = bm.user_id
+            WHERE bm.budget_id = ${budgetId}`,
       );
       return result.rows;
     });
@@ -112,6 +118,8 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       userId: row.user_id,
       role: row.role as "owner" | "member",
       joinedAt: row.created_at,
+      name: row.name ?? undefined,
+      email: row.email ?? undefined,
     }));
   }
 

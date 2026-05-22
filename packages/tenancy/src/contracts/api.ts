@@ -19,6 +19,10 @@ export interface MemberDTO {
   userId: string;
   role: "owner" | "member";
   joinedAt: Date;
+  /** Display name from identity.users — undefined if row missing */
+  name?: string;
+  /** Email from identity.users — undefined if row missing */
+  email?: string;
 }
 
 export interface MemberShareDTO {
