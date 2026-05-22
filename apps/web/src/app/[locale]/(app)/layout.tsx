@@ -56,8 +56,9 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           step?: number;
           completedAt?: string | null;
         };
-        // Only redirect when onboarding is genuinely incomplete (completed_at is null)
-        if (!progress.completedAt) {
+        // Only redirect when onboarding is genuinely incomplete (completed_at is strictly null).
+        // undefined means malformed/absent response — treat as safe, no redirect.
+        if (progress.completedAt === null) {
           const savedStep = progress.step ?? 1;
           redirect(`/${locale}/budgets/new?step=${savedStep}`);
         }
