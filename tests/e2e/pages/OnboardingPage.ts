@@ -7,7 +7,7 @@
  *
  * Steps: 1=name, 2=currency, 3=type, 4=categories, 5=review.
  */
-import { type Page, type Locator, expect } from "@playwright/test";
+import { type Page, type Locator } from "@playwright/test";
 
 export class OnboardingPage {
   constructor(private readonly page: Page) {}
@@ -57,7 +57,10 @@ export class OnboardingPage {
     if (await search.isVisible({ timeout: 3000 })) {
       await search.fill(code);
     }
-    await this.page.getByRole("option", { name: new RegExp(code, "i") }).first().click();
+    await this.page
+      .getByRole("option", { name: new RegExp(code, "i") })
+      .first()
+      .click();
   }
 
   // ── Step 3: Budget type ─────────────────────────────────────────────────────
@@ -70,7 +73,9 @@ export class OnboardingPage {
   // ── Step 4: Categories ──────────────────────────────────────────────────────
 
   categoryItem(name: string | RegExp): Locator {
-    return this.page.getByTestId("wizard-category-item").filter({ hasText: name });
+    return this.page
+      .getByTestId("wizard-category-item")
+      .filter({ hasText: name });
   }
 
   async toggleCategory(name: string | RegExp): Promise<void> {

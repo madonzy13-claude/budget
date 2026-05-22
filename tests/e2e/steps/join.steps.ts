@@ -7,7 +7,7 @@
  * "an unauthenticated user visits the share link" uses a fresh browser context
  * (no auth cookies) to verify the page renders without bouncing to sign-in.
  */
-import { expect, request } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import { test } from "../fixtures/index.js";
 import { JoinPage } from "../pages/JoinPage.js";
@@ -83,13 +83,16 @@ Given(
 
 // ── When steps ─────────────────────────────────────────────────────────────────
 
-When("an unauthenticated user visits the share link", async ({ page, scenarioCtx }) => {
-  const token = getShareToken(scenarioCtx as Record<string, unknown>);
-  // Clear cookies to simulate unauthenticated state
-  await page.context().clearCookies();
-  const joinPage = new JoinPage(page);
-  await joinPage.open("en", token);
-});
+When(
+  "an unauthenticated user visits the share link",
+  async ({ page, scenarioCtx }) => {
+    const token = getShareToken(scenarioCtx as Record<string, unknown>);
+    // Clear cookies to simulate unauthenticated state
+    await page.context().clearCookies();
+    const joinPage = new JoinPage(page);
+    await joinPage.open("en", token);
+  },
+);
 
 When("I visit the share link", async ({ page, scenarioCtx }) => {
   const token = getShareToken(scenarioCtx as Record<string, unknown>);
@@ -112,14 +115,11 @@ Then("they see the join page card", async ({ page }) => {
   await expect(page).not.toHaveURL(/\/sign-in/);
 });
 
-Then(
-  "they see the {string} button",
-  async ({ page }, label: string) => {
-    await expect(
-      page.getByRole("button", { name: new RegExp(label, "i") }),
-    ).toBeVisible({ timeout: 10000 });
-  },
-);
+Then("they see the {string} button", async ({ page }, label: string) => {
+  await expect(
+    page.getByRole("button", { name: new RegExp(label, "i") }),
+  ).toBeVisible({ timeout: 10000 });
+});
 
 Then(
   "I see the join page card with the budget name {string}",
@@ -132,14 +132,11 @@ Then(
   },
 );
 
-Then(
-  "I see the {string} button",
-  async ({ page }, label: string) => {
-    await expect(
-      page.getByRole("button", { name: new RegExp(label, "i") }),
-    ).toBeVisible({ timeout: 10000 });
-  },
-);
+Then("I see the {string} button", async ({ page }, label: string) => {
+  await expect(
+    page.getByRole("button", { name: new RegExp(label, "i") }),
+  ).toBeVisible({ timeout: 10000 });
+});
 
 Then(
   "I land on the spendings tab for {string}",
