@@ -158,7 +158,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] 06-01-PLAN.md — Wave 1: onboarding_progress schema + budgets.archived_at + [BLOCKING] migration + ci-gate allowlist + shadcn accordion/switch + 4 Wave 0 test scaffolds (SETT-08, ONBD-07)
 - [x] 06-02-PLAN.md — Wave 2: PATCH /budgets/:id (identity + unified cushion-flag write path) + hasTransactions on GET /:id (SETT-02, SETT-03)
-- [ ] 06-03-PLAN.md — Wave 2: GET members + owner-only revoke-member + share/leave regression tests (SETT-05, SETT-06, SETT-07)
+- [x] 06-03-PLAN.md — Wave 2: GET members + owner-only revoke-member + share/leave regression tests (SETT-05, SETT-06, SETT-07)
 - [ ] 06-04-PLAN.md — Wave 2: POST /:id/archive + POST /:id/delete (typed-name) + onboarding_progress GET/PUT route (SETT-08, ONBD-07)
 - [ ] 06-05-PLAN.md — Wave 3: Settings tab 5-section accordion (identity/cushion/recurring/members/danger) + retire /recurring (SETT-01..09)
 - [ ] 06-06-PLAN.md — Wave 3: 5-step onboarding wizard at /budgets/new + force-redirect guard + retire /onboarding (ONBD-01..06, 08, 09)
@@ -251,7 +251,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
 | 4. Spendings Grid                           | 0/TBD          | Not started | -          |
 | 5. Reserves & Wallets Tabs                  | 8/8            | Complete    | 2026-05-17 |
-| 6. Settings, Onboarding & Share UI          | 2/8            | In Progress |            |
+| 6. Settings, Onboarding & Share UI          | 3/8            | In Progress |            |
 | 7. Tasks Queue                              | 0/TBD          | Not started | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |
 
