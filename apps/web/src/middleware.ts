@@ -7,6 +7,9 @@ const intlMiddleware = createMiddleware(routing);
 const LOCALES = ["en", "pl", "uk"];
 const AUTH_ROUTES = ["/sign-in", "/sign-up"];
 const PROTECTED_ROUTES = ["/onboarding", "/budgets", "/settings"];
+// Public share-link recipient view (SHRD-04). The token is the credential;
+// the view step needs no session. The accept POST is auth-gated server-side.
+const PUBLIC_BUDGET_PATHS = ["/budgets/join/"];
 const SESSION_COOKIE = "better-auth.session_token";
 // Holds the signed-in user's account locale (set on sign-in + by Settings,
 // kept in sync by LocaleCookieSync). Logged-in users are redirected so the
@@ -72,7 +75,12 @@ export default function middleware(request: NextRequest) {
   }
 
   // Unauthenticated → redirect away from protected pages
-  if (!isAuthenticated && PROTECTED_ROUTES.some((r) => bare.startsWith(r))) {
+  // Exception: /budgets/join/* is public (token IS the credential — SHRD-04)
+  if (
+    !isAuthenticated &&
+    PROTECTED_ROUTES.some((r) => bare.startsWith(r)) &&
+    !PUBLIC_BUDGET_PATHS.some((p) => bare.startsWith(p))
+  ) {
     return NextResponse.redirect(new URL(`/${locale}/sign-in`, request.url));
   }
 
