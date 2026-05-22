@@ -78,7 +78,7 @@ export function DangerZoneSection({
       if (!res.ok) throw new Error("Failed to delete budget");
       toast.success(t("danger.deleted_toast"));
       router.push("/");
-    } catch (err) {
+    } catch {
       if (!deleteError) {
         toast.error(t("danger.delete_error"));
       }
@@ -118,13 +118,17 @@ export function DangerZoneSection({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t("danger.archive_dialog_title")}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("danger.archive_dialog_title")}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   {t("danger.archive_dialog_body")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>{t("danger.archive_cancel")}</AlertDialogCancel>
+                <AlertDialogCancel>
+                  {t("danger.archive_cancel")}
+                </AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-[var(--trading-down)] text-white hover:bg-[var(--trading-down)]/90"
                   onClick={handleArchive}
@@ -147,7 +151,9 @@ export function DangerZoneSection({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t("danger.delete_dialog_title")}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("danger.delete_dialog_title")}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   {t("danger.delete_dialog_body")}
                 </AlertDialogDescription>
@@ -226,7 +232,9 @@ export function DangerZoneSection({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>{t("danger.leave_cancel")}</AlertDialogCancel>
+                  <AlertDialogCancel>
+                    {t("danger.leave_cancel")}
+                  </AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-[var(--trading-down)] text-white hover:bg-[var(--trading-down)]/90"
                     onClick={handleLeave}

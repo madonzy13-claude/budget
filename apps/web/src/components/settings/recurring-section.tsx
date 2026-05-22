@@ -24,11 +24,11 @@ import {
 import { RecurringRuleForm } from "@/components/budgeting/recurring-rule-form";
 
 export interface RecurringSectionProps {
-  budgetId: string;
+  budgetId?: string;
   rules?: RecurringRuleListItem[];
 }
 
-export function RecurringSection({ budgetId, rules = [] }: RecurringSectionProps) {
+export function RecurringSection({ rules = [] }: RecurringSectionProps) {
   const t = useTranslations("settings");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editRuleId, setEditRuleId] = useState<string | null>(null);
@@ -48,7 +48,9 @@ export function RecurringSection({ budgetId, rules = [] }: RecurringSectionProps
     setEditRuleId(null);
   };
 
-  const editRule = editRuleId ? rules.find((r) => r.id === editRuleId) : undefined;
+  const editRule = editRuleId
+    ? rules.find((r) => r.id === editRuleId)
+    : undefined;
 
   return (
     <div className="space-y-4">
