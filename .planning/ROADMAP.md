@@ -154,7 +154,17 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. Wizard state persists in `onboarding_progress(user_id, step, completed_at)` so the wizard is resumable after a refresh / sign-out / sign-in; on finish the user is redirected to `/budgets/[new_id]/spendings`
 5. Recipient who clicks a valid share link lands on a confirmation page showing "Join {budget name}", clicking the action creates membership via Better Auth orgs plugin and redirects to `/budgets/[id]/spendings`; revoked or expired links show an error state
 
-**Plans**: pending
+**Plans** (8 — schema/migration -> backend -> UI -> e2e):
+
+- [ ] 06-01-PLAN.md — Wave 1: onboarding_progress schema + budgets.archived_at + [BLOCKING] migration + ci-gate allowlist + shadcn accordion/switch + 4 Wave 0 test scaffolds (SETT-08, ONBD-07)
+- [ ] 06-02-PLAN.md — Wave 2: PATCH /budgets/:id (identity + unified cushion-flag write path) + hasTransactions on GET /:id (SETT-02, SETT-03)
+- [ ] 06-03-PLAN.md — Wave 2: GET members + owner-only revoke-member + share/leave regression tests (SETT-05, SETT-06, SETT-07)
+- [ ] 06-04-PLAN.md — Wave 2: POST /:id/archive + POST /:id/delete (typed-name) + onboarding_progress GET/PUT route (SETT-08, ONBD-07)
+- [ ] 06-05-PLAN.md — Wave 3: Settings tab 5-section accordion (identity/cushion/recurring/members/danger) + retire /recurring (SETT-01..09)
+- [ ] 06-06-PLAN.md — Wave 3: 5-step onboarding wizard at /budgets/new + force-redirect guard + retire /onboarding (ONBD-01..06, 08, 09)
+- [ ] 06-07-PLAN.md — Wave 3: public /budgets/join/[token] page + 6 states + middleware allowlist (SHRD-04)
+- [ ] 06-08-PLAN.md — Wave 4 (autonomous=false): PL/UK i18n + 3 @phase6 playwright-bdd features + full gate + DESIGN.md sweep + human UAT (all SETT/ONBD/SHRD)
+
 **UI hint**: yes
 
 ### Phase 7: Tasks Queue
@@ -241,7 +251,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
 | 4. Spendings Grid                           | 0/TBD          | Not started | -          |
 | 5. Reserves & Wallets Tabs                  | 8/8            | Complete    | 2026-05-17 |
-| 6. Settings, Onboarding & Share UI          | 0/TBD          | Not started | -          |
+| 6. Settings, Onboarding & Share UI          | 0/8            | Planned     | -          |
 | 7. Tasks Queue                              | 0/TBD          | Not started | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |
 
