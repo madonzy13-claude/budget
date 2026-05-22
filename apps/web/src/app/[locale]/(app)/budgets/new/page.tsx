@@ -1,10 +1,8 @@
-import Link from "next/link";
-import { getTranslations } from "next-intl/server";
-
 /**
- * /budgets/new (D-PH3-18) — placeholder route so the NewBudgetButton from
- * Plan 03-04 + BudgetSwitcher empty-state CTA route somewhere. Phase 6 fills
- * the actual onboarding wizard.
+ * /budgets/new — Onboarding wizard (D-05)
+ *
+ * RSC wrapper that renders the 5-step client wizard.
+ * Phase 6 replaces the Phase 3 placeholder.
  */
 interface NewBudgetPageProps {
   params: Promise<{ locale: string }>;
@@ -12,19 +10,12 @@ interface NewBudgetPageProps {
 
 export default async function NewBudgetPage({ params }: NewBudgetPageProps) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "budgets.new" });
+  // Lazy import so WizardPage (client) is not bundled server-side
+  const { WizardPage } = await import("@/components/onboarding/wizard-page");
+
   return (
-    <main className="mx-auto flex max-w-2xl flex-col items-start gap-8 px-4 py-16 sm:px-6">
-      <h1 className="text-title-lg text-[var(--body-on-dark)]">{t("title")}</h1>
-      <p className="max-w-prose text-base text-[var(--muted-foreground)]">
-        {t("placeholder")}
-      </p>
-      <Link
-        href={`/${locale}`}
-        className="text-sm text-[var(--primary)] underline"
-      >
-        {t("backToHome")}
-      </Link>
+    <main className="flex min-h-screen items-start justify-center bg-[var(--canvas-dark)] px-4 py-12">
+      <WizardPage locale={locale} />
     </main>
   );
 }
