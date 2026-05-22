@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/server-session";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { SiteFooter } from "@/components/common/site-footer";
 import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
 import { TopNav } from "@/components/budgeting/top-nav";
@@ -41,6 +42,32 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   const hdrs = await headers();
   const pathname = hdrs.get("x-pathname");
   const activeBudgetId = extractActiveBudgetId(pathname);
+
+  // D-08: Incomplete-onboarding force-redirect guard.
+  // Rules (in order):
+  //   1. No row (404) → EXIT EARLY — existing pre-feature users must NOT be trapped.
+  //   2. Row exists with completed_at !== null → already finished, no redirect.
+  //   3. Row exists with completed_at === null AND not already on /budgets/new → redirect.
+  if (pathname && !pathname.includes("/budgets/new")) {
+    try {
+      const progressRes = await serverApiFetch(null, "/onboarding/progress");
+      if (progressRes.status === 200) {
+        const progress = (await progressRes.json()) as {
+          step?: number;
+          completedAt?: string | null;
+        };
+        // Only redirect when onboarding is genuinely incomplete (completed_at is null)
+        if (!progress.completedAt) {
+          const savedStep = progress.step ?? 1;
+          redirect(`/${locale}/budgets/new?step=${savedStep}`);
+        }
+        // completed_at is set → onboarding done, fall through
+      }
+      // 404 or any other status → no row → EXIT EARLY (existing users not trapped)
+    } catch {
+      // Any fetch error → fall through gracefully (never block the layout)
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
