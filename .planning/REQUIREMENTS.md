@@ -92,15 +92,15 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 ### Settings Tab (SETT)
 
-- [ ] **SETT-01**: Settings tab renders sections vertically: Budget identity · Cushion mode · Recurring rules · Members (if SHARED) · Danger zone
+- [x] **SETT-01**: Settings tab renders sections vertically: Budget identity · Cushion mode · Recurring rules · Members (if SHARED) · Danger zone
 - [x] **SETT-02**: Budget identity: name (editable), currency (editable until first txn; locked thereafter with tooltip)
 - [x] **SETT-03**: Cushion mode toggle persists `budgets.cushion_mode_enabled`; when on, grid headers and reserve calc use cushion values
-- [ ] **SETT-04**: Recurring rules CRUD list: name, amount, currency, category, cadence (daily/weekly/monthly/yearly with day-of-\* selectors), start date, optional end date, active toggle
+- [x] **SETT-04**: Recurring rules CRUD list: name, amount, currency, category, cadence (daily/weekly/monthly/yearly with day-of-\* selectors), start date, optional end date, active toggle
 - [x] **SETT-05**: Members section only renders for `budget.kind = SHARED`; lists members + roles
 - [x] **SETT-06**: Members section has "Generate share link" button → token-based invite (Better Auth orgs plugin); link copyable
 - [x] **SETT-07**: Members section supports revoke member, leave budget (with last-owner protection)
 - [x] **SETT-08**: Danger zone: Archive budget (soft-delete, hideable) and Delete budget (hard-delete with typed-name confirmation)
-- [ ] **SETT-09**: Categories not directly managed in Settings; pen-icon on grid is the only category-edit affordance
+- [x] **SETT-09**: Categories not directly managed in Settings; pen-icon on grid is the only category-edit affordance
 
 ### Transactions (TXN)
 
