@@ -20,9 +20,26 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ locale: "en" }),
 }));
 
-// Mock next-intl
+// Mock next-intl — return human-readable stubs matching the i18n values
+const translations: Record<string, string> = {
+  valid_heading: "You've been invited",
+  valid_body: "You've been invited to join a shared budget.",
+  authenticated_cta: "Join budget",
+  unauthenticated_cta: "Sign in to accept",
+  accepting_cta: "Joining…",
+  expired_heading: "This invitation has expired",
+  expired_body: "Ask the budget owner to send you a new link.",
+  already_used_heading: "You're already a member",
+  already_used_body: "You've already joined {budgetName}.",
+  already_used_cta: "Go to budget",
+  not_found_heading: "Invitation not found",
+  not_found_body: "This link is invalid or has been removed.",
+  not_found_cta: "Return home",
+  join_success: "You've joined {budgetName}",
+};
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => (key: string, _params?: Record<string, unknown>) =>
+    translations[key] ?? key,
 }));
 
 // Mock sonner
