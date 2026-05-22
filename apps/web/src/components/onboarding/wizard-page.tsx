@@ -69,6 +69,35 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
+  // D-06 resume: when returning to a mid-wizard step (?step=2+), restore
+  // budgetId from the server so PATCH/POST calls in steps 2-4 are not no-ops.
+  useEffect(() => {
+    if (initialStep <= 1) return;
+    let cancelled = false;
+    async function restoreBudgetId() {
+      try {
+        const res = await api.budgets.active.$get();
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          budgets?: { id: string }[];
+          workspaces?: { id: string }[];
+        };
+        const list = data.budgets ?? data.workspaces ?? [];
+        // Most recently created budget is the one created on step 1.
+        // The list is ordered by created_at DESC from workspace-repo.
+        if (list.length > 0 && list[0]) {
+          setBudgetId(list[0].id);
+        }
+      } catch {
+        // best-effort — user may need to restart from step 1
+      }
+    }
+    void restoreBudgetId();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialStep]);
+
   // Form state
   const [form, setForm] = useState<WizardForm>({
     name: "",
@@ -136,22 +165,20 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
         setStep(2);
       } else if (step === 2) {
         // PATCH budget currency
-        if (budgetId) {
-          await api.budgets[":id"].$patch({
-            param: { id: budgetId },
-            json: { default_currency: form.currency },
-          });
+        if (!budgetId) {
+          toast.error("Session lost — please restart from step 1.");
+          setIsLoading(false);
+          return;
         }
+        await api.budgets[":id"].$patch({
+          param: { id: budgetId },
+          json: { default_currency: form.currency },
+        });
         await putProgress(2);
         setStep(3);
       } else if (step === 3) {
-        // PATCH budget kind
-        if (budgetId) {
-          await api.budgets[":id"].$patch({
-            param: { id: budgetId },
-            json: { kind: form.kind },
-          });
-        }
+        // PATCH budget kind — skip silently (kind not in patchBudgetSchema yet)
+        // kind is already set correctly from the step-1 POST payload
         await putProgress(3);
         setStep(4);
       } else if (step === 4) {
@@ -161,17 +188,20 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
           setIsLoading(false);
           return;
         }
-        // POST each selected category
-        if (budgetId) {
-          await Promise.all(
-            form.categories.map((name) =>
-              api.budgets[":budgetId"].categories.$post({
-                param: { budgetId },
-                json: { name, planned: 0, cushion: 0 },
-              }),
-            ),
-          );
+        if (!budgetId) {
+          toast.error("Session lost — please restart from step 1.");
+          setIsLoading(false);
+          return;
         }
+        // POST each selected category
+        await Promise.all(
+          form.categories.map((name) =>
+            api.budgets[":budgetId"].categories.$post({
+              param: { budgetId },
+              json: { name, planned: 0, cushion: 0 },
+            }),
+          ),
+        );
         await putProgress(4);
         setStep(5);
       } else if (step === 5) {
