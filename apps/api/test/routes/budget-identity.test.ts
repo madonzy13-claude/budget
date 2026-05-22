@@ -8,7 +8,11 @@ import { describe, it, expect } from "bun:test";
 import { Hono } from "hono";
 
 describe("Budget identity routes (SETT-02)", () => {
-  function buildApp(session: unknown, budgetId = "budget-001") {
+  function buildApp(
+    session: unknown,
+    budgetId = "budget-001",
+    opts: { hasTransactions?: boolean } = {},
+  ) {
     const app = new Hono();
     app.use(async (c: any, next: any) => {
       c.set("session", session as any);
@@ -16,19 +20,35 @@ describe("Budget identity routes (SETT-02)", () => {
       await next();
     });
 
-    // Routes do not exist yet — RED scaffold
-    // When Plan 06-02 implements them, require() will resolve.
-    try {
-      const {
-        budgetIdentityRoutesFactory,
-      } = require("../../src/routes/budget-identity");
-      app.route(
-        "/budgets",
-        budgetIdentityRoutesFactory({ tenancy: {}, identity: {} } as any),
-      );
-    } catch {
-      // Route factory not yet implemented — tests will fail RED as intended
-    }
+    const {
+      budgetIdentityRoutesFactory,
+    } = require("../../src/routes/budget-identity");
+
+    const fakeDeps = {
+      tenancy: {
+        workspaceRepo: {
+          hasTransactions: async () => opts.hasTransactions ?? true,
+          updateIdentity: async () => {},
+          findById: async () => ({
+            id: budgetId,
+            name: "Test Budget",
+            slug: "test",
+            kind: "PRIVATE",
+            default_currency: "USD",
+            ownerUserId: "user-001",
+            memberCount: 1,
+            cushionModeEnabled: false,
+            reservesEnabled: true,
+          }),
+        },
+      },
+      identity: {},
+      budgeting: {
+        toggleBudgetMode: async () => ({ isErr: () => false, value: {} }),
+      },
+    } as any;
+
+    app.route("/budgets", budgetIdentityRoutesFactory(fakeDeps));
 
     return app;
   }

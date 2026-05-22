@@ -111,6 +111,8 @@ describe("Budgets route (renamed from workspaces)", () => {
               : null,
           listForUser: async () => [],
           listMembers: async () => [],
+          hasTransactions: async () => false,
+          updateIdentity: async () => {},
         },
         memberShareRepo: { list: async () => [], update: async () => {} },
       },

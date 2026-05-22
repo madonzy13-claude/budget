@@ -15,6 +15,7 @@ import { DrizzleBudgetShareLinkRepo } from "@budget/tenancy/src/adapters/persist
 import { createShareLink } from "@budget/tenancy/src/application/create-share-link";
 import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-link";
 import { serverError } from "../middleware/server-error";
+import { budgetIdentityRoutesFactory } from "./budget-identity";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -127,6 +128,9 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     const budget = await deps.tenancy.workspaceRepo.findById(budgetId);
     if (!budget) return c.json({ error: "not_found" }, 404);
 
+    const hasTransactions =
+      await deps.tenancy.workspaceRepo.hasTransactions(budgetId);
+
     return c.json({
       id: budget.id,
       name: budget.name,
@@ -137,6 +141,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       memberCount: budget.memberCount,
       cushionModeEnabled: budget.cushionModeEnabled ?? false,
       reservesEnabled: budget.reservesEnabled ?? true,
+      hasTransactions,
     });
   });
 
@@ -435,6 +440,18 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
         throw e;
       }
     },
+  );
+
+  // Mount budget-identity sub-router: PATCH /:id (SETT-02/03)
+  // Registered AFTER static sub-paths (/active, /health) but BEFORE /share/:linkId
+  // so /:id PATCH is handled here, not by the share revoke handler.
+  r.route(
+    "/",
+    budgetIdentityRoutesFactory({
+      tenancy: deps.tenancy,
+      identity: deps.identity,
+      budgeting: deps.budgeting,
+    }),
   );
 
   // DELETE /budgets/share/:linkId — revoke share link (owner only, SHRD-05)
