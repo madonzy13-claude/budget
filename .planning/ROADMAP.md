@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Navigation, Home & BDP Frame** — Top-nav budget switcher dropdown, combined home page with per-budget cards + placeholder chart, BDP tab shell with sticky pills + task banner skeleton
 - [x] **Phase 4: Spendings Grid** — The Excel-like core: column-per-category grid, quick-entry, pen-icon side sliders, drag-reorder, arrow-key month navigation, recurring drafts as highlighted rows, real-time reserve-deduction display _(UAT closed: 16/17 pass, 1 skipped — Test 4 retry blocked by shared-stack; security audited 35/35 closed — see 04-SECURITY.md)_
 - [x] **Phase 5: Reserves & Wallets Tabs** — Reserves table with per-category isolated balances + wallet-share column, Wallets tab with always-inline editable rows (name/currency/amount/type) and add/delete (completed 2026-05-17)
-- [ ] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow
+- [x] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow (completed 2026-05-22)
 - [ ] **Phase 7: Tasks Queue** — Banner-with-expand UI, deterministic generators (reserve-mismatch, draft-due, stale-wallet, month-end), kind-specific resolution actions, auto-resolve on state change
 - [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
 
@@ -163,7 +163,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 06-05-PLAN.md — Wave 3: Settings tab 5-section accordion (identity/cushion/recurring/members/danger) + retire /recurring (SETT-01..09)
 - [x] 06-06-PLAN.md — Wave 3: 5-step onboarding wizard at /budgets/new + force-redirect guard + retire /onboarding (ONBD-01..06, 08, 09)
 - [x] 06-07-PLAN.md — Wave 3: public /budgets/join/[token] page + 6 states + middleware allowlist (SHRD-04)
-- [ ] 06-08-PLAN.md — Wave 4 (autonomous=false): PL/UK i18n + 3 @phase6 playwright-bdd features + full gate + DESIGN.md sweep + human UAT (all SETT/ONBD/SHRD)
+- [x] 06-08-PLAN.md — Wave 4 (autonomous=false): PL/UK i18n + 3 @phase6 playwright-bdd features + full gate + DESIGN.md sweep + human UAT (all SETT/ONBD/SHRD)
 
 **UI hint**: yes
 
@@ -251,7 +251,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
 | 4. Spendings Grid                           | 0/TBD          | Not started | -          |
 | 5. Reserves & Wallets Tabs                  | 8/8            | Complete    | 2026-05-17 |
-| 6. Settings, Onboarding & Share UI          | 7/8            | In Progress |            |
+| 6. Settings, Onboarding & Share UI          | 8/8 | Complete   | 2026-05-22 |
 | 7. Tasks Queue                              | 0/TBD          | Not started | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |
 
