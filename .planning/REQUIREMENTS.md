@@ -175,7 +175,7 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 - [ ] **SHRD-01**: SHARED budget invitation via token-based share link only (no email send required)
 - [ ] **SHRD-02**: Share link uses Better Auth organizations plugin invite-token flow
 - [ ] **SHRD-03**: Share link single-use or time-bound (TTL configurable, default 7 days)
-- [ ] **SHRD-04**: Recipient with link → land on confirmation page → click "Join {budget name}" → membership created → redirect to `/budgets/[id]/spendings`
+- [x] **SHRD-04**: Recipient with link → land on confirmation page → click "Join {budget name}" → membership created → redirect to `/budgets/[id]/spendings`
 - [ ] **SHRD-05**: Owner can revoke share links
 
 ### E2E (E2EX)
