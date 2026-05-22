@@ -100,7 +100,7 @@ Numeric role (IBM Plex Sans, tabular-nums):
 
 - Currency amounts, member count badge: 14px / weight 500 / line-height 1.4 — reuse `--font-numeric` class from Phase 4.
 
-Two weights only: 400 (regular) + 600 (semibold). No 500, 700, or other weights on text elements (numbers use 500 via numeric role).
+Two weights only: 400 (regular) + 600 (semibold). The numeric-role 500 exception applies **exclusively** to currency amounts and numeric badges rendered in IBM Plex Sans (`--font-numeric`). Plain-text elements — including captions, footnotes, help text, and expiry labels — use weight 400. No 500, 700, or other weights on any text element.
 
 ---
 
@@ -307,7 +307,7 @@ Source: DESIGN.md color tokens, applied via CSS custom properties in `apps/web/s
 - Budget name: Heading role (16px/600).
 - Invitation copy: Body role (14px/400, `--muted`).
 - CTA button: Full-width yellow `"Join budget"` (authenticated) or `"Sign in to accept"` (unauthenticated, yellow text link styled as button).
-- Expiry caption below CTA: `"This link expires {relative date}"` in muted caption (12px/500).
+- Expiry caption below CTA: `"This link expires {relative date}"` in muted caption (12px/400).
 
 ---
 
