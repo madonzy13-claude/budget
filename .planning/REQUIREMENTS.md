@@ -99,7 +99,7 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 - [ ] **SETT-05**: Members section only renders for `budget.kind = SHARED`; lists members + roles
 - [ ] **SETT-06**: Members section has "Generate share link" button → token-based invite (Better Auth orgs plugin); link copyable
 - [ ] **SETT-07**: Members section supports revoke member, leave budget (with last-owner protection)
-- [ ] **SETT-08**: Danger zone: Archive budget (soft-delete, hideable) and Delete budget (hard-delete with typed-name confirmation)
+- [x] **SETT-08**: Danger zone: Archive budget (soft-delete, hideable) and Delete budget (hard-delete with typed-name confirmation)
 - [ ] **SETT-09**: Categories not directly managed in Settings; pen-icon on grid is the only category-edit affordance
 
 ### Transactions (TXN)
@@ -149,7 +149,7 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 - [ ] **ONBD-04**: Step 3: Budget type radio (Private | Shared, default Private)
 - [ ] **ONBD-05**: Step 4: Starter category multi-select template (Housing · Groceries · Transport · Eating Out · Entertainment · Health · Subscriptions · Other); each pre-populates `planned = 0`, `cushion = 0`
 - [ ] **ONBD-06**: Step 5: Optional Skip → empty budget
-- [ ] **ONBD-07**: Wizard state persisted in `onboarding_progress(user_id, step, completed_at)`; resumable
+- [x] **ONBD-07**: Wizard state persisted in `onboarding_progress(user_id, step, completed_at)`; resumable
 - [ ] **ONBD-08**: On finish: redirect to `/budgets/[new_id]/spendings`
 - [ ] **ONBD-09**: `+` button in switcher dropdown also opens this wizard (without auth gate)
 
