@@ -11,7 +11,7 @@ describe("Budget identity routes (SETT-02)", () => {
   function buildApp(
     session: unknown,
     budgetId = "budget-001",
-    opts: { hasTransactions?: boolean } = {},
+    opts: { hasTransactions?: boolean; callerRole?: string } = {},
   ) {
     const app = new Hono();
     app.use(async (c: any, next: any) => {
@@ -29,6 +29,10 @@ describe("Budget identity routes (SETT-02)", () => {
         workspaceRepo: {
           hasTransactions: async () => opts.hasTransactions ?? true,
           updateIdentity: async () => {},
+          // T-06-02-00: owner-only gate reads membership roles
+          listMembers: async () => [
+            { userId: "user-001", role: opts.callerRole ?? "owner" },
+          ],
           findById: async () => ({
             id: budgetId,
             name: "Test Budget",
@@ -91,6 +95,18 @@ describe("Budget identity routes (SETT-02)", () => {
       body: JSON.stringify({ default_currency: "EUR" }),
     });
     expect(res.status).toBe(409);
+  });
+
+  it("PATCH /budgets/:id by non-owner member → 403 (T-06-02-00 owner gate)", async () => {
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
+      callerRole: "member",
+    });
+    const res = await app.request("/budgets/budget-001", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Renamed Budget" }),
+    });
+    expect(res.status).toBe(403);
   });
 
   it("GET /budgets/:id response includes hasTransactions boolean", async () => {
