@@ -41,6 +41,8 @@ export const budgets = tenancy.table(
     // spendings grid reserve row, and top reserve pill are all hidden. Toggle UI
     // lives in Phase 6 Settings; default true preserves existing UX.
     reservesEnabled: boolean("reserves_enabled").notNull().default(true),
+    // Phase 6 (D-09): soft-delete timestamp. NULL = active, non-NULL = archived.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (t) => [
     pgPolicy("budgets_tenant_isolation", {
