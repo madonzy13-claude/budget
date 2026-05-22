@@ -169,6 +169,13 @@
       "when": 1779400000000,
       "tag": "0023_phase05_exclude_current_month_from_reserve",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1748000000000,
+      "tag": "0024_phase06_onboarding_progress_archived_at",
+      "breakpoints": true
     }
   ]
 }

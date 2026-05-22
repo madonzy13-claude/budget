@@ -37,6 +37,7 @@ budgeting.budget_mode_history             TENANT-SCOPED # budget_mode_history_te
 budgeting.tasks                           TENANT-SCOPED # tasks_tenant_isolation policy (app.tenant_ids)
 budgeting.category_reserve_adjustments   TENANT-SCOPED # category_reserve_adjustments_tenant_isolation policy (app.tenant_ids); Phase 5 D-PH5-R8, T-05-04
 tenancy.budget_share_links                TENANT-SCOPED # budget_share_links_tenant_isolation policy (app.tenant_ids); SHRD-01, 02-04
+tenancy.onboarding_progress               USER-SCOPED   # onboarding_progress_owner_only policy (app.current_user_id); ONBD-07, Phase 6
 
 # ============================================================
 # EXCLUDED — infrastructure, NOT under RLS (Pitfall 10)

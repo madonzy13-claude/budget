@@ -192,6 +192,11 @@ ALTER TABLE tenancy.budget_members FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenancy.shared_budget_member_shares FORCE ROW LEVEL SECURITY;
 -- budget_invitations: token-keyed lookup; NO RLS (status column controls visibility).
 
+-- Phase 6 (ONBD-07): onboarding_progress — USER-SCOPED (app.current_user_id), FORCE RLS.
+GRANT SELECT, INSERT, UPDATE, DELETE ON tenancy.onboarding_progress TO app_role;
+GRANT SELECT ON tenancy.onboarding_progress TO worker_role;
+ALTER TABLE tenancy.onboarding_progress FORCE ROW LEVEL SECURITY;
+
 -- Plan 1 follow-up: budget creation runs through Better Auth's createOrganization,
 -- which inserts into tenancy.budgets and tenancy.budget_members BEFORE we can set
 -- the app.tenant_ids GUC for the new budget (the row doesn't exist yet, so there is
