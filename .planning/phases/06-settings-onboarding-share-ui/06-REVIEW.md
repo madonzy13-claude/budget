@@ -54,7 +54,8 @@ findings:
   warning: 7
   info: 3
   total: 15
-status: issues_found
+status: resolved
+resolution: "All 5 Critical (CR-01..CR-05) and 7 Warning (WR-01..WR-07) findings fixed by gsd-code-fixer (commits a67137b, 533a2ab, 3146a8d, e450416, 56c10cb, 0b265f9, 64adcb8, 72baf79, 803425e, c92e3e3, bd8d70c) plus a test-mock fix. Verified GREEN: Phase 6 components 27/27, backend routes 28/28, tenant-leak ci-gate 37/37. 3 Info findings not addressed (out of fix scope)."
 ---
 
 # Phase 6: Code Review Report
