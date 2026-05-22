@@ -1,22 +1,58 @@
 import { getTranslations } from "next-intl/server";
+import { serverApiFetch } from "@/lib/budget-fetch.server";
+import { SettingsAccordion } from "@/components/settings/settings-accordion";
+import type { SettingsBudget } from "@/components/settings/settings-accordion";
 
 /**
- * /budgets/[id]/settings — placeholder until Phase 6 ships budget identity,
- * cushion toggle, recurring rules, and members.
+ * /budgets/[id]/settings — Phase 6 settings tab.
+ *
+ * RSC that fetches budget metadata server-side, then renders
+ * the 5-section SettingsAccordion client island.
  */
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
 }
 
+interface BudgetApiResponse {
+  id: string;
+  name: string;
+  kind: "SHARED" | "PRIVATE";
+  defaultCurrency?: string;
+  default_currency?: string;
+  cushionModeEnabled?: boolean;
+  cushion_mode_enabled?: boolean;
+  hasTransactions?: boolean;
+  has_transactions?: boolean;
+  currentUserRole?: "owner" | "member";
+  current_user_role?: "owner" | "member";
+}
+
 export default async function BdpSettingsPage({ params }: PageProps) {
-  const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "bdp.tab.settings" });
+  const { locale, id: budgetId } = await params;
+  const t = await getTranslations({ locale, namespace: "settings" });
+
+  const res = await serverApiFetch(budgetId, `/budgets/${budgetId}`);
+  const raw: BudgetApiResponse | null = res.ok
+    ? ((await res.json()) as BudgetApiResponse)
+    : null;
+
+  const budget: SettingsBudget = {
+    id: budgetId,
+    name: raw?.name ?? "",
+    kind: raw?.kind ?? "PRIVATE",
+    defaultCurrency: raw?.defaultCurrency ?? raw?.default_currency ?? "USD",
+    cushionModeEnabled:
+      raw?.cushionModeEnabled ?? raw?.cushion_mode_enabled ?? false,
+    hasTransactions: raw?.hasTransactions ?? raw?.has_transactions ?? false,
+    currentUserRole: raw?.currentUserRole ?? raw?.current_user_role ?? "member",
+  };
+
   return (
-    <main className="mx-auto max-w-[1280px] px-6 pt-8 sm:px-8">
-      <h1 className="text-title-lg text-[var(--body-on-dark)]">{t("title")}</h1>
-      <p className="mt-2 text-base text-[var(--muted-foreground)]">
-        {t("placeholder")}
-      </p>
+    <main className="mx-auto w-full max-w-[1280px] px-4 pt-8 sm:px-6">
+      <h1 className="mb-6 text-xl font-semibold text-[var(--body)]">
+        {t("page_heading")}
+      </h1>
+      <SettingsAccordion budget={budget} />
     </main>
   );
 }

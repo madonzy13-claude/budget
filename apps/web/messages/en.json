@@ -128,7 +128,74 @@
       }
     },
     "save": "Save changes",
-    "save_success": "Settings saved."
+    "save_success": "Settings saved.",
+    "page_heading": "Budget Settings",
+    "error_save": "Failed to save — try again",
+    "sections": {
+      "identity": "Budget Identity",
+      "cushion": "Cushion Mode",
+      "recurring": "Recurring Rules",
+      "members": "Members",
+      "danger": "Danger Zone"
+    },
+    "identity": {
+      "name_label": "Budget name",
+      "name_saved": "Budget name saved",
+      "currency_label": "Default currency",
+      "currency_saved": "Currency updated",
+      "currency_locked_tooltip": "Currency locked after first transaction"
+    },
+    "cushion": {
+      "label": "Cushion mode",
+      "help_text": "Uses the tighter cushion budget limit for all categories.",
+      "on_toast": "Cushion mode on — tighter limits active",
+      "off_toast": "Cushion mode off — using planned limits"
+    },
+    "recurring": {
+      "add_rule": "Add rule",
+      "add_rule_title": "Add recurring rule",
+      "edit_rule_title": "Edit recurring rule"
+    },
+    "members": {
+      "empty": "No other members yet.",
+      "generate_link": "Generate share link",
+      "role_owner": "Owner",
+      "role_member": "Member",
+      "revoke_button": "Revoke",
+      "revoke_dialog_title": "Remove {name}?",
+      "revoke_dialog_body": "{name} will lose access to this budget immediately.",
+      "revoke_confirm": "Remove",
+      "revoke_cancel": "Cancel",
+      "revoked_toast": "Member removed.",
+      "revoke_error": "Failed to remove member. Try again."
+    },
+    "danger": {
+      "section_title": "Danger Zone",
+      "archive_button": "Archive budget",
+      "archive_dialog_title": "Archive this budget?",
+      "archive_dialog_body": "It will be hidden from your dashboard. Your data is kept and nothing is deleted.",
+      "archive_confirm": "Archive",
+      "archive_cancel": "Keep it",
+      "archived_toast": "Budget archived.",
+      "archive_error": "Failed to archive budget. Try again.",
+      "delete_button": "Delete budget",
+      "delete_dialog_title": "Delete this budget forever?",
+      "delete_dialog_body": "This cannot be undone. All transactions, categories, and members will be permanently deleted. Type the budget name to confirm.",
+      "delete_input_placeholder": "Type budget name to confirm",
+      "delete_confirm": "Delete forever",
+      "delete_cancel": "Cancel",
+      "deleted_toast": "Budget deleted.",
+      "delete_error": "Failed to delete budget. Try again.",
+      "name_mismatch_error": "Name does not match. Please type the exact budget name.",
+      "leave_button": "Leave budget",
+      "leave_dialog_title": "Leave {name}?",
+      "leave_dialog_body": "You will lose access immediately and cannot rejoin without a new invitation.",
+      "leave_confirm": "Leave",
+      "leave_cancel": "Stay",
+      "left_toast": "You have left the budget.",
+      "leave_error": "Failed to leave budget. Try again.",
+      "last_owner_tooltip": "You''re the last owner. Delete the budget instead."
+    }
   },
   "budgets": {
     "empty": {
@@ -765,5 +832,14 @@
         "balance": "left"
       }
     }
+  },
+  "share": {
+    "generate_button": "Generate share link",
+    "field_label": "Invite link (expires in 7 days)",
+    "expires_in_7_days": "Expires in 7 days",
+    "copied": "Link copied to clipboard",
+    "copy_failed": "Could not copy link — copy it manually",
+    "generate_failed": "Failed to generate share link. Try again.",
+    "copy_aria": "Copy link"
   }
 }
