@@ -294,6 +294,12 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: "1"
+          # Some BDD steps (e.g. task-banner seeding in common-steps.ts)
+          # connect to Postgres directly from the Playwright host process.
+          # The generated .env only feeds docker compose containers, not this
+          # step — pass DATABASE_URL_APP explicitly. The step rewrites the
+          # `@db:` compose hostname to `@localhost:` (db publishes 5432).
+          DATABASE_URL_APP: postgresql://app_role:app_pwd@db:5432/budget
         # Run from apps/web so bddgen + playwright pick up
         # apps/web/playwright.config.ts — the same config `make test-e2e`
         # uses. The repo-root playwright.config.ts only sees the tests/e2e
