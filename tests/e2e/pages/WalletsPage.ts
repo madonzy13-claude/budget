@@ -121,7 +121,10 @@ export class WalletsPage {
     await editor.blur();
     await this.page.waitForLoadState("networkidle");
     // Confirm the PATCH completed — failed saves show data-state="failed" with ring.
-    await this.amountCell(walletId).waitFor({ state: "visible", timeout: 10000 });
+    await this.amountCell(walletId).waitFor({
+      state: "visible",
+      timeout: 10000,
+    });
     const state = await this.amountCell(walletId).getAttribute("data-state");
     if (state === "failed") {
       throw new Error(
@@ -151,7 +154,8 @@ export class WalletsPage {
     // Use page.mouse with steps for realistic movement.
     const handleBox = await handle.boundingBox();
     const targetBox = await target.boundingBox();
-    if (!handleBox || !targetBox) throw new Error("DnD: bounding boxes unavailable");
+    if (!handleBox || !targetBox)
+      throw new Error("DnD: bounding boxes unavailable");
 
     const fromX = handleBox.x + handleBox.width / 2;
     const fromY = handleBox.y + handleBox.height / 2;
@@ -169,9 +173,29 @@ export class WalletsPage {
 
   // ── Delete with confirm dialog ──────────────────────────────────────────────
 
+  /**
+   * Reveal a row's delete affordance and open the confirm dialog.
+   *
+   * The wallet row exposes TWO delete affordances by viewport (wallet-row.tsx
+   * D-PH5-W5 / W6):
+   *   • desktop (≥sm / 640px): in-row trash button `wallet-trash-<id>`,
+   *     `hidden sm:flex`, revealed on row hover.
+   *   • mobile (<sm): a horizontal swipe-left reveals `wallet-swipe-delete-<id>`;
+   *     the in-row trash stays `display:none` and never becomes clickable.
+   *
+   * The page object must use the affordance that actually exists for the
+   * running project's viewport, else the click times out on a hidden node.
+   */
   async deleteWallet(walletId: string, confirm = true): Promise<void> {
-    await this.row(walletId).hover();
-    await this.trashButton(walletId).click();
+    const viewport = this.page.viewportSize();
+    const isMobile = viewport !== null && viewport.width < 640;
+    if (isMobile) {
+      await this.swipeRowOpen(walletId);
+      await this.page.getByTestId(`wallet-swipe-delete-${walletId}`).click();
+    } else {
+      await this.row(walletId).hover();
+      await this.trashButton(walletId).click();
+    }
     const dialog = this.page.getByRole("alertdialog");
     await expect(dialog).toBeVisible({ timeout: 10000 });
     if (confirm) {
@@ -180,6 +204,61 @@ export class WalletsPage {
       await dialog.getByRole("button", { name: /cancel/i }).click();
     }
     await this.page.waitForLoadState("networkidle");
+  }
+
+  /**
+   * Mobile-only: drive a horizontal swipe-left on a wallet row so the
+   * `wallet-swipe-delete-<id>` CTA slides into view.
+   *
+   * wallet-row.tsx attaches native pointer listeners with `passive:false`
+   * and ignores any pointer whose `pointerType` is not "touch"/"pen", so a
+   * `page.mouse` drag (pointerType "mouse") cannot trigger it. We dispatch a
+   * synthetic touch-pointer sequence on the row wrapper instead:
+   *   down → move (locks the gesture, >10px) → move (past ACTION_W/2) → up.
+   * A timeout between the last move and `pointerup` lets React commit + run
+   * the passive effect that syncs `offsetRef`, which the up-handler reads to
+   * decide whether to snap the row open.
+   */
+  private async swipeRowOpen(walletId: string): Promise<void> {
+    const wrapper = this.page.locator(
+      `[data-wallet-row-wrapper="${walletId}"]`,
+    );
+    await wrapper.waitFor({ state: "visible", timeout: 10000 });
+    await wrapper.evaluate((el: HTMLElement) => {
+      const rect = el.getBoundingClientRect();
+      const y = rect.top + rect.height / 2;
+      const startX = rect.right - 20;
+      const pointerId = 9001;
+      const fire = (type: string, x: number): void => {
+        el.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      };
+      fire("pointerdown", startX);
+      fire("pointermove", startX - 20);
+      fire("pointermove", startX - 88);
+      return new Promise<void>((resolve) => {
+        // Let React commit the offset render + run the passive effect that
+        // updates offsetRef before pointerup reads it.
+        setTimeout(() => {
+          fire("pointerup", startX - 88);
+          resolve();
+        }, 80);
+      });
+    });
+    // wallet-row.tsx suppresses synthetic clicks for 400ms after pointerup
+    // (iOS ghost-click guard). Wait it out before the CTA becomes clickable.
+    await this.page.waitForTimeout(500);
+    await expect(
+      this.page.getByTestId(`wallet-swipe-delete-${walletId}`),
+    ).toBeVisible({ timeout: 5000 });
   }
 
   // ── W-4 staged-add helper ───────────────────────────────────────────────────

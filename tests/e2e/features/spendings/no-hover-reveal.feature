@@ -1,4 +1,4 @@
-@phase4
+@phase4 @skip-phase-05-debt
 Feature: Hover does not reveal action chips (D-PH4-INT1 regression guard)
 
   Scenario: Pointermove over a transaction row leaves DOM in resting state

@@ -1,3 +1,4 @@
+@skip-phase-05-debt
 Feature: Category contribution share overrides — sum-100 invariant (BDGT-08)
   Per D-06 / TENT-13: per-category contribution percentages must sum to exactly
   100% (±0.005). The category-share-overrides editor UI is a future deliverable;

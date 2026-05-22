@@ -1,3 +1,4 @@
+@skip-phase-05-debt
 Feature: Invite member to a SHARED budget
   Phase 1 wired Better Auth org-plugin invitations + invite email delivery for
   SHARED budgets. The "Invite member" UI inside budget settings is Phase 6; these

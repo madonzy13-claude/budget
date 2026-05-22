@@ -141,6 +141,19 @@ When("I click the row for {string}", async ({ page }, name: string) => {
   await sw.budgetRow(name).click();
 });
 
+When(
+  'I click the "Create budget" row in the switcher dropdown',
+  async ({ page }) => {
+    // UAT-PH5-T2-03: the header "+" was removed; the bottom row of the
+    // switcher dropdown now drives /budgets/new.
+    await page
+      .getByRole("menuitem", {
+        name: /create budget|utwórz budżet|створити бюджет/i,
+      })
+      .click();
+  },
+);
+
 When('I click the "+" new-budget button', async ({ page }) => {
   const nav = new TopNavPo(page);
   await nav.newBudgetButton().click();

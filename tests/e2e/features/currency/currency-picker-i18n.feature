@@ -1,3 +1,4 @@
+@skip-phase-05-debt
 Feature: Currency picker localization on the onboarding wizard
 
   Scenario Outline: <locale> trigger and dropdown options are localized

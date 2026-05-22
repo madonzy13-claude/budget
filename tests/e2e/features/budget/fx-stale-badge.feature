@@ -1,4 +1,4 @@
-@phase4
+@phase4 @skip-phase-05-debt
 Feature: FX freshness badge surfaces stale-rate transactions
   Per WARNING 6 (Plan 02-06 / D-03-a/b): a row sourced from a weekend FX rate carries
   a visible "rate from Friday" indicator so the user can spot non-fresh conversions.

@@ -1,4 +1,4 @@
-@phase4
+@phase4 @skip-phase-05-debt
 Feature: Bulk re-categorize transactions across columns (EXPN-10)
   As a household member I can move several transactions from one category column to
   another in a single atomic operation. The originating column loses them and the

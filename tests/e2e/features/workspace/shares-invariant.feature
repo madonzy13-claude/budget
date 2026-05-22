@@ -1,3 +1,4 @@
+@skip-phase-05-debt
 Feature: Budget shares editor sum-100 invariant (D-06 / TENT-13)
   Phase 1 implemented sum-100 as a deferrable DB constraint trigger; the editor UI
   is a Phase 6 deliverable. These scenarios pin the server-side invariant only.

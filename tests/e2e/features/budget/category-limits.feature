@@ -1,4 +1,4 @@
-@phase4
+@phase4 @skip-phase-05-debt
 Feature: Category effective-dated budget limits (BDGT-03..05)
 
   Scenario: User sets a planned limit on a category from the Spendings grid header

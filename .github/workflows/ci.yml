@@ -243,14 +243,6 @@ jobs:
     name: E2E (Playwright BDD)
     needs: [compose-smoke]
     runs-on: ubuntu-latest
-    # TODO(phase-05-debt): re-enable as required. 25 feature files drifted
-    # during the 2026-05-08 → 2026-05-21 CI-dark window (v1.0 accounts →
-    # wallets, workspaces → budgets, recurring-confirm route renames,
-    # wallet-amount trailing-zero render format change). Phase 5
-    # functional coverage is validated by UAT (15/15 manual cases) plus
-    # the tenant-leak + compose-smoke gates; E2E re-alignment to v1.1
-    # contracts is a separate cleanup phase.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -302,7 +294,13 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: "1"
-        run: bunx bddgen && bunx playwright test --reporter=list
+        # Run from apps/web so bddgen + playwright pick up
+        # apps/web/playwright.config.ts — the same config `make test-e2e`
+        # uses. The repo-root playwright.config.ts only sees the tests/e2e
+        # tree and a single project; running it here diverged CI from local
+        # iteration. apps/web config covers both feature trees (apps/web/e2e
+        # + tests/e2e) and the chromium + mobile projects.
+        run: cd apps/web && bunx bddgen && bunx playwright test --reporter=list
       - name: Diagnostic — api/web container logs on failure
         if: failure()
         run: |
@@ -310,12 +308,13 @@ jobs:
             echo "=== logs: $svc ==="
             docker compose logs --no-color --tail=200 "$svc" 2>&1
           done
-      - name: Upload Playwright report
+      - name: Upload Playwright traces
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-traces
+          # apps/web config writes traces here (trace: retain-on-failure).
+          path: apps/web/test-results/
           if-no-files-found: ignore
       - name: Tear down
         if: always()
