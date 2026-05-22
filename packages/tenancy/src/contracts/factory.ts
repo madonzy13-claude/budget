@@ -1,6 +1,7 @@
 import type { EmailSender } from "@budget/shared-kernel";
 import type { BudgetRepo } from "../ports/budget-repo";
 import type { MemberShareRepo } from "../ports/member-repo";
+import type { OnboardingProgressRepo } from "../ports/onboarding-progress-repo";
 
 export interface TenancyModule {
   organizationPlugin: unknown; // typed as ReturnType<typeof organization> at impl site
@@ -14,6 +15,8 @@ export interface TenancyModule {
   memberShareRepo: MemberShareRepo;
   /** @deprecated use budgetRepo */
   workspaceRepo: BudgetRepo;
+  /** ONBD-07: USER-SCOPED wizard progress repo */
+  onboardingProgressRepo: OnboardingProgressRepo;
 }
 
 export function createTenancyModule(deps: {
@@ -28,6 +31,9 @@ export function createTenancyModule(deps: {
 
   const { DrizzleBudgetRepo, DrizzleMemberShareRepo } =
     require("../adapters/persistence/workspace-repo") as typeof import("../adapters/persistence/workspace-repo");
+
+  const { DrizzleOnboardingProgressRepo } =
+    require("../adapters/persistence/onboarding-progress-repo") as typeof import("../adapters/persistence/onboarding-progress-repo");
 
   const tenancySchema =
     require("../adapters/persistence/schema") as typeof import("../adapters/persistence/schema");
@@ -46,5 +52,7 @@ export function createTenancyModule(deps: {
     memberShareRepo: new DrizzleMemberShareRepo(),
     // Backward-compat alias for Plan 01-03 migration period
     workspaceRepo: budgetRepo,
+    // ONBD-07: USER-SCOPED wizard progress (one row per user, not per budget)
+    onboardingProgressRepo: new DrizzleOnboardingProgressRepo(),
   };
 }

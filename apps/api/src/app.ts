@@ -36,6 +36,7 @@ import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import { createShareJoinRoute } from "./routes/share-join";
 import { createSpendingsSummaryRoute } from "./routes/spendings-summary";
 import { budgetMembersRoutesFactory } from "./routes/budget-members";
+import { onboardingRoutesFactory } from "./routes/onboarding";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -55,6 +56,10 @@ export function createApp(deps: BootedDeps) {
   app.use(tenantGuard);
   app.use(createIdempotencyMiddleware()); // Pitfall 2: AFTER tenantGuard, BEFORE routes
   app.use(i18nMiddleware);
+
+  // 6a-onboarding: /onboarding routes — auth-required, user-scoped progress (ONBD-07)
+  app.use("/onboarding/*", requireAuth);
+  app.route("/onboarding", onboardingRoutesFactory(deps));
 
   // 6a-share: /budgets/join routes registered BEFORE the broad requireAuth fence.
   //     GET /budgets/join/:token is PUBLIC (no auth — recipient may not have account).
