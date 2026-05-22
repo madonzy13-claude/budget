@@ -35,8 +35,8 @@ export class DrizzleBudgetModeRepo implements BudgetModeRepo {
         effective_from: string;
       }>(sql`
         SELECT id::text, mode, effective_from::text
-        FROM budgeting.workspace_budget_mode_history
-        WHERE workspace_id = ${input.workspaceId}::uuid AND effective_to IS NULL
+        FROM budgeting.budget_mode_history
+        WHERE budget_id = ${input.workspaceId}::uuid AND effective_to IS NULL
       `);
 
       if (before.rows.length > 0) {
@@ -44,29 +44,29 @@ export class DrizzleBudgetModeRepo implements BudgetModeRepo {
         if (prevFrom === input.effectiveFrom) {
           // Same day: update in place
           await tx.execute(sql`
-            UPDATE budgeting.workspace_budget_mode_history
+            UPDATE budgeting.budget_mode_history
             SET mode = ${input.mode}, actor_user_id = ${input.actorUserId}::uuid
-            WHERE workspace_id = ${input.workspaceId}::uuid AND effective_to IS NULL
+            WHERE budget_id = ${input.workspaceId}::uuid AND effective_to IS NULL
           `);
         } else {
           // Close previous row
           await tx.execute(sql`
-            UPDATE budgeting.workspace_budget_mode_history
+            UPDATE budgeting.budget_mode_history
             SET effective_to = ${input.effectiveFrom}::date - INTERVAL '1 day'
-            WHERE workspace_id = ${input.workspaceId}::uuid AND effective_to IS NULL
+            WHERE budget_id = ${input.workspaceId}::uuid AND effective_to IS NULL
           `);
           // Insert new open-ended row
           await tx.execute(sql`
-            INSERT INTO budgeting.workspace_budget_mode_history
-              (id, workspace_id, tenant_id, mode, effective_from, actor_user_id)
+            INSERT INTO budgeting.budget_mode_history
+              (id, budget_id, tenant_id, mode, effective_from, actor_user_id)
             VALUES (${newId}::uuid, ${input.workspaceId}::uuid, ${input.tenantId}::uuid,
                     ${input.mode}, ${input.effectiveFrom}::date, ${input.actorUserId}::uuid)
           `);
         }
       } else {
         await tx.execute(sql`
-          INSERT INTO budgeting.workspace_budget_mode_history
-            (id, workspace_id, tenant_id, mode, effective_from, actor_user_id)
+          INSERT INTO budgeting.budget_mode_history
+            (id, budget_id, tenant_id, mode, effective_from, actor_user_id)
           VALUES (${newId}::uuid, ${input.workspaceId}::uuid, ${input.tenantId}::uuid,
                   ${input.mode}, ${input.effectiveFrom}::date, ${input.actorUserId}::uuid)
         `);
@@ -105,22 +105,22 @@ export class DrizzleBudgetModeRepo implements BudgetModeRepo {
       // Fetch the final state to return
       const final = await tx.execute<{
         id: string;
-        workspace_id: string;
+        budget_id: string;
         mode: string;
         effective_from: Date;
         effective_to: Date | null;
         created_at: Date;
       }>(sql`
-        SELECT id::text, workspace_id::text, mode, effective_from, effective_to, created_at
-        FROM budgeting.workspace_budget_mode_history
-        WHERE workspace_id = ${input.workspaceId}::uuid AND effective_to IS NULL
+        SELECT id::text, budget_id::text, mode, effective_from, effective_to, created_at
+        FROM budgeting.budget_mode_history
+        WHERE budget_id = ${input.workspaceId}::uuid AND effective_to IS NULL
         LIMIT 1
       `);
 
       const row = final.rows[0]!;
       return {
         id: row.id,
-        workspaceId: row.workspace_id,
+        workspaceId: row.budget_id,
         mode: row.mode as BudgetMode,
         effectiveFrom: toDateStr(row.effective_from)!,
         effectiveTo: toDateStr(row.effective_to),
@@ -142,15 +142,15 @@ export class DrizzleBudgetModeRepo implements BudgetModeRepo {
     const r = await withTenantTx(tid, uid, async (tx) => {
       const result = await tx.execute<{
         id: string;
-        workspace_id: string;
+        budget_id: string;
         mode: string;
         effective_from: Date;
         effective_to: Date | null;
         created_at: Date;
       }>(sql`
-        SELECT id::text, workspace_id::text, mode, effective_from, effective_to, created_at
-        FROM budgeting.workspace_budget_mode_history
-        WHERE workspace_id = ${workspaceId}::uuid
+        SELECT id::text, budget_id::text, mode, effective_from, effective_to, created_at
+        FROM budgeting.budget_mode_history
+        WHERE budget_id = ${workspaceId}::uuid
           AND tenant_id = ${tenantId}::uuid
           AND effective_to IS NULL
         LIMIT 1
@@ -164,7 +164,7 @@ export class DrizzleBudgetModeRepo implements BudgetModeRepo {
     const row = r.value;
     return {
       id: row.id,
-      workspaceId: row.workspace_id,
+      workspaceId: row.budget_id,
       mode: row.mode as BudgetMode,
       effectiveFrom: toDateStr(row.effective_from)!,
       effectiveTo: toDateStr(row.effective_to),
