@@ -1,35 +1,123 @@
-import { expect, type Page, type Locator } from "@playwright/test";
-import { LOCALE_LABELS, type Locale } from "./labels.js";
+/**
+ * OnboardingPage.ts — Phase 6 rewrite for the 5-step onboarding wizard.
+ *
+ * The wizard lives at /[locale]/budgets/new (not /onboarding — that route
+ * is retired and redirects away). New users are redirected here automatically
+ * by the (app) layout guard when onboarding_progress is incomplete.
+ *
+ * Steps: 1=name, 2=currency, 3=type, 4=categories, 5=review.
+ */
+import { type Page, type Locator, expect } from "@playwright/test";
 
 export class OnboardingPage {
-  private readonly labels: (typeof LOCALE_LABELS)[Locale];
+  constructor(private readonly page: Page) {}
 
-  constructor(
-    private readonly page: Page,
-    private readonly locale: Locale,
-  ) {
-    this.labels = LOCALE_LABELS[locale];
+  // ── Navigation ──────────────────────────────────────────────────────────────
+
+  async open(locale = "en"): Promise<void> {
+    await this.page.goto(`/${locale}/budgets/new`);
+    await this.page.waitForLoadState("networkidle");
   }
 
-  async goto(): Promise<void> {
-    await this.page.goto(`/${this.locale}/onboarding`);
+  // ── Step indicators ─────────────────────────────────────────────────────────
+
+  /** The stepper bar (contains numbered step segments). */
+  stepper(): Locator {
+    return this.page.getByTestId("wizard-stepper");
   }
 
-  currencyPickerTrigger(): Locator {
-    return this.page
-      .getByRole("combobox")
-      .filter({ hasText: this.labels.currencyPicker.triggerPlaceholder });
+  /** Active step number (1-based) read from data-active-step attribute. */
+  async activeStep(): Promise<number> {
+    const stepper = this.stepper();
+    await stepper.waitFor({ state: "visible", timeout: 10000 });
+    const attr = await stepper.getAttribute("data-active-step");
+    return attr ? parseInt(attr, 10) : 1;
   }
 
-  async openCurrencyPicker(): Promise<void> {
-    await this.currencyPickerTrigger().click();
+  // ── Step 1: Budget name ─────────────────────────────────────────────────────
+
+  step1NameInput(): Locator {
+    return this.page.getByTestId("wizard-step1-name");
   }
 
-  async expectCurrencyOption(label: string): Promise<void> {
-    await expect(this.page.getByText(label)).toBeVisible();
+  async fillName(name: string): Promise<void> {
+    await this.step1NameInput().fill(name);
   }
 
-  async expectTriggerVisible(): Promise<void> {
-    await expect(this.currencyPickerTrigger()).toBeVisible();
+  // ── Step 2: Currency ────────────────────────────────────────────────────────
+
+  currencyTrigger(): Locator {
+    return this.page.getByTestId("wizard-step2-currency");
+  }
+
+  async pickCurrency(code: string): Promise<void> {
+    await this.currencyTrigger().click();
+    // CurrencyPicker search input
+    const search = this.page.getByPlaceholder(/search currency/i);
+    if (await search.isVisible({ timeout: 3000 })) {
+      await search.fill(code);
+    }
+    await this.page.getByRole("option", { name: new RegExp(code, "i") }).first().click();
+  }
+
+  // ── Step 3: Budget type ─────────────────────────────────────────────────────
+
+  async pickType(type: "personal" | "shared"): Promise<void> {
+    const label = type === "personal" ? /personal/i : /shared/i;
+    await this.page.getByRole("radio", { name: label }).click();
+  }
+
+  // ── Step 4: Categories ──────────────────────────────────────────────────────
+
+  categoryItem(name: string | RegExp): Locator {
+    return this.page.getByTestId("wizard-category-item").filter({ hasText: name });
+  }
+
+  async toggleCategory(name: string | RegExp): Promise<void> {
+    await this.categoryItem(name).click();
+  }
+
+  // ── Navigation buttons ──────────────────────────────────────────────────────
+
+  nextButton(): Locator {
+    return this.page.getByRole("button", { name: /^next$/i });
+  }
+
+  backButton(): Locator {
+    return this.page.getByRole("button", { name: /^back$/i });
+  }
+
+  skipButton(): Locator {
+    return this.page.getByRole("button", { name: /^skip$/i });
+  }
+
+  createButton(): Locator {
+    return this.page.getByRole("button", { name: /create budget/i });
+  }
+
+  async clickNext(): Promise<void> {
+    await this.nextButton().click();
+    await this.page.waitForLoadState("networkidle");
+  }
+
+  async clickBack(): Promise<void> {
+    await this.backButton().click();
+    await this.page.waitForLoadState("networkidle");
+  }
+
+  async clickSkip(): Promise<void> {
+    await this.skipButton().click();
+    await this.page.waitForLoadState("networkidle");
+  }
+
+  async clickCreate(): Promise<void> {
+    await this.createButton().click();
+    await this.page.waitForLoadState("networkidle");
+  }
+
+  // ── Resume banner ───────────────────────────────────────────────────────────
+
+  resumeBanner(): Locator {
+    return this.page.getByText(/continue where you left off|welcome back/i);
   }
 }

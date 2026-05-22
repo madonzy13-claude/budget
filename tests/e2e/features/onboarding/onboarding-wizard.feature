@@ -1,28 +1,40 @@
 @phase6
-Feature: Onboarding Wizard — 5-step wizard + resume from saved progress (ONBD-*)
+Feature: Onboarding Wizard — 5-step wizard + resume from saved progress (ONBD-01..09)
 
-  # TODO: Plan 06-08 — implement Page Objects and step bindings for onboarding wizard
-
-  @skip-wip
-  Scenario: New user completes the 5-step onboarding wizard
-    # TODO: Plan 06-08
-    Given I am signed in as a fresh user with no onboarding progress
-    When I start the onboarding wizard
-    And I complete all 5 steps
-    Then my onboarding is marked complete
-    And I am redirected to my new budget
-
-  @skip-wip
-  Scenario: User resumes onboarding wizard from saved step
-    # TODO: Plan 06-08
-    Given I am signed in as a user with onboarding progress at step 3
+  Scenario: Fresh user walks all 5 steps and lands on spendings tab
+    Given I am a fresh user with no prior budget
     When I navigate to the onboarding wizard
-    Then I see step 3 as the active step
-    And steps 1 and 2 are shown as completed
+    And I fill in the budget name "Family Budget"
+    And I click Next
+    And I pick the currency "EUR"
+    And I click Next
+    And I pick the budget type "personal"
+    And I click Next
+    And I toggle at least one starter category
+    And I click Next
+    Then I see the review step
+    When I click Create budget
+    Then I land on the budget spendings page
 
-  @skip-wip
-  Scenario: Completed onboarding redirects away from wizard
-    # TODO: Plan 06-08
-    Given I am signed in as a user who has completed onboarding
-    When I navigate to the onboarding wizard URL
-    Then I am redirected to my budget dashboard
+  Scenario: Wizard is resumable — refresh mid-wizard returns to the saved step
+    Given I am a fresh user with no prior budget
+    When I navigate to the onboarding wizard
+    And I fill in the budget name "Resumable Budget"
+    And I click Next
+    And I reload the page
+    Then the wizard is still on step 2
+
+  Scenario: Selecting starter categories creates them in the new budget
+    Given I am a fresh user with no prior budget
+    When I navigate to the onboarding wizard
+    And I fill in the budget name "Category Test Budget"
+    And I click Next
+    And I pick the currency "EUR"
+    And I click Next
+    And I pick the budget type "personal"
+    And I click Next
+    And I toggle at least one starter category
+    And I click Next
+    And I click Create budget
+    Then I land on the budget spendings page
+    And the spendings grid has at least one category row

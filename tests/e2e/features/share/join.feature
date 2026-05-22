@@ -1,30 +1,25 @@
 @phase6
 Feature: Share — recipient joins a shared budget via invite link (SHRD-04)
 
-  # TODO: Plan 06-08 — implement Page Objects and step bindings for share join flow
+  Scenario: Unauthenticated recipient can see the join page without being bounced to sign-in
+    Given a budget owner has created a shared budget "Shared Budget"
+    And the owner has generated a share link for that budget
+    When an unauthenticated user visits the share link
+    Then they see the join page card
+    And they see the "Sign in to accept" button
 
-  @skip-wip
-  Scenario: Recipient accepts a valid invite link and joins the budget
-    # TODO: Plan 06-08
-    Given a budget owner has generated a share invite link
-    When a new user visits the invite link
-    Then they see the budget name and an Accept invitation button
-    When they click Accept invitation
-    Then they are added as a member of the budget
-    And redirected to the shared budget dashboard
+  Scenario: Authenticated recipient accepts a valid link and lands on spendings
+    Given a budget owner has created a shared budget "Join Test Budget"
+    And the owner has generated a share link for that budget
+    And I am signed in as a fresh user with workspace "My Own Budget"
+    When I visit the share link
+    Then I see the join page card with the budget name "Join Test Budget"
+    And I see the "Join budget" button
+    When I click the join button
+    Then I land on the spendings tab for "Join Test Budget"
 
-  @skip-wip
-  Scenario: Expired invite link shows expiry message
-    # TODO: Plan 06-08
-    Given an invite link that has expired
-    When a user visits the expired invite link
-    Then they see an expiry message
-    And a prompt to request a new invitation
-
-  @skip-wip
-  Scenario: Already-member user sees info message on invite link
-    # TODO: Plan 06-08
-    Given a user who is already a member of the budget
-    When they visit the invite link for that budget
-    Then they see an already-member message
-    And a link to go to the budget directly
+  Scenario: Revoked or expired link shows the error state
+    Given a share link with token "invalid-token-00000"
+    When I visit the share link
+    Then I see an error state on the join page
+    And I see a link to return home
