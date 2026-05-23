@@ -201,10 +201,17 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
           setIsLoading(false);
           return;
         }
-        await api.budgets[":id"].$patch({
-          param: { id: budgetId },
-          json: { default_currency: form.currency },
-        });
+        // The Hono RPC client derives X-Budget-ID from window.location, but
+        // here the URL is /budgets/new so the header is absent and the
+        // tenant-guard middleware drops the call. Pass the budgetId header
+        // explicitly via the RequestInit so the PATCH actually lands.
+        await api.budgets[":id"].$patch(
+          {
+            param: { id: budgetId },
+            json: { default_currency: form.currency },
+          },
+          { headers: { "X-Budget-ID": budgetId } },
+        );
         await putProgress(2);
         setStep(3);
       } else if (step === 3) {
@@ -224,13 +231,18 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
           setIsLoading(false);
           return;
         }
-        // POST each selected category
+        // POST each selected category. Same X-Budget-ID workaround as the
+        // step-2 PATCH — wizard URL is /budgets/new, so the api-client
+        // can't derive the header from the path.
         await Promise.all(
           form.categories.map((name) =>
-            api.budgets[":budgetId"].categories.$post({
-              param: { budgetId },
-              json: { name, planned: 0, cushion: 0 },
-            }),
+            api.budgets[":budgetId"].categories.$post(
+              {
+                param: { budgetId },
+                json: { name, planned: 0, cushion: 0 },
+              },
+              { headers: { "X-Budget-ID": budgetId } },
+            ),
           ),
         );
         await putProgress(4);

@@ -7,6 +7,13 @@ import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
 import { TopNav } from "@/components/budgeting/top-nav";
 import { Toaster } from "@/components/ui/sonner";
 
+// The (app) shell is per-user: session lookup, onboarding-progress fetch,
+// and the budget switcher all depend on the request's cookies. Without this
+// Next.js statically prerenders /en at build time, baking in the
+// no-session empty-hero HTML and skipping the layout's onboarding redirect
+// (the fetch never reaches the api on real requests).
+export const dynamic = "force-dynamic";
+
 interface AppLayoutProps {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
@@ -40,7 +47,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   }
 
   const hdrs = await headers();
-  const pathname = hdrs.get("x-pathname");
+  // Next.js exposes middleware-injected request headers behind an
+  // `x-middleware-request-` prefix in RSC `headers()`. We read both forms
+  // so the layout works whether Next prefixes the key or not.
+  const pathname =
+    hdrs.get("x-middleware-request-x-pathname") ?? hdrs.get("x-pathname");
   const activeBudgetId = extractActiveBudgetId(pathname);
 
   // D-08: Incomplete-onboarding force-redirect guard.
@@ -49,6 +60,13 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   //   2. Row exists with completed_at !== null → already finished, no redirect.
   //   3. Row exists with completed_at === null AND not already on /budgets/new → redirect.
   if (pathname && !pathname.includes("/budgets/new")) {
+    // IMPORTANT: do not call redirect() inside try/catch. Next.js implements
+    // redirect() by throwing a NEXT_REDIRECT sentinel error that the router
+    // catches at the framework boundary; wrapping it in a local catch
+    // swallows the throw and no redirect ever fires (the original bug here).
+    // We fetch + parse inside try (to swallow real network errors), record
+    // the desired target, and call redirect() outside.
+    let redirectTo: string | null = null;
     try {
       const progressRes = await serverApiFetch(null, "/onboarding/progress");
       if (progressRes.status === 200) {
@@ -60,14 +78,14 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         // undefined means malformed/absent response — treat as safe, no redirect.
         if (progress.completedAt === null) {
           const savedStep = progress.step ?? 1;
-          redirect(`/${locale}/budgets/new?step=${savedStep}`);
+          redirectTo = `/${locale}/budgets/new?step=${savedStep}`;
         }
-        // completed_at is set → onboarding done, fall through
       }
       // 404 or any other status → no row → EXIT EARLY (existing users not trapped)
     } catch {
       // Any fetch error → fall through gracefully (never block the layout)
     }
+    if (redirectTo) redirect(redirectTo);
   }
 
   return (

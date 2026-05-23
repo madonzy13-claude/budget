@@ -13,6 +13,12 @@
 import { getTranslations } from "next-intl/server";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { HomeCardsGrid } from "@/components/budgeting/home-cards-grid";
+
+// The home page reads the per-user list of budgets. Without this Next.js
+// statically pre-renders the page at build time (when there is no session)
+// and bakes in the empty-hero HTML, which means the (app) layout's
+// onboarding redirect never runs on real authenticated requests either.
+export const dynamic = "force-dynamic";
 import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
 import { PlaceholderChart } from "@/components/budgeting/placeholder-chart";
 import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
