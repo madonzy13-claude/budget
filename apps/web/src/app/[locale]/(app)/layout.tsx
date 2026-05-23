@@ -71,12 +71,18 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
+    /* global.css locks html + body to height:100% + overflow:hidden (anti
+       rubber-band guard for iOS). The (app) shell must therefore own the
+       scroll, which is why the root is `h-dvh flex-col` and the main slot
+       gets `flex-1 min-h-0 overflow-y-auto` — without min-h-0 the flex
+       child grows past its parent and clips on mobile (regression seen
+       after the D-08 onboarding-guard refactor). */
+    <div className="flex h-dvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
       <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
-      <header className="sticky top-0 z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
+      <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
         <TopNav locale={locale} activeBudgetId={activeBudgetId} />
       </header>
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
       <SiteFooter />
       <Toaster />
     </div>
