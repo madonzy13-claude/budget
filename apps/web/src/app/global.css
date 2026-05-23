@@ -107,6 +107,10 @@
 
     /* Hairlines */
     --hairline-dark: #2b3139;
+    /* Phase 6 components reference `--hairline-on-dark`; alias it to
+       `--hairline-dark` so undefined-var fallback to currentColor (white)
+       stops painting whitish borders on dark surfaces. */
+    --hairline-on-dark: var(--hairline-dark);
 
     /* Text */
     --body-on-dark: #eaecef;

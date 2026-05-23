@@ -81,7 +81,7 @@ export function BdpTabs({
               "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
               active
                 ? "bg-[var(--primary)] text-[var(--on-primary)] text-sm font-semibold"
-                : "bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)] hover:bg-[var(--surface-card-dark)] hover:text-[var(--body-on-dark)]",
+                : "text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]",
             )}
           >
             <Icon className="size-[18px]" aria-hidden="true" />
