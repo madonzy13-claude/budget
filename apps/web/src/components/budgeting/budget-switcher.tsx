@@ -105,7 +105,12 @@ export function BudgetSwitcher({
               label is omitted entirely when there is no active budget so the
               header collapses to a bare chevron on the home page. */}
           {triggerLabel && (
-            <span className="text-title-sm max-w-[20ch]">{triggerLabel}</span>
+            <span
+              className="text-title-sm inline-block max-w-[20ch] truncate align-middle"
+              title={triggerLabel}
+            >
+              {triggerLabel}
+            </span>
           )}
           <ChevronDown
             className="size-4 text-[var(--muted-foreground)]"

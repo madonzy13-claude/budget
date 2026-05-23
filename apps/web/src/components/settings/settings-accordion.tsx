@@ -44,8 +44,17 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
       collapsible
       className="rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]"
     >
+      {/* When an item is open we lift it to the elevated surface so the
+          trigger row and its content read as a single grouped section,
+          visually distinct from the still-closed siblings. The Accordion
+          animation utilities (animate-accordion-down/up) live on the
+          AccordionContent primitive — see ui/accordion.tsx — and the
+          @theme block in global.css defines their keyframes. */}
       {/* 1. Budget Identity */}
-      <AccordionItem value="budget-identity">
+      <AccordionItem
+        value="budget-identity"
+        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
+      >
         <AccordionTrigger className="px-6">
           {t("sections.identity")}
         </AccordionTrigger>
@@ -60,7 +69,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
       </AccordionItem>
 
       {/* 2. Cushion Mode */}
-      <AccordionItem value="cushion-mode">
+      <AccordionItem
+        value="cushion-mode"
+        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
+      >
         <AccordionTrigger className="px-6">
           {t("sections.cushion")}
         </AccordionTrigger>
@@ -73,7 +85,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
       </AccordionItem>
 
       {/* 3. Recurring Rules */}
-      <AccordionItem value="recurring-rules">
+      <AccordionItem
+        value="recurring-rules"
+        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
+      >
         <AccordionTrigger className="px-6">
           {t("sections.recurring")}
         </AccordionTrigger>
@@ -84,7 +99,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
 
       {/* 4. Members (SHARED only) */}
       {budget.kind === "SHARED" && (
-        <AccordionItem value="members">
+        <AccordionItem
+          value="members"
+          className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
+        >
           <AccordionTrigger className="px-6">
             {t("sections.members")}
           </AccordionTrigger>
@@ -95,7 +113,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
       )}
 
       {/* 5. Danger Zone */}
-      <AccordionItem value="danger-zone">
+      <AccordionItem
+        value="danger-zone"
+        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
+      >
         <AccordionTrigger className="px-6 text-[var(--trading-down)]">
           {t("sections.danger")}
         </AccordionTrigger>
