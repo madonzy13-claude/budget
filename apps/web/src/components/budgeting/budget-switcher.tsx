@@ -106,7 +106,7 @@ export function BudgetSwitcher({
               header collapses to a bare chevron on the home page. */}
           {triggerLabel && (
             <span
-              className="text-title-sm inline-block max-w-[20ch] truncate align-middle"
+              className="text-title-sm inline-block max-w-[14ch] truncate align-middle sm:max-w-[20ch]"
               title={triggerLabel}
             >
               {triggerLabel}

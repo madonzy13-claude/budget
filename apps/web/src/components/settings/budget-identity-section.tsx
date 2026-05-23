@@ -7,6 +7,8 @@
  * Currency field: editable select when hasTransactions=false,
  * locked with tooltip when true.
  */
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +37,15 @@ export function BudgetIdentitySection({
   hasTransactions,
 }: BudgetIdentitySectionProps) {
   const t = useTranslations("settings");
+  const router = useRouter();
+
+  // Optimistic display name so the inline cell shows the new value
+  // immediately after blur, while router.refresh() asynchronously syncs the
+  // RSC tree (which also refreshes the top-nav budget switcher).
+  const [displayName, setDisplayName] = useState(name);
+  useEffect(() => {
+    setDisplayName(name);
+  }, [name]);
 
   const saveName = async (newName: string) => {
     const res = await api.budgets[":id"].$patch({
@@ -42,7 +53,9 @@ export function BudgetIdentitySection({
       json: { name: newName },
     });
     if (!res.ok) throw new Error("Failed to save name");
+    setDisplayName(newName);
     toast.success(t("identity.name_saved"));
+    router.refresh();
   };
 
   const saveCurrency = async (currency: string) => {
@@ -59,6 +72,7 @@ export function BudgetIdentitySection({
       throw new Error("Failed to update currency");
     }
     toast.success(t("identity.currency_saved"));
+    router.refresh();
   };
 
   return (
@@ -70,7 +84,7 @@ export function BudgetIdentitySection({
         </p>
         <div className="min-w-0 flex-1 text-right">
           <InlineEditCell
-            value={name}
+            value={displayName}
             testId="budget-name-input"
             ariaLabel={t("identity.name_label")}
             render={(v) => (
