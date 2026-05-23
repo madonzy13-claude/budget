@@ -46,7 +46,7 @@ export default async function BdpSettingsPage({ params }: PageProps) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 sm:px-6">
+    <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
       {/* h1 omitted — the BDP tab "Settings" is already the page title. */}
       <SettingsAccordion budget={budget} />
     </main>

@@ -49,14 +49,8 @@ export function CushionModeSection({
   };
 
   return (
-    <div className="flex items-start gap-4">
-      <Switch
-        checked={enabled}
-        onCheckedChange={handleChange}
-        disabled={saving}
-        aria-label={t("cushion.label")}
-      />
-      <div className="space-y-1">
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 space-y-1">
         <p className="text-sm font-semibold text-[var(--body)]">
           {t("cushion.label")}
         </p>
@@ -64,6 +58,13 @@ export function CushionModeSection({
           {t("cushion.help_text")}
         </p>
       </div>
+      <Switch
+        checked={enabled}
+        onCheckedChange={handleChange}
+        disabled={saving}
+        aria-label={t("cushion.label")}
+        className="shrink-0"
+      />
     </div>
   );
 }
