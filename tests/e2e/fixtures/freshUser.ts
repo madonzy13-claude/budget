@@ -57,6 +57,23 @@ export async function createFreshUser(
   const name = "E2E User";
 
   const signUpPage = new SignUpPage(page, locale);
+  // Phase 6 share-link scenarios call createFreshUser twice in one scenario
+  // (owner + recipient). The recipient's call would otherwise inherit the
+  // owner's session cookie and `/sign-up` would redirect to home, hiding the
+  // name field. Drop cookies + storage so every fresh user starts unauthed.
+  await page.context().clearCookies();
+  try {
+    await page.evaluate(() => {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {
+        /* storage may not be available before first navigation */
+      }
+    });
+  } catch {
+    /* page may not yet have a document — first call only */
+  }
   await signUpPage.goto();
   await signUpPage.fill({ name, email, password });
   await signUpPage.submit();

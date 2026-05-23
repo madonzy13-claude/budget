@@ -131,6 +131,18 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     const hasTransactions =
       await deps.tenancy.workspaceRepo.hasTransactions(budgetId);
 
+    // Compute the caller's role on this budget so the web UI can gate the
+    // owner-only Danger Zone (Archive/Delete) vs non-owner Leave.
+    const actorUserId = (session as { user: { id: string } }).user.id;
+    let currentUserRole: "owner" | "member" = "member";
+    try {
+      const members = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+      const me = members.find((m) => m.userId === actorUserId);
+      if (me) currentUserRole = me.role;
+    } catch (e) {
+      console.error("[budgets:get] listMembers failed:", e);
+    }
+
     return c.json({
       id: budget.id,
       name: budget.name,
@@ -142,6 +154,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       cushionModeEnabled: budget.cushionModeEnabled ?? false,
       reservesEnabled: budget.reservesEnabled ?? true,
       hasTransactions,
+      currentUserRole,
     });
   });
 

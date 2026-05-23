@@ -87,10 +87,13 @@ export function JoinPageCard({
   // ── Not found ─────────────────────────────────────────────────────────────
   if (cardState === "not_found") {
     return (
-      <Card className="w-full max-w-[400px]">
+      <Card className="w-full max-w-[400px]" data-testid="join-page-card">
         <CardHeader>
           <CardTitle>
-            <h2 className="text-base font-semibold text-[var(--body)]">
+            <h2
+              data-testid="join-error-heading"
+              className="text-base font-semibold text-[var(--body)]"
+            >
               {t("not_found_heading")}
             </h2>
           </CardTitle>
@@ -99,6 +102,7 @@ export function JoinPageCard({
         <CardContent>
           <Link
             href={`/${locale}`}
+            data-testid="join-error-cta"
             className="text-sm font-medium text-[var(--body)] underline underline-offset-4 hover:text-[var(--muted)]"
           >
             {t("not_found_cta")}
@@ -111,10 +115,13 @@ export function JoinPageCard({
   // ── Expired / Revoked ──────────────────────────────────────────────────────
   if (cardState === "expired") {
     return (
-      <Card className="w-full max-w-[400px]">
+      <Card className="w-full max-w-[400px]" data-testid="join-page-card">
         <CardHeader>
           <CardTitle>
-            <h2 className="text-base font-semibold text-[var(--body)]">
+            <h2
+              data-testid="join-error-heading"
+              className="text-base font-semibold text-[var(--body)]"
+            >
               {t("expired_heading")}
             </h2>
           </CardTitle>
@@ -127,10 +134,13 @@ export function JoinPageCard({
   // ── Already used ──────────────────────────────────────────────────────────
   if (cardState === "already_used") {
     return (
-      <Card className="w-full max-w-[400px]">
+      <Card className="w-full max-w-[400px]" data-testid="join-page-card">
         <CardHeader>
           <CardTitle>
-            <h2 className="text-base font-semibold text-[var(--body)]">
+            <h2
+              data-testid="join-error-heading"
+              className="text-base font-semibold text-[var(--body)]"
+            >
               {t("already_used_heading")}
             </h2>
           </CardTitle>
@@ -141,6 +151,7 @@ export function JoinPageCard({
         <CardContent>
           <Link
             href={`/${locale}`}
+            data-testid="join-error-cta"
             className="text-sm font-medium text-[var(--body)] underline underline-offset-4 hover:text-[var(--muted)]"
           >
             {t("already_used_cta")}
@@ -152,7 +163,7 @@ export function JoinPageCard({
 
   // ── Valid ─────────────────────────────────────────────────────────────────
   return (
-    <Card className="w-full max-w-[400px]">
+    <Card className="w-full max-w-[400px]" data-testid="join-page-card">
       <CardHeader>
         <CardTitle>
           <h2 className="text-base font-semibold text-[var(--body)]">
@@ -160,7 +171,10 @@ export function JoinPageCard({
           </h2>
         </CardTitle>
         {budgetName && (
-          <p className="text-base font-semibold text-[var(--body)]">
+          <p
+            data-testid="join-budget-name"
+            className="text-base font-semibold text-[var(--body)]"
+          >
             {budgetName}
           </p>
         )}

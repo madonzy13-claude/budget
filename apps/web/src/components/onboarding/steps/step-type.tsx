@@ -46,6 +46,7 @@ export function StepType({ value, onChange }: StepTypeProps) {
           return (
             <label
               key={kind}
+              data-testid={`wizard-type-${kind === "PRIVATE" ? "personal" : "shared"}`}
               className={cn(
                 "flex cursor-pointer items-start gap-4 rounded-[var(--radius-md)] border px-4 py-4 transition-all",
                 active

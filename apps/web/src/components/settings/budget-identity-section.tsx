@@ -70,6 +70,7 @@ export function BudgetIdentitySection({
         </p>
         <InlineEditCell
           value={name}
+          testId="budget-name-input"
           ariaLabel={t("identity.name_label")}
           render={(v) => (
             <span className="block rounded-md px-3 py-2 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
@@ -79,6 +80,7 @@ export function BudgetIdentitySection({
           renderEditor={(draft, onChange, onCommit, onCancel) => (
             <Input
               autoFocus
+              data-testid="budget-name-input"
               value={draft}
               maxLength={80}
               onChange={(e) => onChange(e.target.value)}

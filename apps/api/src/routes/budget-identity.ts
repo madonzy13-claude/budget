@@ -51,6 +51,19 @@ export function budgetIdentityRoutesFactory(
     const hasTransactions =
       await deps.tenancy.workspaceRepo.hasTransactions(budgetId);
 
+    // Same caller-role surfacing as parent GET /:id, keeping the two response
+    // shapes in lockstep so the test-isolation factory and production handler
+    // return the same fields.
+    const actorUserId = (session as { user: { id: string } }).user.id;
+    let currentUserRole: "owner" | "member" = "member";
+    try {
+      const members = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+      const me = members.find((m) => m.userId === actorUserId);
+      if (me) currentUserRole = me.role;
+    } catch (e) {
+      console.error("[budget-identity:get] listMembers failed:", e);
+    }
+
     return c.json({
       id: budget.id,
       name: budget.name,
@@ -62,6 +75,7 @@ export function budgetIdentityRoutesFactory(
       cushionModeEnabled: budget.cushionModeEnabled ?? false,
       reservesEnabled: budget.reservesEnabled ?? true,
       hasTransactions,
+      currentUserRole,
     });
   });
 

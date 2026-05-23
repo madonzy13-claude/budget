@@ -15,33 +15,57 @@ const { Given, When, Then } = createBdd(test);
 
 let walletsPage: WalletsPage;
 
+async function bootstrapFreshUserWithBudget(
+  page: import("@playwright/test").Page,
+  scenarioCtx: Record<string, unknown>,
+  workspaceName: string,
+  kind: "PRIVATE" | "SHARED",
+) {
+  const user = await createFreshUser(page, "en");
+  scenarioCtx.freshUser = user;
+
+  const create = await page.request.post("/api/budgets", {
+    data: {
+      name: workspaceName,
+      kind,
+      default_currency: "EUR",
+    },
+  });
+  expect(create.ok()).toBeTruthy();
+  const { id: workspaceId } = (await create.json()) as { id: string };
+  scenarioCtx["workspaceId"] = workspaceId;
+  scenarioCtx["workspaceName"] = workspaceName;
+
+  const activate = await page.request.put("/api/budgets/active", {
+    data: { workspaceIds: [workspaceId] },
+  });
+  expect(activate.ok()).toBeTruthy();
+
+  walletsPage = new WalletsPage(page);
+  return workspaceId;
+}
+
 Given(
   "I am signed in as a fresh user with workspace {string}",
   async ({ page, scenarioCtx }, workspaceName: string) => {
-    const user = await createFreshUser(page, "en");
-    scenarioCtx.freshUser = user;
+    await bootstrapFreshUserWithBudget(
+      page,
+      scenarioCtx as Record<string, unknown>,
+      workspaceName,
+      "PRIVATE",
+    );
+  },
+);
 
-    // Bootstrap workspace via API (avoids the buggy onboarding currency picker
-    // and gives every budget scenario a known active workspace).
-    const create = await page.request.post("/api/budgets", {
-      data: {
-        name: workspaceName,
-        kind: "PRIVATE",
-        default_currency: "EUR",
-      },
-    });
-    expect(create.ok()).toBeTruthy();
-    const { id: workspaceId } = (await create.json()) as { id: string };
-    // Store for use by spendings.steps.ts findBudgetId (avoids GET /api/budgets which doesn't exist)
-    (scenarioCtx as Record<string, unknown>)["workspaceId"] = workspaceId;
-    (scenarioCtx as Record<string, unknown>)["workspaceName"] = workspaceName;
-
-    const activate = await page.request.put("/api/budgets/active", {
-      data: { workspaceIds: [workspaceId] },
-    });
-    expect(activate.ok()).toBeTruthy();
-
-    walletsPage = new WalletsPage(page);
+Given(
+  "I am signed in as a fresh user with a shared budget {string}",
+  async ({ page, scenarioCtx }, workspaceName: string) => {
+    await bootstrapFreshUserWithBudget(
+      page,
+      scenarioCtx as Record<string, unknown>,
+      workspaceName,
+      "SHARED",
+    );
   },
 );
 

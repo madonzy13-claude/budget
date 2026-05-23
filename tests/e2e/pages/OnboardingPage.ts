@@ -47,7 +47,9 @@ export class OnboardingPage {
   // ── Step 2: Currency ────────────────────────────────────────────────────────
 
   currencyTrigger(): Locator {
-    return this.page.getByTestId("wizard-step2-currency");
+    // step-currency renders a shared CurrencyPicker (Radix Select) — its
+    // trigger exposes role=combobox with the "Default currency" aria-label.
+    return this.page.getByRole("combobox", { name: /currency/i });
   }
 
   async pickCurrency(code: string): Promise<void> {
@@ -66,8 +68,10 @@ export class OnboardingPage {
   // ── Step 3: Budget type ─────────────────────────────────────────────────────
 
   async pickType(type: "personal" | "shared"): Promise<void> {
-    const label = type === "personal" ? /personal/i : /shared/i;
-    await this.page.getByRole("radio", { name: label }).click();
+    // step-type renders the radio with `className="sr-only"` (visually
+    // hidden) — Playwright can't click it. Click the visible label
+    // wrapper instead, which natively activates its radio.
+    await this.page.getByTestId(`wizard-type-${type}`).click();
   }
 
   // ── Step 4: Categories ──────────────────────────────────────────────────────

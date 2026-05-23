@@ -21,6 +21,8 @@ export function WizardStepper({ currentStep, className }: WizardStepperProps) {
     <div
       role="list"
       aria-label="Wizard progress"
+      data-testid="wizard-stepper"
+      data-active-step={String(currentStep)}
       className={cn("flex items-center gap-2", className)}
     >
       {steps.map((step) => {

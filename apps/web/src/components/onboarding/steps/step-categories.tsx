@@ -57,6 +57,7 @@ export function StepCategories({
               key={cat}
               type="button"
               role="checkbox"
+              data-testid="wizard-category-item"
               aria-checked={active}
               onClick={() => toggle(cat)}
               className={cn(

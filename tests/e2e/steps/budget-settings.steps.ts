@@ -38,37 +38,25 @@ When("I reload the Budget Settings page", async ({ page, scenarioCtx }) => {
   await settings.open("en", budgetId);
 });
 
-When(
-  "I open the Cushion Mode section",
-  async ({ page }) => {
-    const settings = new BudgetSettingsPage(page);
-    await settings.openSection(/cushion/i);
-  },
-);
+When("I open the Cushion Mode section", async ({ page }) => {
+  const settings = new BudgetSettingsPage(page);
+  await settings.openSection(/cushion/i);
+});
 
-When(
-  "I open the Members section",
-  async ({ page }) => {
-    const settings = new BudgetSettingsPage(page);
-    await settings.openSection(/members/i);
-  },
-);
+When("I open the Members section", async ({ page }) => {
+  const settings = new BudgetSettingsPage(page);
+  await settings.openSection(/members/i);
+});
 
-When(
-  "I open the Danger Zone section",
-  async ({ page }) => {
-    const settings = new BudgetSettingsPage(page);
-    await settings.openSection(/danger/i);
-  },
-);
+When("I open the Danger Zone section", async ({ page }) => {
+  const settings = new BudgetSettingsPage(page);
+  await settings.openSection(/danger/i);
+});
 
-When(
-  "I rename the budget to {string}",
-  async ({ page }, newName: string) => {
-    const settings = new BudgetSettingsPage(page);
-    await settings.renameBudget(newName);
-  },
-);
+When("I rename the budget to {string}", async ({ page }, newName: string) => {
+  const settings = new BudgetSettingsPage(page);
+  await settings.renameBudget(newName);
+});
 
 When("I toggle the cushion switch", async ({ page }) => {
   const settings = new BudgetSettingsPage(page);
@@ -115,7 +103,9 @@ Then(
   "the budget name input shows {string}",
   async ({ page }, expectedName: string) => {
     const settings = new BudgetSettingsPage(page);
-    await expect(settings.identityInput()).toHaveValue(expectedName, {
+    // Budget name is an InlineEditCell — at rest it renders a display cell
+    // (not an <input>), so assert on its text content, not its value.
+    await expect(settings.identityInput()).toContainText(expectedName, {
       timeout: 10000,
     });
   },
@@ -165,7 +155,8 @@ Then("the Delete forever button is enabled", async ({ page }) => {
 
 Then("the Members accordion section is not visible", async ({ page }) => {
   // PRIVATE budgets don't render the Members accordion trigger at all
-  await expect(
-    page.getByRole("button", { name: /^members$/i }),
-  ).toHaveCount(0, { timeout: 10000 });
+  await expect(page.getByRole("button", { name: /^members$/i })).toHaveCount(
+    0,
+    { timeout: 10000 },
+  );
 });

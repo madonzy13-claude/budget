@@ -56,10 +56,9 @@ Given(
   "the owner has generated a share link for that budget",
   async ({ page, scenarioCtx }) => {
     const budgetId = getBudgetId(scenarioCtx as Record<string, unknown>);
-    const res = await page.request.post(
-      `/api/budgets/${budgetId}/share-links`,
-      { data: {} },
-    );
+    const res = await page.request.post(`/api/budgets/${budgetId}/share`, {
+      data: {},
+    });
     expect(res.ok()).toBeTruthy();
     const body = (await res.json()) as { token: string } | { url: string };
     // API may return { token } or { url: ".../<token>" }

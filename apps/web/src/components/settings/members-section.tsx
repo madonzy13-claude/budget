@@ -7,7 +7,6 @@
  * Generate share link reveals ephemeral ShareUrlField.
  * Revoke requires AlertDialog confirm before firing POST.
  */
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,7 +42,6 @@ export interface MembersSectionProps {
 export function MembersSection({ budgetId }: MembersSectionProps) {
   const t = useTranslations("settings");
   const queryClient = useQueryClient();
-  const [showShareField, setShowShareField] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["budget-members", budgetId],
@@ -65,7 +63,9 @@ export function MembersSection({ budgetId }: MembersSectionProps) {
         param: { id: budgetId, memberId },
       });
       if (!res.ok) throw new Error("Failed to revoke member");
-      await queryClient.invalidateQueries({ queryKey: ["budget-members", budgetId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["budget-members", budgetId],
+      });
       toast.success(t("members.revoked_toast"));
     } catch {
       toast.error(t("members.revoke_error"));
@@ -114,7 +114,9 @@ export function MembersSection({ budgetId }: MembersSectionProps) {
                   </p>
                 </div>
                 <Badge variant="secondary" className="text-xs">
-                  {member.role === "owner" ? t("members.role_owner") : t("members.role_member")}
+                  {member.role === "owner"
+                    ? t("members.role_owner")
+                    : t("members.role_member")}
                 </Badge>
               </div>
               <AlertDialog>
@@ -130,14 +132,20 @@ export function MembersSection({ budgetId }: MembersSectionProps) {
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>
-                      {t("members.revoke_dialog_title", { name: getDisplayName(member) })}
+                      {t("members.revoke_dialog_title", {
+                        name: getDisplayName(member),
+                      })}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                      {t("members.revoke_dialog_body", { name: getDisplayName(member) })}
+                      {t("members.revoke_dialog_body", {
+                        name: getDisplayName(member),
+                      })}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>{t("members.revoke_cancel")}</AlertDialogCancel>
+                    <AlertDialogCancel>
+                      {t("members.revoke_cancel")}
+                    </AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-[var(--trading-down)] text-white hover:bg-[var(--trading-down)]/90"
                       onClick={() => handleRevoke(member.userId)}
@@ -152,18 +160,10 @@ export function MembersSection({ budgetId }: MembersSectionProps) {
         </ul>
       )}
 
-      {/* Generate share link */}
-      {showShareField ? (
-        <ShareUrlField budgetId={budgetId} />
-      ) : (
-        <Button
-          variant="outline"
-          className="border-[var(--hairline-on-dark)] text-[var(--body)]"
-          onClick={() => setShowShareField(true)}
-        >
-          {t("members.generate_link")}
-        </Button>
-      )}
+      {/* Generate share link — ShareUrlField owns the button↔URL state so a
+          single click on "Generate share link" hits the API and reveals the URL
+          field (no intermediate reveal step). */}
+      <ShareUrlField budgetId={budgetId} />
     </div>
   );
 }

@@ -69,6 +69,37 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
+  // D-06 resume: mirror the live `step` state into the URL as ?step=N so a
+  // mid-wizard refresh resumes at the saved step. Without this the wizard
+  // would reset to step 1 on reload because the layout guard's resume
+  // redirect explicitly skips /budgets/new.
+  //
+  // Uses `window.history.replaceState` (synchronous) rather than `router.replace`
+  // (async) so the URL is committed before any imperative `page.reload()` in
+  // tests. The async router.replace lost the race against playwright's reload.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get("step");
+    if (step > 1) {
+      if (current !== String(step)) {
+        url.searchParams.set("step", String(step));
+        window.history.replaceState(
+          null,
+          "",
+          url.pathname + url.search + url.hash,
+        );
+      }
+    } else if (current !== null) {
+      url.searchParams.delete("step");
+      window.history.replaceState(
+        null,
+        "",
+        url.pathname + url.search + url.hash,
+      );
+    }
+  }, [step]);
+
   // D-06 resume: when returning to a mid-wizard step (?step=2+), restore
   // budgetId from the server so PATCH/POST calls in steps 2-4 are not no-ops.
   useEffect(() => {

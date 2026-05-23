@@ -60,9 +60,7 @@ export function ShareUrlField({ budgetId }: ShareUrlFieldProps) {
         onClick={generate}
         disabled={generating}
       >
-        {generating ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : null}
+        {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         {t("generate_button")}
       </Button>
     );
@@ -70,11 +68,14 @@ export function ShareUrlField({ budgetId }: ShareUrlFieldProps) {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-semibold text-[var(--body)]">{t("field_label")}</p>
+      <p className="text-sm font-semibold text-[var(--body)]">
+        {t("field_label")}
+      </p>
       <div className="flex items-center gap-2">
         <Input
           readOnly
           value={url}
+          data-testid="share-url-field"
           className="flex-1 cursor-text bg-[var(--surface-elevated-dark)] text-sm text-[var(--body)]"
         />
         <Button
@@ -87,7 +88,9 @@ export function ShareUrlField({ budgetId }: ShareUrlFieldProps) {
           <Copy className="h-4 w-4" />
         </Button>
       </div>
-      <p className="text-xs text-[var(--muted-foreground)]">{t("expires_in_7_days")}</p>
+      <p className="text-xs text-[var(--muted-foreground)]">
+        {t("expires_in_7_days")}
+      </p>
     </div>
   );
 }

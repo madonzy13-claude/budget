@@ -95,7 +95,15 @@ export class DrizzleBudgetRepo implements BudgetRepo {
   async listMembers(budgetId: string): Promise<MemberDTO[]> {
     // withInfraTx: infrastructure carve-out for listing members.
     // JOIN identity.users to include name/email for display in the members section (WR-05).
+    // tenancy.budget_members has FORCE RLS — its SELECT policies require either
+    // `app.tenant_ids` or `app.current_user_id` to be set. The infra tx opens a
+    // fresh connection with neither GUC, so we must set tenant_ids here for the
+    // open-policy to let the rows through. Sanitize budgetId to keep this SET
+    // LOCAL strictly UUID-shaped (literal injection is the only safe form for
+    // PG GUCs; bind-parameters are not accepted in SET).
+    const safeId = budgetId.replace(/[^a-fA-F0-9-]/g, "");
     const r = await withInfraTx(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeId}}'`));
       const result = await tx.execute<{
         budget_id: string;
         user_id: string;
@@ -148,10 +156,17 @@ export class DrizzleBudgetRepo implements BudgetRepo {
   async hasTransactions(budgetId: string): Promise<boolean> {
     // withInfraTx: infrastructure carve-out — exists query runs in service context,
     // not user request context (same pattern as findById).
+    // expense_ledger has tenant-scoped RLS, so set app.tenant_ids in this tx
+    // before the EXISTS query — otherwise RLS hides every row and the check
+    // would always report `false` (silently breaking the currency lock).
+    const safeId = budgetId.replace(/[^a-fA-F0-9-]/g, "");
     const r = await withInfraTx(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeId}}'`));
+      // Currency lock fires once a budget has any non-deleted ledger entry.
+      // The ledger table is budgeting.expense_ledger (not "transactions").
       const res = await tx.execute<{ exists: boolean }>(sql`
         SELECT EXISTS(
-          SELECT 1 FROM budgeting.transactions
+          SELECT 1 FROM budgeting.expense_ledger
           WHERE budget_id = ${budgetId}::uuid AND deleted_at IS NULL
         ) AS exists
       `);
@@ -178,14 +193,29 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       return res.rows[0]?.archived_at ?? new Date();
     });
     if (r.isErr()) throw r.error;
-    return { archivedAt: r.value.toISOString() };
+    // pg may return `archived_at` as a Date OR as an ISO string depending on
+    // node-postgres date parsing config. Normalize through `new Date()` so
+    // callers always get a stable ISO 8601 string.
+    return { archivedAt: new Date(r.value).toISOString() };
   }
 
-  /** SETT-08: hard-delete — removes the budget row; cascades to child tables. */
+  /** SETT-08: hard-delete — removes the budget row.
+   *
+   * Several child tables (budget_members, recurring_rules, etc.) reference
+   * tenancy.budgets without ON DELETE CASCADE, so a direct DELETE on the
+   * parent throws FK violation. We DELETE the known budget-scoped children
+   * first, in the same tx, so the parent DELETE is unblocked.
+   */
   async hardDelete(budgetId: string, actorUserId: string): Promise<void> {
     const tid = TenantId(budgetId);
     const uid = UserId(actorUserId);
     const r = await withTenantTx(tid, uid, async (tx) => {
+      // Child rows that may FK to budgets — delete in dependency order. Each
+      // DELETE is a no-op if the table is empty for this budget, so missing
+      // data in a fresh-from-onboarding scenario is fine.
+      await tx.execute(
+        sql`DELETE FROM tenancy.budget_members WHERE budget_id = ${budgetId}::uuid`,
+      );
       await tx.execute(
         sql`DELETE FROM tenancy.budgets WHERE id = ${budgetId}::uuid`,
       );

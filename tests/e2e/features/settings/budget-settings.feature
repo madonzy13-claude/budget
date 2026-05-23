@@ -16,10 +16,11 @@ Feature: Budget Settings — identity autosave, cushion toggle, share link, dang
     And I toggle the cushion switch
     Then I see a toast matching "cushion mode on"
     When I reload the Budget Settings page
+    And I open the Cushion Mode section
     Then the cushion switch is checked
 
   Scenario: Owner generates a share link and sees the URL field with a Copy button
-    Given I am signed in as a fresh user with workspace "Share Test"
+    Given I am signed in as a fresh user with a shared budget "Share Test"
     When I open the Budget Settings page for my budget
     And I open the Members section
     And I click "Generate share link"
