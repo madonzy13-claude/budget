@@ -76,11 +76,16 @@ export function RecurringSection({
 
   return (
     <div className="space-y-4">
-      <RecurringRulesList
-        rules={rules}
-        onEdit={handleEdit}
-        onArchive={() => {}}
-      />
+      {/* Only render the list when there is something to show. The empty
+          state's "no rules yet" card was visually redundant — the dashed
+          +Add rule button below already conveys the empty affordance. */}
+      {rules.length > 0 && (
+        <RecurringRulesList
+          rules={rules}
+          onEdit={handleEdit}
+          onArchive={() => {}}
+        />
+      )}
 
       {/* +Add rule — neutral dashed button, NOT yellow */}
       <Button

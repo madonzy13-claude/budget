@@ -10,6 +10,29 @@
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+
+/** Fallback clipboard copy for non-secure contexts (plain http). Returns
+ *  true on success. Uses an off-screen textarea + execCommand("copy"),
+ *  which is the only path that works without HTTPS. */
+function legacyCopy(text: string): boolean {
+  if (typeof document === "undefined") return false;
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -44,11 +67,29 @@ export function ShareUrlField({ budgetId }: ShareUrlFieldProps) {
 
   const copy = async () => {
     if (!url) return;
+    // Try the modern Clipboard API first — only available in secure
+    // contexts (HTTPS or localhost). When the app is served from a plain
+    // HTTP origin (Tailscale, IP, intranet) navigator.clipboard is either
+    // undefined or its writeText rejects; fall back to a temporary
+    // selection + document.execCommand('copy'), which works across all
+    // browsers regardless of secure-context status.
     try {
-      await navigator.clipboard.writeText(url);
-      toast.success(t("copied"));
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === "function"
+      ) {
+        await navigator.clipboard.writeText(url);
+        toast.success(t("copied"));
+        return;
+      }
+      throw new Error("clipboard-unavailable");
     } catch {
-      toast.error(t("copy_failed"));
+      if (legacyCopy(url)) {
+        toast.success(t("copied"));
+      } else {
+        toast.error(t("copy_failed"));
+      }
     }
   };
 

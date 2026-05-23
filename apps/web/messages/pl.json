@@ -139,7 +139,7 @@
       "danger": "Strefa niebezpieczna"
     },
     "identity": {
-      "name_label": "Nazwa budżetu",
+      "name_label": "Nazwa",
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Domyślna waluta",
       "currency_saved": "Waluta zaktualizowana",

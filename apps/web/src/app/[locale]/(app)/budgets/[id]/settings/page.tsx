@@ -1,4 +1,3 @@
-import { getTranslations } from "next-intl/server";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { SettingsAccordion } from "@/components/settings/settings-accordion";
 import type { SettingsBudget } from "@/components/settings/settings-accordion";
@@ -28,8 +27,7 @@ interface BudgetApiResponse {
 }
 
 export default async function BdpSettingsPage({ params }: PageProps) {
-  const { locale, id: budgetId } = await params;
-  const t = await getTranslations({ locale, namespace: "settings" });
+  const { id: budgetId } = await params;
 
   const res = await serverApiFetch(budgetId, `/budgets/${budgetId}`);
   const raw: BudgetApiResponse | null = res.ok
@@ -48,10 +46,8 @@ export default async function BdpSettingsPage({ params }: PageProps) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1280px] px-4 pt-8 sm:px-6">
-      <h1 className="mb-6 text-xl font-semibold text-[var(--body)]">
-        {t("page_heading")}
-      </h1>
+    <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 sm:px-6">
+      {/* h1 omitted — the BDP tab "Settings" is already the page title. */}
       <SettingsAccordion budget={budget} />
     </main>
   );

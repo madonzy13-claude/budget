@@ -105,10 +105,9 @@ export function DangerZoneSection({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-semibold text-[var(--trading-down)]">
-        {t("danger.section_title")}
-      </p>
-
+      {/* Section title omitted — already shown by the accordion trigger.
+          The previous duplicate caused "Danger Zone" to appear twice
+          when the section is expanded. */}
       {isOwner ? (
         <div className="flex flex-wrap gap-3">
           {/* Archive */}

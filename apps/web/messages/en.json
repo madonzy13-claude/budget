@@ -139,7 +139,7 @@
       "danger": "Danger Zone"
     },
     "identity": {
-      "name_label": "Budget name",
+      "name_label": "Name",
       "name_saved": "Budget name saved",
       "currency_label": "Default currency",
       "currency_saved": "Currency updated",

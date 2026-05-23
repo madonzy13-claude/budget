@@ -57,7 +57,11 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
     <div
       className={cn(
         "relative flex h-12 items-center justify-center gap-2 px-4",
-        "sticky top-[112px] z-10 bg-[var(--canvas-dark)]",
+        // Sticks just under the BDP tabs (48px tall, sticky top-0 in the
+        // (app) scroll container). The earlier 112px constant assumed the
+        // (app) header was sticky too — it isn't, after the mobile-scroll
+        // refactor — leaving a 64px blank band above the slider.
+        "sticky top-12 z-10 bg-[var(--canvas-dark)]",
         "border-b border-[var(--hairline-dark)]",
         className,
       )}

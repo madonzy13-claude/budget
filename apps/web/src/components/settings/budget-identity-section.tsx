@@ -62,71 +62,75 @@ export function BudgetIdentitySection({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Budget name */}
-      <div className="space-y-1">
-        <p className="text-sm font-semibold text-[var(--body)]">
+    <div className="divide-y divide-[var(--hairline-on-dark)]">
+      {/* Budget name — label left, value right, single row. */}
+      <div className="flex items-center justify-between gap-4 py-3">
+        <p className="shrink-0 text-sm font-semibold text-[var(--body)]">
           {t("identity.name_label")}
         </p>
-        <InlineEditCell
-          value={name}
-          testId="budget-name-input"
-          ariaLabel={t("identity.name_label")}
-          render={(v) => (
-            <span className="block rounded-md px-3 py-2 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
-              {v}
-            </span>
-          )}
-          renderEditor={(draft, onChange, onCommit, onCancel) => (
-            <Input
-              autoFocus
-              data-testid="budget-name-input"
-              value={draft}
-              maxLength={80}
-              onChange={(e) => onChange(e.target.value)}
-              onBlur={onCommit}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") onCancel();
-                if (e.key === "Enter") onCommit();
-              }}
-              className="h-9 bg-[var(--surface-elevated-dark)] text-sm"
-            />
-          )}
-          onSave={saveName}
-        />
+        <div className="min-w-0 flex-1 text-right">
+          <InlineEditCell
+            value={name}
+            testId="budget-name-input"
+            ariaLabel={t("identity.name_label")}
+            render={(v) => (
+              <span className="block rounded-md px-3 py-1.5 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
+                {v}
+              </span>
+            )}
+            renderEditor={(draft, onChange, onCommit, onCancel) => (
+              <Input
+                autoFocus
+                data-testid="budget-name-input"
+                value={draft}
+                maxLength={80}
+                onChange={(e) => onChange(e.target.value)}
+                onBlur={onCommit}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") onCancel();
+                  if (e.key === "Enter") onCommit();
+                }}
+                className="h-9 bg-[var(--surface-elevated-dark)] text-right text-sm"
+              />
+            )}
+            onSave={saveName}
+          />
+        </div>
       </div>
 
-      {/* Default currency */}
-      <div className="space-y-1">
-        <p className="text-sm font-semibold text-[var(--body)]">
+      {/* Default currency — label left, picker (or locked display) right. */}
+      <div className="flex items-center justify-between gap-4 py-3">
+        <p className="shrink-0 text-sm font-semibold text-[var(--body)]">
           {t("identity.currency_label")}
         </p>
-        {hasTransactions ? (
-          <div className="flex items-center gap-2">
-            <span className="rounded-md px-3 py-2 text-sm text-[var(--body)]">
-              {defaultCurrency}
-            </span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Lock
-                    className="h-4 w-4 text-[var(--muted-foreground)]"
-                    aria-label={t("identity.currency_locked_tooltip")}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t("identity.currency_locked_tooltip")}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        ) : (
-          <CurrencyPicker
-            value={defaultCurrency}
-            onSelect={saveCurrency}
-            aria-label={t("identity.currency_label")}
-          />
-        )}
+        <div className="min-w-0 flex-1">
+          {hasTransactions ? (
+            <div className="flex items-center justify-end gap-2">
+              <span className="rounded-md px-3 py-1.5 text-sm text-[var(--body)]">
+                {defaultCurrency}
+              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Lock
+                      className="h-4 w-4 text-[var(--muted-foreground)]"
+                      aria-label={t("identity.currency_locked_tooltip")}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{t("identity.currency_locked_tooltip")}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          ) : (
+            <CurrencyPicker
+              value={defaultCurrency}
+              onSelect={saveCurrency}
+              aria-label={t("identity.currency_label")}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

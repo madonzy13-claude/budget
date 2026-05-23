@@ -82,10 +82,12 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
         <TopNav locale={locale} activeBudgetId={activeBudgetId} />
       </header>
-      <main className="flex-1 min-h-0 overflow-y-auto">
-        {children}
-        {/* Footer lives inside the scrollable main so it sits at the end of
-            the content, not pinned to the viewport bottom. */}
+      <main className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+        {/* flex-1 inner wrapper pushes the footer to the bottom of the
+            scroll surface when content is short, and lets the footer fall
+            naturally to the end of the document when content overflows.
+            Either way the footer never pins to the viewport during scroll. */}
+        <div className="flex-1">{children}</div>
         <SiteFooter />
       </main>
       <Toaster />

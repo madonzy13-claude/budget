@@ -139,7 +139,7 @@
       "danger": "Небезпечна зона"
     },
     "identity": {
-      "name_label": "Назва бюджету",
+      "name_label": "Назва",
       "name_saved": "Назву бюджету збережено",
       "currency_label": "Типова валюта",
       "currency_saved": "Валюту оновлено",
