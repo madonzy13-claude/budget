@@ -82,8 +82,12 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
         <TopNav locale={locale} activeBudgetId={activeBudgetId} />
       </header>
-      <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
-      <SiteFooter />
+      <main className="flex-1 min-h-0 overflow-y-auto">
+        {children}
+        {/* Footer lives inside the scrollable main so it sits at the end of
+            the content, not pinned to the viewport bottom. */}
+        <SiteFooter />
+      </main>
       <Toaster />
     </div>
   );
