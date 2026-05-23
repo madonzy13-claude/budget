@@ -51,31 +51,27 @@ export function DangerZoneSection({
   const [confirmName, setConfirmName] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const handleArchive = async () => {
+  /**
+   * Delete-as-archive: the typed-name confirmation is preserved (so we keep
+   * the same "are you sure" gate) but on confirm we soft-delete via the
+   * archive endpoint, not hard-delete. The budget disappears from the home
+   * grid + switcher and the user can no longer interact with it, but every
+   * row (categories, ledger, members, history) stays in the DB so the data
+   * is recoverable if it is ever needed again. The typed-name check still
+   * runs client-side so the gate is meaningful; the server-side name-match
+   * gate only ran for the hard-delete route, which we no longer call.
+   */
+  const handleDelete = async () => {
+    setDeleteError(null);
+    if (confirmName !== budgetName) {
+      setDeleteError(t("danger.name_mismatch_error"));
+      return;
+    }
     try {
       const res = await api.budgets[":id"].archive.$post({
         param: { id: budgetId },
       });
       if (!res.ok) throw new Error("Failed to archive budget");
-      toast.success(t("danger.archived_toast"));
-      router.push("/");
-    } catch {
-      toast.error(t("danger.archive_error"));
-    }
-  };
-
-  const handleDelete = async () => {
-    setDeleteError(null);
-    try {
-      const res = await api.budgets[":id"].delete.$post({
-        param: { id: budgetId },
-        json: { confirmName },
-      });
-      if (res.status === 422) {
-        setDeleteError(t("danger.name_mismatch_error"));
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to delete budget");
       toast.success(t("danger.deleted_toast"));
       router.push("/");
     } catch {
@@ -110,40 +106,11 @@ export function DangerZoneSection({
           when the section is expanded. */}
       {isOwner ? (
         <div className="flex flex-wrap gap-3">
-          {/* Archive */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="border-[var(--trading-down)] text-[var(--trading-down)] hover:bg-[var(--trading-down)]/10"
-              >
-                {t("danger.archive_button")}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {t("danger.archive_dialog_title")}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t("danger.archive_dialog_body")}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>
-                  {t("danger.archive_cancel")}
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-[var(--trading-down)] text-white hover:bg-[var(--trading-down)]/90"
-                  onClick={handleArchive}
-                >
-                  {t("danger.archive_confirm")}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Delete with typed-name confirm */}
+          {/* Delete with typed-name confirm. Per product decision the
+              destructive action archives instead of hard-deleting, so the
+              data stays recoverable in the DB even though the button still
+              reads "Delete budget" (it matches the user's mental model and
+              the typed-name gate retains its weight). */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button

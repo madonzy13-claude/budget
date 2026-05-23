@@ -39,10 +39,9 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
 
   return (
     <Accordion
-      type="single"
-      defaultValue="budget-identity"
-      collapsible
-      className="rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]"
+      type="multiple"
+      defaultValue={["budget-identity"]}
+      className="overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]"
     >
       {/* When an item is open we lift it to the elevated surface so the
           trigger row and its content read as a single grouped section,
@@ -51,14 +50,11 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
           AccordionContent primitive — see ui/accordion.tsx — and the
           @theme block in global.css defines their keyframes. */}
       {/* 1. Budget Identity */}
-      <AccordionItem
-        value="budget-identity"
-        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
-      >
+      <AccordionItem value="budget-identity">
         <AccordionTrigger className="px-6">
           {t("sections.identity")}
         </AccordionTrigger>
-        <AccordionContent className="px-6 pb-6">
+        <AccordionContent className="bg-[var(--canvas-dark)] px-6 pt-3 pb-6 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.55)]">
           <BudgetIdentitySection
             budgetId={budget.id}
             name={budget.name}
@@ -69,14 +65,11 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
       </AccordionItem>
 
       {/* 2. Cushion Mode */}
-      <AccordionItem
-        value="cushion-mode"
-        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
-      >
+      <AccordionItem value="cushion-mode">
         <AccordionTrigger className="px-6">
           {t("sections.cushion")}
         </AccordionTrigger>
-        <AccordionContent className="px-6 pb-6">
+        <AccordionContent className="bg-[var(--canvas-dark)] px-6 pt-3 pb-6 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.55)]">
           <CushionModeSection
             budgetId={budget.id}
             cushionModeEnabled={budget.cushionModeEnabled}
@@ -85,42 +78,33 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
       </AccordionItem>
 
       {/* 3. Recurring Rules */}
-      <AccordionItem
-        value="recurring-rules"
-        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
-      >
+      <AccordionItem value="recurring-rules">
         <AccordionTrigger className="px-6">
           {t("sections.recurring")}
         </AccordionTrigger>
-        <AccordionContent className="px-6 pb-6">
+        <AccordionContent className="bg-[var(--canvas-dark)] px-6 pt-3 pb-6 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.55)]">
           <RecurringSection budgetId={budget.id} />
         </AccordionContent>
       </AccordionItem>
 
       {/* 4. Members (SHARED only) */}
       {budget.kind === "SHARED" && (
-        <AccordionItem
-          value="members"
-          className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
-        >
+        <AccordionItem value="members">
           <AccordionTrigger className="px-6">
             {t("sections.members")}
           </AccordionTrigger>
-          <AccordionContent className="px-6 pb-6">
+          <AccordionContent className="bg-[var(--canvas-dark)] px-6 pt-3 pb-6 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.55)]">
             <MembersSection budgetId={budget.id} />
           </AccordionContent>
         </AccordionItem>
       )}
 
       {/* 5. Danger Zone */}
-      <AccordionItem
-        value="danger-zone"
-        className="transition-colors data-[state=open]:bg-[var(--surface-elevated-dark)]"
-      >
+      <AccordionItem value="danger-zone">
         <AccordionTrigger className="px-6 text-[var(--trading-down)]">
           {t("sections.danger")}
         </AccordionTrigger>
-        <AccordionContent className="px-6 pb-6">
+        <AccordionContent className="bg-[var(--canvas-dark)] px-6 pt-3 pb-6 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.55)]">
           <DangerZoneSection
             budgetId={budget.id}
             budgetName={budget.name}
