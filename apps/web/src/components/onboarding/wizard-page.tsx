@@ -81,17 +81,14 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     const current = url.searchParams.get("step");
-    if (step > 1) {
-      if (current !== String(step)) {
-        url.searchParams.set("step", String(step));
-        window.history.replaceState(
-          null,
-          "",
-          url.pathname + url.search + url.hash,
-        );
-      }
-    } else if (current !== null) {
-      url.searchParams.delete("step");
+    // Only WRITE the ?step marker; never DELETE it. Deleting it during
+    // initial mount (e.g. after the layout's server redirect to
+    // /budgets/new?step=1) fights Next.js's client router and leaves the
+    // (app) shell rendering an empty page. Leaving the stale ?step in the
+    // URL is harmless — the wizard ignores it once `step` state is
+    // current.
+    if (step > 1 && current !== String(step)) {
+      url.searchParams.set("step", String(step));
       window.history.replaceState(
         null,
         "",
