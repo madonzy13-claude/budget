@@ -68,8 +68,26 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     // the desired target, and call redirect() outside.
     let redirectTo: string | null = null;
     try {
-      const progressRes = await serverApiFetch(null, "/onboarding/progress");
-      if (progressRes.status === 200) {
+      // Fetch both in parallel: the user's onboarding progress AND their
+      // list of accessible budgets. Even when onboarding_progress is
+      // incomplete, if the user already has at least one budget we treat
+      // onboarding as effectively done and do NOT route them back into the
+      // wizard. The wizard is for the FIRST-budget flow; once the user has
+      // any budget, the home grid is the right destination.
+      const [progressRes, activeRes] = await Promise.all([
+        serverApiFetch(null, "/onboarding/progress"),
+        serverApiFetch(null, "/budgets/active"),
+      ]);
+      let hasAnyBudget = false;
+      if (activeRes.ok) {
+        const body = (await activeRes.json()) as {
+          budgets?: unknown[];
+          workspaces?: unknown[];
+        };
+        const list = body.budgets ?? body.workspaces ?? [];
+        hasAnyBudget = list.length > 0;
+      }
+      if (progressRes.status === 200 && !hasAnyBudget) {
         const progress = (await progressRes.json()) as {
           step?: number;
           completedAt?: string | null;
