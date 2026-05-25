@@ -18,6 +18,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { WizardLayout } from "./wizard-layout";
+import { StepWelcome } from "./steps/step-welcome";
 import { StepName } from "./steps/step-name";
 import { StepCurrency } from "./steps/step-currency";
 import { StepType } from "./steps/step-type";
@@ -25,7 +26,9 @@ import { StepCategories, STARTER_CATEGORIES } from "./steps/step-categories";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
 
-type Step = 1 | 2 | 3 | 4 | 5;
+// Step 0 is the pre-wizard welcome screen — no API calls, no stepper
+// progress, just an intro + "Get started" button that advances to step 1.
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
 interface WizardForm {
   name: string;
@@ -56,11 +59,16 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
   const locale =
     localeProp ?? (typeof params?.locale === "string" ? params.locale : "en");
 
-  // Derive initial step from ?step query param (resume — D-06)
+  // Derive initial step from ?step query param (resume — D-06).
+  // No ?step (and no explicit ?step=0) means the user has just landed on
+  // the wizard for the first time; show the welcome screen (step 0) until
+  // they explicitly click "Get started". A resumable mid-wizard refresh
+  // arrives with ?step>=1 and skips the welcome.
   const initialStep = (() => {
     const s = searchParams?.get("step");
-    const n = s ? parseInt(s, 10) : 1;
-    return (n >= 1 && n <= 5 ? n : 1) as Step;
+    if (s === null || s === undefined) return 0 as Step;
+    const n = parseInt(s, 10);
+    return (n >= 1 && n <= 5 ? n : 0) as Step;
   })();
 
   const [step, setStep] = useState<Step>(initialStep);
@@ -167,7 +175,9 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
     setCategoriesError(null);
 
     try {
-      if (step === 1) {
+      if (step === 0) {
+        setStep(1);
+      } else if (step === 1) {
         // Validate name
         if (!form.name.trim()) {
           setNameError("Budget name is required.");
@@ -276,6 +286,8 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
 
   function renderStep() {
     switch (step) {
+      case 0:
+        return <StepWelcome />;
       case 1:
         return (
           <StepName
@@ -322,7 +334,9 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
       onSkip={onSkip}
       onNext={onNext}
       isLoading={isLoading}
-      nextLabel={step === 5 ? "Create budget" : "Next"}
+      nextLabel={
+        step === 0 ? "Get started" : step === 5 ? "Create budget" : "Next"
+      }
     >
       {renderStep()}
     </WizardLayout>

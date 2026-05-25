@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface WizardLayoutProps {
-  currentStep: 1 | 2 | 3 | 4 | 5;
+  // Step 0 = welcome screen (no stepper progress); 1..5 = real wizard steps.
+  currentStep: 0 | 1 | 2 | 3 | 4 | 5;
   children: React.ReactNode;
   onBack?: () => void;
   onSkip?: () => void;

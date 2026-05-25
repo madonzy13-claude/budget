@@ -10,7 +10,8 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface WizardStepperProps {
-  currentStep: 1 | 2 | 3 | 4 | 5;
+  // 0 = welcome screen; all 5 segments render as upcoming/inactive.
+  currentStep: 0 | 1 | 2 | 3 | 4 | 5;
   className?: string;
 }
 

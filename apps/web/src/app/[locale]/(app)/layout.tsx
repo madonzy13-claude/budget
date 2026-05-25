@@ -78,7 +78,15 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         // undefined means malformed/absent response — treat as safe, no redirect.
         if (progress.completedAt === null) {
           const savedStep = progress.step ?? 1;
-          redirectTo = `/${locale}/budgets/new?step=${savedStep}`;
+          // Only include ?step in the redirect when the user has actually
+          // advanced past step 1. A fresh seed (step=1) means they have not
+          // started the wizard yet — drop the ?step so the wizard shows the
+          // welcome screen (step 0) instead of skipping straight to the
+          // name input.
+          redirectTo =
+            savedStep > 1
+              ? `/${locale}/budgets/new?step=${savedStep}`
+              : `/${locale}/budgets/new`;
         }
       }
       // 404 or any other status → no row → EXIT EARLY (existing users not trapped)
