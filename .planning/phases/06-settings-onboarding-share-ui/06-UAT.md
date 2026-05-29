@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 06-settings-onboarding-share-ui
 source:
   [
@@ -13,19 +13,12 @@ source:
     06-08-SUMMARY.md,
   ]
 started: 2026-05-22T19:45:00Z
-updated: 2026-05-23T00:05:00Z
+updated: 2026-05-29T16:54:00Z
 ---
 
 ## Current Test
 
-number: 2
-name: Settings tab — full functional + visual sweep
-expected: |
-All 5 accordion sections render. Rename autosaves with toast; cushion
-toggle persists; share-link generates URL with copy button; archive
-hides budget from home; delete button disabled until typed name matches;
-delete removes the budget.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -42,25 +35,126 @@ note: Pre-verified via E2E — all 6 settings scenarios green after the backend 
 
 ### 3. Onboarding wizard — full flow + resume
 
-expected: Signup → wizard; 5 steps; finish → spendings; reload mid-wizard resumes; sign out/in does not re-show.
-result: [pending]
-note: Pre-verified — full 5-step walk + landing on spendings is E2E-green. The resume scenario still fails in CI (?step is in the URL after my fix; manual reload via Playwright resumes correctly, but the E2E test reloads before React's effect commits — race we have not eliminated yet, see Gaps). Manual UAT can sanity-check resume by hand.
+expected: Signup → wizard welcome → 4 steps (Basics, Type, Features, Review) → finish → spendings; reload mid-wizard restarts at welcome (deferred-create); existing-user revisit of /budgets/new skips welcome and opens on Basics.
+result: pass
+note: |
+Wizard rewritten this session — deferred-create (no orphan budgets), 4 word-labeled steps,
+clickable completed step pills, master cushion_enabled flag (new column 0025), reserves flag,
+type icons brightened, switch hover cursor + visible unchecked bg, accordion no-underline +
+cursor-pointer on hover, /budgets/new welcome card gated on hasAnyBudget. 3/3 onboarding
+E2E scenarios green; 11/12 phase6 (only the pre-existing Phase 2 share-join bug remains).
 
 ### 4. Share-link recipient join flow
 
 expected: Owner generates share link; unauth visit → join page; auth + click → spendings; used/invalid link → error state.
-result: [pending]
-note: Pre-verified for unauth view, error state, owner generation. The authenticated-accept path still 500s from Better Auth ("Organization not found") — a Phase 2 share-join backend issue, not introduced by Phase 6.
+result: pass
+note: |
+Backend fixes (acceptShareLink replaced auth.api.addMember with direct
+budget_members INSERT via withBootstrapUserContext; listForUser pre-resolves
+member budget ids before SET LOCAL app.tenant_ids) plus subsequent owner-gate
+
+- last-owner remediation now hold green: 12/12 @phase6 scenarios pass on the
+  post-refactor stack (re-run 2026-05-28 14:23 against the live Docker stack
+  after the nav-pending + i18n landings).
+
+### 5. Full i18n sweep — pl/uk + Reserves Balanced rename
+
+expected: |
+Switch Settings → Language to Ukrainian; open Spendings tab; "Додати
+категорію" + "Редагувати транзакцію" + column headers "заплановано" /
+"перевитрачено" all translated; open Reserves tab; reconciled chip reads
+"Збалансовано"; month navigator shows Ukrainian month name (e.g.
+"Травень 2026" not "May 2026"). Repeat in Polish ("Dodaj kategorię",
+"Zbilansowane", Polish month). No English leaks across spendings,
+reserves, wallets, settings, recurring.
+result: pass
+note: |
+User confirmed full sweep in uk + pl. One trailing capitalisation fix
+during UAT: month-navigator now upper-cases the first char of the
+locale-formatted month label so "травень 2026 р." renders as
+"Травень 2026 р." (and "maj 2026" as "Maj 2026") without breaking
+the "р." year-suffix marker. CSS `capitalize` was rejected because it
+would also upper-case "р.".
+
+### 6. Instant navigation with blur overlay
+
+expected: |
+Click any chrome link (top brand mark, BDP tabs Wallets/Spendings/Reserves/Settings,
+budget switcher row, profile menu Profile/Settings, home tile, empty-state
+CTA). The URL bar updates IMMEDIATELY (no waiting for the new page's data),
+the current page content blurs (blur-[2px] opacity-70 pointer-events-none),
+then unblurs the moment the new RSC tree commits. No dead-zone where the old
+page sits frozen. Modifier clicks (Cmd-click for new tab) bypass the blur.
+result: pass
+note: |
+User confirmed feel matches expectation. Adjacent finding (logged as
+Test 7 below): recurring-rule form needs the transaction-slider treatment.
+
+### 7. Recurring-rule form redesign
+
+expected: |
+Adding a new recurring rule opens a right-side slider (transaction-slider
+chrome), with: amount + currency-dropdown (not free text), frequency
+picker weekly/monthly/yearly, the matching anchor input, first-due date,
+note. NO "type" toggle, NO wallet field. Save creates the rule; reload
+shows it in the list.
+result: pass
+reported: |
+"new reccuring rule adding isn't the way it should be.
+
+1.  currency must be dropdown
+2.  there should be no 'type'. It's always expence
+3.  there shold be no wallet
+4.  frequency should be: weekly, monthly, yearly
+5.  the wrong pop-up form. Should be same as adding transaction (from right side)"
+    severity: major
+    note: |
+    Refactor landed this session:
+
+- recurring-rule-form.tsx now owns a right-side <Sheet> mirroring
+  transaction-slider chrome (bordered header, scrollable body,
+  bordered footer). Dialog wrapper dropped.
+- kind picker dropped — backend v1.1 has no `kind` field.
+- accountId picker dropped — backend is categorical-only (TXN-02).
+- currency: free-text Input → CurrencyPicker dropdown.
+- cadence: WEEKLY|MONTHLY|YEARLY tiles. YEARLY surfaces month + day.
+- POST body switched to snake_case (amount, currency, note,
+  first_due_date, cadence + discriminated weekly_dow /
+  cadence_anchor / yearly_month) — matches v1.1 contract that the
+  frontend had never been wired to.
+- en/pl/uk: added `rule.yearly`, `rule.yearlyMonthLabel`, `rule.months.1..12`.
+- Outer Sheet in settings/recurring-section.tsx dropped (no
+  Sheet-in-Sheet).
+- typecheck ✅ · lint ✅ · vitest 362/362 ✅.
 
 ## Summary
 
-total: 4
-passed: 1
+total: 7
+passed: 7
 issues: 0
-pending: 3
+pending: 0
 skipped: 0
 
 ## Gaps — still outstanding (deferred from this session's remediation)
+
+- truth: "Recurring rule create form opens as a right-side slider matching the transaction-slider chrome, amount + currency-dropdown, no type/wallet, frequency: weekly/monthly/yearly"
+  status: failed
+  reason: "Current `recurring-rule-form.tsx` is a Dialog (popup) with a free-text currency input, a kind picker (EXPENSE/INCOME/TRANSFER), an account/wallet picker, and a cadence dropdown limited to weekly/monthly only — none of these match the desired UX."
+  severity: major
+  test: 7
+  artifacts:
+  - path: "apps/web/src/components/budgeting/recurring-rule-form.tsx"
+    issue: "Wrong chrome (Dialog) + over-broad field set"
+  - path: "apps/web/src/components/budgeting/transaction-slider.tsx"
+    issue: "Reference implementation for the right-side slider chrome to clone"
+  - path: "apps/web/src/app/[locale]/(app)/recurring/page.tsx (or wherever the Add rule CTA lives)"
+    issue: "Trigger must mount the new slider, not the old dialog"
+    missing:
+  - "Refactor recurring-rule-form into a right-side <Sheet side='right'> slider mirroring transaction-slider's layout"
+  - "Drop the kind toggle; hard-code kind: EXPENSE in the POST body"
+  - "Drop the accountId field; backend must accept null wallet (or pick the budget's default spendings wallet server-side)"
+  - "Swap free-text currency for CurrencyPicker"
+  - "Extend cadence enum to include YEARLY in the schema + backend + UI"
 
 - truth: "Refreshing mid-wizard resumes at the saved step"
   status: failed
