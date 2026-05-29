@@ -196,25 +196,37 @@ export function CategoryColumn({
             roundedBottom={i === transactions.length - 1 && drafts.length > 0}
           />
         ))}
-        {/* Unconfirmed drafts always at the bottom, oldest-due first.
-            Section label makes it explicit these rows still need user action. */}
+        {/* Drafts section: the "TO CONFIRM" label sits on the column
+            surface (no dark band) so it doesn't read as a tab boundary;
+            only the row stack gets the darker `#181c22` lane to mark
+            the pending region. The dark band still extends to the
+            column bottom so the lane reads as a contiguous group. */}
         {drafts.length > 0 ? (
-          <div className="mt-2 px-2 pt-1 text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
-            {tDraft("sectionTitle")}
-          </div>
+          <>
+            <div className="mt-2 px-2 pt-1 text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
+              {tDraft("sectionTitle")}
+            </div>
+            <div
+              className="flex flex-1 flex-col"
+              style={{ backgroundColor: "#181c22" }}
+            >
+              {[...drafts]
+                .sort((a, b) =>
+                  a.transactionDate.localeCompare(b.transactionDate),
+                )
+                .map((d, i) => (
+                  <DraftRow
+                    key={d.id}
+                    draft={d}
+                    budgetId={budgetId}
+                    month={month}
+                    onEdit={onEditDraft}
+                    topShadow={i === 0}
+                  />
+                ))}
+            </div>
+          </>
         ) : null}
-        {[...drafts]
-          .sort((a, b) => a.transactionDate.localeCompare(b.transactionDate))
-          .map((d, i) => (
-            <DraftRow
-              key={d.id}
-              draft={d}
-              budgetId={budgetId}
-              month={month}
-              onEdit={onEditDraft}
-              topShadow={i === 0}
-            />
-          ))}
       </div>
     </div>
   );

@@ -34,6 +34,8 @@ interface CategoryRowSheetProps {
   editAriaLabel: string;
   archiveAriaLabel: string;
   sheetTitle: string;
+  /** Phase 6: gate the cushion-amount field inside the edit form. */
+  cushionEnabled?: boolean;
 }
 
 function todayIso(): string {
@@ -46,6 +48,7 @@ export function CategoryRowSheet({
   editAriaLabel,
   archiveAriaLabel,
   sheetTitle,
+  cushionEnabled = true,
 }: CategoryRowSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -119,7 +122,9 @@ export function CategoryRowSheet({
           className="w-full bg-[var(--canvas-dark)] sm:max-w-lg"
         >
           <SheetHeader className="mb-6">
-            <SheetTitle className="text-[var(--on-dark)]">{sheetTitle}</SheetTitle>
+            <SheetTitle className="text-[var(--on-dark)]">
+              {sheetTitle}
+            </SheetTitle>
           </SheetHeader>
           {loading ? (
             <p className="text-sm text-muted-foreground">…</p>
@@ -132,6 +137,7 @@ export function CategoryRowSheet({
               }}
               onSuccess={handleSuccess}
               onCancel={() => setOpen(false)}
+              cushionEnabled={cushionEnabled}
             />
           )}
         </SheetContent>

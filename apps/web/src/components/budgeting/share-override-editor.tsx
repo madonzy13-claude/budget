@@ -44,7 +44,7 @@ export function ShareOverrideEditor({
   const [entries, setEntries] = useState<ShareEntry[]>(
     existingOverrides.length > 0
       ? existingOverrides
-      : members.map((m) => ({ userId: m.userId, percentage: "" }))
+      : members.map((m) => ({ userId: m.userId, percentage: "" })),
   );
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export function ShareOverrideEditor({
 
   const updatePercentage = useCallback((userId: string, value: string) => {
     setEntries((prev) =>
-      prev.map((e) => (e.userId === userId ? { ...e, percentage: value } : e))
+      prev.map((e) => (e.userId === userId ? { ...e, percentage: value } : e)),
     );
   }, []);
 
@@ -74,7 +74,7 @@ export function ShareOverrideEditor({
 
   const updateUserId = useCallback((index: number, value: string) => {
     setEntries((prev) =>
-      prev.map((e, i) => (i === index ? { ...e, userId: value } : e))
+      prev.map((e, i) => (i === index ? { ...e, userId: value } : e)),
     );
   }, []);
 
@@ -90,17 +90,17 @@ export function ShareOverrideEditor({
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ entries }),
-        }
+        },
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        setServerError(err?.message ?? "Failed to save shares.");
+        setServerError(err?.message ?? t("errors.saveFailed"));
         return;
       }
-      toast.success("Contribution shares updated.");
+      toast.success(t("toast.saved"));
       onSuccess?.(entries);
     } catch {
-      setServerError("Network error. Try again.");
+      setServerError(t("errors.network"));
     } finally {
       setSaving(false);
     }
@@ -128,7 +128,7 @@ export function ShareOverrideEditor({
               ) : (
                 <Input
                   className="flex-1"
-                  placeholder="User ID"
+                  placeholder={t("userIdPlaceholder")}
                   value={entry.userId}
                   onChange={(e) => updateUserId(idx, e.target.value)}
                 />
@@ -141,8 +141,12 @@ export function ShareOverrideEditor({
                   step="0.01"
                   className="w-20 text-right"
                   value={entry.percentage}
-                  onChange={(e) => updatePercentage(entry.userId || `__${idx}`, e.target.value)}
-                  aria-label={`Share percentage for ${member?.name ?? entry.userId}`}
+                  onChange={(e) =>
+                    updatePercentage(entry.userId || `__${idx}`, e.target.value)
+                  }
+                  aria-label={t("sharePercentageAria", {
+                    name: member?.name ?? entry.userId,
+                  })}
                 />
                 <span className="text-sm text-muted-foreground">%</span>
               </div>
@@ -150,7 +154,7 @@ export function ShareOverrideEditor({
                 type="button"
                 onClick={() => removeEntry(idx)}
                 className="p-1 rounded hover:bg-muted"
-                aria-label="Remove entry"
+                aria-label={t("removeEntryAria")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -165,14 +169,14 @@ export function ShareOverrideEditor({
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <Plus className="h-3.5 w-3.5" />
-        Add member
+        {t("addMember")}
       </button>
 
       {/* Live sum counter — acceptance criteria exact string */}
       <p
         className={cn(
           "text-sm",
-          sumOk ? "text-muted-foreground" : "text-destructive font-medium"
+          sumOk ? "text-muted-foreground" : "text-destructive font-medium",
         )}
         aria-live="polite"
         data-testid="sum-counter"

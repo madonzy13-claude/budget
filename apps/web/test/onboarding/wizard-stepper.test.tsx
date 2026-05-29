@@ -1,54 +1,61 @@
 /**
- * wizard-stepper.test.tsx — WizardStepper component tests (ONBD-07)
+ * wizard-stepper.test.tsx — WizardStepper component tests.
  *
- * Covers: numbered 1-5 stepper states (active, completed, upcoming)
+ * Covers the 4 word-labeled stepper (Basics / Type / Features / Review).
+ * The stepper opens at step 0 (welcome) so all segments render as
+ * upcoming; steps 1..4 are real wizard steps.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { WizardStepper } from "@/components/onboarding/wizard-stepper";
 
-describe("WizardStepper — numbered 1-5 stepper states (ONBD-07)", () => {
-  it("renders 5 numbered steps", () => {
+// Stepper labels come from `onboarding.wizard.stepper.*`. The mock
+// translator returns the key itself so we can assert on stable names
+// without depending on copy churn.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string, vars?: Record<string, unknown>) =>
+    vars && typeof vars.label === "string" ? `${key}:${vars.label}` : key,
+}));
+
+describe("WizardStepper — 4 word-labeled stepper states", () => {
+  it("renders 4 segments with word labels", () => {
     render(<WizardStepper currentStep={1} />);
-    // All 5 steps visible — completed show check, current+upcoming show number
-    expect(screen.getByLabelText("Step 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("Step 2")).toBeInTheDocument();
-    expect(screen.getByLabelText("Step 3")).toBeInTheDocument();
-    expect(screen.getByLabelText("Step 4")).toBeInTheDocument();
-    expect(screen.getByLabelText("Step 5")).toBeInTheDocument();
+    expect(screen.getByText("basics")).toBeInTheDocument();
+    expect(screen.getByText("type")).toBeInTheDocument();
+    expect(screen.getByText("features")).toBeInTheDocument();
+    expect(screen.getByText("review")).toBeInTheDocument();
   });
 
-  it("active step is visually highlighted with primary class", () => {
+  it("active step carries data-current", () => {
     const { container } = render(<WizardStepper currentStep={2} />);
-    // The current step segment should have the data-current attribute
     const currentSegment = container.querySelector('[data-current="true"]');
     expect(currentSegment).not.toBeNull();
+    expect(currentSegment?.getAttribute("data-step")).toBe("2");
   });
 
-  it("completed steps show a check indicator", () => {
-    render(<WizardStepper currentStep={3} />);
-    // Steps 1 and 2 are completed — they show check icons
-    const checks = screen.getAllByLabelText(/completed/i);
-    expect(checks.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("upcoming steps are visually dimmed (data-upcoming)", () => {
-    const { container } = render(<WizardStepper currentStep={2} />);
-    const upcoming = container.querySelectorAll('[data-upcoming="true"]');
-    // Steps 3, 4, 5 should be upcoming
-    expect(upcoming.length).toBe(3);
-  });
-
-  it("step 1 is active on initial render", () => {
+  it("step 1 is active on initial render when currentStep=1", () => {
     const { container } = render(<WizardStepper currentStep={1} />);
     const current = container.querySelector('[data-current="true"]');
-    expect(current).not.toBeNull();
     expect(current?.getAttribute("data-step")).toBe("1");
   });
 
-  it("all steps before current show as completed", () => {
+  it("all steps before current are marked completed", () => {
     const { container } = render(<WizardStepper currentStep={4} />);
     const completed = container.querySelectorAll('[data-completed="true"]');
     expect(completed.length).toBe(3); // steps 1, 2, 3
+  });
+
+  it("upcoming steps carry data-upcoming", () => {
+    const { container } = render(<WizardStepper currentStep={2} />);
+    const upcoming = container.querySelectorAll('[data-upcoming="true"]');
+    expect(upcoming.length).toBe(2); // steps 3, 4
+  });
+
+  it("welcome (step 0) renders all four segments as upcoming", () => {
+    const { container } = render(<WizardStepper currentStep={0} />);
+    const upcoming = container.querySelectorAll('[data-upcoming="true"]');
+    expect(upcoming.length).toBe(4);
+    expect(container.querySelector('[data-current="true"]')).toBeNull();
+    expect(container.querySelector('[data-completed="true"]')).toBeNull();
   });
 });

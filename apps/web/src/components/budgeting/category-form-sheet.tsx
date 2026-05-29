@@ -19,10 +19,16 @@ import { CategoryEditForm } from "@/components/budgeting/category-edit-form";
 
 interface CategoryFormSheetProps {
   addButtonLabel: string;
+  /**
+   * Phase 6 onboarding rewrite: pass through to CategoryEditForm so the
+   * cushion-amount field disappears when the master cushion flag is off.
+   */
+  cushionEnabled?: boolean;
 }
 
 export function CategoryFormSheet({
   addButtonLabel,
+  cushionEnabled = true,
 }: CategoryFormSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -56,6 +62,7 @@ export function CategoryFormSheet({
           mode={{ kind: "create" }}
           onSuccess={handleSuccess}
           onCancel={() => setOpen(false)}
+          cushionEnabled={cushionEnabled}
         />
       </SheetContent>
     </Sheet>

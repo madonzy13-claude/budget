@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NavLink } from "@/components/common/nav-link";
 import { useTranslations } from "next-intl";
 import {
   LayoutGrid,
@@ -70,7 +70,7 @@ export function BdpTabs({
         const active = pathname.startsWith(href);
         const label = t(`${slug}.label`);
         return (
-          <Link
+          <NavLink
             key={slug}
             href={href}
             aria-current={active ? "page" : undefined}
@@ -88,7 +88,7 @@ export function BdpTabs({
             <span className={cn(active ? "inline" : "hidden sm:inline")}>
               {label}
             </span>
-          </Link>
+          </NavLink>
         );
       })}
     </nav>

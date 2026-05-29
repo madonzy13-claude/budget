@@ -4,7 +4,7 @@
  * Async RSC. Heading + body + primary CTA Link → `/{locale}/budgets/new`.
  * Renders inside <main> so the empty branch composes as its own page region.
  */
-import Link from "next/link";
+import { NavLink } from "@/components/common/nav-link";
 import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
 
@@ -21,7 +21,7 @@ export async function HomeEmptyHero({ locale }: { locale: string }) {
         </p>
       </div>
       <Button asChild size="lg" variant="primary">
-        <Link href={`/${locale}/budgets/new`}>{t("cta")}</Link>
+        <NavLink href={`/${locale}/budgets/new`}>{t("cta")}</NavLink>
       </Button>
     </main>
   );

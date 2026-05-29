@@ -92,6 +92,13 @@ export interface CategorySliderProps {
     colorKey: string | null;
   };
   txnsCount?: number;
+  /**
+   * Phase 6 onboarding rewrite: when false, the Cushion monthly amount
+   * field is hidden in the slider. Submit still posts cushionAmount = 0
+   * (or the existing value), so disabling the master flag doesn't strand
+   * any UI for editing it. Default true preserves existing UX.
+   */
+  cushionEnabled?: boolean;
 }
 
 // plannedCents/cushionCents hold the raw decimal-string input ("60", "60.00")
@@ -138,6 +145,7 @@ export function CategorySlider({
   budgetCurrency,
   initial,
   txnsCount = 0,
+  cushionEnabled = true,
 }: CategorySliderProps) {
   const t = useTranslations("grid");
   const router = useRouter();
@@ -377,35 +385,37 @@ export function CategorySlider({
                 )}
               />
 
-              {/* Cushion monthly */}
-              <FormField
-                control={form.control}
-                name="cushionCents"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm text-[var(--muted-foreground)]">
-                      {t("catSlider.field.cushion")}
-                    </FormLabel>
-                    <div className="flex gap-2 items-center">
-                      <FormControl>
-                        <AmountInput
-                          value={field.value}
-                          onChange={field.onChange}
-                          aria-invalid={!!form.formState.errors.cushionCents}
-                          id="cat-slider-cushion"
-                        />
-                      </FormControl>
-                      <span
-                        data-testid="currency-badge"
-                        className="text-sm font-medium text-[var(--primary)] px-2 py-1 rounded bg-[var(--surface-elevated-dark)]"
-                      >
-                        {budgetCurrency}
-                      </span>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Cushion monthly — gated by the master cushion feature flag */}
+              {cushionEnabled && (
+                <FormField
+                  control={form.control}
+                  name="cushionCents"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm text-[var(--muted-foreground)]">
+                        {t("catSlider.field.cushion")}
+                      </FormLabel>
+                      <div className="flex gap-2 items-center">
+                        <FormControl>
+                          <AmountInput
+                            value={field.value}
+                            onChange={field.onChange}
+                            aria-invalid={!!form.formState.errors.cushionCents}
+                            id="cat-slider-cushion"
+                          />
+                        </FormControl>
+                        <span
+                          data-testid="currency-badge"
+                          className="text-sm font-medium text-[var(--primary)] px-2 py-1 rounded bg-[var(--surface-elevated-dark)]"
+                        >
+                          {budgetCurrency}
+                        </span>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Icon picker */}
               <FormField
@@ -487,7 +497,7 @@ export function CategorySlider({
                     aria-disabled={txnsCount > 0 ? "true" : undefined}
                     title={
                       txnsCount > 0
-                        ? "Cannot delete category with existing transactions"
+                        ? t("catSlider.deleteBlockedTooltip")
                         : undefined
                     }
                     className="h-12 w-full sm:flex-1"
@@ -521,7 +531,7 @@ export function CategorySlider({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("confirm.deleteTxn.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the category.
+              {t("catSlider.deleteConfirmBody")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

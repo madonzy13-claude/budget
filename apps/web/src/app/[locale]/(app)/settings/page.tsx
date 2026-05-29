@@ -127,8 +127,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           </section>
 
           <p className="text-xs text-[var(--muted-foreground)]">
-            Phase 1 wires the picker only. STT and LLM adapters connect in Phase
-            5.
+            {t("providers.footnote")}
           </p>
         </TabsContent>
       </Tabs>

@@ -14,7 +14,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { BudgetIdentitySection } from "@/components/settings/budget-identity-section";
-import { CushionModeSection } from "@/components/settings/cushion-mode-section";
+import { CushionSection } from "@/components/settings/cushion-section";
 import { RecurringSection } from "@/components/settings/recurring-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
@@ -25,6 +25,8 @@ export interface SettingsBudget {
   kind: "SHARED" | "PRIVATE";
   defaultCurrency: string;
   cushionModeEnabled: boolean;
+  /** Master cushion feature flag — gates the lane everywhere. */
+  cushionEnabled: boolean;
   hasTransactions: boolean;
   currentUserRole: "owner" | "member";
 }
@@ -64,14 +66,15 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
         </AccordionContent>
       </AccordionItem>
 
-      {/* 2. Cushion Mode */}
-      <AccordionItem value="cushion-mode">
+      {/* 2. Cushion (master flag + per-month mode sub-toggle) */}
+      <AccordionItem value="cushion">
         <AccordionTrigger className="px-6">
           {t("sections.cushion")}
         </AccordionTrigger>
         <AccordionContent className="bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
-          <CushionModeSection
+          <CushionSection
             budgetId={budget.id}
+            cushionEnabled={budget.cushionEnabled}
             cushionModeEnabled={budget.cushionModeEnabled}
           />
         </AccordionContent>
@@ -83,7 +86,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
           {t("sections.recurring")}
         </AccordionTrigger>
         <AccordionContent className="bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
-          <RecurringSection budgetId={budget.id} />
+          <RecurringSection
+            budgetId={budget.id}
+            defaultCurrency={budget.defaultCurrency}
+          />
         </AccordionContent>
       </AccordionItem>
 
@@ -94,7 +100,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {t("sections.members")}
           </AccordionTrigger>
           <AccordionContent className="bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
-            <MembersSection budgetId={budget.id} />
+            <MembersSection
+              budgetId={budget.id}
+              currentUserRole={budget.currentUserRole}
+            />
           </AccordionContent>
         </AccordionItem>
       )}

@@ -140,7 +140,7 @@ export function ReservesTableClient({
         data-testid="reserves-disabled-notice"
         className="p-6 text-center text-[var(--muted-foreground)]"
       >
-        Reserves disabled
+        {t("disabled")}
       </div>
     );
   }
@@ -155,13 +155,15 @@ export function ReservesTableClient({
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div
-        // Page-scoped scroll container (html/body is locked overflow:hidden
-        // globally for PWA touch handling). 100svh - 176px matches the
-        // spendings grid: 64 top nav + 48 tab strip + ~50 chrome/padding.
-        // overscroll-contain stops vertical swipes from bubbling up to the
-        // locked document. dnd-kit auto-scrolls this container while dragging.
-        style={{ overscrollBehavior: "contain" }}
-        className="flex max-h-[calc(100svh-176px)] flex-col gap-4 overflow-y-auto p-4 pb-20 sm:p-6"
+        // No bounded inner scroll container — content flows naturally
+        // in the layout's `<main overflow-y-auto>`, same as wallets +
+        // home + spendings post-UAT-Phase6 retest. The prior
+        // `max-h-[calc(100svh-176px)]` reserved a fixed viewport area
+        // and left a dark canvas band below short tables. dnd-kit's
+        // auto-scroll can target the document scroll surface; the
+        // `pb-20` bottom-cushion is kept so the last row clears the
+        // iOS home-indicator gutter comfortably.
+        className="flex flex-col gap-4 p-4 pb-20 sm:p-6"
       >
         {/* UAT-PH5-T3-53: single top banner on every viewport. Sits
             inside the page's flex column so its width matches the

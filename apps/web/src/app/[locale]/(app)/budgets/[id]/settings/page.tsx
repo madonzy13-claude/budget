@@ -20,6 +20,8 @@ interface BudgetApiResponse {
   default_currency?: string;
   cushionModeEnabled?: boolean;
   cushion_mode_enabled?: boolean;
+  cushionEnabled?: boolean;
+  cushion_enabled?: boolean;
   hasTransactions?: boolean;
   has_transactions?: boolean;
   currentUserRole?: "owner" | "member";
@@ -41,6 +43,7 @@ export default async function BdpSettingsPage({ params }: PageProps) {
     defaultCurrency: raw?.defaultCurrency ?? raw?.default_currency ?? "USD",
     cushionModeEnabled:
       raw?.cushionModeEnabled ?? raw?.cushion_mode_enabled ?? false,
+    cushionEnabled: raw?.cushionEnabled ?? raw?.cushion_enabled ?? true,
     hasTransactions: raw?.hasTransactions ?? raw?.has_transactions ?? false,
     currentUserRole: raw?.currentUserRole ?? raw?.current_user_role ?? "member",
   };

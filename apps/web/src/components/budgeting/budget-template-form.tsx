@@ -83,26 +83,22 @@ export function BudgetTemplateForm({
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ targetMonth: values.targetMonth }),
-        }
+        },
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        setServerError(err?.message ?? "Failed to apply template.");
+        setServerError(err?.message ?? t("errors.applyFailed"));
         return;
       }
-      toast.success("Template applied.");
+      toast.success(t("toast.applied"));
       onSuccess?.();
     } catch {
-      setServerError("Network error. Try again.");
+      setServerError(t("errors.network"));
     }
   }
 
   if (templates.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No templates available.
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{t("empty")}</p>;
   }
 
   return (

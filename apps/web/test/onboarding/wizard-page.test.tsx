@@ -1,31 +1,28 @@
 /**
- * wizard-page.test.tsx — WizardPage step-machine tests (ONBD-02..06)
+ * wizard-page.test.tsx — WizardPage step-machine tests.
  *
- * Covers: step advance / validation
+ * Wizard rewrite (deferred-create): step 0 is the welcome screen; step 1
+ * is Basics (name + currency); POST /budgets happens at step 4 (Review)
+ * via the "Create budget" action, not at step 1.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { WizardPage } from "@/components/onboarding/wizard-page";
 
-// Mock next/navigation
-const mockPush = vi.fn();
-const mockGet = vi.fn().mockReturnValue(null);
-
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
-  useSearchParams: () => ({ get: mockGet }),
   useParams: () => ({ locale: "en" }),
 }));
 
-// Mock next-intl
+// Identity translator so we can assert against keys instead of copy.
+// Variables (e.g. {label}) are preserved by appending them after the key.
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => (key: string, vars?: Record<string, unknown>) =>
+    vars && typeof vars.label === "string" ? `${key}:${vars.label}` : key,
 }));
 
-// Mock api client
 const mockBudgetsPost = vi.fn().mockResolvedValue({
   ok: true,
-  json: async () => ({ id: "budget-123", name: "Test Budget" }),
+  json: async () => ({ id: "budget-123", name: "My Budget" }),
 });
 const mockProgressPut = vi.fn().mockResolvedValue({
   ok: true,
@@ -38,11 +35,6 @@ vi.mock("@/lib/api-client", () => ({
       $post: (...args: unknown[]) => mockBudgetsPost(...args),
       ":id": {
         $patch: vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
-        categories: {
-          $post: vi
-            .fn()
-            .mockResolvedValue({ ok: true, json: async () => ({}) }),
-        },
       },
     },
     onboarding: {
@@ -53,59 +45,84 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
-// Mock sonner
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-describe("WizardPage — step-machine advance and validation (ONBD-02..06)", () => {
+describe("WizardPage — deferred-create step machine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGet.mockReturnValue(null);
   });
 
-  it("renders step 1 (name step) on initial render — shows text input", () => {
+  it("renders welcome step 0 with a Get started CTA on initial render", () => {
     render(<WizardPage locale="en" />);
-    const input = screen.getByRole("textbox");
-    expect(input).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /get_started/i }),
+    ).toBeInTheDocument();
   });
 
-  it("step 1: shows inline error with an empty name on Next click", () => {
-    render(<WizardPage locale="en" />);
-    const nextBtn = screen.getByRole("button", { name: /next/i });
-    fireEvent.click(nextBtn);
-    expect(screen.getByText(/budget name is required/i)).toBeInTheDocument();
-  });
-
-  it("step 1: Next is blocked (shows error) when name is empty", () => {
-    render(<WizardPage locale="en" />);
-    const nextBtn = screen.getByRole("button", { name: /next/i });
-    fireEvent.click(nextBtn);
-    // Error shown, we stay on step 1 — still have the text input
+  it("skips welcome when skipWelcome=true (returning user) and shows the name input", () => {
+    render(<WizardPage locale="en" skipWelcome />);
     expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 
-  it("step 1: advancing with a valid name calls POST /budgets and moves to step 2", async () => {
+  it("Get started → step 1 surfaces the name input", () => {
     render(<WizardPage locale="en" />);
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "My Budget" } });
-    const nextBtn = screen.getByRole("button", { name: /next/i });
-    fireEvent.click(nextBtn);
-    await waitFor(() => {
-      expect(mockBudgetsPost).toHaveBeenCalledWith(
-        expect.objectContaining({
-          json: expect.objectContaining({ name: "My Budget" }),
-        }),
-      );
-    });
+    fireEvent.click(screen.getByRole("button", { name: /get_started/i }));
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 
-  it("Back button is not visible on step 1", () => {
+  it("step 1: empty name + Next surfaces the required-name error", () => {
+    render(<WizardPage locale="en" skipWelcome />);
+    const next = screen.getByRole("button", { name: /next/i });
+    fireEvent.click(next);
+    // Required-name copy comes from `onboarding.wizard.basics.name_required`.
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("step 1: deferred-create — POST /budgets is NOT called when leaving step 1", async () => {
+    render(<WizardPage locale="en" skipWelcome />);
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "My Budget" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    // Allow any in-flight microtasks to settle.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockBudgetsPost).not.toHaveBeenCalled();
+  });
+
+  it("Back button is not visible on the welcome screen (step 0)", () => {
     render(<WizardPage locale="en" />);
-    expect(screen.queryByRole("button", { name: /back/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^back$/i })).toBeNull();
   });
 
   it("wizard does not crash when rendered with locale prop", () => {
     expect(() => render(<WizardPage locale="en" />)).not.toThrow();
+  });
+
+  it("commit (step 4 Create budget) posts to /budgets and follows with progress PUT", async () => {
+    render(<WizardPage locale="en" skipWelcome />);
+    // Step 1 → Basics: fill name, advance.
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "My Budget" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    // Step 2 → Type: defaults to PRIVATE, advance.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    // Step 3 → Features: defaults both on, advance.
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    // Step 4 → Review: "Create budget" fires the deferred POST.
+    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
+    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
+    const [callArg] = mockBudgetsPost.mock.calls[0] as [
+      { json: Record<string, unknown> },
+    ];
+    expect(callArg.json).toMatchObject({
+      name: "My Budget",
+      kind: "PRIVATE",
+    });
   });
 });

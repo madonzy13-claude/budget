@@ -83,7 +83,7 @@ export function CategoryForm({
       }
 
       const created: CategoryDto = await res.json();
-      toast.success(`Category "${created.name}" created.`);
+      toast.success(t("toast.created", { name: created.name }));
       form.reset();
       onSuccess?.(created);
     } catch {

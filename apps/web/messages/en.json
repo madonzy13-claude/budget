@@ -125,7 +125,8 @@
       "stt": {
         "label": "Voice input",
         "helper": "Used for voice-to-text expense capture."
-      }
+      },
+      "footnote": "Phase 1 wires the picker only. STT and LLM adapters connect in Phase 5."
     },
     "save": "Save changes",
     "save_success": "Settings saved.",
@@ -133,8 +134,8 @@
     "error_save": "Failed to save — try again",
     "sections": {
       "identity": "Budget Identity",
-      "cushion": "Cushion Mode",
-      "recurring": "Recurring Rules",
+      "cushion": "Cushion",
+      "recurring": "Recurring Expenses",
       "members": "Members",
       "danger": "Danger Zone"
     },
@@ -149,7 +150,13 @@
       "label": "Cushion mode",
       "help_text": "Uses the tighter cushion budget limit for all categories.",
       "on_toast": "Cushion mode on — tighter limits active",
-      "off_toast": "Cushion mode off — using planned limits"
+      "off_toast": "Cushion mode off — using planned limits",
+      "feature_label": "Enable cushion",
+      "feature_help_text": "Plan a small financial cushion alongside each category. Turning this off hides the cushion lane everywhere — wallets, category limits, and the monthly mode toggle.",
+      "feature_on_toast": "Cushion enabled",
+      "feature_off_toast": "Cushion disabled — lane hidden everywhere",
+      "mode_label": "Cushion mode",
+      "mode_help_text": "Switch the current month to the tighter cushion budget. Reversible at any time."
     },
     "recurring": {
       "add_rule": "Add rule",
@@ -194,7 +201,7 @@
       "leave_cancel": "Stay",
       "left_toast": "You have left the budget.",
       "leave_error": "Failed to leave budget. Try again.",
-      "last_owner_tooltip": "You''re the last owner. Delete the budget instead."
+      "last_owner_tooltip": "You're the last owner. Delete the budget instead."
     }
   },
   "budgets": {
@@ -324,6 +331,8 @@
     "settings": "Settings",
     "onboarding": "Get started",
     "sign_out": "Sign out",
+    "profile": "Profile",
+    "profile_menu_aria": "Open profile menu",
     "budget": "Budget",
     "wallets": "Wallets",
     "transactions": "Transactions",
@@ -348,12 +357,12 @@
   "onboarding": {
     "eyebrow": "Step 1 of 3",
     "heading": "Set up your first budget",
-    "subtitle": "You''re almost ready. Create a budget to start tracking your spending.",
+    "subtitle": "You're almost ready. Create a budget to start tracking your spending.",
     "step_workspace": "Create budget",
     "step_workspace_helper": "Pick a name and default currency. The currency is permanent.",
     "page_heading": "Create your budget",
     "welcome_heading": "Let's create your first budget",
-    "welcome_body": "We'll walk through five quick steps: name it, pick a currency, choose its type, add a few starter categories, then review. You can adjust everything afterwards.",
+    "welcome_body": "Four quick steps: set the basics, choose its type, pick optional features, then review. You can change everything afterwards.",
     "welcome_cta": "Get started",
     "step1_label": "Name your budget",
     "step1_placeholder": "e.g. Family Budget 2026",
@@ -369,13 +378,75 @@
     "step4_help_text": "Adjust spending limits after you create the budget.",
     "step4_validation_error": "Select at least one category.",
     "step5_label": "Ready to go?",
-    "step5_summary_intro": "Here''s what you set up:",
+    "step5_summary_intro": "Here's what you set up:",
     "cta_next": "Next",
     "cta_create": "Create budget",
     "back": "Back",
     "skip": "Skip",
     "resume_heading": "Welcome back — continue where you left off",
-    "network_error": "Something went wrong — try again"
+    "network_error": "Something went wrong — try again",
+    "wizard": {
+      "stepper": {
+        "basics": "Basics",
+        "type": "Type",
+        "features": "Features",
+        "review": "Review",
+        "progress_aria": "Wizard progress",
+        "step_completed_aria": "{label} step completed",
+        "step_active_aria": "{label} step active",
+        "step_aria": "{label} step"
+      },
+      "basics": {
+        "heading": "Set up the basics",
+        "subheading": "Name your budget and pick a default currency.",
+        "name_label": "Budget name",
+        "name_placeholder": "ex. Family Budget",
+        "name_required": "Budget name is required.",
+        "currency_label": "Default currency",
+        "currency_helper": "You can change this later until you add your first transaction."
+      },
+      "type": {
+        "heading": "Who is this budget for?",
+        "subheading": "You can invite people later — Shared budgets keep separate share splits per member.",
+        "personal_label": "Personal",
+        "personal_sub": "Just for you",
+        "shared_label": "Shared",
+        "shared_sub": "Invite family or household members",
+        "group_aria": "Budget type"
+      },
+      "features": {
+        "heading": "Pick your features",
+        "subheading": "Toggle the lanes you want. You can change either later in Settings.",
+        "cushion_label": "Cushion",
+        "cushion_help": "Plan a small financial cushion alongside each category so a bad month doesn't tip the main budget over. Turn off if you don't want any cushion at all.",
+        "reserves_label": "Reserves",
+        "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab."
+      },
+      "review": {
+        "heading": "Ready to go?",
+        "subheading": "Here's what you set up:",
+        "label_name": "Name",
+        "label_currency": "Currency",
+        "label_type": "Type",
+        "label_cushion": "Cushion",
+        "label_reserves": "Reserves",
+        "value_personal": "Personal",
+        "value_shared": "Shared",
+        "value_enabled": "Enabled",
+        "value_disabled": "Disabled",
+        "placeholder_value": "—"
+      },
+      "actions": {
+        "back": "Back",
+        "skip": "Skip",
+        "next": "Next",
+        "get_started": "Get started",
+        "create_budget": "Create budget"
+      },
+      "errors": {
+        "network": "Something went wrong — try again"
+      }
+    }
   },
   "dashboard": {
     "heading": "Dashboard",
@@ -499,12 +570,15 @@
         "kindIncome": "Income",
         "kindTransfer": "Transfer",
         "accountLabel": "Wallet",
-        "categoryLabel": "Category (optional)",
+        "categoryLabel": "Category",
+        "categoryNone": "(no category)",
         "cadenceLabel": "Cadence",
         "monthly": "Monthly",
         "weekly": "Weekly",
+        "yearly": "Yearly",
         "anchorDayLabel": "On day",
         "weekdayLabel": "On",
+        "yearlyMonthLabel": "Month",
         "weekdays": {
           "0": "Sunday",
           "1": "Monday",
@@ -514,6 +588,20 @@
           "5": "Friday",
           "6": "Saturday"
         },
+        "months": {
+          "1": "January",
+          "2": "February",
+          "3": "March",
+          "4": "April",
+          "5": "May",
+          "6": "June",
+          "7": "July",
+          "8": "August",
+          "9": "September",
+          "10": "October",
+          "11": "November",
+          "12": "December"
+        },
         "firstDueLabel": "First due date",
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
@@ -521,9 +609,11 @@
       },
       "list": {
         "title": "Recurring rules",
-        "empty": "No recurring rules yet.",
+        "empty": "No recurring expenses yet.",
         "monthlyOnDay": "Monthly · {day}",
         "weeklyOnDow": "Weekly · {weekday}",
+        "yearlyOn": "Yearly · {month} {day}",
+        "daily": "Daily",
         "nextDueLabel": "Next: {date}",
         "editButton": "Edit",
         "archiveButton": "Archive"
@@ -536,6 +626,17 @@
         "skipButton": "Skip this period",
         "overdueLabel": "Overdue {age}",
         "navBadgeLabel": "{count} overdue"
+      },
+      "errors": {
+        "create": "Failed to create rule",
+        "update": "Failed to update rule",
+        "delete": "Failed to delete rule"
+      },
+      "delete": {
+        "title": "Delete recurring rule?",
+        "body": "This stops future drafts. Past confirmed transactions are kept.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
       }
     }
   },
@@ -589,10 +690,20 @@
         "errors": {
           "nameTaken": "A category with this name already exists in this budget.",
           "generic": "Failed to create category.",
-          "network": "Network error. Try again."
+          "network": "Network error. Try again.",
+          "nonNegativeInt": "Amount must be a non-negative integer"
         }
       },
-      "overrideBadge": "override"
+      "overrideBadge": "override",
+      "toast": {
+        "created": "Category '{name}' created."
+      },
+      "delete": {
+        "blockedTooltip": "Cannot delete category with existing transactions",
+        "confirmBody": "This will permanently delete the category."
+      },
+      "editAria": "Edit {name}",
+      "archiveAria": "Archive {name}"
     },
     "limits": {
       "title": "Budget limits",
@@ -601,22 +712,46 @@
       "effectiveFrom": "Effective from",
       "save": "Save limits",
       "currency": "Currency",
+      "cancel": "Cancel",
       "errors": {
-        "saveFailed": "Failed to save the limit. Try again."
+        "saveFailed": "Failed to save the limit. Try again.",
+        "network": "Network error. Try again."
+      },
+      "toast": {
+        "saved": "Budget limit saved."
       }
     },
     "templates": {
       "title": "Budget templates",
       "addButton": "New template",
       "applyButton": "Apply template",
-      "targetMonth": "Target month"
+      "targetMonth": "Target month",
+      "empty": "No templates available.",
+      "toast": {
+        "applied": "Template applied."
+      },
+      "errors": {
+        "applyFailed": "Failed to apply template.",
+        "network": "Network error. Try again."
+      }
     },
     "shares": {
       "title": "Contribution shares",
       "sumCounter": "Currently {sum}% — must equal 100%",
       "sharesNeedUpdate": "Shares need to be updated",
       "save": "Save shares",
-      "overrideBadge": "override"
+      "overrideBadge": "override",
+      "userIdPlaceholder": "User ID",
+      "removeEntryAria": "Remove entry",
+      "addMember": "Add member",
+      "sharePercentageAria": "Share percentage for {name}",
+      "toast": {
+        "saved": "Contribution shares updated."
+      },
+      "errors": {
+        "saveFailed": "Failed to save shares.",
+        "network": "Network error. Try again."
+      }
     },
     "budgetMode": {
       "title": "Budget mode",
@@ -636,6 +771,7 @@
       "reserves": {
         "label": "Reserves",
         "title": "Reserves",
+        "disabled": "Reserves disabled",
         "section": {
           "active": "Active",
           "excluded": "Excluded",
@@ -653,7 +789,10 @@
           "swipeExcludeCta": "Exclude",
           "swipeRestoreCta": "Restore",
           "excludeAria": "Exclude {name} from reserves.",
-          "restoreAria": "Restore {name} to active reserves."
+          "restoreAria": "Restore {name} to active reserves.",
+          "balanceAria": "Reserve balance for {name}",
+          "zeroActualAria": "Zero actual",
+          "zeroShareAria": "Zero share"
         },
         "totals": {
           "categoriesLabel": "Σ category reserves",
@@ -668,7 +807,7 @@
             "title": "−{amount} underfunded",
             "helper": "Wallet doesn't have enough to cover reserves. Top up the wallet or reduce category reserves."
           },
-          "reconciled": { "title": "Reconciled" }
+          "reconciled": { "title": "Balanced" }
         },
         "toast": {
           "saved": "Reserve updated",
@@ -705,7 +844,27 @@
           "shareAria": "{name} share of section total.",
           "dragHandleAria": "Drag to move {name} to another section.",
           "trashAria": "Delete wallet {name}.",
-          "swipeDeleteCta": "Delete"
+          "swipeDeleteCta": "Delete",
+          "customizeAria": "Customize {name} appearance",
+          "untitled": "Untitled wallet"
+        },
+        "customizer": {
+          "color": "Color",
+          "icon": "Icon",
+          "clearColor": "Clear color",
+          "clearIcon": "Clear icon",
+          "colorAria": "Color {name}",
+          "iconAria": "Icon {name}",
+          "palette": {
+            "red": "Red",
+            "amber": "Amber",
+            "yellow": "Yellow",
+            "green": "Green",
+            "teal": "Teal",
+            "sky": "Sky",
+            "indigo": "Indigo",
+            "pink": "Pink"
+          }
         },
         "toast": {
           "saved": "Wallet updated",
@@ -722,7 +881,7 @@
         },
         "confirm": {
           "delete": {
-            "title": "Delete wallet ''{name}''?",
+            "title": "Delete wallet '{name}'?",
             "body": "This can't be undone here.",
             "cta": "Delete",
             "cancel": "Cancel"
@@ -778,7 +937,9 @@
         "cushion": "Cushion monthly",
         "icon": "Icon",
         "color": "Color"
-      }
+      },
+      "deleteBlockedTooltip": "Cannot delete category with existing transactions",
+      "deleteConfirmBody": "This will permanently delete the category."
     },
     "draft": {
       "sectionTitle": "To confirm",
@@ -801,12 +962,14 @@
     },
     "quickEntry": {
       "placeholder": "…",
-      "title": "expenses"
+      "title": "expenses",
+      "addExpenseAria": "Add expense to {categoryName}"
     },
     "monthNav": {
       "prev": "Previous month",
       "next": "Next month",
-      "shortcut": "Cmd + ← or → to navigate months"
+      "shortcut": "Cmd + ← or → to navigate months",
+      "today": "Today"
     },
     "addCategory": {
       "trigger": "Add category"
@@ -866,19 +1029,19 @@
     "copy_failed": "Could not copy link — copy it manually",
     "generate_failed": "Failed to generate share link. Try again.",
     "copy_aria": "Copy link",
-    "valid_heading": "You''ve been invited",
-    "valid_body": "You''ve been invited to join a shared budget.",
+    "valid_heading": "You've been invited",
+    "valid_body": "You've been invited to join a shared budget.",
     "authenticated_cta": "Join budget",
     "unauthenticated_cta": "Sign in to accept",
     "accepting_cta": "Joining…",
     "expired_heading": "This invitation has expired",
     "expired_body": "Ask the budget owner to send you a new link.",
-    "already_used_heading": "You''re already a member",
-    "already_used_body": "You''ve already joined {budgetName}.",
+    "already_used_heading": "You're already a member",
+    "already_used_body": "You've already joined {budgetName}.",
     "already_used_cta": "Go to budget",
     "not_found_heading": "Invitation not found",
     "not_found_body": "This link is invalid or has been removed.",
     "not_found_cta": "Return home",
-    "join_success": "You''ve joined {budgetName}"
+    "join_success": "You've joined {budgetName}"
   }
 }

@@ -425,7 +425,7 @@ function PersistedRow({
           color={wallet.color ?? null}
           icon={wallet.icon ?? null}
           onChange={(patch) => onUpdate(patch).catch(() => {})}
-          ariaLabel={`Customize ${wallet.name} appearance`}
+          ariaLabel={t("customizeAria", { name: wallet.name })}
         />
 
         {/* Name — editable. UAT-PH5-T3-26: `min-w-0` allows the flex item to

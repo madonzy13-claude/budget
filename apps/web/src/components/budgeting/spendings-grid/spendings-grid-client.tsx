@@ -65,6 +65,10 @@ export interface SpendingsGridClientProps {
   initialSummary: SpendingsSummaryDTO;
   // D-PH5-R11 cascading-hide surface 2: when false, Reserves used row is hidden in column headers.
   reservesEnabled?: boolean;
+  // Phase 6 onboarding rewrite parallel: when false, the Cushion field
+  // in the CategorySlider edit/create UI is hidden. Default true keeps
+  // the field visible for budgets created before this flag existed.
+  cushionEnabled?: boolean;
 }
 
 function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
@@ -85,7 +89,13 @@ function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
 }
 
 export function SpendingsGridClient(props: SpendingsGridClientProps) {
-  const { budgetId, budgetCurrency, budgetTz, reservesEnabled = true } = props;
+  const {
+    budgetId,
+    budgetCurrency,
+    budgetTz,
+    reservesEnabled = true,
+    cushionEnabled = true,
+  } = props;
 
   const { monthStr, isCurrentMonth } = useMonthParam(budgetTz);
   const month = monthStr;
@@ -348,6 +358,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         mode={catSlider.mode}
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
+        cushionEnabled={cushionEnabled}
         {...(catSlider.mode === "edit" && editCatInitial
           ? { initial: editCatInitial }
           : {})}

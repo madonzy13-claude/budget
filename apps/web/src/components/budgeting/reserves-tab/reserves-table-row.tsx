@@ -249,7 +249,7 @@ export function ReservesTableRow({
             <div className="w-[72px] text-right tabular-nums sm:w-[120px]">
               <InlineEditCell
                 value={centsToBare(row.reserveBalanceCents)}
-                ariaLabel={`Reserve balance for ${row.name}`}
+                ariaLabel={t("balanceAria", { name: row.name })}
                 disabled={false}
                 testId={`reserves-balance-${row.categoryId}`}
                 render={(v) => (
@@ -304,7 +304,7 @@ export function ReservesTableRow({
                             ? "text-[var(--destructive)]"
                             : "text-[var(--foreground)]"
                         }
-                        aria-label="Zero actual"
+                        aria-label={t("zeroActualAria")}
                       >
                         0
                       </span>
@@ -332,7 +332,7 @@ export function ReservesTableRow({
                 glance for the smaller viewport. */}
             <div className="hidden text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]">
               {sharePct === null ? (
-                <span aria-label="Zero share">0%</span>
+                <span aria-label={t("zeroShareAria")}>0%</span>
               ) : (
                 <span>{sharePct.toFixed(0)}%</span>
               )}

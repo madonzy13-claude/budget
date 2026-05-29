@@ -5,18 +5,27 @@
  * step content in the middle, and the action row at the bottom.
  * Action row: Back (ghost/neutral, hidden step 1) | Skip (ghost/neutral, steps 2-4) | Next/Create Budget (yellow)
  */
+"use client";
+
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { WizardStepper } from "./wizard-stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface WizardLayoutProps {
-  // Step 0 = welcome screen (no stepper progress); 1..5 = real wizard steps.
-  currentStep: 0 | 1 | 2 | 3 | 4 | 5;
+  // Step 0 = welcome screen (no stepper progress); 1..4 = real wizard steps.
+  currentStep: 0 | 1 | 2 | 3 | 4;
   children: React.ReactNode;
   onBack?: () => void;
   onSkip?: () => void;
   onNext: () => void;
+  /**
+   * Optional handler for jumping back via the stepper pill itself. Wired
+   * to the same setStep used by Back. The stepper only fires it for
+   * completed segments, so we don't need extra guards in the parent.
+   */
+  onStepJump?: (step: 1 | 2 | 3 | 4) => void;
   isLoading?: boolean;
   nextLabel?: string;
   className?: string;
@@ -28,15 +37,20 @@ export function WizardLayout({
   onBack,
   onSkip,
   onNext,
+  onStepJump,
   isLoading = false,
   nextLabel,
   className,
 }: WizardLayoutProps) {
-  const isLastStep = currentStep === 5;
+  const t = useTranslations("onboarding.wizard.actions");
+  const isLastStep = currentStep === 4;
   const showBack = currentStep > 1;
-  const showSkip = currentStep >= 2 && currentStep <= 4;
+  // Steps 2 and 3 are optional — user can Skip past Type and Features.
+  // Step 4 (Review) is the terminal action, not a skippable step.
+  const showSkip = currentStep === 2 || currentStep === 3;
 
-  const primaryLabel = nextLabel ?? (isLastStep ? "Create budget" : "Next");
+  const primaryLabel =
+    nextLabel ?? (isLastStep ? t("create_budget") : t("next"));
 
   return (
     <div
@@ -45,8 +59,15 @@ export function WizardLayout({
         className,
       )}
     >
-      {/* Stepper */}
-      <WizardStepper currentStep={currentStep} className="mb-8" />
+      {/* Stepper — completed pills become jump-back buttons when the
+          parent supplies onStepJump. While a network call is in flight
+          (isLoading) we disable jump-back to avoid racing in-flight
+          writes by passing undefined down. */}
+      <WizardStepper
+        currentStep={currentStep}
+        onStepJump={isLoading ? undefined : onStepJump}
+        className="mb-8"
+      />
 
       {/* Card */}
       <div className="rounded-[var(--radius-lg)] bg-[var(--surface-card-dark)] px-8 py-8">
@@ -64,7 +85,7 @@ export function WizardLayout({
               disabled={isLoading}
               className="text-[var(--body-on-dark)] hover:text-[var(--body-on-dark)]"
             >
-              Back
+              {t("back")}
             </Button>
           ) : (
             <div className="flex-1" />
@@ -79,7 +100,7 @@ export function WizardLayout({
               disabled={isLoading}
               className="flex-1 text-[var(--muted)]"
             >
-              Skip
+              {t("skip")}
             </Button>
           )}
 

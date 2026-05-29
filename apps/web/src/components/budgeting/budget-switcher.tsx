@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useNavRouter } from "@/components/common/nav-pending";
 import { useTranslations } from "next-intl";
-import { ChevronDown, Plus, Users } from "lucide-react";
+import { ChevronDown, Plus, User, Users } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -43,7 +44,7 @@ export function BudgetSwitcher({
   locale,
 }: BudgetSwitcherProps) {
   const t = useTranslations();
-  const router = useRouter();
+  const router = useNavRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -93,8 +94,16 @@ export function BudgetSwitcher({
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
           className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--on-dark)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
         >
-          {/* UAT-PH5-T3-06: drop the Lock glyph for PRIVATE — Users still
-              marks SHARED so the social affordance reads at a glance. */}
+          {/* Kind glyph: single User for PRIVATE, Users (couple) for
+              SHARED. Both glyphs ride at --muted-foreground so the
+              active budget name carries the visual weight — the icon is
+              a quick-scan kind cue, not a competing element. */}
+          {active && active.kind === "PRIVATE" && (
+            <User
+              className="size-4 text-[var(--muted-foreground)]"
+              aria-hidden="true"
+            />
+          )}
           {active && active.kind === "SHARED" && (
             <Users
               className="size-4 text-[var(--muted-foreground)]"
@@ -232,9 +241,15 @@ function BudgetGroup({
                 aria-hidden="true"
               />
             )}
-            {/* UAT-PH5-T3-06: only render Users glyph for SHARED. PRIVATE
-                rows have no kind icon — the row's name alone is enough and
-                the dropdown is grouped (when relevant) by Personal heading. */}
+            {/* Per-row kind glyph: single User for PRIVATE, Users
+                (couple) for SHARED. Both glyphs are 16px and muted so
+                they read as metadata, not as a competing icon row. */}
+            {b.kind === "PRIVATE" && (
+              <User
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
+            )}
             {b.kind === "SHARED" && (
               <Users
                 className="size-4 text-[var(--muted-foreground)]"

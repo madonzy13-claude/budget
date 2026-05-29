@@ -34,7 +34,10 @@ async function fetchCategories(wsId: string): Promise<CategoryDto[]> {
   }
 }
 
-export async function CategoryList({ locale: _locale, wsId }: CategoryListProps) {
+export async function CategoryList({
+  locale: _locale,
+  wsId,
+}: CategoryListProps) {
   const tCat = await getTranslations("budgeting_categories.categories");
   const categories = await fetchCategories(wsId);
   const active = categories
@@ -56,8 +59,8 @@ export async function CategoryList({ locale: _locale, wsId }: CategoryListProps)
           key={cat.id}
           categoryId={cat.id}
           categoryName={cat.name}
-          editAriaLabel={`Edit ${cat.name}`}
-          archiveAriaLabel={`Archive ${cat.name}`}
+          editAriaLabel={tCat("editAria", { name: cat.name })}
+          archiveAriaLabel={tCat("archiveAria", { name: cat.name })}
           sheetTitle={tCat("form.editTitle")}
         />
       ))}

@@ -89,11 +89,16 @@ export default async function SpendingsPage({
         month,
       };
 
-  // D-PH5-R11: read reservesEnabled; default true preserves existing UX.
-  const reservesEnabled = budgetRes.ok
-    ? (((await budgetRes.json()) as { reservesEnabled?: boolean })
-        .reservesEnabled ?? true)
-    : true;
+  // D-PH5-R11 + Phase 6 cushion flag: read both gates from the budget meta
+  // fetch. Defaults true preserve existing UX when the fetch fails.
+  const budgetMeta = budgetRes.ok
+    ? ((await budgetRes.json()) as {
+        reservesEnabled?: boolean;
+        cushionEnabled?: boolean;
+      })
+    : null;
+  const reservesEnabled = budgetMeta?.reservesEnabled ?? true;
+  const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
 
   return (
     <SpendingsGridClient
@@ -104,6 +109,7 @@ export default async function SpendingsPage({
       budgetTz={(summary as { budgetTz?: string }).budgetTz ?? "UTC"}
       month={month}
       reservesEnabled={reservesEnabled}
+      cushionEnabled={cushionEnabled}
       initialCategories={
         categories as Parameters<
           typeof SpendingsGridClient

@@ -61,6 +61,15 @@ interface CategoryEditFormProps {
   mode: CategoryEditMode;
   onSuccess?: () => void;
   onCancel?: () => void;
+  /**
+   * Phase 6 onboarding rewrite: when false, the Cushion amount field is
+   * hidden entirely from the form. The submit path still posts the
+   * default "0" cushion value to /limits, so disabling cushion mid-life
+   * does not leave the column with stale non-zero data — but no UI is
+   * exposed for editing it. Defaults to true so existing callers keep
+   * the field visible.
+   */
+  cushionEnabled?: boolean;
   _apiBase?: string;
 }
 
@@ -72,6 +81,7 @@ export function CategoryEditForm({
   mode,
   onSuccess,
   onCancel,
+  cushionEnabled = true,
   _apiBase = "/api",
 }: CategoryEditFormProps) {
   const tCat = useTranslations("budgeting_categories.categories");
@@ -83,21 +93,18 @@ export function CategoryEditForm({
   const existingLimit = isEdit ? mode.existingLimit : null;
 
   const formSchema = useMemo(() => {
+    const nonNegInt = tCat("form.errors.nonNegativeInt");
     const base = z.object({
       name: z.string().min(1).max(120),
-      normalAmount: z
-        .string()
-        .regex(/^\d+$/, "Amount must be a non-negative integer"),
-      cushionAmount: z
-        .string()
-        .regex(/^\d+$/, "Amount must be a non-negative integer"),
+      normalAmount: z.string().regex(/^\d+$/, nonNegInt),
+      cushionAmount: z.string().regex(/^\d+$/, nonNegInt),
     });
     return isEdit
       ? base.extend({
           effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         })
       : base;
-  }, [isEdit]);
+  }, [isEdit, tCat]);
 
   type FormValues = z.infer<typeof formSchema>;
 
@@ -142,7 +149,7 @@ export function CategoryEditForm({
         }
         const created = (await res.json()) as { id: string; name: string };
         categoryId = created.id;
-        toast.success(`Category "${created.name}" created.`);
+        toast.success(tCat("toast.created", { name: created.name }));
       } else {
         // 2. EDIT: rename only if name changed, then write the limit.
         categoryId = mode.category.id;
@@ -241,25 +248,27 @@ export function CategoryEditForm({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="cushionAmount"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{tLim("cushionAmount")}</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="0"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {cushionEnabled && (
+          <FormField
+            control={form.control}
+            name="cushionAmount"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{tLim("cushionAmount")}</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {isEdit && (
           <FormField

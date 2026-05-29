@@ -43,6 +43,18 @@ interface CurrencyPickerProps {
    * When omitted, falls back to the built-in TOP_CURRENCIES list (Phase 1 compat).
    */
   options?: CurrencyOption[];
+  /**
+   * Visual variant:
+   *   `inline` (default) — bare 3-letter text, no border or background.
+   *     Designed for inline-edit cells (wallet rows) where the resting
+   *     state must look like static text.
+   *   `field` — full form-field chrome: h-10, border, padded bg, chevron
+   *     hint via the native `appearance: revert` (system-native arrow).
+   *     Used by the transaction + recurring sliders so the picker
+   *     reads as an input alongside the Amount field, on every device
+   *     including iPhone (UAT-Phase6-Test7 retest #6).
+   */
+  variant?: "inline" | "field";
 }
 
 /**
@@ -59,6 +71,7 @@ export function CurrencyPicker({
   disabled = false,
   "aria-label": ariaLabel,
   options,
+  variant = "inline",
 }: CurrencyPickerProps) {
   const t = useTranslations("currency");
   const effectivePlaceholder = placeholder ?? t("picker.placeholder");
@@ -93,6 +106,35 @@ export function CurrencyPicker({
   });
 
   if (isTouch) {
+    const fieldClass =
+      variant === "field"
+        ? // Match SelectTrigger's styling 1:1 (h-10, border, padded bg)
+          // so the native iOS picker reads as a form input next to the
+          // Amount field. We keep `appearance:none` to suppress the
+          // OS chevron then paint our own SVG via background-image —
+          // matches what Radix renders in the desktop variant.
+          [
+            "appearance-none [-webkit-tap-highlight-color:transparent]",
+            "flex h-10 w-full items-center px-3 py-2",
+            "rounded-[var(--radius-md)] border border-[var(--input)]",
+            "bg-[color-mix(in_oklab,var(--card)_92%,transparent)]",
+            "text-base sm:text-sm text-[var(--foreground)]",
+            // System-native chevron via SVG background — sits ~12px from
+            // the right edge, sized to match the Radix variant.
+            "bg-no-repeat",
+            "[background-image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>\")]",
+            "[background-position:right_10px_center]",
+            "pr-9",
+            "focus:outline-2 focus:outline-offset-2 focus:outline-[var(--info)]",
+          ]
+        : // Original inline-cell styling — preserves the bare-text
+          // appearance used by inline-edit cells in wallet rows.
+          [
+            "appearance-none [-webkit-tap-highlight-color:transparent]",
+            "w-full bg-transparent p-0 m-0 border-0",
+            "text-num-md text-[var(--foreground)]",
+            "focus:outline-none focus:shadow-none focus:border-0",
+          ];
     return (
       <select
         aria-label={ariaLabel ?? t("picker.aria_label")}
@@ -100,18 +142,8 @@ export function CurrencyPicker({
         disabled={disabled}
         onChange={(e) => onSelect(e.target.value)}
         data-testid="currency-picker-native"
-        // UAT-PH5-T3-43: render as bare text. The cell parent
-        // constrains width and the original resting state was a plain
-        // 3-letter span — preserving that look means no border, no
-        // padding, no background, no dropdown arrow. Tapping anywhere
-        // on the text opens the iOS system picker. The 3-letter code
-        // ("EUR") shows in full.
-        className={[
-          "appearance-none [-webkit-tap-highlight-color:transparent]",
-          "w-full bg-transparent p-0 m-0 border-0",
-          "text-num-md text-[var(--foreground)]",
-          "focus:outline-none focus:shadow-none focus:border-0",
-        ].join(" ")}
+        data-variant={variant}
+        className={fieldClass.join(" ")}
       >
         {!value && (
           <option value="" disabled>

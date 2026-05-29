@@ -55,6 +55,12 @@ interface WalletsSectionedListProps {
    * callers keep their behaviour.
    */
   reservesEnabled?: boolean;
+  /**
+   * Phase 6 onboarding rewrite parallel: when false, the Cushion wallet
+   * section is omitted entirely. Same cascading-hide pattern as
+   * reservesEnabled. Defaults true to preserve existing UX.
+   */
+  cushionEnabled?: boolean;
 }
 
 export function WalletsSectionedList({
@@ -62,6 +68,7 @@ export function WalletsSectionedList({
   budgetCurrency,
   initial,
   reservesEnabled = true,
+  cushionEnabled = true,
 }: WalletsSectionedListProps) {
   const t = useTranslations("bdp.tab.wallets.toast");
   // UAT-PH5-T3-33: separate translator for the full section labels
@@ -291,17 +298,20 @@ export function WalletsSectionedList({
       }}
     >
       <div
-        // Page-scoped scroll container (html/body locked overflow:hidden
-        // for PWA touch handling). Mirrors the Reserves tab: bounded height
-        // so tall wallet lists scroll, dnd-kit auto-scrolls during drag,
-        // overscroll-contain stops the swipe from bubbling to the document.
-        style={{ overscrollBehavior: "contain" }}
-        className="flex max-h-[calc(100svh-176px)] flex-col gap-4 overflow-y-auto p-4 sm:p-6"
+        // No bounded inner scroll container any more — the layout's
+        // `<main overflow-y-auto>` handles overflow naturally, same as
+        // the home and spendings pages. The prior bounded-container
+        // pattern reserved a fixed viewport area and revealed dark
+        // canvas below the content when the list was short (UAT
+        // retest: "footer block, just dark"). dnd-kit's auto-scroll
+        // can target the document scroll surface; overscroll-contain
+        // is dropped along with the inner overflow.
+        className="flex flex-col gap-4 p-4 sm:p-6"
       >
         {(
           [
             "SPENDINGS",
-            "CUSHION",
+            ...(cushionEnabled ? (["CUSHION"] as const) : []),
             ...(reservesEnabled ? (["RESERVE"] as const) : []),
           ] as const
         ).map((type) => (
@@ -376,6 +386,7 @@ function WalletDragGhost({
   color: string | null;
   icon: string | null;
 }) {
+  const tRow = useTranslations("bdp.tab.wallets.row");
   const Icon = iconByName(icon);
   return (
     <div
@@ -389,7 +400,7 @@ function WalletDragGhost({
         {Icon ? <Icon className="size-4" /> : null}
       </span>
       <span className="flex-1 truncate text-body-md text-[var(--body-on-dark)]">
-        {name || "Untitled wallet"}
+        {name || tRow("untitled")}
       </span>
       <span className="w-[72px] sm:w-[96px] text-num-md text-[var(--muted-foreground)]">
         {currency}

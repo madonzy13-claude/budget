@@ -53,9 +53,12 @@ const nonOwnerProps = {
 };
 
 describe("DangerZoneSection — owner/non-owner controls + typed-name gate (SETT-08)", () => {
-  it("owner sees Archive Budget button", () => {
+  it("owner sees no standalone Archive button (deleted under hood)", () => {
+    // Archive was folded into Delete: typed-name confirm now triggers
+    // an archive instead of a hard-delete. The standalone Archive CTA
+    // was removed to keep the Danger Zone single-action.
     render(<DangerZoneSection {...ownerProps} />);
-    expect(screen.getByText("danger.archive_button")).toBeInTheDocument();
+    expect(screen.queryByText("danger.archive_button")).not.toBeInTheDocument();
   });
 
   it("owner sees Delete Budget button", () => {

@@ -17,6 +17,7 @@
  */
 import * as React from "react";
 import { ArrowDownToLine, ArrowUpFromLine, Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export type MismatchVariant = "overfunded" | "underfunded" | "reconciled";
 
@@ -31,6 +32,7 @@ export function MismatchChip({
   amountFormatted,
   helperText,
 }: MismatchChipProps) {
+  const t = useTranslations("bdp.tab.reserves.mismatch");
   const isReconciled = variant === "reconciled";
   const isOverfunded = variant === "overfunded";
 
@@ -65,7 +67,7 @@ export function MismatchChip({
   const sign = isReconciled ? "" : isOverfunded ? "+" : "−";
 
   const titleLabel = isReconciled
-    ? "Reconciled"
+    ? t("reconciled.title")
     : amountFormatted
       ? `${sign}${amountFormatted}`
       : "";

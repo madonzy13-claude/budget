@@ -1,44 +1,63 @@
 "use client";
 
 /**
- * wizard-page.tsx — 5-step onboarding wizard (D-05, D-06)
+ * wizard-page.tsx — 4-step onboarding wizard (deferred-create rewrite).
  *
- * Single-page React step machine — ONE route, all state in React, no per-step
- * URLs. Budget row created at step 1, PATCHed onward. Resumable via ?step param.
+ * Single-page React step machine. ONE route, all state in React, no per-step
+ * URLs.
  *
  * Step flow:
- *   1. Name      → POST /budgets (locale-guessed currency)
- *   2. Currency  → PATCH budget
- *   3. Type      → PATCH budget
- *   4. Categories → POST each category
- *   5. Review    → PUT /onboarding/progress {step:5, completedAt} → redirect
+ *   0. Welcome   → "Get started" advances to step 1; no API call.
+ *   1. Basics    → collect name + currency; no API call.
+ *   2. Type      → collect kind (PRIVATE / SHARED); no API call.
+ *   3. Features  → collect cushion + reserves toggles; no API call.
+ *   4. Review    → "Create budget" performs:
+ *                    - POST   /budgets       (name, kind, default_currency)
+ *                    - PATCH  /budgets/:id   (cushion_mode_enabled if true,
+ *                                             reserves_enabled if false)
+ *                    - PUT    /onboarding/progress  (step=4, completedAt)
+ *                  Then redirects to /budgets/[id]/spendings.
+ *
+ * Why defer all writes until Step 4: the previous early-create flow left
+ * orphan budgets when a user abandoned mid-wizard, required juggling
+ * X-Budget-ID headers from the no-budget /budgets/new path, and forced
+ * mid-wizard PATCH calls that couldn't actually mutate `kind` (no schema
+ * support). Collecting form state client-side avoids all three problems
+ * and aligns with the user's spreadsheet-replacement workflow where the
+ * "first save" event is meaningful.
  */
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { WizardLayout } from "./wizard-layout";
 import { StepWelcome } from "./steps/step-welcome";
-import { StepName } from "./steps/step-name";
-import { StepCurrency } from "./steps/step-currency";
+import { StepBasics } from "./steps/step-basics";
 import { StepType } from "./steps/step-type";
-import { StepCategories, STARTER_CATEGORIES } from "./steps/step-categories";
+import { StepFeatures } from "./steps/step-features";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
 
-// Step 0 is the pre-wizard welcome screen — no API calls, no stepper
-// progress, just an intro + "Get started" button that advances to step 1.
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2 | 3 | 4;
 
 interface WizardForm {
   name: string;
   currency: string;
   kind: "PRIVATE" | "SHARED";
-  categories: string[];
+  cushionEnabled: boolean;
+  reservesEnabled: boolean;
 }
 
 interface WizardPageProps {
   locale?: string;
+  /**
+   * Server-derived signal: the caller already has at least one budget.
+   * When true, the wizard skips step 0 (welcome) and opens on step 1
+   * (Basics). The welcome card is a first-budget intro — showing it on
+   * every subsequent budget would read as patronising.
+   */
+  skipWelcome?: boolean;
 }
 
 /**
@@ -52,97 +71,42 @@ function guessCurrency(language: string): string {
   return "USD";
 }
 
-export function WizardPage({ locale: localeProp }: WizardPageProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+export function WizardPage({
+  locale: localeProp,
+  skipWelcome = false,
+}: WizardPageProps) {
   const params = useParams();
   const locale =
     localeProp ?? (typeof params?.locale === "string" ? params.locale : "en");
+  const tBasics = useTranslations("onboarding.wizard.basics");
+  const tActions = useTranslations("onboarding.wizard.actions");
+  const tErrors = useTranslations("onboarding.wizard.errors");
 
-  // Derive initial step from ?step query param (resume — D-06).
-  // No ?step (and no explicit ?step=0) means the user has just landed on
-  // the wizard for the first time; show the welcome screen (step 0) until
-  // they explicitly click "Get started". A resumable mid-wizard refresh
-  // arrives with ?step>=1 and skips the welcome.
-  const initialStep = (() => {
-    const s = searchParams?.get("step");
-    if (s === null || s === undefined) return 0 as Step;
-    const n = parseInt(s, 10);
-    return (n >= 1 && n <= 5 ? n : 0) as Step;
-  })();
-
-  const [step, setStep] = useState<Step>(initialStep);
-  const [budgetId, setBudgetId] = useState<string | null>(null);
+  // Defer-create model: a mid-wizard refresh restarts from step 0/1
+  // rather than resuming a server-stored step pointer. The layout guard
+  // already routes onboarding-incomplete users back to /budgets/new when
+  // no budget exists, so this is a no-data-loss restart from the user's
+  // standpoint — they fill the four short steps again.
+  //
+  // skipWelcome: returning users (any existing budget) bypass step 0 so
+  // they don't get the first-budget intro card every time they add
+  // another budget.
+  const [step, setStep] = useState<Step>(skipWelcome ? 1 : 0);
   const [isLoading, setIsLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
-  // D-06 resume: mirror the live `step` state into the URL as ?step=N so a
-  // mid-wizard refresh resumes at the saved step. Without this the wizard
-  // would reset to step 1 on reload because the layout guard's resume
-  // redirect explicitly skips /budgets/new.
-  //
-  // Uses `window.history.replaceState` (synchronous) rather than `router.replace`
-  // (async) so the URL is committed before any imperative `page.reload()` in
-  // tests. The async router.replace lost the race against playwright's reload.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    const current = url.searchParams.get("step");
-    // Only WRITE the ?step marker; never DELETE it. Deleting it during
-    // initial mount (e.g. after the layout's server redirect to
-    // /budgets/new?step=1) fights Next.js's client router and leaves the
-    // (app) shell rendering an empty page. Leaving the stale ?step in the
-    // URL is harmless — the wizard ignores it once `step` state is
-    // current.
-    if (step > 1 && current !== String(step)) {
-      url.searchParams.set("step", String(step));
-      window.history.replaceState(
-        null,
-        "",
-        url.pathname + url.search + url.hash,
-      );
-    }
-  }, [step]);
-
-  // D-06 resume: when returning to a mid-wizard step (?step=2+), restore
-  // budgetId from the server so PATCH/POST calls in steps 2-4 are not no-ops.
-  useEffect(() => {
-    if (initialStep <= 1) return;
-    let cancelled = false;
-    async function restoreBudgetId() {
-      try {
-        const res = await api.budgets.active.$get();
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as {
-          budgets?: { id: string }[];
-          workspaces?: { id: string }[];
-        };
-        const list = data.budgets ?? data.workspaces ?? [];
-        // Most recently created budget is the one created on step 1.
-        // The list is ordered by created_at DESC from workspace-repo.
-        if (list.length > 0 && list[0]) {
-          setBudgetId(list[0].id);
-        }
-      } catch {
-        // best-effort — user may need to restart from step 1
-      }
-    }
-    void restoreBudgetId();
-    return () => {
-      cancelled = true;
-    };
-  }, [initialStep]);
-
-  // Form state
+  // Form state. Both feature flags default ON: the wizard advertises them
+  // as standard for new budgets, and the underlying columns
+  // (reserves_enabled, cushion_enabled) also default true server-side.
   const [form, setForm] = useState<WizardForm>({
     name: "",
-    currency: "USD", // Will be updated on mount with locale guess
+    currency: "USD",
     kind: "PRIVATE",
-    categories: [...STARTER_CATEGORIES],
+    cushionEnabled: true,
+    reservesEnabled: true,
   });
 
-  // Update currency with locale guess on client-side mount
+  // Update currency with locale guess on client-side mount.
   useEffect(() => {
     const guessed = guessCurrency(
       typeof navigator !== "undefined" ? navigator.language : "en-US",
@@ -157,130 +121,121 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
     setForm((f) => ({ ...f, [key]: value }));
   };
 
-  /** Upsert onboarding progress for a given step */
-  async function putProgress(s: number, completedAt?: string) {
+  /**
+   * Final-step write path. POST budget → PATCH feature toggles only when
+   * non-default → PUT progress completedAt → redirect.
+   * PATCH calls land AFTER POST so the api-client's X-Budget-ID middleware
+   * can derive the header from the response URL.
+   */
+  async function commitWizard(): Promise<void> {
+    // Create the budget.
+    const createRes = await api.budgets.$post({
+      json: {
+        name: form.name.trim(),
+        kind: form.kind,
+        default_currency: form.currency,
+      },
+    });
+    if (!createRes.ok) {
+      throw new Error("budget_create_failed");
+    }
+    const created = (await createRes.json()) as { id: string };
+    const budgetId = created.id;
+
+    // PATCH only the toggles that diverge from server defaults
+    // (cushion_enabled default ON, reserves_enabled default ON).
+    // The wizard NEVER touches cushion_mode_enabled — that flag is the
+    // per-month SCD-2 mode tracker, owned by Settings → Cushion mode.
+    const patchPayload: {
+      cushion_enabled?: boolean;
+      reserves_enabled?: boolean;
+    } = {};
+    if (!form.cushionEnabled) patchPayload.cushion_enabled = false;
+    if (!form.reservesEnabled) patchPayload.reserves_enabled = false;
+    if (Object.keys(patchPayload).length > 0) {
+      // The api-client middleware can't derive X-Budget-ID from the
+      // /budgets/new URL — pass it explicitly so the tenant guard accepts
+      // the call (same workaround the pre-defer flow used for currency).
+      await api.budgets[":id"].$patch(
+        {
+          param: { id: budgetId },
+          json: patchPayload,
+        },
+        { headers: { "X-Budget-ID": budgetId } },
+      );
+    }
+
+    // Mark onboarding complete.
+    const completedAt = new Date().toISOString();
     try {
       await api.onboarding.progress.$put({
-        json: { step: s, ...(completedAt ? { completedAt } : {}) },
+        json: { step: 4, completedAt },
       });
     } catch {
-      // best-effort — don't block wizard
+      // best-effort — the budget exists; user can manually navigate.
     }
+
+    // Hard navigation: router.push has been observed to race with the
+    // just-set active-workspace cookie during the post-create redirect
+    // chain. window.location.assign avoids the race.
+    window.location.assign(`/${locale}/budgets/${budgetId}/spendings`);
   }
 
-  /** Handle "Next" / "Create budget" */
+  /** Handle "Next" / "Get started" / "Create budget" */
   async function onNext() {
     setIsLoading(true);
     setNameError(null);
-    setCategoriesError(null);
 
     try {
       if (step === 0) {
         setStep(1);
       } else if (step === 1) {
-        // Validate name
         if (!form.name.trim()) {
-          setNameError("Budget name is required.");
+          setNameError(tBasics("name_required"));
           setIsLoading(false);
           return;
         }
-        // D-06: Create budget row at step 1
-        const res = await api.budgets.$post({
-          json: {
-            name: form.name.trim(),
-            kind: form.kind,
-            default_currency: form.currency,
-          },
-        });
-        if (!res.ok) {
-          toast.error("Something went wrong — try again");
-          setIsLoading(false);
-          return;
-        }
-        const data = (await res.json()) as { id: string; name: string };
-        setBudgetId(data.id);
-        await putProgress(1);
         setStep(2);
       } else if (step === 2) {
-        // PATCH budget currency
-        if (!budgetId) {
-          toast.error("Session lost — please restart from step 1.");
-          setIsLoading(false);
-          return;
-        }
-        // The Hono RPC client derives X-Budget-ID from window.location, but
-        // here the URL is /budgets/new so the header is absent and the
-        // tenant-guard middleware drops the call. Pass the budgetId header
-        // explicitly via the RequestInit so the PATCH actually lands.
-        await api.budgets[":id"].$patch(
-          {
-            param: { id: budgetId },
-            json: { default_currency: form.currency },
-          },
-          { headers: { "X-Budget-ID": budgetId } },
-        );
-        await putProgress(2);
         setStep(3);
       } else if (step === 3) {
-        // PATCH budget kind — skip silently (kind not in patchBudgetSchema yet)
-        // kind is already set correctly from the step-1 POST payload
-        await putProgress(3);
         setStep(4);
       } else if (step === 4) {
-        // Validate categories
-        if (form.categories.length === 0) {
-          setCategoriesError("Select at least one category.");
-          setIsLoading(false);
-          return;
-        }
-        if (!budgetId) {
-          toast.error("Session lost — please restart from step 1.");
-          setIsLoading(false);
-          return;
-        }
-        // POST each selected category. Same X-Budget-ID workaround as the
-        // step-2 PATCH — wizard URL is /budgets/new, so the api-client
-        // can't derive the header from the path.
-        await Promise.all(
-          form.categories.map((name) =>
-            api.budgets[":budgetId"].categories.$post(
-              {
-                param: { budgetId },
-                json: { name, planned: 0, cushion: 0 },
-              },
-              { headers: { "X-Budget-ID": budgetId } },
-            ),
-          ),
-        );
-        await putProgress(4);
-        setStep(5);
-      } else if (step === 5) {
-        // Finish: PUT progress with completedAt + redirect to spendings
-        const completedAt = new Date().toISOString();
-        await putProgress(5, completedAt);
-        router.push(`/${locale}/budgets/${budgetId}/spendings`);
+        await commitWizard();
         return; // avoid setIsLoading(false) on redirect
       }
     } catch {
-      toast.error("Something went wrong — try again");
+      toast.error(tErrors("network"));
     }
 
     setIsLoading(false);
   }
 
-  /** Handle "Skip" (steps 2-4) — advance without saving */
+  /** Handle "Skip" (steps 2 + 3) — advance without persisting. */
   function onSkip() {
-    if (step >= 2 && step <= 4) {
+    if (step === 2 || step === 3) {
       setStep((s) => (s + 1) as Step);
     }
   }
 
-  /** Handle "Back" — decrement step (D-08 back navigation allowed) */
+  /** Handle "Back" — decrement step. Step 0 has no back. */
   function onBack() {
     if (step > 1) {
       setNameError(null);
-      setCategoriesError(null);
       setStep((s) => (s - 1) as Step);
+    }
+  }
+
+  /**
+   * Stepper jump-back. The stepper only invokes this for COMPLETED
+   * segments (target < step), but we re-assert that here so an
+   * out-of-bound jump call cannot push the user forward without going
+   * through onNext (which enforces validation per step).
+   */
+  function onStepJump(target: 1 | 2 | 3 | 4) {
+    if (target < step) {
+      setNameError(null);
+      setStep(target);
     }
   }
 
@@ -290,38 +245,35 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
         return <StepWelcome />;
       case 1:
         return (
-          <StepName
-            value={form.name}
-            onChange={(v) => updateForm("name", v)}
-            error={nameError ?? undefined}
+          <StepBasics
+            name={form.name}
+            onChangeName={(v) => updateForm("name", v)}
+            nameError={nameError ?? undefined}
+            currency={form.currency}
+            onChangeCurrency={(v) => updateForm("currency", v)}
           />
         );
       case 2:
         return (
-          <StepCurrency
-            value={form.currency}
-            onChange={(v) => updateForm("currency", v)}
-          />
+          <StepType value={form.kind} onChange={(v) => updateForm("kind", v)} />
         );
       case 3:
         return (
-          <StepType value={form.kind} onChange={(v) => updateForm("kind", v)} />
-        );
-      case 4:
-        return (
-          <StepCategories
-            selected={form.categories}
-            onChange={(v) => updateForm("categories", v)}
-            error={categoriesError ?? undefined}
+          <StepFeatures
+            cushionEnabled={form.cushionEnabled}
+            onChangeCushion={(v) => updateForm("cushionEnabled", v)}
+            reservesEnabled={form.reservesEnabled}
+            onChangeReserves={(v) => updateForm("reservesEnabled", v)}
           />
         );
-      case 5:
+      case 4:
         return (
           <StepReview
             name={form.name}
             currency={form.currency}
             kind={form.kind}
-            categories={form.categories}
+            cushionEnabled={form.cushionEnabled}
+            reservesEnabled={form.reservesEnabled}
           />
         );
     }
@@ -333,9 +285,14 @@ export function WizardPage({ locale: localeProp }: WizardPageProps) {
       onBack={onBack}
       onSkip={onSkip}
       onNext={onNext}
+      onStepJump={onStepJump}
       isLoading={isLoading}
       nextLabel={
-        step === 0 ? "Get started" : step === 5 ? "Create budget" : "Next"
+        step === 0
+          ? tActions("get_started")
+          : step === 4
+            ? tActions("create_budget")
+            : tActions("next")
       }
     >
       {renderStep()}

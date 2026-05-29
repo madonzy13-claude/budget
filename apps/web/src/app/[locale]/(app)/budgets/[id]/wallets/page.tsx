@@ -32,6 +32,7 @@ export default async function WalletsPage({ params }: PageProps) {
         defaultCurrency?: string;
         default_currency?: string;
         reservesEnabled?: boolean;
+        cushionEnabled?: boolean;
       }>)
     : null;
 
@@ -44,9 +45,18 @@ export default async function WalletsPage({ params }: PageProps) {
   // true preserves existing UX when the budget meta fetch fails.
   const reservesEnabled = budget?.reservesEnabled ?? true;
 
+  // Phase 6 onboarding rewrite: parallel cascade for cushion_enabled.
+  // When false, the Cushion wallet section disappears from the Wallets
+  // tab. Default true to preserve UX on stale clients / fetch failures.
+  const cushionEnabled = budget?.cushionEnabled ?? true;
+
   // UAT-PH5-T3-04: constrain wallets to the same centered 1280px column the
   // Settings tab uses. Spendings stays full-bleed because it's a horizontally
   // scrolling grid.
+  // Plain wrapper — wallets uses the layout's <main> scroll surface
+  // now (same as home + spendings). No bounded inner container, no
+  // forced height; content ends where content ends and the canvas
+  // fills the rest of the viewport without a visible boundary.
   return (
     <div className="mx-auto w-full max-w-[1280px]">
       <WalletsSectionedList
@@ -54,6 +64,7 @@ export default async function WalletsPage({ params }: PageProps) {
         budgetCurrency={budgetCurrency}
         initial={wallets}
         reservesEnabled={reservesEnabled}
+        cushionEnabled={cushionEnabled}
       />
     </div>
   );

@@ -22,13 +22,17 @@ vi.mock("next-intl", () => ({
     },
 }));
 
-// Shared router spies so tests can assert on navigation.
-const { pushMock, refreshMock } = vi.hoisted(() => ({
+// Shared router spies — kept available for any future router.push
+// assertions, but the sign-in form now navigates via window.location
+// (hard navigation so the just-set session cookie is on the wire when
+// the next request fires). We track the hard navigation by stubbing
+// the location.href setter and asserting on its calls.
+const { pushMock, refreshMock, hrefSetter } = vi.hoisted(() => ({
   pushMock: vi.fn(),
   refreshMock: vi.fn(),
+  hrefSetter: vi.fn(),
 }));
 
-// Mock next/navigation
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
@@ -49,10 +53,23 @@ vi.mock("../src/lib/auth-client", () => ({
   resetPassword: vi.fn(),
 }));
 
+// happy-dom's `window.location` is a regular object; redefine `href`
+// with a setter spy so the SignInForm's `window.location.href = "/..."`
+// hard-navigation is captured without actually leaving the test page.
+beforeEach(() => {
+  const loc = window.location;
+  Object.defineProperty(loc, "href", {
+    configurable: true,
+    get: () => "http://localhost/",
+    set: hrefSetter,
+  });
+});
+
 describe("SignInForm", () => {
   beforeEach(() => {
     pushMock.mockClear();
     refreshMock.mockClear();
+    hrefSetter.mockClear();
   });
 
   it("renders without crashing", () => {
@@ -77,7 +94,7 @@ describe("SignInForm", () => {
     expect(button).not.toBeDisabled();
   });
 
-  it("redirects to the locale home on successful sign-in, not the non-existent /budgets route", async () => {
+  it("hard-navigates to the locale home on successful sign-in, not the non-existent /budgets route", async () => {
     render(<SignInForm locale="en" />);
     fireEvent.change(screen.getByLabelText(/email address/i), {
       target: { value: "user@example.com" },
@@ -87,12 +104,12 @@ describe("SignInForm", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalled());
-    expect(pushMock).toHaveBeenCalledWith("/en");
-    expect(pushMock).not.toHaveBeenCalledWith("/en/budgets");
+    await waitFor(() => expect(hrefSetter).toHaveBeenCalled());
+    expect(hrefSetter).toHaveBeenCalledWith("/en");
+    expect(hrefSetter).not.toHaveBeenCalledWith("/en/budgets");
   });
 
-  it("sets the budget-locale cookie and redirects to the account locale", async () => {
+  it("sets the budget-locale cookie and hard-navigates to the account locale", async () => {
     (signIn.email as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       data: { user: { locale: "uk" } },
       error: null,
@@ -106,8 +123,8 @@ describe("SignInForm", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalled());
-    expect(pushMock).toHaveBeenCalledWith("/uk");
+    await waitFor(() => expect(hrefSetter).toHaveBeenCalled());
+    expect(hrefSetter).toHaveBeenCalledWith("/uk");
     expect(document.cookie).toContain("budget-locale=uk");
   });
 });

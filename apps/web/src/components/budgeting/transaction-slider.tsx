@@ -430,6 +430,7 @@ export function TransactionSlider({
                         <CurrencyPicker
                           value={field.value}
                           onSelect={field.onChange}
+                          variant="field"
                         />
                       </FormControl>
                       <FormMessage />
@@ -487,14 +488,16 @@ export function TransactionSlider({
               />
 
               <SheetFooter className="mt-auto pt-4 flex gap-3">
-                {/* Delete button — edit mode only */}
+                {/* h-14 (UAT-Phase6-Test7 retest #2) — bumped from
+                    h-12 in lockstep with the recurring slider so both
+                    sliders feel identical on mobile. */}
                 {mode === "edit" && (
                   <Button
                     type="button"
                     variant="destructive"
                     onClick={() => setDeleteOpen(true)}
                     disabled={isSubmitting || isDeleting}
-                    className="h-12 w-full sm:flex-1"
+                    className="h-14 text-base w-full sm:flex-1"
                   >
                     {t("txn.action.delete")}
                   </Button>
@@ -503,7 +506,7 @@ export function TransactionSlider({
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-12 w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
+                  className="h-14 text-base w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

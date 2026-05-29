@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useNavRouter } from "@/components/common/nav-pending";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
@@ -20,7 +21,7 @@ interface LocaleSelectProps {
 
 export function LocaleSelect({ initialLocale }: LocaleSelectProps) {
   const t = useTranslations("settings");
-  const router = useRouter();
+  const router = useNavRouter();
   const pathname = usePathname();
   const [locale, setLocale] = useState(initialLocale);
 

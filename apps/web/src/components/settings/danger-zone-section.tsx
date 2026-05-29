@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useNavRouter } from "@/components/common/nav-pending";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,7 +47,7 @@ export function DangerZoneSection({
   isLastOwner,
 }: DangerZoneSectionProps) {
   const t = useTranslations("settings");
-  const router = useRouter();
+  const router = useNavRouter();
   const [confirmName, setConfirmName] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
 

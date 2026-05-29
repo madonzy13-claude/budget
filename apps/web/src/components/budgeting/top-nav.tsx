@@ -1,6 +1,7 @@
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { BrandMark } from "@/components/common/brand-mark";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { ProfileMenu } from "@/components/auth/profile-menu";
+import { getServerSession } from "@/lib/server-session";
 import {
   BudgetSwitcher,
   type BudgetSummary,
@@ -34,7 +35,13 @@ async function fetchBudgets(): Promise<BudgetSummary[]> {
  * which no longer exists after Plan 03-01 deletion.
  */
 export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
-  const budgets = await fetchBudgets();
+  // Parallel: budgets list + session lookup. Session is already cached
+  // upstream by the (app) layout for this render pass, so this is a
+  // free read.
+  const [budgets, session] = await Promise.all([
+    fetchBudgets(),
+    getServerSession(),
+  ]);
   return (
     <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 sm:px-8">
       <div className="flex items-center gap-3">
@@ -46,7 +53,15 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
         />
       </div>
       <div className="flex items-center gap-3">
-        <SignOutButton locale={locale} />
+        {session?.user && (
+          <ProfileMenu
+            locale={locale}
+            user={{
+              name: session.user.name,
+              email: session.user.email,
+            }}
+          />
+        )}
       </div>
     </div>
   );

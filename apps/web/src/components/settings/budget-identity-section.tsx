@@ -112,12 +112,16 @@ export function BudgetIdentitySection({
         </div>
       </div>
 
-      {/* Default currency — label left, picker (or locked display) right. */}
+      {/* Default currency — label left, picker (or locked display) right.
+          The picker is intentionally constrained to ~9rem so the trigger
+          reads as a control, not a full-bleed form field. The locked
+          state (post-first-transaction) already renders at intrinsic
+          size — this matches that footprint for visual consistency. */}
       <div className="flex items-center justify-between gap-4 py-3">
         <p className="shrink-0 text-sm font-semibold text-[var(--body)]">
           {t("identity.currency_label")}
         </p>
-        <div className="min-w-0 flex-1">
+        <div className="flex justify-end">
           {hasTransactions ? (
             <div className="flex items-center justify-end gap-2">
               <span className="rounded-md px-3 py-1.5 text-sm text-[var(--body)]">
@@ -138,11 +142,22 @@ export function BudgetIdentitySection({
               </TooltipProvider>
             </div>
           ) : (
-            <CurrencyPicker
-              value={defaultCurrency}
-              onSelect={saveCurrency}
-              aria-label={t("identity.currency_label")}
-            />
+            // CurrencyPicker's internal triggers (Radix SelectTrigger on
+            // desktop, native <select> on touch) both default to w-full,
+            // which makes the value text sit at the LEFT of any fixed-
+            // width wrapper. Browsers also tend to ignore text-align on
+            // <select>. Force intrinsic width on both trigger variants
+            // with !w-auto and override Radix's justify-between → end so
+            // the value sits at the right edge of the row. The wrapper
+            // itself uses inline-flex justify-end so it shrinks to the
+            // intrinsic size of the trigger.
+            <div className="inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right">
+              <CurrencyPicker
+                value={defaultCurrency}
+                onSelect={saveCurrency}
+                aria-label={t("identity.currency_label")}
+              />
+            </div>
           )}
         </div>
       </div>

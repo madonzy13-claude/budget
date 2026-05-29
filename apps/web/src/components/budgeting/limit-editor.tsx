@@ -101,15 +101,15 @@ export function LimitEditor({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        setServerError(err?.message ?? "Failed to save limit.");
+        setServerError(err?.message ?? t("errors.saveFailed"));
         return;
       }
 
       const saved: LimitDto = await res.json();
-      toast.success("Budget limit saved.");
+      toast.success(t("toast.saved"));
       onSuccess?.(saved);
     } catch {
-      setServerError("Network error. Try again.");
+      setServerError(t("errors.network"));
     }
   }
 
@@ -129,7 +129,13 @@ export function LimitEditor({
             <FormItem>
               <FormLabel>{t("normalAmount")}</FormLabel>
               <FormControl>
-                <Input type="number" min="0" step="1" placeholder="0" {...field} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -143,7 +149,13 @@ export function LimitEditor({
             <FormItem>
               <FormLabel>{t("cushionAmount")}</FormLabel>
               <FormControl>
-                <Input type="number" min="0" step="1" placeholder="0" {...field} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -157,10 +169,7 @@ export function LimitEditor({
             <FormItem>
               <FormLabel>{t("currency")}</FormLabel>
               <FormControl>
-                <CurrencyPicker
-                  value={field.value}
-                  onSelect={field.onChange}
-                />
+                <CurrencyPicker value={field.value} onSelect={field.onChange} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -184,7 +193,7 @@ export function LimitEditor({
         <div className="flex gap-2 justify-end">
           {onCancel && (
             <Button type="button" variant="ghost" onClick={onCancel}>
-              Cancel
+              {t("cancel")}
             </Button>
           )}
           <Button type="submit" disabled={isSubmitting}>

@@ -33,19 +33,26 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
-const PALETTE: { name: string; value: string }[] = [
-  { name: "Red", value: "#e63946" },
-  { name: "Amber", value: "#f4a261" },
-  { name: "Yellow", value: "#f6c453" },
-  { name: "Green", value: "#52b788" },
-  { name: "Teal", value: "#2a9d8f" },
-  { name: "Sky", value: "#4cc9f0" },
-  { name: "Indigo", value: "#5a67d8" },
-  { name: "Pink", value: "#e879f9" },
+// Palette key matches the i18n key in `bdp.tab.wallets.customizer.palette.*`.
+// The component looks up the human-readable color name through next-intl
+// so the screen-reader label localises with the rest of the UI.
+const PALETTE: { key: string; value: string }[] = [
+  { key: "red", value: "#e63946" },
+  { key: "amber", value: "#f4a261" },
+  { key: "yellow", value: "#f6c453" },
+  { key: "green", value: "#52b788" },
+  { key: "teal", value: "#2a9d8f" },
+  { key: "sky", value: "#4cc9f0" },
+  { key: "indigo", value: "#5a67d8" },
+  { key: "pink", value: "#e879f9" },
 ];
 
-const ICONS: { name: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+const ICONS: {
+  name: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { name: "wallet", Icon: WalletIcon },
   { name: "piggy-bank", Icon: PiggyBank },
   { name: "credit-card", Icon: CreditCard },
@@ -68,10 +75,7 @@ export function iconByName(name: string | null | undefined) {
 export interface WalletCustomizerProps {
   color: string | null;
   icon: string | null;
-  onChange: (patch: {
-    color?: string | null;
-    icon?: string | null;
-  }) => void;
+  onChange: (patch: { color?: string | null; icon?: string | null }) => void;
   ariaLabel: string;
 }
 
@@ -81,6 +85,7 @@ export function WalletCustomizer({
   onChange,
   ariaLabel,
 }: WalletCustomizerProps) {
+  const t = useTranslations("bdp.tab.wallets.customizer");
   const [open, setOpen] = React.useState(false);
   const Icon = iconByName(icon) ?? Circle;
   const triggerColor = color ?? "var(--muted-foreground)";
@@ -119,14 +124,14 @@ export function WalletCustomizer({
       >
         <div className="space-y-1.5">
           <div className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
-            Color
+            {t("color")}
           </div>
           <div className="grid grid-cols-8 gap-1">
             {PALETTE.map((c) => (
               <button
                 key={c.value}
                 type="button"
-                aria-label={`Color ${c.name}`}
+                aria-label={t("colorAria", { name: t(`palette.${c.key}`) })}
                 onClick={() => onChange({ color: c.value })}
                 className={cn(
                   "size-6 rounded-full border-2 transition-transform hover:scale-110",
@@ -144,21 +149,21 @@ export function WalletCustomizer({
               onClick={() => onChange({ color: null })}
               className="text-xs text-[var(--muted-foreground)] underline-offset-2 hover:underline"
             >
-              Clear color
+              {t("clearColor")}
             </button>
           )}
         </div>
 
         <div className="space-y-1.5">
           <div className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
-            Icon
+            {t("icon")}
           </div>
           <div className="grid grid-cols-6 gap-1">
             {ICONS.map(({ name, Icon: IconC }) => (
               <button
                 key={name}
                 type="button"
-                aria-label={`Icon ${name}`}
+                aria-label={t("iconAria", { name })}
                 onClick={() => onChange({ icon: name })}
                 className={cn(
                   "inline-flex size-7 items-center justify-center rounded transition-colors",
@@ -177,7 +182,7 @@ export function WalletCustomizer({
               onClick={() => onChange({ icon: null })}
               className="text-xs text-[var(--muted-foreground)] underline-offset-2 hover:underline"
             >
-              Clear icon
+              {t("clearIcon")}
             </button>
           )}
         </div>

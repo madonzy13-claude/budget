@@ -91,13 +91,22 @@ describe("ReservesTableRow", () => {
   describe("active row — actual + share columns (D-PH5-R4, UAT-PH5-T3-60 split + T3-61 zero state)", () => {
     it("renders '0' / '0%' on actual + share cells when walletSharePercent is null", () => {
       renderRow(noShareRow);
-      expect(screen.getByLabelText("Zero actual")).toHaveTextContent("0");
-      expect(screen.getByLabelText("Zero share")).toHaveTextContent("0%");
+      // The next-intl mock renders nested keys as `ns.key`; the row
+      // translator's namespace is `bdp.tab.reserves.row`, so the zero
+      // labels round-trip as the fully-qualified key here.
+      expect(
+        screen.getByLabelText("bdp.tab.reserves.row.zeroActualAria"),
+      ).toHaveTextContent("0");
+      expect(
+        screen.getByLabelText("bdp.tab.reserves.row.zeroShareAria"),
+      ).toHaveTextContent("0%");
     });
 
     it("UAT-PH5-T3-64: zero actual is destructive-red when expected > 0", () => {
       renderRow(noShareRow); // reserveBalanceCents="30000"
-      const actual = screen.getByLabelText("Zero actual");
+      const actual = screen.getByLabelText(
+        "bdp.tab.reserves.row.zeroActualAria",
+      );
       expect(actual.className).toContain("--destructive");
     });
 
@@ -107,7 +116,9 @@ describe("ReservesTableRow", () => {
         reserveBalanceCents: "0",
       };
       renderRow(zeroExpected);
-      const actual = screen.getByLabelText("Zero actual");
+      const actual = screen.getByLabelText(
+        "bdp.tab.reserves.row.zeroActualAria",
+      );
       expect(actual.className).toContain("--foreground");
       expect(actual.className).not.toContain("--destructive");
       expect(actual.className).not.toContain("--muted-foreground");

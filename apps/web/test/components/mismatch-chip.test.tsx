@@ -6,9 +6,20 @@
  *   - underfunded → --destructive border/icon/amount, "−{amount}" prefix
  *   - reconciled → --hairline-dark border, --muted-strong amount
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MismatchChip } from "../../src/components/budgeting/reserves-tab/mismatch-chip";
+
+// MismatchChip now reads the "reconciled" label via next-intl. The mock
+// returns `ns.key` (no params) or `ns.key:vars-JSON` (with params), matching
+// the convention used across the reserves-tab tests.
+vi.mock("next-intl", () => ({
+  useTranslations:
+    (ns?: string) => (key: string, vars?: Record<string, unknown>) =>
+      vars
+        ? `${ns ? `${ns}.` : ""}${key}:${JSON.stringify(vars)}`
+        : `${ns ? `${ns}.` : ""}${key}`,
+}));
 
 describe("MismatchChip", () => {
   describe("overfunded variant", () => {
@@ -95,7 +106,11 @@ describe("MismatchChip", () => {
 
     it("renders Reconciled label text", () => {
       render(<MismatchChip variant="reconciled" />);
-      expect(screen.getByText("Reconciled")).toBeInTheDocument();
+      // The chip now reads the reconciled title from i18n; the test mock
+      // round-trips the key as `<namespace>.<key>`.
+      expect(
+        screen.getByText("bdp.tab.reserves.mismatch.reconciled.title"),
+      ).toBeInTheDocument();
     });
 
     it("has hairline-dark border (no warning / destructive)", () => {

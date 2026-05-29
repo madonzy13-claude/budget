@@ -2,8 +2,11 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/server-session";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
-import { SiteFooter } from "@/components/common/site-footer";
 import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
+import {
+  NavPendingOverlay,
+  NavPendingProvider,
+} from "@/components/common/nav-pending";
 import { TopNav } from "@/components/budgeting/top-nav";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -89,22 +92,15 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       }
       if (progressRes.status === 200 && !hasAnyBudget) {
         const progress = (await progressRes.json()) as {
-          step?: number;
           completedAt?: string | null;
         };
         // Only redirect when onboarding is genuinely incomplete (completed_at is strictly null).
         // undefined means malformed/absent response — treat as safe, no redirect.
+        // The wizard runs deferred-create — there is no mid-wizard server
+        // state to resume from, so we always route to /budgets/new and
+        // let the wizard render its welcome screen.
         if (progress.completedAt === null) {
-          const savedStep = progress.step ?? 1;
-          // Only include ?step in the redirect when the user has actually
-          // advanced past step 1. A fresh seed (step=1) means they have not
-          // started the wizard yet — drop the ?step so the wizard shows the
-          // welcome screen (step 0) instead of skipping straight to the
-          // name input.
-          redirectTo =
-            savedStep > 1
-              ? `/${locale}/budgets/new?step=${savedStep}`
-              : `/${locale}/budgets/new`;
+          redirectTo = `/${locale}/budgets/new`;
         }
       }
       // 404 or any other status → no row → EXIT EARLY (existing users not trapped)
@@ -121,21 +117,25 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
        gets `flex-1 min-h-0 overflow-y-auto` — without min-h-0 the flex
        child grows past its parent and clips on mobile (regression seen
        after the D-08 onboarding-guard refactor). */
-    <div className="flex h-dvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
-      <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
-      <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
-        <TopNav locale={locale} activeBudgetId={activeBudgetId} />
-      </header>
-      <main className="flex flex-1 min-h-0 flex-col overflow-y-auto">
-        {/* flex-1 inner wrapper pushes the footer to the bottom of the
-            scroll surface when content is short, and lets the footer fall
-            naturally to the end of the document when content overflows.
-            Either way the footer never pins to the viewport during scroll. */}
-        <div className="flex-1">{children}</div>
-        <SiteFooter />
-      </main>
-      <Toaster />
-    </div>
+    /* NavPendingProvider tracks in-flight chrome navigation; NavPendingOverlay
+       wraps the route children so they blur during the dead-zone between the
+       click and the new RSC commit. The header sits OUTSIDE the overlay so
+       the user can re-orient (and re-navigate) while the swap settles. */
+    <NavPendingProvider>
+      <div className="flex h-dvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
+        <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
+        <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
+          <TopNav locale={locale} activeBudgetId={activeBudgetId} />
+        </header>
+        <main className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+          {/* SiteFooter removed (UAT-Phase6-Test7 retest #2):
+              the in-app shell no longer carries the marketing-style
+              footer — the page is the product. */}
+          <NavPendingOverlay className="flex-1">{children}</NavPendingOverlay>
+        </main>
+        <Toaster />
+      </div>
+    </NavPendingProvider>
   );
 }
 

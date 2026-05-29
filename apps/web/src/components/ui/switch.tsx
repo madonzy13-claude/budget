@@ -17,7 +17,16 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        "peer group/switch inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-[1.15rem] data-[size=default]:w-8 data-[size=sm]:h-3.5 data-[size=sm]:w-6 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80",
+        // cursor-pointer baseline so an enabled switch reads as clickable on
+        // hover. The existing disabled:cursor-not-allowed below still wins
+        // when the control is disabled (Tailwind specificity by source order
+        // — disabled: comes later in the cn() output).
+        //
+        // Unchecked track: muted-foreground is bright enough to separate
+        // from the elevated-dark / card-dark surfaces. The previous
+        // --input value (≈ #2b3139) blended into the bg of feature toggle
+        // rows, making the off state read as no control at all.
+        "peer group/switch inline-flex shrink-0 cursor-pointer items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-[1.15rem] data-[size=default]:w-8 data-[size=sm]:h-3.5 data-[size=sm]:w-6 data-[state=checked]:bg-primary data-[state=unchecked]:bg-[var(--muted-foreground)]/60 dark:data-[state=unchecked]:bg-[var(--muted-foreground)]/60",
         className,
       )}
       {...props}

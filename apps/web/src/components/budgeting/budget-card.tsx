@@ -14,7 +14,7 @@
  *
  * Hover/focus styling follows UI-SPEC §4 (border lift on hover, focus-visible ring).
  */
-import Link from "next/link";
+import { NavLink } from "@/components/common/nav-link";
 import { Lock, Users } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +69,7 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
   const summary = isError ? null : ((await res.json()) as HomeSummary);
 
   return (
-    <Link
+    <NavLink
       href={`/${locale}/budgets/${budget.id}/wallets`}
       aria-label={t("card.openAria", { budgetName: budget.name })}
       className="group block rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-transparent transition-all hover:border-[var(--primary)] hover:scale-[1.01] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--info-ring)] focus-visible:outline-offset-2"
@@ -162,6 +162,6 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
           </div>
         </>
       )}
-    </Link>
+    </NavLink>
   );
 }

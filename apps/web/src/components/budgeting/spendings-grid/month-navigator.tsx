@@ -7,7 +7,7 @@
  * T-04-03-07: handler calls e.preventDefault() to prevent browser history hijack.
  */
 import { useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { cn } from "@/lib/utils";
@@ -20,17 +20,27 @@ export interface MonthNavigatorProps {
 
 export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
   const t = useTranslations("grid.monthNav");
+  const locale = useLocale();
   const { monthStr, prev, next, today, isCurrentMonth } =
     useMonthParam(budgetTz);
 
-  // Format month label
+  // Format month label. Use the active next-intl locale so the month
+  // name follows the user's UI language (was hardcoded "en"). For pl/uk
+  // the genitive-style standalone form is lowercase by default
+  // ("травень 2026 р."); upper-case the first character so the header
+  // reads as a proper noun — `capitalize` CSS can't be used because it
+  // would also upper-case the "р." year-suffix marker.
   const parts = monthStr.split("-");
   const year = parseInt(parts[0] ?? "2000", 10);
   const monthNum = parseInt(parts[1] ?? "1", 10);
-  const monthLabel = new Intl.DateTimeFormat("en", {
+  const formatted = new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
   }).format(new Date(year, monthNum - 1, 1));
+  const monthLabel =
+    formatted.length > 0
+      ? formatted.charAt(0).toLocaleUpperCase(locale) + formatted.slice(1)
+      : formatted;
 
   // Cmd/Ctrl+Arrow keyboard shortcut (D-PH4-Q3)
   useEffect(() => {
@@ -61,7 +71,11 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
         // (app) scroll container). The earlier 112px constant assumed the
         // (app) header was sticky too — it isn't, after the mobile-scroll
         // refactor — leaving a 64px blank band above the slider.
-        "sticky top-12 z-10 bg-[var(--canvas-dark)]",
+        // z-30 so the bar always paints over the spendings grid's
+        // column-sticky band (`z-10`) — without this bump, fast scrolls
+        // on iPhone briefly render the column cards on top of the month
+        // label, looking like the navigator is "behind" the grid.
+        "sticky top-12 z-30 bg-[var(--canvas-dark)]",
         "border-b border-[var(--hairline-dark)]",
         className,
       )}
@@ -103,7 +117,7 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
           className="absolute right-4 flex h-8 items-center gap-1 rounded px-3 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)]"
         >
           <RotateCcw className="h-3 w-3" aria-hidden="true" />
-          Today
+          {t("today")}
         </button>
       )}
     </div>
