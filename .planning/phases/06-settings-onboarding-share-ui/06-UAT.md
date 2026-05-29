@@ -30,7 +30,7 @@ result: pass
 ### 2. Settings tab — full functional + visual sweep
 
 expected: 5-section accordion; rename autosaves with toast; cushion toggle persists; share-link generates; archive hides budget from home; typed-name delete works.
-result: [pending]
+result: pass
 note: Pre-verified via E2E — all 6 settings scenarios green after the backend fixes (hasTransactions table, currentUserRole, listMembers RLS, archive ISO date, hardDelete cascade).
 
 ### 3. Onboarding wizard — full flow + resume
