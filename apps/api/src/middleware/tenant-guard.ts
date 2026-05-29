@@ -52,13 +52,33 @@ function buildTenantGuard(bootstrapFn: BootstrapFn): MiddlewareHandler {
     }
 
     const result = await bootstrapFn(userId, async (tx) => {
+      // Sanitize the requested id once — used both in SET LOCAL (which
+      // takes literal text only) and in the membership predicate.
+      const safeId = requestedBudgetId.replace(/[^a-fA-F0-9-]/g, "");
+
+      // RLS gap: `budgets_select_open` requires id IN app.tenant_ids OR
+      // owner_user_id = current_user_id. A SHARED-budget MEMBER (the
+      // share-link recipient flow) satisfies neither in bootstrap
+      // context — they have no tenant_ids set yet, and they're not the
+      // owner. Without SET LOCAL the JOIN to `tenancy.budgets` returns
+      // zero rows and tenant-guard hands back [], so /budgets/:id
+      // returns 404 for the very member we just admitted via the
+      // share-link.
+      //
+      // SET LOCAL the candidate id BEFORE the membership check. This is
+      // safe: the membership predicate below still requires the user's
+      // own row to exist in budget_members for THIS budget id, so a
+      // user can't elevate access by inventing an X-Budget-ID — they'd
+      // just get rows=0 and an empty tenantIds.
+      await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeId}}'`));
+
       const rows = await tx.execute(
         sql.raw(`
           SELECT bm.budget_id::text AS id
             FROM tenancy.budget_members bm
             JOIN tenancy.budgets b ON b.id = bm.budget_id
            WHERE bm.user_id = '${String(userId)}'
-             AND bm.budget_id = '${requestedBudgetId.replace(/[^a-fA-F0-9-]/g, "")}'
+             AND bm.budget_id = '${safeId}'
              AND b.archived_at IS NULL
            LIMIT 1
         `),

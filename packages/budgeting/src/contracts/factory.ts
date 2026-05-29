@@ -231,7 +231,10 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listSupportedCurrencies,
     transactionRepo,
     // Plan 02-08 / 02-02
-    createRecurringRule: createRecurringRule({ ruleRepo: recurringRuleRepo }),
+    createRecurringRule: createRecurringRule({
+      ruleRepo: recurringRuleRepo,
+      fxProvider,
+    }),
     updateRecurringRule: updateRecurringRule({
       ruleRepo: recurringRuleRepo,
       draftRepo: recurringDraftRepo,

@@ -125,12 +125,19 @@ describe("edit-transaction T-02-01 FX rate bounds", () => {
     expect(updates.length).toBe(0);
   });
 
-  test("accepts rate within bounds (0.85)", async () => {
+  test("accepts rate within bounds (0.85) and locks the row to budget currency", async () => {
     const { deps, updates } = buildDeps("0.85");
     const result = await editTransaction(deps)(baseInput);
 
     expect(result.isOk()).toBe(true);
     expect(updates.length).toBe(1);
-    expect(updates[0]?.fxRate).toBe("0.85");
+    // UAT-Phase6-Test7 retest #5: post-edit the row reads as a
+    // budget-currency row (USD in this test). The user-chosen "EUR"
+    // is consumed only to compute the converted amount; the persisted
+    // shape carries the budget currency + an identity FX rate.
+    expect(updates[0]?.currencyOriginal).toBe("USD");
+    expect(updates[0]?.fxRate).toBe("1");
+    expect(updates[0]?.amountOriginalCents).toBe("8500"); // 10000 * 0.85
+    expect(updates[0]?.amountConvertedCents).toBe("8500");
   });
 });

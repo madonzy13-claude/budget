@@ -12,6 +12,10 @@ export interface BudgetDTO {
   cushionModeEnabled?: boolean;
   // D-PH5-R11: global reserves toggle; default true preserves existing UX.
   reservesEnabled?: boolean;
+  // Phase 6 onboarding rewrite: pure cushion feature flag. When false the
+  // cushion column is hidden entirely. Default true so legacy budgets keep
+  // existing UX.
+  cushionEnabled?: boolean;
 }
 
 export interface MemberDTO {

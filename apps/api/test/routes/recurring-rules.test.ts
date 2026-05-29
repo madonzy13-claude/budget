@@ -234,7 +234,11 @@ describe("/recurring-rules", () => {
     expect(res.status).toBe(422);
   });
 
-  it("POST with first_due_date in past → 422", async () => {
+  it("POST with first_due_date in past → 201 and back-fills drafts (UAT-Phase6-Test7 retest)", async () => {
+    // The past-date guard was lifted so users can seed a rule from a
+    // historical anchor (e.g. salary that started last month). The
+    // service back-fills the missed periods inline so drafts appear
+    // immediately instead of waiting for the nightly engine pass.
     const app = await buildApp(testUserId, testTenantId);
     const res = await app.request("/recurring-rules", {
       method: "POST",
@@ -250,9 +254,9 @@ describe("/recurring-rules", () => {
         first_due_date: "2020-01-01",
       }),
     });
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("first_due_in_past");
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { ruleId: string };
+    expect(typeof body.ruleId).toBe("string");
   });
 
   // RECR-01: DAILY/YEARLY cadence validation (02-02 GREEN wave)

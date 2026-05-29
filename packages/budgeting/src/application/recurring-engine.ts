@@ -159,11 +159,21 @@ export async function runRecurringEngine(
               dueDateStr,
               fxProvider,
             });
-            const fxRate = fxComputed.fxRate;
+            // fxRate from computeRecurringFx is no longer persisted
+            // here — the draft is locked to budget currency with
+            // identity rate (see INSERT below). fxAsOf still mirrors
+            // the rate's effective date so audit traces hold.
             const fxAsOf = fxComputed.fxAsOf;
             const amountConvertedCents = fxComputed.amountConvertedCents;
 
-            // INSERT into expense_ledger (confirmed_at NULL = draft, per D-PH2-08)
+            // UAT-Phase6-Test7 retest follow-up: lock the draft to the
+            // BUDGET currency to match the inline-catch-up path AND the
+            // edit-transaction lock semantics. `currency_original`
+            // becomes the budget currency, `amount_original_cents`
+            // becomes the converted value, `fx_rate` is identity. The
+            // rule's foreign currency is consumed only to compute the
+            // conversion; the persisted ledger row reads as a
+            // budget-currency row everywhere it surfaces.
             const insertResult = await drizzleTx.execute(sql`
             INSERT INTO budgeting.expense_ledger
               (id, tenant_id, budget_id, category_id, transaction_date,
@@ -173,8 +183,8 @@ export async function runRecurringEngine(
             VALUES
               (gen_random_uuid(), ${tenant_id}::uuid, ${tenant_id}::uuid,
                ${categoryId}::uuid, ${dueDateStr}::date,
-               ${amountOriginalCents}::bigint, ${rule.currency},
-               ${amountConvertedCents}::bigint, ${fxRate}::numeric, ${fxAsOf}::date,
+               ${amountConvertedCents}::bigint, ${budgetCurrency},
+               ${amountConvertedCents}::bigint, 1::numeric, ${fxAsOf}::date,
                ${note}, ${rule.id}::uuid,
                NULL,
                'SPENDING',

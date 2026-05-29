@@ -41,14 +41,17 @@ describe("Budget archive/delete routes (SETT-08)", () => {
 
     app.route(
       "/budgets",
-      budgetArchiveRoutesFactory({ tenancy: { workspaceRepo: mockWorkspaceRepo }, identity: {} } as any),
+      budgetArchiveRoutesFactory({
+        tenancy: { workspaceRepo: mockWorkspaceRepo },
+        identity: {},
+      } as any),
     );
 
     return { app, archivedAt };
   }
 
   it("POST /budgets/:id/archive as owner → 200, sets archived_at", async () => {
-    const { app, archivedAt } = buildApp({ user: { id: "user-owner" } }, true);
+    const { app } = buildApp({ user: { id: "user-owner" } }, true);
     const res = await app.request("/budgets/budget-001/archive", {
       method: "POST",
     });

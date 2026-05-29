@@ -21,6 +21,13 @@ const patchBudgetSchema = z.object({
     .regex(/^[A-Z]{3}$/)
     .optional(),
   cushion_mode_enabled: z.boolean().optional(),
+  // ONBD: Reserves toggle. Plain boolean — no SCD-2 history (unlike cushion mode).
+  // Server still owner-gates the write via the same path as name/currency.
+  reserves_enabled: z.boolean().optional(),
+  // ONBD: Cushion FEATURE toggle. Plain boolean — gates whether the cushion
+  // lane is exposed in the UI at all. Distinct from cushion_mode_enabled
+  // which tracks per-month cushion-vs-normal state via SCD-2 history.
+  cushion_enabled: z.boolean().optional(),
 });
 
 export function budgetIdentityRoutesFactory(
@@ -74,6 +81,7 @@ export function budgetIdentityRoutesFactory(
       memberCount: budget.memberCount,
       cushionModeEnabled: budget.cushionModeEnabled ?? false,
       reservesEnabled: budget.reservesEnabled ?? true,
+      cushionEnabled: budget.cushionEnabled ?? true,
       hasTransactions,
       currentUserRole,
     });
@@ -116,8 +124,13 @@ export function budgetIdentityRoutesFactory(
       }
     }
 
-    // Apply name / currency identity patch
-    if (body.name !== undefined || body.default_currency !== undefined) {
+    // Apply name / currency / reserves / cushion-feature identity patch
+    if (
+      body.name !== undefined ||
+      body.default_currency !== undefined ||
+      body.reserves_enabled !== undefined ||
+      body.cushion_enabled !== undefined
+    ) {
       try {
         await deps.tenancy.workspaceRepo.updateIdentity(
           budgetId,
@@ -125,6 +138,12 @@ export function budgetIdentityRoutesFactory(
             ...(body.name !== undefined ? { name: body.name } : {}),
             ...(body.default_currency !== undefined
               ? { defaultCurrency: body.default_currency }
+              : {}),
+            ...(body.reserves_enabled !== undefined
+              ? { reservesEnabled: body.reserves_enabled }
+              : {}),
+            ...(body.cushion_enabled !== undefined
+              ? { cushionEnabled: body.cushion_enabled }
               : {}),
           },
           actorUserId,

@@ -171,7 +171,30 @@ async function buildApp(
         },
       },
       budgetShareLinkRepo: null, // constructed inside route via adapter
-      workspaceRepo: { listForUser: async () => [] },
+      workspaceRepo: {
+        listForUser: async () => [],
+        // share-join route now bypasses Better Auth's admin-gated
+        // addMember and inserts directly through this repo method.
+        joinAsMember: async (
+          budgetId: string,
+          userId: string,
+          role: "owner" | "member" = "member",
+        ) => {
+          const pool = new Pool({ connectionString: DB_URL });
+          const client = await pool.connect();
+          try {
+            await client.query(
+              `INSERT INTO tenancy.budget_members (id, budget_id, user_id, role, created_at)
+               VALUES ($1, $2, $3, $4, now())
+               ON CONFLICT DO NOTHING`,
+              [crypto.randomUUID(), budgetId, userId, role],
+            );
+          } finally {
+            client.release();
+            await pool.end();
+          }
+        },
+      },
       memberShareRepo: { update: async () => {} },
     },
     identity: {

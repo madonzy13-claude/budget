@@ -176,6 +176,13 @@
       "when": 1748000000000,
       "tag": "0024_phase06_onboarding_progress_archived_at",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1748260000000,
+      "tag": "0025_phase06_cushion_enabled_flag",
+      "breakpoints": true
     }
   ]
 }

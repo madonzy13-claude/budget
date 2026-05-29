@@ -79,6 +79,29 @@ async function buildApp(userId: string, tenantId: string) {
       listWallets: listWallets({ repo }),
       findWalletById: findWalletById({ repo }),
     },
+    // GET /wallets and the cross-currency share endpoint now read budget
+    // metadata via workspaceRepo.findById (default_currency drives FX
+    // conversion, reserves/cushion flags drive section visibility).
+    // The stub returns a minimal SHARED budget shape so the route reaches
+    // its happy path; tests that exercise FX semantics still write the
+    // real budget row to the DB in their own setup.
+    tenancy: {
+      workspaceRepo: {
+        findById: async (id: string) => ({
+          id,
+          slug: id.slice(0, 8),
+          name: "Test Budget",
+          kind: "SHARED",
+          default_currency: "EUR",
+          ownerUserId: userId,
+          memberCount: 1,
+          createdAt: new Date(),
+          cushionModeEnabled: false,
+          reservesEnabled: true,
+          cushionEnabled: true,
+        }),
+      },
+    },
   } as any;
 
   const app = new Hono();

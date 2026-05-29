@@ -93,11 +93,9 @@ export function editTransaction(deps: EditTransactionDeps) {
         deps.getBudgetCurrency ?? deps.getWorkspaceDefaultCurrency!
       )(original.budgetId);
 
-      let newFxRate: string;
       let newAmountConverted: string;
 
       if (newCurrency === budgetCurrency) {
-        newFxRate = "1";
         newAmountConverted = newAmountCents;
       } else {
         const fxResult = await deps.fxProvider.rateAsOf(
@@ -105,23 +103,30 @@ export function editTransaction(deps: EditTransactionDeps) {
           budgetCurrency,
           new Date(newDate + "T00:00:00Z"), // Pitfall 7
         );
-        newFxRate = fxResult.rate;
         // T-02-01: cap rate to sane bounds (0 < rate < 1e6) before persisting
-        const rateNum = Number(newFxRate);
+        const rateNum = Number(fxResult.rate);
         if (!Number.isFinite(rateNum) || rateNum <= 0 || rateNum >= 1e6) {
-          return err(new Error(`FX rate out of bounds: ${newFxRate}`));
+          return err(new Error(`FX rate out of bounds: ${fxResult.rate}`));
         }
         newAmountConverted = String(
           Math.round(Number(newAmountCents) * rateNum),
         );
       }
 
+      // UAT-Phase6-Test7 retest #5: lock the row to the budget currency
+      // after any cross-currency edit. The user's chosen non-budget code
+      // is consumed only to compute the converted amount — once the row
+      // is persisted it reads as if it had always been in the budget
+      // currency. This preserves "spent vs budget" math without showing
+      // a confusing mix of foreign-code labels alongside converted
+      // amounts in the spendings grid.
       updateFields = {
         ...updateFields,
-        fxRate: newFxRate,
+        fxRate: "1",
         fxAsOf: newDate,
+        amountOriginalCents: newAmountConverted,
         amountConvertedCents: newAmountConverted,
-        currencyOriginal: newCurrency,
+        currencyOriginal: budgetCurrency,
       };
     }
 

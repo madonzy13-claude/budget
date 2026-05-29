@@ -153,6 +153,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       memberCount: budget.memberCount,
       cushionModeEnabled: budget.cushionModeEnabled ?? false,
       reservesEnabled: budget.reservesEnabled ?? true,
+      cushionEnabled: budget.cushionEnabled ?? true,
       hasTransactions,
       currentUserRole,
     });
@@ -255,24 +256,29 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     return c.json({ invitationId }, 201);
   });
 
-  // POST /budgets/:id/leave — leave budget
+  // POST /budgets/:id/leave — leave budget.
+  //
+  // Bypasses Better Auth's leaveOrganization for the same reason the
+  // share-link accept bypasses addMember (see acceptShareLink doc):
+  // the org plugin needs a session-headers wiring we can't carry in
+  // every code path, and it produces "Headers is required" /
+  // "Organization not found" failures from this entry point. Calling
+  // workspaceRepo.leaveAsMember directly is the safer primitive — the
+  // last-owner guard moves into the repo too so the rule lives next to
+  // the DELETE.
   r.post("/:id/leave", async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const { id: budgetId } = c.req.param();
 
-    const auth = deps.identity.auth as any;
-
     try {
-      await auth.api.leaveOrganization({
-        body: { organizationId: budgetId, userId: session.user.id },
-      });
+      await deps.tenancy.workspaceRepo.leaveAsMember(budgetId, session.user.id);
       return c.json({ ok: true });
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
-      if (/Cannot leave as last owner/.test(msg))
-        return c.json({ error: msg }, 409);
+      if (msg === "last_owner") return c.json({ error: "last_owner" }, 409);
+      console.error("[leave-budget] failed:", msg);
       throw e;
     }
   });

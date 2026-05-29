@@ -157,6 +157,15 @@ describe("Budget members — regression: share + leave (D-15, D-12)", () => {
             { userId: "user-member", role: "member" },
           ],
           hasTransactions: async () => false,
+          // POST /leave moved off Better Auth onto the repo. The default
+          // budget here has exactly one owner (user-owner) and one member
+          // (user-member), so the only owner attempting to leave is by
+          // definition the last owner — throw the same sentinel string
+          // the production repo throws so the route maps to 409.
+          leaveAsMember: async (_budgetId: string, userId: string) => {
+            if (userId === "user-owner") throw new Error("last_owner");
+            return;
+          },
         },
         memberShareRepo: { list: async () => [], update: async () => {} },
       },

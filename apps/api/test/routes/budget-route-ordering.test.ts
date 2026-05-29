@@ -23,9 +23,7 @@ describe("Budget route ordering regression (/:id sub-paths not swallowed)", () =
     const mockDeps = {
       tenancy: {
         workspaceRepo: {
-          listMembers: async () => [
-            { userId: "user-001", role: "owner" },
-          ],
+          listMembers: async () => [{ userId: "user-001", role: "owner" }],
           findById: async () => ({ name: "My Budget" }),
           archive: async () => ({ archivedAt: new Date().toISOString() }),
           hardDelete: async () => {},
@@ -46,13 +44,17 @@ describe("Budget route ordering regression (/:id sub-paths not swallowed)", () =
     // Sub-path routes MUST be mounted BEFORE the catch-all /:id in budgetsRoutesFactory
     // (mirrors the order in app.ts — this ordering test enforces that invariant)
     try {
-      const { budgetMembersRoutesFactory } = require("../../src/routes/budget-members");
+      const {
+        budgetMembersRoutesFactory,
+      } = require("../../src/routes/budget-members");
       app.route("/budgets", budgetMembersRoutesFactory(mockDeps));
     } catch {
       // members routes not yet implemented
     }
     try {
-      const { budgetArchiveRoutesFactory } = require("../../src/routes/budget-archive");
+      const {
+        budgetArchiveRoutesFactory,
+      } = require("../../src/routes/budget-archive");
       app.route("/budgets", budgetArchiveRoutesFactory(mockDeps));
     } catch {
       // archive/delete routes not yet implemented
@@ -70,7 +72,6 @@ describe("Budget route ordering regression (/:id sub-paths not swallowed)", () =
   it("GET /budgets/:id/members is distinct from GET /budgets/:id", async () => {
     const app = buildApp({ user: { id: "user-001" } });
 
-    const budgetRes = await app.request("/budgets/budget-001");
     const membersRes = await app.request("/budgets/budget-001/members");
 
     // The /members endpoint must return { members: [...] }, not the budget object
@@ -83,7 +84,9 @@ describe("Budget route ordering regression (/:id sub-paths not swallowed)", () =
 
   it("POST /budgets/:id/archive is a distinct route (not matched by GET /:id)", async () => {
     const app = buildApp({ user: { id: "user-001" } });
-    const res = await app.request("/budgets/budget-001/archive", { method: "POST" });
+    const res = await app.request("/budgets/budget-001/archive", {
+      method: "POST",
+    });
     // Should return 200 (archive) not the budget object from GET /:id
     expect(res.status).toBe(200);
   });
@@ -101,9 +104,12 @@ describe("Budget route ordering regression (/:id sub-paths not swallowed)", () =
 
   it("POST /budgets/:id/members/:memberId/revoke is a distinct nested route", async () => {
     const app = buildApp({ user: { id: "user-001" } });
-    const res = await app.request("/budgets/budget-001/members/user-member/revoke", {
-      method: "POST",
-    });
+    const res = await app.request(
+      "/budgets/budget-001/members/user-member/revoke",
+      {
+        method: "POST",
+      },
+    );
     // Should not fall through to GET /:id — expects 200 or 403
     expect([200, 403]).toContain(res.status);
   });

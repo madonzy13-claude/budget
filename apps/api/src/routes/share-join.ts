@@ -23,9 +23,13 @@ export function createShareJoinRoute(deps: BootedDeps | any) {
   const app = new Hono();
   const repo = new DrizzleBudgetShareLinkRepo();
 
+  // Direct membership writes use the tenancy budgetRepo (same instance
+  // that powers /budgets/:id and the settings members list). Avoiding
+  // Better Auth's admin-gated `auth.api.addMember` here is intentional —
+  // see the acceptShareLink service docstring.
   const serviceDeps = {
     budgetShareLinkRepo: repo,
-    auth: deps.identity?.auth ?? deps.auth,
+    budgetRepo: deps.tenancy.workspaceRepo,
   };
 
   /**
