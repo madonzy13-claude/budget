@@ -41,10 +41,22 @@ export class BudgetSettingsPage {
     await this.page.waitForLoadState("networkidle");
   }
 
-  // ── Cushion Mode section ────────────────────────────────────────────────────
+  // ── Cushion section (master flag + per-month mode sub-toggle) ───────────────
+  //
+  // Phase 6 onboarding rewrite split the section into two switches:
+  //   * "Enable cushion" — master feature flag (cushion_enabled column).
+  //   * "Cushion mode"   — per-month NORMAL ↔ CUSHION toggle (cushion_mode_enabled,
+  //                        SCD-2 history). Only rendered when master is on.
+  //
+  // Existing scenarios call `cushionSwitch()` expecting the per-month mode
+  // toggle, so the default locator targets the exact "Cushion mode" label.
 
   cushionSwitch(): Locator {
-    return this.page.getByRole("switch", { name: /cushion/i });
+    return this.page.getByRole("switch", { name: "Cushion mode" });
+  }
+
+  cushionFeatureSwitch(): Locator {
+    return this.page.getByRole("switch", { name: "Enable cushion" });
   }
 
   async toggleCushion(): Promise<void> {
@@ -97,12 +109,20 @@ export class BudgetSettingsPage {
     return this.page.getByRole("button", { name: /keep it/i });
   }
 
-  async archiveBudget(): Promise<void> {
-    await this.archiveButton().click();
+  /**
+   * Archive flow now routes through the Delete dialog: the standalone
+   * "Archive" CTA was removed; "Delete" archives the budget after the user
+   * types the budget name to confirm. Page object preserves the
+   * `archiveBudget()` entry point so feature scenarios stay readable.
+   */
+  async archiveBudget(budgetName: string): Promise<void> {
+    await this.deleteButton().click();
     await expect(this.page.getByRole("alertdialog")).toBeVisible({
       timeout: 10000,
     });
-    await this.archiveConfirmButton().click();
+    await this.deleteNameInput().fill(budgetName);
+    await expect(this.deleteForeverButton()).toBeEnabled({ timeout: 5000 });
+    await this.deleteForeverButton().click();
     await this.page.waitForLoadState("networkidle");
   }
 

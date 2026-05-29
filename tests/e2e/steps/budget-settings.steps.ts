@@ -63,9 +63,10 @@ When("I toggle the cushion switch", async ({ page }) => {
   await settings.toggleCushion();
 });
 
-When("I archive the budget", async ({ page }) => {
+When("I archive the budget", async ({ page, scenarioCtx }) => {
   const settings = new BudgetSettingsPage(page);
-  await settings.archiveBudget();
+  const name = (scenarioCtx as Record<string, unknown>).workspaceName as string;
+  await settings.archiveBudget(name);
 });
 
 When("I open the delete budget dialog", async ({ page }) => {

@@ -92,5 +92,46 @@ export async function createFreshUser(
     await api.dispose();
   }
 
+  // Phase 6 onboarding-redirect: the (app) layout force-redirects users with
+  // onboarding_progress.completed_at === null to /budgets/new. Most E2E
+  // scenarios assume the fresh user lands on the home grid (/en/), so we
+  // mark onboarding complete here. Scenarios that exercise the wizard itself
+  // (tests/e2e/features/onboarding/**) call markOnboardingIncomplete() to
+  // reset state.
+  await markOnboardingComplete(page);
+
   return { email, password, name, locale };
+}
+
+/**
+ * Marks onboarding_progress.completed_at = now for the current session user
+ * via the PUT /onboarding/progress API. This bypasses the (app) layout
+ * redirect added in Phase 6 (06-02 D-08 incomplete-onboarding guard) so
+ * tests that don't exercise the wizard can reach the home grid directly.
+ */
+export async function markOnboardingComplete(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  const res = await page.request.put("/api/onboarding/progress", {
+    data: { step: 5, completedAt: new Date().toISOString() },
+  });
+  expect(res.ok()).toBeTruthy();
+}
+
+/**
+ * Resets onboarding_progress to step 1, completedAt = null for the current
+ * session user — re-enabling the (app) layout's redirect-to-/budgets/new
+ * guard. Use in wizard-flow scenarios that need to start from the
+ * "first-budget" entrypoint after createFreshUser auto-completed onboarding.
+ */
+export async function markOnboardingIncomplete(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  // PUT /onboarding/progress accepts step + optional completedAt. Omitting
+  // completedAt leaves it as null in the DB (per the route's NULL-safe
+  // upsert), which is exactly what we want for "start of wizard".
+  const res = await page.request.put("/api/onboarding/progress", {
+    data: { step: 1 },
+  });
+  expect(res.ok()).toBeTruthy();
 }

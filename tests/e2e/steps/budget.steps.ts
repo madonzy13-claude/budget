@@ -69,9 +69,16 @@ Given(
   },
 );
 
-When("I open the Wallets page", async ({ page }) => {
+When("I open the Wallets page", async ({ page, scenarioCtx }) => {
   walletsPage = walletsPage ?? new WalletsPage(page);
-  await walletsPage.goto("en");
+  const ctx = scenarioCtx as Record<string, unknown>;
+  const budgetId = ctx["workspaceId"] as string | undefined;
+  if (!budgetId) {
+    throw new Error(
+      'scenarioCtx.workspaceId is unset — call "I am signed in as a fresh user with workspace {string}" first',
+    );
+  }
+  await walletsPage.open(budgetId);
 });
 
 When("I click {string}", async ({ page }, label: string) => {

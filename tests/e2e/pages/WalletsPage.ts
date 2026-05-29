@@ -148,12 +148,18 @@ export class WalletsPage {
     const handle = this.row(walletId).getByRole("button", {
       name: /drag|move/i,
     });
-    const target = this.section(targetType);
+    // Target the section HEADING (not the wrapper). Phase 6 dropped the
+    // bounded-height scroll container so empty sections now collapse to
+    // ~60 px (heading + add-button). The wrapper's vertical mid-point of
+    // an empty section can fall into the NEXT section below, which made
+    // dnd-kit pick the wrong droppable. The heading sits at the very top
+    // of the section and is always inside the wrapper's droppable rect.
+    const targetHeader = this.section(targetType).getByRole("heading");
 
     // dnd-kit PointerSensor needs pointer events dispatched globally.
     // Use page.mouse with steps for realistic movement.
     const handleBox = await handle.boundingBox();
-    const targetBox = await target.boundingBox();
+    const targetBox = await targetHeader.boundingBox();
     if (!handleBox || !targetBox)
       throw new Error("DnD: bounding boxes unavailable");
 

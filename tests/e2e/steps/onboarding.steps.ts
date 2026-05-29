@@ -1,10 +1,10 @@
 /**
- * onboarding.steps.ts — BDD step definitions for Phase 6 onboarding wizard.
- * Tags: @phase6
+ * onboarding.steps.ts — BDD step definitions for the 4-step deferred-create
+ * onboarding wizard. Tags: @phase6.
  *
  * "I am a fresh user with no prior budget" creates a verified user WITHOUT
- * calling POST /api/budgets — the wizard guards against that. The layout
- * guard sees incomplete onboarding_progress and redirects to /budgets/new.
+ * a budget — the layout guard then redirects them to /budgets/new on the
+ * next navigation.
  */
 import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
@@ -19,8 +19,6 @@ const { Given, When, Then } = createBdd(test);
 Given(
   "I am a fresh user with no prior budget",
   async ({ page, scenarioCtx }) => {
-    // createFreshUser creates a verified user but does NOT create a budget.
-    // The layout guard will redirect them to /budgets/new on first navigation.
     const user = await createFreshUser(page, "en");
     scenarioCtx.freshUser = user;
   },
@@ -31,39 +29,38 @@ Given(
 When("I navigate to the onboarding wizard", async ({ page }) => {
   const onboarding = new OnboardingPage(page);
   await onboarding.open("en");
-  // Allow the layout guard redirect to settle
+  // Let the layout guard redirect settle.
   await page.waitForLoadState("networkidle");
 });
 
-When(
-  "I fill in the budget name {string}",
-  async ({ page }, name: string) => {
-    const onboarding = new OnboardingPage(page);
-    await onboarding.fillName(name);
-  },
-);
-
-When(
-  "I pick the currency {string}",
-  async ({ page }, code: string) => {
-    const onboarding = new OnboardingPage(page);
-    await onboarding.pickCurrency(code);
-  },
-);
-
-When(
-  "I pick the budget type {string}",
-  async ({ page }, type: string) => {
-    const onboarding = new OnboardingPage(page);
-    await onboarding.pickType(type as "personal" | "shared");
-  },
-);
-
-When("I toggle at least one starter category", async ({ page }) => {
+When("I click Get started", async ({ page }) => {
   const onboarding = new OnboardingPage(page);
-  // Click the first category item visible in the list
-  const first = onboarding.categoryItem(/.+/);
-  await first.first().click();
+  await onboarding.clickGetStarted();
+});
+
+When("I fill in the budget name {string}", async ({ page }, name: string) => {
+  const onboarding = new OnboardingPage(page);
+  await onboarding.fillName(name);
+});
+
+When("I pick the currency {string}", async ({ page }, code: string) => {
+  const onboarding = new OnboardingPage(page);
+  await onboarding.pickCurrency(code);
+});
+
+When("I pick the budget type {string}", async ({ page }, type: string) => {
+  const onboarding = new OnboardingPage(page);
+  await onboarding.pickType(type as "personal" | "shared");
+});
+
+When(/^I toggle the cushion feature (on|off)$/, async ({ page }) => {
+  const onboarding = new OnboardingPage(page);
+  await onboarding.toggleCushion();
+});
+
+When(/^I toggle the reserves feature (on|off)$/, async ({ page }) => {
+  const onboarding = new OnboardingPage(page);
+  await onboarding.toggleReserves();
 });
 
 When("I click Next", async ({ page }) => {
@@ -76,14 +73,38 @@ When("I click Create budget", async ({ page }) => {
   await onboarding.clickCreate();
 });
 
+// "I reload the page" — provided by workspace.steps.ts; do not redefine.
+
 // ── Then steps ─────────────────────────────────────────────────────────────────
 
 Then("I see the review step", async ({ page }) => {
-  // Step 5 review content — either the stepper shows step 5 or the
-  // Create budget button appears (only present on review step)
   const onboarding = new OnboardingPage(page);
   await expect(onboarding.createButton()).toBeVisible({ timeout: 15000 });
 });
+
+Then(
+  "the review shows budget name {string}",
+  async ({ page }, expected: string) => {
+    const onboarding = new OnboardingPage(page);
+    await expect(onboarding.reviewName()).toContainText(expected);
+  },
+);
+
+Then(
+  "the review shows cushion as {string}",
+  async ({ page }, state: string) => {
+    const onboarding = new OnboardingPage(page);
+    await expect(onboarding.reviewCushion()).toContainText(state);
+  },
+);
+
+Then(
+  "the review shows reserves as {string}",
+  async ({ page }, state: string) => {
+    const onboarding = new OnboardingPage(page);
+    await expect(onboarding.reviewReserves()).toContainText(state);
+  },
+);
 
 Then("I land on the budget spendings page", async ({ page }) => {
   await expect(page).toHaveURL(/\/budgets\/[0-9a-f-]+\/spendings/, {
@@ -91,16 +112,9 @@ Then("I land on the budget spendings page", async ({ page }) => {
   });
 });
 
-Then("the wizard is still on step 2", async ({ page }) => {
-  // After reload, wizard should resume at the saved step.
-  // Step 2 shows the currency picker trigger.
+Then("the wizard is on the welcome step", async ({ page }) => {
+  // Deferred-create means a mid-wizard reload restarts from step 0.
+  // The welcome screen exposes the "Get started" CTA.
   const onboarding = new OnboardingPage(page);
-  await expect(onboarding.currencyTrigger()).toBeVisible({ timeout: 15000 });
-});
-
-Then("the spendings grid has at least one category row", async ({ page }) => {
-  // Category rows have data-testid="category-row" (from Phase 4 grid)
-  await expect(
-    page.locator('[data-testid="category-row"]').first(),
-  ).toBeVisible({ timeout: 15000 });
+  await expect(onboarding.getStartedButton()).toBeVisible({ timeout: 15000 });
 });

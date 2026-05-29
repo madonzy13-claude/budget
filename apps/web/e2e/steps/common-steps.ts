@@ -39,6 +39,22 @@ Given("I am a signed-in user with no budgets", async ({ context, baseURL }) => {
     throw new Error("empty-user signup had no Set-Cookie headers");
   }
   await context.addCookies(cookies);
+
+  // Phase 6 onboarding-redirect: without completed_at, the (app) layout
+  // bounces this user to /budgets/new before HomeEmptyHero can render.
+  // Mark onboarding complete via the session-scoped PUT so they reach /en/
+  // and see the empty-state hero.
+  const apiRes = await context.request.put(
+    `${baseUrl}/api/onboarding/progress`,
+    {
+      data: { step: 5, completedAt: new Date().toISOString() },
+    },
+  );
+  if (!apiRes.ok()) {
+    throw new Error(
+      `mark-onboarding-complete PUT failed: ${apiRes.status()} ${await apiRes.text()}`,
+    );
+  }
 });
 
 Given("I am on a phone-sized viewport", async ({ page }) => {
