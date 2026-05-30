@@ -1,7 +1,8 @@
 ---
 phase: 7
 slug: tasks-queue
-status: draft
+status: approved
+reviewed_at: 2026-05-30T22:44:00Z
 shadcn_initialized: true
 preset: "style=new-york, baseColor=zinc, rsc=true, cssVariables=true, prefix=''"
 created: 2026-05-30
