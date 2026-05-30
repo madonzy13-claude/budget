@@ -1043,5 +1043,11 @@
     "not_found_body": "This link is invalid or has been removed.",
     "not_found_cta": "Return home",
     "join_success": "You've joined {budgetName}"
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "body": "We couldn't load this page. Check your connection and try again.",
+    "reload": "Reload",
+    "go_home": "Go to home"
   }
 }

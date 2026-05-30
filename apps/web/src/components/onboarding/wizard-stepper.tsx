@@ -28,7 +28,7 @@ interface WizardStepperProps {
   className?: string;
 }
 
-const STEP_KEYS = ["basics", "type", "features", "review"] as const;
+const STEP_KEYS = ["type", "basics", "features", "review"] as const;
 
 export function WizardStepper({
   currentStep,

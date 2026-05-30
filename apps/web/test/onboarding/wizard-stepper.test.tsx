@@ -1,7 +1,7 @@
 /**
  * wizard-stepper.test.tsx — WizardStepper component tests.
  *
- * Covers the 4 word-labeled stepper (Basics / Type / Features / Review).
+ * Covers the 4 word-labeled stepper (Type / Basics / Features / Review).
  * The stepper opens at step 0 (welcome) so all segments render as
  * upcoming; steps 1..4 are real wizard steps.
  */

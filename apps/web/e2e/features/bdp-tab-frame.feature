@@ -34,3 +34,17 @@ Feature: BDP tab frame
     And the inactive pill "Spendings" hides its label
     And the inactive pill "Reserves" hides its label
     And the inactive pill "Settings" hides its label
+
+  # Bug: pulling down at the top of Wallets/Reserves rubber-banded the main
+  # scroll surface, stretching the sticky BDP pills bar. Spendings + Settings
+  # were unaffected (Spendings has an inner scroll container with
+  # overscroll-behavior:contain; Settings doesn't overflow). Fix anchors the
+  # contract on the shared <main>: it must never bounce.
+  Scenario: Wallets tab anchors the sticky pills bar by disabling iOS rubber-band on main
+    When I open the BDP wallets tab for "My E2E Budget"
+    Then the app main scroll surface has overscroll-behavior-y "none"
+
+  Scenario: Reserves tab anchors the sticky pills bar by disabling iOS rubber-band on main
+    When I open the BDP for "My E2E Budget"
+    And I click the "Reserves" tab pill
+    Then the app main scroll surface has overscroll-behavior-y "none"

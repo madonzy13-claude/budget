@@ -1051,5 +1051,11 @@
         "balance": "pozostało"
       }
     }
+  },
+  "errors": {
+    "title": "Coś poszło nie tak",
+    "body": "Nie udało się załadować tej strony. Sprawdź połączenie i spróbuj ponownie.",
+    "reload": "Odśwież",
+    "go_home": "Wróć do strony głównej"
   }
 }

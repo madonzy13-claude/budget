@@ -374,3 +374,24 @@ Then(
     }
   },
 );
+
+// iOS rubber-band guard on the shared (app)/layout <main>. Without
+// overscroll-behavior-y: none, pulling down at the top of a long page
+// (Wallets / Reserves) bounces main and visually stretches the sticky
+// BDP pills bar that lives inside it. The CSS rule is the mechanism;
+// this step asserts it stays applied on the actual scrolling element.
+Then(
+  "the app main scroll surface has overscroll-behavior-y {string}",
+  async ({ page }, expected: string) => {
+    const value = await page.evaluate(() => {
+      const main = document.querySelector("main");
+      if (!main) return null;
+      return getComputedStyle(main).overscrollBehaviorY;
+    });
+    if (value !== expected) {
+      throw new Error(
+        `Expected <main> overscroll-behavior-y "${expected}", got "${value}"`,
+      );
+    }
+  },
+);

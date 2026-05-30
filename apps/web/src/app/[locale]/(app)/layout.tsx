@@ -9,6 +9,7 @@ import {
 } from "@/components/common/nav-pending";
 import { TopNav } from "@/components/budgeting/top-nav";
 import { Toaster } from "@/components/ui/sonner";
+import { PullToRefresh } from "@/components/common/pull-to-refresh";
 
 // The (app) shell is per-user: session lookup, onboarding-progress fetch,
 // and the budget switcher all depend on the request's cookies. Without this
@@ -124,15 +125,51 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     <NavPendingProvider>
       <div className="flex h-dvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
         <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
-        <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
-          <TopNav locale={locale} activeBudgetId={activeBudgetId} />
-        </header>
-        <main className="flex flex-1 min-h-0 flex-col overflow-y-auto">
-          {/* SiteFooter removed (UAT-Phase6-Test7 retest #2):
-              the in-app shell no longer carries the marketing-style
+        {/* PullToRefresh is mounted once at the shell level so every
+            authenticated route inherits the gesture automatically.
+            It lives OUTSIDE the blurred subtree below so the indicator
+            stays crisp while the rest of the shell (header + main)
+            softens during the pull. Nested-scroll safety is built in —
+            see pull-to-refresh.tsx (the gesture bails when any inner
+            scroll container has scrolled past the top). */}
+        <PullToRefresh />
+        {/* Blur target spans header + main so the top nav also blurs
+            during the pull-to-refresh gesture. PullToRefresh drives
+            `--ptr-blur` on the root element; the filter interpolates
+            0 → 8px during the gesture and holds at peak while the
+            reload kicks in. The 150ms ease-out transition animates
+            the release-back-to-crisp when the user lets go below the
+            threshold. Toaster + LocaleCookieSync sit outside the blur
+            wrap so sonner overlays and the locale-sync side-effect
+            are unaffected. */}
+        <div
+          data-ptr-blur-target
+          className="flex flex-1 min-h-0 flex-col"
+          style={{
+            filter: "blur(var(--ptr-blur, 0px))",
+            transition: "filter 150ms ease-out",
+          }}
+        >
+          <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
+            <TopNav locale={locale} activeBudgetId={activeBudgetId} />
+          </header>
+          {/* overscroll-y-none mirrors the global.css rule on html+body.
+              <main> is the real scroll surface (body is locked
+              overflow:hidden), so without this class iOS rubber-bands
+              the page when content overflows — visibly stretching the
+              BDP sticky pills bar on Wallets / Reserves (pages where
+              children are taller than the viewport). Spendings avoids
+              this with its own inner overscroll-contain container;
+              Settings doesn't overflow. Anchoring it here fixes both
+              bug sites and any future overflowing page in the (app)
+              shell.
+              SiteFooter removed (UAT-Phase6-Test7 retest #2): the
+              in-app shell no longer carries the marketing-style
               footer — the page is the product. */}
-          <NavPendingOverlay className="flex-1">{children}</NavPendingOverlay>
-        </main>
+          <main className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none">
+            <NavPendingOverlay className="flex-1">{children}</NavPendingOverlay>
+          </main>
+        </div>
         <Toaster />
       </div>
     </NavPendingProvider>

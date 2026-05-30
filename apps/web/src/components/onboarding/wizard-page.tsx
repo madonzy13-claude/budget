@@ -8,8 +8,8 @@
  *
  * Step flow:
  *   0. Welcome   → "Get started" advances to step 1; no API call.
- *   1. Basics    → collect name + currency; no API call.
- *   2. Type      → collect kind (PRIVATE / SHARED); no API call.
+ *   1. Type      → collect kind (PRIVATE / SHARED); no API call.
+ *   2. Basics    → collect name + currency; no API call.
  *   3. Features  → collect cushion + reserves toggles; no API call.
  *   4. Review    → "Create budget" performs:
  *                    - POST   /budgets       (name, kind, default_currency)
@@ -54,7 +54,7 @@ interface WizardPageProps {
   /**
    * Server-derived signal: the caller already has at least one budget.
    * When true, the wizard skips step 0 (welcome) and opens on step 1
-   * (Basics). The welcome card is a first-budget intro — showing it on
+   * (Type). The welcome card is a first-budget intro — showing it on
    * every subsequent budget would read as patronising.
    */
   skipWelcome?: boolean;
@@ -190,13 +190,16 @@ export function WizardPage({
       if (step === 0) {
         setStep(1);
       } else if (step === 1) {
+        // Step 1 (Type) has no required fields — Type selection has a
+        // default value (PRIVATE), so Next always proceeds.
+        setStep(2);
+      } else if (step === 2) {
+        // Step 2 (Basics) requires a non-empty name before advancing.
         if (!form.name.trim()) {
           setNameError(tBasics("name_required"));
           setIsLoading(false);
           return;
         }
-        setStep(2);
-      } else if (step === 2) {
         setStep(3);
       } else if (step === 3) {
         setStep(4);
@@ -245,6 +248,10 @@ export function WizardPage({
         return <StepWelcome />;
       case 1:
         return (
+          <StepType value={form.kind} onChange={(v) => updateForm("kind", v)} />
+        );
+      case 2:
+        return (
           <StepBasics
             name={form.name}
             onChangeName={(v) => updateForm("name", v)}
@@ -252,10 +259,6 @@ export function WizardPage({
             currency={form.currency}
             onChangeCurrency={(v) => updateForm("currency", v)}
           />
-        );
-      case 2:
-        return (
-          <StepType value={form.kind} onChange={(v) => updateForm("kind", v)} />
         );
       case 3:
         return (

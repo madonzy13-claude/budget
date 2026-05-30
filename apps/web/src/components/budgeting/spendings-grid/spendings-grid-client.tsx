@@ -330,10 +330,18 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
              * AddCategoryColumn is a sibling of SortableContext children,
              * NOT registered as a sortable item (D-PH4-D4).
              * It does NOT call useSortable — it is outside the items list.
+             *
+             * sticky top-0 pins it to the top of the scroll viewport on
+             * vertical scroll, so it stays visible as transactions
+             * scroll up. self-start prevents flex stretch from inflating
+             * it to row height. On horizontal scroll it still moves with
+             * the row (sticky only applies on the axis with offset set).
              */}
-            <AddCategoryColumn
-              onClick={() => setCatSlider({ open: true, mode: "create" })}
-            />
+            <div className="sticky top-0 self-start z-10">
+              <AddCategoryColumn
+                onClick={() => setCatSlider({ open: true, mode: "create" })}
+              />
+            </div>
           </div>
         </DndContext>
       </div>

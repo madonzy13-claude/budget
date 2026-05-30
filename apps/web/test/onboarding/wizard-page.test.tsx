@@ -2,8 +2,9 @@
  * wizard-page.test.tsx — WizardPage step-machine tests.
  *
  * Wizard rewrite (deferred-create): step 0 is the welcome screen; step 1
- * is Basics (name + currency); POST /budgets happens at step 4 (Review)
- * via the "Create budget" action, not at step 1.
+ * is Type (Personal / Shared); step 2 is Basics (name + currency); POST
+ * /budgets happens at step 4 (Review) via the "Create budget" action,
+ * not at step 1.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -61,30 +62,30 @@ describe("WizardPage — deferred-create step machine", () => {
     ).toBeInTheDocument();
   });
 
-  it("skips welcome when skipWelcome=true (returning user) and shows the name input", () => {
+  it("skips welcome when skipWelcome=true (returning user) and shows the type radiogroup", () => {
     render(<WizardPage locale="en" skipWelcome />);
-    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
   });
 
-  it("Get started → step 1 surfaces the name input", () => {
+  it("Get started → step 1 surfaces the type radiogroup", () => {
     render(<WizardPage locale="en" />);
     fireEvent.click(screen.getByRole("button", { name: /get_started/i }));
-    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
   });
 
-  it("step 1: empty name + Next surfaces the required-name error", () => {
+  it("step 2: empty name + Next surfaces the required-name error", () => {
     render(<WizardPage locale="en" skipWelcome />);
-    const next = screen.getByRole("button", { name: /next/i });
-    fireEvent.click(next);
+    // Step 1 (Type) → Next to land on step 2 (Basics).
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    // Step 2 (Basics) → Next with empty name → required error.
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
     // Required-name copy comes from `onboarding.wizard.basics.name_required`.
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
   it("step 1: deferred-create — POST /budgets is NOT called when leaving step 1", async () => {
     render(<WizardPage locale="en" skipWelcome />);
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "My Budget" },
-    });
+    // Step 1 (Type) has default PRIVATE → Next advances without writes.
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
     // Allow any in-flight microtasks to settle.
     await new Promise((r) => setTimeout(r, 50));
@@ -102,17 +103,20 @@ describe("WizardPage — deferred-create step machine", () => {
 
   it("commit (step 4 Create budget) posts to /budgets and follows with progress PUT", async () => {
     render(<WizardPage locale="en" skipWelcome />);
-    // Step 1 → Basics: fill name, advance.
+    // Step 1 → Type: defaults to PRIVATE, advance.
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    // Step 2 → Basics: fill name, advance.
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toBeInTheDocument(),
+    );
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "My Budget" },
     });
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 2 → Type: defaults to PRIVATE, advance.
+    // Step 3 → Features: defaults both on, advance.
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 3 → Features: defaults both on, advance.
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
     // Step 4 → Review: "Create budget" fires the deferred POST.
     fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));

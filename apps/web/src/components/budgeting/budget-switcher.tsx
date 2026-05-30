@@ -53,14 +53,20 @@ export function BudgetSwitcher({
   // active budget — the trigger collapses to the chevron with no text and
   // no row in the dropdown carries a checkmark.
   //
-  // The SSR layout tries to pass activeBudgetId via the middleware-injected
-  // x-pathname header, but that header doesn't survive the merge with the
-  // next-intl middleware in our setup. We derive the active id client-side
-  // from `usePathname()` as the source of truth — it's a "use client" island
-  // so this is cheap and always reflects the current route.
+  // pathname (from usePathname()) is the SOLE source of truth on the
+  // client. The SSR `activeBudgetIdProp` is only honoured during the
+  // initial server render before usePathname hydrates — we fall back to
+  // it only when pathname is null (the early SSR pass), never when
+  // pathname exists but lacks a UUID. Previously we did
+  // `fromPath ?? activeBudgetIdProp` which silently kept the last
+  // budget id stale on the prop when navigating from a budget page back
+  // to home: the (app) layout persists across route changes, so the
+  // server-passed prop was never refreshed and the trigger kept
+  // displaying the previous budget on home. Fix: derive strictly from
+  // pathname once the client has it.
   const activeBudgetId = useMemo(() => {
-    const fromPath = extractActiveBudgetIdFromPath(pathname);
-    return fromPath ?? activeBudgetIdProp;
+    if (pathname === null) return activeBudgetIdProp;
+    return extractActiveBudgetIdFromPath(pathname);
   }, [pathname, activeBudgetIdProp]);
   const active = budgets.find((b) => b.id === activeBudgetId) ?? null;
   const privateB = budgets.filter((b) => b.kind === "PRIVATE");
