@@ -4,7 +4,7 @@
 
 Eight phases take the v1.0 codebase (multi-page workspace UI, account-anchored transactions, planned reserve/cushion/investments contexts) to the v1.1 product: a single Excel-like Budget Detail Page, renamed domain (workspace→budget, account→wallet), categorical-only transactions, auto-computed reserves, cushion as a budget-wide toggle, and a Tasks-queue-driven UX delivered as an installable PWA.
 
-The roadmap is dependency-driven, not category-driven. **Phase 1 lands the schema rename + new tables in a single migration** (workspaces→budgets, accounts→wallets, drop kind/account_id/scope, add wallet_type/cushion_mode/sort_index/tasks/SCD-2 cushion column) — every other phase blocks on it. **Phase 2 restructures the domain layer + API surface + recurring-engine + share-link backend** behind the renamed schema while the UI is still v1.0; this unblocks frontend work without forcing each UI phase to also touch the backend. **Phase 3 ships the new top-nav budget switcher, home page cards, and the BDP tab frame with a working task-banner shell** — the UI scaffold every subsequent tab plugs into. **Phase 4 is the core product surface: the Spendings grid** (column-per-category, quick-entry, pen-icon sliders, drag-reorder, arrow-key month nav, recurring drafts inline) and the real-time reserve-deduction wiring that drives row 4 of every column header. **Phase 5 ships the Reserves and Wallets tabs together** — they share a layout primitive (inline-editable table rows) and the same reserves-auto-compute view powers both. **Phase 6 ships Settings tab + Onboarding wizard + Share-link join UI** together — all three are settings-shaped form flows that depend on the BDP frame and the backend share-link routes from Phase 2. **Phase 7 surfaces the Tasks queue** (table writes from Phase 1 migration, generators wired across reserve-mismatch / draft-due / stale-wallet / month-end-rollover, banner expanded with kind-specific actions, push deep-links). **Phase 8 is cross-cutting hardening for launch:** PWA offline shell over the new IA, web-push wired to tasks, i18n EN/PL/UK rewrite for renamed namespaces, full E2E Gherkin rewrite, CI gates green.
+The roadmap is dependency-driven, not category-driven. **Phase 1 lands the schema rename + new tables in a single migration** (workspaces→budgets, accounts→wallets, drop kind/account_id/scope, add wallet_type/cushion_mode/sort_index/tasks/SCD-2 cushion column) — every other phase blocks on it. **Phase 2 restructures the domain layer + API surface + recurring-engine + share-link backend** behind the renamed schema while the UI is still v1.0; this unblocks frontend work without forcing each UI phase to also touch the backend. **Phase 3 ships the new top-nav budget switcher, home page cards, and the BDP tab frame with a working task-banner shell** — the UI scaffold every subsequent tab plugs into. **Phase 4 is the core product surface: the Spendings grid** (column-per-category, quick-entry, pen-icon sliders, drag-reorder, arrow-key month nav, recurring drafts inline) and the real-time reserve-deduction wiring that drives row 4 of every column header. **Phase 5 ships the Reserves and Wallets tabs together** — they share a layout primitive (inline-editable table rows) and the same reserves-auto-compute view powers both. **Phase 6 ships Settings tab + Onboarding wizard + Share-link join UI** together — all three are settings-shaped form flows that depend on the BDP frame and the backend share-link routes from Phase 2. **Phase 7 surfaces the Tasks queue** (three deterministic generators — RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET; banner expanded with kind-specific actions; push deep-link URL contract spec). **Phase 8 is cross-cutting hardening for launch:** PWA offline shell over the new IA, web-push wired to tasks, i18n EN/PL/UK rewrite for renamed namespaces, full E2E Gherkin rewrite, CI gates green.
 
 The work is dependency-shaped: schema rename precedes domain rename precedes API rename precedes frontend rename precedes UX flows. Parallelism is limited (each phase mostly unblocks the next) but Phase 5's two tabs and Phase 8's cross-cutting concerns can fan out at the plan level.
 
@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Spendings Grid** — The Excel-like core: column-per-category grid, quick-entry, pen-icon side sliders, drag-reorder, arrow-key month navigation, recurring drafts as highlighted rows, real-time reserve-deduction display _(UAT closed: 16/17 pass, 1 skipped — Test 4 retry blocked by shared-stack; security audited 35/35 closed — see 04-SECURITY.md)_
 - [x] **Phase 5: Reserves & Wallets Tabs** — Reserves table with per-category isolated balances + wallet-share column, Wallets tab with always-inline editable rows (name/currency/amount/type) and add/delete (completed 2026-05-17)
 - [x] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow (completed 2026-05-22)
-- [ ] **Phase 7: Tasks Queue** — Banner-with-expand UI, deterministic generators (reserve-mismatch, draft-due, stale-wallet, month-end), kind-specific resolution actions, auto-resolve on state change
+- [ ] **Phase 7: Tasks Queue** — Banner-with-expand UI, three deterministic generators (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET), kind-specific resolution actions, auto-resolve on state change. STALE_WALLET and MONTH_END_REVIEW dropped from v1.1 scope; CUSHION_BELOW_TARGET surfaces actual cushion-vs-target shortfall.
 - [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
 
 ## Phase Details
@@ -169,18 +169,29 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 7: Tasks Queue
 
-**Goal**: Surface the Tasks queue end-to-end. The `tasks` table from Phase 1 plus the four deterministic generators (reserve mismatch / recurring draft due / stale wallet / month-end rollover) plus the BDP task banner expansion plus the kind-specific resolution actions. Auto-resolve on underlying state change so the queue never grows stale.
+**Goal**: Surface the Tasks queue end-to-end. The `tasks` table from Phase 1 plus **three deterministic generators** — `RESERVE_TOPUP`, `CONFIRM_DRAFT`, `CUSHION_BELOW_TARGET` — plus the BDP task banner expansion plus the kind-specific resolution actions. Auto-resolve on underlying state change so the queue never grows stale. Push deep-link URL contract spec laid down for Phase 8 to wire.
 **Depends on**: Phase 6
-**Requirements**: TASK-01, TASK-02, TASK-03, TASK-04, TASK-05, TASK-06, TASK-07, TASK-08
+**Requirements**: TASK-01, TASK-02, TASK-03, TASK-04 (rescoped to CUSHION_BELOW_TARGET per CONTEXT.md), TASK-06, TASK-07, TASK-08 (TASK-05 dropped from v1.1 scope)
 **Success Criteria** (what must be TRUE):
 
-1. When `Σ(category reserve balances) ≠ Σ(reserve-type wallet amounts)`, a `RESERVE_TOPUP` task appears in the BDP banner with title (i18n) `"Top up reserve by {amount}"` or `"Withdraw {amount} from reserve"` and payload including diff and direction; when the user manually adjusts a reserve-wallet balance so sums match, the task auto-resolves and disappears from the banner
-2. When pg-boss materializes a recurring rule into a pending-draft (Phase 2), a `CONFIRM_DRAFT` task appears; when the user confirms or dismisses the draft (Phase 4 inline action), the task auto-resolves; user can also resolve it from the banner via a primary "Confirm" action
-3. When a wallet's `updated_at` exceeds the configured threshold (default 30 days, configurable per budget), a `STALE_WALLET` task appears for that wallet; when the user edits any cell on that wallet row (Phase 5), the task auto-resolves
-4. On month rollover, a `MONTH_END_REVIEW` task fires for every budget; the task auto-resolves either when the user dismisses it from the banner or after N days, whichever comes first
-5. The BDP task banner shows a count chip (`N tasks pending`) and expands inline on click to a list of tasks with kind-specific primary action buttons; titles render correctly in EN / PL / UK; tasks list endpoint is RLS-scoped to the current budget; backend writes pass through the tenant guard
+1. When `Σ(category reserve balances) ≠ Σ(reserve-type wallet amounts)`, a `RESERVE_TOPUP` task appears in the BDP banner with title (i18n) `"Top up reserve by {amount}"` and payload including diff and direction (TOPUP/WITHDRAW); when the user manually adjusts a reserve-wallet balance so sums match, the task auto-resolves and disappears from the banner
+2. When pg-boss materializes a recurring rule into a pending-draft (Phase 2), a `CONFIRM_DRAFT` task appears; when the user confirms, dismisses, or skips the draft (Phase 4 inline action), the task auto-resolves; user can also resolve it from the banner via a primary "Confirm" action
+3. When `cushion_enabled = true` and `Σ(category cushion × cushion_target_months) > Σ(cushion-type wallet amounts FX→budget currency)`, a `CUSHION_BELOW_TARGET` task appears with payload `{shortfall_cents, required_cents, actual_cents, currency, target_months}`; when the user adds/edits a cushion wallet so shortfall ≤ 0 (or toggles `cushion_enabled` off), the task auto-resolves
+4. The BDP task banner shows a count chip (`N tasks pending`) and expands inline on click to a list of tasks with kind-specific primary action buttons; titles render correctly in EN / PL / UK; tasks list endpoint is RLS-scoped to the current budget; backend writes pass through the tenant guard
 
-**Plans**: pending
+**Plans** (10 — schema → ports/services → generators+sweep → routes → frontend → E2E):
+
+- [ ] 07-01-PLAN.md — Wave 0: Migration 0026 (tasks_kind_chk 3-kind + cushion_target_months + 3 partial unique dedup indexes) + REQUIREMENTS/ROADMAP/v1.1-SPEC reconciliation + 5 test scaffolds + [BLOCKING] make migrate (TASK-01)
+- [ ] 07-02-PLAN.md — Wave 1: tasks-schema TS mirror + TaskRepo port write methods (resolve, 3 emit, 2 resolveByX) + TaskRepo adapter (ON CONFLICT + idempotent UPDATE) + resolve-task application service + resolve-idempotency.test.ts real assertions (TASK-01, TASK-06)
+- [ ] 07-03-PLAN.md — Wave 1: get-cushion-summary.ts + recompute-cushion-task.ts shared helpers (single source of cushion math; bigint cents; FX as-of TODAY) + cushion-math.test.ts 9-case Nyquist (TASK-04)
+- [ ] 07-04-PLAN.md — Wave 2: CONFIRM_DRAFT — recurring-engine.ts inline emit (gated by insertResult.rows.length > 0) + auto-resolve in confirm/dismiss/skip use cases + confirm-draft.test.ts 6-case Nyquist (TASK-03, TASK-06, TASK-08)
+- [ ] 07-05-PLAN.md — Wave 2: RESERVE_TOPUP — recompute-reserve-topup-task.ts helper (reuses reserves-summary-builder.ts mismatchCents) + inline hooks in set-wallet-balance/update-wallet/adjust-category-reserve + reserve-topup.test.ts 5/6 cases (sweep deferred to 07-06) (TASK-02, TASK-06, TASK-08)
+- [ ] 07-06-PLAN.md — Wave 2: CUSHION_BELOW_TARGET inline hooks in 5 mutation sites (set/update/create/archive-wallet + set-category-limit) + budgeting-reconciliation.ts hourly sweep extension for BOTH RESERVE_TOPUP and CUSHION (defensive — catches FX drift) + reserve-topup.test.ts complete + cushion-math integration tests (TASK-02, TASK-04, TASK-06, TASK-08)
+- [ ] 07-07-PLAN.md — Wave 3: API routes — POST /budgets/:id/tasks/:taskId/resolve + GET /budgets/:id/cushion-summary + PATCH /budgets/:id extended with cushion_target_months Zod 1..60 + recompute trigger + tenant-leak gate extension (8 files total) (TASK-06, TASK-07)
+- [ ] 07-08-PLAN.md — Wave 3: Frontend — TaskBannerRow enable action buttons per kind (router.push + clientApiFetch) + ReservesTableRow pending-task indicator (PencilLine icon) + EN/PL/UK i18n keys per UI-SPEC § Copywriting Contract + Vitest tests (TASK-07, TASK-08)
+- [ ] 07-09-PLAN.md — Wave 3: Frontend — Settings cushion-section months input + live preview line (cushion-summary fetch) + Onboarding wizard cushion step months input + CategorySlider silent cushion-mirror via linked useState + Vitest tests (TASK-04)
+- [ ] 07-10-PLAN.md — Wave 4 (autonomous=false): E2E task-banner.feature rewrite for 3 kinds (@phase7) + Page Object extensions (BdpPage/ReservesPage/WalletsPage/SettingsPage) + final gate sweep (make test + ci-gate + Vitest + test-e2e) + human UAT (all TASK)
+
 **UI hint**: yes
 
 ### Phase 8: PWA, Offline, Push, i18n & E2E Hardening
@@ -191,10 +202,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Success Criteria** (what must be TRUE):
 
 1. PWA is installable from a supported browser (manifest + service worker registered on every page); when the user goes offline they can still read their last-synced budgets, wallets, categories, and current-month transactions; airplane-mode quick-entry on the Spendings grid queues a transaction locally and syncs successfully on reconnect with no duplicates (Idempotency-Key respected)
-2. User can enable web-push notifications per-budget; VAPID web-push fires on creation of `RESERVE_TOPUP` / `CONFIRM_DRAFT` / `STALE_WALLET` / `MONTH_END_REVIEW` tasks respecting per-user/per-budget preferences; clicking a push notification deep-links to `/budgets/[id]/[tab]` with the relevant task pre-expanded
+2. User can enable web-push notifications per-budget; VAPID web-push fires on creation of `RESERVE_TOPUP` / `CONFIRM_DRAFT` / `CUSHION_BELOW_TARGET` tasks respecting per-user/per-budget preferences; clicking a push notification deep-links to `/budgets/[id]/[tab]` with the relevant task pre-expanded (uses Phase 7 D-PH7-30 URL contract)
 3. Every v1.1 message key is delivered in EN, PL, and UK; the `workspaces.*` and `accounts.*` namespaces no longer exist in the message catalogs (replaced by `budgets.*` and `wallets.*`); monetary amounts display via `Intl.NumberFormat` with the budget's currency; dates display via Temporal + `Intl.DateTimeFormat` per user locale; locale is persisted on `users.locale` and switchable from the user menu
 4. playwright-bdd `.feature` files cover quick-entry transaction, recurring draft confirm, real-time reserve auto-deduct, cushion-mode toggle, share-link recipient join, and the onboarding wizard end-to-end; Page Objects target renamed entities; fresh-user-per-scenario fixture is retained; E2E is green when run against `PLAYWRIGHT_BASE_URL` from `.env.local`
-5. CI gates green: `make ci-gate` 6/6 on renamed tables; `make test` passes with 80% domain coverage; `bun run test` (Vitest component) passes; `make test-e2e` (Playwright BDD) passes; dependency-cruiser still blocks domain imports of drizzle / Hono / AI SDK / adapters
+5. CI gates green: `make ci-gate` 8/8 on renamed tables (Phase 7 added cushion-summary tenant-leak file); `make test` passes with 80% domain coverage; `bun run test` (Vitest component) passes; `make test-e2e` (Playwright BDD) passes; dependency-cruiser still blocks domain imports of drizzle / Hono / AI SDK / adapters
 
 **Plans**: pending
 **UI hint**: yes
@@ -213,6 +224,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 | i18n PL/UK translation quality lags EN                                     | Medium              | Low    | 8            | Use Phase 8 i18n rewrite as the natural review checkpoint; user can self-review PL/UK                                   |
 | Playwright BDD rewrite blocks launch                                       | Medium              | High   | 8            | Phase 8 budgets explicit time for E2E rewrite; flows are already known from v1.0 features file                          |
 | Tasks queue produces noise (false positives auto-firing)                   | Medium              | Medium | 7            | All generators deterministic with auto-resolve on state change; user can dismiss; threshold tuning lives in plan-phase  |
+| CUSHION_BELOW_TARGET sweep cost grows with tenant count                    | Low (small N v1)    | Low    | 7            | Per-tenant withTenantTx in hourly cron; linear in tenant count; defer optimization until tenant count > 1000            |
+| Cushion FX rate drift between hourly sweeps                                | Low                 | Low    | 7            | Hourly sweep recomputes from live FxProvider; bounds check 0 < rate < 1e6 prevents overflow; inline hooks instant-emit  |
 
 ## Dependency Graph
 
@@ -242,6 +255,7 @@ Phase 8 (PWA + Offline + Push + i18n + E2E)  ← cross-cutting; plans fan out
 Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 Within Phase 5, the Reserves and Wallets tabs are parallel-eligible at the plan level.
+Within Phase 7, the three generator plans (07-04 CONFIRM_DRAFT, 07-05 RESERVE_TOPUP, 07-06 CUSHION_BELOW_TARGET + sweep) are wave-2 parallel-eligible after the wave-1 ports/services land.
 Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan level.
 
 | Phase                                       | Plans Complete | Status      | Completed  |
@@ -251,10 +265,10 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
 | 4. Spendings Grid                           | 0/TBD          | Not started | -          |
 | 5. Reserves & Wallets Tabs                  | 8/8            | Complete    | 2026-05-17 |
-| 6. Settings, Onboarding & Share UI          | 8/8 | Complete   | 2026-05-22 |
-| 7. Tasks Queue                              | 0/TBD          | Not started | -          |
+| 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
+| 7. Tasks Queue                              | 0/10           | Planned     | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |
 
 ---
 
-_Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped._
+_Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET._
