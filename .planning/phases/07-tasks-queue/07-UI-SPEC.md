@@ -82,6 +82,11 @@ Exceptions:
 - Touch targets: action buttons in banner rows minimum 32px height (size="sm"); meets
   44px tap target via surrounding row height.
 - Reserves Actions column icon button: 32×32px minimum tap target (p-1 + icon-16).
+- `sm` = 12px declared exception: 12px is Tailwind `p-3`, matching the established
+  input padding used in Phase 5 and Phase 6 forms. 8px (xs) is too tight for vertical
+  input padding and the preview-line gap; 16px (md) is too wide. This 12px usage is
+  a declared exception to the standard 4/8/16/24/32/48/64 set, consistent with prior
+  phases.
 
 ---
 
@@ -93,14 +98,15 @@ surfaces only:
 | Role               | Size | Weight | Line Height | Font                           | Usage                                                |
 | ------------------ | ---- | ------ | ----------- | ------------------------------ | ---------------------------------------------------- |
 | Body (banner)      | 14px | 400    | 1.5         | Inter (--font-sans)            | Task title in banner row (`text-sm`)                 |
-| Label (kind badge) | 12px | 500    | 1.4         | Inter (--font-sans)            | Kind chip text inside `<Badge variant="secondary">`  |
+| Label (kind badge) | 12px | 400    | 1.4         | Inter (--font-sans)            | Kind chip text inside `<Badge variant="secondary">`  |
 | Button (action)    | 14px | 600    | 1           | Inter (--font-sans)            | Action button label in banner row                    |
-| Label (input)      | 14px | 500    | 1.4         | Inter (--font-sans)            | "Target months" field label in Settings + Onboarding |
+| Label (input)      | 14px | 400    | 1.4         | Inter (--font-sans)            | "Target months" field label in Settings + Onboarding |
 | Caption (preview)  | 12px | 400    | 1.4         | IBM Plex Sans (--font-numeric) | Live shortfall preview line below months input       |
 
-Two weights in use: regular (400) for body copy, semibold (600) for button labels.
-Preview numbers render in `--font-numeric` (IBM Plex Sans, tabular-nums) per the
-project rule: all financial figures use the numeric font stack.
+Two weights in use: regular (400) for body copy, labels, captions, and badges;
+semibold (600) for button labels only. Preview numbers render in `--font-numeric`
+(IBM Plex Sans, tabular-nums) per the project rule: all financial figures use the
+numeric font stack.
 
 ---
 
@@ -203,7 +209,7 @@ Remove `bdp.tasks.actionComingSoon` i18n key from all three message catalogs.
 **Months input spec:**
 
 - `<Input type="number" min="1" max="60" step="1">` — HTML5 native constraints.
-- Label: `t("settings.cushion.targetMonthsLabel")` — 14px / weight 500.
+- Label: `t("settings.cushion.targetMonthsLabel")` — 14px / weight 400.
 - Default value on mount: `cushion_target_months` from server (default 6 when column just added).
 - Save trigger: blur (autosave pattern, same as Phase 5/6 wallet cells). PATCH `/budgets/:id` body `{cushion_target_months: value}`.
 - Validation: integer 1–60. If user types out-of-range: show inline error below input in `--trading-down` color, 12px / weight 400: `t("settings.cushion.targetMonthsError")`. Block PATCH until valid.
@@ -273,7 +279,7 @@ All strings delivered in EN + PL + UK at landing. ICU format throughout.
 | `bdp.tasks.kind.CONFIRM_DRAFT`                | `"Draft"`                               | none                                                                                               |
 | `bdp.tasks.kind.CUSHION_BELOW_TARGET`         | `"Cushion"`                             | none                                                                                               |
 | `bdp.tasks.action.RESERVE_TOPUP.label`        | `"Fix reserve"`                         | none                                                                                               |
-| `bdp.tasks.action.CONFIRM_DRAFT.label`        | `"Confirm"`                             | none                                                                                               |
+| `bdp.tasks.action.CONFIRM_DRAFT.label`        | `"Confirm draft"`                       | none                                                                                               |
 | `bdp.tasks.action.CUSHION_BELOW_TARGET.label` | `"Top up cushion"`                      | none                                                                                               |
 | `bdp.tasks.confirmError`                      | `"Could not confirm draft. Try again."` | none                                                                                               |
 
@@ -368,7 +374,7 @@ All carry-forward from Phase 3–6. Phase 7 additions:
 - Action button `aria-label` for deep-link kinds (since clicking navigates away):
   - `RESERVE_TOPUP`: `aria-label={t("bdp.tasks.action.RESERVE_TOPUP.ariaLabel")}` — EN: `"Go to Reserves to fix top-up"`
   - `CUSHION_BELOW_TARGET`: `aria-label={t("bdp.tasks.action.CUSHION_BELOW_TARGET.ariaLabel")}` — EN: `"Go to Wallets to top up cushion"`
-  - `CONFIRM_DRAFT`: no separate aria-label needed (button label "Confirm" is self-describing).
+  - `CONFIRM_DRAFT`: no separate aria-label needed (button label "Confirm draft" is self-describing).
 - Loading state: `aria-busy="true"` on the button during CONFIRM_DRAFT in-flight.
 - Months input: `aria-describedby` pointing to the preview line element ID and to any inline error element ID.
 - Reserves edit icon button: `aria-label={t("reserves.actions.editBalance")}` (no visible label).
