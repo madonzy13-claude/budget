@@ -2,6 +2,7 @@ import { test as base } from "playwright-bdd";
 import { request, expect } from "@playwright/test";
 import { SignUpPage } from "../pages/SignUpPage.js";
 import { ServerDownPage } from "../pages/ServerDownPage.js";
+import { NotFoundPage } from "../pages/NotFoundPage.js";
 import { type Locale } from "../pages/labels.js";
 import {
   pollMailpitForRecipient,
@@ -25,6 +26,8 @@ export interface ScenarioCtx {
   serverDownLocale?: Locale;
   /** Page object cached across server-down steps in a single scenario. */
   serverDownPage?: ServerDownPage;
+  /** Page object cached across not-found steps in a single scenario. */
+  notFoundPage?: NotFoundPage;
 }
 
 type CustomFixtures = {

@@ -1056,5 +1056,11 @@
     "retry": "Try again",
     "retrying": "Checking…",
     "still_unreachable": "Still no answer from the server. Give it another moment."
+  },
+  "not_found": {
+    "title": "Page not found",
+    "body": "That page doesn't exist — it may have moved, been renamed, or you might have followed a stale link.",
+    "go_home": "Take me home",
+    "go_back": "Go back"
   }
 }

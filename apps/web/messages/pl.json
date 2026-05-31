@@ -1064,5 +1064,11 @@
     "retry": "Spróbuj ponownie",
     "retrying": "Sprawdzanie…",
     "still_unreachable": "Serwer wciąż nie odpowiada. Daj mu jeszcze chwilę."
+  },
+  "not_found": {
+    "title": "Nie znaleziono strony",
+    "body": "Ta strona nie istnieje — mogła zostać przeniesiona, zmieniona albo trafiłeś tu ze starego linku.",
+    "go_home": "Wróć do strony głównej",
+    "go_back": "Wstecz"
   }
 }
