@@ -14,6 +14,8 @@
 import Big from "big.js";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { Money } from "@budget/shared-kernel";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
 import type { Currency } from "@budget/shared-kernel";
 import type { WalletRepo } from "../ports/wallet-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
@@ -23,6 +25,8 @@ import type { WalletType } from "../domain/wallet";
 import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
 import type { ReservesSummaryDto } from "./get-reserves-summary";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import { recomputeReserveTopupTask } from "./recompute-reserve-topup-task";
 
 export interface UpdateWalletDeps {
   repo: WalletRepo;
@@ -31,6 +35,11 @@ export interface UpdateWalletDeps {
   categoriesRepo?: CategoriesRepo;
   reserveBalanceRepo?: ReserveBalanceRepo;
   reservesSummaryRepo?: ReservesSummaryRepo;
+  /** Phase 7 (D-PH7-04, Pitfall 1): when provided, recompute the
+   *  RESERVE_TOPUP task in a follow-up tx after the wallet PATCH lands.
+   *  Optional so legacy callers keep compiling. */
+  taskRepo?: TaskRepo;
+  isReservesEnabled?: (tenantId: string) => Promise<boolean>;
 }
 
 export interface UpdateWalletInput {
@@ -207,6 +216,50 @@ export function updateWallet(deps: UpdateWalletDeps) {
         patch,
         input.actorUserId,
       );
+
+      // Phase 7 (D-PH7-04, Pitfall 1): RESERVE_TOPUP recompute hook.
+      // update-wallet handles type changes — a SPENDINGS→RESERVE flip
+      // changes the reserve wallet pool, so the gate must fire when the
+      // wallet was OR became RESERVE-type (Pitfall 1 — RESEARCH.md).
+      //
+      // A2 fallback: deps.repo.update + the reserve allocator writes each
+      // own their inner tx; we open a separate withTenantTx for the
+      // recompute. Race window bounded by the idempotent ON CONFLICT DO
+      // NOTHING + WHERE PENDING contract.
+      const isReserveNow = wallet.walletType === "RESERVE";
+      if (
+        (wasReserve || isReserveNow) &&
+        deps.taskRepo &&
+        deps.categoriesRepo &&
+        deps.reserveBalanceRepo &&
+        deps.reservesSummaryRepo &&
+        deps.isReservesEnabled
+      ) {
+        const taskRepo = deps.taskRepo;
+        const categoriesRepo = deps.categoriesRepo;
+        const reserveBalanceRepo = deps.reserveBalanceRepo;
+        const reservesSummaryRepo = deps.reservesSummaryRepo;
+        const budgetCurrencyOf = deps.budgetCurrencyOf;
+        const isReservesEnabled = deps.isReservesEnabled;
+        await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeReserveTopupTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.tenantId },
+              {
+                taskRepo,
+                categoriesRepo,
+                reserveBalanceRepo,
+                reservesSummaryRepo,
+                budgetCurrencyOf,
+                isReservesEnabled,
+              },
+            );
+          },
+        );
+      }
 
       const balanceCentsStr = wallet.currentBalance.amount
         .times("100")

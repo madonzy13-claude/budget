@@ -16,6 +16,8 @@
  */
 import Big from "big.js";
 import { ok, err, type Result } from "@budget/shared-kernel";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
 import type { WalletRepo } from "../ports/wallet-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
 import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
@@ -24,6 +26,8 @@ import type { SetBalanceInput } from "../contracts/api";
 import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
 import type { ReservesSummaryDto } from "./get-reserves-summary";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import { recomputeReserveTopupTask } from "./recompute-reserve-topup-task";
 
 export interface SetWalletBalanceDeps {
   repo: WalletRepo;
@@ -32,6 +36,11 @@ export interface SetWalletBalanceDeps {
   reserveBalanceRepo?: ReserveBalanceRepo;
   reservesSummaryRepo?: ReservesSummaryRepo;
   budgetCurrencyOf?: (tenantId: string) => Promise<string>;
+  /** Phase 7 (D-PH7-04): when provided, recompute the RESERVE_TOPUP task in
+   *  a follow-up tx after the balance change lands. Optional so legacy
+   *  callers (tests, alternate boot paths) keep compiling. */
+  taskRepo?: TaskRepo;
+  isReservesEnabled?: (tenantId: string) => Promise<boolean>;
 }
 
 export interface SetWalletBalanceFullInput extends SetBalanceInput {
@@ -147,6 +156,52 @@ export function setWalletBalance(deps: SetWalletBalanceDeps) {
         { amount: input.amount, currency: input.currency },
         input.actorUserId,
       );
+
+      // Phase 7 (D-PH7-04): RESERVE_TOPUP recompute hook.
+      // Gate on the wallet being RESERVE-type — SPENDINGS/CUSHION balance
+      // changes do not touch the reserve equation. set-wallet-balance.ts
+      // cannot change wallet type; the type-change path lives in
+      // update-wallet.ts which has its own broader gate (was-or-is RESERVE).
+      //
+      // A2 fallback: deps.repo.setBalance + the reserve allocator writes
+      // each own their inner tx (audit + outbox); we open a separate
+      // withTenantTx for the recompute so the banner refreshes on next
+      // poll. Race window bounded by the idempotent ON CONFLICT DO NOTHING
+      // + WHERE PENDING contract (see recompute-reserve-topup-task.ts).
+      if (
+        wallet.walletType === "RESERVE" &&
+        deps.taskRepo &&
+        deps.categoriesRepo &&
+        deps.reserveBalanceRepo &&
+        deps.reservesSummaryRepo &&
+        deps.budgetCurrencyOf &&
+        deps.isReservesEnabled
+      ) {
+        const taskRepo = deps.taskRepo;
+        const categoriesRepo = deps.categoriesRepo;
+        const reserveBalanceRepo = deps.reserveBalanceRepo;
+        const reservesSummaryRepo = deps.reservesSummaryRepo;
+        const budgetCurrencyOf = deps.budgetCurrencyOf;
+        const isReservesEnabled = deps.isReservesEnabled;
+        await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeReserveTopupTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.tenantId },
+              {
+                taskRepo,
+                categoriesRepo,
+                reserveBalanceRepo,
+                reservesSummaryRepo,
+                budgetCurrencyOf,
+                isReservesEnabled,
+              },
+            );
+          },
+        );
+      }
     } catch (e) {
       return err(e as Error);
     }
