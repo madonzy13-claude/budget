@@ -29,13 +29,16 @@ const mockProgressPut = vi.fn().mockResolvedValue({
   ok: true,
   json: async () => ({}),
 });
+const mockBudgetsPatch = vi
+  .fn()
+  .mockResolvedValue({ ok: true, json: async () => ({}) });
 
 vi.mock("@/lib/api-client", () => ({
   api: {
     budgets: {
       $post: (...args: unknown[]) => mockBudgetsPost(...args),
       ":id": {
-        $patch: vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+        $patch: (...args: unknown[]) => mockBudgetsPatch(...args),
       },
     },
     onboarding: {
@@ -128,5 +131,56 @@ describe("WizardPage — deferred-create step machine", () => {
       name: "My Budget",
       kind: "PRIVATE",
     });
+  });
+
+  // Phase 7-09: cushion target months in StepFeatures + commit PATCH.
+  it("step 3 (Features): cushion target months input renders when cushion enabled", async () => {
+    render(<WizardPage locale="en" skipWelcome />);
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 1→2
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "My Budget" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 2→3
+    await waitFor(() => {
+      const input = document.getElementById("onboarding-cushion-target-months");
+      expect(input).not.toBeNull();
+    });
+    const input = document.getElementById(
+      "onboarding-cushion-target-months",
+    ) as HTMLInputElement;
+    expect(input.value).toBe("6");
+  });
+
+  it("commit: cushion_target_months included in PATCH when cushion enabled (default 6)", async () => {
+    render(<WizardPage locale="en" skipWelcome />);
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 1→2
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "My Budget" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 2→3
+    await waitFor(() => {
+      expect(
+        document.getElementById("onboarding-cushion-target-months"),
+      ).not.toBeNull();
+    });
+    // Change to 12 so we can assert the input flowed through.
+    const input = document.getElementById(
+      "onboarding-cushion-target-months",
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3→4
+    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
+    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockBudgetsPatch).toHaveBeenCalled());
+    const [patchArg] = mockBudgetsPatch.mock.calls[0] as [
+      { json: Record<string, unknown> },
+    ];
+    expect(patchArg.json).toMatchObject({ cushion_target_months: 12 });
   });
 });
