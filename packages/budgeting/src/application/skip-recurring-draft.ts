@@ -12,6 +12,12 @@ import {
   DraftNotFoundError,
   AlreadyConfirmedError,
 } from "./confirm-recurring-draft";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+
+export interface SkipRecurringDraftDeps {
+  /** Phase 7 (D-PH7-10): auto-resolve the CONFIRM_DRAFT task on skip. */
+  taskRepo?: TaskRepo;
+}
 
 export interface SkipRecurringDraftInput {
   tenantId: string;
@@ -19,7 +25,7 @@ export interface SkipRecurringDraftInput {
   actorUserId: string;
 }
 
-export function skipRecurringDraft(_deps: Record<string, unknown> = {}) {
+export function skipRecurringDraft(deps: SkipRecurringDraftDeps = {}) {
   return async (
     input: SkipRecurringDraftInput,
   ): Promise<Result<void, Error>> => {
@@ -58,6 +64,16 @@ export function skipRecurringDraft(_deps: Record<string, unknown> = {}) {
                updated_at = now()
          WHERE id = ${input.draftId}::uuid
       `);
+
+        // Phase 7 (D-PH7-10): resolve CONFIRM_DRAFT task when draft is skipped.
+        // Idempotent — no-op if no PENDING task exists for this draft.
+        if (deps.taskRepo) {
+          await deps.taskRepo.resolveConfirmDraftByDraftId(
+            input.tenantId,
+            input.draftId,
+            drizzleTx as TenantTx,
+          );
+        }
 
         await writeAudit(tx, {
           tenantId: TenantId(input.tenantId),

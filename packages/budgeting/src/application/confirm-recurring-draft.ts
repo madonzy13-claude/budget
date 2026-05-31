@@ -9,6 +9,12 @@
 import { type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+
+export interface ConfirmRecurringDraftDeps {
+  /** Phase 7 (D-PH7-09): auto-resolve the CONFIRM_DRAFT task on confirm. */
+  taskRepo?: TaskRepo;
+}
 
 export interface ConfirmRecurringDraftInput {
   tenantId: string;
@@ -32,7 +38,7 @@ export class DraftNotFoundError extends Error {
   }
 }
 
-export function confirmRecurringDraft(_deps: Record<string, unknown> = {}) {
+export function confirmRecurringDraft(deps: ConfirmRecurringDraftDeps = {}) {
   return async (
     input: ConfirmRecurringDraftInput,
   ): Promise<Result<{ ledgerId: string }, Error>> => {
@@ -75,6 +81,17 @@ export function confirmRecurringDraft(_deps: Record<string, unknown> = {}) {
                updated_at = now()
          WHERE id = ${input.draftId}::uuid
       `);
+
+        // Phase 7 (D-PH7-09): auto-resolve CONFIRM_DRAFT task in the same tx
+        // so the banner refreshes on next poll. Idempotent — no-op when no
+        // PENDING task exists for this draft (e.g. legacy draft pre-Phase-7).
+        if (deps.taskRepo) {
+          await deps.taskRepo.resolveConfirmDraftByDraftId(
+            input.tenantId,
+            input.draftId,
+            drizzleTx as TenantTx,
+          );
+        }
 
         await writeAudit(tx, {
           tenantId: TenantId(input.tenantId),
