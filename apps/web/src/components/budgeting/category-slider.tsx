@@ -171,6 +171,19 @@ export function CategorySlider({
     },
   });
 
+  // Phase 7-09 D-PH7-35..37: silent cushion-mirror. The drawer assumes
+  // cushion-follows-planned is the sensible default; it stays linked until
+  // the user explicitly types into the cushion field. There is no UI
+  // affordance — no chain icon, no relink button — per D-PH7-36.
+  //
+  // Initial linked = true when initial cushion is null / empty / equal to
+  // planned. Reopening the slider with new initial values re-evaluates it.
+  const [linked, setLinked] = useState<boolean>(() => {
+    const c = initial?.cushionCents;
+    const p = initial?.plannedCents;
+    return c == null || c === "" || String(c) === String(p);
+  });
+
   const { isSubmitting } = form.formState;
 
   // UAT Defect 3: RHF defaultValues only apply on first mount. When the slider
@@ -188,6 +201,12 @@ export function CategorySlider({
         iconKey: initial?.iconKey ?? null,
         colorKey: initial?.colorKey ?? null,
       });
+      // Phase 7-09 D-PH7-35: re-initialize linked from new initial values
+      // so reopening the drawer with equal planned/cushion restores the
+      // mirror behavior even after the previous session broke it.
+      const c = initial?.cushionCents;
+      const p = initial?.plannedCents;
+      setLinked(c == null || c === "" || String(c) === String(p));
     }
   }, [open, initial?.categoryId]);
 
@@ -368,7 +387,16 @@ export function CategorySlider({
                       <FormControl>
                         <AmountInput
                           value={field.value}
-                          onChange={field.onChange}
+                          onChange={(v) => {
+                            field.onChange(v);
+                            // Phase 7-09 D-PH7-35: silent mirror — when
+                            // linked, planned changes drive cushion too.
+                            if (linked) {
+                              form.setValue("cushionCents", v, {
+                                shouldValidate: true,
+                              });
+                            }
+                          }}
                           aria-invalid={!!form.formState.errors.plannedCents}
                           id="cat-slider-planned"
                         />
@@ -399,7 +427,13 @@ export function CategorySlider({
                         <FormControl>
                           <AmountInput
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(v) => {
+                              field.onChange(v);
+                              // Phase 7-09 D-PH7-36: typing cushion
+                              // silently breaks the link with no UI
+                              // affordance (no icon, no relink button).
+                              setLinked(false);
+                            }}
                             aria-invalid={!!form.formState.errors.cushionCents}
                             id="cat-slider-cushion"
                           />

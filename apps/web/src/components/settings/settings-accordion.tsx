@@ -27,6 +27,8 @@ export interface SettingsBudget {
   cushionModeEnabled: boolean;
   /** Master cushion feature flag — gates the lane everywhere. */
   cushionEnabled: boolean;
+  /** Phase 7-09: desired cushion runway in months. Default 6 server-side. */
+  cushionTargetMonths?: number;
   hasTransactions: boolean;
   currentUserRole: "owner" | "member";
 }
@@ -76,6 +78,8 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             budgetId={budget.id}
             cushionEnabled={budget.cushionEnabled}
             cushionModeEnabled={budget.cushionModeEnabled}
+            cushionTargetMonths={budget.cushionTargetMonths}
+            budgetCurrency={budget.defaultCurrency}
           />
         </AccordionContent>
       </AccordionItem>

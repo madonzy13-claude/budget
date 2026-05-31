@@ -47,6 +47,8 @@ interface WizardForm {
   kind: "PRIVATE" | "SHARED";
   cushionEnabled: boolean;
   reservesEnabled: boolean;
+  /** Phase 7-09: desired cushion runway in months. Default 6. */
+  cushionTargetMonths: number;
 }
 
 interface WizardPageProps {
@@ -104,6 +106,7 @@ export function WizardPage({
     kind: "PRIVATE",
     cushionEnabled: true,
     reservesEnabled: true,
+    cushionTargetMonths: 6,
   });
 
   // Update currency with locale guess on client-side mount.
@@ -149,9 +152,16 @@ export function WizardPage({
     const patchPayload: {
       cushion_enabled?: boolean;
       reserves_enabled?: boolean;
+      cushion_target_months?: number;
     } = {};
     if (!form.cushionEnabled) patchPayload.cushion_enabled = false;
     if (!form.reservesEnabled) patchPayload.reserves_enabled = false;
+    if (form.cushionEnabled) {
+      // Phase 7-09 (D-PH7-33): always send target months when cushion is
+      // enabled, so the server has truthy data even if the user kept the
+      // default. PATCH route is idempotent on equal values.
+      patchPayload.cushion_target_months = form.cushionTargetMonths;
+    }
     if (Object.keys(patchPayload).length > 0) {
       // The api-client middleware can't derive X-Budget-ID from the
       // /budgets/new URL — pass it explicitly so the tenant guard accepts
@@ -267,6 +277,10 @@ export function WizardPage({
             onChangeCushion={(v) => updateForm("cushionEnabled", v)}
             reservesEnabled={form.reservesEnabled}
             onChangeReserves={(v) => updateForm("reservesEnabled", v)}
+            cushionTargetMonths={form.cushionTargetMonths}
+            onChangeCushionTargetMonths={(v) =>
+              updateForm("cushionTargetMonths", v)
+            }
           />
         );
       case 4:

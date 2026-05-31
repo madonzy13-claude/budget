@@ -4,16 +4,23 @@
  * step-features.tsx — Step 3: Optional feature toggles.
  *
  * All copy via `onboarding.wizard.features.*`. Both feature flags
- * default ON in the parent wizard form.
+ * default ON in the parent wizard form. Phase 7-09: a months input
+ * (cushion_target_months, 1..60) renders below the cushion toggle
+ * when cushion is enabled. No new wizard step — the input lives in
+ * the same step as the cushion toggle, per D-PH7-34.
  */
 import { useTranslations } from "next-intl";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 
 interface StepFeaturesProps {
   cushionEnabled: boolean;
   onChangeCushion: (v: boolean) => void;
   reservesEnabled: boolean;
   onChangeReserves: (v: boolean) => void;
+  /** Phase 7-09: desired cushion runway in months. Default 6. */
+  cushionTargetMonths: number;
+  onChangeCushionTargetMonths: (v: number) => void;
 }
 
 interface FeatureRowProps {
@@ -61,8 +68,14 @@ export function StepFeatures({
   onChangeCushion,
   reservesEnabled,
   onChangeReserves,
+  cushionTargetMonths,
+  onChangeCushionTargetMonths,
 }: StepFeaturesProps) {
   const t = useTranslations("onboarding.wizard.features");
+  const monthsInvalid =
+    !Number.isInteger(cushionTargetMonths) ||
+    cushionTargetMonths < 1 ||
+    cushionTargetMonths > 60;
   return (
     <div className="space-y-5">
       <div>
@@ -83,6 +96,35 @@ export function StepFeatures({
           checked={cushionEnabled}
           onChange={onChangeCushion}
         />
+        {cushionEnabled && (
+          <div className="flex items-center gap-3 ml-4">
+            <label
+              htmlFor="onboarding-cushion-target-months"
+              className="text-sm text-[var(--body-on-dark)]"
+            >
+              {t("targetMonthsLabel")}
+            </label>
+            <Input
+              id="onboarding-cushion-target-months"
+              type="number"
+              min={1}
+              max={60}
+              step={1}
+              value={cushionTargetMonths}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                onChangeCushionTargetMonths(Number.isNaN(v) ? 0 : v);
+              }}
+              aria-invalid={monthsInvalid ? "true" : undefined}
+              className="w-24"
+            />
+            {monthsInvalid && (
+              <span className="text-xs text-[var(--trading-down)]">
+                {t("targetMonthsError")}
+              </span>
+            )}
+          </div>
+        )}
         <FeatureRow
           id="wizard-feat-reserves"
           testId="wizard-feature-reserves"
