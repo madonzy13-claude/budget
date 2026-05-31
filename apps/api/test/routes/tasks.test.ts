@@ -139,11 +139,15 @@ async function buildApp(opts: { userId: string; allowedTenantIds: string[] }) {
     await import("@budget/budgeting/src/adapters/persistence/task-repo");
   const { listPendingTasks } =
     await import("@budget/budgeting/src/application/list-pending-tasks");
+  // Plan 07-07: POST /:taskId/resolve wiring.
+  const { resolveTask } =
+    await import("@budget/budgeting/src/application/resolve-task");
 
   const taskRepo = createTaskRepo();
   const deps = {
     budgeting: {
       listPendingTasks: listPendingTasks({ taskRepo }),
+      resolveTask: resolveTask({ taskRepo }),
     },
   } as any;
 
@@ -314,5 +318,137 @@ describe("GET /budgets/:budgetId/tasks", () => {
       `/budgets/${fixB.budgetId}/tasks?status=pending`,
     );
     expect(res.status).toBe(404);
+  });
+});
+
+/**
+ * Plan 07-07 (D-PH7-09): POST /budgets/:budgetId/tasks/:taskId/resolve.
+ *
+ * Tests the banner action used by the web Tasks queue. Idempotent at the
+ * adapter (WHERE status='PENDING' AND tenant_id=?) — repeats and cross-tenant
+ * calls silently no-op.
+ */
+describe("POST /budgets/:budgetId/tasks/:taskId/resolve", () => {
+  let fix: Fixture;
+  let fixOther: Fixture;
+
+  beforeAll(async () => {
+    fix = await createFixture();
+    fixOther = await createFixture();
+  });
+
+  async function fetchTaskStatus(
+    taskId: string,
+    budgetId: string,
+  ): Promise<string> {
+    const pool = new Pool({ connectionString: DB_URL });
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
+      );
+      const res = await client.query(
+        `SELECT status FROM budgeting.tasks WHERE id = $1::uuid`,
+        [taskId],
+      );
+      return res.rows[0]?.status ?? "MISSING";
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  }
+
+  it("resolves a PENDING task → 200 {ok:true}; DB row flips to RESOLVED", async () => {
+    const taskId = await seedTask({
+      budgetId: fix.budgetId,
+      kind: "RESERVE_TOPUP",
+    });
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean };
+    expect(body.ok).toBe(true);
+    expect(await fetchTaskStatus(taskId, fix.budgetId)).toBe("RESOLVED");
+  });
+
+  it("is idempotent — POST resolve on already-RESOLVED task still returns 200", async () => {
+    const taskId = await seedTask({
+      budgetId: fix.budgetId,
+      kind: "CONFIRM_DRAFT",
+      status: "RESOLVED",
+    });
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(200);
+    // Status unchanged — RESOLVED rows don't move.
+    expect(await fetchTaskStatus(taskId, fix.budgetId)).toBe("RESOLVED");
+  });
+
+  it("returns 401 when no session", async () => {
+    const taskId = await seedTask({
+      budgetId: fix.budgetId,
+      kind: "RESERVE_TOPUP",
+    });
+    // Build app WITHOUT the session middleware.
+    const { createTasksRoute } = await import("../../src/routes/tasks");
+    const { createTaskRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/task-repo");
+    const { resolveTask } =
+      await import("@budget/budgeting/src/application/resolve-task");
+    const taskRepo = createTaskRepo();
+    const deps = {
+      budgeting: { resolveTask: resolveTask({ taskRepo }) },
+    } as any;
+    const noAuthApp = new Hono();
+    noAuthApp.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
+    const res = await noAuthApp.request(
+      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when budgetId is not in caller's tenantIds (cross-tenant)", async () => {
+    const taskId = await seedTask({
+      budgetId: fix.budgetId,
+      kind: "RESERVE_TOPUP",
+    });
+    // App scoped to fixOther's tenantIds — caller has no access to fix.budgetId.
+    const app = await buildApp({
+      userId: fixOther.userId,
+      allowedTenantIds: [fixOther.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(404);
+    // Task remains PENDING — layer 1 rejected before adapter ran.
+    expect(await fetchTaskStatus(taskId, fix.budgetId)).toBe("PENDING");
+  });
+
+  it("rejects non-UUID taskId via zValidator → 400", async () => {
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/tasks/not-a-uuid/resolve`,
+      { method: "POST" },
+    );
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
   });
 });
