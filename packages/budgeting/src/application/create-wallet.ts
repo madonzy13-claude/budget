@@ -7,9 +7,18 @@ import { Money } from "@budget/shared-kernel";
 import type { WalletRepo } from "../ports/wallet-repo";
 import { Wallet, type WalletType } from "../domain/wallet";
 import type { WalletDto, CreateWalletInput } from "../contracts/api";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import { recomputeCushionTask } from "./recompute-cushion-task";
+import type { FxProviderLike } from "./recurring-engine-fx";
 
 export interface CreateWalletDeps {
   repo: WalletRepo;
+  /** Phase 7 (D-PH7-19): when provided alongside fxProvider, recompute the
+   *  CUSHION_BELOW_TARGET task in a follow-up tx after a new CUSHION wallet
+   *  lands. Optional so legacy callers (tests, alternate boot paths) keep
+   *  compiling. */
+  taskRepo?: TaskRepo;
+  fxProvider?: FxProviderLike;
 }
 
 export interface CreateWalletFullInput extends CreateWalletInput {
@@ -67,6 +76,33 @@ export function createWallet(deps: CreateWalletDeps) {
       await deps.repo.create(wallet);
     } catch (e) {
       return err(e as Error);
+    }
+
+    // Phase 7 (D-PH7-19): CUSHION_BELOW_TARGET recompute hook.
+    // Gate on the new wallet being CUSHION-type — adding a cushion wallet
+    // bumps the actual cushion amount and may resolve an open shortfall task.
+    // A2 fallback: separate withTenantTx after the wallet write lands.
+    if (input.walletType === "CUSHION" && deps.taskRepo && deps.fxProvider) {
+      const taskRepo = deps.taskRepo;
+      const fxProvider = deps.fxProvider;
+      const recomputeR = await withTenantTx(
+        TenantId(input.tenantId),
+        UserId(input.actorUserId),
+        async (tx) => {
+          await recomputeCushionTask(
+            tx as unknown as TenantTx,
+            { tenantId: input.tenantId, budgetId: input.tenantId },
+            { taskRepo, fxProvider },
+          );
+        },
+      );
+      // Don't fail the create on a recompute glitch — surface via log instead.
+      if (recomputeR.isErr()) {
+        console.error(
+          "[create-wallet] cushion recompute failed:",
+          recomputeR.error,
+        );
+      }
     }
 
     return ok({

@@ -1,11 +1,17 @@
-import { getBoss, stopBoss, workerPool } from "@budget/platform";
+import { getBoss, stopBoss, workerPool, withInfraTx } from "@budget/platform";
+import { sql } from "drizzle-orm";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
 import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { registerRecurringEngine } from "./handlers/recurring-engine";
 import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
+import type { BudgetingReconciliationSweepDeps } from "./handlers/budgeting-reconciliation";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
+import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
+import { createReserveBalanceRepo } from "@budget/budgeting/src/adapters/persistence/reserve-balance-repo";
+import { DrizzleReservesSummaryRepo } from "@budget/budgeting/src/adapters/persistence/reserves-summary-repo";
+import { DrizzleCategoriesRepo } from "@budget/budgeting/src/adapters/persistence/categories-repo";
 
 async function main() {
   const boss = await getBoss();
@@ -50,10 +56,60 @@ async function main() {
   );
 
   // Budgeting reconciliation — hourly drift check on spending_by_category_month (Plan 02-09)
+  // Phase 7 (D-PH7-04 / D-PH7-19): also runs the RESERVE_TOPUP + CUSHION
+  // sweep per tenant to catch inline-emit misses (FX drift, manual edits,
+  // unhooked mutation paths) within ≤60 minutes.
+  const taskRepo = createTaskRepo();
+  const categoriesRepo = new DrizzleCategoriesRepo();
+  const reserveBalanceRepo = createReserveBalanceRepo();
+  const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
+  const budgetCurrencyOf = async (tenantId: string): Promise<string> => {
+    const r = await withInfraTx(async (tx) => {
+      const dz = tx as {
+        execute: (
+          q: unknown,
+        ) => Promise<{ rows: Array<{ default_currency: string }> }>;
+      };
+      const rs = await dz.execute(
+        sql`SELECT default_currency FROM tenancy.budgets WHERE id = ${tenantId}::uuid LIMIT 1`,
+      );
+      return rs.rows[0]?.default_currency ?? "EUR";
+    });
+    return r.isOk() ? r.value : "EUR";
+  };
+  const isReservesEnabled = async (tenantId: string): Promise<boolean> => {
+    const r = await withInfraTx(async (tx) => {
+      const dz = tx as {
+        execute: (
+          q: unknown,
+        ) => Promise<{ rows: Array<{ reserves_enabled: boolean }> }>;
+      };
+      const rs = await dz.execute(
+        sql`SELECT reserves_enabled FROM tenancy.budgets WHERE id = ${tenantId}::uuid LIMIT 1`,
+      );
+      return rs.rows[0]?.reserves_enabled ?? true;
+    });
+    return r.isOk() ? r.value : true;
+  };
+  const reconciliationSweepDeps: BudgetingReconciliationSweepDeps = {
+    reserveTopup: {
+      taskRepo,
+      categoriesRepo,
+      reserveBalanceRepo,
+      reservesSummaryRepo,
+      budgetCurrencyOf,
+      isReservesEnabled,
+    },
+    cushion: {
+      taskRepo,
+      fxProvider,
+    },
+  };
   await boss.createQueue("budgeting-reconciliation");
   await boss.schedule("budgeting-reconciliation", "0 * * * *"); // UTC hourly, 5-placeholder format
   registerBudgetingReconciliation(
     boss as unknown as Parameters<typeof registerBudgetingReconciliation>[0],
+    reconciliationSweepDeps,
   );
 
   console.log(

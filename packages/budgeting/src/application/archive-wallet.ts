@@ -16,11 +16,16 @@
  * archive non-reserve wallets keep working.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
 import type { WalletRepo } from "../ports/wallet-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
 import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
 import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import { recomputeCushionTask } from "./recompute-cushion-task";
+import type { FxProviderLike } from "./recurring-engine-fx";
 
 export interface ArchiveWalletDeps {
   repo: WalletRepo;
@@ -28,6 +33,12 @@ export interface ArchiveWalletDeps {
   categoriesRepo?: CategoriesRepo;
   reserveBalanceRepo?: ReserveBalanceRepo;
   reservesSummaryRepo?: ReservesSummaryRepo;
+  /** Phase 7 (D-PH7-19): when provided alongside fxProvider, recompute the
+   *  CUSHION_BELOW_TARGET task in a follow-up tx after a CUSHION wallet is
+   *  archived (removes its balance from the cushion pool). Optional so
+   *  legacy callers keep compiling. */
+  taskRepo?: TaskRepo;
+  fxProvider?: FxProviderLike;
 }
 
 export function archiveWallet(deps: ArchiveWalletDeps) {
@@ -116,6 +127,34 @@ export function archiveWallet(deps: ArchiveWalletDeps) {
         input.walletId,
         input.actorUserId,
       );
+
+      // Phase 7 (D-PH7-19): CUSHION_BELOW_TARGET recompute hook.
+      // Gate on the PRE-archive wallet type — archiving a CUSHION wallet
+      // removes its balance from the cushion pool sum (cushion summary
+      // filters `archived_at IS NULL`), so shortfall can grow and an open
+      // task may need to emit (or vice versa). A2 fallback: separate
+      // withTenantTx after the archive write lands.
+      if (wallet.walletType === "CUSHION" && deps.taskRepo && deps.fxProvider) {
+        const taskRepo = deps.taskRepo;
+        const fxProvider = deps.fxProvider;
+        const recomputeR = await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeCushionTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.tenantId },
+              { taskRepo, fxProvider },
+            );
+          },
+        );
+        if (recomputeR.isErr()) {
+          console.error(
+            "[archive-wallet] cushion recompute failed:",
+            recomputeR.error,
+          );
+        }
+      }
 
       return ok({
         id: input.walletId,

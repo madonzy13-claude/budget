@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./src/handlers/recurring-engine": "./src/handlers/recurring-engine.ts"
+    "./src/handlers/recurring-engine": "./src/handlers/recurring-engine.ts",
+    "./src/handlers/budgeting-reconciliation": "./src/handlers/budgeting-reconciliation.ts"
   },
   "scripts": {
     "start": "bun run src/worker.ts",
