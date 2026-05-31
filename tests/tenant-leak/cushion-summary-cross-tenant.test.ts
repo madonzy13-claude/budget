@@ -149,12 +149,12 @@ describe("GET /budgets/:id/cushion-summary tenant isolation", () => {
     expect(r.isOk()).toBe(true);
     if (r.isOk()) {
       expect(r.value.enabled).toBe(true);
-      // 500.00 EUR cushion × 6 months = 3000.00 EUR required.
-      expect(r.value.required_cents).toBe("3000000");
-      // 100.00 EUR wallet = 10000 cents actual.
+      // cushion_amount = 50000 cents (500.00 EUR) × 6 months = 300000 cents required.
+      expect(r.value.required_cents).toBe("300000");
+      // CUSHION wallet 100.00 EUR = 10000 cents actual.
       expect(r.value.actual_cents).toBe("10000");
-      // Shortfall = 3000.00 − 100.00 = 2900.00.
-      expect(r.value.shortfall_cents).toBe("2990000");
+      // Shortfall = 300000 − 10000 = 290000 cents.
+      expect(r.value.shortfall_cents).toBe("290000");
       expect(r.value.currency).toBe("EUR");
       expect(r.value.target_months).toBe(6);
     }
