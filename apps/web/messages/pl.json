@@ -156,7 +156,13 @@
       "feature_on_toast": "Poduszka włączona",
       "feature_off_toast": "Poduszka wyłączona — ukryta wszędzie",
       "mode_label": "Tryb poduszki",
-      "mode_help_text": "Przełącz bieżący miesiąc na ściślejszy budżet poduszki. W każdej chwili można cofnąć."
+      "mode_help_text": "Przełącz bieżący miesiąc na ściślejszy budżet poduszki. W każdej chwili można cofnąć.",
+      "targetMonthsLabel": "Docelowe miesiące",
+      "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
+      "saved": "Cel poduszki zapisany",
+      "preview": "Masz {actual} z {required} — brakuje {shortfall}",
+      "previewMet": "Masz {actual} z {required} — cel osiągnięty",
+      "previewError": "Nie udało się załadować podsumowania poduszki."
     },
     "recurring": {
       "add_rule": "Dodaj regułę",

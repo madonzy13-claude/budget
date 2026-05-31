@@ -190,7 +190,7 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
     });
     renderCushionSection();
     const preview = document.getElementById("cushion-preview");
-    expect(preview?.textContent).toMatch(/settings\.cushion\.preview/);
+    expect(preview?.textContent).toMatch(/cushion\.preview/);
     expect(preview?.innerHTML).toContain("trading-down");
   });
 
@@ -209,7 +209,7 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
     });
     renderCushionSection();
     const preview = document.getElementById("cushion-preview");
-    expect(preview?.textContent).toMatch(/settings\.cushion\.previewMet/);
+    expect(preview?.textContent).toMatch(/cushion\.previewMet/);
     expect(preview?.innerHTML).toContain("trading-up");
   });
 
@@ -221,6 +221,6 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
     });
     renderCushionSection();
     const preview = document.getElementById("cushion-preview");
-    expect(preview?.textContent).toMatch(/settings\.cushion\.previewError/);
+    expect(preview?.textContent).toMatch(/cushion\.previewError/);
   });
 });

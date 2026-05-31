@@ -156,7 +156,13 @@
       "feature_on_toast": "Cushion enabled",
       "feature_off_toast": "Cushion disabled — lane hidden everywhere",
       "mode_label": "Cushion mode",
-      "mode_help_text": "Switch the current month to the tighter cushion budget. Reversible at any time."
+      "mode_help_text": "Switch the current month to the tighter cushion budget. Reversible at any time.",
+      "targetMonthsLabel": "Target months",
+      "targetMonthsError": "Months must be a whole number between 1 and 60.",
+      "saved": "Cushion target saved",
+      "preview": "Have {actual} of {required} — short by {shortfall}",
+      "previewMet": "Have {actual} of {required} — target met",
+      "previewError": "Could not load cushion summary."
     },
     "recurring": {
       "add_rule": "Add rule",
