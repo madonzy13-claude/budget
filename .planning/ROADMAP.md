@@ -190,7 +190,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 07-07-PLAN.md — Wave 3: API routes — POST /budgets/:id/tasks/:taskId/resolve + GET /budgets/:id/cushion-summary + PATCH /budgets/:id extended with cushion_target_months Zod 1..60 + recompute trigger + tenant-leak gate extension (8 files total) (TASK-06, TASK-07)
 - [x] 07-08-PLAN.md — Wave 3: Frontend — TaskBannerRow enable action buttons per kind (router.push + clientApiFetch) + ReservesTableRow pending-task indicator (PencilLine icon) + EN/PL/UK i18n keys per UI-SPEC § Copywriting Contract + Vitest tests (TASK-07, TASK-08)
 - [x] 07-09-PLAN.md — Wave 3: Frontend — Settings cushion-section months input + live preview line (cushion-summary fetch) + Onboarding wizard cushion step months input + CategorySlider silent cushion-mirror via linked useState + Vitest tests (TASK-04)
-- [ ] 07-10-PLAN.md — Wave 4 (autonomous=false): E2E task-banner.feature rewrite for 3 kinds (@phase7) + Page Object extensions (BdpPage/ReservesPage/WalletsPage/SettingsPage) + final gate sweep (make test + ci-gate + Vitest + test-e2e) + human UAT (all TASK)
+- [x] 07-10-PLAN.md — Wave 4 (autonomous=false): E2E task-banner.feature rewrite for 3 kinds (@phase7) + Page Object extensions (BdpPage/ReservesPage/WalletsPage/SettingsPage) + final gate sweep (make test + ci-gate + Vitest + test-e2e) + human UAT (all TASK)
 
 **UI hint**: yes
 
