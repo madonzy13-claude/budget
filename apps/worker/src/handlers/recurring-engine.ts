@@ -40,6 +40,8 @@ import {
   computeRecurringFx,
   type FxProviderLike,
 } from "@budget/budgeting/src/application/recurring-engine-fx";
+import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
+import type { TaskRepo, TenantTx } from "@budget/budgeting/src/ports/task-repo";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -74,6 +76,12 @@ function toDateString(d: string | Date): string {
 export interface RunRecurringEngineOpts {
   todayOverride?: string;
   fxProvider?: FxProviderLike;
+  /**
+   * Phase 7 (D-PH7-08): emit CONFIRM_DRAFT on freshly-inserted drafts inline.
+   * Default factory used when caller omits — keeps backward compat for
+   * direct-call tests written pre-Phase-7.
+   */
+  taskRepo?: TaskRepo;
 }
 
 /** Core engine logic — exported for direct testing. */
@@ -88,6 +96,7 @@ export async function runRecurringEngine(
   const todayDate = Temporal.PlainDate.from(today);
   const fxProvider: FxProviderLike =
     normalized.fxProvider ?? new InMemoryFxProvider();
+  const taskRepo: TaskRepo = normalized.taskRepo ?? createTaskRepo();
 
   // Step 1: collect distinct tenants with due rules (worker_role, no RLS needed for scan)
   const tenantsResult = await withInfraTx(async (tx) => {
@@ -199,6 +208,31 @@ export async function runRecurringEngine(
                   dueDate: dueDateStr,
                 },
               });
+
+              // Phase 7 (D-PH7-08): emit CONFIRM_DRAFT task in same tx (ON
+              // CONFLICT DO NOTHING). The dedup index on
+              // (payload_json->>'draft_id') means a second emit for the same
+              // draft is a no-op even under concurrent recurring-engine runs.
+              // Pitfall 3: gated by `insertResult.rows.length > 0` so a row
+              // that hit ON CONFLICT in expense_ledger does NOT trigger emit.
+              //
+              // Live schema deviation: recurring_rules has no `name` column;
+              // `note` is the closest user-facing label (e.g. "Rent"). Empty
+              // string fallback for rules without a note.
+              await taskRepo.emitConfirmDraft(
+                tenant_id,
+                tenant_id,
+                {
+                  draft_id: draftId,
+                  rule_name: rule.note ?? "",
+                  amount_cents: amountOriginalCents,
+                  currency: rule.currency,
+                  transaction_date: dueDateStr,
+                  category_id: categoryId ?? "",
+                },
+                tx as unknown as TenantTx,
+              );
+
               draftsGenerated++;
             }
 
