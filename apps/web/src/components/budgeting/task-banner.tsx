@@ -132,6 +132,18 @@ export function TaskBanner({
               task={task}
               budgetId={budgetId}
               locale={locale}
+              onResolved={(taskId) => {
+                // Plan 07-08 D-PH7-25: optimistic row collapse for CONFIRM_DRAFT —
+                // remove the task from local query cache immediately, then ask the
+                // server for the canonical PENDING list on the next refetch.
+                queryClient.setQueryData<TaskSummary[]>(
+                  ["tasks", budgetId, "pending"],
+                  (prev) => (prev ?? []).filter((t) => t.id !== taskId),
+                );
+                queryClient.invalidateQueries({
+                  queryKey: ["tasks", budgetId, "pending"],
+                });
+              }}
             />
           ))}
         </div>

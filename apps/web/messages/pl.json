@@ -156,7 +156,13 @@
       "feature_on_toast": "Poduszka włączona",
       "feature_off_toast": "Poduszka wyłączona — ukryta wszędzie",
       "mode_label": "Tryb poduszki",
-      "mode_help_text": "Przełącz bieżący miesiąc na ściślejszy budżet poduszki. W każdej chwili można cofnąć."
+      "mode_help_text": "Przełącz bieżący miesiąc na ściślejszy budżet poduszki. W każdej chwili można cofnąć.",
+      "targetMonthsLabel": "Cel poduszki (miesiące)",
+      "targetMonthsError": "Wprowadź liczbę całkowitą od 1 do 60.",
+      "preview": "Aktualnie: {actual} / {required} (−{shortfall})",
+      "previewMet": "Aktualnie: {actual} / {required} — cel osiągnięty",
+      "previewError": "Nie udało się załadować podsumowania poduszki.",
+      "saved": "Cel poduszki zapisany."
     },
     "recurring": {
       "add_rule": "Dodaj regułę",
@@ -385,6 +391,10 @@
     "skip": "Pomiń",
     "resume_heading": "Witaj ponownie — kontynuuj tam, gdzie skończyłeś",
     "network_error": "Coś poszło nie tak — spróbuj ponownie",
+    "cushion": {
+      "targetMonthsLabel": "Cel poduszki (miesiące)",
+      "targetMonthsError": "Wprowadź liczbę całkowitą od 1 do 60."
+    },
     "wizard": {
       "stepper": {
         "basics": "Podstawy",
@@ -785,6 +795,11 @@
       "cta": "Utwórz pierwszy budżet"
     }
   },
+  "reserves": {
+    "actions": {
+      "editBalance": "Edytuj saldo rezerwy"
+    }
+  },
   "bdp": {
     "tab": {
       "aria": "Zakładki szczegółów budżetu",
@@ -931,7 +946,28 @@
         }
       },
       "count": "{count, plural, one {# zadanie oczekujące} few {# zadania oczekujące} many {# zadań oczekujących} other {# zadań oczekujących}}",
-      "actionComingSoon": "Wkrótce w fazie 7"
+      "title": {
+        "RESERVE_TOPUP": "Uzupełnij rezerwę o {amount}",
+        "CONFIRM_DRAFT": "Potwierdź {ruleName} — {amount}",
+        "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki"
+      },
+      "kind": {
+        "RESERVE_TOPUP": "Rezerwa",
+        "CONFIRM_DRAFT": "Szkic",
+        "CUSHION_BELOW_TARGET": "Poduszka"
+      },
+      "action": {
+        "RESERVE_TOPUP": {
+          "label": "Wyrównaj rezerwę",
+          "ariaLabel": "Przejdź do Rezerw, aby wyrównać"
+        },
+        "CONFIRM_DRAFT": { "label": "Potwierdź szkic" },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Uzupełnij poduszkę",
+          "ariaLabel": "Przejdź do Portfeli, aby uzupełnić poduszkę"
+        }
+      },
+      "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie."
     }
   },
   "grid": {

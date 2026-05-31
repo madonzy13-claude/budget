@@ -194,6 +194,17 @@ export function ReservesTableClient({
             </span>
           </div>
           {activeRows.map((r) => (
+            // Plan 07-08 D-PH7-26: ReservesTableRow now accepts an optional
+            // `pendingTaskId` prop that renders a PencilLine indicator inline
+            // with the category name. The full parent wiring (read pending
+            // RESERVE_TOPUP tasks from the tasks query and pass the task id
+            // here when this budget has one in flight) is deferred to a
+            // follow-up alongside the deep-link landing UX so we wire the
+            // query once for the read side. Row contract ships in 07-08.
+            // TODO(07-08-followup): subscribe to ["tasks", budgetId, "pending"]
+            //                       and pass `pendingTaskId` for the matching
+            //                       RESERVE_TOPUP task (budget-level — mark
+            //                       every active reserve row when present).
             <ReservesTableRow
               key={r.categoryId}
               row={r}

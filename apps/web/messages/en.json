@@ -156,7 +156,13 @@
       "feature_on_toast": "Cushion enabled",
       "feature_off_toast": "Cushion disabled — lane hidden everywhere",
       "mode_label": "Cushion mode",
-      "mode_help_text": "Switch the current month to the tighter cushion budget. Reversible at any time."
+      "mode_help_text": "Switch the current month to the tighter cushion budget. Reversible at any time.",
+      "targetMonthsLabel": "Cushion target (months)",
+      "targetMonthsError": "Enter a whole number between 1 and 60.",
+      "preview": "Current: {actual} / {required} (−{shortfall})",
+      "previewMet": "Current: {actual} / {required} — target met",
+      "previewError": "Could not load cushion summary.",
+      "saved": "Cushion target saved."
     },
     "recurring": {
       "add_rule": "Add rule",
@@ -385,6 +391,10 @@
     "skip": "Skip",
     "resume_heading": "Welcome back — continue where you left off",
     "network_error": "Something went wrong — try again",
+    "cushion": {
+      "targetMonthsLabel": "Cushion target (months)",
+      "targetMonthsError": "Enter a whole number between 1 and 60."
+    },
     "wizard": {
       "stepper": {
         "basics": "Basics",
@@ -760,6 +770,11 @@
       "save": "Switch mode"
     }
   },
+  "reserves": {
+    "actions": {
+      "editBalance": "Edit reserve balance"
+    }
+  },
   "bdp": {
     "tab": {
       "aria": "Budget detail tabs",
@@ -900,7 +915,28 @@
         "collapse": { "aria": "Hide pending tasks" }
       },
       "count": "{count, plural, one {# task pending} other {# tasks pending}}",
-      "actionComingSoon": "Coming in Phase 7"
+      "title": {
+        "RESERVE_TOPUP": "Top up reserve by {amount}",
+        "CONFIRM_DRAFT": "Confirm {ruleName} — {amount}",
+        "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}"
+      },
+      "kind": {
+        "RESERVE_TOPUP": "Reserve",
+        "CONFIRM_DRAFT": "Draft",
+        "CUSHION_BELOW_TARGET": "Cushion"
+      },
+      "action": {
+        "RESERVE_TOPUP": {
+          "label": "Fix reserve",
+          "ariaLabel": "Go to Reserves to fix top-up"
+        },
+        "CONFIRM_DRAFT": { "label": "Confirm draft" },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Top up cushion",
+          "ariaLabel": "Go to Wallets to top up cushion"
+        }
+      },
+      "confirmError": "Could not confirm draft. Try again."
     }
   },
   "grid": {

@@ -156,7 +156,13 @@
       "feature_on_toast": "Подушку ввімкнено",
       "feature_off_toast": "Подушку вимкнено — приховано всюди",
       "mode_label": "Режим подушки",
-      "mode_help_text": "Перемкніть поточний місяць на жорсткіший бюджет подушки. Можна скасувати в будь-який момент."
+      "mode_help_text": "Перемкніть поточний місяць на жорсткіший бюджет подушки. Можна скасувати в будь-який момент.",
+      "targetMonthsLabel": "Ціль подушки (місяці)",
+      "targetMonthsError": "Введіть ціле число від 1 до 60.",
+      "preview": "Поточно: {actual} / {required} (−{shortfall})",
+      "previewMet": "Поточно: {actual} / {required} — ціль досягнута",
+      "previewError": "Не вдалося завантажити підсумок подушки.",
+      "saved": "Ціль подушки збережено."
     },
     "recurring": {
       "add_rule": "Додати правило",
@@ -385,6 +391,10 @@
     "skip": "Пропустити",
     "resume_heading": "З поверненням — продовжте з того місця, де зупинились",
     "network_error": "Щось пішло не так — спробуйте ще раз",
+    "cushion": {
+      "targetMonthsLabel": "Ціль подушки (місяці)",
+      "targetMonthsError": "Введіть ціле число від 1 до 60."
+    },
     "wizard": {
       "stepper": {
         "basics": "Основи",
@@ -785,6 +795,11 @@
       "cta": "Створити перший бюджет"
     }
   },
+  "reserves": {
+    "actions": {
+      "editBalance": "Редагувати баланс резерву"
+    }
+  },
   "bdp": {
     "tab": {
       "aria": "Вкладки деталей бюджету",
@@ -931,7 +946,28 @@
         }
       },
       "count": "{count, plural, one {# завдання очікує} few {# завдання очікують} many {# завдань очікують} other {# завдань очікують}}",
-      "actionComingSoon": "Скоро у фазі 7"
+      "title": {
+        "RESERVE_TOPUP": "Поповніть резерв на {amount}",
+        "CONFIRM_DRAFT": "Підтвердьте {ruleName} — {amount}",
+        "CUSHION_BELOW_TARGET": "Подушці бракує {shortfall}"
+      },
+      "kind": {
+        "RESERVE_TOPUP": "Резерв",
+        "CONFIRM_DRAFT": "Чернетка",
+        "CUSHION_BELOW_TARGET": "Подушка"
+      },
+      "action": {
+        "RESERVE_TOPUP": {
+          "label": "Виправити резерв",
+          "ariaLabel": "Перейти до Резервів, щоб виправити"
+        },
+        "CONFIRM_DRAFT": { "label": "Підтвердити чернетку" },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Поповнити подушку",
+          "ariaLabel": "Перейти до Гаманців, щоб поповнити подушку"
+        }
+      },
+      "confirmError": "Не вдалося підтвердити чернетку. Спробуйте знову."
     }
   },
   "grid": {

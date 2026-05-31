@@ -21,6 +21,9 @@
 import * as React from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useTranslations } from "next-intl";
+// Plan 07-08 D-PH7-26: PencilLine indicator for rows that contribute to a
+// pending RESERVE_TOPUP task.
+import { PencilLine } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { Input } from "@/components/ui/input";
@@ -34,6 +37,14 @@ export interface ReservesTableRowProps {
   onUpdate: (newCents: bigint) => Promise<void>;
   /** UAT-PH5-T3-55: invoked when the mobile swipe-action button is tapped. */
   onSwipeAction?: () => void;
+  /**
+   * Plan 07-08 D-PH7-26: when a PENDING RESERVE_TOPUP task references this
+   * budget, the parent passes the task id here so the row renders a PencilLine
+   * indicator next to the category name. Clicking it triggers the existing
+   * inline reserve-balance edit cell (no new modal). The icon is hidden when
+   * the prop is undefined to preserve the Phase 5 layout.
+   */
+  pendingTaskId?: string;
 }
 
 export function ReservesTableRow({
@@ -41,8 +52,22 @@ export function ReservesTableRow({
   isExcluded,
   onUpdate,
   onSwipeAction,
+  pendingTaskId,
 }: ReservesTableRowProps) {
   const t = useTranslations("bdp.tab.reserves.row");
+  // Plan 07-08: separate top-level `reserves` namespace for the indicator's
+  // aria-label (key `reserves.actions.editBalance`).
+  const tRoot = useTranslations();
+  // Plan 07-08: imperative path into the InlineEditCell — happy-dom + jsdom
+  // both honor HTMLElement.click(), so we look up the cell by data-testid
+  // (already wired in the existing InlineEditCell render) and dispatch.
+  const handleEditPenClick = React.useCallback(() => {
+    if (typeof document === "undefined") return;
+    const cell = document.querySelector<HTMLElement>(
+      `[data-testid="reserves-balance-${row.categoryId}"]`,
+    );
+    cell?.click();
+  }, [row.categoryId]);
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: row.categoryId,
@@ -230,9 +255,29 @@ export function ReservesTableRow({
           attributes={attributes}
         />
 
-        {/* Category name — plain JSX, React auto-escapes (T-05-10) */}
+        {/* Category name — plain JSX, React auto-escapes (T-05-10).
+            Plan 07-08 D-PH7-26: when this row contributes to a pending
+            RESERVE_TOPUP task, render a PencilLine icon inline that triggers
+            the existing balance inline-edit cell. The icon is absent (no DOM
+            node) when pendingTaskId is undefined to preserve the Phase 5
+            layout. */}
         <div className="min-w-0 flex-1 truncate text-sm text-[var(--foreground)]">
-          {row.name}
+          <span className="inline-flex items-center gap-2">
+            <span className="truncate">{row.name}</span>
+            {pendingTaskId ? (
+              <button
+                type="button"
+                data-no-swipe
+                data-pending-task-id={pendingTaskId}
+                data-testid={`reserves-pending-edit-${row.categoryId}`}
+                onClick={handleEditPenClick}
+                aria-label={tRoot("reserves.actions.editBalance")}
+                className="inline-flex h-6 w-6 items-center justify-center rounded text-[var(--muted)] hover:text-[var(--body-on-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--info-ring)]"
+              >
+                <PencilLine className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </span>
         </div>
 
         {/* Excluded rows render name-only (UAT-PH5-T3-55) — no balance, no share. */}
