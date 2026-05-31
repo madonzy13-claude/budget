@@ -23,6 +23,10 @@ import { createBudgetHomeSummaryRepo } from "@budget/budgeting/src/adapters/pers
 import { getBudgetHomeSummary } from "@budget/budgeting/src/application/get-budget-home-summary";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
 import { listPendingTasks } from "@budget/budgeting/src/application/list-pending-tasks";
+import { resolveTask } from "@budget/budgeting/src/application/resolve-task";
+import { getCushionSummary } from "@budget/budgeting/src/application/get-cushion-summary";
+import { recomputeCushionTask } from "@budget/budgeting/src/application/recompute-cushion-task";
+import { withTenantTx } from "@budget/platform";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
 import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
 import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
@@ -33,7 +37,7 @@ import { reorderCategories } from "@budget/budgeting/src/application/reorder-cat
 import { dismissDraft } from "@budget/budgeting/src/application/dismiss-draft";
 import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
 import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
-import { UserId } from "@budget/shared-kernel";
+import { TenantId, UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
 
 export interface BootedDeps {
@@ -53,6 +57,20 @@ export interface BootedDeps {
     getBudgetHomeSummary: ReturnType<typeof getBudgetHomeSummary>;
     /** BDP-03: list PENDING tasks for the banner read path. */
     listPendingTasks: ReturnType<typeof listPendingTasks>;
+    /** Plan 07-07 (D-PH7-09): POST /tasks/:taskId/resolve banner action. */
+    resolveTask: ReturnType<typeof resolveTask>;
+    /** Plan 07-07 (D-PH7-20): GET /budgets/:id/cushion-summary single source of cushion math. */
+    getCushionSummary: ReturnType<typeof getCushionSummary>;
+    /**
+     * Plan 07-07 (D-PH7-19): runner for the cushion task recompute helper.
+     * Opens its own withTenantTx (SYSTEM user) and calls recomputeCushionTask.
+     * Wired into the PATCH /budgets/:id route on cushion-affecting bodies
+     * (cushion_target_months / cushion_enabled).
+     */
+    recomputeCushionTaskRunner: (input: {
+      tenantId: string;
+      budgetId: string;
+    }) => Promise<void>;
     /** GRID-09: PUT sort-order drag-reorder persistence */
     reorderCategories: ReturnType<typeof reorderCategories>;
     /** RECR-06: per-occurrence dismiss */
@@ -162,6 +180,41 @@ export async function boot(): Promise<BootedDeps> {
   // mirrors HOME-02 (createBudgetHomeSummaryRepo + getBudgetHomeSummary).
   const taskRepo = createTaskRepo();
   const listPendingTasksService = listPendingTasks({ taskRepo });
+  // Plan 07-07 (D-PH7-09): POST /tasks/:taskId/resolve banner action.
+  const resolveTaskService = resolveTask({ taskRepo });
+  // Plan 07-07 (D-PH7-20): GET /budgets/:id/cushion-summary single source of
+  // cushion math. Uses the budgeting module's fxProvider (Frankfurter cache).
+  const getCushionSummaryService = getCushionSummary({
+    fxProvider: baseBudgeting.fxProvider,
+  });
+  // Plan 07-07 (D-PH7-19): runner for recomputeCushionTask. Used by PATCH
+  // /budgets/:id when cushion_target_months or cushion_enabled changes. A2
+  // fallback: separate withTenantTx from the identity update (best-effort —
+  // failure does not fail the PATCH; hourly sweep is the backstop).
+  const SYSTEM_USER_UUID = "00000000-0000-0000-0000-000000000001";
+  const recomputeCushionTaskRunner = async (input: {
+    tenantId: string;
+    budgetId: string;
+  }) => {
+    const r = await withTenantTx(
+      TenantId(input.tenantId),
+      UserId(SYSTEM_USER_UUID),
+      async (tx) => {
+        await recomputeCushionTask(
+          tx as unknown as {
+            execute: (q: unknown) => Promise<{
+              rows: Record<string, unknown>[];
+            }>;
+          },
+          { tenantId: input.tenantId, budgetId: input.budgetId },
+          { taskRepo, fxProvider: baseBudgeting.fxProvider },
+        );
+      },
+    );
+    if (r.isErr()) {
+      throw r.error;
+    }
+  };
 
   // Phase 4 repos + services
   const categoryRepo = new DrizzleCategoryRepo();
@@ -193,6 +246,9 @@ export async function boot(): Promise<BootedDeps> {
   const budgeting = Object.assign(baseBudgeting, {
     getBudgetHomeSummary: homeSummaryService,
     listPendingTasks: listPendingTasksService,
+    resolveTask: resolveTaskService,
+    getCushionSummary: getCushionSummaryService,
+    recomputeCushionTaskRunner,
     reorderCategories: reorderCategoriesService,
     dismissDraft: dismissDraftService,
     confirmDraft: confirmDraftService,

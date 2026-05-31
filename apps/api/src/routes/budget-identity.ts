@@ -28,11 +28,23 @@ const patchBudgetSchema = z.object({
   // lane is exposed in the UI at all. Distinct from cushion_mode_enabled
   // which tracks per-month cushion-vs-normal state via SCD-2 history.
   cushion_enabled: z.boolean().optional(),
+  // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33): cushion target months multiplier.
+  // Defense in depth: Zod 1..60 here + DB CHECK constraint (1..60) via
+  // migration 0026. Mutating this field triggers recomputeCushionTask after
+  // the identity update.
+  cushion_target_months: z.number().int().min(1).max(60).optional(),
 });
 
 export function budgetIdentityRoutesFactory(
   deps: Pick<BootedDeps, "tenancy" | "identity"> & {
-    budgeting?: Pick<BootedDeps["budgeting"], "toggleBudgetMode">;
+    budgeting?: Pick<BootedDeps["budgeting"], "toggleBudgetMode"> & {
+      // Phase 7 Plan 07-07: optional runner — if absent the PATCH still works
+      // (recompute is best-effort; hourly sweep is the backstop).
+      recomputeCushionTaskRunner?: (input: {
+        tenantId: string;
+        budgetId: string;
+      }) => Promise<void>;
+    };
   },
 ) {
   const r = new Hono();
@@ -124,12 +136,13 @@ export function budgetIdentityRoutesFactory(
       }
     }
 
-    // Apply name / currency / reserves / cushion-feature identity patch
+    // Apply name / currency / reserves / cushion-feature / cushion_target_months identity patch
     if (
       body.name !== undefined ||
       body.default_currency !== undefined ||
       body.reserves_enabled !== undefined ||
-      body.cushion_enabled !== undefined
+      body.cushion_enabled !== undefined ||
+      body.cushion_target_months !== undefined
     ) {
       try {
         await deps.tenancy.workspaceRepo.updateIdentity(
@@ -144,6 +157,9 @@ export function budgetIdentityRoutesFactory(
               : {}),
             ...(body.cushion_enabled !== undefined
               ? { cushionEnabled: body.cushion_enabled }
+              : {}),
+            ...(body.cushion_target_months !== undefined
+              ? { cushionTargetMonths: body.cushion_target_months }
               : {}),
           },
           actorUserId,
@@ -170,6 +186,35 @@ export function budgetIdentityRoutesFactory(
       });
       if (result.isErr()) {
         return c.json({ error: result.error.message }, 422);
+      }
+    }
+
+    // Phase 7 Plan 07-07 (D-PH7-19, TASK-06): cushion-affecting fields trigger
+    // recomputeCushionTask AFTER the identity update lands. The runner opens a
+    // SEPARATE withTenantTx (A2 fallback — see archive-wallet.ts pattern).
+    //
+    // Decision tree handled inside recomputeCushionTask:
+    //   - cushion_enabled=false → summary.enabled=false → resolveByKindAndBudget
+    //     auto-resolves any PENDING CUSHION_BELOW_TARGET task IN THIS REQUEST
+    //     (TASK-06 inline-resolve invariant: cushion_enabled=false MUST clear
+    //     the open task before the 200 response — sweep is NOT the only path).
+    //   - cushion_target_months ↑ → shortfall grows → emit (or no-op if already
+    //     pending).
+    //   - cushion_target_months ↓ → shortfall may close → resolve.
+    //
+    // Best-effort: failure does not fail the PATCH (hourly sweep is backstop).
+    const isCushionAffecting =
+      body.cushion_enabled !== undefined ||
+      body.cushion_target_months !== undefined;
+    if (isCushionAffecting && deps.budgeting?.recomputeCushionTaskRunner) {
+      try {
+        await deps.budgeting.recomputeCushionTaskRunner({
+          tenantId: budgetId,
+          budgetId,
+        });
+      } catch (e) {
+        console.error("[budget-identity] cushion recompute failed:", e);
+        // Do not fail the PATCH — hourly sweep catches missed recomputes.
       }
     }
 

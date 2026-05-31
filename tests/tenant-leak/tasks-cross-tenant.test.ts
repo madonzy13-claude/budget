@@ -30,14 +30,15 @@
  *   - no-guc-zero-rows
  *   - pg-roles-no-bypassrls
  *   - home-summary-cross-tenant
- *   - tasks-cross-tenant (NEW — this file)
- * Total: 6 → 7 files.
+ *   - tasks-cross-tenant (this file — extended in Plan 07-07 with POST resolve)
+ *   - cushion-summary-cross-tenant (Plan 07-07)
+ * Total: 8 files.
  *
- * Plan 03-03 baseline note: the plan text describes "7 → 8" because it was
- * authored against a stale count that pre-dated 03-02's documented reality
- * of 5 → 6. After 03-02 landed the actual count is 6; this plan increments
- * to 7. The SPIRIT of the gate — "every new tenant-scoped read endpoint adds
- * exactly one leak test" — is honoured.
+ * Plan 07-07 extension: POST /budgets/:budgetId/tasks/:taskId/resolve gets its
+ * own cross-tenant gate block (route guard, RLS layer 2, sanity). Adapter UPDATE
+ * is `WHERE id = ? AND tenant_id = ? AND status='PENDING'`, so cross-tenant
+ * resolve attempts are silent no-ops at the SQL layer (0 rows updated) AND the
+ * route returns 404 before the SQL ever runs.
  */
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Pool } from "pg";
@@ -183,5 +184,82 @@ describe("tasks tenant-leak gate", () => {
     const rows = await repo.listPending(budgetA.budgetId, budgetA.budgetId);
     expect(rows.length).toBeGreaterThanOrEqual(1);
     expect(rows.find((t) => t.id === taskInA)).toBeDefined();
+  });
+});
+
+/**
+ * Plan 07-07 extension — POST /budgets/:budgetId/tasks/:taskId/resolve.
+ *
+ * Layer 1 (route): tested at the HTTP boundary by apps/api/test/routes/tasks.test.ts
+ * (already covers cross-tenant returns 404 for GET; POST resolve uses the same
+ * tenantIds.includes guard). This block exercises Layer 2.
+ *
+ * Layer 2 (adapter): TaskRepo.resolve UPDATE includes `tenant_id = ?` in the
+ * WHERE clause. Cross-tenant attempts silently no-op (0 rows updated). RLS on
+ * budgeting.tasks provides Layer 3.
+ */
+describe("tasks POST resolve cross-tenant gate", () => {
+  let budgetA: SeededBudget;
+  let budgetB: SeededBudget;
+  let taskInA: string;
+
+  beforeAll(async () => {
+    budgetA = await seedBudget();
+    budgetB = await seedBudget();
+    taskInA = await seedTaskInBudget(budgetA.budgetId, "RESERVE_TOPUP");
+  });
+
+  it("Layer 2: createTaskRepo().resolve called with budgetB tenant scope leaves budgetA's task PENDING", async () => {
+    // Defence-in-depth scenario: the route forgot to assert budgetId is in
+    // tenantIds, so the adapter is called with the wrong tenant. The UPDATE's
+    // WHERE tenant_id = ? clause must filter the row out — 0 rows updated.
+    const repo = createTaskRepo();
+    await repo.resolve(taskInA, budgetB.budgetId);
+
+    // Task A must remain PENDING — Layer 2 caught the cross-tenant resolve.
+    const pool = new Pool({ connectionString: DB_URL });
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `SELECT set_config('app.tenant_ids', '{"${budgetA.budgetId}"}', true)`,
+      );
+      const res = await client.query(
+        `SELECT status FROM budgeting.tasks WHERE id = $1::uuid`,
+        [taskInA],
+      );
+      expect(res.rows[0]?.status).toBe("PENDING");
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  });
+
+  it("Layer 2 sanity: same call with tenantId === budgetA resolves the task", async () => {
+    const repo = createTaskRepo();
+    await repo.resolve(taskInA, budgetA.budgetId);
+
+    const pool = new Pool({ connectionString: DB_URL });
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `SELECT set_config('app.tenant_ids', '{"${budgetA.budgetId}"}', true)`,
+      );
+      const res = await client.query(
+        `SELECT status FROM budgeting.tasks WHERE id = $1::uuid`,
+        [taskInA],
+      );
+      expect(res.rows[0]?.status).toBe("RESOLVED");
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  });
+
+  it("Layer 2: idempotent resolve — re-calling on an already RESOLVED task is a no-op (no throw)", async () => {
+    const repo = createTaskRepo();
+    // Already RESOLVED from the previous test in this describe block.
+    await expect(
+      repo.resolve(taskInA, budgetA.budgetId),
+    ).resolves.toBeUndefined();
   });
 });
