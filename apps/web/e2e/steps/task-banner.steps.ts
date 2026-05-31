@@ -261,8 +261,10 @@ Then(
 Then(
   /^within (\d+) seconds the cushion target months input shows (\d+)$/,
   async ({ page }, secs: string, value: string) => {
+    // playwright-bdd coerces `\d+` capture groups to numbers despite the TS
+    // string annotation; toHaveValue requires string|RegExp so coerce back.
     const settings = new SettingsPo(page);
-    await expect(settings.cushionTargetMonthsInput()).toHaveValue(value, {
+    await expect(settings.cushionTargetMonthsInput()).toHaveValue(String(value), {
       timeout: Number(secs) * 1000,
     });
   },

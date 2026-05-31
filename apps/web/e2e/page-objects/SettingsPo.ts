@@ -14,14 +14,24 @@ export class SettingsPo {
   constructor(private page: Page) {}
 
   /**
-   * The cushion section in Settings is rendered inline (no accordion wrapper
-   * in the current shape). This method is kept as a stub so the step file
-   * can call it without conditionals and remains forward-compatible if/when
-   * an accordion is reintroduced.
+   * Settings page renders sections inside a Radix Accordion (settings-accordion.tsx).
+   * `defaultValue={["budget-identity"]}` means only the Budget Identity section is
+   * expanded on first render — Cushion (value="cushion") starts collapsed and its
+   * inputs are not in the DOM. This method clicks the "Cushion" trigger to expand
+   * the section, then waits for the months input to be attached.
+   *
+   * Trigger label comes from i18n `settings.sections.cushion` (EN: "Cushion"). E2E
+   * runs in the EN locale by default so the text-based locator is stable.
    */
   async openCushionSection(): Promise<void> {
-    // No-op for the current settings layout. The cushion section is always
-    // rendered and its inputs are immediately reachable.
+    const trigger = this.page.getByRole("button", {
+      name: /^Cushion$/,
+    });
+    // If already expanded the trigger has aria-expanded="true"; click to expand
+    // only when collapsed to keep the method idempotent.
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
     await this.cushionTargetMonthsInput().waitFor({ state: "attached" });
   }
 

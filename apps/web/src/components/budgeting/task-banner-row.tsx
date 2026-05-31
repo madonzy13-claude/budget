@@ -15,7 +15,7 @@ import { clientApiFetch } from "@/lib/budget-fetch";
  * Phase 7 Plan 07-08 (D-PH7-25): the Phase-3 disabled action button is now
  * enabled and routes per-kind:
  *   - RESERVE_TOPUP          → router.push(/budgets/<id>/reserves?task=<id>)
- *   - CUSHION_BELOW_TARGET   → router.push(/budgets/<id>/wallets?task=<id>#cushion)
+ *   - CUSHION_BELOW_TARGET   → router.push(/budgets/<id>/wallets?task=<id>&focus=cushion)
  *   - CONFIRM_DRAFT          → POST /recurring-rules/drafts/:id/confirm + optimistic
  *                              row collapse via onResolved (parent removes from list).
  *
@@ -102,7 +102,13 @@ export function TaskBannerRow({
         router.push(`/budgets/${budgetId}/reserves?task=${task.id}`);
         break;
       case "CUSHION_BELOW_TARGET":
-        router.push(`/budgets/${budgetId}/wallets?task=${task.id}#cushion`);
+        // Use query param instead of hash — Next.js app-router useRouter().push
+        // does not reliably preserve hash fragments through middleware rewrites.
+        // The Wallets page reads `focus=cushion` to scroll the cushion lane
+        // into view; URL semantics unchanged from the user's perspective.
+        router.push(
+          `/budgets/${budgetId}/wallets?task=${task.id}&focus=cushion`,
+        );
         break;
       case "CONFIRM_DRAFT": {
         setPending(true);

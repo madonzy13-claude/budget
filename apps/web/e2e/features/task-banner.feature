@@ -48,9 +48,9 @@ Feature: Task banner — emit, act, auto-resolve per kind
     Then within 90 seconds the task banner is not present in the DOM
 
   # ------------------------------------------------------------------
-  # CUSHION_BELOW_TARGET — deep-link with hash
+  # CUSHION_BELOW_TARGET — deep-link with focus=cushion query param
   # ------------------------------------------------------------------
-  Scenario: CUSHION_BELOW_TARGET routes to /wallets with cushion hash on action
+  Scenario: CUSHION_BELOW_TARGET routes to /wallets with cushion focus on action
     Given a "CUSHION_BELOW_TARGET" task is seeded for "My E2E Budget" with shortfall 3000 cents in "EUR"
     When I open the BDP for "My E2E Budget"
     And I click the task banner
@@ -58,7 +58,7 @@ Feature: Task banner — emit, act, auto-resolve per kind
     And the action button label is "Top up cushion"
     When I click the task action button
     Then I am navigated to the wallets tab
-    And the URL contains "#cushion"
+    And the URL contains "focus=cushion"
 
   Scenario: CUSHION_BELOW_TARGET auto-resolves when resolved server-side
     Given a "CUSHION_BELOW_TARGET" task is seeded for "My E2E Budget" with shortfall 3000 cents in "EUR"
