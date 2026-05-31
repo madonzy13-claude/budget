@@ -21,6 +21,8 @@
  * Plan 05-03 / RSRV-01, RSRV-02. Allocator: domain/reserve-allocator.ts.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
 import type { CategoryReserveAdjustmentsRepo } from "../ports/category-reserve-adjustments-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
 import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
@@ -31,6 +33,8 @@ import {
 } from "../domain/reserve-allocator";
 import type { ReservesSummaryDto } from "./get-reserves-summary";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import { recomputeReserveTopupTask } from "./recompute-reserve-topup-task";
 
 export interface AdjustCategoryReserveDeps {
   adjustmentsRepo: CategoryReserveAdjustmentsRepo;
@@ -39,6 +43,10 @@ export interface AdjustCategoryReserveDeps {
   reservesSummaryRepo: ReservesSummaryRepo;
   isReservesEnabled: (tenantId: string) => Promise<boolean>;
   budgetCurrencyOf: (tenantId: string) => Promise<string>;
+  /** Phase 7 (D-PH7-04): when provided, recompute the RESERVE_TOPUP task
+   *  in a follow-up tx after the adjustment lands. Optional so legacy
+   *  callers keep compiling; production boot wires it in factory.ts. */
+  taskRepo?: TaskRepo;
 }
 
 export interface AdjustCategoryReserveInput {
@@ -184,6 +192,43 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
         budgetCurrency,
         newActualMap,
       );
+
+      // Phase 7 (D-PH7-04): RESERVE_TOPUP recompute hook.
+      // Reserve adjustments always touch the reserve side of the equation
+      // (no wallet-type gate needed — adjusting any category's expected
+      // reserve shifts Σ(category reserves) by `delta`). When delta === 0n
+      // the recompute is still correct: mismatch unchanged, helper either
+      // re-emits-as-no-op or resolves-as-no-op.
+      //
+      // A2 fallback: adjustmentsRepo / categoriesRepo own their inner txs;
+      // we open a separate withTenantTx for the recompute. Idempotency
+      // contract keeps the system convergent across the race window.
+      if (deps.taskRepo) {
+        const taskRepo = deps.taskRepo;
+        const categoriesRepo = deps.categoriesRepo;
+        const reserveBalanceRepo = deps.reserveBalanceRepo;
+        const reservesSummaryRepo = deps.reservesSummaryRepo;
+        const budgetCurrencyOf = deps.budgetCurrencyOf;
+        const isReservesEnabled = deps.isReservesEnabled;
+        await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeReserveTopupTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.budgetId },
+              {
+                taskRepo,
+                categoriesRepo,
+                reserveBalanceRepo,
+                reservesSummaryRepo,
+                budgetCurrencyOf,
+                isReservesEnabled,
+              },
+            );
+          },
+        );
+      }
 
       return ok({
         categoryId: input.categoryId,

@@ -188,12 +188,17 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       reserveBalanceRepo: createReserveBalanceRepo(),
       reservesSummaryRepo,
     }),
+    // Phase 7 (D-PH7-04): inject taskRepo + isReservesEnabled so a RESERVE
+    // wallet balance change auto-emits/resolves the RESERVE_TOPUP task in
+    // an A2-fallback follow-up tx.
     setWalletBalance: setWalletBalance({
       repo,
       categoriesRepo,
       reserveBalanceRepo: createReserveBalanceRepo(),
       reservesSummaryRepo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      taskRepo: createTaskRepo(),
+      isReservesEnabled,
     }),
     listWallets: listWallets({ repo }),
     findWalletById: findWalletById({ repo }),
@@ -258,16 +263,24 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     replayProjections: replayProjections(),
     // Plan 02-03: reserve balance read-model
     reserveBalanceRepo: createReserveBalanceRepo(),
-    // Plan 05-03: reserves + wallet mutation use cases
+    // Plan 05-03: reserves + wallet mutation use cases.
+    // Phase 7 (D-PH7-04, Pitfall 1): taskRepo + isReservesEnabled wired so a
+    // SPENDINGS↔RESERVE type flip (or amount/currency change on a RESERVE
+    // wallet) auto-emits/resolves RESERVE_TOPUP.
     updateWallet: updateWallet({
       repo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       categoriesRepo,
       reserveBalanceRepo: createReserveBalanceRepo(),
       reservesSummaryRepo,
+      taskRepo: createTaskRepo(),
+      isReservesEnabled,
     }),
     // UAT-PH5-T3-1x: intra-section reorder
     reorderWallets: reorderWallets({ repo }),
+    // Phase 7 (D-PH7-04): taskRepo wired so any reserve adjustment
+    // auto-emits/resolves RESERVE_TOPUP. Reserve adjustments always touch
+    // the reserve side of the equation (no wallet-type gate needed).
     adjustCategoryReserve: adjustCategoryReserve({
       adjustmentsRepo,
       categoriesRepo,
@@ -275,6 +288,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       reservesSummaryRepo,
       isReservesEnabled,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      taskRepo: createTaskRepo(),
     }),
     toggleCategoryReserveExcluded: toggleCategoryReserveExcluded({
       repo: categoriesRepo,
