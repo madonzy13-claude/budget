@@ -26,7 +26,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@radix-ui/react-dialog")>();
+  const actual =
+    await importOriginal<typeof import("@radix-ui/react-dialog")>();
   return {
     ...actual,
     Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -95,7 +96,9 @@ describe("CategorySlider", () => {
     const iconLabel = screen.queryByText("catSlider.field.icon");
     expect(iconLabel).toBeTruthy();
     // Should have at least some icon buttons
-    const iconButtons = document.querySelectorAll("[data-testid^='icon-option-']");
+    const iconButtons = document.querySelectorAll(
+      "[data-testid^='icon-option-']",
+    );
     expect(iconButtons.length).toBeGreaterThanOrEqual(8);
   });
 
@@ -107,7 +110,9 @@ describe("CategorySlider", () => {
     );
     const colorLabel = screen.queryByText("catSlider.field.color");
     expect(colorLabel).toBeTruthy();
-    const colorButtons = document.querySelectorAll("[data-testid^='color-option-']");
+    const colorButtons = document.querySelectorAll(
+      "[data-testid^='color-option-']",
+    );
     expect(colorButtons.length).toBeGreaterThanOrEqual(8);
   });
 
@@ -118,10 +123,14 @@ describe("CategorySlider", () => {
       </TestQueryProvider>,
     );
     // Should show USD badge(s) but no currency select/picker
-    const currencyBadges = document.querySelectorAll("[data-testid='currency-badge']");
+    const currencyBadges = document.querySelectorAll(
+      "[data-testid='currency-badge']",
+    );
     expect(currencyBadges.length).toBeGreaterThanOrEqual(1);
     // No currency picker select for planned/cushion
-    const currencyPicker = document.querySelector("[data-testid='currency-picker']");
+    const currencyPicker = document.querySelector(
+      "[data-testid='currency-picker']",
+    );
     expect(currencyPicker).toBeNull();
   });
 
@@ -132,8 +141,13 @@ describe("CategorySlider", () => {
         <CategorySlider {...defaultProps} />
       </TestQueryProvider>,
     );
-    await user.type(document.querySelector("#cat-slider-name") as HTMLElement, "Travel");
-    const planned = document.querySelector("#cat-slider-planned") as HTMLInputElement;
+    await user.type(
+      document.querySelector("#cat-slider-name") as HTMLElement,
+      "Travel",
+    );
+    const planned = document.querySelector(
+      "#cat-slider-planned",
+    ) as HTMLInputElement;
     await user.clear(planned);
     await user.type(planned, "100");
     const saveBtn = screen
@@ -169,9 +183,9 @@ describe("CategorySlider", () => {
     // Name field should be present
     expect(screen.getByText("catSlider.field.name")).toBeTruthy();
     // Save button present
-    const saveBtn = screen.getAllByRole("button").find(
-      (b) => b.textContent?.includes("catSlider.cta.create"),
-    );
+    const saveBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("catSlider.cta.create"));
     expect(saveBtn).toBeTruthy();
   });
 
@@ -181,7 +195,9 @@ describe("CategorySlider", () => {
         <CategorySlider {...editProps} txnsCount={0} />
       </TestQueryProvider>,
     );
-    const deleteBtn = document.querySelector("[data-testid='cat-slider-delete']");
+    const deleteBtn = document.querySelector(
+      "[data-testid='cat-slider-delete']",
+    );
     expect(deleteBtn).toBeTruthy();
   });
 
@@ -191,10 +207,15 @@ describe("CategorySlider", () => {
         <CategorySlider {...editProps} txnsCount={5} />
       </TestQueryProvider>,
     );
-    const deleteBtn = document.querySelector("[data-testid='cat-slider-delete']") as HTMLButtonElement | null;
+    const deleteBtn = document.querySelector(
+      "[data-testid='cat-slider-delete']",
+    ) as HTMLButtonElement | null;
     // Either disabled or has aria-disabled
     if (deleteBtn) {
-      expect(deleteBtn.disabled || deleteBtn.getAttribute("aria-disabled") === "true").toBe(true);
+      expect(
+        deleteBtn.disabled ||
+          deleteBtn.getAttribute("aria-disabled") === "true",
+      ).toBe(true);
     } else {
       // Button might not be rendered at all when has txns
       // Either approach is valid per spec
@@ -208,7 +229,10 @@ describe("CategorySlider", () => {
     // First call: POST /categories → { category: { id } }
     // Second call: POST /categories/:id/limits → ok
     fetchMock
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ category: { id: "cat-new-123" } }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ category: { id: "cat-new-123" } }),
+      })
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
 
     const { default: userEvent } = await import("@testing-library/user-event");
@@ -221,14 +245,16 @@ describe("CategorySlider", () => {
     );
 
     // Fill name
-    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    const nameInput = document.getElementById(
+      "cat-slider-name",
+    ) as HTMLInputElement;
     await user.clear(nameInput);
     await user.type(nameInput, "Groceries");
 
     // Submit
-    const saveBtn = screen.getAllByRole("button").find(
-      (b) => b.textContent?.includes("catSlider.cta.create"),
-    )!;
+    const saveBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("catSlider.cta.create"))!;
     await user.click(saveBtn);
 
     // POST /categories called with correct path
@@ -247,8 +273,7 @@ describe("CategorySlider", () => {
 
   it("create: if API returns flat DTO (missing category wrapper) does NOT crash", async () => {
     // Guard: even if server accidentally returns flat DTO, no TypeError thrown
-    fetchMock
-      .mockResolvedValueOnce({ ok: false, json: async () => ({}) });
+    fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({}) });
 
     const onOpenChange = vi.fn();
     const { default: userEvent } = await import("@testing-library/user-event");
@@ -260,12 +285,14 @@ describe("CategorySlider", () => {
       </TestQueryProvider>,
     );
 
-    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    const nameInput = document.getElementById(
+      "cat-slider-name",
+    ) as HTMLInputElement;
     await user.clear(nameInput);
     await user.type(nameInput, "Test");
-    const saveBtn = screen.getAllByRole("button").find(
-      (b) => b.textContent?.includes("catSlider.cta.create"),
-    )!;
+    const saveBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("catSlider.cta.create"))!;
     // Should not throw — toast.error called instead
     await user.click(saveBtn);
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
@@ -278,7 +305,9 @@ describe("CategorySlider", () => {
         <CategorySlider {...editProps} />
       </TestQueryProvider>,
     );
-    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    const nameInput = document.getElementById(
+      "cat-slider-name",
+    ) as HTMLInputElement;
     expect(nameInput).toBeTruthy();
     expect(nameInput.value).toBe("Groceries");
   });
@@ -289,7 +318,9 @@ describe("CategorySlider", () => {
         <CategorySlider {...editProps} />
       </TestQueryProvider>,
     );
-    const plannedInput = document.getElementById("cat-slider-planned") as HTMLInputElement;
+    const plannedInput = document.getElementById(
+      "cat-slider-planned",
+    ) as HTMLInputElement;
     expect(plannedInput).toBeTruthy();
     expect(plannedInput.value).toBe("100");
   });
@@ -300,7 +331,9 @@ describe("CategorySlider", () => {
         <CategorySlider {...editProps} />
       </TestQueryProvider>,
     );
-    const cushionInput = document.getElementById("cat-slider-cushion") as HTMLInputElement;
+    const cushionInput = document.getElementById(
+      "cat-slider-cushion",
+    ) as HTMLInputElement;
     expect(cushionInput).toBeTruthy();
     expect(cushionInput.value).toBe("20");
   });
@@ -365,9 +398,179 @@ describe("CategorySlider", () => {
       </TestQueryProvider>,
     );
 
-    const nameInput = document.getElementById("cat-slider-name") as HTMLInputElement;
+    const nameInput = document.getElementById(
+      "cat-slider-name",
+    ) as HTMLInputElement;
     expect(nameInput?.value).toBe("Transport");
-    const plannedInput = document.getElementById("cat-slider-planned") as HTMLInputElement;
+    const plannedInput = document.getElementById(
+      "cat-slider-planned",
+    ) as HTMLInputElement;
     expect(plannedInput?.value).toBe("50");
+  });
+
+  // ── Phase 7-09 (D-PH7-35..37): silent cushion-mirror ───────────────
+  describe("CategorySlider cushion mirror (D-PH7-35..37)", () => {
+    const linkedProps = {
+      ...defaultProps,
+      mode: "edit" as const,
+      initial: {
+        categoryId: "cat-linked",
+        name: "Linked",
+        plannedCents: "10000",
+        cushionCents: "10000",
+        iconKey: null,
+        colorKey: null,
+      },
+    };
+    const linkedNullProps = {
+      ...defaultProps,
+      mode: "edit" as const,
+      initial: {
+        categoryId: "cat-null-cushion",
+        name: "Null cushion",
+        plannedCents: "10000",
+        cushionCents: "",
+        iconKey: null,
+        colorKey: null,
+      },
+    };
+    const unlinkedProps = {
+      ...defaultProps,
+      mode: "edit" as const,
+      initial: {
+        categoryId: "cat-unlinked",
+        name: "Unlinked",
+        plannedCents: "10000",
+        cushionCents: "5000",
+        iconKey: null,
+        colorKey: null,
+      },
+    };
+
+    it("linked=true when initial.cushionCents is empty/null → typing planned mirrors cushion", async () => {
+      const user = userEvent.setup();
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...linkedNullProps} />
+        </TestQueryProvider>,
+      );
+      const planned = document.getElementById(
+        "cat-slider-planned",
+      ) as HTMLInputElement;
+      const cushion = document.getElementById(
+        "cat-slider-cushion",
+      ) as HTMLInputElement;
+      await user.clear(planned);
+      await user.type(planned, "250");
+      expect(cushion.value).toBe("250");
+    });
+
+    it("linked=true when initial cushion === planned → typing planned mirrors cushion", async () => {
+      const user = userEvent.setup();
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...linkedProps} />
+        </TestQueryProvider>,
+      );
+      const planned = document.getElementById(
+        "cat-slider-planned",
+      ) as HTMLInputElement;
+      const cushion = document.getElementById(
+        "cat-slider-cushion",
+      ) as HTMLInputElement;
+      await user.clear(planned);
+      await user.type(planned, "300");
+      expect(cushion.value).toBe("300");
+    });
+
+    it("linked=false when initial cushion !== planned → typing planned does NOT mirror", async () => {
+      const user = userEvent.setup();
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...unlinkedProps} />
+        </TestQueryProvider>,
+      );
+      const planned = document.getElementById(
+        "cat-slider-planned",
+      ) as HTMLInputElement;
+      const cushion = document.getElementById(
+        "cat-slider-cushion",
+      ) as HTMLInputElement;
+      // initial cushion is 5000 cents → bare "50"
+      expect(cushion.value).toBe("50");
+      await user.clear(planned);
+      await user.type(planned, "200");
+      // unchanged — link broken from start
+      expect(cushion.value).toBe("50");
+    });
+
+    it("typing cushion silently breaks link → subsequent planned change does not mirror", async () => {
+      const user = userEvent.setup();
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...linkedNullProps} />
+        </TestQueryProvider>,
+      );
+      const planned = document.getElementById(
+        "cat-slider-planned",
+      ) as HTMLInputElement;
+      const cushion = document.getElementById(
+        "cat-slider-cushion",
+      ) as HTMLInputElement;
+      // First: change cushion → breaks link
+      await user.clear(cushion);
+      await user.type(cushion, "75");
+      expect(cushion.value).toBe("75");
+      // Now change planned → should NOT mirror
+      await user.clear(planned);
+      await user.type(planned, "200");
+      expect(cushion.value).toBe("75");
+    });
+
+    it("renders no chain icon / no relink affordance", () => {
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...linkedProps} />
+        </TestQueryProvider>,
+      );
+      // No button labeled link/unlink/chain
+      expect(
+        screen.queryByRole("button", { name: /chain|link|unlink|relink/i }),
+      ).toBeNull();
+    });
+
+    it("slider reopen with equal values re-links (mirror behavior restored)", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <TestQueryProvider>
+          <CategorySlider {...unlinkedProps} open={false} />
+        </TestQueryProvider>,
+      );
+      const newInitial = {
+        categoryId: "cat-relinked",
+        name: "Relinked",
+        plannedCents: "20000",
+        cushionCents: "20000",
+        iconKey: null,
+        colorKey: null,
+      };
+      rerender(
+        <TestQueryProvider>
+          <CategorySlider {...unlinkedProps} open={true} initial={newInitial} />
+        </TestQueryProvider>,
+      );
+      const planned = document.getElementById(
+        "cat-slider-planned",
+      ) as HTMLInputElement;
+      const cushion = document.getElementById(
+        "cat-slider-cushion",
+      ) as HTMLInputElement;
+      // Initial: both 200
+      expect(planned.value).toBe("200");
+      expect(cushion.value).toBe("200");
+      await user.clear(planned);
+      await user.type(planned, "300");
+      expect(cushion.value).toBe("300");
+    });
   });
 });
