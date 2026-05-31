@@ -128,9 +128,9 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 - [ ] **TASK-01**: Tasks table: `id, tenant_id, budget_id, kind enum, payload_json, status enum (PENDING/RESOLVED), created_at, resolved_at`
 - [ ] **TASK-02**: Task kind `RESERVE_TOPUP` fires when `Σ(category reserve balances) ≠ Σ(reserve-type wallet amounts)`; payload includes diff amount and direction
 - [ ] **TASK-03**: Task kind `CONFIRM_DRAFT` fires when a recurring rule materializes a pending-draft
-- [ ] **TASK-04**: Task kind `STALE_WALLET` fires when a wallet `updated_at` exceeds N days (default 30, configurable per budget)
-- [ ] **TASK-05**: Task kind `MONTH_END_REVIEW` fires on month rollover; auto-resolves after N days if not dismissed
-- [ ] **TASK-06**: Tasks auto-resolve when underlying state corrects (reserve sums match · draft confirmed/dismissed · wallet edited · month-end dismissed/aged-out)
+- [ ] **TASK-04**: Task kind `CUSHION_BELOW_TARGET` fires when `cushion_enabled = true AND Σ(category_limits.cushion_amount × budgets.cushion_target_months) > Σ(wallets.amount WHERE wallet_type='CUSHION' FX→budget currency)`; payload includes {shortfall_cents, required_cents, actual_cents, currency, target_months}; auto-resolves when shortfall ≤ 0 or cushion_enabled = false
+- [ ] **TASK-05**: [DROPPED in v1.1 — `MONTH_END_REVIEW` ritual nudge deferred to v1.2 Insights dashboard; user navigates to prior months via Spendings grid arrow-key month nav.]
+- [ ] **TASK-06**: Tasks auto-resolve when underlying state corrects (reserve sums match · draft confirmed/dismissed/skipped · cushion shortfall corrected or cushion_enabled toggled off)
 - [ ] **TASK-07**: Task banner above BDP tabs shows count chip; click expands inline list with kind-specific primary action button
 - [ ] **TASK-08**: Task list items show i18n title (e.g. `"Top up reserve by {amount}"` or `"Update wallet X balance"`)
 
