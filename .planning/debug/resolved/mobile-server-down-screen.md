@@ -1,10 +1,17 @@
 ---
 slug: mobile-server-down-screen
-status: fixing
+status: resolved
 trigger: |
   Mobile shows black screen or infinite redirect when Docker (API) down. Need friendly localized "server unavailable" screen with reload button instead.
 created: 2026-05-31
 updated: 2026-05-31
+resolved_commits:
+  - a8c445f fix(web): friendly server-down screen instead of black screen / sign-in loop on api outage
+  - 35b6a6b feat(web): friendly localized 404 pages with brand header and home button
+verification:
+  - 18/18 Playwright BDD scenarios pass on the live stack (chromium + mobile viewports)
+  - Curl smoke: api down + cookie -> 307 /[locale]/server-down; api up -> normal flow; Retry navigates to ?next path after health probe
+  - Localized in EN / PL / UK for both server_down and not_found namespaces
 ---
 
 # Debug Session: mobile-server-down-screen
