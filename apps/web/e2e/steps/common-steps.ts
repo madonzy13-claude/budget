@@ -334,14 +334,9 @@ Then("the expanded list shows {int} task row", async ({ page }, n: number) => {
   }
 });
 
-Then("the task row's primary action button is disabled", async ({ page }) => {
-  const banner = new TaskBannerPo(page);
-  const btn = banner.taskRow(0).getByRole("button");
-  const disabled = await btn.isDisabled();
-  if (!disabled) {
-    throw new Error("Expected primary action button to be disabled");
-  }
-});
+// Phase 3 contract removed (D-PH7-25 + D-PH7-29): the action button is now
+// enabled and routes per-kind. The disabled-button assertion previously here
+// asserted the placeholder "Coming in Phase 7" state and is dead code.
 
 Then("the task banner displays {string}", async ({ page }, text: string) => {
   await page.getByText(text).waitFor({ state: "visible" });

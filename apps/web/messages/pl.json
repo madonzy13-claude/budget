@@ -939,7 +939,28 @@
         }
       },
       "count": "{count, plural, one {# zadanie oczekujące} few {# zadania oczekujące} many {# zadań oczekujących} other {# zadań oczekujących}}",
-      "actionComingSoon": "Wkrótce w fazie 7"
+      "title": {
+        "RESERVE_TOPUP": "Uzupełnij rezerwę o {amount}",
+        "CONFIRM_DRAFT": "Potwierdź {ruleName} — {amount}",
+        "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki"
+      },
+      "kind": {
+        "RESERVE_TOPUP": "Rezerwa",
+        "CONFIRM_DRAFT": "Szkic",
+        "CUSHION_BELOW_TARGET": "Poduszka"
+      },
+      "action": {
+        "RESERVE_TOPUP": {
+          "label": "Wyrównaj rezerwę",
+          "ariaLabel": "Przejdź do Rezerw, aby wyrównać"
+        },
+        "CONFIRM_DRAFT": { "label": "Potwierdź szkic" },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Uzupełnij poduszkę",
+          "ariaLabel": "Przejdź do Portfeli, aby uzupełnić poduszkę"
+        }
+      },
+      "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie."
     }
   },
   "grid": {
