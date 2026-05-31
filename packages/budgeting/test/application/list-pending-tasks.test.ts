@@ -17,8 +17,17 @@ import { listPendingTasks } from "../../src/application/list-pending-tasks";
 import type { TaskRepo, TaskSummary } from "../../src/ports/task-repo";
 
 function makeRepo(impl: Partial<TaskRepo> = {}): TaskRepo {
+  // Phase 7 extended TaskRepo with emit + resolve write methods. These tests
+  // only exercise listPending; stub the rest as no-ops to keep the type-check
+  // green without coupling unrelated tests to the write surface.
   return {
     listPending: async () => [],
+    resolve: async () => {},
+    emitReserveTopup: async () => {},
+    emitConfirmDraft: async () => {},
+    emitCushionBelowTarget: async () => {},
+    resolveByKindAndBudget: async () => {},
+    resolveConfirmDraftByDraftId: async () => {},
     ...impl,
   };
 }
@@ -53,7 +62,7 @@ describe("listPendingTasks", () => {
     });
     const t3 = sampleTask({
       id: "33333333-3333-3333-3333-333333333333",
-      kind: "STALE_WALLET",
+      kind: "CUSHION_BELOW_TARGET",
     });
     const repo = makeRepo({ listPending: async () => [t1, t2, t3] });
     const svc = listPendingTasks({ taskRepo: repo });
@@ -67,7 +76,7 @@ describe("listPendingTasks", () => {
       expect(r.value.map((t) => t.id)).toEqual([t1.id, t2.id, t3.id]);
       expect(r.value[0]?.kind).toBe("RESERVE_TOPUP");
       expect(r.value[1]?.kind).toBe("CONFIRM_DRAFT");
-      expect(r.value[2]?.kind).toBe("STALE_WALLET");
+      expect(r.value[2]?.kind).toBe("CUSHION_BELOW_TARGET");
     }
   });
 
@@ -96,7 +105,7 @@ describe("listPendingTasks", () => {
     const listPending = mock(
       async (_b: string, _t: string) => [] as TaskSummary[],
     );
-    const repo: TaskRepo = { listPending };
+    const repo = makeRepo({ listPending });
     const svc = listPendingTasks({ taskRepo: repo });
     const budgetId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
     const tenantId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";

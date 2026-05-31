@@ -22,13 +22,13 @@ import { describe, it, expect } from "bun:test";
 void expect;
 
 describe("recompute-cushion-task math", () => {
-  it.todo("no emit when cushion_enabled = false");
-  it.todo("emit when cushion_enabled = true AND shortfall > 0");
-  it.todo("no emit when shortfall = 0 (actual ≥ required)");
-  it.todo("resolve when cushion_enabled toggled off");
-  it.todo("resolve when shortfall eliminated by adding cushion wallet");
-  it.todo("FX rate variance: wallet in non-budget currency converts correctly");
-  it.todo("empty cushion wallets: actual = 0, shortfall = full required amount");
-  it.todo("cushion_target_months change triggers recompute");
-  it.todo("category cushion change triggers recompute");
+  it.todo("no emit when cushion_enabled = false", () => {});
+  it.todo("emit when cushion_enabled = true AND shortfall > 0", () => {});
+  it.todo("no emit when shortfall = 0 (actual ≥ required)", () => {});
+  it.todo("resolve when cushion_enabled toggled off", () => {});
+  it.todo("resolve when shortfall eliminated by adding cushion wallet", () => {});
+  it.todo("FX rate variance: wallet in non-budget currency converts correctly", () => {});
+  it.todo("empty cushion wallets: actual = 0, shortfall = full required amount", () => {});
+  it.todo("cushion_target_months change triggers recompute", () => {});
+  it.todo("category cushion change triggers recompute", () => {});
 });

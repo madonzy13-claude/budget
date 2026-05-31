@@ -38,10 +38,10 @@ describe("CONFIRM_DRAFT generator", () => {
     // Seed harness wires up in Plan 07-04.
   });
 
-  it.todo("emits on fresh draft INSERT (recurring-engine handler)");
-  it.todo("does not emit on conflict (draft already existed for that rule+date)");
-  it.todo("resolves on confirmRecurringDraft");
-  it.todo("resolves on dismissDraft");
-  it.todo("resolves on skipRecurringDraft");
-  it.todo("dedup: two rapid confirms do not throw (idempotent resolve)");
+  it.todo("emits on fresh draft INSERT (recurring-engine handler)", () => {});
+  it.todo("does not emit on conflict (draft already existed for that rule+date)", () => {});
+  it.todo("resolves on confirmRecurringDraft", () => {});
+  it.todo("resolves on dismissDraft", () => {});
+  it.todo("resolves on skipRecurringDraft", () => {});
+  it.todo("dedup: two rapid confirms do not throw (idempotent resolve)", () => {});
 });

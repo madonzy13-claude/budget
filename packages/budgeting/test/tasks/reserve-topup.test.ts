@@ -38,10 +38,10 @@ describe("RESERVE_TOPUP generator", () => {
     // Seed harness wires up in Plan 07-05.
   });
 
-  it.todo("emits when mismatch > 0 after wallet balance change");
-  it.todo("does not emit when mismatch = 0");
-  it.todo("dedup: second mismatch does not create second task (ON CONFLICT DO NOTHING)");
-  it.todo("resolves when mismatch corrected by reserve adjustment");
-  it.todo("hourly sweep emits when inline path was missed (FX drift simulation)");
-  it.todo("direction field: TOPUP when wallets < reserves; WITHDRAW when wallets > reserves");
+  it.todo("emits when mismatch > 0 after wallet balance change", () => {});
+  it.todo("does not emit when mismatch = 0", () => {});
+  it.todo("dedup: second mismatch does not create second task (ON CONFLICT DO NOTHING)", () => {});
+  it.todo("resolves when mismatch corrected by reserve adjustment", () => {});
+  it.todo("hourly sweep emits when inline path was missed (FX drift simulation)", () => {});
+  it.todo("direction field: TOPUP when wallets < reserves; WITHDRAW when wallets > reserves", () => {});
 });
