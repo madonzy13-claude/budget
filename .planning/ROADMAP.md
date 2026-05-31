@@ -181,8 +181,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Plans** (10 — schema → ports/services → generators+sweep → routes → frontend → E2E):
 
-- [ ] 07-01-PLAN.md — Wave 0: Migration 0026 (tasks_kind_chk 3-kind + cushion_target_months + 3 partial unique dedup indexes) + REQUIREMENTS/ROADMAP/v1.1-SPEC reconciliation + 5 test scaffolds + [BLOCKING] make migrate (TASK-01)
-- [ ] 07-02-PLAN.md — Wave 1: tasks-schema TS mirror + TaskRepo port write methods (resolve, 3 emit, 2 resolveByX) + TaskRepo adapter (ON CONFLICT + idempotent UPDATE) + resolve-task application service + resolve-idempotency.test.ts real assertions (TASK-01, TASK-06)
+- [x] 07-01-PLAN.md — Wave 0: Migration 0026 (tasks_kind_chk 3-kind + cushion_target_months + 3 partial unique dedup indexes) + REQUIREMENTS/ROADMAP/v1.1-SPEC reconciliation + 5 test scaffolds + [BLOCKING] make migrate (TASK-01)
+- [x] 07-02-PLAN.md — Wave 1: tasks-schema TS mirror + TaskRepo port write methods (resolve, 3 emit, 2 resolveByX) + TaskRepo adapter (ON CONFLICT + idempotent UPDATE) + resolve-task application service + resolve-idempotency.test.ts real assertions (TASK-01, TASK-06)
 - [ ] 07-03-PLAN.md — Wave 1: get-cushion-summary.ts + recompute-cushion-task.ts shared helpers (single source of cushion math; bigint cents; FX as-of TODAY) + cushion-math.test.ts 9-case Nyquist (TASK-04)
 - [ ] 07-04-PLAN.md — Wave 2: CONFIRM_DRAFT — recurring-engine.ts inline emit (gated by insertResult.rows.length > 0) + auto-resolve in confirm/dismiss/skip use cases + confirm-draft.test.ts 6-case Nyquist (TASK-03, TASK-06, TASK-08)
 - [ ] 07-05-PLAN.md — Wave 2: RESERVE_TOPUP — recompute-reserve-topup-task.ts helper (reuses reserves-summary-builder.ts mismatchCents) + inline hooks in set-wallet-balance/update-wallet/adjust-category-reserve + reserve-topup.test.ts 5/6 cases (sweep deferred to 07-06) (TASK-02, TASK-06, TASK-08)
