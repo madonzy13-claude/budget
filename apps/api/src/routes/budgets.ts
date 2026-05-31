@@ -354,6 +354,32 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     return c.json(result.value);
   });
 
+  // GET /budgets/:id/cushion-summary — Phase 7 Plan 07-07 (D-PH7-20, D-PH7-32/33).
+  // Single source of cushion math. Returns
+  //   { required_cents, actual_cents, shortfall_cents, currency, enabled, target_months }
+  // Used by Settings live-preview + cushion banner. Service short-circuits with
+  // zero amounts when cushion_enabled=false so the read is cheap on toggle-off
+  // budgets. Tenant guard: tenantIds.includes(budgetId)→404 (Pattern D — same
+  // structure as the sibling /reserves and /home-summary handlers).
+  r.get("/:id/cushion-summary", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    const result = await deps.budgeting.getCushionSummary({
+      tenantId: budgetId, // v1.1: budget_id === tenant_id
+      budgetId,
+    });
+    if (result.isErr())
+      return serverError(c, "cushion_summary_failed", result.error);
+    return c.json(result.value, 200);
+  });
+
   // GET /budgets/:id/reserves — D-PH5-R1 composed-read shape (Phase 5 Plan 03 rewrite).
   // Returns {rows, excludedRows, totals} with share math + disabled flag.
   // REPLACES the original Plan 02-03 minimal body (D-PH5-R11 cascading hide).
