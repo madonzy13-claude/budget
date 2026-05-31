@@ -170,6 +170,11 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       defaultCurrency?: string;
       reservesEnabled?: boolean;
       cushionEnabled?: boolean;
+      // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33): cushion target months —
+      // multiplier for category cushion_amount in the cushion summary math.
+      // Range 1..60 enforced at API (Zod) AND DB (CHECK constraint via
+      // migration 0026). NOT NULL DEFAULT 6 at the column level.
+      cushionTargetMonths?: number;
     },
     actorUserId: string,
   ): Promise<void> {
@@ -200,6 +205,15 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         // is enforced upstream in the budget-identity route.
         await tx.execute(
           sql`UPDATE tenancy.budgets SET cushion_enabled = ${patch.cushionEnabled} WHERE id = ${budgetId}::uuid`,
+        );
+      }
+      if (patch.cushionTargetMonths !== undefined) {
+        // Phase 7 Plan 07-07 (D-PH7-15): cushion_target_months column
+        // (INT NOT NULL DEFAULT 6, CHECK 1..60). Owner gate enforced
+        // upstream in the budget-identity route; recompute hook fires
+        // after this UPDATE lands in a separate withTenantTx.
+        await tx.execute(
+          sql`UPDATE tenancy.budgets SET cushion_target_months = ${patch.cushionTargetMonths} WHERE id = ${budgetId}::uuid`,
         );
       }
     });
