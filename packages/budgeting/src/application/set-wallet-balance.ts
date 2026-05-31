@@ -28,6 +28,8 @@ import type { ReservesSummaryDto } from "./get-reserves-summary";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { recomputeReserveTopupTask } from "./recompute-reserve-topup-task";
+import { recomputeCushionTask } from "./recompute-cushion-task";
+import type { FxProviderLike } from "./recurring-engine-fx";
 
 export interface SetWalletBalanceDeps {
   repo: WalletRepo;
@@ -41,6 +43,10 @@ export interface SetWalletBalanceDeps {
    *  callers (tests, alternate boot paths) keep compiling. */
   taskRepo?: TaskRepo;
   isReservesEnabled?: (tenantId: string) => Promise<boolean>;
+  /** Phase 7 (D-PH7-19): when provided alongside taskRepo, recompute the
+   *  CUSHION_BELOW_TARGET task in a follow-up tx after a CUSHION wallet's
+   *  balance change lands. Optional so legacy callers keep compiling. */
+  fxProvider?: FxProviderLike;
 }
 
 export interface SetWalletBalanceFullInput extends SetBalanceInput {
@@ -198,6 +204,31 @@ export function setWalletBalance(deps: SetWalletBalanceDeps) {
                 budgetCurrencyOf,
                 isReservesEnabled,
               },
+            );
+          },
+        );
+      }
+
+      // Phase 7 (D-PH7-19): CUSHION_BELOW_TARGET recompute hook.
+      // Gate on the wallet being CUSHION-type — only cushion wallets affect
+      // the cushion shortfall equation. set-wallet-balance cannot change
+      // wallet type; type-change path lives in update-wallet.ts.
+      //
+      // A2 fallback: opens a separate withTenantTx so the cushion task
+      // refresh piggybacks on the same connection-pooled tx as the RESERVE
+      // hook would. Race window bounded by ON CONFLICT DO NOTHING + WHERE
+      // PENDING contract in recompute-cushion-task.ts.
+      if (wallet.walletType === "CUSHION" && deps.taskRepo && deps.fxProvider) {
+        const taskRepo = deps.taskRepo;
+        const fxProvider = deps.fxProvider;
+        await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeCushionTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.tenantId },
+              { taskRepo, fxProvider },
             );
           },
         );

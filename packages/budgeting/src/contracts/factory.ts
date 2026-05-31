@@ -179,18 +179,29 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   return {
     fxProvider,
     // Wallet methods (Plan 01-03 route rename)
-    createWallet: createWallet({ repo }),
+    // Phase 7 (D-PH7-19): inject taskRepo + fxProvider so a new CUSHION
+    // wallet auto-emits/resolves CUSHION_BELOW_TARGET.
+    createWallet: createWallet({
+      repo,
+      taskRepo: createTaskRepo(),
+      fxProvider,
+    }),
     // UAT-PH5-T3-59: archive must recalc reserve actuals when a RESERVE
     // wallet leaves the pool (mirrors setWalletBalance deps).
+    // Phase 7 (D-PH7-19): inject taskRepo + fxProvider so archiving a
+    // CUSHION wallet auto-emits/resolves CUSHION_BELOW_TARGET.
     archiveWallet: archiveWallet({
       repo,
       categoriesRepo,
       reserveBalanceRepo: createReserveBalanceRepo(),
       reservesSummaryRepo,
+      taskRepo: createTaskRepo(),
+      fxProvider,
     }),
     // Phase 7 (D-PH7-04): inject taskRepo + isReservesEnabled so a RESERVE
     // wallet balance change auto-emits/resolves the RESERVE_TOPUP task in
     // an A2-fallback follow-up tx.
+    // Phase 7 (D-PH7-19): fxProvider for the CUSHION recompute branch.
     setWalletBalance: setWalletBalance({
       repo,
       categoriesRepo,
@@ -199,6 +210,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       taskRepo: createTaskRepo(),
       isReservesEnabled,
+      fxProvider,
     }),
     listWallets: listWallets({ repo }),
     findWalletById: findWalletById({ repo }),
@@ -216,7 +228,14 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listCategories: listCategories({ repo: categoryRepo }),
     findCategoryById: findCategoryById({ repo: categoryRepo }),
     renameCategory: renameCategory({ repo: categoryRepo }),
-    setCategoryLimit: setCategoryLimit({ limitRepo }),
+    // Phase 7 (D-PH7-19): inject taskRepo + fxProvider so a category limit
+    // change auto-emits/resolves CUSHION_BELOW_TARGET (cushion_amount is on
+    // category_limits — every limit change can shift cushion required).
+    setCategoryLimit: setCategoryLimit({
+      limitRepo,
+      taskRepo: createTaskRepo(),
+      fxProvider,
+    }),
     getEffectiveLimit: getEffectiveLimit({ limitRepo }),
     applyBudgetTemplate: applyBudgetTemplate({ templateRepo }),
     setShareOverrides: setShareOverrides({ shareRepo }),
@@ -267,6 +286,9 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     // Phase 7 (D-PH7-04, Pitfall 1): taskRepo + isReservesEnabled wired so a
     // SPENDINGS↔RESERVE type flip (or amount/currency change on a RESERVE
     // wallet) auto-emits/resolves RESERVE_TOPUP.
+    // Phase 7 (D-PH7-19, Pitfall 1): fxProvider wired so a SPENDINGS↔CUSHION
+    // type flip or balance/currency change on a CUSHION wallet auto-emits/
+    // resolves CUSHION_BELOW_TARGET.
     updateWallet: updateWallet({
       repo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
@@ -275,6 +297,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       reservesSummaryRepo,
       taskRepo: createTaskRepo(),
       isReservesEnabled,
+      fxProvider,
     }),
     // UAT-PH5-T3-1x: intra-section reorder
     reorderWallets: reorderWallets({ repo }),

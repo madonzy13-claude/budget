@@ -27,6 +27,8 @@ import type { ReservesSummaryDto } from "./get-reserves-summary";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { recomputeReserveTopupTask } from "./recompute-reserve-topup-task";
+import { recomputeCushionTask } from "./recompute-cushion-task";
+import type { FxProviderLike } from "./recurring-engine-fx";
 
 export interface UpdateWalletDeps {
   repo: WalletRepo;
@@ -40,6 +42,10 @@ export interface UpdateWalletDeps {
    *  Optional so legacy callers keep compiling. */
   taskRepo?: TaskRepo;
   isReservesEnabled?: (tenantId: string) => Promise<boolean>;
+  /** Phase 7 (D-PH7-19): when provided alongside taskRepo, recompute the
+   *  CUSHION_BELOW_TARGET task in a follow-up tx after a wallet PATCH that
+   *  was-or-becomes CUSHION lands. Optional so legacy callers keep compiling. */
+  fxProvider?: FxProviderLike;
 }
 
 export interface UpdateWalletInput {
@@ -86,6 +92,9 @@ export function updateWallet(deps: UpdateWalletDeps) {
 
       // Capture pre-mutation pool for reserve redistribution.
       const wasReserve = wallet.walletType === "RESERVE";
+      // Phase 7 (D-PH7-19, Pitfall 1): capture pre-mutation CUSHION-ness so
+      // SPENDINGS↔CUSHION flips fire the cushion recompute hook below.
+      const wasCushion = wallet.walletType === "CUSHION";
       const oldWalletCents = BigInt(
         wallet.currentBalance.amount.times("100").toFixed(0),
       );
@@ -256,6 +265,31 @@ export function updateWallet(deps: UpdateWalletDeps) {
                 budgetCurrencyOf,
                 isReservesEnabled,
               },
+            );
+          },
+        );
+      }
+
+      // Phase 7 (D-PH7-19, Pitfall 1): CUSHION_BELOW_TARGET recompute hook.
+      // Pitfall-1-style gate: wasCushion OR isCushion (the wallet either was
+      // or just became CUSHION). This catches:
+      //   - balance change on an existing CUSHION wallet
+      //   - SPENDINGS/RESERVE → CUSHION (wallet enters cushion pool)
+      //   - CUSHION → SPENDINGS/RESERVE (wallet leaves cushion pool)
+      //
+      // A2 fallback: separate withTenantTx mirrors the RESERVE branch.
+      const isCushionNow = wallet.walletType === "CUSHION";
+      if ((wasCushion || isCushionNow) && deps.taskRepo && deps.fxProvider) {
+        const taskRepo = deps.taskRepo;
+        const fxProvider = deps.fxProvider;
+        await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeCushionTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.tenantId },
+              { taskRepo, fxProvider },
             );
           },
         );
