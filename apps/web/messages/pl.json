@@ -1057,5 +1057,12 @@
     "body": "Nie udało się załadować tej strony. Sprawdź połączenie i spróbuj ponownie.",
     "reload": "Odśwież",
     "go_home": "Wróć do strony głównej"
+  },
+  "server_down": {
+    "title": "Nie możemy połączyć się z serwerem",
+    "body": "Budget jest chwilowo niedostępny. Sprawdź połączenie — jeśli u Ciebie wszystko działa, nasze serwery łapią oddech. Zaraz wracamy.",
+    "retry": "Spróbuj ponownie",
+    "retrying": "Sprawdzanie…",
+    "still_unreachable": "Serwer wciąż nie odpowiada. Daj mu jeszcze chwilę."
   }
 }

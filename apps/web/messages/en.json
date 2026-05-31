@@ -1049,5 +1049,12 @@
     "body": "We couldn't load this page. Check your connection and try again.",
     "reload": "Reload",
     "go_home": "Go to home"
+  },
+  "server_down": {
+    "title": "We can't reach the server",
+    "body": "Budget is offline for the moment. Check your connection — if everything looks fine on your end, our servers are taking a breather. We'll be right back.",
+    "retry": "Try again",
+    "retrying": "Checking…",
+    "still_unreachable": "Still no answer from the server. Give it another moment."
   }
 }

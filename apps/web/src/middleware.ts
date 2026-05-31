@@ -10,6 +10,13 @@ const PROTECTED_ROUTES = ["/onboarding", "/budgets", "/settings"];
 // Public share-link recipient view (SHRD-04). The token is the credential;
 // the view step needs no session. The accept POST is auth-gated server-side.
 const PUBLIC_BUDGET_PATHS = ["/budgets/join/"];
+// /server-down is intentionally absent from every list above. It must be
+// reachable for BOTH authenticated and unauthenticated users — the (app)
+// layout redirects there when getServerSession throws ServerUnavailableError
+// (API container down). Listing it here would be wrong: it is not a
+// protected route (no auth required) and not an auth route (we never want
+// to bounce authenticated users away from it). The default fall-through
+// (intl-only handling) is exactly the behaviour we want.
 const SESSION_COOKIE = "better-auth.session_token";
 // Holds the signed-in user's account locale (set on sign-in + by Settings,
 // kept in sync by LocaleCookieSync). Logged-in users are redirected so the

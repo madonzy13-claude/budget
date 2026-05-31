@@ -1,6 +1,7 @@
 import { test as base } from "playwright-bdd";
 import { request, expect } from "@playwright/test";
 import { SignUpPage } from "../pages/SignUpPage.js";
+import { ServerDownPage } from "../pages/ServerDownPage.js";
 import { type Locale } from "../pages/labels.js";
 import {
   pollMailpitForRecipient,
@@ -20,6 +21,10 @@ export interface ScenarioCtx {
   freshUser: FreshUser | undefined;
   /** Last email used in a sign-up step (for duplicate-signup assertions). */
   lastSignUpEmail: string | undefined;
+  /** Locale for the current server-down scenario (set by the open-step). */
+  serverDownLocale?: Locale;
+  /** Page object cached across server-down steps in a single scenario. */
+  serverDownPage?: ServerDownPage;
 }
 
 type CustomFixtures = {
@@ -31,7 +36,10 @@ type CustomFixtures = {
 
 export const test = base.extend<CustomFixtures>({
   scenarioCtx: async ({}, use) => {
-    await use({ freshUser: undefined, lastSignUpEmail: undefined });
+    await use({
+      freshUser: undefined,
+      lastSignUpEmail: undefined,
+    });
   },
 
   freshUser: async ({ page, scenarioCtx }, use) => {

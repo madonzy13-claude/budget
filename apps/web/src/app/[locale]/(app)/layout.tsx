@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getServerSession } from "@/lib/server-session";
+import { getServerSession, ServerUnavailableError } from "@/lib/server-session";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
 import {
@@ -41,7 +41,47 @@ interface AppLayoutProps {
 export default async function AppLayout({ children, params }: AppLayoutProps) {
   const { locale } = await params;
 
-  const session = await getServerSession();
+  // Three outcomes from getServerSession:
+  //   1. ServerSession           → continue rendering the shell.
+  //   2. null                    → no valid session → redirect to /sign-in.
+  //   3. ServerUnavailableError  → the API container is unreachable. Do NOT
+  //      bounce the user to /sign-in (the sign-in form itself depends on the
+  //      API to work — they would get a confusing dead-end on mobile, which
+  //      is the original bug). Instead surface a dedicated server-down
+  //      screen with a Retry button.
+  //
+  // redirect() works by throwing NEXT_REDIRECT, so we collect the intent in
+  // the try block and call redirect() outside — same pattern the onboarding
+  // guard below uses.
+  let session: Awaited<ReturnType<typeof getServerSession>> | undefined;
+  let serverDown = false;
+  try {
+    session = await getServerSession();
+  } catch (e) {
+    if (e instanceof ServerUnavailableError) {
+      serverDown = true;
+    } else {
+      throw e;
+    }
+  }
+  if (serverDown) {
+    // Preserve the originally-requested pathname (read from the
+    // middleware-injected x-pathname header — same source the active-budget
+    // detection uses). The /server-down card hard-reloads to this URL once
+    // the health probe succeeds, so the user lands on the page they were
+    // trying to reach instead of being stranded on /server-down after the
+    // API comes back. Without the hint we would reload /server-down itself
+    // — which the layout doesn't re-run for, leaving the user stuck.
+    const hdrs = await headers();
+    const intendedPath =
+      hdrs.get("x-middleware-request-x-pathname") ?? hdrs.get("x-pathname");
+    const params = new URLSearchParams();
+    if (intendedPath && !intendedPath.endsWith("/server-down")) {
+      params.set("next", intendedPath);
+    }
+    const qs = params.toString();
+    redirect(`/${locale}/server-down${qs ? `?${qs}` : ""}`);
+  }
   if (!session) {
     const cookieStore = await cookies();
     const hasStaleCookie = !!cookieStore.get("better-auth.session_token")
