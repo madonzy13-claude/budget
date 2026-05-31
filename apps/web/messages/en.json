@@ -426,7 +426,9 @@
         "cushion_label": "Cushion",
         "cushion_help": "Plan a small financial cushion alongside each category so a bad month doesn't tip the main budget over. Turn off if you don't want any cushion at all.",
         "reserves_label": "Reserves",
-        "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab."
+        "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
+        "targetMonthsLabel": "Target months",
+        "targetMonthsError": "Months must be a whole number between 1 and 60."
       },
       "review": {
         "heading": "Ready to go?",

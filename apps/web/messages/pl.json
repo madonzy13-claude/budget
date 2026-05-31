@@ -426,7 +426,9 @@
         "cushion_label": "Poduszka",
         "cushion_help": "Zaplanuj niewielką rezerwę finansową obok każdej kategorii, aby zły miesiąc nie wywrócił głównego budżetu. Wyłącz, jeśli nie chcesz żadnej poduszki.",
         "reserves_label": "Rezerwy",
-        "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączone ukrywa zakładkę Rezerwy."
+        "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączone ukrywa zakładkę Rezerwy.",
+        "targetMonthsLabel": "Docelowe miesiące",
+        "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60."
       },
       "review": {
         "heading": "Gotowy?",
