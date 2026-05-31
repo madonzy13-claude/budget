@@ -172,8 +172,12 @@ export async function boot(): Promise<BootedDeps> {
   const expenseLedgerDraftPortRepo = new DrizzleExpenseLedgerDraftPortRepo();
 
   const reorderCategoriesService = reorderCategories({ repo: categoryRepo });
+  // Phase 7 (D-PH7-10): inject taskRepo so dismiss auto-resolves the
+  // matching PENDING CONFIRM_DRAFT task (separate withTenantTx — A2 fallback,
+  // see dismiss-draft.ts comment for trade-off).
   const dismissDraftService = dismissDraft({
     repo: expenseLedgerDraftPortRepo,
+    taskRepo,
   });
   const confirmDraftService = confirmDraft({
     repo: expenseLedgerDraftPortRepo,

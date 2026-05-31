@@ -44,6 +44,7 @@ import { deleteRecurringRule } from "../application/delete-recurring-rule";
 import { confirmRecurringDraft } from "../application/confirm-recurring-draft";
 import { editAndConfirmRecurringDraft } from "../application/edit-and-confirm-recurring-draft";
 import { skipRecurringDraft } from "../application/skip-recurring-draft";
+import { createTaskRepo } from "../adapters/persistence/task-repo";
 import { listPendingDrafts } from "../application/list-pending-drafts";
 import { searchTransactions } from "../application/search-transactions";
 import { bulkRecategorize } from "../application/bulk-recategorize";
@@ -240,9 +241,13 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       draftRepo: recurringDraftRepo,
     }),
     deleteRecurringRule: deleteRecurringRule({ ruleRepo: recurringRuleRepo }),
-    confirmRecurringDraft: confirmRecurringDraft(),
+    // Phase 7 (D-PH7-09 / D-PH7-10): taskRepo injected so confirm + skip
+    // auto-resolve the matching PENDING CONFIRM_DRAFT task in the same tx.
+    confirmRecurringDraft: confirmRecurringDraft({
+      taskRepo: createTaskRepo(),
+    }),
     editAndConfirmRecurringDraft: editAndConfirmRecurringDraft(),
-    skipRecurringDraft: skipRecurringDraft(),
+    skipRecurringDraft: skipRecurringDraft({ taskRepo: createTaskRepo() }),
     listPendingDrafts: listPendingDrafts(),
     recurringRuleRepo,
     recurringDraftRepo,
