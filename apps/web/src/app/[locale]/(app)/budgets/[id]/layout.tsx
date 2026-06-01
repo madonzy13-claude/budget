@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { BdpTabs } from "@/components/budgeting/bdp-tabs";
-import { TaskBanner } from "@/components/budgeting/task-banner";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 
 /**
@@ -16,8 +15,8 @@ import type { TaskSummary } from "@/components/budgeting/task-banner-row";
  * Membership gate (T-03-06-01): fetch /budgets/active and verify `id` is in
  * the list; on miss redirect to `/${locale}` (home) — NOT /workspaces (gone).
  *
- * Banner DOM rule (D-PH3-14): TaskBanner is mounted ONLY when initialTasks
- * is non-empty. Empty state → no banner element in DOM (e2e gate).
+ * Tasks-Redesign: initialTasks passed to BdpTabs (and from there to each pill's
+ * PillTaskSlider). TaskBanner removed from layout — per-pill sliders replace it.
  *
  * Pitfall 4 guard: every /budgets/{id}/... fetch passes `id` as the
  * serverApiFetch first arg so X-Budget-ID is set (T-03-06-08).
@@ -71,17 +70,11 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
         className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
         data-testid="bdp-sticky-wrapper"
       >
-        {initialTasks.length > 0 ? (
-          <TaskBanner
-            budgetId={id}
-            locale={locale}
-            initialTasks={initialTasks}
-          />
-        ) : null}
         <BdpTabs
           locale={locale}
           budgetId={id}
           reservesEnabled={reservesEnabled}
+          initialTasks={initialTasks}
         />
       </div>
       {children}
