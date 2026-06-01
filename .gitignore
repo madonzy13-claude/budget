@@ -24,3 +24,4 @@ graphify-out/
 /debug-*.ts
 **/e2e/debug-*.spec.ts
 apps/api/test/routes/debug-*.test.ts
+.superpowers/
