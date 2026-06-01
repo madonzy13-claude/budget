@@ -26,6 +26,7 @@
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import {
@@ -127,6 +128,7 @@ export function RecurringRuleForm({
   fetchImpl,
 }: RecurringRuleFormProps) {
   const t = useTranslations("budgeting.recurring");
+  const queryClient = useQueryClient();
 
   // Normalize the prefilled amount so the input value matches the
   // shape the spendings grid uses ("1500", "123.50") instead of the
@@ -225,6 +227,17 @@ export function RecurringRuleForm({
           toast.error(t("errors.create"));
           return;
         }
+        // UAT round 11: creating a rule with first_due_date <= today
+        // synchronously materialises the first draft + emits CONFIRM_DRAFT
+        // server-side (create-recurring-rule.ts catch-up loop, commit
+        // 4480afc). Invalidate the per-budget tasks query so the Spendings
+        // pill badge + slider show the new task within ~1 tick instead of
+        // waiting for the 60 s React Query poll.
+        if (budgetId) {
+          queryClient.invalidateQueries({
+            queryKey: ["tasks", budgetId, "pending"],
+          });
+        }
       } else {
         const ruleId = initialValues?.ruleId;
         if (!ruleId) return;
@@ -251,6 +264,14 @@ export function RecurringRuleForm({
         if (!res.ok) {
           toast.error(t("errors.update"));
           return;
+        }
+        // UAT round 11: editing a rule can change the next-due materialise
+        // path; refresh the tasks query for the same reason as the create
+        // branch above.
+        if (budgetId) {
+          queryClient.invalidateQueries({
+            queryKey: ["tasks", budgetId, "pending"],
+          });
         }
       }
       onSaved?.();

@@ -49,6 +49,10 @@ export function useConfirmDraft(budgetId: string, month: string) {
       qc.invalidateQueries({
         queryKey: ["spendings-summary", budgetId, month],
       });
+      // UAT round 11: confirming a draft auto-resolves the CONFIRM_DRAFT
+      // task server-side. Invalidate the per-budget tasks query so the
+      // badge / slider drop the row within ~1 tick (no 60 s wait).
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

@@ -180,11 +180,11 @@ export function ReservesTableRow({
   const rowClass = [
     "flex min-h-[48px] items-center gap-3 rounded-[var(--radius-md)]",
     "px-3 sm:min-h-[48px] min-h-[56px]",
-    // UAT round 10: excluded rows now use a darker surface color (#14181D)
-    // instead of opacity reduction — keeps text + drag-handle fully legible
-    // while still reading as visually muted compared to active rows.
+    // UAT round 10/11: excluded rows use a darker surface (#14181D) plus a
+    // muted #7A7C7F text/icon color so the row reads as visually muted
+    // while every glyph stays fully legible.
     isExcluded
-      ? "bg-[#14181D]"
+      ? "bg-[#14181D] text-[#7A7C7F] [&_svg]:text-[#7A7C7F]"
       : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
   ]
     .filter(Boolean)

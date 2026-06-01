@@ -40,6 +40,10 @@ export function useDismissDraft(budgetId: string, month: string) {
       qc.invalidateQueries({
         queryKey: ["spendings-summary", budgetId, month],
       });
+      // UAT round 11: dismissing a draft auto-resolves its CONFIRM_DRAFT
+      // task server-side. Invalidate tasks so the badge / slider drop the
+      // row within ~1 tick.
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

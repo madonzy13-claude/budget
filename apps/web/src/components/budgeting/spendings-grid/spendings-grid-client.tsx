@@ -149,51 +149,47 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     setGridScrolled((prev) => (prev === t ? prev : t));
   }
 
-  // UAT round 10: directional swipe lock — keeps iOS Safari pull-to-refresh
-  // from firing on diagonal swipes during horizontal column scroll.
+  // UAT round 11: surgical iOS-Safari pull-to-refresh blocker.
   //
-  // Behaviour: track the first significant move (>= 6 px) of each touch.
-  // Compute the angle from vertical: tan(θ) = dx / dy. If the gesture is
-  // anything other than near-vertical (within ±15° of straight down — i.e.
-  // dx / dy < tan(15°) ≈ 0.268), call preventDefault on subsequent
-  // touchmove events. That cancels the page-level pull-to-refresh while
-  // leaving horizontal column scrolling and near-vertical scrolling intact.
+  // The previous round-10 lock called preventDefault on any non-near-
+  // vertical gesture, which also cancelled native horizontal scrolling
+  // inside the wrapper (UAT round 11 #5). The correct surface to suppress
+  // is narrower: pull-to-refresh fires only when the wrapper is at
+  // scrollTop === 0 AND the gesture is dominantly downward. Everywhere
+  // else, default behaviour stays untouched.
   //
-  // Listener attaches to the gridRef element with { passive: false } so
-  // preventDefault is honored (React's onTouchMove is passive in some
-  // versions — bind natively).
+  // Rule: preventDefault iff
+  //   - touch started while scrollTop was 0, AND
+  //   - finger has moved >= 6 px downward, AND
+  //   - the move is more vertical than horizontal (|dy| > |dx|).
+  //
+  // Side effects: horizontal column scroll keeps working at all scroll
+  // positions; vertical scroll keeps working when scrollTop > 0;
+  // legitimate downward scroll past the top edge (which would be a
+  // pull-to-refresh) is the only motion class blocked.
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
-    const VERTICAL_TOL_TAN = Math.tan((15 * Math.PI) / 180); // ≈ 0.268
     const ACTIVATE_PX = 6;
     let startX = 0;
     let startY = 0;
-    let locked = false;
-    let blockVertical = false;
+    let startScrollTop = 0;
     function onStart(e: TouchEvent) {
-      if (e.touches.length !== 1) return;
+      if (e.touches.length !== 1 || !el) return;
       const t = e.touches[0];
       if (!t) return;
       startX = t.clientX;
       startY = t.clientY;
-      locked = false;
-      blockVertical = false;
+      startScrollTop = el.scrollTop;
     }
     function onMove(e: TouchEvent) {
+      if (startScrollTop !== 0) return;
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
       if (!t) return;
+      const dy = t.clientY - startY;
       const dx = Math.abs(t.clientX - startX);
-      const dy = Math.abs(t.clientY - startY);
-      if (!locked && (dx >= ACTIVATE_PX || dy >= ACTIVATE_PX)) {
-        locked = true;
-        // Direct vertical = dx/dy <= tan(15°). Anything more horizontal
-        // (including diagonal) is considered NOT a vertical-scroll intent,
-        // so we cancel default to suppress iOS pull-to-refresh on it.
-        blockVertical = dy === 0 || dx / dy > VERTICAL_TOL_TAN;
-      }
-      if (blockVertical && e.cancelable) {
+      if (dy >= ACTIVATE_PX && dy > dx && e.cancelable) {
         e.preventDefault();
       }
     }
