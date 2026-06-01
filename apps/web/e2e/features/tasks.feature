@@ -14,7 +14,6 @@ Feature: Tasks redesign — home badge + per-pill badge + per-pill slider
   # round-trips as snake_case from the Better Auth org plugin layer. Unit-
   # tested in apps/web/test/components/budgeting/budget-card.test.tsx
   # (P9 — both count>0 and count===0 assertions pass). Deferred.
-  @skip-tasks-redesign-debt
   Scenario: Home shows red badge "3" on a budget card with 3 pending tasks
     Given a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "EUR"
     And a "CONFIRM_DRAFT" task is seeded for "My E2E Budget" with rule "Rent" amount 100000 cents in "EUR"
