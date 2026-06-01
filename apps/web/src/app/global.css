@@ -186,15 +186,17 @@
   body {
     background-color: var(--canvas-dark);
     color: var(--body-on-dark);
-    /* Suppress iOS Safari rubber-band / pull-to-refresh AND its
-       auto-scroll-focused-input behavior: pinning the document height +
-       hiding overflow on BOTH html and body leaves no document-level
-       scroll surface for Safari to shift when a text input is focused.
-       html alone isn't enough — iOS falls back to whichever ancestor is
-       scrollable, so we lock both. Internal scroll containers handle
-       their own overflow. */
-    overscroll-behavior: none;
-    overflow: hidden;
+    /* UAT round 13: relaxed from `overscroll-behavior: none + overflow:
+       hidden + height: 100%` so iOS Safari's native pull-to-refresh works
+       again when the user pulls from the page header (above any internal
+       scroll container). Internal grids (spendings) carry their own
+       pull-to-refresh suppression via a scrollTop=1 anchor + a downward-
+       cone preventDefault inside spendings-grid-client.tsx — those keep
+       in-grid diagonal gestures from triggering refresh. The old
+       input-focus auto-scroll workaround the lock used to provide is
+       reintroduced inline in transaction-row.tsx via preventScroll +
+       saved scrollTop restoration, so removing the document lock no
+       longer regresses that surface. */
     height: 100%;
   }
 

@@ -25,7 +25,7 @@
  *   - edit   → PATCH /recurring-rules/:id with applyToFuture toggle
  */
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -128,6 +128,7 @@ export function RecurringRuleForm({
   fetchImpl,
 }: RecurringRuleFormProps) {
   const t = useTranslations("budgeting.recurring");
+  const localeRoot = useLocale();
   const queryClient = useQueryClient();
 
   // Normalize the prefilled amount so the input value matches the
@@ -329,11 +330,15 @@ export function RecurringRuleForm({
               <div>
                 <Label htmlFor="rr-category">{t("rule.categoryLabel")}</Label>
                 <Select
+                  // UAT round 13: keep value undefined when categoryId is
+                  // null so the trigger shows the *placeholder* rather than
+                  // resolving to a category label. Radix only renders the
+                  // SelectValue placeholder when `value` is undefined.
                   value={categoryId ?? undefined}
                   onValueChange={(v) => setCategoryId(v)}
                 >
                   <SelectTrigger id="rr-category">
-                    <SelectValue placeholder={t("rule.categoryLabel")} />
+                    <SelectValue placeholder={t("rule.categoryPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((c) => (
@@ -479,6 +484,11 @@ export function RecurringRuleForm({
                 <Input
                   id="rr-firstdue"
                   type="date"
+                  // UAT round 13: lang attribute tells the browser to render
+                  // the native date picker using the active page locale, so
+                  // pl/uk users see DD.MM.YYYY (or whatever their locale's
+                  // date format is) instead of the default browser locale.
+                  lang={localeRoot}
                   value={firstDueDate}
                   onChange={(e) => setFirstDueDate(e.target.value)}
                   required

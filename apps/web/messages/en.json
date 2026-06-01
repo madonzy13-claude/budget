@@ -613,7 +613,8 @@
         "firstDueLabel": "First due date",
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
-        "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed."
+        "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",
+        "categoryPlaceholder": "Select category…"
       },
       "list": {
         "title": "Recurring rules",

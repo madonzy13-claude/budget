@@ -636,7 +636,8 @@
         "firstDueLabel": "Pierwsza data",
         "noteLabel": "Notatka (opcjonalnie)",
         "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
-        "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane."
+        "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
+        "categoryPlaceholder": "Wybierz kategorię…"
       },
       "list": {
         "title": "Wydatki cykliczne",
