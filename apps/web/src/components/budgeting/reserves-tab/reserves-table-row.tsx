@@ -223,7 +223,11 @@ export function ReservesTableRow({
           transition: swiping ? "none" : "opacity 200ms ease-out",
         }}
         className={[
-          "absolute right-0 top-0 bottom-0 flex w-[120px] items-center justify-center px-2",
+          // UAT round 8: add visible left gap before the action label so the
+          // button reads as separated from the underlying row content. EN
+          // had this naturally because "Exclude" is short; longer uk/pl
+          // labels (Виключити / Wykluczyć) need explicit left padding.
+          "absolute right-0 top-0 bottom-0 flex w-[120px] items-center justify-center pl-4 pr-2",
           "rounded-[var(--radius-md)]",
           isExcluded
             ? "bg-[var(--info)] text-[var(--info-foreground,white)]"

@@ -98,9 +98,12 @@ export function CushionSection({
     setTargetMonthsRaw(String(cushionTargetMonths ?? 6));
   }, [cushionTargetMonths]);
   const targetMonths = (() => {
-    // UAT round 7: parseFloat (was parseInt) to accept fractional months
-    // (e.g. 4.5). NaN sentinel surfaces the inline error and suppresses PATCH.
-    const v = parseFloat(targetMonthsRaw);
+    // UAT round 7 / 8: parseFloat (was parseInt) to accept fractional months
+    // (e.g. 4.5). Normalize comma decimal separator to dot first so users on
+    // PL/UK locales can type "4,5" and get the same result as "4.5". NaN
+    // sentinel surfaces the inline error and suppresses PATCH.
+    const normalized = targetMonthsRaw.replace(",", ".");
+    const v = parseFloat(normalized);
     return Number.isFinite(v) ? v : Number.NaN;
   })();
   const [targetMonthsError, setTargetMonthsError] = useState<string | null>(
@@ -276,11 +279,14 @@ export function CushionSection({
             </label>
             <Input
               id="cushion-target-months"
-              type="number"
+              // UAT round 8: type="text" + inputMode="decimal" gives the
+              // numeric keypad on iOS / Android while letting the user type a
+              // comma decimal separator ("4,5") which the native
+              // <input type="number"> rejects in many locales. Parse step
+              // normalises comma → dot before the PATCH.
+              type="text"
               inputMode="decimal"
-              min={1}
-              max={60}
-              step={0.5}
+              pattern="[0-9,.]*"
               value={targetMonthsRaw}
               onChange={(e) => setTargetMonthsRaw(e.target.value)}
               onBlur={handleTargetMonthsBlur}

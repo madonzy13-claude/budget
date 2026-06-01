@@ -20,12 +20,14 @@ export interface AddCategoryColumnProps {
 export function AddCategoryColumn({ onClick }: AddCategoryColumnProps) {
   const t = useTranslations("grid.addCategory");
 
-  // UAT round 7: widen the column on mobile (140 → 160) so the longest
-  // localized "Add category" label (UK "Додати категорію", PL "Dodaj
-  // kategorię") doesn't wrap to two lines at the most common 360-390px
-  // viewports. Desktop width unchanged.
+  // UAT round 8: match normal category column width exactly
+  // (w-[140px] sm:w-[160px] — see category-column.tsx). The longer
+  // localized "Add category" labels (UK "Додати категорію", PL "Dodaj
+  // kategorię") are allowed to wrap to two lines inside the box — that
+  // is preferable to misaligning the column width and breaking the grid.
+  // text-center keeps the wrapped label horizontally centered.
   const colClassName =
-    "flex min-h-[170px] w-[160px] sm:w-[160px] flex-shrink-0 flex-col items-center justify-center gap-2 px-3 " +
+    "flex min-h-[170px] w-[140px] sm:w-[160px] flex-shrink-0 flex-col items-center justify-center gap-2 px-3 text-center " +
     "rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)] cursor-pointer select-none " +
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--primary)]";
 
