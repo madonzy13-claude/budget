@@ -18,6 +18,8 @@ export interface BudgetSummary {
   name: string;
   kind: "PRIVATE" | "SHARED";
   default_currency: string;
+  /** Pending task count for this budget. Sourced from GET /budgets/active. */
+  pendingTasksCount: number;
 }
 
 export interface BudgetSwitcherProps {
