@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { NavLink } from "@/components/common/nav-link";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutGrid,
   Coins,
@@ -11,6 +12,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clientApiFetch } from "@/lib/budget-fetch";
+import type { TaskSummary } from "@/components/budgeting/task-banner-row";
+import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
+import { pillFor, type Pill } from "@/components/budgeting/tasks/kind-pill-map";
 
 /**
  * BdpTabs — route-as-tab pill navigation for the Budget Detail Page.
@@ -32,15 +37,13 @@ interface BdpTabsProps {
   // D-PH5-R11 cascading-hide surface 1: when false, Reserves pill is hidden.
   // Default true preserves existing UX for all existing budgets.
   reservesEnabled?: boolean;
+  initialTasks?: TaskSummary[];
 }
 
 // UAT-PH5-T2-02: Wallets surfaced first per user feedback. Order now is
 // Wallets → Spendings → Reserves → Settings. The /budgets/[id] index page
 // redirects to /wallets accordingly.
-const TABS: ReadonlyArray<{
-  slug: "wallets" | "spendings" | "reserves" | "settings";
-  icon: LucideIcon;
-}> = [
+const TABS: ReadonlyArray<{ slug: Pill; icon: LucideIcon }> = [
   { slug: "wallets", icon: Wallet },
   { slug: "spendings", icon: LayoutGrid },
   { slug: "reserves", icon: Coins },
@@ -51,9 +54,35 @@ export function BdpTabs({
   locale,
   budgetId,
   reservesEnabled = true,
+  initialTasks,
 }: BdpTabsProps) {
   const pathname = usePathname() ?? "";
   const t = useTranslations("bdp.tab");
+
+  const { data: tasks } = useQuery({
+    queryKey: ["tasks", budgetId, "pending"],
+    initialData: initialTasks ?? [],
+    queryFn: async () => {
+      const res = await clientApiFetch(
+        `/budgets/${budgetId}/tasks?status=pending`,
+      );
+      if (!res.ok) return initialTasks ?? [];
+      const body = (await res.json()) as { tasks: TaskSummary[] };
+      return body.tasks;
+    },
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const countsByPill: Record<Pill, number> = {
+    wallets: 0,
+    spendings: 0,
+    reserves: 0,
+    settings: 0,
+  };
+  for (const task of tasks ?? []) {
+    countsByPill[pillFor(task.kind)] += 1;
+  }
 
   // D-PH5-R11: filter Reserves pill when reserves are disabled.
   const visibleTabs = reservesEnabled
@@ -88,6 +117,7 @@ export function BdpTabs({
             <span className={cn(active ? "inline" : "hidden sm:inline")}>
               {label}
             </span>
+            <PillBadge count={countsByPill[slug]} />
           </NavLink>
         );
       })}
