@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page, type Locator } from "@playwright/test";
 
 export class HomePo {
   constructor(private page: Page) {}
@@ -27,5 +27,21 @@ export class HomePo {
     return this.page.getByText(
       /Insights coming soon|Wkrótce: statystyki|Скоро з'являться аналітичні графіки/,
     );
+  }
+
+  budgetCard(budgetName: string): Locator {
+    return this.page.getByRole("link", { name: new RegExp(budgetName) });
+  }
+
+  cardBadge(budgetName: string): Locator {
+    return this.budgetCard(budgetName).getByTestId("pill-badge");
+  }
+
+  async assertCardBadge(budgetName: string, count: number): Promise<void> {
+    if (count === 0) {
+      await expect(this.cardBadge(budgetName)).toHaveCount(0);
+    } else {
+      await expect(this.cardBadge(budgetName)).toHaveText(String(count));
+    }
   }
 }
