@@ -256,9 +256,12 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listSupportedCurrencies,
     transactionRepo,
     // Plan 02-08 / 02-02
+    // Phase 7 UAT-9 fix: taskRepo injected so inline catch-up drafts emit
+    // CONFIRM_DRAFT immediately (no 18h wait for the 0 6 * * * cron).
     createRecurringRule: createRecurringRule({
       ruleRepo: recurringRuleRepo,
       fxProvider,
+      taskRepo: createTaskRepo(),
     }),
     updateRecurringRule: updateRecurringRule({
       ruleRepo: recurringRuleRepo,

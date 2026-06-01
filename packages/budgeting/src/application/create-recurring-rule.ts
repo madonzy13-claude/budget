@@ -13,6 +13,7 @@ import { TenantId, UserId } from "@budget/shared-kernel";
 import { Temporal } from "temporal-polyfill";
 import { nextOccurrence, type Cadence } from "../domain/cadence";
 import type { RecurringRuleRepo } from "../ports/recurring-rule-repo";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { computeRecurringFx, type FxProviderLike } from "./recurring-engine-fx";
 
 export interface CreateRecurringRuleInput {
@@ -51,6 +52,7 @@ export class FirstDueDateInPastError extends Error {
 export function createRecurringRule(deps: {
   ruleRepo: RecurringRuleRepo;
   fxProvider: FxProviderLike;
+  taskRepo: TaskRepo;
 }) {
   return async (
     input: CreateRecurringRuleInput,
@@ -187,6 +189,23 @@ export function createRecurringRule(deps: {
                 dueDate: dueStr,
               },
             });
+            // Emit CONFIRM_DRAFT task inline so the badge appears on the client's
+            // next refetch without waiting for the 0 6 * * * cron to fire.
+            // Idempotent: tasks_confirm_draft_dedup_idx (UNIQUE on draft_id) means
+            // a duplicate call from the nightly engine is a silent no-op.
+            await deps.taskRepo.emitConfirmDraft(
+              input.tenantId,
+              input.tenantId,
+              {
+                draft_id: draftId,
+                rule_name: input.note ?? "",
+                amount_cents: amountCents,
+                currency: budgetCurrency,
+                transaction_date: dueStr,
+                category_id: input.categoryId ?? "",
+              },
+              tx as unknown as TenantTx,
+            );
           }
           dueDate = nextOccurrence(
             {
