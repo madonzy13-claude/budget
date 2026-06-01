@@ -83,9 +83,17 @@ export function CushionSection({
   const [mode, setMode] = useState(cushionModeEnabled);
   const [savingFlag, setSavingFlag] = useState(false);
   const [savingMode, setSavingMode] = useState(false);
-  const [targetMonths, setTargetMonths] = useState<number>(
-    cushionTargetMonths ?? 6,
+  // Bug fix (UAT round 3): keep input value as a *string* so the field can
+  // hold the transient empty state (user backspacing all digits) without
+  // collapsing to "0" and forcing "09" on the next keystroke. Parsed to
+  // integer at validate / save time.
+  const [targetMonthsRaw, setTargetMonthsRaw] = useState<string>(
+    String(cushionTargetMonths ?? 6),
   );
+  const targetMonths = (() => {
+    const v = parseInt(targetMonthsRaw, 10);
+    return Number.isNaN(v) ? Number.NaN : v;
+  })();
   const [targetMonthsError, setTargetMonthsError] = useState<string | null>(
     null,
   );
@@ -99,10 +107,9 @@ export function CushionSection({
   } = useQuery({
     queryKey: ["cushion-summary", budgetId],
     queryFn: async () => {
-      const res = await clientApiFetch(
-        `/budgets/${budgetId}/cushion-summary`,
-        { headers: { "X-Budget-ID": budgetId } },
-      );
+      const res = await clientApiFetch(`/budgets/${budgetId}/cushion-summary`, {
+        headers: { "X-Budget-ID": budgetId },
+      });
       if (!res.ok)
         throw new Error(`Cushion summary fetch failed: ${res.status}`);
       return (await res.json()) as CushionSummaryPayload;
@@ -196,16 +203,13 @@ export function CushionSection({
       );
     }
     if (!cushionSummary) return null;
-    const currency =
-      cushionSummary.currency || budgetCurrency || "USD";
+    const currency = cushionSummary.currency || budgetCurrency || "USD";
     const shortfall = BigInt(cushionSummary.shortfall_cents);
     const positive = shortfall > 0n;
     return (
       <span
         className={
-          positive
-            ? "text-[var(--trading-down)]"
-            : "text-[var(--trading-up)]"
+          positive ? "text-[var(--trading-down)]" : "text-[var(--trading-up)]"
         }
       >
         {positive
@@ -264,11 +268,8 @@ export function CushionSection({
               min={1}
               max={60}
               step={1}
-              value={targetMonths}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
-                setTargetMonths(Number.isNaN(v) ? 0 : v);
-              }}
+              value={targetMonthsRaw}
+              onChange={(e) => setTargetMonthsRaw(e.target.value)}
               onBlur={handleTargetMonthsBlur}
               aria-describedby="cushion-preview cushion-target-error"
               aria-invalid={targetMonthsError !== null ? "true" : undefined}

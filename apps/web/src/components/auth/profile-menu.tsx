@@ -144,14 +144,19 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
   }
 
   function handleTriggerClick() {
-    // Always OPEN on click (don't toggle). Playwright's `.click()` action
-    // synthesises a mouseenter+click sequence on hover-capable browsers,
-    // so `toggle` would: hover → open → click → close — the user (or test)
-    // never sees the menu. Close paths: outside-click handler, Esc key,
-    // mouseleave grace timer. The trigger's job is purely to OPEN — this
-    // also matches the WAI-ARIA Authoring Practices for menu buttons
-    // (Enter/Space/Click → open; Esc → close).
-    setOpen(true);
+    // Desktop (hover-capable): always OPEN on click. Playwright's `.click()`
+    // synthesises mouseenter+click, so `toggle` would: hover → open → click
+    // → close — the user/test never sees the menu. The mouseleave grace
+    // timer closes it on desktop instead.
+    //
+    // Mobile / touch (no hover support): toggle. Tapping the avatar a second
+    // time must close the menu — there is no mouseleave on touch devices,
+    // so without toggle the user has no way to dismiss via the trigger.
+    if (supportsHover.current) {
+      setOpen(true);
+    } else {
+      setOpen((o) => !o);
+    }
   }
 
   function handleTriggerKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>) {

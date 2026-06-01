@@ -949,7 +949,8 @@
       "title": {
         "RESERVE_TOPUP": "Uzupełnij rezerwę o {amount}",
         "CONFIRM_DRAFT": "Potwierdź {ruleName} — {amount}",
-        "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki"
+        "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki",
+        "RESERVE_TOPUP_withdraw": "Rezerwa ma {amount} nadwyżki"
       },
       "kind": {
         "RESERVE_TOPUP": "Rezerwa",
@@ -972,9 +973,10 @@
       "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie.",
       "more": "Więcej",
       "detail": {
-        "RESERVE_TOPUP": "Łączne saldo Twoich portfeli rezerwowych nie odpowiada sumie kwot przypisanych do rezerw kategorii. Otwórz zakładkę Rezerwy, dostosuj kwoty kategorii tak, aby sumowały się do obecnej sumy portfeli (lub uzupełnij portfel rezerwowy), a zadanie zniknie automatycznie po następnym odświeżeniu.",
+        "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli. Zadanie zniknie po następnym odświeżeniu.",
         "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia. Zadanie znika po rozstrzygnięciu szkicu.",
-        "CUSHION_BELOW_TARGET": "Twój fundusz bezpieczeństwa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Przelej środki do portfela typu Cushion albo obniż liczbę miesięcy w Ustawienia → Cushion. Zadanie znika automatycznie, gdy fundusz osiągnie cel."
+        "CUSHION_BELOW_TARGET": "Twój fundusz bezpieczeństwa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Przelej środki do portfela typu Cushion albo obniż liczbę miesięcy w Ustawienia → Cushion. Zadanie znika automatycznie, gdy fundusz osiągnie cel.",
+        "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli). Zadanie zniknie automatycznie po następnym odświeżeniu."
       }
     }
   },

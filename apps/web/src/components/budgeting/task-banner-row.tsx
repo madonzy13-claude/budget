@@ -88,8 +88,16 @@ function buildTitleParams(task: TaskSummary): Record<string, string> {
 export function TaskBannerRow({ task }: TaskBannerRowProps) {
   const t = useTranslations();
 
-  const titleKey = `bdp.tasks.title.${task.kind}` as const;
-  const detailKey = `bdp.tasks.detail.${task.kind}` as const;
+  // RESERVE_TOPUP carries a `direction` of "TOPUP" or "WITHDRAW" in payload
+  // (recompute-reserve-topup-task.ts:125). The WITHDRAW direction needs a
+  // different title + guidance text because the user's options are different
+  // (withdraw the surplus vs. top up a wallet).
+  const directionSuffix =
+    task.kind === "RESERVE_TOPUP" && task.payload?.direction === "WITHDRAW"
+      ? "_withdraw"
+      : "";
+  const titleKey = `bdp.tasks.title.${task.kind}${directionSuffix}` as const;
+  const detailKey = `bdp.tasks.detail.${task.kind}${directionSuffix}` as const;
   const titleParams = buildTitleParams(task);
   const title = t(titleKey, titleParams);
 
