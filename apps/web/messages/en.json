@@ -674,7 +674,8 @@
       "overspentHeading": "Overspent",
       "allOnBudget": "All categories on budget",
       "error": "Couldn't load summary. Tap to open.",
-      "openAria": "Open {budgetName}"
+      "openAria": "Open {budgetName}",
+      "pendingTasksAria": "{count} pending tasks"
     },
     "chart": { "placeholder": "Insights coming soon" },
     "empty": {
@@ -901,6 +902,12 @@
         "title": "Settings",
         "placeholder": "Budget identity, cushion toggle, recurring rules, and members land in Phase 6."
       }
+    },
+    "pillSlider": {
+      "collapsedHeaderOne": "1 task pending",
+      "collapsedHeaderMany": "{count} tasks pending",
+      "expandAria": "Expand task list",
+      "collapseAria": "Collapse task list"
     },
     "tasks": {
       "banner": {

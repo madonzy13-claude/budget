@@ -782,7 +782,8 @@
       "overspentHeading": "Przekroczono",
       "allOnBudget": "Wszystkie kategorie w budżecie",
       "error": "Nie udało się załadować podsumowania. Kliknij, aby otworzyć.",
-      "openAria": "Otwórz {budgetName}"
+      "openAria": "Otwórz {budgetName}",
+      "pendingTasksAria": "{count} oczekujących zadań"
     },
     "chart": {
       "placeholder": "Wkrótce: statystyki"
@@ -928,6 +929,12 @@
         "title": "Ustawienia",
         "placeholder": "Tożsamość budżetu, przełącznik poduszki, reguły cykliczne i członkowie pojawią się w fazie 6."
       }
+    },
+    "pillSlider": {
+      "collapsedHeaderOne": "1 zadanie oczekuje",
+      "collapsedHeaderMany": "{count} zadań oczekuje",
+      "expandAria": "Rozwiń listę zadań",
+      "collapseAria": "Zwiń listę zadań"
     },
     "tasks": {
       "banner": {

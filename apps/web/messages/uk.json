@@ -782,7 +782,8 @@
       "overspentHeading": "Перевитрачено",
       "allOnBudget": "Усі категорії в межах бюджету",
       "error": "Не вдалося завантажити підсумок. Натисніть, щоб відкрити.",
-      "openAria": "Відкрити {budgetName}"
+      "openAria": "Відкрити {budgetName}",
+      "pendingTasksAria": "{count} очікуючих завдань"
     },
     "chart": {
       "placeholder": "Скоро з'являться аналітичні графіки"
@@ -928,6 +929,12 @@
         "title": "Налаштування",
         "placeholder": "Ідентифікація бюджету, перемикач подушки, повторювані правила та учасники з'являться у фазі 6."
       }
+    },
+    "pillSlider": {
+      "collapsedHeaderOne": "1 завдання очікує",
+      "collapsedHeaderMany": "{count} завдань очікує",
+      "expandAria": "Розгорнути список завдань",
+      "collapseAria": "Згорнути список завдань"
     },
     "tasks": {
       "banner": {
