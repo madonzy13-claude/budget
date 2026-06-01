@@ -16,6 +16,9 @@ export interface BudgetDTO {
   // cushion column is hidden entirely. Default true so legacy budgets keep
   // existing UX.
   cushionEnabled?: boolean;
+  // Tasks redesign P2: count of PENDING tasks scoped to this budget's tenant.
+  // Populated by listForUser via LEFT JOIN against budgeting.tasks; 0 when none.
+  pendingTasksCount: number;
 }
 
 export interface MemberDTO {
