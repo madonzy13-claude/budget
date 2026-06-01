@@ -157,7 +157,14 @@ describe("useUpdateReserveAdjustment", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(invalidateSpy).not.toHaveBeenCalled();
+    // Tasks query IS invalidated (tasks redesign: recomputeReserveTopupTask fires on adjust).
+    // Reserves query uses setQueryData (not invalidate) when server returns summary.
+    expect(invalidateSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["budget", BUDGET_ID, "reserves"] }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["tasks", BUDGET_ID, "pending"] }),
+    );
     expect(setDataSpy).toHaveBeenCalledWith(
       ["budget", BUDGET_ID, "reserves"],
       serverSummary,

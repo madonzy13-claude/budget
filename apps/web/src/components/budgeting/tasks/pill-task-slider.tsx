@@ -135,7 +135,7 @@ export function PillTaskSlider({
         )}
       </button>
       {expanded ? (
-        <div role="list">
+        <div data-testid="pill-task-slider-rows">
           {filtered.map((task) => (
             <TaskBannerRow
               key={task.id}

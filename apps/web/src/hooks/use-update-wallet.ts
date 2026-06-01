@@ -157,6 +157,11 @@ export function useUpdateWallet(budgetId: string) {
       if (!data?.summary && touchesReserves(current, input)) {
         qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
       }
+      // Tasks redesign: invalidate per-budget tasks query so badge/slider
+      // refresh within ~1 tick instead of waiting for the 60s poll.
+      // Backend set-wallet-balance fires recomputeReserveTopupTask +
+      // recomputeCushionTask on every wallet amount/type change.
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

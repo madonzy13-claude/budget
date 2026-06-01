@@ -179,6 +179,8 @@ export function useUpdateReserveAdjustment(budgetId: string) {
         qc.setQueryData(["budget", budgetId, "reserves"], data.summary);
       }
       toast.success(t("saved"));
+      // Tasks redesign: backend adjust-category-reserve fires recomputeReserveTopupTask.
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

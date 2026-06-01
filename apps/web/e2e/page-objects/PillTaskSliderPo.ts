@@ -19,7 +19,9 @@ export class PillTaskSliderPo {
   }
 
   rows(): Locator {
-    return this.root().getByRole("listitem");
+    // Tasks-Redesign UX: rows are <button data-task-id="...">. Whole row is the
+    // clickable action — no separate child button.
+    return this.root().locator("[data-task-id]");
   }
 
   rowByTitle(title: string | RegExp): Locator {
@@ -27,7 +29,7 @@ export class PillTaskSliderPo {
   }
 
   actionButton(rowIdx = 0): Locator {
-    return this.rows().nth(rowIdx).getByRole("button");
+    return this.rows().nth(rowIdx);
   }
 
   async expand(): Promise<void> {

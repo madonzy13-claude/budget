@@ -3,10 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
 /**
@@ -19,8 +17,9 @@ import { clientApiFetch } from "@/lib/budget-fetch";
  *   - CONFIRM_DRAFT          → POST /recurring-rules/drafts/:id/confirm + optimistic
  *                              row collapse via onResolved (parent removes from list).
  *
- * Loading state (CONFIRM_DRAFT only): button is disabled + Loader2 spinner +
- * aria-busy="true" while the fetch is in flight.
+ * UX (UAT issue #2): whole row is a single <button>. No kind chip. No separate
+ * action label. Deep-link kinds show a ChevronRight indicator; CONFIRM_DRAFT
+ * shows a Loader2 spinner while pending.
  *
  * task.payload values are passed to t(...) as ICU interpolation parameters —
  * never rendered as raw JSX (T-03-06-03 / T-07-08-01 invariant preserved).
@@ -91,10 +90,10 @@ export function TaskBannerRow({
   const [pending, setPending] = React.useState(false);
 
   const titleKey = `bdp.tasks.title.${task.kind}` as const;
-  const kindKey = `bdp.tasks.kind.${task.kind}` as const;
-  const actionKey = `bdp.tasks.action.${task.kind}.label` as const;
-  const ariaLabelKey = `bdp.tasks.action.${task.kind}.ariaLabel` as const;
   const titleParams = buildTitleParams(task);
+
+  const isDeepLink =
+    task.kind === "RESERVE_TOPUP" || task.kind === "CUSHION_BELOW_TARGET";
 
   async function handleAction() {
     switch (task.kind) {
@@ -136,32 +135,29 @@ export function TaskBannerRow({
     }
   }
 
-  const isDeepLink =
-    task.kind === "RESERVE_TOPUP" || task.kind === "CUSHION_BELOW_TARGET";
-
   return (
-    <div
-      role="listitem"
-      className="flex h-12 items-center gap-3 border-b border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-4"
+    <button
+      type="button"
+      data-task-id={task.id}
+      data-task-kind={task.kind}
+      onClick={handleAction}
+      disabled={pending}
+      aria-busy={pending ? "true" : undefined}
+      aria-label={t(titleKey, titleParams)}
+      className="flex h-12 w-full items-center gap-3 border-b border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-4 text-left transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--info)] disabled:opacity-60"
     >
       <span className="flex-1 truncate text-sm text-[var(--body-on-dark)]">
         {t(titleKey, titleParams)}
       </span>
-      <Badge variant="secondary">{t(kindKey)}</Badge>
-      <Button
-        variant="primary"
-        size="sm"
-        onClick={handleAction}
-        disabled={pending}
-        aria-busy={pending || undefined}
-        aria-label={isDeepLink ? t(ariaLabelKey) : undefined}
-      >
-        {pending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-        ) : (
-          t(actionKey)
-        )}
-      </Button>
-    </div>
+      {isDeepLink && (
+        <ChevronRight
+          className="h-4 w-4 text-[var(--muted-on-dark)]"
+          aria-hidden="true"
+        />
+      )}
+      {!isDeepLink && pending && (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      )}
+    </button>
   );
 }

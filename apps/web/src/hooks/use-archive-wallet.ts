@@ -58,6 +58,8 @@ export function useArchiveWallet(budgetId: string) {
       if (wasReserve) {
         qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
       }
+      // Tasks redesign: backend archive-wallet fires recomputeCushionTask.
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

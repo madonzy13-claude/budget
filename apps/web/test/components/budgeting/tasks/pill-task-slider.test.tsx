@@ -83,7 +83,7 @@ describe("PillTaskSlider", () => {
       makeTask("CONFIRM_DRAFT"),
       makeTask("CUSHION_BELOW_TARGET"),
     ];
-    render(
+    const { container } = render(
       <TestQueryProvider>
         <PillTaskSlider
           budgetId="b1"
@@ -93,12 +93,12 @@ describe("PillTaskSlider", () => {
         />
       </TestQueryProvider>,
     );
-    const rows = screen.getAllByRole("listitem");
+    const rows = container.querySelectorAll("[data-task-id]");
     expect(rows.length).toBe(1);
   });
 
   it("1 task → expanded on initial mount (aria-expanded=true)", () => {
-    render(
+    const { container } = render(
       <TestQueryProvider>
         <PillTaskSlider
           budgetId="b1"
@@ -108,8 +108,7 @@ describe("PillTaskSlider", () => {
         />
       </TestQueryProvider>,
     );
-    expect(screen.getByRole("listitem")).toBeInTheDocument();
-    // When expanded, TaskBannerRow also renders a button — scope to the toggle.
+    expect(container.querySelector("[data-task-id]")).not.toBeNull();
     const header = screen
       .getAllByRole("button")
       .find((btn) => btn.hasAttribute("aria-expanded"))!;
@@ -117,7 +116,7 @@ describe("PillTaskSlider", () => {
   });
 
   it("≥2 tasks → collapsed on initial mount (aria-expanded=false)", () => {
-    render(
+    const { container } = render(
       <TestQueryProvider>
         <PillTaskSlider
           budgetId="b1"
@@ -130,13 +129,13 @@ describe("PillTaskSlider", () => {
         />
       </TestQueryProvider>,
     );
-    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-task-id]")).toBeNull();
     const header = screen.getByRole("button");
     expect(header.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("click collapsed header expands the slider", () => {
-    render(
+    const { container } = render(
       <TestQueryProvider>
         <PillTaskSlider
           budgetId="b1"
@@ -150,11 +149,11 @@ describe("PillTaskSlider", () => {
       </TestQueryProvider>,
     );
     fireEvent.click(screen.getByRole("button"));
-    expect(screen.getAllByRole("listitem").length).toBe(2);
+    expect(container.querySelectorAll("[data-task-id]").length).toBe(2);
   });
 
   it("Escape collapses when expanded (1-task auto-expand path)", () => {
-    render(
+    const { container } = render(
       <TestQueryProvider>
         <PillTaskSlider
           budgetId="b1"
@@ -165,7 +164,7 @@ describe("PillTaskSlider", () => {
       </TestQueryProvider>,
     );
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-task-id]")).toBeNull();
   });
 
   it("data-testid='pill-task-slider' + data-pill='<pill>' for E2E", () => {

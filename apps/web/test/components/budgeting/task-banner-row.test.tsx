@@ -2,11 +2,13 @@
  * task-banner-row.test.tsx — Vitest + RTL coverage for TaskBannerRow per-kind
  * action routing (Phase 7 Plan 07-08).
  *
+ * UAT issue #2: whole row is now a single <button> (row-as-button UX).
+ * No kind chip. No separate action label. Deep-link kinds show ChevronRight.
+ *
  * Contract under test:
- *   - Action button is ENABLED (no disabled, no aria-disabled, no
- *     actionComingSoon tooltip — these are Phase 3 leftovers we just removed).
+ *   - Row is ENABLED (no disabled, no aria-disabled).
  *   - RESERVE_TOPUP → router.push(/budgets/<id>/reserves?task=<id>)
- *   - CUSHION_BELOW_TARGET → router.push(/budgets/<id>/wallets?task=<id>#cushion)
+ *   - CUSHION_BELOW_TARGET → router.push(/budgets/<id>/wallets?task=<id>&focus=cushion)
  *   - CONFIRM_DRAFT → POST /recurring-rules/drafts/:id/confirm via clientApiFetch
  *   - CONFIRM_DRAFT success → onResolved callback
  *   - CONFIRM_DRAFT error → sonner toast.error
@@ -124,7 +126,7 @@ describe("TaskBannerRow", () => {
     toastErrorMock.mockReset();
   });
 
-  it("action button is enabled (no disabled, no aria-disabled, no actionComingSoon tooltip)", () => {
+  it("row is a single enabled button (no disabled, no aria-disabled)", () => {
     renderRow({
       task: baseTask({
         kind: "RESERVE_TOPUP",
@@ -134,7 +136,10 @@ describe("TaskBannerRow", () => {
     const button = screen.getByRole("button");
     expect((button as HTMLButtonElement).disabled).toBe(false);
     expect(button.getAttribute("aria-disabled")).not.toBe("true");
-    expect(button.getAttribute("title") ?? "").not.toContain("Coming");
+    // No kind chip rendered
+    expect(screen.queryByText("Reserve")).toBeNull();
+    // No separate action label
+    expect(screen.queryByText("Fix reserve")).toBeNull();
   });
 
   it("RESERVE_TOPUP click → router.push(/budgets/b1/reserves?task=t1)", async () => {
@@ -148,7 +153,7 @@ describe("TaskBannerRow", () => {
     expect(pushMock).toHaveBeenCalledWith("/budgets/b1/reserves?task=t1");
   });
 
-  it("CUSHION_BELOW_TARGET click → router.push(/budgets/b1/wallets?task=t1#cushion)", async () => {
+  it("CUSHION_BELOW_TARGET click → router.push(/budgets/b1/wallets?task=t1&focus=cushion)", async () => {
     renderRow({
       task: baseTask({
         kind: "CUSHION_BELOW_TARGET",
@@ -157,7 +162,7 @@ describe("TaskBannerRow", () => {
     });
     await userEvent.click(screen.getByRole("button"));
     expect(pushMock).toHaveBeenCalledWith(
-      "/budgets/b1/wallets?task=t1#cushion",
+      "/budgets/b1/wallets?task=t1&focus=cushion",
     );
   });
 
@@ -260,7 +265,7 @@ describe("TaskBannerRow", () => {
     expect(document.querySelector("img")).toBeNull();
   });
 
-  it("RESERVE_TOPUP deep-link button has aria-label for screen readers", () => {
+  it("row button aria-label is the task title (screen reader announces task name)", () => {
     renderRow({
       task: baseTask({
         kind: "RESERVE_TOPUP",
@@ -268,8 +273,20 @@ describe("TaskBannerRow", () => {
       }),
     });
     const button = screen.getByRole("button");
-    expect(button.getAttribute("aria-label")).toBe(
-      "Go to Reserves to fix top-up",
-    );
+    // aria-label is set to t(titleKey, titleParams) — contains the formatted text
+    const label = button.getAttribute("aria-label") ?? "";
+    expect(label).toMatch(/Top up reserve by/);
+  });
+
+  it("RESERVE_TOPUP deep-link row shows ChevronRight indicator", () => {
+    renderRow({
+      task: baseTask({
+        kind: "RESERVE_TOPUP",
+        payload: { shortfall_cents: "5000", currency: "EUR" },
+      }),
+    });
+    const button = screen.getByRole("button");
+    // ChevronRight renders as an svg inside the button
+    expect(button.querySelector("svg")).not.toBeNull();
   });
 });
