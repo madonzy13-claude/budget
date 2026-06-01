@@ -232,8 +232,11 @@ export async function boot(): Promise<BootedDeps> {
     repo: expenseLedgerDraftPortRepo,
     taskRepo,
   });
+  // Phase 7 (D-PH7-10) + UAT round 12: confirm also auto-resolves the
+  // matching PENDING CONFIRM_DRAFT task (mirrors dismiss above).
   const confirmDraftService = confirmDraft({
     repo: expenseLedgerDraftPortRepo,
+    taskRepo,
   });
   const getSpendingsSummaryService = getSpendingsSummary({
     categoryRepo,

@@ -149,27 +149,40 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     setGridScrolled((prev) => (prev === t ? prev : t));
   }
 
-  // UAT round 11: surgical iOS-Safari pull-to-refresh blocker.
+  // UAT round 12: scrollTop=1 anchor + downward-cone pull-to-refresh
+  // suppressor.
   //
-  // The previous round-10 lock called preventDefault on any non-near-
-  // vertical gesture, which also cancelled native horizontal scrolling
-  // inside the wrapper (UAT round 11 #5). The correct surface to suppress
-  // is narrower: pull-to-refresh fires only when the wrapper is at
-  // scrollTop === 0 AND the gesture is dominantly downward. Everywhere
-  // else, default behaviour stays untouched.
+  // Background: iOS Safari fires pull-to-refresh when the active scroll
+  // container is at scrollTop === 0 AND the user pulls down — regardless
+  // of how diagonal the gesture is. overscroll-behavior: none alone did
+  // not fully suppress it, and the round-10/11 angle locks either broke
+  // horizontal swipe (round 10) or let 45-degree gestures slip through
+  // (round 11).
   //
-  // Rule: preventDefault iff
-  //   - touch started while scrollTop was 0, AND
-  //   - finger has moved >= 6 px downward, AND
-  //   - the move is more vertical than horizontal (|dy| > |dx|).
+  // Two-layer defense:
   //
-  // Side effects: horizontal column scroll keeps working at all scroll
-  // positions; vertical scroll keeps working when scrollTop > 0;
-  // legitimate downward scroll past the top edge (which would be a
-  // pull-to-refresh) is the only motion class blocked.
+  //  1. Anchor the wrapper's scrollTop to 1 on mount and whenever it
+  //     hits 0 on scroll. The 1-pixel offset is visually imperceptible
+  //     but removes the "at the very top" condition that triggers
+  //     pull-to-refresh.
+  //
+  //  2. Belt-and-braces: in the touchmove listener, if the touch started
+  //     at scrollTop === 0 AND dy >= 6 AND dy >= |dx| (i.e. gesture
+  //     vector inside the downward 90 degree cone — pure vertical
+  //     through 45 degree diagonals), call preventDefault. Pure
+  //     horizontal (dy < dx) passes through, so column scroll works.
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
+    // Layer 1: anchor scrollTop away from 0.
+    if (el.scrollTop === 0) el.scrollTop = 1;
+    function onScroll() {
+      if (!el) return;
+      if (el.scrollTop === 0) el.scrollTop = 1;
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+
+    // Layer 2: downward-cone preventDefault.
     const ACTIVATE_PX = 6;
     let startX = 0;
     let startY = 0;
@@ -183,19 +196,23 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       startScrollTop = el.scrollTop;
     }
     function onMove(e: TouchEvent) {
-      if (startScrollTop !== 0) return;
+      if (startScrollTop > 1) return;
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
       if (!t) return;
       const dy = t.clientY - startY;
       const dx = Math.abs(t.clientX - startX);
-      if (dy >= ACTIVATE_PX && dy > dx && e.cancelable) {
+      // Block any gesture inside the 90 degree downward cone (dy positive
+      // AND dy >= dx — covers everything from pure vertical to 45 degree
+      // diagonals on both sides). Pure horizontal (dy < dx) passes.
+      if (dy >= ACTIVATE_PX && dy >= dx && e.cancelable) {
         e.preventDefault();
       }
     }
     el.addEventListener("touchstart", onStart, { passive: true });
     el.addEventListener("touchmove", onMove, { passive: false });
     return () => {
+      el.removeEventListener("scroll", onScroll);
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
     };

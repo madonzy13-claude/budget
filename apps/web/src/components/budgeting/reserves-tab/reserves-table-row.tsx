@@ -274,7 +274,15 @@ export function ReservesTableRow({
             the existing balance inline-edit cell. The icon is absent (no DOM
             node) when pendingTaskId is undefined to preserve the Phase 5
             layout. */}
-        <div className="min-w-0 flex-1 truncate text-sm text-[var(--foreground)]">
+        <div
+          className={[
+            "min-w-0 flex-1 truncate text-sm",
+            // UAT round 12: excluded rows render the category name in the
+            // muted neutral #7A7C7F so it reads as visually inactive while
+            // still legible. Active rows keep --foreground.
+            isExcluded ? "text-[#7A7C7F]" : "text-[var(--foreground)]",
+          ].join(" ")}
+        >
           <span className="inline-flex items-center gap-2">
             <span className="truncate">{row.name}</span>
             {pendingTaskId ? (
