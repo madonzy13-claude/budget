@@ -68,14 +68,22 @@ export function ColumnHeader({
       data-testid={`column-header-${category.name.toLowerCase()}`}
       className="flex w-full flex-col"
     >
-      {/* Row 1: Grip + Name + Pen (revealed on click) */}
+      {/* Row 1: Grip + Name + Pen.
+          UAT round 15: desktop reveals the pen on HOVER, touch keeps the
+          click-to-reveal. The button is always rendered now; visibility
+          is driven by `group-hover:opacity-100` (Tailwind's `hover:`
+          modifier already gates on `(hover: hover)` so touch-only
+          devices get a no-op) and by the `revealed` click-state for
+          touch. Earlier `@do-not-add onMouseEnter` rule (D-PH4-INT1)
+          was relaxed for desktop per user request — the original ban
+          was about preventing touch-misfire, which CSS hover side-steps. */}
       <div
         ref={ref}
         data-testid="column-header-name-cell"
         onClick={() => setRevealed(!revealed)}
         onDoubleClick={handleDoubleClick}
         className={cn(
-          "flex min-h-[44px] items-center gap-1 px-2 py-2 cursor-pointer",
+          "group flex min-h-[44px] items-center gap-1 px-2 py-2 cursor-pointer",
           "border-b border-[var(--hairline-dark)]",
           revealed && "bg-[var(--surface-elevated-dark)]",
         )}
@@ -85,23 +93,29 @@ export function ColumnHeader({
         <span className="flex-1 truncate text-sm font-medium text-[var(--body-on-dark)]">
           {category.name}
         </span>
-        {revealed && (
-          <button
-            type="button"
-            data-testid={`column-header-pen-${category.name.toLowerCase()}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(category.id);
-              setRevealed(false);
-            }}
-            className="flex h-6 w-6 items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
-          >
-            <Pencil
-              className="h-3.5 w-3.5 text-[var(--body-on-dark)]"
-              aria-hidden="true"
-            />
-          </button>
-        )}
+        <button
+          type="button"
+          data-testid={`column-header-pen-${category.name.toLowerCase()}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(category.id);
+            setRevealed(false);
+          }}
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded cursor-pointer transition-opacity",
+            "hover:bg-[var(--surface-card-dark)]",
+            // Hidden by default; shown on desktop hover (group-hover) or
+            // when the user has tapped to reveal on touch (revealed).
+            revealed
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          )}
+        >
+          <Pencil
+            className="h-3.5 w-3.5 text-[var(--body-on-dark)]"
+            aria-hidden="true"
+          />
+        </button>
       </div>
 
       {/* Row 2: Planned / Cushion — NO double-click (D-PH4-INT4) */}

@@ -573,4 +573,44 @@ describe("CategorySlider", () => {
       expect(cushion.value).toBe("300");
     });
   });
+
+  // ── UAT round 14: delete must hit the backend's archive endpoint ─────
+  // The backend exposes POST /budgets/:id/categories/:cid/archive — there
+  // is NO DELETE route. Earlier the slider called fetch(..., {method:
+  // "DELETE"}) which silently 404'd; the AlertDialog closed but the
+  // category never disappeared from the grid.
+  describe("delete action wires to backend /archive (UAT round 14)", () => {
+    it("calls POST /budgets/:id/categories/:cid/archive when Confirm is clicked", async () => {
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...editProps} onOpenChange={onOpenChange} />
+        </TestQueryProvider>,
+      );
+
+      // Open the AlertDialog
+      const deleteBtn = document.querySelector(
+        "[data-testid='cat-slider-delete']",
+      ) as HTMLButtonElement;
+      expect(deleteBtn).toBeTruthy();
+      await user.click(deleteBtn);
+
+      // Confirm in the AlertDialog — label is `confirm.deleteTxn.cta`
+      const confirmBtn = await screen.findByText("confirm.deleteTxn.cta");
+      await user.click(confirmBtn);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      // The request must target the archive endpoint with POST. DELETE
+      // 404s on the backend, leaving the category orphaned.
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/budgets/budget-1/categories/cat-1/archive`,
+        expect.objectContaining({ method: "POST" }),
+      );
+      // Slider closes on success
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
+  });
 });

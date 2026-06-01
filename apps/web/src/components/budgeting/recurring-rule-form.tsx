@@ -106,37 +106,6 @@ function todayIso(): string {
 }
 
 /**
- * UAT round 14: Native `<input type="date">` ignores the `lang` attribute
- * in Chrome/Safari/iOS — the picker chrome uses system locale. We expose
- * a localized date picker by composing three Selects (day / month / year)
- * and reusing the already-localized `rule.months.{n}` keys. ISO YYYY-MM-DD
- * stays as the wire format so the backend contract is unchanged.
- */
-function parseIsoDate(iso: string): { y: number; m: number; d: number } {
-  const today = new Date();
-  const parts = iso.split("-");
-  const y = parseInt(parts[0] ?? "", 10);
-  const m = parseInt(parts[1] ?? "", 10);
-  const d = parseInt(parts[2] ?? "", 10);
-  return {
-    y: Number.isFinite(y) ? y : today.getFullYear(),
-    m: Number.isFinite(m) ? m : today.getMonth() + 1,
-    d: Number.isFinite(d) ? d : today.getDate(),
-  };
-}
-
-function daysInMonth(year: number, month: number): number {
-  // Day 0 of `month + 1` → last day of `month`. JS month index is 0-based.
-  return new Date(year, month, 0).getDate();
-}
-
-function composeIsoDate(year: number, month: number, day: number): string {
-  const dim = daysInMonth(year, month);
-  const clampedDay = Math.max(1, Math.min(dim, day));
-  return `${year}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
-}
-
-/**
  * Order weekdays appear in the WEEKLY picker. ISO/calendar convention:
  * Monday first, Sunday last (matches every paper calendar and Apple/
  * Google's `firstDayOfWeek` in en-EU/uk/pl). The underlying numeric
@@ -521,89 +490,22 @@ export function RecurringRuleForm({
                 </div>
               )}
 
-              {/* UAT round 14: native `<input type="date">` ignores the
-                  `lang` attribute on Chrome/Safari/iOS — the picker chrome
-                  always renders month names in the browser's system locale.
-                  Replaced with three Selects (day / month / year) that
-                  reuse the already-localized `rule.months.{n}` keys, so
-                  uk/pl users see "Січень / Styczeń" instead of "January".
-                  Day count derives from the chosen month so February
-                  caps at 28/29. ISO YYYY-MM-DD stays as the wire format
-                  (parsed/composed via helpers at the top of this file). */}
+              {/* UAT round 15: reverted from a 3-select day/month/year
+                  composer back to the native single-field `<input
+                  type="date">`. The compose UI was visually too busy
+                  for the user; native picker's calendar UX wins even if
+                  the picker chrome renders in the browser's system
+                  locale (the `lang` attr is not respected by Chrome/
+                  Safari/iOS for date inputs). Wire format unchanged. */}
               <div>
-                <Label>{t("rule.firstDueLabel")}</Label>
-                {(() => {
-                  const parts = parseIsoDate(firstDueDate);
-                  const dim = daysInMonth(parts.y, parts.m);
-                  const currentYear = new Date().getFullYear();
-                  const yearOptions = Array.from(
-                    { length: 16 },
-                    (_, i) => currentYear - 5 + i,
-                  );
-                  return (
-                    <div className="grid grid-cols-[2fr_3fr_2fr] gap-2 pt-1">
-                      <Select
-                        value={String(parts.d)}
-                        onValueChange={(v) =>
-                          setFirstDueDate(
-                            composeIsoDate(parts.y, parts.m, parseInt(v, 10)),
-                          )
-                        }
-                      >
-                        <SelectTrigger id="rr-firstdue-day">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from({ length: dim }, (_, i) => i + 1).map(
-                            (d) => (
-                              <SelectItem key={d} value={String(d)}>
-                                {d}
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={String(parts.m)}
-                        onValueChange={(v) =>
-                          setFirstDueDate(
-                            composeIsoDate(parts.y, parseInt(v, 10), parts.d),
-                          )
-                        }
-                      >
-                        <SelectTrigger id="rr-firstdue-month">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
-                            <SelectItem key={m} value={String(m)}>
-                              {t(`rule.months.${m}`)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={String(parts.y)}
-                        onValueChange={(v) =>
-                          setFirstDueDate(
-                            composeIsoDate(parseInt(v, 10), parts.m, parts.d),
-                          )
-                        }
-                      >
-                        <SelectTrigger id="rr-firstdue-year">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {yearOptions.map((y) => (
-                            <SelectItem key={y} value={String(y)}>
-                              {y}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                })()}
+                <Label htmlFor="rr-firstdue">{t("rule.firstDueLabel")}</Label>
+                <Input
+                  id="rr-firstdue"
+                  type="date"
+                  value={firstDueDate}
+                  onChange={(e) => setFirstDueDate(e.target.value)}
+                  required
+                />
               </div>
             </>
 

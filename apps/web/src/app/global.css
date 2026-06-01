@@ -219,6 +219,38 @@
     color: var(--on-primary);
   }
 
+  /* UAT round 15: ensure every interactive element shows a pointer
+     cursor. Browser defaults give buttons an `arrow` cursor and only
+     give anchors a pointer when they have an `href`. Tailwind's <Button>
+     primitive already opts into `cursor-pointer`, but plain `<button>`
+     elements scattered across the app (icon buttons, custom controls,
+     Radix triggers) and `[role="..."]` elements miss it. This selector
+     covers the standard interactive set; `:disabled`/aria-disabled
+     elements get `not-allowed` so the affordance reads as intentional. */
+  button,
+  summary,
+  label[for],
+  a[href],
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="option"],
+  [role="combobox"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
   /* Focus ring — single source of truth, info-blue at 50% alpha */
   :focus-visible {
     outline: 2px solid color-mix(in oklab, var(--info) 60%, transparent);

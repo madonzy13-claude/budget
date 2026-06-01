@@ -300,13 +300,20 @@ export function CategorySlider({
     if (!initial?.categoryId) return;
     setIsDeleting(true);
     try {
+      // UAT round 14: the backend exposes POST /:id/archive (soft delete
+      // via SCD-2 archived_at). There is NO DELETE route — calling
+      // method: "DELETE" silently 404'd, leaving the AlertDialog dismissed
+      // but the category still visible in the grid. Hitting the archive
+      // route flips archived_at, and listCategories filters those rows
+      // out by default, so the column disappears on router.refresh().
       const res = await clientApiFetch(
-        `/budgets/${budgetId}/categories/${initial.categoryId}`,
-        { method: "DELETE" },
+        `/budgets/${budgetId}/categories/${initial.categoryId}/archive`,
+        { method: "POST" },
       );
       if (res.ok) {
         setDeleteOpen(false);
         onOpenChange(false);
+        router.refresh();
       } else {
         toast.error(t("error.sliderSave"));
       }
