@@ -677,7 +677,9 @@
       "openAria": "Open {budgetName}",
       "pendingTasksAria": "{count} pending tasks"
     },
-    "chart": { "placeholder": "Insights coming soon" },
+    "chart": {
+      "placeholder": "Insights coming soon"
+    },
     "empty": {
       "heading": "Welcome — let's set up your first budget",
       "body": "Create a budget to start tracking spendings, wallets, and reserves.",
@@ -816,7 +818,9 @@
             "title": "−{amount} underfunded",
             "helper": "Wallet doesn't have enough to cover reserves. Top up the wallet or reduce category reserves."
           },
-          "reconciled": { "title": "Balanced" }
+          "reconciled": {
+            "title": "Balanced"
+          }
         },
         "toast": {
           "saved": "Reserve updated",
@@ -911,8 +915,12 @@
     },
     "tasks": {
       "banner": {
-        "trigger": { "aria": "Show pending tasks" },
-        "collapse": { "aria": "Hide pending tasks" }
+        "trigger": {
+          "aria": "Show pending tasks"
+        },
+        "collapse": {
+          "aria": "Hide pending tasks"
+        }
       },
       "count": "{count, plural, one {# task pending} other {# tasks pending}}",
       "title": {
@@ -930,13 +938,21 @@
           "label": "Fix reserve",
           "ariaLabel": "Go to Reserves to fix top-up"
         },
-        "CONFIRM_DRAFT": { "label": "Confirm draft" },
+        "CONFIRM_DRAFT": {
+          "label": "Confirm draft"
+        },
         "CUSHION_BELOW_TARGET": {
           "label": "Top up cushion",
           "ariaLabel": "Go to Wallets to top up cushion"
         }
       },
-      "confirmError": "Could not confirm draft. Try again."
+      "confirmError": "Could not confirm draft. Try again.",
+      "more": "More",
+      "detail": {
+        "RESERVE_TOPUP": "The total balance of your reserve wallets no longer matches the sum you have set aside across category reserves. Open the Reserves tab, adjust the category amounts so they add up to the current wallet sum (or top up a reserve wallet to match), and this task will clear automatically on the next refresh.",
+        "CONFIRM_DRAFT": "A recurring rule has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences. This task clears once the draft is resolved.",
+        "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. Transfer money into a cushion-type wallet, or lower the target months in Settings → Cushion. The task clears automatically once the cushion meets the target."
+      }
     }
   },
   "grid": {

@@ -1,29 +1,30 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ChevronRight, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 /**
- * TaskBannerRow — single task row inside the expanded task banner.
+ * TaskBannerRow — single passive task row inside the per-pill slider.
  *
- * Phase 7 Plan 07-08 (D-PH7-25): the Phase-3 disabled action button is now
- * enabled and routes per-kind:
- *   - RESERVE_TOPUP          → router.push(/budgets/<id>/reserves?task=<id>)
- *   - CUSHION_BELOW_TARGET   → router.push(/budgets/<id>/wallets?task=<id>&focus=cushion)
- *   - CONFIRM_DRAFT          → POST /recurring-rules/drafts/:id/confirm + optimistic
- *                              row collapse via onResolved (parent removes from list).
- *
- * UX (UAT issue #2): whole row is a single <button>. No kind chip. No separate
- * action label. Deep-link kinds show a ChevronRight indicator; CONFIRM_DRAFT
- * shows a Loader2 spinner while pending.
+ * Tasks-Redesign UAT round 2 (issues #3 + #4):
+ *   - Read-only: NOT clickable, no navigation, no inline action. The pill
+ *     badge already routes the user to the right pill; the slider explains
+ *     what is wrong. The user fixes the problem through the existing pill
+ *     surfaces (Reserves table, Wallets cushion lane, Spendings drafts).
+ *   - Always-visible "More" trigger opens a dialog with longer, kind-specific
+ *     guidance pulled from i18n: `bdp.tasks.detail.<KIND>`.
+ *   - No ChevronRight, no Loader2 — nothing that suggests the row itself
+ *     resolves the issue.
  *
  * task.payload values are passed to t(...) as ICU interpolation parameters —
  * never rendered as raw JSX (T-03-06-03 / T-07-08-01 invariant preserved).
- * React's default text-node escaping protects against markup injection.
  */
 
 export type TaskKind =
@@ -44,7 +45,12 @@ export interface TaskBannerRowProps {
   task: TaskSummary;
   budgetId: string;
   locale: string;
-  /** Phase 7: optimistic collapse callback for CONFIRM_DRAFT (parent removes the task from local list). */
+  /**
+   * Kept on the prop API for source-compatibility with the prior contract —
+   * the row no longer triggers inline resolution, but PillTaskSlider still
+   * supplies the optimistic-resolve callback so a future inline surface can
+   * pick it up without an upstream change.
+   */
   onResolved?: (taskId: string) => void;
 }
 
@@ -62,7 +68,6 @@ function buildTitleParams(task: TaskSummary): Record<string, string> {
         currency,
       }).format(n / 100);
     } catch {
-      // Invalid currency code — fall back to bare number.
       return String(n / 100);
     }
   }
@@ -80,84 +85,42 @@ function buildTitleParams(task: TaskSummary): Record<string, string> {
   }
 }
 
-export function TaskBannerRow({
-  task,
-  budgetId,
-  onResolved,
-}: TaskBannerRowProps) {
+export function TaskBannerRow({ task }: TaskBannerRowProps) {
   const t = useTranslations();
-  const router = useRouter();
-  const [pending, setPending] = React.useState(false);
 
   const titleKey = `bdp.tasks.title.${task.kind}` as const;
+  const detailKey = `bdp.tasks.detail.${task.kind}` as const;
   const titleParams = buildTitleParams(task);
-
-  const isDeepLink =
-    task.kind === "RESERVE_TOPUP" || task.kind === "CUSHION_BELOW_TARGET";
-
-  async function handleAction() {
-    switch (task.kind) {
-      case "RESERVE_TOPUP":
-        router.push(`/budgets/${budgetId}/reserves?task=${task.id}`);
-        break;
-      case "CUSHION_BELOW_TARGET":
-        // Use query param instead of hash — Next.js app-router useRouter().push
-        // does not reliably preserve hash fragments through middleware rewrites.
-        // The Wallets page reads `focus=cushion` to scroll the cushion lane
-        // into view; URL semantics unchanged from the user's perspective.
-        router.push(
-          `/budgets/${budgetId}/wallets?task=${task.id}&focus=cushion`,
-        );
-        break;
-      case "CONFIRM_DRAFT": {
-        setPending(true);
-        try {
-          const draftId = task.payload?.draft_id as string | undefined;
-          if (!draftId)
-            throw new Error("Missing draft_id in CONFIRM_DRAFT payload");
-          const res = await clientApiFetch(
-            `/recurring-rules/drafts/${draftId}/confirm`,
-            {
-              method: "POST",
-              headers: { "X-Budget-ID": budgetId },
-            },
-          );
-          if (!res.ok) throw new Error(`Confirm failed: ${res.status}`);
-          onResolved?.(task.id);
-        } catch (e) {
-          console.error("[task-banner-row] confirm draft failed:", e);
-          toast.error(t("bdp.tasks.confirmError"));
-        } finally {
-          setPending(false);
-        }
-        break;
-      }
-    }
-  }
+  const title = t(titleKey, titleParams);
 
   return (
-    <button
-      type="button"
+    <div
+      role="listitem"
       data-task-id={task.id}
       data-task-kind={task.kind}
-      onClick={handleAction}
-      disabled={pending}
-      aria-busy={pending ? "true" : undefined}
-      aria-label={t(titleKey, titleParams)}
-      className="flex h-12 w-full items-center gap-3 border-b border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-4 text-left transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--info)] disabled:opacity-60"
+      className="flex min-h-12 items-center gap-3 border-b border-[var(--hairline-on-dark)] px-4 py-2 last:border-b-0"
     >
       <span className="flex-1 truncate text-sm text-[var(--body-on-dark)]">
-        {t(titleKey, titleParams)}
+        {title}
       </span>
-      {isDeepLink && (
-        <ChevronRight
-          className="h-4 w-4 text-[var(--muted-on-dark)]"
-          aria-hidden="true"
-        />
-      )}
-      {!isDeepLink && pending && (
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-      )}
-    </button>
+      <Dialog>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className="shrink-0 text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]"
+          >
+            {t("bdp.tasks.more")}
+          </button>
+        </DialogTrigger>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[var(--body-on-dark)] whitespace-pre-line">
+            {t(detailKey, titleParams)}
+          </p>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

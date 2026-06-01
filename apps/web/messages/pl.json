@@ -961,13 +961,21 @@
           "label": "Wyrównaj rezerwę",
           "ariaLabel": "Przejdź do Rezerw, aby wyrównać"
         },
-        "CONFIRM_DRAFT": { "label": "Potwierdź szkic" },
+        "CONFIRM_DRAFT": {
+          "label": "Potwierdź szkic"
+        },
         "CUSHION_BELOW_TARGET": {
           "label": "Uzupełnij poduszkę",
           "ariaLabel": "Przejdź do Portfeli, aby uzupełnić poduszkę"
         }
       },
-      "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie."
+      "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie.",
+      "more": "Więcej",
+      "detail": {
+        "RESERVE_TOPUP": "Łączne saldo Twoich portfeli rezerwowych nie odpowiada sumie kwot przypisanych do rezerw kategorii. Otwórz zakładkę Rezerwy, dostosuj kwoty kategorii tak, aby sumowały się do obecnej sumy portfeli (lub uzupełnij portfel rezerwowy), a zadanie zniknie automatycznie po następnym odświeżeniu.",
+        "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia. Zadanie znika po rozstrzygnięciu szkicu.",
+        "CUSHION_BELOW_TARGET": "Twój fundusz bezpieczeństwa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Przelej środki do portfela typu Cushion albo obniż liczbę miesięcy w Ustawienia → Cushion. Zadanie znika automatycznie, gdy fundusz osiągnie cel."
+      }
     }
   },
   "grid": {

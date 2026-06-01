@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Info, ChevronDown, ChevronUp } from "lucide-react";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import {
   TaskBannerRow,
@@ -17,14 +17,17 @@ import {
 /**
  * PillTaskSlider — per-pill task strip below the BDP pill bar.
  *
- * Tasks-Redesign §4: filters the shared ["tasks", budgetId, "pending"] React
- * Query result by the current pill's kind set (kind-pill-map). Returns null
- * when filtered list is empty (D-PH3-14 DOM rule, applied per-pill).
- *
- * Hybrid expand rule (Tasks-Redesign D7):
- *   - filtered.length === 1 → expanded on initial mount
- *   - filtered.length >= 2  → collapsed on initial mount
- *   - mid-session count changes do NOT auto-toggle (user owns state after mount)
+ * Tasks-Redesign §4 (UAT round 2):
+ *   - Filters shared ["tasks", budgetId, "pending"] React Query by current pill.
+ *   - Returns null when filtered list is empty (D-PH3-14 DOM rule, per-pill).
+ *   - **Always starts collapsed** — even with one task. User explicitly opens.
+ *   - Visual mirrors `SettingsAccordion`: rounded-xl card, hairline border,
+ *     `--surface-card-dark` body, `#141920` content panel with inset top shadow
+ *     when expanded.
+ *   - Header icon: red Info circle (Tailwind/Lucide `Info` icon w/ trading-down
+ *     color) — communicates attention, not urgency.
+ *   - Mounted with small horizontal + top margin so the card breathes between
+ *     pill bar and content.
  *
  * Row UX (deep-link / inline POST / sonner toast) is bit-identical to the
  * old TaskBanner — TaskBannerRow is reused unchanged.
@@ -66,10 +69,8 @@ export function PillTaskSlider({
     [tasks, allowedKinds],
   );
 
-  // Hybrid expand rule: derive INITIAL state from filtered.length captured at
-  // first render. After mount, user owns the state — mid-session count changes
-  // never auto-toggle.
-  const [expanded, setExpanded] = useState(() => filtered.length === 1);
+  // UAT round 2 (issue #5): always start collapsed. User must click to expand.
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const onVisible = () => {
@@ -107,46 +108,51 @@ export function PillTaskSlider({
       : t("bdp.pillSlider.collapsedHeaderMany", { count: filtered.length });
 
   return (
-    <div
-      data-testid="pill-task-slider"
-      data-pill={pill}
-      className="border-b border-[var(--hairline-dark)] bg-[var(--surface-card-dark)]"
-    >
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        aria-expanded={expanded}
-        aria-label={
-          expanded
-            ? t("bdp.pillSlider.collapseAria")
-            : t("bdp.pillSlider.expandAria")
-        }
-        className="flex h-10 w-full items-center gap-2 px-4 text-sm text-[var(--body-on-dark)]"
+    <div className="mt-3 px-3 sm:px-4">
+      <div
+        data-testid="pill-task-slider"
+        data-pill={pill}
+        className="overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]"
       >
-        <AlertCircle
-          className="h-4 w-4 text-[var(--primary)]"
-          aria-hidden="true"
-        />
-        <span className="flex-1 text-left">{headerLabel}</span>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={
+            expanded
+              ? t("bdp.pillSlider.collapseAria")
+              : t("bdp.pillSlider.expandAria")
+          }
+          className="flex h-11 w-full items-center gap-2 px-4 text-sm text-[var(--body-on-dark)] transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--info)]"
+        >
+          <Info
+            className="h-4 w-4 text-[var(--trading-down)]"
+            aria-hidden="true"
+          />
+          <span className="flex-1 text-left">{headerLabel}</span>
+          {expanded ? (
+            <ChevronUp className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
         {expanded ? (
-          <ChevronUp className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <ChevronDown className="h-4 w-4" aria-hidden="true" />
-        )}
-      </button>
-      {expanded ? (
-        <div data-testid="pill-task-slider-rows">
-          {filtered.map((task) => (
-            <TaskBannerRow
-              key={task.id}
-              task={task}
-              budgetId={budgetId}
-              locale={locale}
-              onResolved={onResolved}
-            />
-          ))}
-        </div>
-      ) : null}
+          <div
+            data-testid="pill-task-slider-rows"
+            className="bg-[#141920] shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]"
+          >
+            {filtered.map((task) => (
+              <TaskBannerRow
+                key={task.id}
+                task={task}
+                budgetId={budgetId}
+                locale={locale}
+                onResolved={onResolved}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

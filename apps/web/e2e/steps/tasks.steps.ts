@@ -293,6 +293,22 @@ Then(
 );
 
 Then(
+  /^the (\w+) pill slider is collapsed$/,
+  async ({ page }, pillWord: string) => {
+    const slider = new PillTaskSliderPo(page, pillFromText(pillWord));
+    await slider.assertExpanded(false);
+  },
+);
+
+When(
+  /^I click the (\w+) pill slider header$/,
+  async ({ page }, pillWord: string) => {
+    const slider = new PillTaskSliderPo(page, pillFromText(pillWord));
+    await slider.header().click();
+  },
+);
+
+Then(
   /^the (\w+) pill slider shows (\d+) rows?$/,
   async ({ page }, pillWord: string, n: string) => {
     const slider = new PillTaskSliderPo(page, pillFromText(pillWord));

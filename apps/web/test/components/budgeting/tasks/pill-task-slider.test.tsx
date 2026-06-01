@@ -93,11 +93,13 @@ describe("PillTaskSlider", () => {
         />
       </TestQueryProvider>,
     );
+    // Slider starts collapsed (UAT round 2). Expand to inspect filtered rows.
+    fireEvent.click(screen.getByRole("button"));
     const rows = container.querySelectorAll("[data-task-id]");
     expect(rows.length).toBe(1);
   });
 
-  it("1 task → expanded on initial mount (aria-expanded=true)", () => {
+  it("1 task → collapsed on initial mount (UAT round 2: always collapsed)", () => {
     const { container } = render(
       <TestQueryProvider>
         <PillTaskSlider
@@ -108,11 +110,10 @@ describe("PillTaskSlider", () => {
         />
       </TestQueryProvider>,
     );
-    expect(container.querySelector("[data-task-id]")).not.toBeNull();
-    const header = screen
-      .getAllByRole("button")
-      .find((btn) => btn.hasAttribute("aria-expanded"))!;
-    expect(header.getAttribute("aria-expanded")).toBe("true");
+    // Slider is mounted, but rows are not — no children inside it yet.
+    expect(container.querySelector("[data-task-id]")).toBeNull();
+    const header = screen.getByRole("button");
+    expect(header.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("≥2 tasks → collapsed on initial mount (aria-expanded=false)", () => {
@@ -152,7 +153,7 @@ describe("PillTaskSlider", () => {
     expect(container.querySelectorAll("[data-task-id]").length).toBe(2);
   });
 
-  it("Escape collapses when expanded (1-task auto-expand path)", () => {
+  it("Escape collapses an expanded slider", () => {
     const { container } = render(
       <TestQueryProvider>
         <PillTaskSlider
@@ -163,6 +164,10 @@ describe("PillTaskSlider", () => {
         />
       </TestQueryProvider>,
     );
+    // User opens the slider first (it starts collapsed now).
+    fireEvent.click(screen.getByRole("button"));
+    expect(container.querySelector("[data-task-id]")).not.toBeNull();
+    // Escape closes it.
     fireEvent.keyDown(document, { key: "Escape" });
     expect(container.querySelector("[data-task-id]")).toBeNull();
   });

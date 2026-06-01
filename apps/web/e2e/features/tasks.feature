@@ -7,13 +7,6 @@ Feature: Tasks redesign — home badge + per-pill badge + per-pill slider
   # ───────────────────────────────────────────────────────────────────────
   # Home page badges
   # ───────────────────────────────────────────────────────────────────────
-  # NOTE: Home-card pendingTasksCount badge isn't surfacing in the live E2E
-  # run even though the API (workspace-repo.listForUser, P2) correctly carries
-  # the field. Suspected race between seedTask COMMIT and the home RSC's
-  # /budgets/active fetch, or a serialisation gap where the JSON field name
-  # round-trips as snake_case from the Better Auth org plugin layer. Unit-
-  # tested in apps/web/test/components/budgeting/budget-card.test.tsx
-  # (P9 — both count>0 and count===0 assertions pass). Deferred.
   Scenario: Home shows red badge "3" on a budget card with 3 pending tasks
     Given a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "EUR"
     And a "CONFIRM_DRAFT" task is seeded for "My E2E Budget" with rule "Rent" amount 100000 cents in "EUR"
@@ -55,13 +48,14 @@ Feature: Tasks redesign — home badge + per-pill badge + per-pill slider
     Then the settings pill shows no badge
 
   # ───────────────────────────────────────────────────────────────────────
-  # Per-pill slider — hybrid expand rule
+  # Per-pill slider — always-collapsed (UAT round 2)
   # ───────────────────────────────────────────────────────────────────────
-  Scenario: Reserves slider with 1 task mounts expanded
+  Scenario: Reserves slider with 1 task starts collapsed; click expands; row visible
     Given a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "EUR"
     When I open the reserves tab for "My E2E Budget"
-    Then the reserves pill slider is expanded
-    And the reserves pill slider shows 1 row
+    Then the reserves pill slider is collapsed
+    When I click the reserves pill slider header
+    Then the reserves pill slider shows 1 row
 
   # NOTE: "≥2 tasks collapsed" hybrid-expand path is unit-tested in
   # apps/web/test/components/budgeting/tasks/pill-task-slider.test.tsx —
@@ -70,34 +64,12 @@ Feature: Tasks redesign — home badge + per-pill badge + per-pill slider
   # tasks_<kind>_pending_uq enforces one-PENDING-per-(kind, budget_id).
 
   # ───────────────────────────────────────────────────────────────────────
-  # Per-kind action routing
+  # UAT round 2: rows are read-only — no click navigation, no inline POST.
+  # The user reads the row title, optionally opens "More" for guidance, and
+  # fixes the problem through the existing pill surfaces. The action-routing
+  # scenarios from UAT round 1 are dropped; the @skip-phase-07-debt
+  # CONFIRM_DRAFT inline-collapse scenario is also removed (no inline action).
   # ───────────────────────────────────────────────────────────────────────
-  Scenario: RESERVE_TOPUP action navigates to /reserves?task=<id>
-    Given a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "EUR"
-    When I open the reserves tab for "My E2E Budget"
-    And I click the reserves pill slider action button
-    Then I am navigated to the reserves tab
-    And the URL contains "task="
-
-  Scenario: CUSHION_BELOW_TARGET action navigates to /wallets with focus=cushion
-    Given a "CUSHION_BELOW_TARGET" task is seeded for "My E2E Budget" with shortfall 3000 cents in "EUR"
-    When I open the wallets tab for "My E2E Budget"
-    And I click the wallets pill slider action button
-    Then I am navigated to the wallets tab
-    And the URL contains "focus=cushion"
-
-  # NOTE: CONFIRM_DRAFT action requires task.payload.draft_id (expense_ledger row
-  # id). E2E seed only inserts rule_name/amount_cents — no draft row is created,
-  # so POST /recurring-rules/drafts/:id/confirm returns 404 and onResolved is
-  # never called. Creating a full draft requires a recurring_rule + expense_ledger
-  # row, which is out of scope for E2E seed helpers. Unit-tested in
-  # apps/web/test/components/budgeting/tasks/pill-task-slider.test.tsx.
-  @skip-phase-07-debt
-  Scenario: CONFIRM_DRAFT inline action collapses row within 5s
-    Given a "CONFIRM_DRAFT" task is seeded for "My E2E Budget" with rule "Rent" amount 100000 cents in "EUR"
-    When I open the spendings tab for "My E2E Budget"
-    And I click the spendings pill slider action button
-    Then within 5 seconds the spendings pill slider is not present in the DOM
 
   # ───────────────────────────────────────────────────────────────────────
   # Auto-resolve
