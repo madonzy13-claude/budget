@@ -179,8 +179,13 @@ export function ReservesTableRow({
 
   const rowClass = [
     "flex min-h-[48px] items-center gap-3 rounded-[var(--radius-md)]",
-    "bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] min-h-[56px]",
-    isExcluded ? "opacity-50" : "hover:bg-[var(--surface-elevated-dark)]",
+    "px-3 sm:min-h-[48px] min-h-[56px]",
+    // UAT round 10: excluded rows now use a darker surface color (#14181D)
+    // instead of opacity reduction — keeps text + drag-handle fully legible
+    // while still reading as visually muted compared to active rows.
+    isExcluded
+      ? "bg-[#14181D]"
+      : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
   ]
     .filter(Boolean)
     .join(" ");

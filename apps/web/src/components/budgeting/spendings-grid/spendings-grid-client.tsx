@@ -149,6 +149,62 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     setGridScrolled((prev) => (prev === t ? prev : t));
   }
 
+  // UAT round 10: directional swipe lock — keeps iOS Safari pull-to-refresh
+  // from firing on diagonal swipes during horizontal column scroll.
+  //
+  // Behaviour: track the first significant move (>= 6 px) of each touch.
+  // Compute the angle from vertical: tan(θ) = dx / dy. If the gesture is
+  // anything other than near-vertical (within ±15° of straight down — i.e.
+  // dx / dy < tan(15°) ≈ 0.268), call preventDefault on subsequent
+  // touchmove events. That cancels the page-level pull-to-refresh while
+  // leaving horizontal column scrolling and near-vertical scrolling intact.
+  //
+  // Listener attaches to the gridRef element with { passive: false } so
+  // preventDefault is honored (React's onTouchMove is passive in some
+  // versions — bind natively).
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const VERTICAL_TOL_TAN = Math.tan((15 * Math.PI) / 180); // ≈ 0.268
+    const ACTIVATE_PX = 6;
+    let startX = 0;
+    let startY = 0;
+    let locked = false;
+    let blockVertical = false;
+    function onStart(e: TouchEvent) {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (!t) return;
+      startX = t.clientX;
+      startY = t.clientY;
+      locked = false;
+      blockVertical = false;
+    }
+    function onMove(e: TouchEvent) {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const dx = Math.abs(t.clientX - startX);
+      const dy = Math.abs(t.clientY - startY);
+      if (!locked && (dx >= ACTIVATE_PX || dy >= ACTIVATE_PX)) {
+        locked = true;
+        // Direct vertical = dx/dy <= tan(15°). Anything more horizontal
+        // (including diagonal) is considered NOT a vertical-scroll intent,
+        // so we cancel default to suppress iOS pull-to-refresh on it.
+        blockVertical = dy === 0 || dx / dy > VERTICAL_TOL_TAN;
+      }
+      if (blockVertical && e.cancelable) {
+        e.preventDefault();
+      }
+    }
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+    };
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, {
