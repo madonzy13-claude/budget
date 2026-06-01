@@ -162,6 +162,10 @@ export function useUpdateWallet(budgetId: string) {
       // Backend set-wallet-balance fires recomputeReserveTopupTask +
       // recomputeCushionTask on every wallet amount/type change.
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+      // UAT round 6: refresh the cushion summary so the Settings preview
+      // line (actual / required / shortfall) updates the moment a cushion
+      // wallet balance moves.
+      qc.invalidateQueries({ queryKey: ["cushion-summary", budgetId] });
     },
   });
 }

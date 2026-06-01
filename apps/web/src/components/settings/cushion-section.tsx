@@ -28,7 +28,7 @@
  * actual/required/shortfall in the budget currency via Intl.NumberFormat.
  * shortfall_cents > 0 → --trading-down; shortfall_cents ≤ 0 → --trading-up.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -90,6 +90,13 @@ export function CushionSection({
   const [targetMonthsRaw, setTargetMonthsRaw] = useState<string>(
     String(cushionTargetMonths ?? 6),
   );
+  // Re-sync the input when the parent prop changes (e.g. after PATCH + page
+  // reload propagates a new cushion_target_months from the server). Without
+  // this effect the useState init only fires once, leaving the input pinned
+  // to the stale initial value.
+  useEffect(() => {
+    setTargetMonthsRaw(String(cushionTargetMonths ?? 6));
+  }, [cushionTargetMonths]);
   const targetMonths = (() => {
     const v = parseInt(targetMonthsRaw, 10);
     return Number.isNaN(v) ? Number.NaN : v;

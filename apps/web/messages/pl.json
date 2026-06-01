@@ -973,10 +973,10 @@
       "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie.",
       "more": "Więcej",
       "detail": {
-        "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli. Zadanie zniknie po następnym odświeżeniu.",
-        "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia. Zadanie znika po rozstrzygnięciu szkicu.",
-        "CUSHION_BELOW_TARGET": "Twój fundusz bezpieczeństwa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Masz trzy opcje: przelej środki do portfela typu Cushion, obniż liczbę miesięcy w Ustawienia → Cushion (mniejszy zapas = mniejszy wymagany fundusz), albo zmniejsz limity niektórych kategorii, żeby spadły średnie miesięczne wydatki. Zadanie znika automatycznie, gdy fundusz osiągnie cel.",
-        "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli). Zadanie zniknie automatycznie po następnym odświeżeniu."
+        "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli.",
+        "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
+        "CUSHION_BELOW_TARGET": "Twoja poduszka finansowa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Masz trzy opcje: przelej środki do portfela typu Poduszka, obniż liczbę miesięcy w Ustawienia → Poduszka (mniejszy zapas = mniejsza wymagana poduszka), albo zmniejsz limity niektórych kategorii, żeby spadły średnie miesięczne wydatki.",
+        "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli)."
       }
     }
   },

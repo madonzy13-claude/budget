@@ -34,6 +34,8 @@ interface BudgetApiResponse {
   cushion_mode_enabled?: boolean;
   cushionEnabled?: boolean;
   cushion_enabled?: boolean;
+  cushionTargetMonths?: number;
+  cushion_target_months?: number;
   hasTransactions?: boolean;
   has_transactions?: boolean;
   currentUserRole?: "owner" | "member";
@@ -58,6 +60,8 @@ export default async function BdpSettingsPage({ params }: PageProps) {
     cushionModeEnabled:
       raw?.cushionModeEnabled ?? raw?.cushion_mode_enabled ?? false,
     cushionEnabled: raw?.cushionEnabled ?? raw?.cushion_enabled ?? true,
+    cushionTargetMonths:
+      raw?.cushionTargetMonths ?? raw?.cushion_target_months ?? 6,
     hasTransactions: raw?.hasTransactions ?? raw?.has_transactions ?? false,
     currentUserRole: raw?.currentUserRole ?? raw?.current_user_role ?? "member",
   };

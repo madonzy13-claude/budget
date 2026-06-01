@@ -35,8 +35,9 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         cushion_mode_enabled: boolean;
         reserves_enabled: boolean;
         cushion_enabled: boolean;
+        cushion_target_months: number;
       }>(
-        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled
+        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, cushion_target_months
             FROM tenancy.budgets WHERE id = ${id}`,
       );
       return result.rows[0] ?? null;
@@ -56,6 +57,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       cushionModeEnabled: row.cushion_mode_enabled,
       reservesEnabled: row.reserves_enabled ?? true,
       cushionEnabled: row.cushion_enabled ?? true,
+      cushionTargetMonths: row.cushion_target_months ?? 6,
       pendingTasksCount: 0,
     };
   }

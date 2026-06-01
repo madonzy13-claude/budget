@@ -154,6 +154,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       cushionModeEnabled: budget.cushionModeEnabled ?? false,
       reservesEnabled: budget.reservesEnabled ?? true,
       cushionEnabled: budget.cushionEnabled ?? true,
+      cushionTargetMonths: budget.cushionTargetMonths ?? 6,
       hasTransactions,
       currentUserRole,
     });

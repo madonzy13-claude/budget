@@ -60,6 +60,9 @@ export function useArchiveWallet(budgetId: string) {
       }
       // Tasks redesign: backend archive-wallet fires recomputeCushionTask.
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+      // UAT round 6: archiving a cushion wallet changes the actual cushion
+      // sum — refresh the Settings preview.
+      qc.invalidateQueries({ queryKey: ["cushion-summary", budgetId] });
     },
   });
 }

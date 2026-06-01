@@ -16,6 +16,10 @@ export interface BudgetDTO {
   // cushion column is hidden entirely. Default true so legacy budgets keep
   // existing UX.
   cushionEnabled?: boolean;
+  // Phase 7-09 / UAT round 6: desired cushion runway in months (1..60).
+  // Settable via PATCH /budgets/:id { cushion_target_months }; default 6.
+  // Surfaced on findById so the Settings page can read the current value.
+  cushionTargetMonths?: number;
   // Tasks redesign P2: count of PENDING tasks scoped to this budget's tenant.
   // Populated by listForUser via LEFT JOIN against budgeting.tasks; 0 when none.
   pendingTasksCount: number;
