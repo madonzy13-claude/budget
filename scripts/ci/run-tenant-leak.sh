@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # run-tenant-leak.sh — Local tenant-leak CI gate runner
 #
-# Boots the compose DB, runs the migrator, then runs the 5 backend tenant-leak tests.
-# PC-10 Playwright test (test 6) runs separately in the apps/web E2E suite.
+# Boots the compose DB, runs the migrator, then runs all backend tenant-leak tests
+# in tests/tenant-leak/ (currently 12 *.test.ts files).
+# The Playwright cross-tenant-cache test runs separately in the apps/web E2E suite.
 #
-# These tests use raw pg.Client (NOT withTenantTx) for tests 1 + 4 and a
+# These tests use raw pg.Client (NOT withTenantTx) for RLS-bypass probes and a
 # two-tenant fixture seeded via app_role application services (PC-20).
 # To validate this gate is real, manually flip app_role to BYPASSRLS in
 # post-migration.sql and rerun — every test should fail (T-13 negative smoke).
 #
-# PC-08 test #5 verifies in-process bus handlers see only their row's tenant.
-# PC-10 test #6 (Playwright cross-tenant-cache) runs separately via:
+# PC-08 verifies in-process bus handlers see only their row's tenant.
+# PC-10 (Playwright cross-tenant-cache) runs separately via:
 #   bunx playwright test apps/web/e2e/cross-tenant-cache.spec.ts
 #
 # Exit codes:
-#   0 — all 5 backend leak tests passed
+#   0 — all backend tenant-leak tests passed
 #   1 — any test failed (FAIL CLOSED)
 
 set -euo pipefail
@@ -66,7 +67,7 @@ cleanup() {
 trap cleanup EXIT
 
 # ============================================================
-# 5. Run tenant-leak backend tests (tests 1–5)
+# 5. Run tenant-leak backend tests
 # ============================================================
 echo "[tenant-leak] Running bun test tests/tenant-leak/ ..."
 cd "$REPO_ROOT"
