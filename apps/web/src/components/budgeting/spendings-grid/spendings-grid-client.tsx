@@ -279,13 +279,17 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         // header band — scrolled content showed through it. Use mt-4 for the
         // breathing-room gap (lives OUTSIDE the scroll container so the
         // sticky band still pins flush at the wrapper's top edge).
-        // overscroll-contain keeps a rapid vertical swipe from bleeding into
-        // the page and dragging the whole document.
+        // overscroll-behavior: none keeps both rapid vertical swipes AND
+        // diagonal horizontal swipes from bleeding into the page —
+        // "contain" still let iOS Safari trigger pull-to-refresh when the
+        // user's gesture had a slight downward angle during column
+        // horizontal swipes (UAT round 9). "none" blocks the bounce
+        // entirely on this element.
         // 100svh (small viewport height) — iOS Safari's URL bar collapses on
         // scroll and changes 100vh out from under us; svh stays fixed to the
         // smaller (URL-bar-expanded) state so the wrapper doesn't grow
         // beyond the visible area when the bar hides.
-        style={{ overscrollBehavior: "contain" }}
+        style={{ overscrollBehavior: "none" }}
         className="mt-4 overflow-auto max-h-[calc(100svh-176px)] px-3 sm:px-6 pb-6"
       >
         <DndContext

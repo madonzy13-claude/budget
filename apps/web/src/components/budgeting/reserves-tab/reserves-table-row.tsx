@@ -223,11 +223,12 @@ export function ReservesTableRow({
           transition: swiping ? "none" : "opacity 200ms ease-out",
         }}
         className={[
-          // UAT round 8: add visible left gap before the action label so the
-          // button reads as separated from the underlying row content. EN
-          // had this naturally because "Exclude" is short; longer uk/pl
-          // labels (Виключити / Wykluczyć) need explicit left padding.
-          "absolute right-0 top-0 bottom-0 flex w-[120px] items-center justify-center pl-4 pr-2",
+          // UAT round 9: button now offset 8 px from the right edge so a
+          // visible gap appears between the swiped row's right edge and the
+          // action button's left edge. The row still slides ACTION_W=120
+          // pixels, but the button itself occupies only the right-most
+          // 112 px of that range (right-2 + w-[112px]). Net = 8 px gap.
+          "absolute right-2 top-0 bottom-0 flex w-[112px] items-center justify-center px-2",
           "rounded-[var(--radius-md)]",
           isExcluded
             ? "bg-[var(--info)] text-[var(--info-foreground,white)]"
