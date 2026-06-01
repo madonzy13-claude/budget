@@ -20,6 +20,7 @@ import { getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
+import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
 
 interface HomeSummary {
   budgetId: string;
@@ -72,8 +73,17 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
     <NavLink
       href={`/${locale}/budgets/${budget.id}/wallets`}
       aria-label={t("card.openAria", { budgetName: budget.name })}
-      className="group block rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-transparent transition-all hover:border-[var(--primary)] hover:scale-[1.01] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--info-ring)] focus-visible:outline-offset-2"
+      className="relative group block rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-transparent transition-all hover:border-[var(--primary)] hover:scale-[1.01] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--info-ring)] focus-visible:outline-offset-2"
     >
+      {/* Corner badge — absolute-positioned, needs `relative` on NavLink wrapper */}
+      <span className="absolute top-3 right-3 pointer-events-none">
+        <PillBadge
+          count={budget.pendingTasksCount}
+          ariaLabel={t("card.pendingTasksAria", {
+            count: budget.pendingTasksCount,
+          })}
+        />
+      </span>
       {/* Header */}
       <div className="p-6 flex items-center gap-2">
         <Icon

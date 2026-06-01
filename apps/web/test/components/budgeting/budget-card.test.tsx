@@ -79,7 +79,7 @@ function mockFetchFail() {
   );
 }
 
-describe.skip("BudgetCard", () => {
+describe.skip("BudgetCard (legacy — stale href assertions)", () => {
   beforeEach(() => {
     (serverApiFetch as unknown as ReturnType<typeof vi.fn>).mockReset();
   });
@@ -191,5 +191,34 @@ describe.skip("BudgetCard", () => {
     const anchors = container.querySelectorAll("a");
     expect(anchors.length).toBe(1);
     expect(anchors[0]?.getAttribute("href")).toBe("/en/budgets/b1/spendings");
+  });
+});
+
+describe("BudgetCard — PillBadge corner badge", () => {
+  beforeEach(() => {
+    (serverApiFetch as unknown as ReturnType<typeof vi.fn>).mockReset();
+  });
+
+  it("pendingTasksCount: 3 → badge text '3' and has bg-[var(--trading-down)] class", async () => {
+    mockFetchFail(); // summary not needed for badge test
+    const ui = await BudgetCard({
+      budget: { ...baseBudget, pendingTasksCount: 3 },
+      locale: "en",
+    });
+    const { container } = render(ui);
+    const badge = container.querySelector('[data-testid="pill-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("3");
+    expect(badge!.className).toMatch(/bg-\[var\(--trading-down\)\]/);
+  });
+
+  it("pendingTasksCount: 0 → no pill-badge rendered", async () => {
+    mockFetchFail();
+    const ui = await BudgetCard({
+      budget: { ...baseBudget, pendingTasksCount: 0 },
+      locale: "en",
+    });
+    render(ui);
+    expect(screen.queryByTestId("pill-badge")).toBeNull();
   });
 });
