@@ -15,6 +15,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: () => (key: string, vars?: Record<string, unknown>) => {
     const dict: Record<string, string> = {
       "bdp.tasks.title.RESERVE_TOPUP": "Top up reserve by {amount}",
@@ -68,29 +69,59 @@ function makeTask(
 
 describe("TaskBannerRow — read-only row", () => {
   it("renders the title interpolated with payload (RESERVE_TOPUP)", () => {
-    render(<TaskBannerRow task={makeTask("RESERVE_TOPUP")} budgetId="b1" locale="en" />);
+    render(
+      <TaskBannerRow
+        task={makeTask("RESERVE_TOPUP")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
     expect(screen.getByText(/Top up reserve by/)).toBeInTheDocument();
   });
 
   it("renders the title interpolated with payload (CONFIRM_DRAFT)", () => {
-    render(<TaskBannerRow task={makeTask("CONFIRM_DRAFT")} budgetId="b1" locale="en" />);
+    render(
+      <TaskBannerRow
+        task={makeTask("CONFIRM_DRAFT")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
     expect(screen.getByText(/Confirm Rent — /)).toBeInTheDocument();
   });
 
   it("renders the title interpolated with payload (CUSHION_BELOW_TARGET)", () => {
-    render(<TaskBannerRow task={makeTask("CUSHION_BELOW_TARGET")} budgetId="b1" locale="en" />);
+    render(
+      <TaskBannerRow
+        task={makeTask("CUSHION_BELOW_TARGET")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
     expect(screen.getByText(/Cushion short by/)).toBeInTheDocument();
   });
 
   it("exposes data-task-id and data-task-kind for E2E", () => {
-    render(<TaskBannerRow task={makeTask("RESERVE_TOPUP")} budgetId="b1" locale="en" />);
+    render(
+      <TaskBannerRow
+        task={makeTask("RESERVE_TOPUP")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
     const row = document.querySelector("[data-task-id]")!;
     expect(row.getAttribute("data-task-id")).toBe("task-RESERVE_TOPUP");
     expect(row.getAttribute("data-task-kind")).toBe("RESERVE_TOPUP");
   });
 
   it("the row itself is not a button — no onClick, no role=button", () => {
-    render(<TaskBannerRow task={makeTask("RESERVE_TOPUP")} budgetId="b1" locale="en" />);
+    render(
+      <TaskBannerRow
+        task={makeTask("RESERVE_TOPUP")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
     const row = document.querySelector("[data-task-id]")!;
     expect(row.tagName.toLowerCase()).toBe("div");
     expect(row.getAttribute("role")).toBe("listitem");
@@ -98,7 +129,13 @@ describe("TaskBannerRow — read-only row", () => {
 
   it('"More" trigger opens a dialog with the kind-specific detail', async () => {
     const user = userEvent.setup();
-    render(<TaskBannerRow task={makeTask("RESERVE_TOPUP")} budgetId="b1" locale="en" />);
+    render(
+      <TaskBannerRow
+        task={makeTask("RESERVE_TOPUP")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "More" }));
     expect(
       await screen.findByText(/Open the Reserves tab and rebalance/),
@@ -107,10 +144,18 @@ describe("TaskBannerRow — read-only row", () => {
 
   it("interpolates payload vars into the detail text too", async () => {
     const user = userEvent.setup();
-    render(<TaskBannerRow task={makeTask("CONFIRM_DRAFT")} budgetId="b1" locale="en" />);
+    render(
+      <TaskBannerRow
+        task={makeTask("CONFIRM_DRAFT")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "More" }));
     expect(
-      await screen.findByText(/Open the Spendings tab and confirm the Rent draft/),
+      await screen.findByText(
+        /Open the Spendings tab and confirm the Rent draft/,
+      ),
     ).toBeInTheDocument();
   });
 });

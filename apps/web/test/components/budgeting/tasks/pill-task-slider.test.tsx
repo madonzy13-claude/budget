@@ -24,6 +24,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: () => (key: string, vars?: Record<string, unknown>) => {
     if (key === "bdp.pillSlider.collapsedHeaderMany") {
       return `${vars?.count} tasks pending`;

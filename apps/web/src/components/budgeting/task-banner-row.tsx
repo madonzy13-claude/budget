@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { centsToDisplay } from "@/lib/cents-format";
 import {
   Dialog,
   DialogContent,
@@ -54,21 +55,30 @@ export interface TaskBannerRowProps {
   onResolved?: (taskId: string) => void;
 }
 
-function buildTitleParams(task: TaskSummary): Record<string, string> {
+function buildTitleParams(
+  task: TaskSummary,
+  locale: string,
+): Record<string, string> {
   const payload = task.payload ?? {};
   const currency = (payload.currency as string) ?? "EUR";
 
+  // Reuse the bigint-safe currency formatter that powers TransactionRow so
+  // the amount renders identically across surfaces (UAT round 4):
+  // `centsToDisplay` accepts string|bigint cents and a locale, applies
+  // Intl.NumberFormat with style="currency" + locale-correct grouping +
+  // 2-digit fraction, and survives values > Number.MAX_SAFE_INTEGER.
   function fmt(cents: unknown): string {
     if (cents === undefined || cents === null || cents === "") return "";
-    const n = Number(cents);
-    if (!Number.isFinite(n)) return "";
     try {
-      return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency,
-      }).format(n / 100);
+      const raw = typeof cents === "bigint" ? cents.toString() : String(cents);
+      // Coerce numeric payloads ("5000.0", 5000) to a clean integer string so
+      // BigInt() doesn't choke on a decimal point.
+      const asNumber = Number(raw);
+      if (!Number.isFinite(asNumber)) return "";
+      const intStr = Math.trunc(asNumber).toString();
+      return centsToDisplay(intStr, currency, locale);
     } catch {
-      return String(n / 100);
+      return "";
     }
   }
 
@@ -87,6 +97,7 @@ function buildTitleParams(task: TaskSummary): Record<string, string> {
 
 export function TaskBannerRow({ task }: TaskBannerRowProps) {
   const t = useTranslations();
+  const locale = useLocale();
 
   // RESERVE_TOPUP carries a `direction` of "TOPUP" or "WITHDRAW" in payload
   // (recompute-reserve-topup-task.ts:125). The WITHDRAW direction needs a
@@ -98,7 +109,7 @@ export function TaskBannerRow({ task }: TaskBannerRowProps) {
       : "";
   const titleKey = `bdp.tasks.title.${task.kind}${directionSuffix}` as const;
   const detailKey = `bdp.tasks.detail.${task.kind}${directionSuffix}` as const;
-  const titleParams = buildTitleParams(task);
+  const titleParams = buildTitleParams(task, locale);
   const title = t(titleKey, titleParams);
 
   return (
