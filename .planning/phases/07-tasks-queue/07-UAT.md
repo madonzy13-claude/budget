@@ -16,6 +16,11 @@ started: 2026-05-31T17:25:00Z
 updated: 2026-05-31T17:25:00Z
 ---
 
+> **Superseded by Tasks Redesign** — spec: `docs/superpowers/specs/2026-06-01-tasks-redesign-design.md`, plan: `docs/superpowers/plans/2026-06-01-tasks-redesign.md`.
+> The top-banner contract verified in this UAT has been replaced by per-pill
+> badges + per-pill sliders. Banner-based scenarios below remain historically
+> accurate for Phase 7 but no longer reflect the live UI.
+
 ## Current Test
 
 number: 2
