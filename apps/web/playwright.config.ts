@@ -20,6 +20,8 @@ const testDir = defineBddConfig({
   ],
   // Scenarios tagged @skip-phase-05-debt are excluded — each carries an
   // inline TODO with the re-enable condition (v1.1 surface not yet shipped).
+  // @skip-phase-07-debt + @skip-tasks-redesign-debt are honored via the
+  // --grep-invert flag on the runner (see Makefile / make test-e2e).
   tags: "not @skip-phase-05-debt",
 });
 
