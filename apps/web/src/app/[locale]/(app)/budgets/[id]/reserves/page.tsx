@@ -10,13 +10,27 @@
  */
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { ReservesTableClient } from "@/components/budgeting/reserves-tab/reserves-table-client";
+import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
+import type { TaskSummary } from "@/components/budgeting/task-banner-row";
+
+async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
+  const res = await serverApiFetch(
+    budgetId,
+    `/budgets/${budgetId}/tasks?status=pending`,
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { tasks?: TaskSummary[] };
+  return body.tasks ?? [];
+}
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
 }
 
 export default async function ReservesPage({ params }: PageProps) {
-  const { id: budgetId } = await params;
+  const { locale, id: budgetId } = await params;
+
+  const initialTasks = await fetchInitialTasks(budgetId);
 
   const res = await serverApiFetch(budgetId, `/budgets/${budgetId}/reserves`);
 
@@ -36,8 +50,16 @@ export default async function ReservesPage({ params }: PageProps) {
 
   // UAT-PH5-T3-04: constrain reserves to the same centered 1280px column.
   return (
-    <div className="mx-auto w-full max-w-[1280px]">
-      <ReservesTableClient budgetId={budgetId} initial={initial} />
-    </div>
+    <>
+      <PillTaskSlider
+        budgetId={budgetId}
+        locale={locale}
+        pill="reserves"
+        initialTasks={initialTasks}
+      />
+      <div className="mx-auto w-full max-w-[1280px]">
+        <ReservesTableClient budgetId={budgetId} initial={initial} />
+      </div>
+    </>
   );
 }

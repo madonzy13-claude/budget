@@ -9,14 +9,28 @@
  */
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets-sectioned-list";
+import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
 import type { WalletDto } from "@/hooks/use-wallets";
+import type { TaskSummary } from "@/components/budgeting/task-banner-row";
+
+async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
+  const res = await serverApiFetch(
+    budgetId,
+    `/budgets/${budgetId}/tasks?status=pending`,
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { tasks?: TaskSummary[] };
+  return body.tasks ?? [];
+}
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
 }
 
 export default async function WalletsPage({ params }: PageProps) {
-  const { id: budgetId } = await params;
+  const { locale, id: budgetId } = await params;
+
+  const initialTasks = await fetchInitialTasks(budgetId);
 
   const [walletsRes, budgetRes] = await Promise.all([
     serverApiFetch(budgetId, "/wallets"),
@@ -58,14 +72,22 @@ export default async function WalletsPage({ params }: PageProps) {
   // forced height; content ends where content ends and the canvas
   // fills the rest of the viewport without a visible boundary.
   return (
-    <div className="mx-auto w-full max-w-[1280px]">
-      <WalletsSectionedList
+    <>
+      <PillTaskSlider
         budgetId={budgetId}
-        budgetCurrency={budgetCurrency}
-        initial={wallets}
-        reservesEnabled={reservesEnabled}
-        cushionEnabled={cushionEnabled}
+        locale={locale}
+        pill="wallets"
+        initialTasks={initialTasks}
       />
-    </div>
+      <div className="mx-auto w-full max-w-[1280px]">
+        <WalletsSectionedList
+          budgetId={budgetId}
+          budgetCurrency={budgetCurrency}
+          initial={wallets}
+          reservesEnabled={reservesEnabled}
+          cushionEnabled={cushionEnabled}
+        />
+      </div>
+    </>
   );
 }
