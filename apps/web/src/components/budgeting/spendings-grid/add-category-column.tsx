@@ -20,9 +20,12 @@ export interface AddCategoryColumnProps {
 export function AddCategoryColumn({ onClick }: AddCategoryColumnProps) {
   const t = useTranslations("grid.addCategory");
 
-  // Preserve Phase 4 exact column shape className for visual parity
+  // UAT round 7: widen the column on mobile (140 → 160) so the longest
+  // localized "Add category" label (UK "Додати категорію", PL "Dodaj
+  // kategorię") doesn't wrap to two lines at the most common 360-390px
+  // viewports. Desktop width unchanged.
   const colClassName =
-    "flex min-h-[170px] w-[140px] sm:w-[160px] flex-shrink-0 flex-col items-center justify-center gap-2 " +
+    "flex min-h-[170px] w-[160px] sm:w-[160px] flex-shrink-0 flex-col items-center justify-center gap-2 px-3 " +
     "rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)] cursor-pointer select-none " +
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--primary)]";
 

@@ -28,11 +28,13 @@ const patchBudgetSchema = z.object({
   // lane is exposed in the UI at all. Distinct from cushion_mode_enabled
   // which tracks per-month cushion-vs-normal state via SCD-2 history.
   cushion_enabled: z.boolean().optional(),
-  // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33): cushion target months multiplier.
-  // Defense in depth: Zod 1..60 here + DB CHECK constraint (1..60) via
-  // migration 0026. Mutating this field triggers recomputeCushionTask after
-  // the identity update.
-  cushion_target_months: z.number().int().min(1).max(60).optional(),
+  // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33) + UAT round 7: cushion target
+  // months multiplier. Defense in depth: Zod 1..60 here + DB CHECK
+  // constraint (1..60) via migration 0026. Migration 0027 promotes the DB
+  // column to numeric(4,1), so fractional months (e.g. 4.5) are now
+  // permitted — the .int() guard is dropped. Mutating this field triggers
+  // recomputeCushionTask after the identity update.
+  cushion_target_months: z.number().min(1).max(60).optional(),
 });
 
 export function budgetIdentityRoutesFactory(

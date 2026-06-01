@@ -88,11 +88,20 @@ export async function computeCushionSummary(
   if (budgetRow.rows.length === 0) {
     throw new Error(`Budget not found: ${input.budgetId}`);
   }
+  // Migration 0027 promotes cushion_target_months to numeric(4,1); pg returns
+  // numeric columns as strings to preserve precision. We parse to a Number
+  // for the response payload and promote via fixed-point math (×10/÷10) for
+  // the BigInt-cents arithmetic below so a fractional months value (e.g. 4.5)
+  // multiplies cleanly without going through JS Number on the wire.
   const budget = budgetRow.rows[0] as {
     cushion_enabled: boolean;
-    cushion_target_months: number;
+    cushion_target_months: string | number | null;
     default_currency: string;
   };
+  const targetMonthsNumber =
+    budget.cushion_target_months == null
+      ? 6
+      : Number(budget.cushion_target_months);
 
   // Short-circuit: cushion disabled → all zeros, no further reads needed.
   if (!budget.cushion_enabled) {
@@ -102,7 +111,7 @@ export async function computeCushionSummary(
       shortfall_cents: "0",
       currency: budget.default_currency,
       enabled: false,
-      target_months: budget.cushion_target_months,
+      target_months: targetMonthsNumber,
     };
   }
 
@@ -125,8 +134,11 @@ export async function computeCushionSummary(
   const totalCushion = BigInt(
     (cushionAmounts.rows[0] as { total: string }).total,
   );
-  const targetMonths = BigInt(budget.cushion_target_months);
-  const requiredCents = totalCushion * targetMonths;
+  // Migration 0027: months is numeric(4,1). Promote to integer ×10 so we can
+  // stay in BigInt-cents math without losing fractional months. Round to the
+  // nearest tenth to defend against floating-point drift in the wire value.
+  const monthsTimes10 = BigInt(Math.round(targetMonthsNumber * 10));
+  const requiredCents = (totalCushion * monthsTimes10) / 10n;
 
   // 3. Read CUSHION wallets (active = archived_at IS NULL). v1.1: tenant-scoped
   //    (wallets has no budget_id column). current_balance is numeric(19,4) —
@@ -166,7 +178,7 @@ export async function computeCushionSummary(
     shortfall_cents: shortfallCents.toString(),
     currency: budget.default_currency,
     enabled: true,
-    target_months: budget.cushion_target_months,
+    target_months: targetMonthsNumber,
   };
 }
 

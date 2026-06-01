@@ -76,7 +76,10 @@ export function ReservesTableRow({
   const sharePct = row.walletSharePercent;
 
   // ─── Mobile swipe-left action (UAT-PH5-T3-55) ────────────────────────────
-  const ACTION_W = 88;
+  // UAT round 7: bumped from 88 → 120 so longer localized swipe labels
+  // ("Виключити" / "Відновити" — 9 chars in UK, "Wykluczyć" / "Przywrócić"
+  // in PL) fit inside the action cell without truncation on mobile.
+  const ACTION_W = 120;
   const [offset, setOffset] = React.useState(0);
   const [swiping, setSwiping] = React.useState(false);
   const wrapperRef = React.useRef<HTMLDivElement>(null);
@@ -220,7 +223,7 @@ export function ReservesTableRow({
           transition: swiping ? "none" : "opacity 200ms ease-out",
         }}
         className={[
-          "absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center",
+          "absolute right-0 top-0 bottom-0 flex w-[120px] items-center justify-center px-2",
           "rounded-[var(--radius-md)]",
           isExcluded
             ? "bg-[var(--info)] text-[var(--info-foreground,white)]"

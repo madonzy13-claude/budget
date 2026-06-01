@@ -98,8 +98,10 @@ export function CushionSection({
     setTargetMonthsRaw(String(cushionTargetMonths ?? 6));
   }, [cushionTargetMonths]);
   const targetMonths = (() => {
-    const v = parseInt(targetMonthsRaw, 10);
-    return Number.isNaN(v) ? Number.NaN : v;
+    // UAT round 7: parseFloat (was parseInt) to accept fractional months
+    // (e.g. 4.5). NaN sentinel surfaces the inline error and suppresses PATCH.
+    const v = parseFloat(targetMonthsRaw);
+    return Number.isFinite(v) ? v : Number.NaN;
   })();
   const [targetMonthsError, setTargetMonthsError] = useState<string | null>(
     null,
@@ -151,10 +153,13 @@ export function CushionSection({
     }
   }
 
-  /** Months input — save on blur with single PATCH round-trip. */
+  /** Months input — save on blur with single PATCH round-trip.
+   *  UAT round 7: accept fractional months (e.g. 4.5). Validate any finite
+   *  number in [1..60]; integer-only constraint dropped (DB column is now
+   *  numeric(4,1) — migration 0027). */
   async function handleTargetMonthsBlur() {
     if (
-      !Number.isInteger(targetMonths) ||
+      !Number.isFinite(targetMonths) ||
       targetMonths < 1 ||
       targetMonths > 60
     ) {
@@ -272,9 +277,10 @@ export function CushionSection({
             <Input
               id="cushion-target-months"
               type="number"
+              inputMode="decimal"
               min={1}
               max={60}
-              step={1}
+              step={0.5}
               value={targetMonthsRaw}
               onChange={(e) => setTargetMonthsRaw(e.target.value)}
               onBlur={handleTargetMonthsBlur}

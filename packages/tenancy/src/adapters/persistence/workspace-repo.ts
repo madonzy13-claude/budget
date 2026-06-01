@@ -35,7 +35,9 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         cushion_mode_enabled: boolean;
         reserves_enabled: boolean;
         cushion_enabled: boolean;
-        cushion_target_months: number;
+        // Migration 0027: column is numeric(4,1); pg returns numeric as
+        // string. Caller parses to number.
+        cushion_target_months: string | number | null;
       }>(
         sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, cushion_target_months
             FROM tenancy.budgets WHERE id = ${id}`,
@@ -57,7 +59,10 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       cushionModeEnabled: row.cushion_mode_enabled,
       reservesEnabled: row.reserves_enabled ?? true,
       cushionEnabled: row.cushion_enabled ?? true,
-      cushionTargetMonths: row.cushion_target_months ?? 6,
+      cushionTargetMonths:
+        row.cushion_target_months == null
+          ? 6
+          : Number(row.cushion_target_months),
       pendingTasksCount: 0,
     };
   }

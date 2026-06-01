@@ -10,7 +10,6 @@
  * Excluded balances are NOT included in totals (Plan 03 guarantees this server-side).
  */
 import * as React from "react";
-import { MismatchChip } from "./mismatch-chip";
 import { useTranslations } from "next-intl";
 import { centsToBare } from "@/lib/cents-format";
 
@@ -31,19 +30,13 @@ export function ReservesTotalsFooter({
 
   const fmt = (cents: string) => centsToBare(cents);
 
-  const m = BigInt(mismatchCents);
-  const variant: "overfunded" | "underfunded" | "reconciled" =
-    m === 0n ? "reconciled" : m > 0n ? "overfunded" : "underfunded";
-
-  const absAmtCents = (m < 0n ? -m : m).toString();
-  const amountFormatted =
-    variant !== "reconciled" ? fmt(absAmtCents) : undefined;
-  const helperText =
-    variant === "overfunded"
-      ? t("mismatch.overfunded.helper")
-      : variant === "underfunded"
-        ? t("mismatch.underfunded.helper")
-        : undefined;
+  // UAT round 7: the Σ-categories / Σ-wallets sums stay; the surplus /
+  // shortfall MismatchChip is dropped from this surface — the new
+  // per-pill task slider (Reserves slider) already surfaces the same
+  // signal as a RESERVE_TOPUP / RESERVE_TOPUP_withdraw task, so the chip
+  // duplicated information. `mismatchCents` is kept on the props API for
+  // source compatibility but is no longer rendered here.
+  void mismatchCents;
 
   return (
     <div
@@ -52,7 +45,7 @@ export function ReservesTotalsFooter({
         "rounded-[var(--radius-md)] border border-[var(--hairline-dark)]",
         "bg-[var(--surface-card-dark)]",
         "flex flex-col gap-3 px-4 py-3",
-        "sm:flex-row sm:items-center sm:justify-between",
+        "sm:flex-row sm:items-baseline sm:justify-center sm:gap-8",
       ].join(" ")}
     >
       <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 sm:flex sm:flex-row sm:items-baseline sm:gap-4">
@@ -69,14 +62,6 @@ export function ReservesTotalsFooter({
           {fmt(totalWalletCents)} {currency}
         </span>
       </div>
-
-      <MismatchChip
-        variant={variant}
-        {...(amountFormatted !== undefined && {
-          amountFormatted: `${amountFormatted} ${currency}`,
-        })}
-        {...(helperText !== undefined && { helperText })}
-      />
     </div>
   );
 }
