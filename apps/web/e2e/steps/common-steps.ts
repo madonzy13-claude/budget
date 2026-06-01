@@ -9,8 +9,6 @@ import { TopNavPo } from "../page-objects/TopNavPo";
 import { HomePo } from "../page-objects/HomePo";
 import { BdpPo, type BdpTabSlug } from "../page-objects/BdpPo";
 import { SwitcherPo } from "../page-objects/SwitcherPo";
-import { TaskBannerPo } from "../page-objects/TaskBannerPo";
-
 const { Given, When, Then } = createBdd(test);
 
 Given("I am signed in as a fresh user", async ({ freshUser }) => {
@@ -190,11 +188,6 @@ When("I press the browser Back button", async ({ page }) => {
   await page.goBack();
 });
 
-When("I click the task banner", async ({ page }) => {
-  const banner = new TaskBannerPo(page);
-  await banner.trigger().click();
-});
-
 When("I click the card for {string}", async ({ page }, name: string) => {
   const home = new HomePo(page);
   const before = page.url();
@@ -309,30 +302,6 @@ Then(
     }
   },
 );
-
-Then("the task banner is not present in the DOM", async ({ page }) => {
-  const banner = new TaskBannerPo(page);
-  const count = await banner.banner().count();
-  if (count !== 0) {
-    throw new Error(`Expected no task banner, found ${count}`);
-  }
-});
-
-Then("the task banner is expanded", async ({ page }) => {
-  const banner = new TaskBannerPo(page);
-  const expanded = await banner.trigger().getAttribute("aria-expanded");
-  if (expanded !== "true") {
-    throw new Error(`Expected aria-expanded=true, got ${expanded}`);
-  }
-});
-
-Then("the expanded list shows {int} task row", async ({ page }, n: number) => {
-  const banner = new TaskBannerPo(page);
-  const rows = await banner.banner().getByRole("listitem").count();
-  if (rows !== n) {
-    throw new Error(`Expected ${n} task rows, found ${rows}`);
-  }
-});
 
 // Phase 3 contract removed (D-PH7-25 + D-PH7-29): the action button is now
 // enabled and routes per-kind. The disabled-button assertion previously here

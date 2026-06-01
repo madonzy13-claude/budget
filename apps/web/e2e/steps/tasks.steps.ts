@@ -1,10 +1,12 @@
 import { createBdd } from "playwright-bdd";
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
-import { TaskBannerPo } from "../page-objects/TaskBannerPo";
 import { ReservesPo } from "../page-objects/ReservesPo";
 import { WalletsPo } from "../page-objects/WalletsPo";
 import { SettingsPo } from "../page-objects/SettingsPo";
+import { BdpTabsPo } from "../page-objects/BdpTabsPo";
+import { PillTaskSliderPo } from "../page-objects/PillTaskSliderPo";
+import { HomePo } from "../page-objects/HomePo";
 
 const { Given, When, Then } = createBdd(test);
 
@@ -12,6 +14,9 @@ const { Given, When, Then } = createBdd(test);
 // Seed helpers — wrap pg.Pool with the tenant-id RLS GUC so seeds satisfy
 // budgeting.tasks FORCE ROW LEVEL SECURITY (mirrors common-steps.ts pattern).
 // -----------------------------------------------------------------------
+
+type Pill = "wallets" | "spendings" | "reserves" | "settings";
+const pillFromText = (s: string): Pill => s.toLowerCase() as Pill;
 
 interface SeedPayload {
   shortfallCents?: number;
@@ -178,69 +183,54 @@ Given(
 );
 
 // -----------------------------------------------------------------------
-// When — Phase 7 banner interactions + per-kind navigation steps
+// When — tab navigation + slider interactions
 // -----------------------------------------------------------------------
 
-When("I click the task action button", async ({ page }) => {
-  const banner = new TaskBannerPo(page);
-  await banner.rowActionButton(0).click();
-});
-
 When(
-  /^I open the BDP settings tab for "(.+?)"$/,
+  /^I open the reserves tab for "(.+?)"$/,
   async ({ page, freshUser }, name: string) => {
     if (freshUser.budgetName !== name) throw new Error(`Unknown budget '${name}'`);
-    await page.goto(`/en/budgets/${freshUser.budgetId}/settings`);
+    await page.goto(`/en/budgets/${freshUser.budgetId}/reserves`);
     await page
       .waitForLoadState("networkidle", { timeout: 10000 })
       .catch(() => {});
   },
 );
 
-When("I open the cushion section", async ({ page }) => {
-  const settings = new SettingsPo(page);
-  await settings.openCushionSection();
-});
+When(
+  /^I open the wallets tab for "(.+?)"$/,
+  async ({ page, freshUser }, name: string) => {
+    if (freshUser.budgetName !== name) throw new Error(`Unknown budget '${name}'`);
+    await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+  },
+);
 
 When(
-  /^I change the cushion target months to (\d+)$/,
-  async ({ page }, months: string) => {
-    const settings = new SettingsPo(page);
-    await settings.changeCushionTargetMonths(Number(months));
+  /^I open the spendings tab for "(.+?)"$/,
+  async ({ page, freshUser }, name: string) => {
+    if (freshUser.budgetName !== name) throw new Error(`Unknown budget '${name}'`);
+    await page.goto(`/en/budgets/${freshUser.budgetId}/spendings`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+  },
+);
+
+When(
+  /^I click the (\w+) pill slider action button$/,
+  async ({ page }, pillWord: string) => {
+    const slider = new PillTaskSliderPo(page, pillFromText(pillWord));
+    await slider.expand();
+    await slider.actionButton(0).click();
   },
 );
 
 // -----------------------------------------------------------------------
-// Then — Phase 7 banner / navigation / settings assertions
+// Then — navigation assertions (carried over from phase-7 steps)
 // -----------------------------------------------------------------------
-
-Then(/^I see a task with title "(.+?)"$/, async ({ page }, title: string) => {
-  const banner = new TaskBannerPo(page);
-  await expect(banner.rowByTitle(title)).toBeVisible();
-});
-
-Then(
-  /^I see a task with title containing "(.+?)" and "(.+?)"$/,
-  async ({ page }, a: string, b: string) => {
-    const banner = new TaskBannerPo(page);
-    // Each row contains both substrings; match a single row that contains
-    // BOTH (avoids `strict mode violation` if other UI labels reuse one).
-    const row = banner
-      .banner()
-      .getByRole("listitem")
-      .filter({ hasText: a })
-      .filter({ hasText: b });
-    await expect(row).toBeVisible();
-  },
-);
-
-Then(
-  /^the action button label is "(.+?)"$/,
-  async ({ page }, label: string) => {
-    const banner = new TaskBannerPo(page);
-    await banner.assertActionLabel(label);
-  },
-);
 
 Then("I am navigated to the reserves tab", async ({ page }) => {
   await page.waitForURL(/\/budgets\/[^/]+\/reserves/, { timeout: 5000 });
@@ -250,19 +240,82 @@ Then("I am navigated to the wallets tab", async ({ page }) => {
   await page.waitForURL(/\/budgets\/[^/]+\/wallets/, { timeout: 5000 });
 });
 
+// -----------------------------------------------------------------------
+// Then — Home badge assertions
+// -----------------------------------------------------------------------
+
 Then(
-  /^within (\d+) seconds the task banner is not present in the DOM$/,
-  async ({ page }, secs: string) => {
-    const banner = new TaskBannerPo(page);
-    await banner.waitForGone(Number(secs) * 1000);
+  /^the budget card for "(.+?)" shows a pending tasks badge "(\d+)"$/,
+  async ({ page }, budgetName: string, count: string) => {
+    const home = new HomePo(page);
+    await home.assertCardBadge(budgetName, Number(count));
   },
 );
 
 Then(
+  /^the budget card for "(.+?)" shows no pending tasks badge$/,
+  async ({ page }, budgetName: string) => {
+    const home = new HomePo(page);
+    await home.assertCardBadge(budgetName, 0);
+  },
+);
+
+// -----------------------------------------------------------------------
+// Then — BDP pill badge assertions
+// -----------------------------------------------------------------------
+
+Then(
+  /^the (\w+) pill shows a badge "(\d+)"$/,
+  async ({ page }, pillWord: string, count: string) => {
+    const tabs = new BdpTabsPo(page);
+    await tabs.assertBadgeCount(pillFromText(pillWord), Number(count));
+  },
+);
+
+Then(
+  /^the (\w+) pill shows no badge$/,
+  async ({ page }, pillWord: string) => {
+    const tabs = new BdpTabsPo(page);
+    await tabs.assertBadgeCount(pillFromText(pillWord), 0);
+  },
+);
+
+// -----------------------------------------------------------------------
+// Then — Per-pill slider assertions
+// -----------------------------------------------------------------------
+
+Then(
+  /^the (\w+) pill slider is expanded$/,
+  async ({ page }, pillWord: string) => {
+    const slider = new PillTaskSliderPo(page, pillFromText(pillWord));
+    await slider.assertExpanded(true);
+  },
+);
+
+Then(
+  /^the (\w+) pill slider shows (\d+) rows?$/,
+  async ({ page }, pillWord: string, n: string) => {
+    const slider = new PillTaskSliderPo(page, pillFromText(pillWord));
+    await slider.assertRowCount(Number(n));
+  },
+);
+
+Then(
+  /^within (\d+) seconds the (\w+) pill slider is not present in the DOM$/,
+  async ({ page }, secs: string, pillWord: string) => {
+    const slider = new PillTaskSliderPo(page, pillFromText(pillWord));
+    await slider.waitForGone(Number(secs) * 1000);
+  },
+);
+
+// -----------------------------------------------------------------------
+// Then — settings (cushion), kept for completeness (not in tasks.feature
+// but referenced by other feature files that may import these steps)
+// -----------------------------------------------------------------------
+
+Then(
   /^within (\d+) seconds the cushion target months input shows (\d+)$/,
   async ({ page }, secs: string, value: string) => {
-    // playwright-bdd coerces `\d+` capture groups to numbers despite the TS
-    // string annotation; toHaveValue requires string|RegExp so coerce back.
     const settings = new SettingsPo(page);
     await expect(settings.cushionTargetMonthsInput()).toHaveValue(String(value), {
       timeout: Number(secs) * 1000,

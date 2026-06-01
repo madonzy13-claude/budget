@@ -13,7 +13,7 @@ interface PillBadgeProps {
 }
 
 export function PillBadge({ count, ariaLabel }: PillBadgeProps) {
-  if (count <= 0) return null;
+  if (count == null || count <= 0) return null;
   return (
     <span
       data-testid="pill-badge"
