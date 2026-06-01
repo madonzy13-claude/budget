@@ -48,6 +48,24 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+// UAT round 14 (carried over from round 11): the form calls
+// useQueryClient() to invalidate the per-budget tasks query after a
+// create/edit. Wrapping every test in a real QueryClientProvider is
+// overkill since these tests don't assert on cache behaviour — stub the
+// hook with a no-op `invalidateQueries` so render works without a
+// provider.
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>(
+    "@tanstack/react-query",
+  );
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+    }),
+  };
+});
+
 // CurrencyPicker stub — the real one fetches a currency list at runtime.
 vi.mock("@/components/common/currency-picker", () => ({
   CurrencyPicker: ({ value }: { value: string }) => (

@@ -25,7 +25,7 @@
  *   - edit   → PATCH /recurring-rules/:id with applyToFuture toggle
  */
 import { useState } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -106,6 +106,37 @@ function todayIso(): string {
 }
 
 /**
+ * UAT round 14: Native `<input type="date">` ignores the `lang` attribute
+ * in Chrome/Safari/iOS — the picker chrome uses system locale. We expose
+ * a localized date picker by composing three Selects (day / month / year)
+ * and reusing the already-localized `rule.months.{n}` keys. ISO YYYY-MM-DD
+ * stays as the wire format so the backend contract is unchanged.
+ */
+function parseIsoDate(iso: string): { y: number; m: number; d: number } {
+  const today = new Date();
+  const parts = iso.split("-");
+  const y = parseInt(parts[0] ?? "", 10);
+  const m = parseInt(parts[1] ?? "", 10);
+  const d = parseInt(parts[2] ?? "", 10);
+  return {
+    y: Number.isFinite(y) ? y : today.getFullYear(),
+    m: Number.isFinite(m) ? m : today.getMonth() + 1,
+    d: Number.isFinite(d) ? d : today.getDate(),
+  };
+}
+
+function daysInMonth(year: number, month: number): number {
+  // Day 0 of `month + 1` → last day of `month`. JS month index is 0-based.
+  return new Date(year, month, 0).getDate();
+}
+
+function composeIsoDate(year: number, month: number, day: number): string {
+  const dim = daysInMonth(year, month);
+  const clampedDay = Math.max(1, Math.min(dim, day));
+  return `${year}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
+}
+
+/**
  * Order weekdays appear in the WEEKLY picker. ISO/calendar convention:
  * Monday first, Sunday last (matches every paper calendar and Apple/
  * Google's `firstDayOfWeek` in en-EU/uk/pl). The underlying numeric
@@ -128,7 +159,6 @@ export function RecurringRuleForm({
   fetchImpl,
 }: RecurringRuleFormProps) {
   const t = useTranslations("budgeting.recurring");
-  const localeRoot = useLocale();
   const queryClient = useQueryClient();
 
   // Normalize the prefilled amount so the input value matches the
@@ -159,8 +189,14 @@ export function RecurringRuleForm({
       ? initialValues.cadence
       : "MONTHLY";
   const [cadence, setCadence] = useState<RuleCadence>(initialCadence);
-  const [cadenceAnchor, setCadenceAnchor] = useState<number>(
-    initialValues?.cadenceAnchor ?? 1,
+  // UAT round 14: cadenceAnchor is a STRING in state so the day input can
+  // be transiently empty while editing (user backspaces 1 → "" → types
+  // 1..31). Previously `setCadenceAnchor(parseInt(e.target.value) || 1)`
+  // forced the value back to 1 on every backspace, making it impossible
+  // to clear the field. Submit-time parsing clamps to 1..31 with a
+  // default of 1 when blank, so the wire contract is unchanged.
+  const [cadenceAnchorRaw, setCadenceAnchorRaw] = useState<string>(
+    String(initialValues?.cadenceAnchor ?? 1),
   );
   // Default picker selection matches WEEKDAY_ORDER[0] (Monday).
   const [weeklyDow, setWeeklyDow] = useState<number>(
@@ -188,6 +224,12 @@ export function RecurringRuleForm({
     if (saving) return;
     setSaving(true);
     try {
+      // UAT round 14: parse the string-state cadence anchor at submit
+      // time. Empty / non-numeric → 1. Otherwise clamp to 1..31.
+      const parsedAnchor = parseInt(cadenceAnchorRaw, 10);
+      const cadenceAnchor = Number.isFinite(parsedAnchor)
+        ? Math.max(1, Math.min(31, parsedAnchor))
+        : 1;
       if (mode === "create") {
         // Backend v1.1 contract: snake_case + cadence-discriminated body.
         // Plain object first, then spread the cadence discriminator into
@@ -421,15 +463,15 @@ export function RecurringRuleForm({
                     type="number"
                     min={1}
                     max={31}
-                    value={cadenceAnchor}
-                    onChange={(e) =>
-                      setCadenceAnchor(
-                        Math.max(
-                          1,
-                          Math.min(31, parseInt(e.target.value, 10) || 1),
-                        ),
-                      )
-                    }
+                    value={cadenceAnchorRaw}
+                    onChange={(e) => setCadenceAnchorRaw(e.target.value)}
+                    onBlur={() => {
+                      const n = parseInt(cadenceAnchorRaw, 10);
+                      const clamped = Number.isFinite(n)
+                        ? Math.max(1, Math.min(31, n))
+                        : 1;
+                      setCadenceAnchorRaw(String(clamped));
+                    }}
                   />
                 </div>
               )}
@@ -465,34 +507,103 @@ export function RecurringRuleForm({
                       type="number"
                       min={1}
                       max={31}
-                      value={cadenceAnchor}
-                      onChange={(e) =>
-                        setCadenceAnchor(
-                          Math.max(
-                            1,
-                            Math.min(31, parseInt(e.target.value, 10) || 1),
-                          ),
-                        )
-                      }
+                      value={cadenceAnchorRaw}
+                      onChange={(e) => setCadenceAnchorRaw(e.target.value)}
+                      onBlur={() => {
+                        const n = parseInt(cadenceAnchorRaw, 10);
+                        const clamped = Number.isFinite(n)
+                          ? Math.max(1, Math.min(31, n))
+                          : 1;
+                        setCadenceAnchorRaw(String(clamped));
+                      }}
                     />
                   </div>
                 </div>
               )}
 
+              {/* UAT round 14: native `<input type="date">` ignores the
+                  `lang` attribute on Chrome/Safari/iOS — the picker chrome
+                  always renders month names in the browser's system locale.
+                  Replaced with three Selects (day / month / year) that
+                  reuse the already-localized `rule.months.{n}` keys, so
+                  uk/pl users see "Січень / Styczeń" instead of "January".
+                  Day count derives from the chosen month so February
+                  caps at 28/29. ISO YYYY-MM-DD stays as the wire format
+                  (parsed/composed via helpers at the top of this file). */}
               <div>
-                <Label htmlFor="rr-firstdue">{t("rule.firstDueLabel")}</Label>
-                <Input
-                  id="rr-firstdue"
-                  type="date"
-                  // UAT round 13: lang attribute tells the browser to render
-                  // the native date picker using the active page locale, so
-                  // pl/uk users see DD.MM.YYYY (or whatever their locale's
-                  // date format is) instead of the default browser locale.
-                  lang={localeRoot}
-                  value={firstDueDate}
-                  onChange={(e) => setFirstDueDate(e.target.value)}
-                  required
-                />
+                <Label>{t("rule.firstDueLabel")}</Label>
+                {(() => {
+                  const parts = parseIsoDate(firstDueDate);
+                  const dim = daysInMonth(parts.y, parts.m);
+                  const currentYear = new Date().getFullYear();
+                  const yearOptions = Array.from(
+                    { length: 16 },
+                    (_, i) => currentYear - 5 + i,
+                  );
+                  return (
+                    <div className="grid grid-cols-[2fr_3fr_2fr] gap-2 pt-1">
+                      <Select
+                        value={String(parts.d)}
+                        onValueChange={(v) =>
+                          setFirstDueDate(
+                            composeIsoDate(parts.y, parts.m, parseInt(v, 10)),
+                          )
+                        }
+                      >
+                        <SelectTrigger id="rr-firstdue-day">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: dim }, (_, i) => i + 1).map(
+                            (d) => (
+                              <SelectItem key={d} value={String(d)}>
+                                {d}
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={String(parts.m)}
+                        onValueChange={(v) =>
+                          setFirstDueDate(
+                            composeIsoDate(parts.y, parseInt(v, 10), parts.d),
+                          )
+                        }
+                      >
+                        <SelectTrigger id="rr-firstdue-month">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
+                            <SelectItem key={m} value={String(m)}>
+                              {t(`rule.months.${m}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={String(parts.y)}
+                        onValueChange={(v) =>
+                          setFirstDueDate(
+                            composeIsoDate(parseInt(v, 10), parts.m, parts.d),
+                          )
+                        }
+                      >
+                        <SelectTrigger id="rr-firstdue-year">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {yearOptions.map((y) => (
+                            <SelectItem key={y} value={String(y)}>
+                              {y}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })()}
               </div>
             </>
 

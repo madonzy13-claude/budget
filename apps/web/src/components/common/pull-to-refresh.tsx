@@ -37,8 +37,13 @@
  *
  * Coverage:
  *   - Touch only; mouse drags are not pull-to-refresh on the web.
- *   - Listener is attached to `<main>` (the real scroll surface; the
- *     document body is locked to `overflow:hidden` in global.css).
+ *   - Listener is attached to `[data-ptr-blur-target]` (the wrapper that
+ *     spans header + main). Earlier this hooked `<main>` only, but iOS
+ *     touches that start on the `<header>` element never bubbled into
+ *     main's touchstart, so pulling from the top nav did nothing — UAT
+ *     round 14. The main element is still consulted for `scrollTop` (it's
+ *     the real scroll surface; body is locked overflow:hidden) so PTR
+ *     still bails when the user has scrolled into the page.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -64,19 +69,26 @@ export function PullToRefresh() {
   const innerScrollRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    // The real scroll surface (see global.css:196 — body has
-    // overflow:hidden; <main> in (app)/layout.tsx owns the scroll).
-    const el = document.querySelector("main");
-    if (!el) return;
+    // The gesture surface spans BOTH the header and the main scroll area
+    // (see (app)/layout.tsx — `[data-ptr-blur-target]` wraps them). The
+    // real scroll surface is still `<main>` (body locked overflow:hidden
+    // in global.css), which is what we consult for scrollTop.
+    const gestureEl = document.querySelector<HTMLElement>(
+      "[data-ptr-blur-target]",
+    );
+    const mainEl = document.querySelector<HTMLElement>("main");
+    if (!gestureEl || !mainEl) return;
 
     /**
      * Walk up from a touch target to find the nearest CSS-scrollable
-     * ancestor. Stops at `main` (the page-level scroll surface). Returns
-     * the deepest scrollable element which may equal `main` itself.
+     * ancestor. Stops at the gesture wrapper. If none is found (e.g.
+     * touches that start in `<header>` — header has no scrollable
+     * ancestors before the wrapper), fall through to `mainEl` so the
+     * scrollTop guard checks the page scroll surface.
      */
     const findInnerScrollable = (target: EventTarget | null): HTMLElement => {
       let cur = target instanceof Element ? (target as HTMLElement) : null;
-      while (cur && cur !== el) {
+      while (cur && cur !== gestureEl) {
         const style = window.getComputedStyle(cur);
         if (
           style.overflowY === "auto" ||
@@ -88,7 +100,7 @@ export function PullToRefresh() {
         }
         cur = cur.parentElement;
       }
-      return el;
+      return mainEl;
     };
 
     const onTouchStart = (e: TouchEvent) => {
@@ -97,7 +109,7 @@ export function PullToRefresh() {
       // the top — otherwise the user's gesture is "scroll within that
       // list", not "pull to refresh".
       const inner = findInnerScrollable(e.target);
-      if (el.scrollTop !== 0) return;
+      if (mainEl.scrollTop !== 0) return;
       if (inner.scrollTop !== 0) return;
       innerScrollRef.current = inner;
       startYRef.current = e.touches[0].clientY;
@@ -109,7 +121,7 @@ export function PullToRefresh() {
       const inner = innerScrollRef.current;
       if (
         deltaY <= 0 ||
-        el.scrollTop !== 0 ||
+        mainEl.scrollTop !== 0 ||
         (inner && inner.scrollTop !== 0)
       ) {
         // User swiped up, scrolled past top, or an inner container
@@ -145,16 +157,16 @@ export function PullToRefresh() {
       innerScrollRef.current = null;
     };
 
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd);
-    el.addEventListener("touchcancel", onTouchEnd);
+    gestureEl.addEventListener("touchstart", onTouchStart, { passive: true });
+    gestureEl.addEventListener("touchmove", onTouchMove, { passive: false });
+    gestureEl.addEventListener("touchend", onTouchEnd);
+    gestureEl.addEventListener("touchcancel", onTouchEnd);
 
     return () => {
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
-      el.removeEventListener("touchcancel", onTouchEnd);
+      gestureEl.removeEventListener("touchstart", onTouchStart);
+      gestureEl.removeEventListener("touchmove", onTouchMove);
+      gestureEl.removeEventListener("touchend", onTouchEnd);
+      gestureEl.removeEventListener("touchcancel", onTouchEnd);
     };
   }, []);
 

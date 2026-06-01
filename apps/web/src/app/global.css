@@ -186,17 +186,16 @@
   body {
     background-color: var(--canvas-dark);
     color: var(--body-on-dark);
-    /* UAT round 13: relaxed from `overscroll-behavior: none + overflow:
-       hidden + height: 100%` so iOS Safari's native pull-to-refresh works
-       again when the user pulls from the page header (above any internal
-       scroll container). Internal grids (spendings) carry their own
-       pull-to-refresh suppression via a scrollTop=1 anchor + a downward-
-       cone preventDefault inside spendings-grid-client.tsx — those keep
-       in-grid diagonal gestures from triggering refresh. The old
-       input-focus auto-scroll workaround the lock used to provide is
-       reintroduced inline in transaction-row.tsx via preventScroll +
-       saved scrollTop restoration, so removing the document lock no
-       longer regresses that surface. */
+    /* UAT round 14: body lockdown restored. The round-13 attempt to expose
+       native iOS pull-to-refresh by removing `overflow: hidden + height:
+       100%` was wrong — the (app) shell uses a CUSTOM PullToRefresh
+       component bound to `[data-ptr-blur-target]` (drives a yellow
+       indicator + progressive blur). Without the lock, pulling on the
+       header just rubber-banded the body instead of engaging the custom
+       PTR. The header is now inside the gesture surface so pulling from
+       the top nav engages the custom indicator/reload. */
+    overscroll-behavior: none;
+    overflow: hidden;
     height: 100%;
   }
 
