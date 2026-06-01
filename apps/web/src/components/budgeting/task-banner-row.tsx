@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { centsToDisplay } from "@/lib/cents-format";
+import { centsToDisplayCompact } from "@/lib/cents-format";
 import {
   Dialog,
   DialogContent,
@@ -62,11 +62,11 @@ function buildTitleParams(
   const payload = task.payload ?? {};
   const currency = (payload.currency as string) ?? "EUR";
 
-  // Reuse the bigint-safe currency formatter that powers TransactionRow so
-  // the amount renders identically across surfaces (UAT round 4):
-  // `centsToDisplay` accepts string|bigint cents and a locale, applies
-  // Intl.NumberFormat with style="currency" + locale-correct grouping +
-  // 2-digit fraction, and survives values > Number.MAX_SAFE_INTEGER.
+  // UAT round 5: `centsToDisplayCompact` mirrors the spendings-grid bare-
+  // amount rule (drop `.00` for whole-unit amounts, pad to 2 digits for
+  // non-zero fractions: 2000c EUR → "€20", 1750c EUR → "€17.50") while
+  // keeping the currency symbol so task rows are unambiguous on surfaces
+  // not already scoped to a single currency.
   function fmt(cents: unknown): string {
     if (cents === undefined || cents === null || cents === "") return "";
     try {
@@ -76,7 +76,7 @@ function buildTitleParams(
       const asNumber = Number(raw);
       if (!Number.isFinite(asNumber)) return "";
       const intStr = Math.trunc(asNumber).toString();
-      return centsToDisplay(intStr, currency, locale);
+      return centsToDisplayCompact(intStr, currency, locale);
     } catch {
       return "";
     }
