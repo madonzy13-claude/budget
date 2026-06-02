@@ -94,14 +94,17 @@ export function CategoryColumn({
       style={style}
       data-testid={`category-column-${category.id}`}
       {...attributes}
-      // UAT round 17: dnd-kit's useSortable spreads role="button" onto
-      // the sortable container. The round-15 global rule for
-      // [role="button"] then applied cursor:pointer across the whole
-      // column — including the read-only summary rows (planned /
-      // overspent / reserves-used / balance). Pin the wrapper to
-      // `cursor-default` so summary cells read as non-interactive; the
-      // name-cell (Row 1) re-applies cursor-pointer inside ColumnHeader.
-      className="w-[140px] sm:w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip cursor-default"
+      // UAT round 18: `!cursor-default` (Tailwind `!`-prefix →
+      // !important) is required because the global base rule
+      // `[role="button"] { cursor: pointer !important }` would
+      // otherwise win the cascade. dnd-kit's useSortable spreads
+      // role="button" onto the sortable container, which the round-15
+      // rule had been applying cursor:pointer across the whole column —
+      // including the read-only summary rows (planned / overspent /
+      // reserves-used / balance). Pinning with !important here makes
+      // the summary cells read as non-interactive; the name-cell Row 1
+      // re-applies cursor-pointer inside ColumnHeader.
+      className="w-[140px] sm:w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip !cursor-default"
     >
       {/* Top backdrop. Pure-CSS, sticky-pinned at grid.top. Solid canvas-bg
           rectangle covering top 12px of the column (matches the rounded-xl

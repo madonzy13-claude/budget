@@ -223,7 +223,16 @@ export function NavPendingOverlay({
         // container needs to claim the exact remaining height after
         // sticky elements (e.g. the wallets list under the BDP tabs).
         "flex flex-col min-h-0",
-        "transition-[filter,opacity] duration-200 ease-out will-change-[filter,opacity]",
+        // UAT round 18: dropped `will-change-[filter,opacity]`. The
+        // hint promotes the element to its own composite layer AND
+        // creates a containing block for `position: fixed` descendants
+        // (per spec, browsers treat `will-change: filter` as if the
+        // filter were active). That offset the wallets DragOverlay
+        // ghost from the cursor on every nav-stable render — not just
+        // during a transition. Without `will-change` the transition
+        // still runs; the only cost is a tiny one-time layer promotion
+        // on first blur, which is imperceptible at 200ms.
+        "transition-[filter,opacity] duration-200 ease-out",
         pending && "blur-[2px] opacity-70 pointer-events-none",
         className,
       )}

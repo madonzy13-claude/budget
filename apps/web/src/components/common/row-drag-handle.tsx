@@ -8,7 +8,10 @@
  */
 import * as React from "react";
 import { GripVertical } from "lucide-react";
-import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
+import type {
+  DraggableAttributes,
+  DraggableSyntheticListeners,
+} from "@dnd-kit/core";
 
 export interface RowDragHandleProps {
   name: string; // Used in testid + aria-label
@@ -31,7 +34,12 @@ export function RowDragHandle({
       style={{ touchAction: "none" }}
       className={
         className ??
-        "touch-none cursor-grab text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+        // UAT round 18: `!cursor-grab` (Tailwind `!`-prefix → !important)
+        // is required because the global base rule
+        // `[role="button"] { cursor: pointer !important }` would
+        // otherwise win the cascade. The grip MUST read as a drag
+        // affordance (grab) at rest and (grabbing) while held.
+        "touch-none !cursor-grab active:!cursor-grabbing text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
       }
       aria-label={ariaLabel ?? `Drag to move ${name}`}
       role="button"
