@@ -31,6 +31,7 @@ import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/
 import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
 import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
 import { createReserveBalanceRepo } from "@budget/budgeting/src/adapters/persistence/reserve-balance-repo";
+import { DrizzleReservesSummaryRepo } from "@budget/budgeting/src/adapters/persistence/reserves-summary-repo";
 import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
 import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
 import { reorderCategories } from "@budget/budgeting/src/application/reorder-categories";
@@ -221,6 +222,7 @@ export async function boot(): Promise<BootedDeps> {
   const categoryLimitRepo = new DrizzleCategoryLimitRepo();
   const transactionRepo = new DrizzleTransactionRepo();
   const reserveBalanceRepo = createReserveBalanceRepo();
+  const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
   const spendingsSummaryRepo = createSpendingsSummaryRepo();
   const expenseLedgerDraftPortRepo = new DrizzleExpenseLedgerDraftPortRepo();
 
@@ -244,6 +246,7 @@ export async function boot(): Promise<BootedDeps> {
     transactionRepo,
     reserveBalanceRepo,
     summaryRepo: spendingsSummaryRepo,
+    reservesSummaryRepo,
   });
 
   const budgeting = Object.assign(baseBudgeting, {

@@ -15,7 +15,8 @@ import { Hono } from "hono";
 import { Pool } from "pg";
 
 const DB_URL_RAW = process.env.DATABASE_URL_APP;
-if (!DB_URL_RAW) throw new Error("DATABASE_URL_APP required for integration tests");
+if (!DB_URL_RAW)
+  throw new Error("DATABASE_URL_APP required for integration tests");
 process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
 const DB_URL = process.env.DATABASE_URL_APP;
 
@@ -34,7 +35,9 @@ async function createFixture(currency = "EUR", tz = "UTC"): Promise<Fixture> {
   const budgetId = crypto.randomUUID();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
     await client.query(
       `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
        VALUES ($1, $2, 'SS Test', true, now(), now())`,
@@ -57,14 +60,22 @@ async function createFixture(currency = "EUR", tz = "UTC"): Promise<Fixture> {
   return { userId, budgetId };
 }
 
-async function seedCategory(budgetId: string, userId: string, name: string): Promise<string> {
+async function seedCategory(
+  budgetId: string,
+  userId: string,
+  name: string,
+): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   const id = crypto.randomUUID();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [`{"${budgetId}"}`]);
-    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
+    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{"${budgetId}"}`,
+    ]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
     await client.query(
       `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
        VALUES ($1, $2, $3, now(), $4)`,
@@ -90,8 +101,12 @@ async function seedLimit(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [`{"${budgetId}"}`]);
-    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
+    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{"${budgetId}"}`,
+    ]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
     await client.query(
       `INSERT INTO budgeting.category_limits
          (tenant_id, category_id, normal_amount, normal_currency,
@@ -117,8 +132,12 @@ async function seedTransaction(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [`{"${budgetId}"}`]);
-    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
+    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{"${budgetId}"}`,
+    ]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
     await client.query(
       `INSERT INTO budgeting.expense_ledger
          (tenant_id, budget_id, category_id, amount_original_cents, currency_original,
@@ -134,18 +153,28 @@ async function seedTransaction(
 }
 
 async function buildApp(userId: string, budgetId: string) {
-  const { createSpendingsSummaryRoute } = await import("../../src/routes/spendings-summary");
-  const { DrizzleCategoryRepo } = await import("@budget/budgeting/src/adapters/persistence/category-repo");
-  const { DrizzleCategoryLimitRepo } = await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
-  const { DrizzleTransactionRepo } = await import("@budget/budgeting/src/adapters/persistence/transaction-repo");
-  const { createReserveBalanceRepo } = await import("@budget/budgeting/src/adapters/persistence/reserve-balance-repo");
-  const { createSpendingsSummaryRepo } = await import("@budget/budgeting/src/adapters/persistence/spendings-summary-repo");
-  const { getSpendingsSummary } = await import("@budget/budgeting/src/application/get-spendings-summary");
+  const { createSpendingsSummaryRoute } =
+    await import("../../src/routes/spendings-summary");
+  const { DrizzleCategoryRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/category-repo");
+  const { DrizzleCategoryLimitRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+  const { DrizzleTransactionRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/transaction-repo");
+  const { createReserveBalanceRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/reserve-balance-repo");
+  const { DrizzleReservesSummaryRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/reserves-summary-repo");
+  const { createSpendingsSummaryRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/spendings-summary-repo");
+  const { getSpendingsSummary } =
+    await import("@budget/budgeting/src/application/get-spendings-summary");
 
   const categoryRepo = new DrizzleCategoryRepo();
   const categoryLimitRepo = new DrizzleCategoryLimitRepo();
   const transactionRepo = new DrizzleTransactionRepo();
   const reserveBalanceRepo = createReserveBalanceRepo();
+  const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
   const summaryRepo = createSpendingsSummaryRepo();
 
   const deps = {
@@ -156,6 +185,7 @@ async function buildApp(userId: string, budgetId: string) {
         transactionRepo,
         reserveBalanceRepo,
         summaryRepo,
+        reservesSummaryRepo,
       }),
     },
   } as unknown as import("../../src/boot").BootedDeps;
@@ -167,7 +197,10 @@ async function buildApp(userId: string, budgetId: string) {
     c.set("userId", userId);
     await next();
   });
-  app.route("/budgets/:budgetId/spendings-summary", createSpendingsSummaryRoute(deps));
+  app.route(
+    "/budgets/:budgetId/spendings-summary",
+    createSpendingsSummaryRoute(deps),
+  );
   return app;
 }
 
@@ -194,9 +227,26 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
 
   it("returns category with correct planned/cushion/spent math", async () => {
     const localFix = await createFixture("EUR", "UTC");
-    const catId = await seedCategory(localFix.budgetId, localFix.userId, "Housing");
-    await seedLimit(localFix.budgetId, localFix.userId, catId, 100000, 120000, "2026-01-01");
-    await seedTransaction(localFix.budgetId, localFix.userId, catId, 60000, "2026-05-10");
+    const catId = await seedCategory(
+      localFix.budgetId,
+      localFix.userId,
+      "Housing",
+    );
+    await seedLimit(
+      localFix.budgetId,
+      localFix.userId,
+      catId,
+      100000,
+      120000,
+      "2026-01-01",
+    );
+    await seedTransaction(
+      localFix.budgetId,
+      localFix.userId,
+      catId,
+      60000,
+      "2026-05-10",
+    );
 
     const app = await buildApp(localFix.userId, localFix.budgetId);
     const res = await app.request(
@@ -216,12 +266,29 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
 
   it("reserve-overflow: spent > active + reserve → overspentCents > 0 (RSCM-04)", async () => {
     const localFix = await createFixture("EUR", "UTC");
-    const catId = await seedCategory(localFix.budgetId, localFix.userId, "Overspent Cat");
+    const catId = await seedCategory(
+      localFix.budgetId,
+      localFix.userId,
+      "Overspent Cat",
+    );
     // Use effective_from = 2026-05-01 so NO reserve accumulates from prior months.
     // planned = 10000, cushion = 12000
-    await seedLimit(localFix.budgetId, localFix.userId, catId, 10000, 12000, "2026-05-01");
+    await seedLimit(
+      localFix.budgetId,
+      localFix.userId,
+      catId,
+      10000,
+      12000,
+      "2026-05-01",
+    );
     // spent = 15000 → overBy = 5000, no prior-month reserve → overspent = 5000
-    await seedTransaction(localFix.budgetId, localFix.userId, catId, 15000, "2026-05-10");
+    await seedTransaction(
+      localFix.budgetId,
+      localFix.userId,
+      catId,
+      15000,
+      "2026-05-10",
+    );
 
     const app = await buildApp(localFix.userId, localFix.budgetId);
     const res = await app.request(

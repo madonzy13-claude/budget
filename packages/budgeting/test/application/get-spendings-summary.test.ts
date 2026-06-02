@@ -11,6 +11,7 @@ import type { CategoryLimitRepo } from "../../src/ports/category-limit-repo";
 import type { TransactionRepo } from "../../src/ports/transaction-repo";
 import type { ReserveBalanceRepo } from "../../src/ports/reserve-balance-repo";
 import type { SpendingsSummaryRepo } from "../../src/ports/spendings-summary-repo";
+import type { ReservesSummaryRepo } from "../../src/ports/reserves-summary-repo";
 import { Money } from "@budget/shared-kernel";
 
 const TENANT = "tenant-1";
@@ -53,12 +54,20 @@ function makeDeps(overrides: {
   spend?: Map<string, bigint>;
   limits?: Map<string, { planned: bigint; cushion: bigint }>;
   reserves?: Map<string, Money>;
+  /**
+   * Real reserve-wallet pool in cents. Defaults to effectively unlimited so a
+   * reconciled budget (Σ category reserves ≤ wallet pool) is unaffected; set a
+   * smaller value to exercise the real-money cap.
+   */
+  reserveWalletTotalCents?: bigint;
 }) {
   const categories = overrides.categories ?? [];
   const meta = overrides.meta !== undefined ? overrides.meta : makeMeta();
   const spend = overrides.spend ?? new Map();
   const limits = overrides.limits ?? new Map();
   const reserves = overrides.reserves ?? new Map();
+  const reserveWalletTotalCents =
+    overrides.reserveWalletTotalCents ?? 10n ** 18n; // ~unlimited by default
 
   const categoryRepo: Pick<CategoryRepo, "listForBudget"> = {
     listForBudget: async () => categories as any,
@@ -80,12 +89,17 @@ function makeDeps(overrides: {
     getBudgetMeta: async () => meta,
   };
 
+  const reservesSummaryRepo: ReservesSummaryRepo = {
+    sumReserveWalletAmounts: async () => reserveWalletTotalCents,
+  };
+
   return {
     categoryRepo: categoryRepo as CategoryRepo,
     categoryLimitRepo: categoryLimitRepo as CategoryLimitRepo,
     transactionRepo: transactionRepo as TransactionRepo,
     reserveBalanceRepo: reserveBalanceRepo as ReserveBalanceRepo,
     summaryRepo,
+    reservesSummaryRepo,
   };
 }
 
@@ -266,6 +280,93 @@ describe("getSpendingsSummary", () => {
       expect(cat.reserveUsedCents).toBe("3000");
       expect(cat.overspentCents).toBe("7000");
       expect(cat.balanceCents).toBe("-7000");
+    }
+  });
+
+  it("reserve-used is capped at the REAL reserve-wallet money, not the over-allocated category reserve", async () => {
+    // Groceries allocated €800 reserve but the reserve WALLET holds only €80.
+    // You can't use money you don't have: reserveUsed must cap at €80 (8000c),
+    // NOT the €800 (80000c) allocation.
+    const cats = [makeCategory(CAT_A, 1)];
+    const spend = new Map([[CAT_A, 100000n]]); // €1000 spent
+    const limits = new Map([[CAT_A, { planned: 10000n, cushion: 10000n }]]); // €100 planned
+    const reserves = new Map([[CAT_A, Money.of("800", "EUR")]]); // 80000c allocated
+    const svc = getSpendingsSummary(
+      makeDeps({
+        categories: cats,
+        spend,
+        limits,
+        reserves,
+        reserveWalletTotalCents: 8000n, // €80 actually in the reserve wallet
+      }),
+    );
+    const r = await svc({ tenantId: TENANT, budgetId: BUDGET, month: MONTH });
+    expect(r.isOk()).toBe(true);
+    if (r.isOk()) {
+      const cat = r.value.categories[0];
+      expect(cat.reserveUsedCents).toBe("8000"); // capped at real €80
+      // overspent = 100000 - 10000 - 8000 = 82000
+      expect(cat.overspentCents).toBe("82000");
+      // balance = 10000 - 100000 + 8000 = -82000
+      expect(cat.balanceCents).toBe("-82000");
+    }
+  });
+
+  it("real reserve pool is split across categories in proportion to their allocation", async () => {
+    // Two categories allocated 60000c + 20000c (Σ 80000c) but the wallet holds
+    // only 8000c. Each draws its proportional share: 6000c and 2000c (Σ 8000c).
+    const CAT_B = "cat-bbbb-0000-0000-0000-000000000000";
+    const cats = [makeCategory(CAT_A, 1), makeCategory(CAT_B, 2)];
+    const spend = new Map([
+      [CAT_A, 100000n],
+      [CAT_B, 100000n],
+    ]);
+    const limits = new Map([
+      [CAT_A, { planned: 10000n, cushion: 10000n }],
+      [CAT_B, { planned: 10000n, cushion: 10000n }],
+    ]);
+    const reserves = new Map([
+      [CAT_A, Money.of("600", "EUR")], // 60000c
+      [CAT_B, Money.of("200", "EUR")], // 20000c
+    ]);
+    const svc = getSpendingsSummary(
+      makeDeps({
+        categories: cats,
+        spend,
+        limits,
+        reserves,
+        reserveWalletTotalCents: 8000n, // €80 real, Σ allocation = €800
+      }),
+    );
+    const r = await svc({ tenantId: TENANT, budgetId: BUDGET, month: MONTH });
+    expect(r.isOk()).toBe(true);
+    if (r.isOk()) {
+      const a = r.value.categories.find((c) => c.categoryId === CAT_A)!;
+      const b = r.value.categories.find((c) => c.categoryId === CAT_B)!;
+      expect(a.reserveUsedCents).toBe("6000"); // 60000 * 8000 / 80000
+      expect(b.reserveUsedCents).toBe("2000"); // 20000 * 8000 / 80000
+    }
+  });
+
+  it("reconciled budget (Σ category reserves ≤ wallet pool) is unaffected by the cap", async () => {
+    // Allocation 3000c, wallet holds 10000c → no scaling; reserveUsed = min(overBy, 3000).
+    const cats = [makeCategory(CAT_A, 1)];
+    const spend = new Map([[CAT_A, 20000n]]);
+    const limits = new Map([[CAT_A, { planned: 10000n, cushion: 10000n }]]);
+    const reserves = new Map([[CAT_A, Money.of("30", "EUR")]]); // 3000c
+    const svc = getSpendingsSummary(
+      makeDeps({
+        categories: cats,
+        spend,
+        limits,
+        reserves,
+        reserveWalletTotalCents: 10000n, // plenty of real reserve
+      }),
+    );
+    const r = await svc({ tenantId: TENANT, budgetId: BUDGET, month: MONTH });
+    expect(r.isOk()).toBe(true);
+    if (r.isOk()) {
+      expect(r.value.categories[0].reserveUsedCents).toBe("3000");
     }
   });
 

@@ -18,6 +18,7 @@ import type { CategoryLimitRepo } from "../ports/category-limit-repo";
 import type { TransactionRepo } from "../ports/transaction-repo";
 import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import type { SpendingsSummaryRepo } from "../ports/spendings-summary-repo";
+import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
 
 export interface GetSpendingsSummaryDeps {
   categoryRepo: CategoryRepo;
@@ -25,6 +26,8 @@ export interface GetSpendingsSummaryDeps {
   transactionRepo: TransactionRepo;
   reserveBalanceRepo: ReserveBalanceRepo;
   summaryRepo: SpendingsSummaryRepo;
+  /** Σ of RESERVE-wallet balances (real reserve money) — caps reserve usage. */
+  reservesSummaryRepo: ReservesSummaryRepo;
 }
 
 export interface GetSpendingsSummaryInput {
@@ -87,30 +90,46 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
       );
       if (!meta) return err(new Error("budget_not_found"));
 
-      const [categories, perCatSpend, effectiveLimits, reserveBalances] =
-        await Promise.all([
-          deps.categoryRepo.listForBudget(
-            input.tenantId,
-            input.budgetId,
-            false,
-          ),
-          deps.transactionRepo.spendByCategoryForMonth(
-            input.tenantId,
-            input.budgetId,
-            monthStart,
-            monthEnd,
-          ),
-          deps.categoryLimitRepo.effectiveForMonth(
-            input.tenantId,
-            input.budgetId,
-            monthStart,
-          ),
-          deps.reserveBalanceRepo.getForBudget(
-            input.budgetId,
-            input.tenantId,
-            new Date(),
-          ),
-        ]);
+      const [
+        categories,
+        perCatSpend,
+        effectiveLimits,
+        reserveBalances,
+        realReserveTotalCents,
+      ] = await Promise.all([
+        deps.categoryRepo.listForBudget(input.tenantId, input.budgetId, false),
+        deps.transactionRepo.spendByCategoryForMonth(
+          input.tenantId,
+          input.budgetId,
+          monthStart,
+          monthEnd,
+        ),
+        deps.categoryLimitRepo.effectiveForMonth(
+          input.tenantId,
+          input.budgetId,
+          monthStart,
+        ),
+        deps.reserveBalanceRepo.getForBudget(
+          input.budgetId,
+          input.tenantId,
+          new Date(),
+        ),
+        deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
+      ]);
+
+      // Real reserve money caps total reserve usage — you can't draw reserve you
+      // don't actually hold. When category reserve allocations exceed the real
+      // reserve-wallet pool (an unreconciled/over-allocated state that
+      // RESERVE_TOPUP flags), each category's drawable reserve is scaled to its
+      // proportional share of the real pool; a reconciled budget
+      // (Σ allocations ≤ pool) is unchanged. RESERVE wallets are budget-currency
+      // by the Plan 03 invariant, so no FX conversion is needed here.
+      const realReserveCapCents =
+        realReserveTotalCents > 0n ? realReserveTotalCents : 0n;
+      let totalAllocatedReserveCents = 0n;
+      for (const m of reserveBalances.values()) {
+        totalAllocatedReserveCents += moneyToCents(m);
+      }
 
       const dtoCategories: SpendingsSummaryCategoryDTO[] = categories
         .sort((a, b) => (a as any).sortIndex - (b as any).sortIndex)
@@ -125,7 +144,20 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const spent = perCatSpend.get(c.id) ?? 0n;
 
           const reserveMoney = reserveBalances.get(c.id);
-          const reserveAvail = reserveMoney ? moneyToCents(reserveMoney) : 0n;
+          const allocatedReserve = reserveMoney
+            ? moneyToCents(reserveMoney)
+            : 0n;
+          // Drawable reserve = the category's proportional share of the REAL
+          // reserve pool, never more than its own allocation. min() keeps the
+          // full allocation in a reconciled budget (share ≥ allocation) and
+          // scales it down only when allocations exceed real money.
+          const share =
+            totalAllocatedReserveCents > 0n
+              ? (allocatedReserve * realReserveCapCents) /
+                totalAllocatedReserveCents
+              : 0n;
+          const reserveAvail =
+            allocatedReserve < share ? allocatedReserve : share;
 
           const overBy = spent > active ? spent - active : 0n;
           const reserveUsed = overBy < reserveAvail ? overBy : reserveAvail; // min(overBy, reserveAvail)
