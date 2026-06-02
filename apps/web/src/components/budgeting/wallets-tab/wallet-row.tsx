@@ -20,7 +20,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Trash2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { CurrencyPicker } from "@/components/common/currency-picker";
@@ -202,6 +202,7 @@ function PersistedRow({
   isReserveSection,
 }: PersistedProps) {
   const t = useTranslations("bdp.tab.wallets.row");
+  const locale = useLocale();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   // UAT-PH5-T3-40: native pointer listeners (not React onPointer*) so
@@ -520,7 +521,7 @@ function PersistedRow({
               // is reserved for the editor; display uses centsToBare directly
               // so "0" renders as "0" not "0.00", "1050" as "10.50".
               <span className="text-num-md">
-                {centsToBare(wallet.currentBalanceCents)}
+                {centsToBare(wallet.currentBalanceCents, locale)}
               </span>
             )}
             renderEditor={(draft, onChange) => (

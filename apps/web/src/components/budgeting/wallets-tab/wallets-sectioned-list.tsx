@@ -393,10 +393,13 @@ function WalletDragGhost({
   return (
     <div
       data-testid="wallet-drag-ghost"
-      // `!cursor-grabbing` keeps the grab affordance while the row is in flight;
-      // the DragOverlay sits under the pointer, so without this the cursor
-      // reverts to the default arrow during the drag.
-      className="flex min-h-[48px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 shadow-lg ring-1 ring-[var(--hairline-dark)] !cursor-grabbing"
+      // Compact chip (w-fit) instead of a full-width row replica: the
+      // DragOverlay box is as wide as the source row (~1200px), so a stretched
+      // layout pushed the amount ~1000px to the right of the cursor where it
+      // read as missing. Packing grip+icon+name+currency+amount together keeps
+      // them all next to the pointer. `!cursor-grabbing` keeps the grab
+      // affordance (the overlay sits under the pointer).
+      className="inline-flex w-fit max-w-[min(420px,90vw)] min-h-[48px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 shadow-lg ring-1 ring-[var(--hairline-dark)] !cursor-grabbing"
     >
       {/* Grip — static mirror of RowDragHandle so the dragged preview keeps the
           ⠿ handle the row shows at rest. */}
@@ -425,13 +428,13 @@ function WalletDragGhost({
           <Circle className="size-3 text-[var(--muted-foreground)]/60" />
         )}
       </span>
-      <span className="flex-1 truncate text-body-md text-[var(--body-on-dark)]">
+      <span className="max-w-[180px] truncate text-body-md text-[var(--body-on-dark)]">
         {name || tRow("untitled")}
       </span>
-      <span className="w-[72px] sm:w-[96px] text-num-md text-[var(--muted-foreground)]">
+      <span className="shrink-0 text-num-md text-[var(--muted-foreground)]">
         {currency}
       </span>
-      <span className="w-[120px] text-right text-num-md text-[var(--body-on-dark)] sm:w-[160px]">
+      <span className="shrink-0 text-num-md text-[var(--body-on-dark)]">
         {centsToBare(currentBalanceCents, locale)}
       </span>
     </div>

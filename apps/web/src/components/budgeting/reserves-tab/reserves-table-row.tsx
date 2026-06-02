@@ -20,7 +20,7 @@
  */
 import * as React from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 // Plan 07-08 D-PH7-26: PencilLine indicator for rows that contribute to a
 // pending RESERVE_TOPUP task.
 import { PencilLine } from "lucide-react";
@@ -55,6 +55,7 @@ export function ReservesTableRow({
   pendingTaskId,
 }: ReservesTableRowProps) {
   const t = useTranslations("bdp.tab.reserves.row");
+  const locale = useLocale();
   // Plan 07-08: separate top-level `reserves` namespace for the indicator's
   // aria-label (key `reserves.actions.editBalance`).
   const tRoot = useTranslations();
@@ -314,13 +315,19 @@ export function ReservesTableRow({
                 short-circuited as no-op and never fired onSave). */}
             <div className="w-[72px] text-right tabular-nums sm:w-[120px]">
               <InlineEditCell
-                value={centsToBare(row.reserveBalanceCents)}
+                // value is the editor source — keep it a clean separator-free
+                // decimal so the edit round-trip + no-op compare stay locale-
+                // agnostic; the resting display below is locale-grouped.
+                value={centsToBare(row.reserveBalanceCents).replace(
+                  /[^0-9.-]/g,
+                  "",
+                )}
                 ariaLabel={t("balanceAria", { name: row.name })}
                 disabled={false}
                 testId={`reserves-balance-${row.categoryId}`}
-                render={(v) => (
+                render={() => (
                   <span className="text-num-md text-[var(--foreground)]">
-                    {v}
+                    {centsToBare(row.reserveBalanceCents, locale)}
                   </span>
                 )}
                 renderEditor={(draft, onChange, _onCommit, onCancel) => (
@@ -386,7 +393,7 @@ export function ReservesTableRow({
                           underfunded ? "text-[var(--destructive)]" : undefined
                         }
                       >
-                        {centsToBare(row.walletShareAmountCents!)}
+                        {centsToBare(row.walletShareAmountCents!, locale)}
                       </span>
                     );
                   })()}
