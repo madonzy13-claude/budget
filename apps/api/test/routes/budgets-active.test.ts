@@ -204,7 +204,7 @@ async function createFixture(): Promise<Fixture> {
 
 async function seedTask(opts: {
   budgetId: string;
-  kind: "RESERVE_TOPUP" | "CONFIRM_DRAFT" | "STALE_WALLET" | "MONTH_END_REVIEW";
+  kind: "RESERVE_TOPUP" | "CONFIRM_DRAFT" | "CUSHION_BELOW_TARGET";
   status?: "PENDING" | "RESOLVED";
 }): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
@@ -241,7 +241,7 @@ async function getActiveBudgets(
   // Use the real DrizzleWorkspaceRepo (same path as the HTTP handler) so we
   // exercise the SQL aggregate end-to-end without going through HTTP.
   const { createTenancyModule } =
-    await import("@budget/tenancy/src/adapters/module");
+    await import("@budget/tenancy/src/contracts/factory");
   const { noopEmailSender } = await import("@budget/platform");
   const mod = createTenancyModule({
     emailSender: noopEmailSender,
@@ -282,7 +282,7 @@ describe.if(DB_REACHABLE)(
       // Seed an additional RESOLVED task — count must stay at 2.
       await seedTask({
         budgetId: fix.budgetId,
-        kind: "STALE_WALLET",
+        kind: "CUSHION_BELOW_TARGET",
         status: "RESOLVED",
       });
 

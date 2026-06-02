@@ -85,6 +85,7 @@ async function seedCushionCategory(
   budgetId: string,
   userId: string,
   cushionAmountCents: bigint,
+  currency = "EUR",
 ): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
@@ -105,9 +106,17 @@ async function seedCushionCategory(
     );
     await client.query(
       `INSERT INTO budgeting.category_limits
-         (id, tenant_id, category_id, normal_amount, cushion_amount, effective_from, actor_user_id, created_at)
-       VALUES ($1, $2, $3, 0, $4::bigint, '2026-01-01'::date, $5, now())`,
-      [limitId, budgetId, categoryId, cushionAmountCents.toString(), userId],
+         (id, tenant_id, category_id, normal_amount, normal_currency,
+          cushion_amount, cushion_currency, effective_from, actor_user_id, created_at)
+       VALUES ($1, $2, $3, 0, $6, $4::bigint, $6, '2026-01-01'::date, $5, now())`,
+      [
+        limitId,
+        budgetId,
+        categoryId,
+        cushionAmountCents.toString(),
+        userId,
+        currency,
+      ],
     );
     await client.query("COMMIT");
   } catch (e) {

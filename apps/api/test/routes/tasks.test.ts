@@ -70,7 +70,9 @@ async function createFixture(): Promise<Fixture> {
 
 interface SeedTaskOpts {
   budgetId: string;
-  kind: "RESERVE_TOPUP" | "CONFIRM_DRAFT" | "STALE_WALLET" | "MONTH_END_REVIEW";
+  // Valid kinds per migration 0026 tasks_kind_chk. The Phase 1 placeholder
+  // kinds (STALE_WALLET, MONTH_END_REVIEW) were dropped from v1.1 scope.
+  kind: "RESERVE_TOPUP" | "CONFIRM_DRAFT" | "CUSHION_BELOW_TARGET";
   status?: "PENDING" | "RESOLVED";
   createdAt?: string; // ISO timestamp; if omitted Postgres default now() is used
   payload?: Record<string, unknown>;
@@ -193,7 +195,7 @@ describe("GET /budgets/:budgetId/tasks", () => {
     // Seed in REVERSE order to prove sort is by created_at not insert order.
     const id3 = await seedTask({
       budgetId: fix.budgetId,
-      kind: "STALE_WALLET",
+      kind: "CUSHION_BELOW_TARGET",
       createdAt: "2026-03-01T10:00:00Z",
     });
     const id1 = await seedTask({
@@ -232,7 +234,7 @@ describe("GET /budgets/:budgetId/tasks", () => {
     expect(body.tasks[0]?.kind).toBe("RESERVE_TOPUP");
     expect(body.tasks[1]?.kind).toBe("CONFIRM_DRAFT");
     expect(body.tasks[1]?.payload).toEqual({ rule_id: "abc" });
-    expect(body.tasks[2]?.kind).toBe("STALE_WALLET");
+    expect(body.tasks[2]?.kind).toBe("CUSHION_BELOW_TARGET");
     // All rows must be in this budget and PENDING.
     for (const t of body.tasks) {
       expect(t.budget_id).toBe(fix.budgetId);
@@ -256,7 +258,7 @@ describe("GET /budgets/:budgetId/tasks", () => {
     });
     await seedTask({
       budgetId: fix.budgetId,
-      kind: "MONTH_END_REVIEW",
+      kind: "CUSHION_BELOW_TARGET",
       status: "RESOLVED",
       createdAt: "2026-04-03T10:00:00Z",
     });
@@ -344,6 +346,11 @@ describe("POST /budgets/:budgetId/tasks/:taskId/resolve", () => {
     const pool = new Pool({ connectionString: DB_URL });
     const client = await pool.connect();
     try {
+      // set_config(..., is_local=true) only lives for the enclosing
+      // transaction. Without an explicit BEGIN each statement autocommits, so
+      // the tenant GUC is gone before the SELECT runs and RLS filters the row
+      // out (status reads as "MISSING"). Scope both in one transaction.
+      await client.query("BEGIN");
       await client.query(
         `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
       );
@@ -351,7 +358,11 @@ describe("POST /budgets/:budgetId/tasks/:taskId/resolve", () => {
         `SELECT status FROM budgeting.tasks WHERE id = $1::uuid`,
         [taskId],
       );
+      await client.query("COMMIT");
       return res.rows[0]?.status ?? "MISSING";
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
     } finally {
       client.release();
       await pool.end();
@@ -359,46 +370,52 @@ describe("POST /budgets/:budgetId/tasks/:taskId/resolve", () => {
   }
 
   it("resolves a PENDING task → 200 {ok:true}; DB row flips to RESOLVED", async () => {
+    // Fresh fixture per test: the tasks_reserve_topup_pending_uq partial unique
+    // index allows only one PENDING RESERVE_TOPUP per budget, so sharing a
+    // budget across seeding tests would collide.
+    const local = await createFixture();
     const taskId = await seedTask({
-      budgetId: fix.budgetId,
+      budgetId: local.budgetId,
       kind: "RESERVE_TOPUP",
     });
     const app = await buildApp({
-      userId: fix.userId,
-      allowedTenantIds: [fix.budgetId],
+      userId: local.userId,
+      allowedTenantIds: [local.budgetId],
     });
     const res = await app.request(
-      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      `/budgets/${local.budgetId}/tasks/${taskId}/resolve`,
       { method: "POST" },
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean };
     expect(body.ok).toBe(true);
-    expect(await fetchTaskStatus(taskId, fix.budgetId)).toBe("RESOLVED");
+    expect(await fetchTaskStatus(taskId, local.budgetId)).toBe("RESOLVED");
   });
 
   it("is idempotent — POST resolve on already-RESOLVED task still returns 200", async () => {
+    const local = await createFixture();
     const taskId = await seedTask({
-      budgetId: fix.budgetId,
+      budgetId: local.budgetId,
       kind: "CONFIRM_DRAFT",
       status: "RESOLVED",
     });
     const app = await buildApp({
-      userId: fix.userId,
-      allowedTenantIds: [fix.budgetId],
+      userId: local.userId,
+      allowedTenantIds: [local.budgetId],
     });
     const res = await app.request(
-      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      `/budgets/${local.budgetId}/tasks/${taskId}/resolve`,
       { method: "POST" },
     );
     expect(res.status).toBe(200);
     // Status unchanged — RESOLVED rows don't move.
-    expect(await fetchTaskStatus(taskId, fix.budgetId)).toBe("RESOLVED");
+    expect(await fetchTaskStatus(taskId, local.budgetId)).toBe("RESOLVED");
   });
 
   it("returns 401 when no session", async () => {
+    const local = await createFixture();
     const taskId = await seedTask({
-      budgetId: fix.budgetId,
+      budgetId: local.budgetId,
       kind: "RESERVE_TOPUP",
     });
     // Build app WITHOUT the session middleware.
@@ -414,29 +431,30 @@ describe("POST /budgets/:budgetId/tasks/:taskId/resolve", () => {
     const noAuthApp = new Hono();
     noAuthApp.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
     const res = await noAuthApp.request(
-      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      `/budgets/${local.budgetId}/tasks/${taskId}/resolve`,
       { method: "POST" },
     );
     expect(res.status).toBe(401);
   });
 
   it("returns 404 when budgetId is not in caller's tenantIds (cross-tenant)", async () => {
+    const target = await createFixture();
     const taskId = await seedTask({
-      budgetId: fix.budgetId,
+      budgetId: target.budgetId,
       kind: "RESERVE_TOPUP",
     });
-    // App scoped to fixOther's tenantIds — caller has no access to fix.budgetId.
+    // App scoped to fixOther's tenantIds — caller has no access to target.budgetId.
     const app = await buildApp({
       userId: fixOther.userId,
       allowedTenantIds: [fixOther.budgetId],
     });
     const res = await app.request(
-      `/budgets/${fix.budgetId}/tasks/${taskId}/resolve`,
+      `/budgets/${target.budgetId}/tasks/${taskId}/resolve`,
       { method: "POST" },
     );
     expect(res.status).toBe(404);
     // Task remains PENDING — layer 1 rejected before adapter ran.
-    expect(await fetchTaskStatus(taskId, fix.budgetId)).toBe("PENDING");
+    expect(await fetchTaskStatus(taskId, target.budgetId)).toBe("PENDING");
   });
 
   it("rejects non-UUID taskId via zValidator → 400", async () => {

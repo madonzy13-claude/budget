@@ -161,6 +161,13 @@ async function readTaskStateScoped(
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   try {
+    // set_config(..., is_local=true) only persists for the duration of the
+    // enclosing transaction. Without an explicit BEGIN, each statement is its
+    // own implicit transaction, so the GUC would be reset before the SELECT
+    // runs — RLS then filters every row and the read returns null. Wrap the
+    // GUC writes and the SELECT in one transaction so the tenant scope is live
+    // for the read.
+    await client.query("BEGIN");
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
     );
@@ -173,11 +180,15 @@ async function readTaskStateScoped(
         WHERE id = $1::uuid`,
       [taskId],
     );
+    await client.query("COMMIT");
     if (result.rows.length === 0) return null;
     return {
       status: result.rows[0].status as string,
       resolved_at: result.rows[0].resolved_at as string | null,
     };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
   } finally {
     client.release();
     await pool.end();
