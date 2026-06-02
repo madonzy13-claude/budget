@@ -21,9 +21,26 @@
  * even with no network and no API container.
  */
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { NetworkOnly, CacheFirst, NetworkFirst, Serwist } from "serwist";
+import {
+  NetworkOnly,
+  CacheFirst,
+  NetworkFirst,
+  StaleWhileRevalidate,
+  Serwist,
+} from "serwist";
 
 const OFFLINE_FALLBACK_URL = "/en/server-down";
+
+// Bump this suffix whenever the static-asset caching strategy changes so a new
+// service worker abandons the old runtime cache instead of inheriting a stuck
+// one. The activate handler below deletes every static-asset cache that is not
+// the current generation, which unsticks clients that pinned a stale CSS/JS
+// bundle under a prior strategy.
+const STYLE_CACHE = "static-styles-v2";
+const SCRIPT_IMAGE_CACHE = "static-assets-v2";
+const CURRENT_STATIC_CACHES = new Set([STYLE_CACHE, SCRIPT_IMAGE_CACHE]);
+// Legacy/superseded runtime cache names to purge on activate.
+const LEGACY_STATIC_CACHES = ["static-assets", "static-styles"];
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -46,14 +63,30 @@ const serwist = new Serwist({
       matcher: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
       handler: new NetworkOnly(),
     },
-    // Static assets (JS, CSS, images) — cache first
+    // Stylesheets — StaleWhileRevalidate. CSS carries the global cursor /
+    // affordance rules; recurring UAT reports traced to a service worker
+    // pinning a stale CSS bundle under CacheFirst, so a corrected build never
+    // reached the user until they manually cleared storage. SWR serves the
+    // cache instantly for speed but ALWAYS refetches in the background and
+    // overwrites the cache, so the next paint is current — CSS can never pin.
+    // (Next.js emits content-hashed, `immutable` CSS, so the background
+    // revalidation only transfers bytes when the hash actually changed.)
     {
       matcher: ({ request }: { request: Request }) =>
-        request.destination === "script" ||
-        request.destination === "style" ||
-        request.destination === "image",
+        request.destination === "style",
+      handler: new StaleWhileRevalidate({
+        cacheName: STYLE_CACHE,
+      }),
+    },
+    // Scripts + images — CacheFirst. These are content-hashed + `immutable`,
+    // so a changed file always has a new URL (cache miss → fresh fetch); the
+    // old URL is never referenced by fresh HTML. CacheFirst is safe and avoids
+    // re-revalidating large, never-changing chunks on every load.
+    {
+      matcher: ({ request }: { request: Request }) =>
+        request.destination === "script" || request.destination === "image",
       handler: new CacheFirst({
-        cacheName: "static-assets",
+        cacheName: SCRIPT_IMAGE_CACHE,
       }),
     },
     // Next.js pages — NetworkFirst.
@@ -102,3 +135,27 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Self-heal stuck clients: on activate, delete the legacy static-asset runtime
+// caches (and any static cache that is not the current generation) so a worker
+// that pinned a stale CSS/JS bundle starts from an empty cache and refetches.
+// Runs alongside Serwist's own precache cleanup; only touches our named runtime
+// caches — never the precache or the /api NetworkOnly path.
+self.addEventListener("activate", (event: any) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter(
+            (key: string) =>
+              LEGACY_STATIC_CACHES.includes(key) ||
+              ((key.startsWith("static-styles") ||
+                key.startsWith("static-assets")) &&
+                !CURRENT_STATIC_CACHES.has(key)),
+          )
+          .map((key: string) => caches.delete(key)),
+      );
+    })(),
+  );
+});
