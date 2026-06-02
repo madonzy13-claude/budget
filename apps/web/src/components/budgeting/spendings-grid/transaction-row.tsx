@@ -12,7 +12,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2, Loader2, RotateCcw } from "lucide-react";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
-import { centsToBare, centsToDisplay } from "@/lib/cents-format";
+import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 import { parseDecimal } from "@/lib/decimal";
 import { cn } from "@/lib/utils";
 import {
@@ -207,7 +207,7 @@ export function TransactionRow({
   const formattedDate = new Date(
     `${txn.transactionDate}T00:00:00`,
   ).toLocaleDateString(locale);
-  const confirmAmount = centsToDisplay(
+  const confirmAmount = centsToDisplayCompact(
     txn.amountConvertedCents,
     txn.currencyConverted,
     locale,

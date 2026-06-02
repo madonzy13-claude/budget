@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
 import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
+import { centsToDisplayCompact } from "@/lib/cents-format";
 
 interface HomeSummary {
   budgetId: string;
@@ -47,15 +48,10 @@ interface BudgetCardProps {
 }
 
 function fmtCurrency(locale: string, cents: string, currency: string): string {
-  const v = Number(cents) / 100;
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency,
-    }).format(v);
-  } catch {
-    return `${v.toFixed(2)} ${currency}`;
-  }
+  // Compact rule (drop whole-unit .00, pad non-zero fraction to 2 digits) so
+  // the home dashboard matches every other money surface. centsToDisplayCompact
+  // is BigInt-safe and falls back to 0 on a malformed value internally.
+  return centsToDisplayCompact(cents, currency, locale);
 }
 
 export async function BudgetCard({ budget, locale }: BudgetCardProps) {

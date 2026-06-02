@@ -29,7 +29,7 @@ import {
 } from "@dnd-kit/core";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
@@ -41,6 +41,7 @@ import { WalletSection, type DraftState } from "./wallet-section";
 // client-side exception when the row's DragOverlay first rendered.
 import { iconByName } from "./wallet-customizer";
 import { centsToBare } from "@/lib/cents-format";
+import { GripVertical, Circle } from "lucide-react";
 
 type WalletType = WalletDto["walletType"];
 
@@ -387,17 +388,42 @@ function WalletDragGhost({
   icon: string | null;
 }) {
   const tRow = useTranslations("bdp.tab.wallets.row");
+  const locale = useLocale();
   const Icon = iconByName(icon);
   return (
     <div
       data-testid="wallet-drag-ghost"
-      className="flex min-h-[48px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 shadow-lg ring-1 ring-[var(--hairline-dark)]"
+      // `!cursor-grabbing` keeps the grab affordance while the row is in flight;
+      // the DragOverlay sits under the pointer, so without this the cursor
+      // reverts to the default arrow during the drag.
+      className="flex min-h-[48px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 shadow-lg ring-1 ring-[var(--hairline-dark)] !cursor-grabbing"
     >
+      {/* Grip — static mirror of RowDragHandle so the dragged preview keeps the
+          ⠿ handle the row shows at rest. */}
       <span
-        className="inline-flex size-7 items-center justify-center"
-        style={{ color: color ?? "var(--muted-foreground)" }}
+        className="shrink-0 text-[var(--muted-foreground)]"
+        aria-hidden="true"
       >
-        {Icon ? <Icon className="size-4" /> : null}
+        <GripVertical className="h-4 w-4" />
+      </span>
+      {/* Icon — mirrors WalletCustomizer: the chosen icon, or the dashed-circle
+          placeholder when none is set. Previously rendered nothing here, so a
+          wallet without a custom icon looked empty mid-drag. */}
+      <span
+        className={
+          "inline-flex size-7 shrink-0 items-center justify-center rounded-full " +
+          (icon || color
+            ? "border border-transparent"
+            : "border border-dashed border-[var(--muted-foreground)]/60")
+        }
+        style={{ color: color ?? "var(--muted-foreground)" }}
+        aria-hidden="true"
+      >
+        {Icon ? (
+          <Icon className="size-4" />
+        ) : (
+          <Circle className="size-3 text-[var(--muted-foreground)]/60" />
+        )}
       </span>
       <span className="flex-1 truncate text-body-md text-[var(--body-on-dark)]">
         {name || tRow("untitled")}
@@ -405,8 +431,8 @@ function WalletDragGhost({
       <span className="w-[72px] sm:w-[96px] text-num-md text-[var(--muted-foreground)]">
         {currency}
       </span>
-      <span className="w-[120px] text-right text-num-md sm:w-[160px]">
-        {centsToBare(currentBalanceCents)}
+      <span className="w-[120px] text-right text-num-md text-[var(--body-on-dark)] sm:w-[160px]">
+        {centsToBare(currentBalanceCents, locale)}
       </span>
     </div>
   );

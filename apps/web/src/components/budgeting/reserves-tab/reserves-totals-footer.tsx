@@ -10,7 +10,7 @@
  * Excluded balances are NOT included in totals (Plan 03 guarantees this server-side).
  */
 import * as React from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { centsToBare } from "@/lib/cents-format";
 
 export interface ReservesTotalsFooterProps {
@@ -27,8 +27,12 @@ export function ReservesTotalsFooter({
   currency,
 }: ReservesTotalsFooterProps) {
   const t = useTranslations("bdp.tab.reserves");
+  const locale = useLocale();
 
-  const fmt = (cents: string) => centsToBare(cents);
+  // Compact digits (centsToBare already drops a whole-unit .00); pass locale so
+  // PL/UK group separators are correct. The trailing currency code is the
+  // intentional style for this totals banner.
+  const fmt = (cents: string) => centsToBare(cents, locale);
 
   // UAT round 7: the Σ-categories / Σ-wallets sums stay; the surplus /
   // shortfall MismatchChip is dropped from this surface — the new

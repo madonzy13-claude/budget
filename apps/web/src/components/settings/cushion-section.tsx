@@ -29,13 +29,14 @@
  * shortfall_cents > 0 → --trading-down; shortfall_cents ≤ 0 → --trading-up.
  */
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { centsToDisplayCompact } from "@/lib/cents-format";
 
 export interface CushionSectionProps {
   budgetId: string;
@@ -58,19 +59,6 @@ interface CushionSummaryPayload {
   target_months: number;
 }
 
-function formatCurrency(cents: string, currency: string): string {
-  const n = Number(cents) / 100;
-  if (!Number.isFinite(n)) return `${cents} ${currency}`;
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-    }).format(n);
-  } catch {
-    return `${n.toFixed(2)} ${currency}`;
-  }
-}
-
 export function CushionSection({
   budgetId,
   cushionEnabled,
@@ -79,6 +67,7 @@ export function CushionSection({
   budgetCurrency,
 }: CushionSectionProps) {
   const t = useTranslations("settings");
+  const locale = useLocale();
   const [enabled, setEnabled] = useState(cushionEnabled);
   const [mode, setMode] = useState(cushionModeEnabled);
   const [savingFlag, setSavingFlag] = useState(false);
@@ -180,6 +169,13 @@ export function CushionSection({
       queryClient.invalidateQueries({
         queryKey: ["cushion-summary", budgetId],
       });
+      // The PATCH recomputes the CUSHION_BELOW_TARGET task server-side
+      // (budget-identity route → recomputeCushionTask). Invalidate the shared
+      // pending-tasks query so the BDP pill badge + per-pill slider reflect the
+      // new shortfall immediately instead of waiting for the 60 s poll.
+      queryClient.invalidateQueries({
+        queryKey: ["tasks", budgetId, "pending"],
+      });
     } catch {
       toast.error(t("error_save"));
     }
@@ -229,16 +225,33 @@ export function CushionSection({
       >
         {positive
           ? t("cushion.preview", {
-              actual: formatCurrency(cushionSummary.actual_cents, currency),
-              required: formatCurrency(cushionSummary.required_cents, currency),
-              shortfall: formatCurrency(
+              actual: centsToDisplayCompact(
+                cushionSummary.actual_cents,
+                currency,
+                locale,
+              ),
+              required: centsToDisplayCompact(
+                cushionSummary.required_cents,
+                currency,
+                locale,
+              ),
+              shortfall: centsToDisplayCompact(
                 cushionSummary.shortfall_cents,
                 currency,
+                locale,
               ),
             })
           : t("cushion.previewMet", {
-              actual: formatCurrency(cushionSummary.actual_cents, currency),
-              required: formatCurrency(cushionSummary.required_cents, currency),
+              actual: centsToDisplayCompact(
+                cushionSummary.actual_cents,
+                currency,
+                locale,
+              ),
+              required: centsToDisplayCompact(
+                cushionSummary.required_cents,
+                currency,
+                locale,
+              ),
             })}
       </span>
     );

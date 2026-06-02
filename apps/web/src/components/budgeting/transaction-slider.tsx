@@ -12,7 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
-import { centsToDisplay } from "@/lib/cents-format";
+import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -449,9 +449,19 @@ export function TransactionSlider({
                 <FxPreviewLine
                   original={{ amount: amountOrig, currency: currencyOrig }}
                   converted={{
-                    amount: (
-                      parseFloat(amountOrig) * parseFloat(fxPreview.rate)
-                    ).toFixed(2),
+                    // Compact rule via centsToBare (no symbol — FxPreviewLine
+                    // appends the currency code) so the converted preview drops
+                    // a whole-unit .00 like every other amount.
+                    amount: centsToBare(
+                      String(
+                        Math.round(
+                          parseFloat(amountOrig) *
+                            parseFloat(fxPreview.rate) *
+                            100,
+                        ),
+                      ),
+                      locale,
+                    ),
                     currency: budgetCurrency,
                   }}
                   rate={fxPreview.rate}
@@ -539,7 +549,7 @@ export function TransactionSlider({
             <AlertDialogDescription>
               {t("confirm.deleteTxn.body", {
                 amount: initial
-                  ? centsToDisplay(
+                  ? centsToDisplayCompact(
                       initial.amountOriginalCents,
                       initial.currencyOriginal,
                       locale,
