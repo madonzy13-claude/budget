@@ -103,8 +103,36 @@ export function WalletsSectionedList({
   // pointer crosses a section boundary. DragOverlay keeps a copy pinned to
   // the pointer regardless of which context is currently the drop target.
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  // The DragOverlay does not size itself to the source row, so a `w-full`
+  // ghost collapses to its content width (~200px). Capture the row's measured
+  // width on drag start and apply it to the ghost so it lifts off at full row
+  // width — including the share % column.
+  const [activeDragWidth, setActiveDragWidth] = useState<number | null>(null);
   const activeDragged =
     activeDragId != null ? wallets.find((w) => w.id === activeDragId) : null;
+  // Share % of the dragged wallet within its section — mirrors the per-row
+  // calc (wallet-row.tsx) so the drag ghost shows the same "N%" column the
+  // resting row shows. Uses budget-currency balances (FX-converted) like the
+  // row does; "—" when the section total is zero.
+  const activeDragShare = (() => {
+    if (!activeDragged) return "—";
+    const sectionTotal = wallets
+      .filter((w) => w.walletType === activeDragged.walletType)
+      .reduce(
+        (sum, w) =>
+          sum +
+          Number(
+            w.currentBalanceInBudgetCurrencyCents ?? w.currentBalanceCents,
+          ),
+        0,
+      );
+    if (!sectionTotal || sectionTotal <= 0) return "—";
+    const numer = Number(
+      activeDragged.currentBalanceInBudgetCurrencyCents ??
+        activeDragged.currentBalanceCents,
+    );
+    return `${Math.round((numer / sectionTotal) * 100)}%`;
+  })();
   // UAT-PH5-T3-22: section currently under the pointer during a drag. Used
   // by WalletSection to apply the blue drop-eligible highlight even when
   // the pointer is over an internal row (and not the section background or
@@ -121,6 +149,7 @@ export function WalletsSectionedList({
 
   function handleDragStart(e: DragStartEvent) {
     setActiveDragId(String(e.active.id));
+    setActiveDragWidth(e.active.rect.current.initial?.width ?? null);
   }
 
   // UAT-PH5-T3-22: resolve any drop target id to its parent section so the
@@ -140,6 +169,7 @@ export function WalletsSectionedList({
 
   function handleDragEnd(e: DragEndEvent) {
     setActiveDragId(null);
+    setActiveDragWidth(null);
     setOverSection(null);
     const { active, over } = e;
     if (!over) return;
@@ -295,6 +325,7 @@ export function WalletsSectionedList({
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
         setActiveDragId(null);
+        setActiveDragWidth(null);
         setOverSection(null);
       }}
     >
@@ -361,6 +392,8 @@ export function WalletsSectionedList({
             currentBalanceCents={activeDragged.currentBalanceCents}
             color={activeDragged.color ?? null}
             icon={activeDragged.icon ?? null}
+            share={activeDragShare}
+            width={activeDragWidth}
           />
         ) : null}
       </DragOverlay>
@@ -369,10 +402,12 @@ export function WalletsSectionedList({
 }
 
 /**
- * UAT-PH5-T3-18 — lightweight preview rendered inside DragOverlay. We can't
- * reuse <WalletRow> directly because it calls useSortable which only works
- * inside a SortableContext. The ghost mirrors the row's visual signature
- * (icon + name + currency + amount) so the user sees what they're moving.
+ * UAT-PH5-T3-18 — preview rendered inside DragOverlay. We can't reuse
+ * <WalletRow> directly because it calls useSortable which only works inside a
+ * SortableContext, so this is a faithful, full-width replica of the resting
+ * row: grip + icon (with the dashed-circle fallback) + name + currency +
+ * amount + share %. Column widths mirror wallet-row.tsx so the dragged card
+ * reads exactly like the row lifting off — not a shrunken chip.
  */
 function WalletDragGhost({
   name,
@@ -380,12 +415,18 @@ function WalletDragGhost({
   currentBalanceCents,
   color,
   icon,
+  share,
+  width,
 }: {
   name: string;
   currency: string;
   currentBalanceCents: string;
   color: string | null;
   icon: string | null;
+  /** Pre-computed "N%" share-of-section string (or "—"). */
+  share: string;
+  /** Measured source-row width (px) so the ghost lifts off at full row width. */
+  width: number | null;
 }) {
   const tRow = useTranslations("bdp.tab.wallets.row");
   const locale = useLocale();
@@ -393,25 +434,22 @@ function WalletDragGhost({
   return (
     <div
       data-testid="wallet-drag-ghost"
-      // Compact chip (w-fit) instead of a full-width row replica: the
-      // DragOverlay box is as wide as the source row (~1200px), so a stretched
-      // layout pushed the amount ~1000px to the right of the cursor where it
-      // read as missing. Packing grip+icon+name+currency+amount together keeps
-      // them all next to the pointer. `!cursor-grabbing` keeps the grab
-      // affordance (the overlay sits under the pointer).
-      className="inline-flex w-fit max-w-[min(420px,90vw)] min-h-[48px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 shadow-lg ring-1 ring-[var(--hairline-dark)] !cursor-grabbing"
+      // Explicit source-row width (the DragOverlay does not size itself to the
+      // dragged node). Falls back to a sensible min-width if the measurement is
+      // unavailable. !cursor-grabbing keeps the grab affordance while the
+      // overlay sits under the pointer.
+      style={width ? { width: `${width}px` } : undefined}
+      className="flex min-h-[56px] min-w-[280px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 shadow-lg ring-1 ring-[var(--hairline-dark)] !cursor-grabbing sm:min-h-[48px]"
     >
-      {/* Grip — static mirror of RowDragHandle so the dragged preview keeps the
-          ⠿ handle the row shows at rest. */}
+      {/* Grip — static mirror of RowDragHandle. */}
       <span
         className="shrink-0 text-[var(--muted-foreground)]"
         aria-hidden="true"
       >
         <GripVertical className="h-4 w-4" />
       </span>
-      {/* Icon — mirrors WalletCustomizer: the chosen icon, or the dashed-circle
-          placeholder when none is set. Previously rendered nothing here, so a
-          wallet without a custom icon looked empty mid-drag. */}
+      {/* Icon — mirrors WalletCustomizer: the chosen icon, else a dashed-circle
+          placeholder so an icon-less wallet still shows the affordance. */}
       <span
         className={
           "inline-flex size-7 shrink-0 items-center justify-center rounded-full " +
@@ -428,14 +466,21 @@ function WalletDragGhost({
           <Circle className="size-3 text-[var(--muted-foreground)]/60" />
         )}
       </span>
-      <span className="max-w-[180px] truncate text-body-md text-[var(--body-on-dark)]">
+      {/* Name — flexes to fill, mirroring the row. */}
+      <span className="min-w-0 flex-1 truncate text-body-md text-[var(--body-on-dark)]">
         {name || tRow("untitled")}
       </span>
-      <span className="shrink-0 text-num-md text-[var(--muted-foreground)]">
+      {/* Currency — same column width as the row. */}
+      <span className="w-[44px] text-num-md text-[var(--muted-foreground)] sm:w-[96px]">
         {currency}
       </span>
-      <span className="shrink-0 text-num-md text-[var(--body-on-dark)]">
+      {/* Amount — right-aligned like the row. */}
+      <span className="text-right text-num-md tabular-nums text-[var(--body-on-dark)]">
         {centsToBare(currentBalanceCents, locale)}
+      </span>
+      {/* Share % — desktop-only, same column as the row. */}
+      <span className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]">
+        {share}
       </span>
     </div>
   );
