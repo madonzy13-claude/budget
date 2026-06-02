@@ -101,7 +101,12 @@ export function ColumnHeader({
           }}
           className={cn(
             "flex h-6 w-6 items-center justify-center rounded cursor-pointer transition-opacity",
-            "hover:bg-[var(--surface-card-dark)]",
+            // UAT round 21: pen hover bg lifted from surface-card-dark
+            // (#1e2329, same as the column surface — basically invisible)
+            // to surface-elevated-dark (#2b3139) so the hover state reads
+            // as a clear elevated tile, separating the pen from the
+            // column body.
+            "hover:bg-[var(--surface-elevated-dark)]",
             // Hidden by default; shown on desktop hover (group-hover) or
             // when the user has tapped to reveal on touch (revealed).
             revealed

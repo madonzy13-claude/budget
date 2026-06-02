@@ -100,7 +100,9 @@ export function TransactionRow({
     if (!editing) return;
     const input = inputRef.current;
     if (!input) return;
-    function findScrollableAncestor(el: HTMLElement | null): HTMLElement | null {
+    function findScrollableAncestor(
+      el: HTMLElement | null,
+    ): HTMLElement | null {
       let cur = el?.parentElement ?? null;
       while (cur) {
         const s = getComputedStyle(cur);
@@ -118,9 +120,7 @@ export function TransactionRow({
     function adjustForKeyboard() {
       if (!input || !container) return;
       const vv = window.visualViewport;
-      const visibleBottom = vv
-        ? vv.offsetTop + vv.height
-        : window.innerHeight;
+      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
       const padding = 24;
       // Reserve extra scroll space below the column content equal to the
       // keyboard height. Without this, rows at the bottom of the longest
@@ -128,14 +128,18 @@ export function TransactionRow({
       // hits scrollHeight - clientHeight before the row is above the
       // keyboard. Padding extends scrollHeight, unlocking the needed range.
       const kbHeight = Math.max(0, window.innerHeight - visibleBottom);
-      container.style.paddingBottom = kbHeight > 0 ? `${kbHeight + padding}px` : "";
+      container.style.paddingBottom =
+        kbHeight > 0 ? `${kbHeight + padding}px` : "";
 
       const inputRect = input.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
       const overflow = inputRect.bottom - (visibleBottom - padding);
       if (overflow > 0) {
         // Cap scroll so input.top can't disappear above grid container top.
-        const headroom = Math.max(0, inputRect.top - containerRect.top - padding);
+        const headroom = Math.max(
+          0,
+          inputRect.top - containerRect.top - padding,
+        );
         container.scrollTop += Math.min(overflow, headroom);
       }
     }
@@ -176,7 +180,8 @@ export function TransactionRow({
       }
     }
     window.addEventListener("txn-row-revealed", onOtherRevealed);
-    return () => window.removeEventListener("txn-row-revealed", onOtherRevealed);
+    return () =>
+      window.removeEventListener("txn-row-revealed", onOtherRevealed);
   }, [txn.id]);
 
   // Touch reveal collapses on outside tap / Escape.
@@ -368,7 +373,13 @@ export function TransactionRow({
         }}
         className={cn(
           "flex min-w-0 flex-1 items-center",
-          showChips && "cursor-text",
+          // UAT round 21: amount cell explicitly reads as clickable in
+          // its default state (open row → click chips → click amount
+          // enters inline edit). `cursor` does inherit from the row's
+          // `cursor-pointer`, but Tailwind preflight resets it on many
+          // child elements, so pinning here guarantees the affordance.
+          // Editing flips to `cursor-text`.
+          showChips ? "cursor-text" : "cursor-pointer",
         )}
       >
         {editing ? (
