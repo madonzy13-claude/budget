@@ -69,28 +69,21 @@ export function ColumnHeader({
       className="flex w-full flex-col"
     >
       {/* Row 1: Grip + Name + Pen.
-          UAT round 15: desktop reveals the pen on HOVER, touch keeps the
-          click-to-reveal. The button is always rendered now; visibility
-          is driven by `group-hover:opacity-100` (Tailwind's `hover:`
-          modifier already gates on `(hover: hover)` so touch-only
-          devices get a no-op) and by the `revealed` click-state for
-          touch. Earlier `@do-not-add onMouseEnter` rule (D-PH4-INT1)
-          was relaxed for desktop per user request — the original ban
-          was about preventing touch-misfire, which CSS hover side-steps. */}
+          UAT round 20: cell itself uses the default cursor; pointer
+          lives only on the pen button (it's the actual click target).
+          Background no longer highlights on click — that visual signal
+          belonged to the click-to-reveal model. Desktop reveals the
+          pen on hover via `group-hover:opacity-100`; touch keeps the
+          click-to-reveal via `revealed` state (no visual cell bg
+          change, just the pen fades in). */}
       <div
         ref={ref}
         data-testid="column-header-name-cell"
         onClick={() => setRevealed(!revealed)}
         onDoubleClick={handleDoubleClick}
         className={cn(
-          "group flex min-h-[44px] items-center gap-1 px-2 py-2 cursor-pointer",
+          "group flex min-h-[44px] items-center gap-1 px-2 py-2",
           "border-b border-[var(--hairline-dark)]",
-          // UAT round 17: also highlight on desktop hover, matching the
-          // revealed (click) state. The `hover:` modifier is naturally
-          // gated to devices with hover capability, so touch keeps the
-          // tap-to-reveal behaviour.
-          "hover:bg-[var(--surface-elevated-dark)]",
-          revealed && "bg-[var(--surface-elevated-dark)]",
         )}
       >
         {/* GripVertical — always visible, touch-none, D-PH4-D3 */}
