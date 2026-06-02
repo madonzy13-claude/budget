@@ -24,8 +24,8 @@
  *   - create → POST /recurring-rules
  *   - edit   → PATCH /recurring-rules/:id with applyToFuture toggle
  */
-import { useRef, useState } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -47,6 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CurrencyPicker } from "@/components/common/currency-picker";
+import { DateInput } from "@/components/budgeting/fields/date-input";
 import { formatAmountForList } from "@/components/budgeting/recurring-rules-list";
 import { uuidv4 } from "@/lib/uuid";
 
@@ -106,38 +107,6 @@ function todayIso(): string {
 }
 
 /**
- * UAT round 16: render the picker value as "13 Jul 2026" (day month-
- * short year) instead of the browser-default ISO/locale-specific format.
- * Month abbreviation uses Intl.DateTimeFormat against the active page
- * locale so uk/pl users see "13 лип 2026" / "13 lip 2026". Day and year
- * are positioned around the month per the user's requested order. Empty
- * iso returns "" so the trigger renders the placeholder label instead.
- */
-function formatDisplayDate(iso: string, locale: string): string {
-  if (!iso) return "";
-  const parts = iso.split("-").map((s) => parseInt(s, 10));
-  const [y, m, d] = parts;
-  if (
-    !Number.isFinite(y) ||
-    !Number.isFinite(m) ||
-    !Number.isFinite(d) ||
-    y === undefined ||
-    m === undefined ||
-    d === undefined
-  ) {
-    return "";
-  }
-  const date = new Date(y, m - 1, d);
-  const monthShort = new Intl.DateTimeFormat(locale, { month: "short" }).format(
-    date,
-  );
-  // Strip a trailing dot from locales that suffix month abbreviations
-  // (uk: "лип.", de: "Jul.") so the rendered chip stays clean.
-  const monthClean = monthShort.replace(/\.$/, "");
-  return `${d} ${monthClean} ${y}`;
-}
-
-/**
  * Order weekdays appear in the WEEKLY picker. ISO/calendar convention:
  * Monday first, Sunday last (matches every paper calendar and Apple/
  * Google's `firstDayOfWeek` in en-EU/uk/pl). The underlying numeric
@@ -160,11 +129,7 @@ export function RecurringRuleForm({
   fetchImpl,
 }: RecurringRuleFormProps) {
   const t = useTranslations("budgeting.recurring");
-  const locale = useLocale();
   const queryClient = useQueryClient();
-  // UAT round 16: ref to the hidden native date input so the visible
-  // trigger button can call .showPicker() to open the calendar.
-  const dateInputRef = useRef<HTMLInputElement>(null);
 
   // Normalize the prefilled amount so the input value matches the
   // shape the spendings grid uses ("1500", "123.50") instead of the
@@ -526,52 +491,19 @@ export function RecurringRuleForm({
                 </div>
               )}
 
-              {/* UAT round 16: visible trigger renders the date as
-                  "13 Jul 2026" (locale-aware short month). The native
-                  `<input type="date">` is kept in the DOM via `sr-only`
-                  so HTMLInputElement.showPicker() can open the calendar
-                  on click — supported on Chrome/Safari/iOS 16+/Firefox.
-                  Touch / keyboard / focus all flow through the visible
-                  button which is the actual interactive control. */}
+              {/* UAT round 17: shared DateInput renders the value as
+                  "13 Jul 2026" (locale-aware short month) via an overlay
+                  span and applies `color-scheme: dark` so the native
+                  calendar popover matches the app's dark canvas. The
+                  native input is the actual click target so mobile
+                  (iOS/Android) opens the calendar reliably. */}
               <div>
-                <Label htmlFor="rr-firstdue-trigger">
-                  {t("rule.firstDueLabel")}
-                </Label>
-                <div className="relative">
-                  <button
-                    id="rr-firstdue-trigger"
-                    type="button"
-                    onClick={() => {
-                      const el = dateInputRef.current;
-                      if (!el) return;
-                      // showPicker() is gated behind user activation —
-                      // safe to call here from the click handler. Wrap
-                      // in try/catch so test environments without the
-                      // method (jsdom/happy-dom) don't throw.
-                      try {
-                        (
-                          el as unknown as { showPicker?: () => void }
-                        ).showPicker?.();
-                      } catch {
-                        el.focus();
-                      }
-                    }}
-                    className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-left text-[var(--body-on-dark)] cursor-pointer hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]"
-                  >
-                    {formatDisplayDate(firstDueDate, locale) ||
-                      t("rule.firstDueLabel")}
-                  </button>
-                  <input
-                    ref={dateInputRef}
-                    type="date"
-                    value={firstDueDate}
-                    required
-                    onChange={(e) => setFirstDueDate(e.target.value)}
-                    className="sr-only"
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
-                </div>
+                <Label htmlFor="rr-firstdue">{t("rule.firstDueLabel")}</Label>
+                <DateInput
+                  id="rr-firstdue"
+                  value={firstDueDate}
+                  onChange={setFirstDueDate}
+                />
               </div>
             </>
 

@@ -94,7 +94,14 @@ export function CategoryColumn({
       style={style}
       data-testid={`category-column-${category.id}`}
       {...attributes}
-      className="w-[140px] sm:w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip"
+      // UAT round 17: dnd-kit's useSortable spreads role="button" onto
+      // the sortable container. The round-15 global rule for
+      // [role="button"] then applied cursor:pointer across the whole
+      // column — including the read-only summary rows (planned /
+      // overspent / reserves-used / balance). Pin the wrapper to
+      // `cursor-default` so summary cells read as non-interactive; the
+      // name-cell (Row 1) re-applies cursor-pointer inside ColumnHeader.
+      className="w-[140px] sm:w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip cursor-default"
     >
       {/* Top backdrop. Pure-CSS, sticky-pinned at grid.top. Solid canvas-bg
           rectangle covering top 12px of the column (matches the rounded-xl

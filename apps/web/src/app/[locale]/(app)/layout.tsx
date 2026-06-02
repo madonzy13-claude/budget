@@ -186,7 +186,15 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           data-ptr-blur-target
           className="flex flex-1 min-h-0 flex-col"
           style={{
-            filter: "blur(var(--ptr-blur, 0px))",
+            // UAT round 17: drive filter via `--ptr-filter` so the
+            // default value is the keyword `none` (not `blur(0px)`).
+            // `blur(0)` is still a non-`none` filter and creates a
+            // containing block for `position: fixed` children per CSS
+            // spec — that broke dnd-kit's <DragOverlay> ghost
+            // positioning on the Wallets page (ghost rendered offset
+            // below the cursor instead of under it). With `none` no
+            // containing block is established at rest.
+            filter: "var(--ptr-filter, none)",
             transition: "filter 150ms ease-out",
           }}
         >

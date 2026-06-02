@@ -219,14 +219,13 @@
     color: var(--on-primary);
   }
 
-  /* UAT round 15: ensure every interactive element shows a pointer
-     cursor. Browser defaults give buttons an `arrow` cursor and only
-     give anchors a pointer when they have an `href`. Tailwind's <Button>
-     primitive already opts into `cursor-pointer`, but plain `<button>`
-     elements scattered across the app (icon buttons, custom controls,
-     Radix triggers) and `[role="..."]` elements miss it. This selector
-     covers the standard interactive set; `:disabled`/aria-disabled
-     elements get `not-allowed` so the affordance reads as intentional. */
+  /* UAT round 15+17: ensure every interactive element shows a pointer
+     cursor. `!important` is needed because the rule sits in @layer base
+     while Tailwind utility classes (e.g. `bg-transparent`) and the
+     shadcn primitives that wrap inputs/buttons live in @layer
+     utilities — without !important, any utility that nudges the cursor
+     wins by cascade. New components automatically inherit the right
+     cursor with no per-call opt-in. */
   button,
   summary,
   label[for],
@@ -242,23 +241,20 @@
   [role="switch"],
   [role="checkbox"],
   [role="radio"] {
-    cursor: pointer;
+    cursor: pointer !important;
   }
 
   button:disabled,
   [role="button"][aria-disabled="true"],
   [aria-disabled="true"] {
-    cursor: not-allowed;
+    cursor: not-allowed !important;
   }
 
-  /* UAT round 16: text-edit inputs always show the I-beam cursor.
-     Browser defaults already do this for naked `<input type="text">` and
-     `<textarea>`, but a parent class like `cursor-pointer` can override
-     via inheritance side-effects on wrappers, and `<input>` without an
-     explicit `type` attribute can flicker. Pinning the cursor here means
-     every new text field gets the correct affordance by default. Picker
-     inputs (date/time/color/file/checkbox/radio) flip back to pointer
-     since they open pickers or toggle state. */
+  /* UAT round 16+17: text-edit inputs always show the I-beam cursor.
+     !important guards against parent / shadcn utility overrides inside
+     popups and sliders (category-edit, transaction-edit, recurring-rule
+     forms regressed in round 16 without it). Picker inputs flip back
+     to pointer; disabled inputs to not-allowed. */
   input:where(
       [type="text"],
       [type="email"],
@@ -272,7 +268,7 @@
   textarea,
   [role="textbox"],
   [contenteditable="true"] {
-    cursor: text;
+    cursor: text !important;
   }
 
   input[type="date"],
@@ -284,13 +280,53 @@
   input[type="file"],
   input[type="checkbox"],
   input[type="radio"] {
-    cursor: pointer;
+    cursor: pointer !important;
   }
 
   /* Readonly + disabled inputs should still surface their state */
   input:disabled,
   textarea:disabled {
-    cursor: not-allowed;
+    cursor: not-allowed !important;
+  }
+
+  /* UAT round 17: every native date / time picker uses dark chrome so
+     the calendar popover matches the rest of the dark canvas. `color-
+     scheme: dark` is the standardized hook Chromium/WebKit use to flip
+     the native picker palette without per-component opt-in. */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    color-scheme: dark;
+  }
+
+  /* UAT round 17: when a date input is wrapped in a
+     `.date-input-overlay-host`, hide every part of the native value
+     rendering so a sibling overlay span can paint the formatted display
+     ("13 Jul 2026"). The input still receives clicks and opens the
+     native picker; only the painted text is suppressed. Covers WebKit
+     pseudo-elements (Chrome/Safari/iOS) and the calendar-picker
+     indicator icon Chrome paints on the right edge. */
+  .date-input-overlay-host input[type="date"] {
+    color: transparent !important;
+    caret-color: transparent !important;
+  }
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-text,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-year-field,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-month-field,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-day-field {
+    color: transparent !important;
+  }
+  .date-input-overlay-host input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
   }
 
   /* Focus ring — single source of truth, info-blue at 50% alpha */

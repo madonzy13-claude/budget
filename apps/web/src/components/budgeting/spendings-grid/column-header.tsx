@@ -85,6 +85,11 @@ export function ColumnHeader({
         className={cn(
           "group flex min-h-[44px] items-center gap-1 px-2 py-2 cursor-pointer",
           "border-b border-[var(--hairline-dark)]",
+          // UAT round 17: also highlight on desktop hover, matching the
+          // revealed (click) state. The `hover:` modifier is naturally
+          // gated to devices with hover capability, so touch keeps the
+          // tap-to-reveal behaviour.
+          "hover:bg-[var(--surface-elevated-dark)]",
           revealed && "bg-[var(--surface-elevated-dark)]",
         )}
       >

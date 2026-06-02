@@ -22,6 +22,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/budgeting/fields/date-input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
@@ -274,19 +275,27 @@ export function CategoryEditForm({
           <FormField
             control={form.control}
             name={"effectiveFrom" as never}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{tLim("effectiveFrom")}</FormLabel>
-                <FormControl>
-                  <Input
-                    type="date"
-                    className="bg-[var(--surface-dark)] text-[var(--on-dark)] [color-scheme:dark]"
-                    {...(field as { value?: string })}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            render={({ field }) => {
+              const f = field as {
+                value?: string;
+                onChange: (next: string) => void;
+              };
+              return (
+                <FormItem>
+                  <FormLabel>{tLim("effectiveFrom")}</FormLabel>
+                  <FormControl>
+                    {/* UAT round 17: shared DateInput renders the date
+                        as "13 Jul 2026" and applies color-scheme:dark
+                        for the native calendar popover. */}
+                    <DateInput
+                      value={f.value ?? ""}
+                      onChange={(next) => f.onChange(next)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
           />
         )}
 

@@ -170,27 +170,32 @@ export function PullToRefresh() {
     };
   }, []);
 
-  // Drive the --ptr-blur CSS variable on the root element so any
-  // descendant marked with `filter: blur(var(--ptr-blur, 0px))` blurs
-  // progressively as the user pulls. The indicator itself sits OUTSIDE
-  // the blurred subtree (rendered as a fixed sibling of the home
-  // content), so it stays crisp while the page softens. Resetting the
-  // variable to 0px lets the consumer's CSS transition handle the
-  // ease-out back to clarity.
+  // Drive --ptr-filter on the root so the wrapper marked with
+  // `filter: var(--ptr-filter, none)` blurs progressively as the user
+  // pulls. UAT round 17: the previous `--ptr-blur` scheme set
+  // `filter: blur(0px)` at rest which created a position:fixed
+  // containing block on the wrapper and threw off dnd-kit's
+  // <DragOverlay> ghost positioning. Setting the full filter value
+  // (and clearing it when at rest) keeps the wrapper transparent to
+  // descendant fixed positioning except during an active pull.
   useEffect(() => {
     const ratio = Math.min(1, pull / PULL_THRESHOLD);
     const blurPx = refreshing ? MAX_BLUR_PX : ratio * MAX_BLUR_PX;
-    document.documentElement.style.setProperty(
-      "--ptr-blur",
-      `${blurPx.toFixed(2)}px`,
-    );
+    if (blurPx <= 0.001) {
+      document.documentElement.style.removeProperty("--ptr-filter");
+    } else {
+      document.documentElement.style.setProperty(
+        "--ptr-filter",
+        `blur(${blurPx.toFixed(2)}px)`,
+      );
+    }
   }, [pull, refreshing]);
 
   // Always clear on unmount so navigating away from home doesn't leave
   // a residual blur on the next route.
   useEffect(() => {
     return () => {
-      document.documentElement.style.removeProperty("--ptr-blur");
+      document.documentElement.style.removeProperty("--ptr-filter");
     };
   }, []);
 
