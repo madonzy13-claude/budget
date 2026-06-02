@@ -219,75 +219,12 @@
     color: var(--on-primary);
   }
 
-  /* UAT round 15+17: ensure every interactive element shows a pointer
-     cursor. `!important` is needed because the rule sits in @layer base
-     while Tailwind utility classes (e.g. `bg-transparent`) and the
-     shadcn primitives that wrap inputs/buttons live in @layer
-     utilities — without !important, any utility that nudges the cursor
-     wins by cascade. New components automatically inherit the right
-     cursor with no per-call opt-in. */
-  button,
-  summary,
-  label[for],
-  a[href],
-  [role="button"],
-  [role="link"],
-  [role="tab"],
-  [role="menuitem"],
-  [role="menuitemcheckbox"],
-  [role="menuitemradio"],
-  [role="option"],
-  [role="combobox"],
-  [role="switch"],
-  [role="checkbox"],
-  [role="radio"] {
-    cursor: pointer !important;
-  }
-
-  button:disabled,
-  [role="button"][aria-disabled="true"],
-  [aria-disabled="true"] {
-    cursor: not-allowed !important;
-  }
-
-  /* UAT round 16+17: text-edit inputs always show the I-beam cursor.
-     !important guards against parent / shadcn utility overrides inside
-     popups and sliders (category-edit, transaction-edit, recurring-rule
-     forms regressed in round 16 without it). Picker inputs flip back
-     to pointer; disabled inputs to not-allowed. */
-  input:where(
-      [type="text"],
-      [type="email"],
-      [type="tel"],
-      [type="url"],
-      [type="search"],
-      [type="password"],
-      [type="number"]
-    ),
-  input:not([type]),
-  textarea,
-  [role="textbox"],
-  [contenteditable="true"] {
-    cursor: text !important;
-  }
-
-  input[type="date"],
-  input[type="time"],
-  input[type="datetime-local"],
-  input[type="month"],
-  input[type="week"],
-  input[type="color"],
-  input[type="file"],
-  input[type="checkbox"],
-  input[type="radio"] {
-    cursor: pointer !important;
-  }
-
-  /* Readonly + disabled inputs should still surface their state */
-  input:disabled,
-  textarea:disabled {
-    cursor: not-allowed !important;
-  }
+  /* See unlayered cursor rules below — moved out of @layer base in
+     round 19 because CSS cascade layers invert !important order
+     (earlier-layer !important beats later-layer !important). With
+     rules in @layer base + !important, Tailwind utility `!cursor-grab`
+     (in @layer utilities) could not override the defaults, which broke
+     the grip handle and category-column wrapper. */
 
   /* UAT round 17: every native date / time picker uses dark chrome so
      the calendar popover matches the rest of the dark canvas. `color-
@@ -457,4 +394,80 @@ textarea:focus-visible,
   outline: none !important;
   box-shadow: none !important;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Cursor defaults — UNLAYERED on purpose.
+   ─────────────────────────────────────────────────────────────────── */
+/* Per CSS Cascade Layers spec:
+     • Normal:    unlayered > later-layer > earlier-layer
+     • !important: earlier-layer > later-layer > unlayered
+   These rules are unlayered and use NO !important so they:
+     • Win the cascade vs Tailwind utility *normal* classes (unlayered
+       normal beats @layer utilities normal), giving every plain
+       <button>, <a>, and role-driven interactive its expected cursor
+       with no per-component opt-in. New components inherit free.
+     • LOSE to Tailwind utility `!`-prefixed classes (any !important
+       beats any normal), so `!cursor-grab` / `!cursor-default` can
+       still override at the call site (e.g. RowDragHandle gets grab,
+       CategoryColumn wrapper gets default for read-only summary cells).
+   Earlier rounds (15–18) put these in @layer base with !important and
+   discovered the cascade-layer inversion: my base !important blocked
+   utility !important. This unlayered shape is the cleanest cooperative
+   default that still allows per-call overrides. */
+button,
+summary,
+label[for],
+a[href],
+[role="button"],
+[role="link"],
+[role="tab"],
+[role="menuitem"],
+[role="menuitemcheckbox"],
+[role="menuitemradio"],
+[role="option"],
+[role="combobox"],
+[role="switch"],
+[role="checkbox"],
+[role="radio"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+input:where(
+    [type="text"],
+    [type="email"],
+    [type="tel"],
+    [type="url"],
+    [type="search"],
+    [type="password"],
+    [type="number"]
+  ),
+input:not([type]),
+textarea,
+[role="textbox"],
+[contenteditable="true"] {
+  cursor: text;
+}
+
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"],
+input[type="color"],
+input[type="file"],
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
 }
