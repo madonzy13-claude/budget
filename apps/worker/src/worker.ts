@@ -29,7 +29,7 @@ async function main() {
 
   // FX daily fetcher — 17:00 Europe/Berlin (after Frankfurter publishes ~16:00 CET)
   const fxCache = new DrizzleFxRateCacheRepo(workerPool());
-  const { fxProvider } = createBudgetingModule({ fxCache });
+  const { fxProvider, reservePositions } = createBudgetingModule({ fxCache });
   await boss.createQueue("fx-daily-fetch");
   await boss.schedule("fx-daily-fetch", "0 17 * * *", null, {
     tz: "Europe/Berlin",
@@ -99,6 +99,7 @@ async function main() {
       reservesSummaryRepo,
       budgetCurrencyOf,
       isReservesEnabled,
+      reservePositions,
     },
     cushion: {
       taskRepo,

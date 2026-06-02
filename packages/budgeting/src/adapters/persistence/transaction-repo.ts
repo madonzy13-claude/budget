@@ -388,4 +388,51 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     if (r.isErr()) throw r.error;
     return r.value;
   }
+
+  async spendByCategoryByMonth(
+    tenantId: string,
+    budgetId: string,
+    beforeMonthEnd: string,
+  ): Promise<Map<string, Map<string, bigint>>> {
+    const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(SYSTEM_USER_ID),
+      async (tx) => {
+        const drizzleTx = tx as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        const res = await drizzleTx.execute(sql`
+          SELECT category_id::text,
+                 to_char(transaction_date, 'YYYY-MM') AS month,
+                 SUM(amount_converted_cents)::text AS spent_cents
+            FROM budgeting.expense_ledger
+           WHERE tenant_id = ${tenantId}::uuid
+             AND budget_id = ${budgetId}::uuid
+             AND kind = 'SPENDING'
+             AND transaction_date < ${beforeMonthEnd}::date
+             AND confirmed_at IS NOT NULL
+             AND deleted_at IS NULL
+           GROUP BY category_id, to_char(transaction_date, 'YYYY-MM')
+        `);
+        const out = new Map<string, Map<string, bigint>>();
+        for (const row of res.rows as Array<{
+          category_id: string;
+          month: string;
+          spent_cents: string;
+        }>) {
+          if (!row.category_id) continue;
+          let byMonth = out.get(row.category_id);
+          if (!byMonth) {
+            byMonth = new Map<string, bigint>();
+            out.set(row.category_id, byMonth);
+          }
+          byMonth.set(row.month, BigInt(row.spent_cents));
+        }
+        return out;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
 }

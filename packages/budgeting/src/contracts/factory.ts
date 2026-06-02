@@ -63,6 +63,8 @@ import { reorderWallets } from "../application/reorder-wallets";
 import { adjustCategoryReserve } from "../application/adjust-category-reserve";
 import { toggleCategoryReserveExcluded } from "../application/toggle-category-reserve-excluded";
 import { getReservesSummary } from "../application/get-reserves-summary";
+import { getReservePositions } from "../application/get-reserve-positions";
+import { createSpendingsSummaryRepo } from "../adapters/persistence/spendings-summary-repo";
 
 export interface BudgetingDeps {
   fxCache: FxRateCacheRepo;
@@ -125,6 +127,7 @@ export interface BudgetingModule {
     typeof toggleCategoryReserveExcluded
   >;
   getReservesSummary: ReturnType<typeof getReservesSummary>;
+  reservePositions: ReturnType<typeof getReservePositions>;
 }
 
 /** Checks budgets.reserves_enabled for the given tenantId. */
@@ -176,6 +179,16 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
   const categoriesRepo = new DrizzleCategoriesRepo();
 
+  // Cumulative reserve positions (allocation − usage). Shared by the reserves
+  // tab display and the RESERVE_TOPUP reconciliation so both reflect usage.
+  const reservePositions = getReservePositions({
+    reserveBalanceRepo: createReserveBalanceRepo(),
+    categoryLimitRepo: limitRepo,
+    transactionRepo,
+    reservesSummaryRepo,
+    summaryRepo: createSpendingsSummaryRepo(),
+  });
+
   return {
     fxProvider,
     // Wallet methods (Plan 01-03 route rename)
@@ -211,6 +224,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       taskRepo: createTaskRepo(),
       isReservesEnabled,
       fxProvider,
+      reservePositions,
     }),
     listWallets: listWallets({ repo }),
     findWalletById: findWalletById({ repo }),
@@ -301,6 +315,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       taskRepo: createTaskRepo(),
       isReservesEnabled,
       fxProvider,
+      reservePositions,
     }),
     // UAT-PH5-T3-1x: intra-section reorder
     reorderWallets: reorderWallets({ repo }),
@@ -315,6 +330,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       isReservesEnabled,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       taskRepo: createTaskRepo(),
+      reservePositions,
     }),
     toggleCategoryReserveExcluded: toggleCategoryReserveExcluded({
       repo: categoriesRepo,
@@ -326,6 +342,8 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       categoriesRepo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       isReservesEnabled,
+      reservePositions,
     }),
+    reservePositions,
   };
 }

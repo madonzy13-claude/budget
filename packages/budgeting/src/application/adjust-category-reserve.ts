@@ -34,7 +34,10 @@ import {
 import type { ReservesSummaryDto } from "./get-reserves-summary";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
-import { recomputeReserveTopupTask } from "./recompute-reserve-topup-task";
+import {
+  recomputeReserveTopupTask,
+  type RecomputeReserveTopupTaskDeps,
+} from "./recompute-reserve-topup-task";
 
 export interface AdjustCategoryReserveDeps {
   adjustmentsRepo: CategoryReserveAdjustmentsRepo;
@@ -47,6 +50,9 @@ export interface AdjustCategoryReserveDeps {
    *  in a follow-up tx after the adjustment lands. Optional so legacy
    *  callers keep compiling; production boot wires it in factory.ts. */
   taskRepo?: TaskRepo;
+  /** Forwarded to the RESERVE_TOPUP recompute so the task reflects the
+   *  usage-depleted expected reserve. */
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
 }
 
 export interface AdjustCategoryReserveInput {
@@ -224,6 +230,7 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
                 reservesSummaryRepo,
                 budgetCurrencyOf,
                 isReservesEnabled,
+                reservePositions: deps.reservePositions,
               },
             );
           },

@@ -26,7 +26,10 @@ import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
 import type { ReservesSummaryDto } from "./get-reserves-summary";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
-import { recomputeReserveTopupTask } from "./recompute-reserve-topup-task";
+import {
+  recomputeReserveTopupTask,
+  type RecomputeReserveTopupTaskDeps,
+} from "./recompute-reserve-topup-task";
 import { recomputeCushionTask } from "./recompute-cushion-task";
 import type { FxProviderLike } from "./recurring-engine-fx";
 
@@ -37,6 +40,9 @@ export interface UpdateWalletDeps {
   categoriesRepo?: CategoriesRepo;
   reserveBalanceRepo?: ReserveBalanceRepo;
   reservesSummaryRepo?: ReservesSummaryRepo;
+  /** Forwarded to the RESERVE_TOPUP recompute so the task reflects the
+   *  usage-depleted expected reserve. */
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
   /** Phase 7 (D-PH7-04, Pitfall 1): when provided, recompute the
    *  RESERVE_TOPUP task in a follow-up tx after the wallet PATCH lands.
    *  Optional so legacy callers keep compiling. */
@@ -264,6 +270,7 @@ export function updateWallet(deps: UpdateWalletDeps) {
                 reservesSummaryRepo,
                 budgetCurrencyOf,
                 isReservesEnabled,
+                reservePositions: deps.reservePositions,
               },
             );
           },

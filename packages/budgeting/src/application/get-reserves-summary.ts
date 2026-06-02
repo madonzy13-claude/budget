@@ -30,6 +30,7 @@ import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
 import { buildReservesSummaryDto } from "./reserves-summary-builder";
+import type { ReservePosition } from "./get-reserve-positions";
 
 export interface ReservesSummaryRow {
   categoryId: string;
@@ -57,6 +58,20 @@ export interface GetReservesSummaryDeps {
   categoriesRepo: CategoriesRepo;
   budgetCurrencyOf: (tenantId: string) => Promise<string>;
   isReservesEnabled: (tenantId: string) => Promise<boolean>;
+  /**
+   * Optional cumulative reserve-position calculator. When supplied, each row's
+   * balance reflects the EXPECTED reserve after usage depletion (allocation −
+   * cumulative usage) and the totals/mismatch follow suit — which is what
+   * drives the RESERVE_TOPUP reconciliation. When absent (e.g. legacy callers /
+   * unit tests), rows show the raw allocation, preserving prior behaviour.
+   */
+  reservePositions?: (input: {
+    tenantId: string;
+    budgetId: string;
+    month: string;
+  }) => Promise<Result<Map<string, ReservePosition>, Error>>;
+  /** Clock for the current-month window; defaults to `new Date()`. */
+  now?: () => Date;
 }
 
 export function getReservesSummary(deps: GetReservesSummaryDeps) {
@@ -100,6 +115,27 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
           deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
         ]);
 
+      // Deplete the displayed reserve by cumulative usage when a position
+      // calculator is wired. The mismatch (wallet − Σ expected) then reflects
+      // real reserve usage, which is what the RESERVE_TOPUP task watches.
+      let expectedOverride: Map<string, bigint> | undefined;
+      if (deps.reservePositions) {
+        const now = deps.now ? deps.now() : new Date();
+        const month = now.toISOString().slice(0, 7); // YYYY-MM (UTC window)
+        const posResult = await deps.reservePositions({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+          month,
+        });
+        if (posResult.isErr()) return err(posResult.error);
+        expectedOverride = new Map(
+          [...posResult.value.values()].map((p) => [
+            p.categoryId,
+            p.expectedReserveCents,
+          ]),
+        );
+      }
+
       return ok(
         buildReservesSummaryDto(
           activeBalanceMap,
@@ -107,6 +143,8 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
           categories,
           walletPool,
           budgetCurrency,
+          undefined,
+          expectedOverride,
         ),
       );
     } catch (e) {

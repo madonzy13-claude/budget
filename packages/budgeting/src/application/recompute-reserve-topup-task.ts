@@ -45,6 +45,8 @@ import type { TaskRepo, ReserveTopupPayload } from "../ports/task-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
 import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
+import type { ReservePosition } from "./get-reserve-positions";
+import type { Result } from "@budget/shared-kernel";
 
 /**
  * Minimal tx shape — matches the port's TenantTx so callers can pass their
@@ -69,6 +71,17 @@ export interface RecomputeReserveTopupTaskDeps {
   reservesSummaryRepo: ReservesSummaryRepo;
   budgetCurrencyOf: (tenantId: string) => Promise<string>;
   isReservesEnabled: (tenantId: string) => Promise<boolean>;
+  /**
+   * Optional cumulative reserve-position calculator. When supplied, the
+   * mismatch is computed against the usage-depleted EXPECTED reserve, so the
+   * RESERVE_TOPUP task reflects reserve actually used (not just the raw
+   * allocation). Forwarded straight to getReservesSummary.
+   */
+  reservePositions?: (input: {
+    tenantId: string;
+    budgetId: string;
+    month: string;
+  }) => Promise<Result<Map<string, ReservePosition>, Error>>;
 }
 
 /**
@@ -95,6 +108,7 @@ export async function recomputeReserveTopupTask(
     categoriesRepo: deps.categoriesRepo,
     budgetCurrencyOf: deps.budgetCurrencyOf,
     isReservesEnabled: deps.isReservesEnabled,
+    reservePositions: deps.reservePositions,
   })({ tenantId: input.tenantId, budgetId: input.budgetId });
 
   if (summaryResult.isErr()) {

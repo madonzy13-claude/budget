@@ -87,4 +87,16 @@ export interface TransactionRepo {
     monthStart: string, // YYYY-MM-01
     monthEnd: string, // YYYY-MM-01 of next month (exclusive upper bound)
   ): Promise<Map<string, bigint>>;
+
+  /**
+   * Confirmed SPENDING totals grouped by category AND calendar month across the
+   * budget's whole history up to `beforeMonthEnd` (exclusive). Powers the
+   * cumulative reserve ledger: editing any past month re-derives reserve usage.
+   * Returns categoryId → (month 'YYYY-MM' → cents). Absent = 0n at call site.
+   */
+  spendByCategoryByMonth(
+    tenantId: string,
+    budgetId: string,
+    beforeMonthEnd: string, // YYYY-MM-01 of the month AFTER current (exclusive)
+  ): Promise<Map<string, Map<string, bigint>>>;
 }

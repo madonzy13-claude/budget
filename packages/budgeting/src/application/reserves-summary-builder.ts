@@ -21,6 +21,12 @@ export function buildReservesSummaryDto(
   /** Overrides for `reserve_actual_cents` — used when the caller has the
    *  post-mutation values in memory and hasn't yet persisted them. */
   actualOverrides?: Map<string, bigint>,
+  /** Per-category EXPECTED reserve in cents after usage depletion
+   *  (getReservePositions). When supplied, the row balance reflects the
+   *  cumulative-usage-depleted reserve instead of the raw allocation; absent
+   *  callers (optimistic mutation responses) fall back to the allocation and
+   *  the client refetch corrects it. */
+  expectedOverride?: Map<string, bigint>,
 ): ReservesSummaryDto {
   const activeCats = allCats.filter((c) => !c.reserveExcluded);
   const excludedCats = allCats.filter((c) => c.reserveExcluded);
@@ -33,7 +39,8 @@ export function buildReservesSummaryDto(
   let totalCategoryReserves = 0n;
   const rows: ReservesSummaryRow[] = activeCats.map((c) => {
     const m = activeBalanceMap.get(c.id);
-    const expectedCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
+    const allocationCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
+    const expectedCents = expectedOverride?.get(c.id) ?? allocationCents;
     totalCategoryReserves += expectedCents;
     const actualCents = actualOf(c);
 
