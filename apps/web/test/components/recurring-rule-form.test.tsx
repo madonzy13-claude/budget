@@ -20,6 +20,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // map round-trip as their key path — useful for asserting on stable
 // identifiers (e.g. `rule.weekdays.1`) below.
 vi.mock("next-intl", () => ({
+  // UAT round 16: form imports useLocale for the date picker's Intl
+  // month-short formatting. Tests don't exercise localization, so a
+  // fixed "en" suffices.
+  useLocale: () => "en",
   useTranslations: (_ns: string) => (key: string) => {
     const map: Record<string, string> = {
       "rule.title": "New recurring rule",

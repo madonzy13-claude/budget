@@ -251,6 +251,48 @@
     cursor: not-allowed;
   }
 
+  /* UAT round 16: text-edit inputs always show the I-beam cursor.
+     Browser defaults already do this for naked `<input type="text">` and
+     `<textarea>`, but a parent class like `cursor-pointer` can override
+     via inheritance side-effects on wrappers, and `<input>` without an
+     explicit `type` attribute can flicker. Pinning the cursor here means
+     every new text field gets the correct affordance by default. Picker
+     inputs (date/time/color/file/checkbox/radio) flip back to pointer
+     since they open pickers or toggle state. */
+  input:where(
+      [type="text"],
+      [type="email"],
+      [type="tel"],
+      [type="url"],
+      [type="search"],
+      [type="password"],
+      [type="number"]
+    ),
+  input:not([type]),
+  textarea,
+  [role="textbox"],
+  [contenteditable="true"] {
+    cursor: text;
+  }
+
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"],
+  input[type="color"],
+  input[type="file"],
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
+
+  /* Readonly + disabled inputs should still surface their state */
+  input:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
+
   /* Focus ring — single source of truth, info-blue at 50% alpha */
   :focus-visible {
     outline: 2px solid color-mix(in oklab, var(--info) 60%, transparent);
