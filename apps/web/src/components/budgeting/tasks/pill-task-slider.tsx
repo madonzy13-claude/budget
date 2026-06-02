@@ -108,7 +108,11 @@ export function PillTaskSlider({
       : t("bdp.pillSlider.collapsedHeaderMany", { count: filtered.length });
 
   return (
-    <div className="mt-3 px-3 sm:px-4">
+    // Align the slider to the same centered column as the top-nav header
+    // (logo→profile) and the BDP content: mx-auto max-w-[1280px] with the
+    // header's px-4 sm:px-8 gutters. Previously full-viewport (px-3 sm:px-4),
+    // which overhung the content column on desktop.
+    <div className="mx-auto mt-3 w-full max-w-[1280px] px-4 sm:px-8">
       <div
         data-testid="pill-task-slider"
         data-pill={pill}
