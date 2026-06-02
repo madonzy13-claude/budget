@@ -1,5 +1,5 @@
 ---
-status: testing
+status: redesign-shipped
 phase: 07-tasks-queue
 source:
   - 07-01-SUMMARY.md
@@ -12,14 +12,37 @@ source:
   - 07-08-SUMMARY.md
   - 07-09-SUMMARY.md
   - 07-10-SUMMARY.md
+  - 2026-06-01-tasks-redesign-design.md
+  - 2026-06-01-tasks-redesign.md
 started: 2026-05-31T17:25:00Z
-updated: 2026-05-31T17:25:00Z
+updated: 2026-06-02T10:50:00Z
+redesign_closure: 2026-06-02
 ---
 
-> **Superseded by Tasks Redesign** — spec: `docs/superpowers/specs/2026-06-01-tasks-redesign-design.md`, plan: `docs/superpowers/plans/2026-06-01-tasks-redesign.md`.
-> The top-banner contract verified in this UAT has been replaced by per-pill
-> badges + per-pill sliders. Banner-based scenarios below remain historically
-> accurate for Phase 7 but no longer reflect the live UI.
+> **Superseded by Tasks Redesign — shipped through 22 UAT rounds
+> (commits 24514e8 → 810b9ea, 2026-06-01 → 2026-06-02).**
+> The top-banner contract documented below was replaced by per-pill
+> badges + per-pill sliders. The live UI now ships:
+>
+> - **Home grid:** per-card pending-task badge sourced from
+>   `BudgetDTO.pendingTasksCount` (LEFT JOIN on `budgeting.tasks`).
+> - **BDP pills:** red badge on the matching pill (`reserves`,
+>   `wallets`, `spendings`) via `pill-badge.tsx` + `kind-pill-map.ts`.
+> - **In-pill slider:** settings-accordion-style collapsible list
+>   opened from inside the pill via `pill-task-slider.tsx`. Rows
+>   reuse `task-banner-row.tsx` as passive read-only entries with
+>   a "More" Dialog for kind-specific detail.
+>
+> See `07-VERIFICATION.md → Addendum: Tasks Redesign Closure` for the
+> full closure log including the 22-round UAT table, original gap
+> resolution status, and key behavioral fixes (confirm-draft
+> auto-resolve in round 12 closed the orphan-task source; round 19
+> resolved the cursor cascade-layer conflict; round 17 fixed wallet
+> drag ghost positioning by removing an always-active CSS `filter`
+> containing block).
+>
+> Banner-based scenarios below remain historically accurate for
+> Phase 7 acceptance but no longer reflect the live UI surface.
 
 ## Current Test
 

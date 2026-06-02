@@ -1,7 +1,20 @@
 # Phase 7: Tasks Queue - Context
 
 **Gathered:** 2026-05-30
-**Status:** Ready for planning
+**Status:** Shipped — superseded by Tasks Redesign closure (see below)
+
+> **Tasks Redesign (2026-06-01 → 2026-06-02):** The unified top
+> `TaskBanner` documented throughout this CONTEXT and the plans was
+> replaced after UAT with a per-pill **badge + slider** model
+> (`pill-badge.tsx`, `pill-task-slider.tsx`, `kind-pill-map.ts`).
+> Backend kept the same `tasks` table + 3 generators + tenant-guarded
+> routes; the redesign is purely a UI/UX swap on top of the same data
+> contract, plus a new `BudgetDTO.pendingTasksCount` (LEFT JOIN
+> aggregate) for home-card badges and migration 0027 promoting
+> `cushion_target_months` to `numeric(4,1)` for fractional months.
+> Full log: `07-VERIFICATION.md → Addendum: Tasks Redesign Closure`.
+> Spec: `docs/superpowers/specs/2026-06-01-tasks-redesign-design.md`.
+> Plan: `docs/superpowers/plans/2026-06-01-tasks-redesign.md`.
 
 <domain>
 ## Phase Boundary
