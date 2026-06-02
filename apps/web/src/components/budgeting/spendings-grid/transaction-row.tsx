@@ -373,13 +373,14 @@ export function TransactionRow({
         }}
         className={cn(
           "flex min-w-0 flex-1 items-center",
-          // UAT round 21: amount cell explicitly reads as clickable in
-          // its default state (open row → click chips → click amount
-          // enters inline edit). `cursor` does inherit from the row's
-          // `cursor-pointer`, but Tailwind preflight resets it on many
-          // child elements, so pinning here guarantees the affordance.
-          // Editing flips to `cursor-text`.
-          showChips ? "cursor-text" : "cursor-pointer",
+          // UAT round 22: amount cell always reads as pointer. Earlier
+          // round 21 flipped to `cursor-text` once chips were revealed,
+          // but the cell is still a click target at that point (the
+          // double-click on the AMOUNT span enters edit; the wrapper
+          // cell behaves like a button). Only the inner input during
+          // edit mode shows the I-beam — and that's the native
+          // <input> getting `cursor: text` from the global rule.
+          "cursor-pointer",
         )}
       >
         {editing ? (

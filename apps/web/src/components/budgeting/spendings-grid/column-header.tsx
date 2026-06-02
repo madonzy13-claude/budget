@@ -100,12 +100,10 @@ export function ColumnHeader({
             setRevealed(false);
           }}
           className={cn(
-            "flex h-6 w-6 items-center justify-center rounded cursor-pointer transition-opacity",
-            // UAT round 21: pen hover bg lifted from surface-card-dark
-            // (#1e2329, same as the column surface — basically invisible)
-            // to surface-elevated-dark (#2b3139) so the hover state reads
-            // as a clear elevated tile, separating the pen from the
-            // column body.
+            // UAT round 22: pen sized h-7/w-7 + icon h-4/w-4 to match
+            // the transaction-row pen, so the affordance reads the same
+            // weight in the category header as in the row chips.
+            "flex h-7 w-7 items-center justify-center rounded cursor-pointer transition-opacity",
             "hover:bg-[var(--surface-elevated-dark)]",
             // Hidden by default; shown on desktop hover (group-hover) or
             // when the user has tapped to reveal on touch (revealed).
@@ -115,7 +113,7 @@ export function ColumnHeader({
           )}
         >
           <Pencil
-            className="h-3.5 w-3.5 text-[var(--body-on-dark)]"
+            className="h-4 w-4 text-[var(--body-on-dark)]"
             aria-hidden="true"
           />
         </button>
