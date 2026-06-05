@@ -161,21 +161,38 @@ async function buildApp(userId: string, budgetId: string) {
     await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
   const { DrizzleTransactionRepo } =
     await import("@budget/budgeting/src/adapters/persistence/transaction-repo");
-  const { createReserveBalanceRepo } =
-    await import("@budget/budgeting/src/adapters/persistence/reserve-balance-repo");
   const { DrizzleReservesSummaryRepo } =
     await import("@budget/budgeting/src/adapters/persistence/reserves-summary-repo");
   const { createSpendingsSummaryRepo } =
     await import("@budget/budgeting/src/adapters/persistence/spendings-summary-repo");
   const { getSpendingsSummary } =
     await import("@budget/budgeting/src/application/get-spendings-summary");
+  // 05-12/05-14: reserveUsed/overspent for the viewed month come from the engine
+  // via the replay orchestrator (event-loader → reserve-engine), NOT the dropped
+  // VIEW-backed reserveBalanceRepo. Wire the real orchestrator so the route
+  // exercises the production read path end-to-end against Postgres.
+  const { getReservePositions } =
+    await import("@budget/budgeting/src/application/get-reserve-positions");
+  const { createReserveEventLoaderRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/reserve-event-loader-repo");
+  const { DrizzleSpendingProjectionRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/spending-projection-repo");
 
   const categoryRepo = new DrizzleCategoryRepo();
   const categoryLimitRepo = new DrizzleCategoryLimitRepo();
   const transactionRepo = new DrizzleTransactionRepo();
-  const reserveBalanceRepo = createReserveBalanceRepo();
   const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
   const summaryRepo = createSpendingsSummaryRepo();
+  const reservePositions = getReservePositions({
+    eventLoader: createReserveEventLoaderRepo({
+      transactionRepo: new DrizzleTransactionRepo(
+        undefined,
+        new DrizzleSpendingProjectionRepo(),
+      ),
+      categoryLimitRepo,
+      reservesSummaryRepo,
+    }),
+  });
 
   const deps = {
     budgeting: {
@@ -183,9 +200,8 @@ async function buildApp(userId: string, budgetId: string) {
         categoryRepo,
         categoryLimitRepo,
         transactionRepo,
-        reserveBalanceRepo,
         summaryRepo,
-        reservesSummaryRepo,
+        reservePositions,
       }),
     },
   } as unknown as import("../../src/boot").BootedDeps;
@@ -260,8 +276,13 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     expect(cat.cushionCents).toBe("120000");
     expect(cat.activeBudgetCents).toBe("100000"); // cushion_mode_enabled=false → planned
     expect(cat.spentCents).toBe("60000");
+    // 05-12/05-14 engine shape: reserveUsed/overspent/balance per category.
+    expect(cat).toHaveProperty("reserveUsedCents");
+    expect(cat.reserveUsedCents).toBe("0"); // no reserve set → nothing drawn
     expect(cat.overspentCents).toBe("0");
     expect(cat.balanceCents).toBe("40000"); // 100000 - 60000
+    // The OLD funded/available concept is GONE — no reserveAvailableCents key.
+    expect(cat).not.toHaveProperty("reserveAvailableCents");
   });
 
   it("reserve-overflow: spent > active + reserve → overspentCents > 0 (RSCM-04)", async () => {
