@@ -13,9 +13,9 @@ import {
   uuid,
   text,
   boolean,
-  bigint,
   integer,
   timestamp,
+  date,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
@@ -29,6 +29,10 @@ export const categories = budgeting.table(
     // scope column DROPPED in v1.1 (D-13): visibility is budget-level, not per-category
     sortIndex: integer("sort_index").notNull().default(0),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // Issue 1b: first month the category is hidden. NULL = active; a month start
+    // = "keep history" (visible before it, hidden from it on); '0001-01-01' =
+    // hidden everywhere (paired with archived_at).
+    archivedFrom: date("archived_from"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -36,12 +40,10 @@ export const categories = budgeting.table(
     // Phase 5 (D-PH5-R10): excluded categories are hidden from reserve math totals.
     // Drag between Active/Excluded sections on the Reserves tab toggles this flag.
     reserveExcluded: boolean("reserve_excluded").notNull().default(false),
-    // UAT-PH5-T3-54: stored "actual" cents per category. Mutated only by
-    // applyExpectedChange / applyExclude / applyWalletDelta events. Never
-    // auto-rebalanced on read. See packages/budgeting/src/domain/reserve-allocator.ts.
-    reserveActualCents: bigint("reserve_actual_cents", { mode: "bigint" })
-      .notNull()
-      .default(0n),
+    // Phase 05 reserve rewrite (decision B, migration 0030): the stored
+    // reserve_actual_cents column was DROPPED. The new replay-on-read engine
+    // (reserve-engine.ts) derives R/U fresh from category_reserve_adjustments +
+    // transactions + limits, so no precomputed "actual" is persisted.
   },
   (t) => [
     pgPolicy("categories_tenant_isolation", {
