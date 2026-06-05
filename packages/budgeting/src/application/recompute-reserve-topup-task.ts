@@ -17,14 +17,15 @@
  *   - getReservesSummary (sibling pure-shape application service)
  *   - TaskRepo port (emit + resolve)
  *
- * Math source (D-PH7-03):
- *   Internally calls getReservesSummary which uses reserves-summary-builder.ts
- *   buildReservesSummaryDto. The DTO carries `mismatchCents` as a bigint-as-string:
- *       mismatchCents = walletPoolCents − totalCategoryReservesCents
+ * Math source (D-PH7-03, reshaped 05-12):
+ *   Internally calls getReservesSummary which now derives the surplus from the
+ *   reserve-engine via the replay orchestrator. The DTO carries `surplusCents`
+ *   as a bigint-as-string:
+ *       surplusCents = userDefinedCents − internalCents
  *   So:
- *     mismatch  >  0  →  wallets > reserves    → user should WITHDRAW excess
- *     mismatch  <  0  →  wallets < reserves    → user should TOPUP wallets
- *     mismatch  === 0 →  in sync               → resolve any open RESERVE_TOPUP
+ *     surplus  >  0  →  wallets > reserves    → user should WITHDRAW excess
+ *     surplus  <  0  →  wallets < reserves    → user should TOPUP wallets
+ *     surplus  === 0 →  in sync               → resolve any open RESERVE_TOPUP
  *
  * Idempotency contract (D-PH7-05):
  *   - emit:    INSERT ON CONFLICT DO NOTHING (DB-enforced via partial unique
@@ -40,13 +41,12 @@
  * any open RESERVE_TOPUP without emitting (correct behaviour: disabling reserves
  * implies the task is moot).
  */
-import { getReservesSummary } from "./get-reserves-summary";
+import {
+  getReservesSummary,
+  type GetReservesSummaryDeps,
+} from "./get-reserves-summary";
 import type { TaskRepo, ReserveTopupPayload } from "../ports/task-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
-import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
-import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
-import type { ReservePosition } from "./get-reserve-positions";
-import type { Result } from "@budget/shared-kernel";
 
 /**
  * Minimal tx shape — matches the port's TenantTx so callers can pass their
@@ -63,25 +63,18 @@ export interface RecomputeReserveTopupTaskInput {
 
 export interface RecomputeReserveTopupTaskDeps {
   taskRepo: TaskRepo;
-  // Same dep shape as GetReservesSummaryDeps so callers (set-wallet-balance,
-  // update-wallet, adjust-category-reserve) can forward their existing deps
-  // straight through.
+  // Same dep shape as GetReservesSummaryDeps (NEW, 05-12) so callers
+  // (set-wallet-balance, update-wallet, adjust-category-reserve) can forward
+  // their existing deps straight through.
   categoriesRepo: CategoriesRepo;
-  reserveBalanceRepo: ReserveBalanceRepo;
-  reservesSummaryRepo: ReservesSummaryRepo;
   budgetCurrencyOf: (tenantId: string) => Promise<string>;
   isReservesEnabled: (tenantId: string) => Promise<boolean>;
   /**
-   * Optional cumulative reserve-position calculator. When supplied, the
-   * mismatch is computed against the usage-depleted EXPECTED reserve, so the
-   * RESERVE_TOPUP task reflects reserve actually used (not just the raw
-   * allocation). Forwarded straight to getReservesSummary.
+   * Replay orchestrator (05-12). getReservesSummary derives `surplus`
+   * (= userDefined − internal) straight from the engine, so the RESERVE_TOPUP
+   * task reflects engine-derived reserve usage.
    */
-  reservePositions?: (input: {
-    tenantId: string;
-    budgetId: string;
-    month: string;
-  }) => Promise<Result<Map<string, ReservePosition>, Error>>;
+  reservePositions: GetReservesSummaryDeps["reservePositions"];
 }
 
 /**
@@ -103,8 +96,6 @@ export async function recomputeReserveTopupTask(
   deps: RecomputeReserveTopupTaskDeps,
 ): Promise<void> {
   const summaryResult = await getReservesSummary({
-    reserveBalanceRepo: deps.reserveBalanceRepo,
-    reservesSummaryRepo: deps.reservesSummaryRepo,
     categoriesRepo: deps.categoriesRepo,
     budgetCurrencyOf: deps.budgetCurrencyOf,
     isReservesEnabled: deps.isReservesEnabled,
@@ -113,12 +104,13 @@ export async function recomputeReserveTopupTask(
 
   if (summaryResult.isErr()) {
     // Surface the read failure to the caller; emit would be unsafe with
-    // unknown mismatch state. Mutation tx rolls back via Result propagation.
+    // unknown surplus state. Mutation tx rolls back via Result propagation.
     throw summaryResult.error;
   }
 
   const summary = summaryResult.value;
-  const mismatchCents = BigInt(summary.totals.mismatchCents);
+  // surplus = userDefined − internal (== the old wallet−reserves mismatch).
+  const mismatchCents = BigInt(summary.totals.surplusCents);
 
   if (summary.totals.disabled || mismatchCents === 0n) {
     // Reserves disabled OR wallets/reserves in sync → resolve any open task.
@@ -131,10 +123,10 @@ export async function recomputeReserveTopupTask(
     return;
   }
 
-  // Sign convention (verified against reserves-summary-builder.ts:73):
-  //   mismatchCents = walletPoolCents - totalCategoryReservesCents
-  //   > 0 → wallets > reserves → WITHDRAW excess
-  //   < 0 → wallets < reserves → TOPUP wallets
+  // Sign convention (surplus = userDefined − internal; matches the position
+  // orchestrator's `direction`):
+  //   surplus > 0 → wallets > reserves → WITHDRAW excess
+  //   surplus < 0 → wallets < reserves → TOPUP wallets
   const absShortfall = mismatchCents < 0n ? -mismatchCents : mismatchCents;
   const direction: "TOPUP" | "WITHDRAW" =
     mismatchCents < 0n ? "TOPUP" : "WITHDRAW";

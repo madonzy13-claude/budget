@@ -1,84 +1,78 @@
 /**
- * reserves-summary-builder.ts — Pure shape function for ReservesSummaryDto.
+ * reserves-summary-builder.ts — Pure DTO shaper for the NEW ReservesSummaryDto.
  *
- * UAT-PH5-T3-54 perf option A: extracted so that adjust + wallet-balance
- * use cases can return the full new summary in their response (eliminating
- * a refetch round-trip + a second heavy view query on the client side).
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): the reserves tab shows ONE
+ * engine-derived reserve per category plus used + overspent, and a single
+ * budget-level surplus banner. The OLD walletShare% / actual / mismatch math is
+ * GONE — `buildReservesSummaryDto` now just projects a `ReservePositionsResult`
+ * (from get-reserve-positions) onto the row + totals shape. No allocation, no
+ * greedy fill, no VIEW.
+ *
+ *   active rows   : non-excluded categories → { reserve, used, overspent }
+ *   excluded rows : name-only (reserve hidden — released on exclude)
+ *   totals        : internal / userDefined / surplus(+direction) / disabled / currency
+ *
+ * Pure data → data: takes the orchestrator result + the category list; emits the
+ * serialized DTO (bigints stringified). Reused by adjust/wallet use-cases (05-13)
+ * to return the summary inline without a refetch.
  */
-import type { Money } from "@budget/shared-kernel";
 import type {
   ReservesSummaryDto,
   ReservesSummaryRow,
 } from "./get-reserves-summary";
-import type { CategoryRow } from "../ports/categories-repo";
+import type { ReservePositionsResult } from "./get-reserve-positions";
 
-export function buildReservesSummaryDto(
-  activeBalanceMap: Map<string, Money>,
-  excludedBalanceMap: Map<string, Money>,
-  allCats: CategoryRow[],
-  walletPoolCents: bigint,
-  budgetCurrency: string,
-  /** Overrides for `reserve_actual_cents` — used when the caller has the
-   *  post-mutation values in memory and hasn't yet persisted them. */
-  actualOverrides?: Map<string, bigint>,
-  /** Per-category EXPECTED reserve in cents after usage depletion
-   *  (getReservePositions). When supplied, the row balance reflects the
-   *  cumulative-usage-depleted reserve instead of the raw allocation; absent
-   *  callers (optimistic mutation responses) fall back to the allocation and
-   *  the client refetch corrects it. */
-  expectedOverride?: Map<string, bigint>,
-): ReservesSummaryDto {
-  const activeCats = allCats.filter((c) => !c.reserveExcluded);
-  const excludedCats = allCats.filter((c) => c.reserveExcluded);
+export interface ReservesSummaryCategory {
+  id: string;
+  name: string;
+  reserveExcluded: boolean;
+}
 
-  const actualOf = (c: CategoryRow): bigint =>
-    actualOverrides?.get(c.id) ?? c.reserveActualCents ?? 0n;
+export function buildReservesSummaryDto(args: {
+  /** From get-reserve-positions: per-category R/U/overspent + internal + surplus. */
+  positions: ReservePositionsResult;
+  categories: ReservesSummaryCategory[];
+  budgetCurrency: string;
+  disabled: boolean;
+}): ReservesSummaryDto {
+  const { positions, categories, budgetCurrency, disabled } = args;
 
-  const sumActiveActual = activeCats.reduce((s, c) => s + actualOf(c), 0n);
-
-  let totalCategoryReserves = 0n;
-  const rows: ReservesSummaryRow[] = activeCats.map((c) => {
-    const m = activeBalanceMap.get(c.id);
-    const allocationCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
-    const expectedCents = expectedOverride?.get(c.id) ?? allocationCents;
-    totalCategoryReserves += expectedCents;
-    const actualCents = actualOf(c);
-
-    const sharePct =
-      sumActiveActual === 0n
-        ? null
-        : Number((actualCents * 10000n) / sumActiveActual) / 100;
-    const shareAmt = sumActiveActual === 0n ? null : actualCents.toString();
-
+  const rowFor = (c: ReservesSummaryCategory): ReservesSummaryRow => {
+    const p = positions.positions.get(c.id);
     return {
       categoryId: c.id,
       name: c.name,
-      reserveBalanceCents: expectedCents.toString(),
-      walletSharePercent: sharePct,
-      walletShareAmountCents: shareAmt,
+      reserveCents: (p?.reserveCents ?? 0n).toString(),
+      usedCents: (p?.usedCents ?? 0n).toString(),
+      overspentCents: (p?.overspentCents ?? 0n).toString(),
     };
-  });
+  };
 
-  const excludedRows: ReservesSummaryRow[] = excludedCats.map((c) => {
-    const m = excludedBalanceMap.get(c.id);
-    const expectedCents = m ? BigInt(m.amount.times("100").toFixed(0)) : 0n;
-    return {
+  const rows: ReservesSummaryRow[] = categories
+    .filter((c) => !c.reserveExcluded)
+    .map(rowFor);
+
+  // Excluded categories keep a name-only row so the tab's exclude section renders;
+  // their reserve is hidden (released on exclude → not part of internal).
+  const excludedRows: ReservesSummaryRow[] = categories
+    .filter((c) => c.reserveExcluded)
+    .map((c) => ({
       categoryId: c.id,
       name: c.name,
-      reserveBalanceCents: expectedCents.toString(),
-      walletSharePercent: null,
-      walletShareAmountCents: null,
-    };
-  });
+      reserveCents: "0",
+      usedCents: "0",
+      overspentCents: "0",
+    }));
 
   return {
     rows,
     excludedRows,
     totals: {
-      totalCategoryReservesCents: totalCategoryReserves.toString(),
-      totalReserveWalletAmountCents: walletPoolCents.toString(),
-      mismatchCents: (walletPoolCents - totalCategoryReserves).toString(),
-      disabled: false,
+      internalCents: positions.internalCents.toString(),
+      userDefinedCents: positions.userDefinedCents.toString(),
+      surplusCents: positions.surplusCents.toString(),
+      direction: positions.direction,
+      disabled,
       budgetCurrency,
     },
   };

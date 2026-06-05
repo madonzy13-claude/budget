@@ -224,8 +224,6 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
             {
               taskRepo: createTaskRepo(),
               categoriesRepo,
-              reserveBalanceRepo: createReserveBalanceRepo(),
-              reservesSummaryRepo,
               budgetCurrencyOf: getWorkspaceDefaultCurrency,
               isReservesEnabled: async () => isEnabled,
               reservePositions,
@@ -380,8 +378,6 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       reserveBalanceRepo: createReserveBalanceRepo(),
     }),
     getReservesSummary: getReservesSummary({
-      reserveBalanceRepo: createReserveBalanceRepo(),
-      reservesSummaryRepo,
       categoriesRepo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       isReservesEnabled,

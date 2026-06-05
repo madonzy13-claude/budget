@@ -31,8 +31,10 @@ import {
   applyExpectedChange,
   type ReserveRow,
 } from "../domain/reserve-allocator";
-import type { ReservesSummaryDto } from "./get-reserves-summary";
-import { buildReservesSummaryDto } from "./reserves-summary-builder";
+import {
+  getReservesSummary,
+  type ReservesSummaryDto,
+} from "./get-reserves-summary";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import {
   recomputeReserveTopupTask,
@@ -50,9 +52,9 @@ export interface AdjustCategoryReserveDeps {
    *  in a follow-up tx after the adjustment lands. Optional so legacy
    *  callers keep compiling; production boot wires it in factory.ts. */
   taskRepo?: TaskRepo;
-  /** Forwarded to the RESERVE_TOPUP recompute so the task reflects the
-   *  usage-depleted expected reserve. */
-  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+  /** Replay orchestrator (05-12). Required: getReservesSummary + the
+   *  RESERVE_TOPUP recompute both derive reserve from it. */
+  reservePositions: RecomputeReserveTopupTaskDeps["reservePositions"];
 }
 
 export interface AdjustCategoryReserveInput {
@@ -125,10 +127,18 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
       const thisRow = rows.find((r) => r.categoryId === input.categoryId);
       if (!thisRow) return err(new Error("not_found"));
 
-      const newExpected = BigInt(input.expectedCents);
-      const delta = newExpected - thisRow.expectedCents;
+      // 05-12 NOTE: the sticky-display "base = target + usage" correction (which
+      // read the OLD position fields overspendCents/fundedCents) is removed here;
+      // the engine model derives R from the signed adjustment delta directly.
+      // Recomputing the delta against the engine's running R is 05-13's rewrite
+      // of this use case — for now append the delta against the legacy VIEW base
+      // so the write keeps landing, and return the engine-derived summary below.
+      const targetDisplayed = BigInt(input.expectedCents);
+      const newBase = targetDisplayed;
+      const delta = newBase - thisRow.expectedCents;
 
-      // Append delta to the ledger so the VIEW resolves to newExpected.
+      // Append delta to the ledger so the VIEW base resolves to newBase, i.e.
+      // displayed (newBase − usage) === targetDisplayed.
       if (delta !== 0n) {
         await deps.adjustmentsRepo.create({
           tenantId: input.tenantId,
@@ -139,12 +149,19 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
         });
       }
 
-      // Compute new actual snapshot and persist only changed rows.
+      // Fund the REAL reserve (actual) toward the DISPLAYED target the user
+      // typed (targetDisplayed), NOT the usage-inflated base (newBase). The base
+      // is inflated by past usage purely to keep the displayed value sticky;
+      // feeding it to the allocator would over-fund real (e.g. set displayed €70
+      // with €50 used → base €120 → allocator grabs the whole wallet). Real must
+      // follow the amount the user set, capped at the wallet pool; the leftover
+      // stays unallocated (surplus). Usage still depletes the DISPLAYED expected
+      // on top of this (handled by the position calculator / expectedOverride).
       const allocResult = applyExpectedChange(
         rows,
         walletPool,
         input.categoryId,
-        newExpected,
+        targetDisplayed,
       );
       const updates = new Map<string, bigint>();
       for (const after of allocResult.rows) {
@@ -165,39 +182,20 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
         (r) => r.categoryId === input.categoryId,
       )!;
 
-      // Build the post-mutation summary in memory using updated allCats +
-      // the in-memory active balance map (with the new ledger delta folded
-      // into the target category's expected). Avoid a second view query.
-      const newActualMap = new Map<string, bigint>();
-      for (const r of allocResult.rows) {
-        newActualMap.set(r.categoryId, r.actualCents);
-      }
-      // The active VIEW doesn't yet reflect the just-written ledger row,
-      // so overlay the new expected for THIS category in the map we pass
-      // to the builder. The Money type wraps cents → /100 EUR.
-      const { Money } = await import("@budget/shared-kernel");
-      const overlayMap = new Map(activeMap);
-      if (!targetCat.reserveExcluded) {
-        const newExpectedEuros = (Number(newExpected) / 100).toFixed(2);
-        overlayMap.set(
-          input.categoryId,
-          Money.of(
-            newExpectedEuros,
-            (await deps.budgetCurrencyOf(input.tenantId)) as Parameters<
-              typeof Money.of
-            >[1],
-          ),
-        );
-      }
-      const budgetCurrency = await deps.budgetCurrencyOf(input.tenantId);
-      const summary = buildReservesSummaryDto(
-        overlayMap,
-        excludedMap,
-        allCats,
-        walletPool,
-        budgetCurrency,
-        newActualMap,
-      );
+      // 05-12: the post-mutation summary is engine-derived now. After appending
+      // the delta to the ledger above, read it back through the replay
+      // orchestrator so the response matches a fresh GET /reserves (one reserve
+      // per category + internal/userDefined/surplus). The legacy allocator
+      // bookkeeping above (reserve_actual_cents writes) no longer feeds the DTO;
+      // its full removal + delta-vs-engine-R re-derivation is 05-13.
+      const summaryR = await getReservesSummary({
+        categoriesRepo: deps.categoriesRepo,
+        budgetCurrencyOf: deps.budgetCurrencyOf,
+        isReservesEnabled: deps.isReservesEnabled,
+        reservePositions: deps.reservePositions,
+      })({ tenantId: input.tenantId, budgetId: input.budgetId });
+      if (summaryR.isErr()) return err(summaryR.error);
+      const summary = summaryR.value;
 
       // Phase 7 (D-PH7-04): RESERVE_TOPUP recompute hook.
       // Reserve adjustments always touch the reserve side of the equation
@@ -212,10 +210,9 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
       if (deps.taskRepo) {
         const taskRepo = deps.taskRepo;
         const categoriesRepo = deps.categoriesRepo;
-        const reserveBalanceRepo = deps.reserveBalanceRepo;
-        const reservesSummaryRepo = deps.reservesSummaryRepo;
         const budgetCurrencyOf = deps.budgetCurrencyOf;
         const isReservesEnabled = deps.isReservesEnabled;
+        const reservePositions = deps.reservePositions;
         await withTenantTx(
           TenantId(input.tenantId),
           UserId(input.actorUserId),
@@ -226,11 +223,9 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
               {
                 taskRepo,
                 categoriesRepo,
-                reserveBalanceRepo,
-                reservesSummaryRepo,
                 budgetCurrencyOf,
                 isReservesEnabled,
-                reservePositions: deps.reservePositions,
+                reservePositions,
               },
             );
           },
@@ -239,7 +234,8 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
 
       return ok({
         categoryId: input.categoryId,
-        expectedCents: finalRow.expectedCents.toString(),
+        // The DISPLAYED expected the user set (base − usage), not the raw base.
+        expectedCents: targetDisplayed.toString(),
         actualCents: finalRow.actualCents.toString(),
         deltaCents: delta.toString(),
         summary,

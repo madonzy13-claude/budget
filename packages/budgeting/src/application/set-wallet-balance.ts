@@ -24,8 +24,10 @@ import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
 import type { SetBalanceInput } from "../contracts/api";
 import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
-import type { ReservesSummaryDto } from "./get-reserves-summary";
-import { buildReservesSummaryDto } from "./reserves-summary-builder";
+import {
+  getReservesSummary,
+  type ReservesSummaryDto,
+} from "./get-reserves-summary";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import {
   recomputeReserveTopupTask,
@@ -152,14 +154,24 @@ export function setWalletBalance(deps: SetWalletBalanceDeps) {
           }
         }
 
-        summary = buildReservesSummaryDto(
-          activeMap,
-          excludedMap,
-          allCats,
-          newPool,
-          budgetCurrency,
-          newActualMap,
-        );
+        // 05-12: the reserves DTO is now engine-derived. Build it through the
+        // replay orchestrator so the response matches a fresh GET /reserves
+        // (one reserve per category + internal/userDefined/surplus). The
+        // wallet-delta reallocation of `reserve_actual_cents` above is dead
+        // legacy bookkeeping kept only until 05-13 rewires this use case to
+        // "set userDefined only"; it no longer feeds the returned summary.
+        void newActualMap;
+        if (deps.reservePositions && deps.isReservesEnabled) {
+          const summaryR = await getReservesSummary({
+            categoriesRepo: deps.categoriesRepo,
+            budgetCurrencyOf: deps.budgetCurrencyOf,
+            isReservesEnabled: deps.isReservesEnabled,
+            reservePositions: deps.reservePositions,
+          })({ tenantId: input.tenantId, budgetId: input.tenantId });
+          if (summaryR.isErr()) return err(summaryR.error);
+          summary = summaryR.value;
+        }
+        void budgetCurrency;
       }
 
       await deps.repo.setBalance(
@@ -184,17 +196,15 @@ export function setWalletBalance(deps: SetWalletBalanceDeps) {
         wallet.walletType === "RESERVE" &&
         deps.taskRepo &&
         deps.categoriesRepo &&
-        deps.reserveBalanceRepo &&
-        deps.reservesSummaryRepo &&
         deps.budgetCurrencyOf &&
-        deps.isReservesEnabled
+        deps.isReservesEnabled &&
+        deps.reservePositions
       ) {
         const taskRepo = deps.taskRepo;
         const categoriesRepo = deps.categoriesRepo;
-        const reserveBalanceRepo = deps.reserveBalanceRepo;
-        const reservesSummaryRepo = deps.reservesSummaryRepo;
         const budgetCurrencyOf = deps.budgetCurrencyOf;
         const isReservesEnabled = deps.isReservesEnabled;
+        const reservePositions = deps.reservePositions;
         await withTenantTx(
           TenantId(input.tenantId),
           UserId(input.actorUserId),
@@ -205,11 +215,9 @@ export function setWalletBalance(deps: SetWalletBalanceDeps) {
               {
                 taskRepo,
                 categoriesRepo,
-                reserveBalanceRepo,
-                reservesSummaryRepo,
                 budgetCurrencyOf,
                 isReservesEnabled,
-                reservePositions: deps.reservePositions,
+                reservePositions,
               },
             );
           },
