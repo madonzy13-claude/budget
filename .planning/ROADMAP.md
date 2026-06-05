@@ -141,6 +141,17 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 05-08-PLAN.md — Wave 5 (final, autonomous=false): 6 playwright-bdd `@phase5` features + new ReservesPage + rewritten WalletsPage Page Objects + step bindings + full `make test && bun run test && make ci-gate && make test-e2e` green + impeccable DESIGN.md sweep (all WALT-_ + all RSRV-_)
       **UI hint**: yes
 
+**Reserves MODEL REWRITE addendum** (8 — pure engine → persistence reset → replay → use-cases → API → UI → verify). Supersedes the OLD expected/actual two-value reserve model with the validated single-reserve model in `05-REWRITE-SPEC.md` (29-row golden fixture). Does NOT modify shipped plans 05-01..05-08.
+
+- [ ] 05-09-PLAN.md — Wave 1: Pure `reserve-engine.ts` (replaces greedy `reserve-allocator.ts`) + golden-fixture test asserting every cell of all 29 rows + per-operation units (KEYSTONE; TDD RED→GREEN)
+- [ ] 05-10-PLAN.md — Wave 2: Multi-month accrual + retroactive-coverage (oldest-first) + disable→re-enable idempotency domain tests (decisions G/I/K)
+- [ ] 05-11-PLAN.md — Wave 1: Persistence reset — migration 0030 DROPs `category_reserve_balance` VIEW + `reserve_actual_cents` ([BLOCKING] migrate) + `reserve-event-loader` port/adapter + integration test
+- [ ] 05-12-PLAN.md — Wave 3: `get-reserve-positions` replay orchestrator (event-loader → engine) + reshaped `get-reserves-summary`/builder/`get-spendings-summary` consumers
+- [ ] 05-13-PLAN.md — Wave 4: Use-cases — delta-only `adjust-category-reserve` + surplus `RESERVE_TOPUP`; wallet edits set userDefined only; both category-deletion modes; exclude (no sibling spill); drop `setReserveActualMany`
+- [ ] 05-14-PLAN.md — Wave 5: Contracts + API reshape — `ReservesSummaryDto` → reserve/used/overspent/internal/userDefined/surplus(+direction); factory+boot rewire; route integration tests (drop expected/actual/walletShare%/mismatch)
+- [ ] 05-15-PLAN.md — Wave 6 (autonomous=false): UI reshape — single reserve + used + surplus banner; spendings used+overspent; DELETE web `reserve-allocator.ts` + `mismatch-chip.tsx`; `@tasks-redesign` reserves E2E (+ [BLOCKING] rebuild web)
+- [ ] 05-16-PLAN.md — Wave 7 (autonomous=false): Dead-code removal sweep (greedy allocator + VIEW reader grep-clean) + full gates (golden + round-trip + make test + ci-gate + @tasks-redesign E2E) + PL/UK i18n + `graphify update`
+
 ### Phase 6: Settings, Onboarding & Share UI
 
 **Goal**: Ship the three settings-shaped form flows together: the Budget Settings tab (identity / cushion toggle / recurring CRUD / members for SHARED / danger zone), the post-signup Onboarding wizard, and the share-link recipient join flow. All three share form primitives, locale rendering, and the Better-Auth-orgs share-link backend from Phase 2.
@@ -264,7 +275,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 2. Domain & API Restructure                 | 0/TBD          | Not started | -          |
 | 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
 | 4. Spendings Grid                           | 0/TBD          | Not started | -          |
-| 5. Reserves & Wallets Tabs                  | 8/8            | Complete    | 2026-05-17 |
+| 5. Reserves & Wallets Tabs                  | 16/16          | Complete    | 2026-05-17 |
 | 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
 | 7. Tasks Queue                              | 0/10           | Planned     | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |
