@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 7 UI-SPEC approved (Phase 5 reserve-rewrite plan 05-11 executed on tasks-redesign branch)
-last_updated: "2026-06-05T10:29:50.836Z"
+stopped_at: Phase 05 plan 05-13 executed (reserve mutation rewrite) on tasks-redesign branch
+last_updated: "2026-06-05T10:59:31.717Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 56
-  completed_plans: 52
-  percent: 93
+  completed_plans: 53
+  percent: 95
 ---
 
 # Project State
@@ -86,6 +86,7 @@ _Updated after each plan completion_
 | Phase 03 P07 | 17 min | 3 tasks | 13 files |
 | Phase 05-reserves-wallets-tabs P08 | 180 | 5 tasks | 18 files |
 | Phase 05 P12 | 31m | 3 tasks | 16 files |
+| Phase 05 P13 | 23min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -132,6 +133,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 3]: Plan 03-07: Empty-user step inlines signup (rather than swapping fixtures) because playwright-bdd binds steps to a single test extender
 - [Phase ?]: 05-12: get-reserve-positions is the replay orchestrator (event-loader → reserve-engine); reserves/spendings summaries consume engine cells
 - [Phase ?]: 05-12: reserves DTO reshaped to reserve/used/overspent + internal/userDefined/surplus(+direction); old VIEW/actual/share/mismatch removed
+- [Phase ?]: [Phase 05]: Plan 05-13 — reserve mutations rewritten to the replay model (delta-only adjust = target−currentR, userDefined-only wallet edits, surplus-driven RESERVE_TOPUP); greedy allocator + stored reserveActualCents deleted. Executed on tasks-redesign branch parallel to the main Phase-07 cursor.
 
 ### Pending Todos
 
@@ -201,8 +203,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-05T10:29:26.974Z
-Stopped at: Phase 7 UI-SPEC approved (Phase 5 reserve-rewrite plan 05-11 executed on tasks-redesign branch)
+Last session: 2026-06-05T10:59:31.695Z
+Stopped at: Phase 05 plan 05-13 executed (reserve mutation rewrite) on tasks-redesign branch
 Resume file: None
 
 ## v1.0 History (archived)
