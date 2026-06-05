@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 7 UI-SPEC approved
-last_updated: "2026-05-31T09:35:59.855Z"
-last_activity: 2026-05-31 -- Phase 07 execution started
+stopped_at: Phase 7 UI-SPEC approved (Phase 5 reserve-rewrite plan 05-11 executed on tasks-redesign branch)
+last_updated: "2026-06-05T10:29:50.836Z"
+last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 48
-  completed_plans: 38
-  percent: 79
+  total_plans: 56
+  completed_plans: 52
+  percent: 93
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: 07 (tasks-queue) — EXECUTING
-Plan: 1 of 10
-Status: Executing Phase 07
-Last activity: 2026-05-31 -- Phase 07 execution started
+Plan: 2 of 10
+Status: Ready to execute
+Last activity: 2026-06-05
 
 ## Phase 3 Plans
 
@@ -85,6 +85,7 @@ _Updated after each plan completion_
 | Phase 03 P06 | 12 min | 3 tasks | 15 files |
 | Phase 03 P07 | 17 min | 3 tasks | 13 files |
 | Phase 05-reserves-wallets-tabs P08 | 180 | 5 tasks | 18 files |
+| Phase 05 P12 | 31m | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -129,6 +130,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 3]: Plan 03-07: Dynamic `import('pg')` in E2E task-seeding step keeps pg out of the web bundle
 - [Phase 3]: Plan 03-07: DATABASE_URL_APP rewriter (@db: -> @localhost:) lets E2E steps run from host AND inside compose net
 - [Phase 3]: Plan 03-07: Empty-user step inlines signup (rather than swapping fixtures) because playwright-bdd binds steps to a single test extender
+- [Phase ?]: 05-12: get-reserve-positions is the replay orchestrator (event-loader → reserve-engine); reserves/spendings summaries consume engine cells
+- [Phase ?]: 05-12: reserves DTO reshaped to reserve/used/overspent + internal/userDefined/surplus(+direction); old VIEW/actual/share/mismatch removed
 
 ### Pending Todos
 
@@ -198,9 +201,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-05T09:54:00.000Z
+Last session: 2026-06-05T10:29:26.974Z
 Stopped at: Phase 7 UI-SPEC approved (Phase 5 reserve-rewrite plan 05-11 executed on tasks-redesign branch)
-Resume file: .planning/phases/07-tasks-queue/07-UI-SPEC.md
+Resume file: None
 
 ## v1.0 History (archived)
 
