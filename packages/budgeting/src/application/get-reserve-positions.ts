@@ -1,168 +1,282 @@
 /**
- * get-reserve-positions.ts — Shared cumulative reserve-position read.
+ * get-reserve-positions.ts — Replay orchestrator (the reserve seam).
  *
- * Single source of truth for "how much reserve does each category actually
- * have" once usage is accounted for. Consumed by the reserves tab, the
- * spendings grid, and the RESERVE_TOPUP reconciliation so all three agree.
+ * Phase 05 reserve rewrite (decisions A–K, 05-REWRITE-SPEC.md). The OLD
+ * accrued/funded/drawn-off-the-VIEW computation is GONE. This file now does
+ * exactly one job: assemble the budget's ordered reserve events and fold them
+ * through the pure `reserve-engine`.
  *
- *   expectedReserveCents = allocation − Σ months( min(overspend, realCap) )
+ *   loader.load(tenant, budget, openMonth)  → ReserveEventInputs (05-11)
+ *        │  map (chronological)             → ReserveEngineEvent[]   (05-09)
+ *        ▼
+ *   reserveEngine({ events, openMonth, reservesEnabled })
+ *        │  states (R/U) + per-(cat,month) cells + internal/userDefined/surplus
+ *        ▼
+ *   ReservePositionsResult { positions, internalCents, userDefinedCents, surplusCents, direction }
  *
- * where:
- *   - allocation        = Σ of the category's manual reserve adjustments
- *   - overspend(m)      = max(0, spent(m) − activeBudget)
- *   - realCap           = the category's proportional share of the REAL reserve
- *                         wallet pool (you cannot draw reserve cash you do not
- *                         hold). Applied per month.
+ * Event ordering (deterministic — pinned by the golden reproduction test):
+ *   1. Walk months ASCENDING from the earliest seen month through openMonth.
+ *      For each month, in order:
+ *        a. setLimit  — when that month has an effective limit (limitsByMonth).
+ *        b. cushion   — when a cushionHistory segment begins at this month.
+ *        c. spendDelta— one event carrying the month's whole spent figure
+ *           (each month's `spent` is independent in the engine, so the delta
+ *           from a 0 baseline == the absolute spent).
+ *        d. accrual   — ONLY for CLOSED months (month < openMonth), per decision
+ *           G. The open month never accrues.
+ *   2. adjust events (signed deltas, decision E) — appended in stored order
+ *      AFTER the open month's spend, matching the golden fixture where every
+ *      adjustment happens in the single open month against the current R.
+ *   3. exclude / archive — from categoryFlags (drop a category out of internal).
+ *   4. setUserDefined — Σ RESERVE-wallet balances (surplus input only).
  *
- * Cumulative + runtime: usage is summed over the budget's whole history from
- * live transaction data, so editing any past month re-derives the reserve. The
- * per-month draw is capped at the real-money share (reuses computeReserveLedger).
- *
- * v1 simplifications (documented):
- *   - Underspend does NOT accrue reserve automatically; manual reserve
- *     adjustments remain the only inflow.
- *   - The current effective limit is used for every historical month (limits
- *     rarely change retroactively).
- *   - Fully computed on read (no materialised snapshot yet); months are
- *     independent, so a snapshot cache can be layered later without changing
- *     results.
+ * Pure: no Drizzle, no Temporal here — the loader owns IO + the TZ-correct open
+ * month. Money stays in cents (bigint); display wrapping is the route's job (05-14).
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
-import { Temporal } from "temporal-polyfill";
-import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
-import type { CategoryLimitRepo } from "../ports/category-limit-repo";
-import type { TransactionRepo } from "../ports/transaction-repo";
-import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
-import type { SpendingsSummaryRepo } from "../ports/spendings-summary-repo";
-import { computeReserveLedger } from "../domain/reserve-ledger";
+import type { ReserveEventLoaderRepo } from "../ports/reserve-event-loader-repo";
+import type { ReserveEventInputs } from "../ports/reserve-event-loader-repo";
+import {
+  reserveEngine,
+  type ReserveEngineEvent,
+} from "../domain/reserve-engine";
 
+/** Per-category projection of the engine's final running R/U + per-month cells. */
 export interface ReservePosition {
   categoryId: string;
-  allocationCents: bigint;
-  cumulativeUsageCents: bigint;
-  expectedReserveCents: bigint;
+  /** R — available reserve shown to the user (carried forward chronologically). */
+  reserveCents: bigint;
+  /** U — reserve consumed by overspend (cumulative across all months). */
+  usedCents: bigint;
+  /** Σ over this category's months of per-month overspent (= Σ overage − U). */
+  overspentCents: bigint;
+  /** Per-(category, month) cells for the spendings grid. 'YYYY-MM' → cell. */
+  byMonth: Map<
+    string,
+    {
+      usedCents: bigint;
+      overspentCents: bigint;
+      overageCents: bigint;
+      leftCents: bigint;
+    }
+  >;
+}
+
+export interface ReservePositionsResult {
+  positions: Map<string, ReservePosition>;
+  /** Σ R over active (non-excluded, non-archived) categories. 0 when disabled. */
+  internalCents: bigint;
+  /** Σ RESERVE-wallet balances. */
+  userDefinedCents: bigint;
+  /** userDefined − internal. */
+  surplusCents: bigint;
+  /** surplus<0 → TOPUP (internal>wallet), surplus>0 → WITHDRAW, 0 → NONE.
+   *  Matches the recompute-reserve-topup-task sign convention. */
+  direction: "TOPUP" | "WITHDRAW" | "NONE";
 }
 
 export interface GetReservePositionsDeps {
-  reserveBalanceRepo: ReserveBalanceRepo;
-  categoryLimitRepo: CategoryLimitRepo;
-  transactionRepo: TransactionRepo;
-  reservesSummaryRepo: ReservesSummaryRepo;
-  summaryRepo: SpendingsSummaryRepo;
+  /** 05-11 loader — owns spend/limit/cushion/adjustment/flag/wallet reads + RLS. */
+  eventLoader: ReserveEventLoaderRepo;
+  /** Open-month boundary fallback (only used to validate an explicit override). */
+  now?: () => Date;
 }
 
 export interface GetReservePositionsInput {
   tenantId: string;
   budgetId: string;
-  month: string; // YYYY-MM (the current month)
+  /** Override the open month 'YYYY-MM'. Defaults to now() in the budget tz
+   *  (resolved by the loader). */
+  month?: string;
 }
 
-function moneyToCents(money: import("@budget/shared-kernel").Money): bigint {
-  return BigInt(money.amount.times("100").toFixed(0));
+/** '2026-06' → comparable for ascending sort (lexical works for 'YYYY-MM'). */
+function monthsAscending(inputs: ReserveEventInputs): string[] {
+  const set = new Set<string>();
+  for (const byMonth of inputs.spendByCategoryByMonth.values()) {
+    for (const m of byMonth.keys()) set.add(m);
+  }
+  for (const m of inputs.limitsByMonth.keys()) set.add(m);
+  for (const seg of inputs.cushionHistory) set.add(seg.fromMonth);
+  set.add(inputs.openMonth);
+  return [...set].sort();
+}
+
+/**
+ * Map the loader's raw inputs to a chronological ReserveEngineEvent[].
+ * Exported for the golden reproduction test (assert the mapping, not just IO).
+ */
+export function mapInputsToEvents(
+  inputs: ReserveEventInputs,
+): ReserveEngineEvent[] {
+  const events: ReserveEngineEvent[] = [];
+  const months = monthsAscending(inputs);
+
+  // Cushion segments → quick "does a segment start at month M?" lookup.
+  const cushionAt = new Map<string, boolean>();
+  for (const seg of inputs.cushionHistory) cushionAt.set(seg.fromMonth, seg.on);
+
+  // Categories that ever have a limit/spend, so accrual + spend cover them all.
+  const limitCatsByMonth = inputs.limitsByMonth;
+
+  for (const month of months) {
+    const closed = month < inputs.openMonth;
+
+    // a. setLimit — every category with an effective limit this month.
+    const limits = limitCatsByMonth.get(month);
+    if (limits) {
+      for (const [categoryId, lim] of limits) {
+        events.push({
+          type: "setLimit",
+          categoryId,
+          month,
+          normalCents: lim.plannedCents,
+          cushionCents: lim.cushionCents,
+        });
+      }
+    }
+
+    // b. cushion — a mode segment that begins at this month.
+    if (cushionAt.has(month)) {
+      events.push({ type: "cushion", month, on: cushionAt.get(month)! });
+    }
+
+    // c. spendDelta — the month's whole spent for each category that spent.
+    for (const [categoryId, byMonth] of inputs.spendByCategoryByMonth) {
+      const spent = byMonth.get(month);
+      if (spent !== undefined && spent !== 0n) {
+        events.push({ type: "spendDelta", categoryId, month, deltaCents: spent });
+      }
+    }
+
+    // d. accrual — CLOSED months only (decision G). Open month never accrues.
+    if (closed) {
+      const accrualCats = new Set<string>();
+      if (limits) for (const id of limits.keys()) accrualCats.add(id);
+      for (const [id, byMonth] of inputs.spendByCategoryByMonth) {
+        if (byMonth.has(month)) accrualCats.add(id);
+      }
+      for (const categoryId of accrualCats) {
+        events.push({ type: "accrual", categoryId, month });
+      }
+    }
+  }
+
+  // 2. adjust — signed deltas (decision E) in stored order, after the open
+  //    month's spend (golden fixture applies all adjusts in the single open month).
+  for (const [categoryId, deltas] of inputs.adjustmentsByCategory) {
+    for (const deltaCents of deltas) {
+      events.push({ type: "adjust", categoryId, deltaCents });
+    }
+  }
+
+  // 3. exclude / archive — drop categories out of `internal` (decision C / J).
+  for (const [categoryId, flags] of inputs.categoryFlags) {
+    if (flags.reserveExcluded) {
+      events.push({ type: "exclude", categoryId, excluded: true });
+    }
+    if (flags.archivedAt) {
+      // `archivedFrom` set → current_future; absent → all (decision J).
+      const mode = flags.archivedFrom ? "current_future" : "all";
+      events.push({ type: "archive", categoryId, mode });
+    }
+  }
+
+  // 4. setUserDefined — Σ RESERVE-wallet balances (surplus input only).
+  events.push({ type: "setUserDefined", cents: inputs.userDefinedCents });
+
+  return events;
 }
 
 export function getReservePositions(deps: GetReservePositionsDeps) {
   return async (
     input: GetReservePositionsInput,
-  ): Promise<Result<Map<string, ReservePosition>, Error>> => {
+  ): Promise<Result<ReservePositionsResult, Error>> => {
     try {
-      if (!/^\d{4}-\d{2}$/.test(input.month)) {
+      if (input.month && !/^\d{4}-\d{2}$/.test(input.month)) {
         return err(new Error("invalid_month"));
       }
-      let ym: Temporal.PlainYearMonth;
-      try {
-        ym = Temporal.PlainYearMonth.from(input.month);
-      } catch {
-        return err(new Error("invalid_month"));
-      }
-      const monthStart = ym.toPlainDate({ day: 1 }).toString();
-      const beforeMonthEnd = ym
-        .add({ months: 1 })
-        .toPlainDate({ day: 1 })
-        .toString();
 
-      const meta = await deps.summaryRepo.getBudgetMeta(
+      const inputs = await deps.eventLoader.load(
         input.tenantId,
         input.budgetId,
+        input.month,
       );
-      if (!meta) return err(new Error("budget_not_found"));
 
-      const [allocations, limits, spendByMonth, walletPoolCents] =
-        await Promise.all([
-          deps.reserveBalanceRepo.getForBudget(
-            input.budgetId,
-            input.tenantId,
-            new Date(),
-          ),
-          deps.categoryLimitRepo.effectiveForMonth(
-            input.tenantId,
-            input.budgetId,
-            monthStart,
-          ),
-          deps.transactionRepo.spendByCategoryByMonth(
-            input.tenantId,
-            input.budgetId,
-            beforeMonthEnd,
-          ),
-          deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
-        ]);
+      const events = mapInputsToEvents(inputs);
+      const engine = reserveEngine({
+        events,
+        openMonth: inputs.openMonth,
+        reservesEnabled: inputs.reservesEnabled,
+      });
 
-      const realPoolCents = walletPoolCents > 0n ? walletPoolCents : 0n;
-      let totalAllocatedCents = 0n;
-      const allocationByCat = new Map<string, bigint>();
-      for (const [catId, m] of allocations) {
-        const cents = moneyToCents(m);
-        allocationByCat.set(catId, cents);
-        totalAllocatedCents += cents;
+      // Group engine cells per category → byMonth maps + Σ overspent.
+      const byMonthByCat = new Map<
+        string,
+        Map<
+          string,
+          {
+            usedCents: bigint;
+            overspentCents: bigint;
+            overageCents: bigint;
+            leftCents: bigint;
+          }
+        >
+      >();
+      const overspentByCat = new Map<string, bigint>();
+      const usedByCat = new Map<string, bigint>();
+      for (const c of engine.cells) {
+        let byMonth = byMonthByCat.get(c.categoryId);
+        if (!byMonth) {
+          byMonth = new Map();
+          byMonthByCat.set(c.categoryId, byMonth);
+        }
+        byMonth.set(c.month, {
+          usedCents: c.usedCents,
+          overspentCents: c.overspentCents,
+          overageCents: c.overageCents,
+          leftCents: c.leftCents,
+        });
+        overspentByCat.set(
+          c.categoryId,
+          (overspentByCat.get(c.categoryId) ?? 0n) + c.overspentCents,
+        );
+        usedByCat.set(
+          c.categoryId,
+          (usedByCat.get(c.categoryId) ?? 0n) + c.usedCents,
+        );
       }
 
-      // Every category that has an allocation OR any spend needs a position.
+      // Build positions for every category the engine touched (states ∪ cells).
       const catIds = new Set<string>([
-        ...allocationByCat.keys(),
-        ...spendByMonth.keys(),
+        ...engine.states.keys(),
+        ...byMonthByCat.keys(),
       ]);
-
       const positions = new Map<string, ReservePosition>();
       for (const categoryId of catIds) {
-        const allocationCents = allocationByCat.get(categoryId) ?? 0n;
-        const lim = limits.get(categoryId) ?? { planned: 0n, cushion: 0n };
-        const activeBudget = meta.cushionModeEnabled
-          ? lim.cushion
-          : lim.planned;
-
-        // Per-category share of the real reserve money — the per-month draw cap.
-        const capCents =
-          totalAllocatedCents > 0n
-            ? (() => {
-                const share =
-                  (allocationCents * realPoolCents) / totalAllocatedCents;
-                return allocationCents < share ? allocationCents : share;
-              })()
-            : 0n;
-
-        const monthlySpend = spendByMonth.get(categoryId);
-        const months = monthlySpend
-          ? [...monthlySpend.values()].map((spent) => {
-              const surplus = activeBudget - spent;
-              // v1: underspend does not accrue reserve → clamp positives to 0.
-              return {
-                surplusCents: surplus < 0n ? surplus : 0n,
-                maxUsableCents: capCents,
-              };
-            })
-          : [];
-
-        const ledger = computeReserveLedger(allocationCents, months);
-        const expectedReserveCents = ledger.expectedReserveCents;
+        const state = engine.states.get(categoryId);
         positions.set(categoryId, {
           categoryId,
-          allocationCents,
-          cumulativeUsageCents: allocationCents - expectedReserveCents,
-          expectedReserveCents,
+          reserveCents: state?.reserveCents ?? 0n,
+          // U from the display cells (Σ cell.used == state.U when enabled; 0 when
+          // disabled per decision K — the engine zeroes per-month used in cells).
+          usedCents: usedByCat.get(categoryId) ?? 0n,
+          overspentCents: overspentByCat.get(categoryId) ?? 0n,
+          byMonth: byMonthByCat.get(categoryId) ?? new Map(),
         });
       }
 
-      return ok(positions);
+      const surplusCents = engine.surplusCents;
+      const direction: "TOPUP" | "WITHDRAW" | "NONE" =
+        surplusCents < 0n ? "TOPUP" : surplusCents > 0n ? "WITHDRAW" : "NONE";
+
+      return ok({
+        positions,
+        internalCents: engine.internalCents,
+        userDefinedCents: engine.userDefinedCents,
+        surplusCents,
+        direction,
+      });
     } catch (e) {
       return err(e as Error);
     }

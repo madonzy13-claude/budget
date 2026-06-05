@@ -50,7 +50,10 @@ import { searchTransactions } from "../application/search-transactions";
 import { bulkRecategorize } from "../application/bulk-recategorize";
 import { reconcileProjections } from "../application/reconcile-projections";
 import { replayProjections } from "../application/replay-projections";
-import { withInfraTx } from "@budget/platform";
+import { withInfraTx, withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
+import { recomputeReserveTopupTask } from "../application/recompute-reserve-topup-task";
+import type { TenantTx } from "../ports/task-repo";
 import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
 import { createReserveBalanceRepo } from "../adapters/persistence/reserve-balance-repo";
@@ -64,6 +67,7 @@ import { adjustCategoryReserve } from "../application/adjust-category-reserve";
 import { toggleCategoryReserveExcluded } from "../application/toggle-category-reserve-excluded";
 import { getReservesSummary } from "../application/get-reserves-summary";
 import { getReservePositions } from "../application/get-reserve-positions";
+import { createReserveEventLoaderRepo } from "../adapters/persistence/reserve-event-loader-repo";
 import { createSpendingsSummaryRepo } from "../adapters/persistence/spendings-summary-repo";
 
 export interface BudgetingDeps {
@@ -128,6 +132,14 @@ export interface BudgetingModule {
   >;
   getReservesSummary: ReturnType<typeof getReservesSummary>;
   reservePositions: ReturnType<typeof getReservePositions>;
+  /** A2-fallback recompute of the RESERVE_TOPUP task in its own tx. Called by
+   *  transaction routes after a create/edit/confirm/delete so the task shortfall
+   *  tracks the reserve pool (transactions change usage → expected reserve). */
+  recomputeReserveTopup: (input: {
+    tenantId: string;
+    budgetId: string;
+    actorUserId: string;
+  }) => Promise<void>;
 }
 
 /** Checks budgets.reserves_enabled for the given tenantId. */
@@ -179,18 +191,49 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
   const categoriesRepo = new DrizzleCategoriesRepo();
 
-  // Cumulative reserve positions (allocation − usage). Shared by the reserves
-  // tab display and the RESERVE_TOPUP reconciliation so both reflect usage.
-  const reservePositions = getReservePositions({
-    reserveBalanceRepo: createReserveBalanceRepo(),
-    categoryLimitRepo: limitRepo,
+  // Replay orchestrator (05-12): loads the ordered reserve events for the budget
+  // and folds them through reserve-engine. Shared by the reserves tab display and
+  // (05-13) the RESERVE_TOPUP reconciliation so both read ONE engine-derived
+  // reserve per category. The event-loader (05-11) owns spend/limit/cushion/
+  // adjustment/flag/wallet reads + RLS — the old VIEW-derived deps are gone.
+  const reserveEventLoader = createReserveEventLoaderRepo({
     transactionRepo,
+    categoryLimitRepo: limitRepo,
     reservesSummaryRepo,
-    summaryRepo: createSpendingsSummaryRepo(),
+  });
+  const reservePositions = getReservePositions({
+    eventLoader: reserveEventLoader,
   });
 
   return {
     fxProvider,
+    // Phase 7 follow-up: transactions change reserve usage (cumulative
+    // overspend draw), so the RESERVE_TOPUP shortfall must be recomputed after
+    // every transaction mutation — otherwise the task message goes stale until
+    // the hourly sweep. Own-tx A2 fallback (same pattern as adjustCategoryReserve).
+    recomputeReserveTopup: async (input) => {
+      const isEnabled = await isReservesEnabled(input.tenantId);
+      // Skip the tx entirely when reserves are off and no task could exist.
+      await withTenantTx(
+        TenantId(input.tenantId),
+        UserId(input.actorUserId),
+        async (tx) => {
+          await recomputeReserveTopupTask(
+            tx as unknown as TenantTx,
+            { tenantId: input.tenantId, budgetId: input.budgetId },
+            {
+              taskRepo: createTaskRepo(),
+              categoriesRepo,
+              reserveBalanceRepo: createReserveBalanceRepo(),
+              reservesSummaryRepo,
+              budgetCurrencyOf: getWorkspaceDefaultCurrency,
+              isReservesEnabled: async () => isEnabled,
+              reservePositions,
+            },
+          );
+        },
+      );
+    },
     // Wallet methods (Plan 01-03 route rename)
     // Phase 7 (D-PH7-19): inject taskRepo + fxProvider so a new CUSHION
     // wallet auto-emits/resolves CUSHION_BELOW_TARGET.
