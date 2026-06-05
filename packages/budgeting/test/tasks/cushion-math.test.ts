@@ -137,8 +137,8 @@ async function seedBudget(input: SeedBudgetInput): Promise<SeededBudget> {
       categoryId = crypto.randomUUID();
       await client.query(
         `INSERT INTO budgeting.categories
-           (id, tenant_id, name, sort_index, reserve_excluded, reserve_actual_cents, actor_user_id, created_at)
-         VALUES ($1, $2, 'Test Category', 0, false, 0, $3, now())`,
+           (id, tenant_id, name, sort_index, reserve_excluded, actor_user_id, created_at)
+         VALUES ($1, $2, 'Test Category', 0, false, $3, now())`,
         [categoryId, budgetId, userId],
       );
       // SCD-2 active row: effective_from <= today, effective_to NULL.
@@ -787,6 +787,60 @@ describe("recompute-cushion-task math", () => {
     expect(payload?.required_cents).toBe("120000");
     expect(payload?.actual_cents).toBe("100000");
     expect(payload?.target_months).toBe(6);
+  });
+
+  it("REFRESHES an already-pending task payload when the shortfall grows (no stale amount)", async () => {
+    // Live bug: a CUSHION_BELOW_TARGET task is already PENDING at €5,300, then a
+    // category cushion rises → settings recompute €8,900 but the task kept €5,300
+    // because emit used ON CONFLICT DO NOTHING. The emit must DO UPDATE the payload.
+    // target=9, cushion €800 → required €7,200; wallet €1,900 → shortfall €5,300.
+    const seeded = await seedBudget({
+      cushionEnabled: true,
+      cushionTargetMonths: 9,
+      defaultCurrency: "EUR",
+      categoryCushionCents: 80000n,
+      cushionWallets: [{ currency: "EUR", amountCents: 190000n }],
+    });
+    expect(seeded.categoryId).not.toBeNull();
+
+    const fxProvider = stubFxProvider({});
+    const taskRepo = createTaskRepo();
+    const recompute = () =>
+      withTenantTx(
+        TenantId(seeded.budgetId),
+        UserId(seeded.userId),
+        async (tx) => {
+          await recomputeCushionTask(
+            tx as unknown as {
+              execute: (
+                q: unknown,
+              ) => Promise<{ rows: Record<string, unknown>[] }>;
+            },
+            { tenantId: seeded.budgetId, budgetId: seeded.budgetId },
+            { taskRepo, fxProvider },
+          );
+        },
+      );
+
+    await recompute();
+    expect(await countPendingCushionTasks(seeded.budgetId)).toBe(1);
+    let payload = await readPendingCushionPayload(seeded.budgetId);
+    expect(payload?.shortfall_cents).toBe("530000"); // €5,300
+
+    // Raise the category cushion €800 → €1,200: required €10,800, shortfall €8,900.
+    await setCategoryCushionAmount(
+      seeded.budgetId,
+      seeded.userId,
+      seeded.categoryId!,
+      120000n,
+      "EUR",
+    );
+    await recompute();
+
+    expect(await countPendingCushionTasks(seeded.budgetId)).toBe(1); // still one
+    payload = await readPendingCushionPayload(seeded.budgetId);
+    expect(payload?.shortfall_cents).toBe("890000"); // REFRESHED €8,900, NOT stale €5,300
+    expect(payload?.required_cents).toBe("1080000");
   });
 });
 

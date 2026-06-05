@@ -131,8 +131,8 @@ async function seedBudgetWithRule(opts?: {
 
     await client.query(
       `INSERT INTO budgeting.categories
-         (id, tenant_id, name, sort_index, reserve_excluded, reserve_actual_cents, actor_user_id, created_at)
-       VALUES ($1, $2, 'Test Category', 0, false, 0, $3, now())`,
+         (id, tenant_id, name, sort_index, reserve_excluded, actor_user_id, created_at)
+       VALUES ($1, $2, 'Test Category', 0, false, $3, now())`,
       [categoryId, budgetId, userId],
     );
 
