@@ -189,10 +189,17 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | -------- | ---- | ------ | ----------- |
 | _(none)_ |      |        |             |
 
+### Plan 05-11 Decisions (recorded 2026-06-05, execution)
+
+- Reset reserve persistence to replay-on-read (decision B): migration 0030 dropped `categories.reserve_actual_cents` + the `category_reserve_balance` VIEW (applied to live DB; types regenerate from new shape). Kept `category_reserve_adjustments`, `reserves_enabled`, archive cols, `budget_mode_history`, RESERVE wallets.
+- Added `ReserveEventLoaderRepo` (clean port + Drizzle adapter) returning the 8 raw `ReserveEventInputs` the keystone `reserve-engine.ts` consumes; raw→`ReserveEngineEvent[]` mapping deferred to the 05-12 orchestrator. Adapter composes existing ports + in-adapter SQL only.
+- Removed the orphaned `GRANT SELECT ON budgeting.category_reserve_balance` from `apps/migrator/post-migration.sql` (ran on every migrate, errored 42P01 after the VIEW drop).
+- Deferred (05-13/05-16): ~18 src files + boot.ts still reference the dropped VIEW / `createReserveBalanceRepo`; compile-clean but VIEW reads now fail at query time until 05-12 swaps to the event loader.
+
 ## Session Continuity
 
-Last session: 2026-05-30T22:46:37.188Z
-Stopped at: Phase 7 UI-SPEC approved
+Last session: 2026-06-05T09:54:00.000Z
+Stopped at: Phase 7 UI-SPEC approved (Phase 5 reserve-rewrite plan 05-11 executed on tasks-redesign branch)
 Resume file: .planning/phases/07-tasks-queue/07-UI-SPEC.md
 
 ## v1.0 History (archived)
