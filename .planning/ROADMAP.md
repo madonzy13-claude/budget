@@ -148,7 +148,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 05-11-PLAN.md — Wave 1: Persistence reset — migration 0030 DROPs `category_reserve_balance` VIEW + `reserve_actual_cents` ([BLOCKING] migrate) + `reserve-event-loader` port/adapter + integration test
 - [x] 05-12-PLAN.md — Wave 3: `get-reserve-positions` replay orchestrator (event-loader → engine) + reshaped `get-reserves-summary`/builder/`get-spendings-summary` consumers
 - [x] 05-13-PLAN.md — Wave 4: Use-cases — delta-only `adjust-category-reserve` + surplus `RESERVE_TOPUP`; wallet edits set userDefined only; both category-deletion modes; exclude (no sibling spill); drop `setReserveActualMany` (completed 2026-06-05)
-- [ ] 05-14-PLAN.md — Wave 5: Contracts + API reshape — `ReservesSummaryDto` → reserve/used/overspent/internal/userDefined/surplus(+direction); factory+boot rewire; route integration tests (drop expected/actual/walletShare%/mismatch)
+- [x] 05-14-PLAN.md — Wave 5: Contracts + API reshape — `ReservesSummaryDto` → reserve/used/overspent/internal/userDefined/surplus(+direction); factory+boot rewire; route integration tests (drop expected/actual/walletShare%/mismatch)
 - [ ] 05-15-PLAN.md — Wave 6 (autonomous=false): UI reshape — single reserve + used + surplus banner; spendings used+overspent; DELETE web `reserve-allocator.ts` + `mismatch-chip.tsx`; `@tasks-redesign` reserves E2E (+ [BLOCKING] rebuild web)
 - [ ] 05-16-PLAN.md — Wave 7 (autonomous=false): Dead-code removal sweep (greedy allocator + VIEW reader grep-clean) + full gates (golden + round-trip + make test + ci-gate + @tasks-redesign E2E) + PL/UK i18n + `graphify update`
 

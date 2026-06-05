@@ -103,3 +103,58 @@ fields. Out of 05-13's scope (web), flagged for 05-15:
   `0e342a1` (05-12 baseline) before any 05-13 work — SPENDINGS wallet, GET route
   untouched by reserves. Out of scope (test-vs-DTO field-name drift); a wallets
   plan should update the assertion to `currentBalanceCents`.
+
+# Deferred items — discovered during 05-14 execution
+
+## Home-summary / reserve-balance-repo VIEW-read finding (RESOLVED: no live 500 risk)
+
+The "also check" concern (does any LIVE read path still hit the dropped
+`budgeting.category_reserve_balance` VIEW → 500 at runtime?) was investigated
+and is **clear**:
+
+- `reserve-balance-repo.ts.getForBudget()` (reads the dropped VIEW, lines 76/302/ 329) has **ZERO live call sites** in `src` (`grep -rn "\.getForBudget(" apps
+packages | grep -v test` → empty).
+- `budget-home-summary-repo.ts` computes reserve/cushion via its OWN inline SQL
+  against `budgeting.category_limits` (cushion_amount), NOT the VIEW. It only
+  mentions `reserve-balance-repo` in a doc COMMENT. So the budget HOME summary
+  read path does NOT touch the dropped VIEW — no 500.
+- `reserve-event-loader-repo.ts` mentions `reserve-balance-repo` only in a comment
+  ("Replaces the VIEW-based reserve-balance-repo reads"); it reads raw events, not
+  the VIEW.
+
+**05-14 change:** removed the last live WIRING of `reserve-balance-repo` —
+
+- factory.ts: deleted the `reserveBalanceRepo` BudgetingModule field +
+  `createReserveBalanceRepo`/`ReserveBalanceRepo` imports (zero readers; the
+  `module.reserveBalanceRepo` field had no consumer anywhere, incl. worker).
+- boot.ts: deleted the dead `reserveBalanceRepo` + `reservesSummaryRepo` (+ unused
+  `DrizzleCategoriesRepo`) constructions/imports.
+
+The api boots clean + healthy after this (composition root has no live dep on the
+repo). This SUPERSEDES the 05-16 note above ("STILL WIRED into live boot.ts ...
+NOT dead yet"): `reserve-balance-repo.ts` + its port + the `DrizzleReservesSummaryRepo`
+`sumReserveWalletAmounts`-only usage are now the ONLY remaining surface.
+
+## 05-16 (delete orphaned code) — UPDATED after 05-14
+
+- `reserve-balance-repo.ts` + `ports/reserve-balance-repo.ts` are now fully
+  orphaned (no `src` importer after 05-14 removed the boot/factory field). Safe to
+  DELETE in 05-16 along with the dropped-VIEW SQL. Confirm `apps/worker/src/worker.ts`
+  (only a comment reference today) stays clean.
+- `reserves-summary-repo.ts` is STILL LIVE but trimmed to a single method —
+  `sumReserveWalletAmounts` (Σ RESERVE-wallet `current_balance`), consumed by the
+  event-loader for `userDefinedCents`. Do NOT delete the class; the old greedy
+  share methods (if any remain) can be pruned. Verify before removing anything.
+
+## 05-15 (web reshape) — still outstanding (unchanged by 05-14)
+
+The `/reserves` + `/spendings-summary` WIRE contracts are now locked to the engine
+shape (rows{reserveCents,usedCents,overspentCents}; totals{internalCents,
+userDefinedCents,surplusCents,direction,disabled,budgetCurrency}; adjust →
+{reserveCents,deltaCents,summary}; spendings categories carry reserveUsedCents +
+overspentCents + balanceCents, NO reserveAvailableCents). The web hooks/components
+still consume the OLD shape and must be reshaped in 05-15:
+
+- `apps/web/src/hooks/use-spendings-summary.ts`, `use-create-transaction.ts`,
+  `use-update-reserve-adjustment.ts`, `apps/web/src/lib/reserve-allocator.ts`
+  (delete the dead mirror), and the reserves-tab + spendings-grid components.

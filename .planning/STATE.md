@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 05 plan 05-13 executed (reserve mutation rewrite) on tasks-redesign branch
-last_updated: "2026-06-05T10:59:31.717Z"
+stopped_at: Phase 05 plan 05-14 executed (reserve contracts + API routes reshape) on tasks-redesign branch
+last_updated: "2026-06-05T11:20:44.244Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 56
-  completed_plans: 53
-  percent: 95
+  completed_plans: 54
+  percent: 96
 ---
 
 # Project State
@@ -87,6 +87,7 @@ _Updated after each plan completion_
 | Phase 05-reserves-wallets-tabs P08 | 180 | 5 tasks | 18 files |
 | Phase 05 P12 | 31m | 3 tasks | 16 files |
 | Phase 05 P13 | 23min | 3 tasks | 16 files |
+| Phase 05 P14 | 25m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase ?]: 05-12: get-reserve-positions is the replay orchestrator (event-loader → reserve-engine); reserves/spendings summaries consume engine cells
 - [Phase ?]: 05-12: reserves DTO reshaped to reserve/used/overspent + internal/userDefined/surplus(+direction); old VIEW/actual/share/mismatch removed
 - [Phase ?]: [Phase 05]: Plan 05-13 — reserve mutations rewritten to the replay model (delta-only adjust = target−currentR, userDefined-only wallet edits, surplus-driven RESERVE_TOPUP); greedy allocator + stored reserveActualCents deleted. Executed on tasks-redesign branch parallel to the main Phase-07 cursor.
+- [Phase 05]: 05-14 — reserve HTTP contracts locked to the engine shape: /reserves rows{reserveCents,usedCents,overspentCents} + totals{internal,userDefined,surplus,direction,disabled,budgetCurrency}; adjust → {reserveCents,deltaCents,summary}; spendings carries reserveUsedCents+overspentCents+balanceCents (no reserveAvailableCents). Routes are thin forwarders — DTO shaped in the use-case, zero route field-logic change. Real-Postgres integration tests assert key-presence + dead-key absence + adjust ledger delta + disabled path (25 reserve-route tests green).
+- [Phase 05]: 05-14 — reserve-balance-repo.ts is now fully orphaned: removed the BudgetingModule field (factory) + the dead boot constructions; getForBudget has ZERO live callers and budget-home-summary-repo reads category_limits, NOT the dropped category_reserve_balance VIEW → no live 500 risk. File deletion deferred to 05-16. Executed on tasks-redesign branch parallel to the Phase-07 cursor (which stays at plan 2 of 10).
 
 ### Pending Todos
 
@@ -203,8 +206,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-05T10:59:31.695Z
-Stopped at: Phase 05 plan 05-13 executed (reserve mutation rewrite) on tasks-redesign branch
+Last session: 2026-06-05T11:19:16.850Z
+Stopped at: Phase 05 plan 05-14 executed (reserve contracts + API routes reshape; factory/boot rewired, /reserves + /spendings-summary new-shape integration tests green) on tasks-redesign branch
 Resume file: None
 
 ## v1.0 History (archived)
