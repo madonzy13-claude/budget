@@ -40,9 +40,10 @@ export default async function ReservesPage({ params }: PageProps) {
         rows: [],
         excludedRows: [],
         totals: {
-          totalCategoryReservesCents: "0",
-          totalReserveWalletAmountCents: "0",
-          mismatchCents: "0",
+          internalCents: "0",
+          userDefinedCents: "0",
+          surplusCents: "0",
+          direction: "NONE" as const,
           disabled: false,
           budgetCurrency: "EUR",
         },

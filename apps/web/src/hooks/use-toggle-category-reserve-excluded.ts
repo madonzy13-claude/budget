@@ -3,15 +3,20 @@
  * use-toggle-category-reserve-excluded.ts — Mutation to toggle a category's
  * reserve_excluded flag via PATCH /budgets/:id/categories/:categoryId/reserve-excluded.
  *
- * W-3 optimistic row-move contract:
- *   excluded=true  → move row from summary.rows → summary.excludedRows (strip share fields)
- *                    and DECREMENT totals.totalCategoryReservesCents by its balance.
- *   excluded=false → move row from summary.excludedRows → summary.rows (share fields null
- *                    until refetch computes real share math)
- *                    and INCREMENT totals.totalCategoryReservesCents by its balance.
- * In both cases: recompute mismatchCents = totalReserveWalletAmountCents - totalCategoryReservesCents.
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): rows carry the engine shape
+ * {reserveCents, usedCents, overspentCents}; totals carry
+ * {internalCents, userDefinedCents, surplusCents, direction, ...}. Excluding a
+ * category drops its reserve out of internal (Σ active R); restoring adds it
+ * back. Surplus = userDefined − internal; direction follows the sign.
  *
- * On success: invalidate ["budget", budgetId, "reserves"] so real share math populates.
+ * W-3 optimistic row-move contract:
+ *   excluded=true  → move row from summary.rows → summary.excludedRows;
+ *                    recompute internal/surplus/direction without it.
+ *   excluded=false → move row from summary.excludedRows → summary.rows;
+ *                    recompute internal/surplus/direction including it.
+ *
+ * On success/settle: invalidate ["budget", budgetId, "reserves"] so the engine
+ * re-derives the authoritative positions.
  * On error: roll back via captured previous snapshot + toast toggleFailed.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,10 +24,8 @@ import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
-import type {
-  ReservesSummaryDto,
-  ReservesSummaryRow,
-} from "./use-reserves-summary";
+import type { ReservesSummaryDto } from "./use-reserves-summary";
+import { recomputeTotals } from "./use-update-reserve-adjustment";
 
 export function useToggleCategoryReserveExcluded(budgetId: string) {
   const qc = useQueryClient();
@@ -64,41 +67,24 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
           if (!old) return old;
 
           if (input.excluded) {
-            // Active → Excluded: find in rows, strip share fields, append to excludedRows
+            // Active → Excluded: find in rows, append to excludedRows.
             const idx = old.rows.findIndex(
               (r) => r.categoryId === input.categoryId,
             );
             if (idx < 0) return old;
             const row = old.rows[idx]!;
-            const movedRow: ReservesSummaryRow = {
-              ...row,
-              walletSharePercent: null,
-              walletShareAmountCents: null,
-            };
             const newRows = [
               ...old.rows.slice(0, idx),
               ...old.rows.slice(idx + 1),
             ];
-            const newTotal = (
-              BigInt(old.totals.totalCategoryReservesCents) -
-              BigInt(row.reserveBalanceCents)
-            ).toString();
-            const newMismatch = (
-              BigInt(old.totals.totalReserveWalletAmountCents) -
-              BigInt(newTotal)
-            ).toString();
             return {
               ...old,
               rows: newRows,
-              excludedRows: [...old.excludedRows, movedRow],
-              totals: {
-                ...old.totals,
-                totalCategoryReservesCents: newTotal,
-                mismatchCents: newMismatch,
-              },
+              excludedRows: [...old.excludedRows, row],
+              totals: recomputeTotals(newRows, old.totals),
             };
           } else {
-            // Excluded → Active: find in excludedRows, append to rows
+            // Excluded → Active: find in excludedRows, append to rows.
             const idx = old.excludedRows.findIndex(
               (r) => r.categoryId === input.categoryId,
             );
@@ -108,30 +94,12 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
               ...old.excludedRows.slice(0, idx),
               ...old.excludedRows.slice(idx + 1),
             ];
-            const newTotal = (
-              BigInt(old.totals.totalCategoryReservesCents) +
-              BigInt(row.reserveBalanceCents)
-            ).toString();
-            const newMismatch = (
-              BigInt(old.totals.totalReserveWalletAmountCents) -
-              BigInt(newTotal)
-            ).toString();
+            const newRows = [...old.rows, row];
             return {
               ...old,
-              rows: [
-                ...old.rows,
-                {
-                  ...row,
-                  walletSharePercent: null,
-                  walletShareAmountCents: null,
-                },
-              ],
+              rows: newRows,
               excludedRows: newExcluded,
-              totals: {
-                ...old.totals,
-                totalCategoryReservesCents: newTotal,
-                mismatchCents: newMismatch,
-              },
+              totals: recomputeTotals(newRows, old.totals),
             };
           }
         },

@@ -1,6 +1,11 @@
 "use client";
 /**
- * reserves-table-row.tsx — 3-cell row for the Reserves tab.
+ * reserves-table-row.tsx — row for the Reserves tab (NEW engine model).
+ *
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): an active row renders ONE
+ * editable Reserve value (R, `reserveCents`) + a read-only Used value
+ * (U, `usedCents`). The old Expected/Actual/Share% triple and the underfunded
+ * red-share logic are GONE.
  *
  * UAT-PH5-T3-55:
  *   - Actions column dropped (no MoreHorizontal placeholder).
@@ -9,12 +14,10 @@
  *     and lives behind the row's opaque background. DnD still works:
  *     the drag handle (data-testid="drag-grip-*") opts out of the swipe
  *     pointer listener via `isInteractive`.
- *   - Excluded rows render NAME ONLY — no balance, no share dashes.
+ *   - Excluded rows render NAME ONLY — no reserve, no used.
  *
  * T-05-05: InlineEditCell disabled={true} on Excluded rows — click is a no-op.
  * T-05-10: category name rendered as plain JSX text — React auto-escapes.
- * D-PH5-R4: em-dash logic on share column when walletSharePercent===null.
- * D-PH5-R10: Active rows render REAL reserveBalanceCents.
  *
  * W-5 contract: data-category-id on every row for downstream plan consumers.
  */
@@ -73,8 +76,6 @@ export function ReservesTableRow({
     useDraggable({
       id: row.categoryId,
     });
-
-  const sharePct = row.walletSharePercent;
 
   // ─── Mobile swipe-left action (UAT-PH5-T3-55) ────────────────────────────
   // UAT round 7: bumped from 88 → 120 so longer localized swipe labels
@@ -302,10 +303,10 @@ export function ReservesTableRow({
           </span>
         </div>
 
-        {/* Excluded rows render name-only (UAT-PH5-T3-55) — no balance, no share. */}
+        {/* Excluded rows render name-only (UAT-PH5-T3-55) — no reserve, no used. */}
         {!isExcluded && (
           <>
-            {/* Reserve balance ("Expected") — editable on Active.
+            {/* Reserve (R) — the single editable reserve value.
                 UAT-PH5-T3-57: pass the DECIMAL-DISPLAY string (e.g. "8")
                 as InlineEditCell value so the cell's equality check
                 compares decimal-vs-decimal. Earlier we passed the raw
@@ -318,16 +319,13 @@ export function ReservesTableRow({
                 // value is the editor source — keep it a clean separator-free
                 // decimal so the edit round-trip + no-op compare stay locale-
                 // agnostic; the resting display below is locale-grouped.
-                value={centsToBare(row.reserveBalanceCents).replace(
-                  /[^0-9.-]/g,
-                  "",
-                )}
-                ariaLabel={t("balanceAria", { name: row.name })}
+                value={centsToBare(row.reserveCents).replace(/[^0-9.-]/g, "")}
+                ariaLabel={t("reserveAria", { name: row.name })}
                 disabled={false}
                 testId={`reserves-balance-${row.categoryId}`}
                 render={() => (
                   <span className="text-num-md text-[var(--foreground)]">
-                    {centsToBare(row.reserveBalanceCents, locale)}
+                    {centsToBare(row.reserveCents, locale)}
                   </span>
                 )}
                 renderEditor={(draft, onChange, _onCommit, onCancel) => (
@@ -356,59 +354,23 @@ export function ReservesTableRow({
               />
             </div>
 
-            {/* Actual amount cell. UAT-PH5-T3-60 split: amount + percent
-                now in separate columns. UAT-PH5-T3-61: when builder
-                returns null (no reserve wallets → sumActiveActual=0n),
-                render literal 0 and 0% instead of em-dash so the user
-                still sees a numeric baseline. UAT-PH5-T3-64: zero actual
-                inherits the underfunded red colour when the row expects
-                more than 0 cents — same rule as the populated branch
-                (balanceCents > shareCents), so the deficit indicator
-                survives the zero-wallet-pool collapse. */}
-            <div className="w-[64px] text-right text-num-md sm:w-[100px]">
-              {sharePct === null
-                ? (() => {
-                    const expected = BigInt(row.reserveBalanceCents);
-                    const underfunded = expected > 0n;
-                    return (
-                      <span
-                        className={
-                          underfunded
-                            ? "text-[var(--destructive)]"
-                            : "text-[var(--foreground)]"
-                        }
-                        aria-label={t("zeroActualAria")}
-                      >
-                        0
-                      </span>
-                    );
-                  })()
-                : (() => {
-                    const balanceCents = BigInt(row.reserveBalanceCents);
-                    const shareCents = BigInt(row.walletShareAmountCents!);
-                    const underfunded = balanceCents > shareCents;
-                    return (
-                      <span
-                        className={
-                          underfunded ? "text-[var(--destructive)]" : undefined
-                        }
-                      >
-                        {centsToBare(row.walletShareAmountCents!, locale)}
-                      </span>
-                    );
-                  })()}
-            </div>
-
-            {/* Share % cell — UAT-PH5-T3-61: literal 0% when share is null.
-                UAT-PH5-T3-62: hidden on mobile (sm:block) since the
-                amount cell already conveys the relative weight at a
-                glance for the smaller viewport. */}
-            <div className="hidden text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]">
-              {sharePct === null ? (
-                <span aria-label={t("zeroShareAria")}>0%</span>
-              ) : (
-                <span>{sharePct.toFixed(0)}%</span>
-              )}
+            {/* Used (U) — read-only reserve consumed by overspend. Rendered
+                in the muted "used" tone; a non-zero value signals reserve
+                that has already been drawn down to cover overspend. */}
+            <div
+              className="w-[64px] text-right text-num-md sm:w-[100px]"
+              data-testid={`reserves-used-${row.categoryId}`}
+            >
+              <span
+                className={
+                  BigInt(row.usedCents) > 0n
+                    ? "text-[var(--warning)]"
+                    : "text-[var(--muted-foreground)]"
+                }
+                aria-label={t("usedAria", { name: row.name })}
+              >
+                {centsToBare(row.usedCents, locale)}
+              </span>
             </div>
           </>
         )}

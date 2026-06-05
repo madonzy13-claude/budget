@@ -1,13 +1,16 @@
 /**
  * reserves-table-client-excluded.test.tsx — Vitest+RTL tests for ReservesTableClient.
  *
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): rows carry the engine shape
+ * {reserveCents, usedCents, overspentCents}; totals carry
+ * {internalCents, userDefinedCents, surplusCents, direction, disabled, ...}.
+ *
  * W-3 acceptance contract:
- * - Active section sources rows from summary.rows
- * - Excluded section sources rows from summary.excludedRows (NOT synthesized, NOT from /categories)
- * - Excluded row renders FROZEN REAL reserveBalanceCents (NOT em-dash, NOT zero)
- * - Excluded row has opacity-50 styling AND share column shows "—"
- * - clientApiFetch is NEVER called with a /categories path (W-3 single-source-of-truth)
+ * - Active section sources rows from summary.rows (reserve + used cells)
+ * - Excluded section sources rows from summary.excludedRows (name-only)
+ * - clientApiFetch is NEVER called with a /categories path (single source of truth)
  * - When totals.disabled=true, renders "Reserves disabled" notice
+ * - The SurplusBanner renders in the totals footer with the engine direction
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -37,6 +40,7 @@ vi.mock("@dnd-kit/core", () => ({
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
 }));
 
 const fetchMock = vi.fn();
@@ -59,24 +63,25 @@ const initial: ReservesSummaryDto = {
     {
       categoryId: "A",
       name: "Housing",
-      reserveBalanceCents: "30000",
-      walletSharePercent: 30.0,
-      walletShareAmountCents: "30000",
+      reserveCents: "30000",
+      usedCents: "0",
+      overspentCents: "0",
     },
   ],
   excludedRows: [
     {
       categoryId: "B",
       name: "Hobbies",
-      reserveBalanceCents: "50000",
-      walletSharePercent: null,
-      walletShareAmountCents: null,
+      reserveCents: "50000",
+      usedCents: "0",
+      overspentCents: "0",
     },
   ],
   totals: {
-    totalCategoryReservesCents: "30000",
-    totalReserveWalletAmountCents: "30000",
-    mismatchCents: "0",
+    internalCents: "30000",
+    userDefinedCents: "30000",
+    surplusCents: "0",
+    direction: "NONE",
     disabled: false,
     budgetCurrency: "EUR",
   },
@@ -95,48 +100,65 @@ function renderClient(overrideInitial?: Partial<ReservesSummaryDto>) {
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 
-describe("ReservesTableClient — W-3 excluded rows contract", () => {
+describe("ReservesTableClient — engine model + W-3 excluded rows", () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    // Return an empty response so useReservesSummary refetch does not overwrite initialData
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => initial,
     });
   });
 
-  it("Active section renders the Housing row with balance", () => {
+  it("Active section renders the Housing row with a reserve cell", () => {
     renderClient();
     const activeSection = screen.getByTestId("reserves-active-section");
-    expect(activeSection).toBeInTheDocument();
-    // Housing row should be inside the active section
     const housingRow = screen.getByTestId("reserves-row-A");
     expect(activeSection).toContainElement(housingRow);
+    expect(
+      housingRow.querySelector('[data-testid="reserves-balance-A"]'),
+    ).not.toBeNull();
+    expect(
+      housingRow.querySelector('[data-testid="reserves-used-A"]'),
+    ).not.toBeNull();
   });
 
-  it("Excluded section renders Hobbies as a name-only row (UAT-PH5-T3-55)", () => {
+  it("Excluded section renders Hobbies as a name-only row (no reserve, no used)", () => {
     renderClient();
     const excludedSection = screen.getByTestId("reserves-excluded-section");
-    expect(excludedSection).toBeInTheDocument();
-
     const hobbiesRow = screen.getByTestId("reserves-row-B");
     expect(excludedSection).toContainElement(hobbiesRow);
     expect(hobbiesRow.textContent).toMatch(/Hobbies/);
-
-    // No balance cell, no share dashes on excluded rows.
     expect(
       hobbiesRow.querySelector('[data-testid="reserves-balance-B"]'),
     ).toBeNull();
-    expect(hobbiesRow.querySelector("[aria-label='No share']")).toBeNull();
+    expect(
+      hobbiesRow.querySelector('[data-testid="reserves-used-B"]'),
+    ).toBeNull();
   });
 
-  it("Excluded row has opacity-50 class", () => {
+  it("renders the surplus banner in the totals footer", () => {
     renderClient();
-    const hobbiesRow = screen.getByTestId("reserves-row-B");
-    expect(hobbiesRow.className).toContain("opacity-50");
+    const banner = screen.getByTestId("reserves-surplus-banner");
+    expect(banner).toHaveAttribute("data-direction", "NONE");
   });
 
-  it("clientApiFetch is NEVER called with a /categories path (W-3 single-source-of-truth)", () => {
+  it("renders the TOPUP surplus banner when internal exceeds userDefined", () => {
+    renderClient({
+      totals: {
+        ...initial.totals,
+        internalCents: "50000",
+        userDefinedCents: "30000",
+        surplusCents: "-20000",
+        direction: "TOPUP",
+      },
+    });
+    expect(screen.getByTestId("reserves-surplus-banner")).toHaveAttribute(
+      "data-direction",
+      "TOPUP",
+    );
+  });
+
+  it("clientApiFetch is NEVER called with a /categories path (single-source-of-truth)", () => {
     renderClient();
     const categoriesCalls = fetchMock.mock.calls.filter(
       ([url]: [string]) =>

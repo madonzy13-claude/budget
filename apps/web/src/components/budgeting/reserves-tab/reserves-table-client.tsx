@@ -5,10 +5,13 @@
  * W-3 contract: Active section = summary.data.rows; Excluded section = summary.data.excludedRows.
  * Both arrays come from the SINGLE GET /reserves response — no separate categories fetch.
  *
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): active rows render the single
+ * Reserve (R) value + Used (U); the budget-level SurplusBanner (top-up /
+ * withdraw / reconciled) sits in the totals footer. The old Expected/Actual/
+ * Share columns + MismatchChip are GONE.
+ *
  * T-05-06: When totals.disabled === true, render notice instead of table.
  * T-05-05: Excluded rows get isExcluded={true} → InlineEditCell disabled → no-op on click.
- * D-PH5-R10: Excluded rows show FROZEN REAL reserveBalanceCents from excludedRows array.
- * D-PH5-R4: Em-dash in share column when walletSharePercent===null OR isExcluded.
  *
  * DnD: cross-section drag Active ↔ Excluded. Drop target is either droppable zone.
  * On drag-end: call useToggleCategoryReserveExcluded with the new excluded state.
@@ -167,30 +170,30 @@ export function ReservesTableClient({
       >
         {/* UAT-PH5-T3-53: single top banner on every viewport. Sits
             inside the page's flex column so its width matches the
-            category list naturally. No more bottom sticky footer. */}
+            category list naturally. Now carries the SurplusBanner
+            (top-up / withdraw / reconciled) sourced from the engine
+            totals (internal vs userDefined). */}
         <ReservesTotalsFooter
-          totalCategoryCents={summary.data.totals.totalCategoryReservesCents}
-          totalWalletCents={summary.data.totals.totalReserveWalletAmountCents}
-          mismatchCents={summary.data.totals.mismatchCents}
+          internalCents={summary.data.totals.internalCents}
+          userDefinedCents={summary.data.totals.userDefinedCents}
+          surplusCents={summary.data.totals.surplusCents}
+          direction={summary.data.totals.direction}
           currency={budgetCurrency}
         />
 
         {/* Active section — column headers replace the section caption
             (UAT-PH5-T3-55: dropped "Active" h3; column headers sit
-            where it was, inline above the row list). Actions column
-            removed per same item. */}
+            where it was, inline above the row list). New engine model:
+            Category / Reserve / Used. */}
         <ActiveSection>
           <div className="flex items-center gap-3 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
             <span className="w-4" aria-hidden="true" />
             <span className="min-w-0 flex-1">{t("column.category")}</span>
             <span className="w-[72px] text-right sm:w-[120px]">
-              {t("column.expected")}
+              {t("column.reserve")}
             </span>
             <span className="w-[64px] text-right sm:w-[100px]">
-              {t("column.actual")}
-            </span>
-            <span className="hidden text-right sm:block sm:w-[80px]">
-              {t("column.share")}
+              {t("column.used")}
             </span>
           </div>
           {activeRows.map((r) => (
@@ -211,8 +214,9 @@ export function ReservesTableClient({
               currency={budgetCurrency}
               isExcluded={false}
               onUpdate={async (newCents) => {
-                // UAT-PH5-T3-54: API takes target expected value, not delta.
-                const current = BigInt(r.reserveBalanceCents);
+                // Adjust takes the TARGET reserve value; the server computes the
+                // signed ledger delta. No-op when unchanged.
+                const current = BigInt(r.reserveCents);
                 if (newCents === current) return;
                 await updateAdjustment.mutateAsync({
                   categoryId: r.categoryId,

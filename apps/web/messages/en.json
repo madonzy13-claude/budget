@@ -791,10 +791,8 @@
         },
         "column": {
           "category": "Category",
-          "balance": "Reserve balance",
-          "share": "Share",
-          "expected": "Expected",
-          "actual": "Actual"
+          "reserve": "Reserve",
+          "used": "Used"
         },
         "row": {
           "dragHandleAria": "Drag to move {name} between active and excluded.",
@@ -802,26 +800,17 @@
           "swipeRestoreCta": "Restore",
           "excludeAria": "Exclude {name} from reserves.",
           "restoreAria": "Restore {name} to active reserves.",
-          "balanceAria": "Reserve balance for {name}",
-          "zeroActualAria": "Zero actual",
-          "zeroShareAria": "Zero share"
+          "reserveAria": "Reserve for {name}",
+          "usedAria": "Reserve used for {name}"
         },
         "totals": {
-          "categoriesLabel": "Σ category reserves",
+          "internalLabel": "Σ reserves",
           "walletsLabel": "Σ reserve wallets"
         },
-        "mismatch": {
-          "overfunded": {
-            "title": "+{amount} overfunded",
-            "helper": "Wallet has more money than reserves need. Reduce the wallet or distribute to categories."
-          },
-          "underfunded": {
-            "title": "−{amount} underfunded",
-            "helper": "Wallet doesn't have enough to cover reserves. Top up the wallet or reduce category reserves."
-          },
-          "reconciled": {
-            "title": "Balanced"
-          }
+        "surplus": {
+          "topup": "Top up reserve wallet by {amount}",
+          "withdraw": "Withdraw {amount} from reserve wallet",
+          "reconciled": "Reserve reconciled"
         },
         "toast": {
           "saved": "Reserve updated",
@@ -994,7 +983,13 @@
         "color": "Color"
       },
       "deleteBlockedTooltip": "Cannot delete category with existing transactions",
-      "deleteConfirmBody": "This will permanently delete the category."
+      "deleteConfirmBody": "This will permanently delete the category.",
+      "remove": {
+        "title": "Remove category",
+        "body": "Choose how to remove this category. Your transactions are always kept.",
+        "keepHistory": "Remove from now on (keep past history)",
+        "everywhere": "Remove from every month"
+      }
     },
     "draft": {
       "sectionTitle": "To confirm",

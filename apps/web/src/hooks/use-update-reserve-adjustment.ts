@@ -1,13 +1,19 @@
 "use client";
 /**
- * use-update-reserve-adjustment.ts — Mutation to POST a reserve balance adjustment.
+ * use-update-reserve-adjustment.ts — Mutation to POST a reserve adjustment.
  *
- * UAT-PH5-T3-54: target value (not delta). Server appends ledger delta + mutates
- *   reserve_actual_cents AND returns the full new ReservesSummaryDto in `summary`.
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md / 05-14 contract): the adjust
+ * call sets the TARGET reserve value for one category. The server computes the
+ * signed ledger delta (delta = Xtarget − currentR), appends it, replays the
+ * engine, and returns `{ reserveCents, deltaCents, summary }` where `summary`
+ * is the authoritative new ReservesSummaryDto.
  *
- * Perf option B: onMutate runs `applyExpectedChange` locally so the UI snaps
- *   to the predicted final state immediately (including sibling clamps + share %
- *   recompute). On server response, snap to authoritative summary — no refetch.
+ * Optimistic (trivial new model — NO greedy allocator): on adjust(cat, X) set
+ * that row's reserveCents = X locally, then recompute
+ *   totals.internalCents = Σ active rows.reserveCents
+ *   totals.surplusCents   = userDefinedCents − internal
+ *   totals.direction      = internal>userDefined ? TOPUP : internal<userDefined ? WITHDRAW : NONE
+ * On settle the cache is replaced by the server's `summary` (authoritative).
  *
  * POST /budgets/:id/reserves/:categoryId/adjust
  * body: { expectedCents: number, note?: string }
@@ -17,71 +23,30 @@ import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
-import { applyExpectedChange, type ReserveRow } from "@/lib/reserve-allocator";
-import type { ReservesSummaryDto } from "./use-reserves-summary";
+import type {
+  ReservesSummaryDto,
+  ReservesSummaryTotals,
+} from "./use-reserves-summary";
 
-function summaryToRows(s: ReservesSummaryDto): ReserveRow[] {
-  // Both rows + excludedRows share the same shape; we keep both for the
-  // allocator (it skips excluded internally). sortIndex isn't carried by the
-  // DTO — fall back to the array order, which already matches sort_index.
-  const out: ReserveRow[] = [];
-  s.rows.forEach((r, i) =>
-    out.push({
-      categoryId: r.categoryId,
-      sortIndex: i,
-      reserveExcluded: false,
-      expectedCents: BigInt(r.reserveBalanceCents),
-      actualCents: BigInt(r.walletShareAmountCents ?? "0"),
-    }),
-  );
-  s.excludedRows.forEach((r, i) =>
-    out.push({
-      categoryId: r.categoryId,
-      sortIndex: 10_000 + i,
-      reserveExcluded: true,
-      expectedCents: BigInt(r.reserveBalanceCents),
-      actualCents: 0n,
-    }),
-  );
-  return out;
-}
-
-/** Build a new summary from the allocator's row snapshot. */
-function projectSummary(
-  base: ReservesSummaryDto,
-  rows: ReserveRow[],
-): ReservesSummaryDto {
-  const walletPool = BigInt(base.totals.totalReserveWalletAmountCents);
-  const activeRows = rows.filter((r) => !r.reserveExcluded);
-  const sumActiveActual = activeRows.reduce((s, r) => s + r.actualCents, 0n);
-  const totalExpected = activeRows.reduce((s, r) => s + r.expectedCents, 0n);
-
-  const projectedRows = base.rows.map((row) => {
-    const r = rows.find(
-      (x) => x.categoryId === row.categoryId && !x.reserveExcluded,
-    );
-    if (!r) return row;
-    const sharePct =
-      sumActiveActual === 0n
-        ? null
-        : Number((r.actualCents * 10000n) / sumActiveActual) / 100;
-    return {
-      ...row,
-      reserveBalanceCents: r.expectedCents.toString(),
-      walletSharePercent: sharePct,
-      walletShareAmountCents:
-        sumActiveActual === 0n ? null : r.actualCents.toString(),
-    };
-  });
-
+/**
+ * Recompute internal/surplus/direction after a single row's reserve changed.
+ * Internal = Σ active rows.reserveCents; surplus = userDefined − internal.
+ * Exported for unit testing.
+ */
+export function recomputeTotals(
+  rows: ReservesSummaryDto["rows"],
+  prev: ReservesSummaryTotals,
+): ReservesSummaryTotals {
+  const internal = rows.reduce((sum, r) => sum + BigInt(r.reserveCents), 0n);
+  const userDefined = BigInt(prev.userDefinedCents);
+  const surplus = userDefined - internal;
+  const direction: ReservesSummaryTotals["direction"] =
+    surplus < 0n ? "TOPUP" : surplus > 0n ? "WITHDRAW" : "NONE";
   return {
-    ...base,
-    rows: projectedRows,
-    totals: {
-      ...base.totals,
-      totalCategoryReservesCents: totalExpected.toString(),
-      mismatchCents: (walletPool - totalExpected).toString(),
-    },
+    ...prev,
+    internalCents: internal.toString(),
+    surplusCents: surplus.toString(),
+    direction,
   };
 }
 
@@ -113,6 +78,8 @@ export function useUpdateReserveAdjustment(budgetId: string) {
       );
       if (!res.ok) throw new Error(await res.text());
       return (await res.json()) as {
+        reserveCents?: string;
+        deltaCents?: string;
         summary?: ReservesSummaryDto;
         [k: string]: unknown;
       };
@@ -127,41 +94,18 @@ export function useUpdateReserveAdjustment(budgetId: string) {
       ]);
       if (!previous) return { previous };
 
-      try {
-        const rows = summaryToRows(previous);
-        const walletPool = BigInt(
-          previous.totals.totalReserveWalletAmountCents,
-        );
-        const alloc = applyExpectedChange(
-          rows,
-          walletPool,
-          input.categoryId,
-          BigInt(input.expectedCents),
-        );
-        qc.setQueryData<ReservesSummaryDto>(
-          ["budget", budgetId, "reserves"],
-          projectSummary(previous, alloc.rows),
-        );
-      } catch {
-        // Fallback: simple overwrite of the row balance.
-        qc.setQueryData<ReservesSummaryDto>(
-          ["budget", budgetId, "reserves"],
-          (old) =>
-            old
-              ? {
-                  ...old,
-                  rows: old.rows.map((r) =>
-                    r.categoryId === input.categoryId
-                      ? {
-                          ...r,
-                          reserveBalanceCents: input.expectedCents.toString(),
-                        }
-                      : r,
-                  ),
-                }
-              : old,
-        );
-      }
+      // Trivial new model: set the target active row's reserve to X, recompute
+      // internal/surplus/direction. Excluded rows never participate in totals.
+      const nextRows = previous.rows.map((r) =>
+        r.categoryId === input.categoryId
+          ? { ...r, reserveCents: String(input.expectedCents) }
+          : r,
+      );
+      qc.setQueryData<ReservesSummaryDto>(["budget", budgetId, "reserves"], {
+        ...previous,
+        rows: nextRows,
+        totals: recomputeTotals(nextRows, previous.totals),
+      });
 
       return { previous };
     },
@@ -179,7 +123,7 @@ export function useUpdateReserveAdjustment(budgetId: string) {
         qc.setQueryData(["budget", budgetId, "reserves"], data.summary);
       }
       toast.success(t("saved"));
-      // Tasks redesign: backend adjust-category-reserve fires recomputeReserveTopupTask.
+      // Adjust fires recomputeReserveTopupTask server-side — refresh the badge.
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });

@@ -1,12 +1,14 @@
 /**
  * reserves-totals-footer.test.tsx — Vitest+RTL tests for ReservesTotalsFooter.
  *
+ * Phase 05 reserve rewrite: the footer now renders Σ internal vs Σ wallets +
+ * the SurplusBanner (top-up / withdraw / reconciled) driven by `direction`.
+ *
  * Coverage:
- * - mismatchCents="0" → reconciled chip
- * - mismatchCents="1500" → overfunded chip
- * - mismatchCents="-2500" → underfunded chip
- * - Sticky positioning: wrapper has "sticky" + "bottom-0" classes
- * - data-testid="reserves-totals-footer" present
+ * - direction NONE → reconciled banner
+ * - direction TOPUP → top-up banner (internal > userDefined)
+ * - direction WITHDRAW → withdraw banner (internal < userDefined)
+ * - data-testid="reserves-totals-footer" present, not sticky
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -16,16 +18,21 @@ import { ReservesTotalsFooter } from "../../src/components/budgeting/reserves-ta
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
 }));
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function renderFooter(mismatchCents: string) {
+function renderFooter(
+  direction: "TOPUP" | "WITHDRAW" | "NONE",
+  surplusCents: string,
+) {
   return render(
     <ReservesTotalsFooter
-      totalCategoryCents="30000"
-      totalWalletCents="30000"
-      mismatchCents={mismatchCents}
+      internalCents="30000"
+      userDefinedCents="30000"
+      surplusCents={surplusCents}
+      direction={direction}
       currency="EUR"
     />,
   );
@@ -34,24 +41,31 @@ function renderFooter(mismatchCents: string) {
 // ─── tests ───────────────────────────────────────────────────────────────────
 
 describe("ReservesTotalsFooter", () => {
-  it("renders reconciled MismatchChip when mismatchCents is '0'", () => {
-    renderFooter("0");
-    // MismatchChip reconciled has data-testid="mismatch-chip-reconciled"
-    expect(screen.getByTestId("mismatch-chip-reconciled")).toBeInTheDocument();
+  it("renders the reconciled surplus banner when direction is NONE", () => {
+    renderFooter("NONE", "0");
+    const banner = screen.getByTestId("reserves-surplus-banner");
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveAttribute("data-direction", "NONE");
   });
 
-  it("renders overfunded MismatchChip when mismatchCents is positive", () => {
-    renderFooter("1500");
-    expect(screen.getByTestId("mismatch-chip-overfunded")).toBeInTheDocument();
+  it("renders the top-up surplus banner when direction is TOPUP", () => {
+    renderFooter("TOPUP", "-1500");
+    expect(screen.getByTestId("reserves-surplus-banner")).toHaveAttribute(
+      "data-direction",
+      "TOPUP",
+    );
   });
 
-  it("renders underfunded MismatchChip when mismatchCents is negative", () => {
-    renderFooter("-2500");
-    expect(screen.getByTestId("mismatch-chip-underfunded")).toBeInTheDocument();
+  it("renders the withdraw surplus banner when direction is WITHDRAW", () => {
+    renderFooter("WITHDRAW", "2500");
+    expect(screen.getByTestId("reserves-surplus-banner")).toHaveAttribute(
+      "data-direction",
+      "WITHDRAW",
+    );
   });
 
-  it("footer wrapper renders as bordered floating card (T3-45: not sticky)", () => {
-    renderFooter("0");
+  it("footer wrapper renders as bordered floating card (not sticky)", () => {
+    renderFooter("NONE", "0");
     const footer = screen.getByTestId("reserves-totals-footer");
     expect(footer.className).not.toContain("sticky");
     expect(footer.className).toContain("rounded-[var(--radius-md)]");
@@ -59,7 +73,7 @@ describe("ReservesTotalsFooter", () => {
   });
 
   it("renders the data-testid attribute", () => {
-    renderFooter("0");
+    renderFooter("NONE", "0");
     expect(screen.getByTestId("reserves-totals-footer")).toBeInTheDocument();
   });
 });

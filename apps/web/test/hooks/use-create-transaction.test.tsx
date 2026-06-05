@@ -9,7 +9,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { useCreateTransaction } from "../../src/hooks/use-create-transaction";
+import {
+  useCreateTransaction,
+  recomputeOptimistic,
+} from "../../src/hooks/use-create-transaction";
 import { mapTxnRowToDTO } from "../../src/hooks/use-transactions";
 import { TestQueryProvider, makeTestQueryClient } from "../setup/query-client";
 
@@ -68,6 +71,61 @@ describe("mapTxnRowToDTO", () => {
     expect(dto.fxAsOf).toBe("2026-05-01");
     expect((dto as Record<string, unknown>).fx_rate).toBeUndefined();
     expect((dto as Record<string, unknown>).fx_as_of).toBeUndefined();
+  });
+});
+
+// ── recomputeOptimistic — engine model (reserve split owned server-side) ───
+
+describe("recomputeOptimistic (Phase 05: no client-side reserve prediction)", () => {
+  const cat = {
+    categoryId: "cat-groceries",
+    activeBudgetCents: "100",
+    spentCents: "80",
+    reserveUsedCents: "0",
+    overspentCents: "0",
+    balanceCents: "20",
+  };
+  const summary = { categories: [cat] };
+
+  it("bumps spent + balance immediately; leaves reserve-used / overspent for the engine refetch", () => {
+    // +50 → spent 130. balance = 100 - 130 = -30 (optimistic; no reserve coverage).
+    // reserveUsed / overspent are NOT predicted locally — the engine owns the split.
+    const out = recomputeOptimistic(summary, {
+      categoryId: "cat-groceries",
+      amountCents: 50,
+      date: "2026-06-01",
+      currency: "EUR",
+    }) as { categories: Array<Record<string, string>> };
+    const g = out.categories[0]!;
+    expect(g.spentCents).toBe("130");
+    expect(g.balanceCents).toBe("-30"); // 100 - 130, no reserve draw predicted
+    // Untouched until the spendings-summary invalidation reconciles them.
+    expect(g.reserveUsedCents).toBe("0");
+    expect(g.overspentCents).toBe("0");
+  });
+
+  it("does not introduce a reserveAvailableCents field (dropped from the DTO)", () => {
+    const out = recomputeOptimistic(summary, {
+      categoryId: "cat-groceries",
+      amountCents: 100,
+      date: "2026-06-01",
+      currency: "EUR",
+    }) as { categories: Array<Record<string, string>> };
+    const g = out.categories[0]!;
+    expect(g.reserveAvailableCents).toBeUndefined();
+  });
+
+  it("leaves sibling categories untouched", () => {
+    const multi = {
+      categories: [cat, { ...cat, categoryId: "cat-other", spentCents: "10" }],
+    };
+    const out = recomputeOptimistic(multi, {
+      categoryId: "cat-groceries",
+      amountCents: 5,
+      date: "2026-06-01",
+      currency: "EUR",
+    }) as { categories: Array<Record<string, string>> };
+    expect(out.categories[1]!.spentCents).toBe("10");
   });
 });
 
@@ -206,6 +264,40 @@ describe("useCreateTransaction — onSuccess cache shape", () => {
     }
 
     expect(result.current.isError).toBe(false);
+  });
+
+  it("invalidates reserves + tasks queries on settle (reserves tab + pill badge update without reload)", async () => {
+    // Regression for UAT: a spend draws/repays the reserve pool and shifts the
+    // RESERVE_TOPUP mismatch, but the reserves tab stayed stale (staleTime 30s)
+    // until a manual reload because the mutation never invalidated these keys.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ transaction: snakeCaseServerRow }),
+    });
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(
+      () => useCreateTransaction(BUDGET_ID, MONTH),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.mutate({
+        categoryId: CATEGORY_ID,
+        amountCents: 999,
+        date: "2026-05-13",
+        currency: "EUR",
+      });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const invalidatedKeys = invalidateSpy.mock.calls.map(
+      (c) => (c[0] as { queryKey: unknown[] }).queryKey,
+    );
+    expect(invalidatedKeys).toContainEqual(["budget", BUDGET_ID, "reserves"]);
+    expect(invalidatedKeys).toContainEqual(["tasks", BUDGET_ID, "pending"]);
   });
 
   it("transactionsByCatId correctly groups transaction after onSuccess (no disappearing rows)", async () => {

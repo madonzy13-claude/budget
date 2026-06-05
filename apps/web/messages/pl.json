@@ -814,10 +814,8 @@
         },
         "column": {
           "category": "Kategoria",
-          "balance": "Saldo rezerwy",
-          "share": "Udział",
-          "expected": "Oczekiwane",
-          "actual": "Faktyczne"
+          "reserve": "Rezerwa",
+          "used": "Wykorzystane"
         },
         "row": {
           "dragHandleAria": "Przeciągnij, aby przenieść {name} między aktywnymi a wykluczonymi.",
@@ -825,26 +823,17 @@
           "swipeRestoreCta": "Przywróć",
           "excludeAria": "Wyklucz {name} z rezerw.",
           "restoreAria": "Przywróć {name} do aktywnych rezerw.",
-          "balanceAria": "Saldo rezerwy dla {name}",
-          "zeroActualAria": "Zero faktyczne",
-          "zeroShareAria": "Zero udziału"
+          "reserveAria": "Rezerwa dla {name}",
+          "usedAria": "Wykorzystana rezerwa dla {name}"
         },
         "totals": {
-          "categoriesLabel": "Σ rezerwy kategorii",
+          "internalLabel": "Σ rezerwy",
           "walletsLabel": "Σ portfele rezerw"
         },
-        "mismatch": {
-          "overfunded": {
-            "title": "+{amount} nadwyżka",
-            "helper": "Portfel ma więcej pieniędzy niż potrzeba na rezerwy. Zmniejsz portfel lub rozdziel do kategorii."
-          },
-          "underfunded": {
-            "title": "−{amount} niedobór",
-            "helper": "Portfel nie wystarcza na pokrycie rezerw. Uzupełnij portfel lub zmniejsz rezerwy kategorii."
-          },
-          "reconciled": {
-            "title": "Zbilansowane"
-          }
+        "surplus": {
+          "topup": "Uzupełnij portfel rezerw o {amount}",
+          "withdraw": "Wypłać {amount} z portfela rezerw",
+          "reconciled": "Rezerwa zbilansowana"
         },
         "toast": {
           "saved": "Rezerwa zaktualizowana",
@@ -1017,7 +1006,13 @@
         "color": "Kolor"
       },
       "deleteBlockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
-      "deleteConfirmBody": "Ta operacja trwale usunie kategorię."
+      "deleteConfirmBody": "Ta operacja trwale usunie kategorię.",
+      "remove": {
+        "title": "Usuń kategorię",
+        "body": "Wybierz sposób usunięcia tej kategorii. Twoje transakcje zawsze pozostają.",
+        "keepHistory": "Usuń od teraz (zachowaj historię)",
+        "everywhere": "Usuń ze wszystkich miesięcy"
+      }
     },
     "draft": {
       "sectionTitle": "Do potwierdzenia",

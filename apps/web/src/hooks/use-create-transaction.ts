@@ -24,11 +24,20 @@ export interface CreateTransactionInput {
 }
 
 /**
- * Optimistically recomputes spentCents for the target category.
- * D-PH4-R4: ~50ms local recompute before server reconciles.
- * Uses BigInt math to avoid float precision issues.
+ * Optimistically bumps the target category's spent so the just-added amount is
+ * reflected in the grid immediately.
+ *
+ * Phase 05 reserve rewrite: drawable reserve is now REPLAY-DERIVED server-side
+ * and is NO LONGER exposed in the spendings DTO (`reserveAvailableCents` is
+ * gone). The client therefore cannot predict the reserve-used / overspent split
+ * locally — that classification is owned by the engine. We bump `spentCents`
+ * (and the optimistic `balanceCents` ignoring any reserve coverage) and leave
+ * `reserveUsedCents` / `overspentCents` untouched; the authoritative values
+ * arrive on the `spendings-summary` invalidation in onSettled (~immediately).
+ *
+ * Uses BigInt math to avoid float precision issues. Exported for unit testing.
  */
-function recomputeOptimistic(
+export function recomputeOptimistic(
   summary: Record<string, unknown> | undefined,
   input: CreateTransactionInput,
 ) {
@@ -43,13 +52,13 @@ function recomputeOptimistic(
       const spentCents = BigInt(String(cat.spentCents ?? "0"));
       const newSpent = spentCents + BigInt(input.amountCents);
       const activeBudgetCents = BigInt(String(cat.activeBudgetCents ?? "0"));
+      // Optimistic balance = limit − spent (no reserve coverage predicted).
+      // The engine refetch reconciles reserve-used / overspent / balance.
       const newBalance = activeBudgetCents - newSpent;
-      const overspent = newBalance < 0n ? (-newBalance).toString() : "0";
       return {
         ...cat,
         spentCents: newSpent.toString(),
         balanceCents: newBalance.toString(),
-        overspentCents: overspent,
       };
     }),
   };
@@ -143,6 +152,10 @@ export function useCreateTransaction(budgetId: string, month: string) {
       qc.invalidateQueries({
         queryKey: ["transactions", budgetId, month],
       });
+      // Spending draws/repays the reserve pool (any month) and shifts the
+      // RESERVE_TOPUP mismatch — refresh the reserves tab + pill badge live.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }
