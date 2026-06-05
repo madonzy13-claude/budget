@@ -60,12 +60,23 @@ const { recomputeReserveTopupTask } =
   await import("@budget/budgeting/src/application/recompute-reserve-topup-task");
 const { createTaskRepo } =
   await import("@budget/budgeting/src/adapters/persistence/task-repo");
-const { createReserveBalanceRepo } =
-  await import("@budget/budgeting/src/adapters/persistence/reserve-balance-repo");
 const { DrizzleReservesSummaryRepo } =
   await import("@budget/budgeting/src/adapters/persistence/reserves-summary-repo");
 const { DrizzleCategoriesRepo } =
   await import("@budget/budgeting/src/adapters/persistence/categories-repo");
+// 05-12: the RESERVE_TOPUP recompute now derives surplus from the replay
+// orchestrator (event loader → reserve-engine). Wire the real adapters here so
+// these integration tests exercise the engine-derived surplus against Postgres.
+const { createReserveEventLoaderRepo } =
+  await import("@budget/budgeting/src/adapters/persistence/reserve-event-loader-repo");
+const { getReservePositions } =
+  await import("@budget/budgeting/src/application/get-reserve-positions");
+const { DrizzleTransactionRepo } =
+  await import("@budget/budgeting/src/adapters/persistence/transaction-repo");
+const { DrizzleCategoryLimitRepo } =
+  await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+const { DrizzleSpendingProjectionRepo } =
+  await import("@budget/budgeting/src/adapters/persistence/spending-projection-repo");
 resetPools();
 
 /* -------------------------------------------------------------------------- */
@@ -144,8 +155,8 @@ async function seedReserveBudget(
       categoryIds.push(categoryId);
       await client.query(
         `INSERT INTO budgeting.categories
-           (id, tenant_id, name, sort_index, reserve_excluded, reserve_actual_cents, actor_user_id, created_at)
-         VALUES ($1, $2, $3, $4, false, 0, $5, now())`,
+           (id, tenant_id, name, sort_index, reserve_excluded, actor_user_id, created_at)
+         VALUES ($1, $2, $3, $4, false, $5, now())`,
         [categoryId, budgetId, `Cat ${i + 1}`, i, userId],
       );
       const cents = input.categoryReserves[i].amountCents;
@@ -256,9 +267,20 @@ async function readPendingReserveTopupPayload(
  *  shape of factory.ts:147 (getWorkspaceDefaultCurrency / isReservesEnabled). */
 async function buildHelperDeps(budgetId: string) {
   const taskRepo = createTaskRepo();
-  const reserveBalanceRepo = createReserveBalanceRepo();
   const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
   const categoriesRepo = new DrizzleCategoriesRepo();
+  // Real replay orchestrator (05-12): event loader → reserve-engine. Surplus
+  // (= Σ wallet − ΣR) drives the RESERVE_TOPUP emit/resolve decision.
+  const reservePositions = getReservePositions({
+    eventLoader: createReserveEventLoaderRepo({
+      transactionRepo: new DrizzleTransactionRepo(
+        undefined,
+        new DrizzleSpendingProjectionRepo(),
+      ),
+      categoryLimitRepo: new DrizzleCategoryLimitRepo(),
+      reservesSummaryRepo,
+    }),
+  });
   const budgetCurrencyOf = async (_tenantId: string): Promise<string> => {
     const pool = new Pool({ connectionString: DB_URL });
     const client = await pool.connect();
@@ -290,10 +312,9 @@ async function buildHelperDeps(budgetId: string) {
   return {
     taskRepo,
     categoriesRepo,
-    reserveBalanceRepo,
-    reservesSummaryRepo,
     budgetCurrencyOf,
     isReservesEnabled,
+    reservePositions,
   };
 }
 

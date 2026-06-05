@@ -12,22 +12,33 @@
  * GRID-02, GRID-15, RSCM-03, RSCM-04
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
+// (Result re-exported from the import above; do not re-import it.)
 import { Temporal } from "temporal-polyfill";
 import type { CategoryRepo } from "../ports/category-repo";
 import type { CategoryLimitRepo } from "../ports/category-limit-repo";
 import type { TransactionRepo } from "../ports/transaction-repo";
-import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import type { SpendingsSummaryRepo } from "../ports/spendings-summary-repo";
-import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
+import type { ReservePositionsResult } from "./get-reserve-positions";
 
 export interface GetSpendingsSummaryDeps {
   categoryRepo: CategoryRepo;
   categoryLimitRepo: CategoryLimitRepo;
   transactionRepo: TransactionRepo;
-  reserveBalanceRepo: ReserveBalanceRepo;
   summaryRepo: SpendingsSummaryRepo;
-  /** Σ of RESERVE-wallet balances (real reserve money) — caps reserve usage. */
-  reservesSummaryRepo: ReservesSummaryRepo;
+  /**
+   * Canonical reserve calculator (05-12 replay orchestrator). The grid's
+   * reserveUsed/overspent for a month come straight from the engine cells:
+   * positions.get(catId).byMonth.get(month).{usedCents,overspentCents}. One
+   * engine-derived reserve per category, shared with the reserves tab. Required
+   * — the old reserve_actual_cents fallback is gone.
+   */
+  reservePositions: (input: {
+    tenantId: string;
+    budgetId: string;
+    month?: string;
+  }) => Promise<Result<ReservePositionsResult, Error>>;
+  /** Clock for the current-month boundary; defaults to `new Date()`. */
+  now?: () => Date;
 }
 
 export interface GetSpendingsSummaryInput {
@@ -46,7 +57,9 @@ export interface SpendingsSummaryCategoryDTO {
   cushionCents: string;
   activeBudgetCents: string;
   spentCents: string;
+  /** Reserve drawn for THIS month (engine cell.usedCents). */
   reserveUsedCents: string;
+  /** Overspend NOT covered by reserve for THIS month (engine cell.overspentCents). */
   overspentCents: string;
   balanceCents: string;
 }
@@ -90,46 +103,37 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
       );
       if (!meta) return err(new Error("budget_not_found"));
 
-      const [
-        categories,
-        perCatSpend,
-        effectiveLimits,
-        reserveBalances,
-        realReserveTotalCents,
-      ] = await Promise.all([
-        deps.categoryRepo.listForBudget(input.tenantId, input.budgetId, false),
-        deps.transactionRepo.spendByCategoryForMonth(
-          input.tenantId,
-          input.budgetId,
-          monthStart,
-          monthEnd,
-        ),
-        deps.categoryLimitRepo.effectiveForMonth(
-          input.tenantId,
-          input.budgetId,
-          monthStart,
-        ),
-        deps.reserveBalanceRepo.getForBudget(
-          input.budgetId,
-          input.tenantId,
-          new Date(),
-        ),
-        deps.reservesSummaryRepo.sumReserveWalletAmounts(input.tenantId),
-      ]);
+      const [categories, perCatSpend, effectiveLimits, posResult] =
+        await Promise.all([
+          deps.categoryRepo.listForBudget(
+            input.tenantId,
+            input.budgetId,
+            false,
+            monthStart, // month-removed categories stay visible in their active months
+          ),
+          deps.transactionRepo.spendByCategoryForMonth(
+            input.tenantId,
+            input.budgetId,
+            monthStart,
+            monthEnd,
+          ),
+          deps.categoryLimitRepo.effectiveForMonth(
+            input.tenantId,
+            input.budgetId,
+            monthStart,
+          ),
+          deps.reservePositions({
+            tenantId: input.tenantId,
+            budgetId: input.budgetId,
+            month: input.month,
+          }),
+        ]);
 
-      // Real reserve money caps total reserve usage — you can't draw reserve you
-      // don't actually hold. When category reserve allocations exceed the real
-      // reserve-wallet pool (an unreconciled/over-allocated state that
-      // RESERVE_TOPUP flags), each category's drawable reserve is scaled to its
-      // proportional share of the real pool; a reconciled budget
-      // (Σ allocations ≤ pool) is unchanged. RESERVE wallets are budget-currency
-      // by the Plan 03 invariant, so no FX conversion is needed here.
-      const realReserveCapCents =
-        realReserveTotalCents > 0n ? realReserveTotalCents : 0n;
-      let totalAllocatedReserveCents = 0n;
-      for (const m of reserveBalances.values()) {
-        totalAllocatedReserveCents += moneyToCents(m);
-      }
+      // 05-12: reserveUsed + overspent for the viewed month come STRAIGHT from
+      // the engine cells (one reserve per category, shared with the reserves
+      // tab). No reserve_actual fallback, no funded/available concept.
+      if (posResult.isErr()) return err(posResult.error);
+      const positions = posResult.value.positions;
 
       const dtoCategories: SpendingsSummaryCategoryDTO[] = categories
         .sort((a, b) => (a as any).sortIndex - (b as any).sortIndex)
@@ -143,26 +147,13 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const active = meta.cushionModeEnabled ? cushion : planned;
           const spent = perCatSpend.get(c.id) ?? 0n;
 
-          const reserveMoney = reserveBalances.get(c.id);
-          const allocatedReserve = reserveMoney
-            ? moneyToCents(reserveMoney)
-            : 0n;
-          // Drawable reserve = the category's proportional share of the REAL
-          // reserve pool, never more than its own allocation. min() keeps the
-          // full allocation in a reconciled budget (share ≥ allocation) and
-          // scales it down only when allocations exceed real money.
-          const share =
-            totalAllocatedReserveCents > 0n
-              ? (allocatedReserve * realReserveCapCents) /
-                totalAllocatedReserveCents
-              : 0n;
-          const reserveAvail =
-            allocatedReserve < share ? allocatedReserve : share;
-
-          const overBy = spent > active ? spent - active : 0n;
-          const reserveUsed = overBy < reserveAvail ? overBy : reserveAvail; // min(overBy, reserveAvail)
-          const overspentRaw = spent - active - reserveUsed;
-          const overspent = overspentRaw > 0n ? overspentRaw : 0n;
+          // Engine cell for THIS month → used + overspent. When the engine
+          // emitted no cell for the month (no activity it tracked), fall back to
+          // the raw over-budget figure with no reserve coverage.
+          const cell = positions.get(c.id)?.byMonth.get(input.month);
+          const reserveUsed = cell?.usedCents ?? 0n;
+          const overspent =
+            cell?.overspentCents ?? (spent > active ? spent - active : 0n);
           const balance = active - spent + reserveUsed;
 
           return {

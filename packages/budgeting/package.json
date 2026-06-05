@@ -82,6 +82,8 @@
     "./src/application/get-cushion-summary": "./src/application/get-cushion-summary.ts",
     "./src/application/recompute-cushion-task": "./src/application/recompute-cushion-task.ts",
     "./src/application/recompute-reserve-topup-task": "./src/application/recompute-reserve-topup-task.ts",
+    "./src/application/get-reserve-positions": "./src/application/get-reserve-positions.ts",
+    "./src/adapters/persistence/reserve-event-loader-repo": "./src/adapters/persistence/reserve-event-loader-repo.ts",
     "./src/application/reorder-categories": "./src/application/reorder-categories.ts",
     "./src/application/dismiss-draft": "./src/application/dismiss-draft.ts",
     "./src/application/confirm-draft": "./src/application/confirm-draft.ts",

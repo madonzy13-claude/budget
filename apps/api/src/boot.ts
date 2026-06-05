@@ -33,6 +33,7 @@ import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persisten
 import { createReserveBalanceRepo } from "@budget/budgeting/src/adapters/persistence/reserve-balance-repo";
 import { DrizzleReservesSummaryRepo } from "@budget/budgeting/src/adapters/persistence/reserves-summary-repo";
 import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
+import { DrizzleCategoriesRepo } from "@budget/budgeting/src/adapters/persistence/categories-repo";
 import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
 import { reorderCategories } from "@budget/budgeting/src/application/reorder-categories";
 import { dismissDraft } from "@budget/budgeting/src/application/dismiss-draft";
@@ -244,9 +245,11 @@ export async function boot(): Promise<BootedDeps> {
     categoryRepo,
     categoryLimitRepo,
     transactionRepo,
-    reserveBalanceRepo,
     summaryRepo: spendingsSummaryRepo,
-    reservesSummaryRepo,
+    // 05-12: reserveUsed/overspent for the viewed month come straight from the
+    // engine cells via the replay orchestrator — the SAME engine-derived reserve
+    // per category the reserves tab reads. No reserve_actual fallback.
+    reservePositions: baseBudgeting.reservePositions,
   });
 
   const budgeting = Object.assign(baseBudgeting, {

@@ -89,9 +89,10 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         reserve_excluded: boolean;
         archived_at: Date | null;
         sort_index: number;
-        reserve_actual_cents: string | number | bigint;
       }>(
-        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, reserve_actual_cents
+        // 05-12: `reserve_actual_cents` dropped in 0030_phase05_reserve_model_reset
+        // — reserve is engine-derived now, no stored actual.
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index
             FROM budgeting.categories
             WHERE id = ${categoryId}::uuid
               AND tenant_id = ${tenantId}::uuid
@@ -109,7 +110,6 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
       reserveExcluded: row.reserve_excluded,
       archivedAt: row.archived_at ? new Date(row.archived_at) : null,
       sortIndex: Number(row.sort_index ?? 0),
-      reserveActualCents: BigInt(row.reserve_actual_cents ?? 0),
     };
   }
 
@@ -128,12 +128,16 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         reserve_excluded: boolean;
         archived_at: Date | null;
         sort_index: number;
-        reserve_actual_cents: string | number | bigint;
       }>(
-        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, reserve_actual_cents
+        // Current-state read (reserves): hide fully-removed (archived_at) and
+        // month-removed-as-of-this-month (archived_from <= current month).
+        // 05-12: `reserve_actual_cents` dropped (0030 reset) — engine-derived now.
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index
             FROM budgeting.categories
             WHERE tenant_id = ${tenantId}::uuid
               AND archived_at IS NULL
+              AND (archived_from IS NULL
+                   OR archived_from > date_trunc('month', CURRENT_DATE)::date)
             ORDER BY sort_index ASC, created_at ASC`,
       );
       return (result as any).rows ?? result;
@@ -146,92 +150,32 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         reserve_excluded: boolean;
         archived_at: Date | null;
         sort_index: number;
-        reserve_actual_cents: string | number | bigint;
       }) => ({
         id: row.id,
         name: row.name,
         reserveExcluded: row.reserve_excluded,
         archivedAt: row.archived_at ? new Date(row.archived_at) : null,
         sortIndex: Number(row.sort_index ?? 0),
-        reserveActualCents: BigInt(row.reserve_actual_cents ?? 0),
       }),
     );
   }
 
   /**
-   * UAT-PH5-T3-54: bulk-write `reserve_actual_cents` for many categories.
-   * Reads before-state once, UPDATEs each row, then writes one audit + one
-   * outbox entry per CHANGED row. Skips rows where new === old.
-   * Single withTenantTx → all-or-nothing.
+   * 05-12 (RSRV-REWRITE-REPLAY): NO-OP.
+   *
+   * `reserve_actual_cents` was dropped in 0030_phase05_reserve_model_reset —
+   * reserve is now derived on read by the engine (get-reserve-positions), not
+   * stored as a depleting per-category actual. The legacy allocator paths in
+   * adjust-category-reserve / set-wallet-balance / update-wallet / archive-*
+   * still call this method; their full removal is 05-13. Until then this stays
+   * a no-op so those writes don't 500 against the live schema.
    */
   async setReserveActualMany(
-    tenantId: string,
-    updates: Map<string, bigint>,
-    actorUserId: string,
+    _tenantId: string,
+    _updates: Map<string, bigint>,
+    _actorUserId: string,
   ): Promise<void> {
-    if (updates.size === 0) return;
-    const tid = TenantId(tenantId);
-    const uid = UserId(actorUserId);
-
-    const r = await withTenantTx(tid, uid, async (tx) => {
-      const ids = Array.from(updates.keys());
-
-      // SELECT before state for all affected rows.
-      const before = await tx.execute<{
-        id: string;
-        reserve_actual_cents: string | number | bigint;
-      }>(
-        sql`SELECT id, reserve_actual_cents
-            FROM budgeting.categories
-            WHERE tenant_id = ${tenantId}::uuid
-              AND id = ANY(${sql.raw(`ARRAY[${ids.map((i) => `'${i}'`).join(",")}]::uuid[]`)})`,
-      );
-      const beforeRows = ((before as any).rows ?? before) as {
-        id: string;
-        reserve_actual_cents: string | number | bigint;
-      }[];
-      const beforeMap = new Map<string, bigint>();
-      for (const row of beforeRows) {
-        beforeMap.set(row.id, BigInt(row.reserve_actual_cents ?? 0));
-      }
-      for (const id of ids) {
-        if (!beforeMap.has(id)) {
-          throw new Error(`category ${id} not found`);
-        }
-      }
-
-      // Apply each UPDATE individually for predictability + audit clarity.
-      for (const [id, newCents] of updates) {
-        const oldCents = beforeMap.get(id)!;
-        if (oldCents === newCents) continue;
-        await tx.execute(
-          sql`UPDATE budgeting.categories
-              SET reserve_actual_cents = ${newCents.toString()}::bigint
-              WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
-        );
-        await writeAudit(tx, {
-          tenantId: tid,
-          entityType: "category",
-          entityId: id,
-          action: "update",
-          actorUserId: uid,
-          before: { reserveActualCents: oldCents.toString() },
-          after: { reserveActualCents: newCents.toString() },
-        });
-        await writeOutbox(tx, {
-          tenantId: tid,
-          aggregateType: "category",
-          aggregateId: id,
-          eventType: "budgeting.category.reserve_actual_changed",
-          payload: {
-            oldCents: oldCents.toString(),
-            newCents: newCents.toString(),
-            actorUserId,
-          },
-        });
-      }
-    });
-
-    if (r.isErr()) throw r.error;
+    // intentionally empty — see method doc.
+    return;
   }
 }
