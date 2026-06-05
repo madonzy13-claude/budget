@@ -699,8 +699,11 @@ GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, curren
               confirmed_at, dismissed_at, deleted_at, updated_at)
   ON budgeting.expense_ledger TO app_role;
 
--- Phase 2 plan 02-03: GRANT on reserves auto-compute view
-GRANT SELECT ON budgeting.category_reserve_balance TO app_role, worker_role;
+-- Phase 2 plan 02-03: GRANT on reserves auto-compute view —
+-- REMOVED in Phase 05 reserve rewrite (migration 0030, decision B): the
+-- budgeting.category_reserve_balance VIEW was dropped (replay-on-read engine
+-- replaces the precomputed-balance VIEW). No grant to re-apply; post-migration.sql
+-- runs on every migrate, so referencing the dropped VIEW here errors with 42P01.
 
 -- Phase 5 plan 05-01: category_reserve_adjustments (append-only ledger, D-PH5-R8)
 -- FORCE RLS was applied by migration 0020 via ALTER TABLE ... FORCE ROW LEVEL SECURITY.
