@@ -30,10 +30,7 @@ import { withTenantTx } from "@budget/platform";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
 import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
 import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
-import { createReserveBalanceRepo } from "@budget/budgeting/src/adapters/persistence/reserve-balance-repo";
-import { DrizzleReservesSummaryRepo } from "@budget/budgeting/src/adapters/persistence/reserves-summary-repo";
 import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
-import { DrizzleCategoriesRepo } from "@budget/budgeting/src/adapters/persistence/categories-repo";
 import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
 import { reorderCategories } from "@budget/budgeting/src/application/reorder-categories";
 import { dismissDraft } from "@budget/budgeting/src/application/dismiss-draft";
@@ -222,8 +219,10 @@ export async function boot(): Promise<BootedDeps> {
   const categoryRepo = new DrizzleCategoryRepo();
   const categoryLimitRepo = new DrizzleCategoryLimitRepo();
   const transactionRepo = new DrizzleTransactionRepo();
-  const reserveBalanceRepo = createReserveBalanceRepo();
-  const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
+  // 05-14: the OLD VIEW-backed reserveBalanceRepo + greedy reservesSummaryRepo
+  // are gone from boot. Reserve numbers now come from the replay orchestrator
+  // (baseBudgeting.reservePositions → event-loader → reserve-engine); the
+  // event-loader is constructed inside the factory, not here.
   const spendingsSummaryRepo = createSpendingsSummaryRepo();
   const expenseLedgerDraftPortRepo = new DrizzleExpenseLedgerDraftPortRepo();
 

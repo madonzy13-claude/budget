@@ -56,8 +56,6 @@ import { recomputeReserveTopupTask } from "../application/recompute-reserve-topu
 import type { TenantTx } from "../ports/task-repo";
 import { sql } from "drizzle-orm";
 import type { FxRateCacheRepo } from "../ports/fx-rate-cache-repo";
-import { createReserveBalanceRepo } from "../adapters/persistence/reserve-balance-repo";
-import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
 import { DrizzleCategoryReserveAdjustmentsRepo } from "../adapters/persistence/category-reserve-adjustments-repo";
 import { DrizzleReservesSummaryRepo } from "../adapters/persistence/reserves-summary-repo";
 import { DrizzleCategoriesRepo } from "../adapters/persistence/categories-repo";
@@ -119,8 +117,6 @@ export interface BudgetingModule {
   bulkRecategorize: ReturnType<typeof bulkRecategorize>;
   reconcileProjections: ReturnType<typeof reconcileProjections>;
   replayProjections: ReturnType<typeof replayProjections>;
-  // Plan 02-03: reserve balance read-model
-  reserveBalanceRepo: ReserveBalanceRepo;
   // Plan 05-03: reserves + wallet mutation use cases
   updateWallet: ReturnType<typeof updateWallet>;
   // UAT-PH5-T3-1x: persist intra-section drag reorder
@@ -340,8 +336,6 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     bulkRecategorize: bulkRecategorize({ transactionRepo }),
     reconcileProjections: reconcileProjections(),
     replayProjections: replayProjections(),
-    // Plan 02-03: reserve balance read-model
-    reserveBalanceRepo: createReserveBalanceRepo(),
     // Plan 05-03: reserves + wallet mutation use cases.
     // Phase 7 (D-PH7-04, Pitfall 1): taskRepo + isReservesEnabled wired so a
     // SPENDINGS↔RESERVE type flip (or amount/currency change on a RESERVE
