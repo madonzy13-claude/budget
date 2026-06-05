@@ -90,8 +90,8 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         archived_at: Date | null;
         sort_index: number;
       }>(
-        // 05-12: `reserve_actual_cents` dropped in 0030_phase05_reserve_model_reset
-        // — reserve is engine-derived now, no stored actual.
+        // 05-12: the stored-actual column was dropped in
+        // 0030_phase05_reserve_model_reset — reserve is engine-derived now.
         sql`SELECT id, name, reserve_excluded, archived_at, sort_index
             FROM budgeting.categories
             WHERE id = ${categoryId}::uuid
@@ -131,7 +131,7 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
       }>(
         // Current-state read (reserves): hide fully-removed (archived_at) and
         // month-removed-as-of-this-month (archived_from <= current month).
-        // 05-12: `reserve_actual_cents` dropped (0030 reset) — engine-derived now.
+        // 05-12: the stored-actual column was dropped (0030 reset) — engine-derived.
         sql`SELECT id, name, reserve_excluded, archived_at, sort_index
             FROM budgeting.categories
             WHERE tenant_id = ${tenantId}::uuid
@@ -158,24 +158,5 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         sortIndex: Number(row.sort_index ?? 0),
       }),
     );
-  }
-
-  /**
-   * 05-12 (RSRV-REWRITE-REPLAY): NO-OP.
-   *
-   * `reserve_actual_cents` was dropped in 0030_phase05_reserve_model_reset —
-   * reserve is now derived on read by the engine (get-reserve-positions), not
-   * stored as a depleting per-category actual. The legacy allocator paths in
-   * adjust-category-reserve / set-wallet-balance / update-wallet / archive-*
-   * still call this method; their full removal is 05-13. Until then this stays
-   * a no-op so those writes don't 500 against the live schema.
-   */
-  async setReserveActualMany(
-    _tenantId: string,
-    _updates: Map<string, bigint>,
-    _actorUserId: string,
-  ): Promise<void> {
-    // intentionally empty — see method doc.
-    return;
   }
 }

@@ -1,43 +1,40 @@
 /**
  * archive-wallet.ts — Application use case: archive a wallet.
  *
- * UAT-PH5-T3-59 (regression fix): archiving a RESERVE-type wallet removes
- * its contribution from the reserve POOL. Without this, category
- * `reserve_actual_cents` lingers at its pre-archive snapshot — when the
- * last RESERVE wallet is archived every category still shows its old
- * actual allocation but Σ wallets is zero, leaving the share math stuck.
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md, 05-13 — decision C):
+ *   Archiving a RESERVE wallet removes its balance from userDefined (= Σ
+ *   RESERVE-wallet balances; the reserves summary filters archived_at IS NULL).
+ *   It does NOT touch category reserve — internal (ΣR) is engine-derived. The
+ *   surplus shifts, so the RESERVE_TOPUP task is recomputed. The OLD greedy
+ *   wallet-delta recalc of stored per-category actuals is GONE.
  *
- * Mirror of set-wallet-balance.ts: compute newPool = oldPool − walletCents,
- * run `applyWalletDelta` to redistribute (deduct bottom-up when newPool
- * drops below Σactuals; refill underfunded otherwise), persist via
- * `setReserveActualMany`. Spending/Cushion wallets bypass this branch.
+ * Archiving a CUSHION wallet removes its balance from the cushion pool →
+ * CUSHION_BELOW_TARGET is recomputed (Phase 7 D-PH7-19).
  *
- * Deps for the reserve branch are optional so legacy callers that only
- * archive non-reserve wallets keep working.
+ * Reserve/cushion deps are optional so legacy callers that only archive plain
+ * SPENDINGS wallets keep working.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { WalletRepo } from "../ports/wallet-repo";
-import type { CategoriesRepo } from "../ports/categories-repo";
-import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
-import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
-import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import {
+  recomputeReserveTopupTask,
+  type RecomputeReserveTopupTaskDeps,
+} from "./recompute-reserve-topup-task";
 import { recomputeCushionTask } from "./recompute-cushion-task";
 import type { FxProviderLike } from "./recurring-engine-fx";
 
 export interface ArchiveWalletDeps {
   repo: WalletRepo;
-  /** UAT-PH5-T3-59 — only consulted when the archived wallet is RESERVE-type. */
-  categoriesRepo?: CategoriesRepo;
-  reserveBalanceRepo?: ReserveBalanceRepo;
-  reservesSummaryRepo?: ReservesSummaryRepo;
-  /** Phase 7 (D-PH7-19): when provided alongside fxProvider, recompute the
-   *  CUSHION_BELOW_TARGET task in a follow-up tx after a CUSHION wallet is
-   *  archived (removes its balance from the cushion pool). Optional so
-   *  legacy callers keep compiling. */
+  /** Phase 7 (D-PH7-04 / D-PH7-19): emit/resolve RESERVE_TOPUP + CUSHION tasks. */
   taskRepo?: TaskRepo;
+  /** Replay orchestrator — surplus drives the RESERVE_TOPUP recompute when a
+   *  RESERVE wallet leaves the pool (userDefined drops). */
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+  budgetCurrencyOf?: (tenantId: string) => Promise<string>;
+  isReservesEnabled?: (tenantId: string) => Promise<boolean>;
   fxProvider?: FxProviderLike;
 }
 
@@ -56,84 +53,42 @@ export function archiveWallet(deps: ArchiveWalletDeps) {
       const result = wallet.archive();
       if (result.isErr()) return err(result.error);
 
-      // UAT-PH5-T3-59: redistribute reserve actuals before persisting the
-      // archive so the same transactional context sees the updated rows.
+      await deps.repo.archive(input.tenantId, input.walletId, input.actorUserId);
+
+      // Phase 7 (D-PH7-04): RESERVE_TOPUP recompute hook. Archiving a RESERVE
+      // wallet drops userDefined (Σ RESERVE balances) → surplus moves. Gate on
+      // the PRE-archive wallet type. A2 fallback own-tx after the archive lands.
       if (
         wallet.walletType === "RESERVE" &&
-        deps.categoriesRepo &&
-        deps.reserveBalanceRepo &&
-        deps.reservesSummaryRepo
+        deps.taskRepo &&
+        deps.reservePositions &&
+        deps.budgetCurrencyOf &&
+        deps.isReservesEnabled
       ) {
-        const walletCents = BigInt(
-          wallet.currentBalance.amount.times("100").toFixed(0),
-        );
-        const oldPool = await deps.reservesSummaryRepo.sumReserveWalletAmounts(
-          input.tenantId,
-        );
-        const newPool = oldPool - walletCents;
-
-        if (newPool !== oldPool) {
-          const asOf = new Date();
-          const [activeMap, excludedMap, allCats] = await Promise.all([
-            deps.reserveBalanceRepo.getForBudget(
-              input.tenantId,
-              input.tenantId,
-              asOf,
-            ),
-            deps.reserveBalanceRepo.getExcludedForBudget(
-              input.tenantId,
-              input.tenantId,
-              asOf,
-            ),
-            deps.categoriesRepo.list(input.tenantId),
-          ]);
-
-          const rows: ReserveRow[] = allCats.map((c) => {
-            const m = c.reserveExcluded
-              ? excludedMap.get(c.id)
-              : activeMap.get(c.id);
-            const expectedCents = m
-              ? BigInt(m.amount.times("100").toFixed(0))
-              : 0n;
-            return {
-              categoryId: c.id,
-              sortIndex: c.sortIndex ?? 0,
-              reserveExcluded: c.reserveExcluded,
-              expectedCents,
-              actualCents: c.reserveActualCents ?? 0n,
-            };
-          });
-
-          const allocResult = applyWalletDelta(rows, oldPool, newPool);
-          const updates = new Map<string, bigint>();
-          for (const after of allocResult.rows) {
-            const before = rows.find((r) => r.categoryId === after.categoryId)!;
-            if (before.actualCents !== after.actualCents) {
-              updates.set(after.categoryId, after.actualCents);
-            }
-          }
-          if (updates.size > 0) {
-            await deps.categoriesRepo.setReserveActualMany(
-              input.tenantId,
-              updates,
-              input.actorUserId,
+        const taskRepo = deps.taskRepo;
+        const reservePositions = deps.reservePositions;
+        const budgetCurrencyOf = deps.budgetCurrencyOf;
+        const isReservesEnabled = deps.isReservesEnabled;
+        const recomputeR = await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeReserveTopupTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.tenantId },
+              { taskRepo, reservePositions, budgetCurrencyOf, isReservesEnabled },
             );
-          }
+          },
+        );
+        if (recomputeR.isErr()) {
+          console.error(
+            "[archive-wallet] reserve recompute failed:",
+            recomputeR.error,
+          );
         }
       }
 
-      await deps.repo.archive(
-        input.tenantId,
-        input.walletId,
-        input.actorUserId,
-      );
-
       // Phase 7 (D-PH7-19): CUSHION_BELOW_TARGET recompute hook.
-      // Gate on the PRE-archive wallet type — archiving a CUSHION wallet
-      // removes its balance from the cushion pool sum (cushion summary
-      // filters `archived_at IS NULL`), so shortfall can grow and an open
-      // task may need to emit (or vice versa). A2 fallback: separate
-      // withTenantTx after the archive write lands.
       if (wallet.walletType === "CUSHION" && deps.taskRepo && deps.fxProvider) {
         const taskRepo = deps.taskRepo;
         const fxProvider = deps.fxProvider;

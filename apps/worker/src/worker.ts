@@ -9,9 +9,6 @@ import type { BudgetingReconciliationSweepDeps } from "./handlers/budgeting-reco
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
-import { createReserveBalanceRepo } from "@budget/budgeting/src/adapters/persistence/reserve-balance-repo";
-import { DrizzleReservesSummaryRepo } from "@budget/budgeting/src/adapters/persistence/reserves-summary-repo";
-import { DrizzleCategoriesRepo } from "@budget/budgeting/src/adapters/persistence/categories-repo";
 
 async function main() {
   const boss = await getBoss();
@@ -60,9 +57,6 @@ async function main() {
   // sweep per tenant to catch inline-emit misses (FX drift, manual edits,
   // unhooked mutation paths) within ≤60 minutes.
   const taskRepo = createTaskRepo();
-  const categoriesRepo = new DrizzleCategoriesRepo();
-  const reserveBalanceRepo = createReserveBalanceRepo();
-  const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
   const budgetCurrencyOf = async (tenantId: string): Promise<string> => {
     const r = await withInfraTx(async (tx) => {
       const dz = tx as {
@@ -92,11 +86,11 @@ async function main() {
     return r.isOk() ? r.value : true;
   };
   const reconciliationSweepDeps: BudgetingReconciliationSweepDeps = {
+    // 05-13: the RESERVE_TOPUP recompute reads surplus straight off the replay
+    // orchestrator (reservePositions). It no longer needs categoriesRepo /
+    // reserveBalanceRepo / reservesSummaryRepo (the old VIEW + greedy share).
     reserveTopup: {
       taskRepo,
-      categoriesRepo,
-      reserveBalanceRepo,
-      reservesSummaryRepo,
       budgetCurrencyOf,
       isReservesEnabled,
       reservePositions,

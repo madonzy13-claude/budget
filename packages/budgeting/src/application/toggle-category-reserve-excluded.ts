@@ -9,23 +9,35 @@
  *     categoriesRepo.findById(tenantId, categoryId) returning null for cross-tenant
  *     categoryIds → returns err("not_found") → route maps to 404.
  *
- * UAT-PH5-T3-54 (architecture pivot):
- *   When excluding a category, its stored `reserve_actual_cents` is released to
- *   the free pool and refilled into underfunded siblings (sort_index ASC).
- *   Overflow stays as wallet surplus (banner notifies).
- *   Re-including is a no-op for actual (user must manually re-fund).
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md, 05-13 — decision: independence):
+ *   Excluding a category drops its R from internal (the orchestrator skips
+ *   excluded categories). Categories are INDEPENDENT — there is NO sibling
+ *   refill/spill (the OLD greedy exclude-release to siblings is GONE).
+ *   Re-including is likewise just a flag flip; the engine replays the category
+ *   back into internal from its existing adjustment/accrual history.
  *
- * Plan 05-03 / RSRV-05, RSRV-06.
+ * The flag flip shifts internal (ΣR) → surplus moves → RESERVE_TOPUP is
+ * recomputed when the task deps are wired. Plan 05-13 / RSRV-REWRITE-USECASES.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
 import type { CategoriesRepo } from "../ports/categories-repo";
-import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
-import { applyExclude, type ReserveRow } from "../domain/reserve-allocator";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import {
+  recomputeReserveTopupTask,
+  type RecomputeReserveTopupTaskDeps,
+} from "./recompute-reserve-topup-task";
 
 export interface ToggleCategoryReserveExcludedDeps {
   repo: CategoriesRepo;
-  /** UAT-PH5-T3-54: needed to compute refill on exclude. */
-  reserveBalanceRepo?: ReserveBalanceRepo;
+  /** Phase 7 / 05-13: when wired, recompute RESERVE_TOPUP after the flag flip
+   *  (excluding/including a category shifts internal → surplus). Optional so
+   *  legacy callers keep compiling; otherwise the hourly sweep catches it. */
+  taskRepo?: TaskRepo;
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+  budgetCurrencyOf?: (tenantId: string) => Promise<string>;
+  isReservesEnabled?: (tenantId: string) => Promise<boolean>;
 }
 
 export interface ToggleCategoryReserveExcludedInput {
@@ -49,67 +61,37 @@ export function toggleCategoryReserveExcluded(
       const cat = await deps.repo.findById(input.tenantId, input.categoryId);
       if (!cat) return err(new Error("not_found"));
 
-      // Excluding with non-zero actual: release to siblings before flipping the flag.
-      if (
-        input.excluded &&
-        !cat.reserveExcluded &&
-        (cat.reserveActualCents ?? 0n) > 0n &&
-        deps.reserveBalanceRepo
-      ) {
-        const asOf = new Date();
-        const [activeMap, excludedMap, allCats] = await Promise.all([
-          deps.reserveBalanceRepo.getForBudget(
-            input.budgetId,
-            input.tenantId,
-            asOf,
-          ),
-          deps.reserveBalanceRepo.getExcludedForBudget(
-            input.budgetId,
-            input.tenantId,
-            asOf,
-          ),
-          deps.repo.list(input.tenantId),
-        ]);
-
-        const rows: ReserveRow[] = allCats.map((c) => {
-          const m = c.reserveExcluded
-            ? excludedMap.get(c.id)
-            : activeMap.get(c.id);
-          const expectedCents = m
-            ? BigInt(m.amount.times("100").toFixed(0))
-            : 0n;
-          return {
-            categoryId: c.id,
-            sortIndex: c.sortIndex ?? 0,
-            reserveExcluded: c.reserveExcluded,
-            expectedCents,
-            actualCents: c.reserveActualCents ?? 0n,
-          };
-        });
-
-        const allocResult = applyExclude(rows, input.categoryId);
-        const updates = new Map<string, bigint>();
-        for (const after of allocResult.rows) {
-          const before = rows.find((r) => r.categoryId === after.categoryId)!;
-          if (before.actualCents !== after.actualCents) {
-            updates.set(after.categoryId, after.actualCents);
-          }
-        }
-        if (updates.size > 0) {
-          await deps.repo.setReserveActualMany(
-            input.tenantId,
-            updates,
-            input.actorUserId,
-          );
-        }
-      }
-
+      // Decision (independence): set the flag only — NO sibling refill/spill.
       await deps.repo.setReserveExcluded(
         input.tenantId,
         input.categoryId,
         input.excluded,
         input.actorUserId,
       );
+
+      // RESERVE_TOPUP recompute: the toggled category's R left/entered internal.
+      if (
+        deps.taskRepo &&
+        deps.reservePositions &&
+        deps.budgetCurrencyOf &&
+        deps.isReservesEnabled
+      ) {
+        const taskRepo = deps.taskRepo;
+        const reservePositions = deps.reservePositions;
+        const budgetCurrencyOf = deps.budgetCurrencyOf;
+        const isReservesEnabled = deps.isReservesEnabled;
+        await withTenantTx(
+          TenantId(input.tenantId),
+          UserId(input.actorUserId),
+          async (tx) => {
+            await recomputeReserveTopupTask(
+              tx as unknown as TenantTx,
+              { tenantId: input.tenantId, budgetId: input.budgetId },
+              { taskRepo, reservePositions, budgetCurrencyOf, isReservesEnabled },
+            );
+          },
+        );
+      }
 
       return ok({
         categoryId: input.categoryId,

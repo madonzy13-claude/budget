@@ -309,9 +309,12 @@ async function buildHelperDeps(budgetId: string) {
       await pool.end();
     }
   };
+  // 05-13: the recompute helper reads surplus straight off the orchestrator —
+  // it no longer takes categoriesRepo (kept here only because other seed
+  // helpers reference the same adapter; not passed to the helper deps).
+  void categoriesRepo;
   return {
     taskRepo,
-    categoriesRepo,
     budgetCurrencyOf,
     isReservesEnabled,
     reservePositions,

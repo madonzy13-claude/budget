@@ -4,6 +4,9 @@
  *
  * Plan 05-02 adds setReserveExcluded (D-PH5-R10).
  * Plan 05-03 adds findById + list for use-case guard lookups.
+ * Plan 05-13: dropped the bulk reserve-actual writer + the stored-actual field
+ *   — reserve is engine-derived now (replay-on-read), no stored per-category
+ *   actual (migration 0030 dropped the stored-actual column).
  */
 
 /** Lightweight row shape returned by findById/list — avoids importing Category domain class. */
@@ -12,10 +15,8 @@ export interface CategoryRow {
   name: string;
   reserveExcluded: boolean;
   archivedAt: Date | null;
-  /** UAT-PH5-T3-54: present on list(); 0 when never touched. */
+  /** Present on list(); 0 when never touched. Drives drag-reorder ordering. */
   sortIndex?: number;
-  /** UAT-PH5-T3-54: stored actual cents (bigint). Present on list() and findById(). */
-  reserveActualCents?: bigint;
 }
 
 export interface CategoriesRepo {
@@ -41,18 +42,7 @@ export interface CategoriesRepo {
   /**
    * List all non-archived categories for the given tenant.
    * Used by getReservesSummary to partition into Active / Excluded.
-   * Returns sortIndex + reserveActualCents on each row.
+   * Returns sortIndex on each row.
    */
   list(tenantId: string): Promise<CategoryRow[]>;
-
-  /**
-   * UAT-PH5-T3-54: bulk-write `reserve_actual_cents` for many categories in a
-   * single transaction. Audit + outbox per changed row (before/after).
-   * Throws if any categoryId not found.
-   */
-  setReserveActualMany(
-    tenantId: string,
-    updates: Map<string, bigint>,
-    actorUserId: string,
-  ): Promise<void>;
 }

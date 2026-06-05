@@ -1,18 +1,19 @@
 /**
- * set-wallet-balance.ts — Application use case: overwrite wallet balance.
+ * set-wallet-balance.ts — Application use case: overwrite a wallet balance.
  *
  * D-PH2-09 (amended): wallet balance is fully decoupled from transactions.
  * Only this use case mutates current_balance, and only with an absolute value.
  *
- * UAT-PH5-T3-54 (architecture pivot for RESERVE wallets):
- *   When the edited wallet is walletType=RESERVE, the new balance changes the
- *   total reserve POOL. We must redistribute the delta to category `actuals`:
- *     - positive delta → refill underfunded categories in sort_index ASC
- *     - negative delta → if Σactual exceeds the new pool, deduct bottom-up
- *   Spending/Cushion wallets bypass this logic (no reserve actual coupling).
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md, 05-13 — decision C):
+ *   Editing a RESERVE wallet changes ONLY the wallet's current_balance, which
+ *   moves userDefined (= Σ RESERVE-wallet balances). It does NOT allocate
+ *   reserve to categories — internal (ΣR) is engine-derived and unaffected by
+ *   the wallet edit. The surplus (userDefined − internal) shifts, so the
+ *   RESERVE_TOPUP task is recomputed. The OLD greedy wallet-delta allocation
+ *   into stored per-category actuals is GONE.
  *
- * Perf option A: returns the post-mutation ReservesSummaryDto so the client
- * can skip the refetch round-trip after a RESERVE wallet edit.
+ * Perf option A: returns the post-mutation engine-derived ReservesSummaryDto so
+ * the client can skip the refetch round-trip after a RESERVE wallet edit.
  */
 import Big from "big.js";
 import { ok, err, type Result } from "@budget/shared-kernel";
@@ -20,14 +21,9 @@ import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { WalletRepo } from "../ports/wallet-repo";
 import type { CategoriesRepo } from "../ports/categories-repo";
-import type { ReserveBalanceRepo } from "../ports/reserve-balance-repo";
-import type { ReservesSummaryRepo } from "../ports/reserves-summary-repo";
 import type { SetBalanceInput } from "../contracts/api";
-import { applyWalletDelta, type ReserveRow } from "../domain/reserve-allocator";
-import {
-  getReservesSummary,
-  type ReservesSummaryDto,
-} from "./get-reserves-summary";
+import { buildReservesSummaryDto } from "./reserves-summary-builder";
+import { type ReservesSummaryDto } from "./get-reserves-summary";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import {
   recomputeReserveTopupTask,
@@ -38,22 +34,19 @@ import type { FxProviderLike } from "./recurring-engine-fx";
 
 export interface SetWalletBalanceDeps {
   repo: WalletRepo;
-  /** UAT-PH5-T3-54 deps — only used when the wallet is RESERVE-type. */
+  /** Reserve response summary (RESERVE wallets): category list for the DTO. */
   categoriesRepo?: CategoriesRepo;
-  reserveBalanceRepo?: ReserveBalanceRepo;
-  reservesSummaryRepo?: ReservesSummaryRepo;
   budgetCurrencyOf?: (tenantId: string) => Promise<string>;
-  /** Forwarded to the RESERVE_TOPUP recompute so the task reflects the
-   *  usage-depleted expected reserve. */
+  /** Replay orchestrator — userDefined (Σ RESERVE balances) + engine R. Drives
+   *  the response summary AND the RESERVE_TOPUP recompute. */
   reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
-  /** Phase 7 (D-PH7-04): when provided, recompute the RESERVE_TOPUP task in
-   *  a follow-up tx after the balance change lands. Optional so legacy
-   *  callers (tests, alternate boot paths) keep compiling. */
+  /** Phase 7 (D-PH7-04): when provided, recompute the RESERVE_TOPUP task in a
+   *  follow-up tx after the balance change lands. Optional so legacy callers
+   *  (tests, alternate boot paths) keep compiling. */
   taskRepo?: TaskRepo;
   isReservesEnabled?: (tenantId: string) => Promise<boolean>;
   /** Phase 7 (D-PH7-19): when provided alongside taskRepo, recompute the
-   *  CUSHION_BELOW_TARGET task in a follow-up tx after a CUSHION wallet's
-   *  balance change lands. Optional so legacy callers keep compiling. */
+   *  CUSHION_BELOW_TARGET task after a CUSHION wallet's balance change lands. */
   fxProvider?: FxProviderLike;
 }
 
@@ -81,127 +74,64 @@ export function setWalletBalance(deps: SetWalletBalanceDeps) {
       const wallet = await deps.repo.findById(input.tenantId, input.walletId);
       if (!wallet) return err(new Error("wallet_not_found"));
 
-      const newCents = BigInt(new Big(input.amount).times("100").toFixed(0));
-
-      if (
-        wallet.walletType === "RESERVE" &&
-        deps.categoriesRepo &&
-        deps.reserveBalanceRepo &&
-        deps.reservesSummaryRepo &&
-        deps.budgetCurrencyOf
-      ) {
-        const oldWalletCents = BigInt(
-          wallet.currentBalance.amount.times("100").toFixed(0),
-        );
-        const oldPool = await deps.reservesSummaryRepo.sumReserveWalletAmounts(
-          input.tenantId,
-        );
-        const newPool = oldPool + (newCents - oldWalletCents);
-
-        const asOf = new Date();
-        const [activeMap, excludedMap, allCats, budgetCurrency] =
-          await Promise.all([
-            deps.reserveBalanceRepo.getForBudget(
-              input.tenantId,
-              input.tenantId,
-              asOf,
-            ),
-            deps.reserveBalanceRepo.getExcludedForBudget(
-              input.tenantId,
-              input.tenantId,
-              asOf,
-            ),
-            deps.categoriesRepo.list(input.tenantId),
-            deps.budgetCurrencyOf(input.tenantId),
-          ]);
-
-        const rows: ReserveRow[] = allCats.map((c) => {
-          const m = c.reserveExcluded
-            ? excludedMap.get(c.id)
-            : activeMap.get(c.id);
-          const expectedCents = m
-            ? BigInt(m.amount.times("100").toFixed(0))
-            : 0n;
-          return {
-            categoryId: c.id,
-            sortIndex: c.sortIndex ?? 0,
-            reserveExcluded: c.reserveExcluded,
-            expectedCents,
-            actualCents: c.reserveActualCents ?? 0n,
-          };
-        });
-
-        let newActualMap: Map<string, bigint> | undefined;
-        if (newPool !== oldPool) {
-          const allocResult = applyWalletDelta(rows, oldPool, newPool);
-          const updates = new Map<string, bigint>();
-          for (const after of allocResult.rows) {
-            const before = rows.find((r) => r.categoryId === after.categoryId)!;
-            if (before.actualCents !== after.actualCents) {
-              updates.set(after.categoryId, after.actualCents);
-            }
-          }
-          if (updates.size > 0) {
-            await deps.categoriesRepo.setReserveActualMany(
-              input.tenantId,
-              updates,
-              input.actorUserId,
-            );
-          }
-          newActualMap = new Map<string, bigint>();
-          for (const r of allocResult.rows) {
-            newActualMap.set(r.categoryId, r.actualCents);
-          }
-        }
-
-        // 05-12: the reserves DTO is now engine-derived. Build it through the
-        // replay orchestrator so the response matches a fresh GET /reserves
-        // (one reserve per category + internal/userDefined/surplus). The
-        // wallet-delta reallocation of `reserve_actual_cents` above is dead
-        // legacy bookkeeping kept only until 05-13 rewires this use case to
-        // "set userDefined only"; it no longer feeds the returned summary.
-        void newActualMap;
-        if (deps.reservePositions && deps.isReservesEnabled) {
-          const summaryR = await getReservesSummary({
-            categoriesRepo: deps.categoriesRepo,
-            budgetCurrencyOf: deps.budgetCurrencyOf,
-            isReservesEnabled: deps.isReservesEnabled,
-            reservePositions: deps.reservePositions,
-          })({ tenantId: input.tenantId, budgetId: input.tenantId });
-          if (summaryR.isErr()) return err(summaryR.error);
-          summary = summaryR.value;
-        }
-        void budgetCurrency;
-      }
-
+      // Persist the new balance FIRST so the orchestrator's wallet sum
+      // (userDefined) reflects the edit when we build the response summary.
       await deps.repo.setBalance(
         input.tenantId,
         input.walletId,
         { amount: input.amount, currency: input.currency },
         input.actorUserId,
       );
+      // Sanity: the amount is a valid decimal (throws otherwise, caught below).
+      void BigInt(new Big(input.amount).times("100").toFixed(0));
+
+      // RESERVE response summary (decision C): engine-derived. NO allocation —
+      // only userDefined (Σ RESERVE balances) changed; internal/R is unchanged.
+      if (
+        wallet.walletType === "RESERVE" &&
+        deps.categoriesRepo &&
+        deps.budgetCurrencyOf &&
+        deps.reservePositions &&
+        deps.isReservesEnabled
+      ) {
+        const [enabled, posR, categories, budgetCurrency] = await Promise.all([
+          deps.isReservesEnabled(input.tenantId),
+          deps.reservePositions({
+            tenantId: input.tenantId,
+            budgetId: input.tenantId,
+          }),
+          deps.categoriesRepo.list(input.tenantId),
+          deps.budgetCurrencyOf(input.tenantId),
+        ]);
+        if (posR.isErr()) return err(posR.error);
+        summary = buildReservesSummaryDto({
+          positions: posR.value,
+          categories: categories.map((c) => ({
+            id: c.id,
+            name: c.name,
+            reserveExcluded: c.reserveExcluded ?? false,
+          })),
+          budgetCurrency,
+          disabled: !enabled,
+        });
+      }
 
       // Phase 7 (D-PH7-04): RESERVE_TOPUP recompute hook.
       // Gate on the wallet being RESERVE-type — SPENDINGS/CUSHION balance
-      // changes do not touch the reserve equation. set-wallet-balance.ts
-      // cannot change wallet type; the type-change path lives in
-      // update-wallet.ts which has its own broader gate (was-or-is RESERVE).
+      // changes do not touch the reserve equation. set-wallet-balance cannot
+      // change wallet type; the type-change path lives in update-wallet.ts.
       //
-      // A2 fallback: deps.repo.setBalance + the reserve allocator writes
-      // each own their inner tx (audit + outbox); we open a separate
-      // withTenantTx for the recompute so the banner refreshes on next
-      // poll. Race window bounded by the idempotent ON CONFLICT DO NOTHING
-      // + WHERE PENDING contract (see recompute-reserve-topup-task.ts).
+      // A2 fallback: deps.repo.setBalance owns its inner tx (audit + outbox);
+      // we open a separate withTenantTx for the recompute. Race window bounded
+      // by ON CONFLICT DO NOTHING + WHERE PENDING (recompute-reserve-topup-task).
       if (
         wallet.walletType === "RESERVE" &&
         deps.taskRepo &&
-        deps.categoriesRepo &&
         deps.budgetCurrencyOf &&
         deps.isReservesEnabled &&
         deps.reservePositions
       ) {
         const taskRepo = deps.taskRepo;
-        const categoriesRepo = deps.categoriesRepo;
         const budgetCurrencyOf = deps.budgetCurrencyOf;
         const isReservesEnabled = deps.isReservesEnabled;
         const reservePositions = deps.reservePositions;
@@ -212,27 +142,13 @@ export function setWalletBalance(deps: SetWalletBalanceDeps) {
             await recomputeReserveTopupTask(
               tx as unknown as TenantTx,
               { tenantId: input.tenantId, budgetId: input.tenantId },
-              {
-                taskRepo,
-                categoriesRepo,
-                budgetCurrencyOf,
-                isReservesEnabled,
-                reservePositions,
-              },
+              { taskRepo, budgetCurrencyOf, isReservesEnabled, reservePositions },
             );
           },
         );
       }
 
       // Phase 7 (D-PH7-19): CUSHION_BELOW_TARGET recompute hook.
-      // Gate on the wallet being CUSHION-type — only cushion wallets affect
-      // the cushion shortfall equation. set-wallet-balance cannot change
-      // wallet type; type-change path lives in update-wallet.ts.
-      //
-      // A2 fallback: opens a separate withTenantTx so the cushion task
-      // refresh piggybacks on the same connection-pooled tx as the RESERVE
-      // hook would. Race window bounded by ON CONFLICT DO NOTHING + WHERE
-      // PENDING contract in recompute-cushion-task.ts.
       if (wallet.walletType === "CUSHION" && deps.taskRepo && deps.fxProvider) {
         const taskRepo = deps.taskRepo;
         const fxProvider = deps.fxProvider;

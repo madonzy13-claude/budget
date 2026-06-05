@@ -68,7 +68,6 @@ import { toggleCategoryReserveExcluded } from "../application/toggle-category-re
 import { getReservesSummary } from "../application/get-reserves-summary";
 import { getReservePositions } from "../application/get-reserve-positions";
 import { createReserveEventLoaderRepo } from "../adapters/persistence/reserve-event-loader-repo";
-import { createSpendingsSummaryRepo } from "../adapters/persistence/spendings-summary-repo";
 
 export interface BudgetingDeps {
   fxCache: FxRateCacheRepo;
@@ -223,7 +222,6 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
             { tenantId: input.tenantId, budgetId: input.budgetId },
             {
               taskRepo: createTaskRepo(),
-              categoriesRepo,
               budgetCurrencyOf: getWorkspaceDefaultCurrency,
               isReservesEnabled: async () => isEnabled,
               reservePositions,
@@ -240,27 +238,26 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       taskRepo: createTaskRepo(),
       fxProvider,
     }),
-    // UAT-PH5-T3-59: archive must recalc reserve actuals when a RESERVE
-    // wallet leaves the pool (mirrors setWalletBalance deps).
-    // Phase 7 (D-PH7-19): inject taskRepo + fxProvider so archiving a
-    // CUSHION wallet auto-emits/resolves CUSHION_BELOW_TARGET.
+    // 05-13: archiving a RESERVE wallet drops userDefined (Σ RESERVE balances)
+    // → surplus moves → recompute RESERVE_TOPUP off the orchestrator. No more
+    // category actual recalc.
+    // Phase 7 (D-PH7-19): inject fxProvider so archiving a CUSHION wallet
+    // auto-emits/resolves CUSHION_BELOW_TARGET.
     archiveWallet: archiveWallet({
       repo,
-      categoriesRepo,
-      reserveBalanceRepo: createReserveBalanceRepo(),
-      reservesSummaryRepo,
       taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
       fxProvider,
     }),
-    // Phase 7 (D-PH7-04): inject taskRepo + isReservesEnabled so a RESERVE
-    // wallet balance change auto-emits/resolves the RESERVE_TOPUP task in
-    // an A2-fallback follow-up tx.
+    // 05-13 (decision C): a RESERVE wallet balance change sets userDefined only
+    // (Σ RESERVE balances) → surplus moves → recompute RESERVE_TOPUP off the
+    // orchestrator. No category allocation.
     // Phase 7 (D-PH7-19): fxProvider for the CUSHION recompute branch.
     setWalletBalance: setWalletBalance({
       repo,
       categoriesRepo,
-      reserveBalanceRepo: createReserveBalanceRepo(),
-      reservesSummaryRepo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       taskRepo: createTaskRepo(),
       isReservesEnabled,
@@ -275,10 +272,15 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listAccounts: listAccounts({ repo }),
     findAccountById: findAccountById({ repo }),
     createCategory: createCategory({ repo: categoryRepo }),
+    // 05-13 (decision J): archiving drops the category's reserve from internal
+    // going forward (orchestrator excludes archived) → recompute RESERVE_TOPUP.
+    // No sibling release.
     archiveCategory: archiveCategory({
       repo: categoryRepo,
-      categoriesRepo,
-      reserveBalanceRepo: createReserveBalanceRepo(),
+      taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
     }),
     listCategories: listCategories({ repo: categoryRepo }),
     findCategoryById: findCategoryById({ repo: categoryRepo }),
@@ -351,8 +353,6 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       repo,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       categoriesRepo,
-      reserveBalanceRepo: createReserveBalanceRepo(),
-      reservesSummaryRepo,
       taskRepo: createTaskRepo(),
       isReservesEnabled,
       fxProvider,
@@ -366,16 +366,19 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     adjustCategoryReserve: adjustCategoryReserve({
       adjustmentsRepo,
       categoriesRepo,
-      reserveBalanceRepo: createReserveBalanceRepo(),
-      reservesSummaryRepo,
+      reservePositions,
       isReservesEnabled,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       taskRepo: createTaskRepo(),
-      reservePositions,
     }),
+    // 05-13: excluding/including a category shifts internal (ΣR) → recompute
+    // RESERVE_TOPUP. Categories are independent — no sibling refill.
     toggleCategoryReserveExcluded: toggleCategoryReserveExcluded({
       repo: categoriesRepo,
-      reserveBalanceRepo: createReserveBalanceRepo(),
+      taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
     }),
     getReservesSummary: getReservesSummary({
       categoriesRepo,
