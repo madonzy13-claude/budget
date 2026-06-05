@@ -81,9 +81,33 @@ async function buildApp(
     await import("@budget/budgeting/src/adapters/persistence/reserve-balance-repo");
   const { DrizzleReservesSummaryRepo } =
     await import("@budget/budgeting/src/adapters/persistence/reserves-summary-repo");
+  // 05-13: the reserve mutations + summary are engine-derived. Wire the real
+  // replay orchestrator (event loader → reserve-engine) so the route exercises
+  // the delta-append + engine summary against real Postgres (no VIEW/allocator).
+  const { getReservePositions } =
+    await import("@budget/budgeting/src/application/get-reserve-positions");
+  const { createReserveEventLoaderRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/reserve-event-loader-repo");
+  const { DrizzleTransactionRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/transaction-repo");
+  const { DrizzleSpendingProjectionRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/spending-projection-repo");
+  const { DrizzleCategoryLimitRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
 
   const adjustmentsRepo = new DrizzleCategoryReserveAdjustmentsRepo();
   const categoriesRepo = new DrizzleCategoriesRepo();
+  const reservesSummaryRepo = new DrizzleReservesSummaryRepo();
+  const reservePositions = getReservePositions({
+    eventLoader: createReserveEventLoaderRepo({
+      transactionRepo: new DrizzleTransactionRepo(
+        undefined,
+        new DrizzleSpendingProjectionRepo(),
+      ),
+      categoryLimitRepo: new DrizzleCategoryLimitRepo(),
+      reservesSummaryRepo,
+    }),
+  });
 
   // Default: reserves always enabled (tests don't require DB-level flag read)
   const isReservesEnabled =
@@ -96,14 +120,12 @@ async function buildApp(
       adjustCategoryReserve: adjustCategoryReserve({
         adjustmentsRepo,
         categoriesRepo,
-        reserveBalanceRepo: createReserveBalanceRepo(),
-        reservesSummaryRepo: new DrizzleReservesSummaryRepo(),
+        reservePositions,
         isReservesEnabled,
         budgetCurrencyOf,
       }),
       getReservesSummary: getReservesSummary({
-        reserveBalanceRepo: createReserveBalanceRepo(),
-        reservesSummaryRepo: new DrizzleReservesSummaryRepo(),
+        reservePositions,
         categoriesRepo,
         budgetCurrencyOf,
         isReservesEnabled,
@@ -141,7 +163,7 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
     app = await buildApp(fix.userId, fix.budgetId);
   });
 
-  it("200 happy path: sets expected target, returns expected/actual/delta", async () => {
+  it("200 happy path: sets reserve to target, returns reserveCents + delta + engine summary", async () => {
     const res = await app.request(
       `/budgets/${fix.budgetId}/reserves/${fix.categoryId}/adjust`,
       {
@@ -152,12 +174,21 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.expectedCents).toBe("50000");
-    expect(body.actualCents).toBeDefined();
+    // 05-13 new shape: reserveCents (== target) + signed deltaCents + summary.
+    // (No more actualCents — reserve is engine-derived, no stored actual.)
+    expect(body.reserveCents).toBe("50000");
     expect(body.deltaCents).toBeDefined();
+    expect(body.summary).toBeDefined();
+    // The category's row in the engine summary reflects the new reserve.
+    const row = body.summary.rows.find(
+      (r: any) => r.categoryId === fix.categoryId,
+    );
+    expect(row?.reserveCents).toBe("50000");
   });
 
-  it("200 lower expected: clamps actual, spills to siblings", async () => {
+  it("200 lower reserve: appends a negative delta, no sibling spill", async () => {
+    // Prior reserve is 50000 (set by the previous test). Lower to 25000 →
+    // delta = 25000 − 50000 = −25000. Categories are independent (no spill).
     const res = await app.request(
       `/budgets/${fix.budgetId}/reserves/${fix.categoryId}/adjust`,
       {
@@ -168,7 +199,8 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.expectedCents).toBe("25000");
+    expect(body.reserveCents).toBe("25000");
+    expect(body.deltaCents).toBe("-25000");
   });
 
   it("422 category_excluded: pre-set reserveExcluded=true → POST adjust → 422", async () => {
