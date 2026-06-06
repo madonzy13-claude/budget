@@ -362,4 +362,82 @@ describe("recurring engine handler", () => {
     if (outboxCheck.isOk())
       expect(outboxCheck.value.rows.length).toBeGreaterThan(0);
   });
+
+  test(
+    "cross-currency rule: draft is locked to the budget currency (converted amount, identity rate)",
+    { timeout: 15000 },
+    async () => {
+      // Budget currency is USD (seedTenantForEngine). Rule is in EUR; stub FX EUR→USD = 1.1.
+      // 200 EUR → 220 USD → 22000 cents. The draft must surface as a BUDGET-currency row:
+      // currency_original = USD, amount_original_cents = converted, fx_rate = identity —
+      // matching the app-layer engine + inline catch-up + edit-transaction lock semantics.
+      const tenant = await seedTenantForEngine("EngineFx");
+      const ruleId = crypto.randomUUID();
+      const pool = new Pool({ connectionString: DB_URL });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`,
+        );
+        await client.query(
+          `SELECT set_config('app.current_user_id', '${tenant.userId}', true)`,
+        );
+        await client.query(
+          `INSERT INTO budgeting.recurring_rules
+             (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor, active, next_due_date, actor_user_id)
+           VALUES ($1, $2, NULL, '200', 'EUR', 'MONTHLY', 15, true, $3::date, $4)`,
+          [ruleId, tenant.tenantId, TODAY, tenant.userId],
+        );
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+        await pool.end();
+      }
+
+      const stubFx = {
+        rateAsOf: async () => ({
+          rate: "1.1",
+          provider: "stub",
+          isStale: false,
+        }),
+      };
+      const result = await runRecurringEngine({ fxProvider: stubFx });
+      expect(result.isOk()).toBe(true);
+
+      const p2 = new Pool({ connectionString: DB_URL });
+      const c2 = await p2.connect();
+      let row: Record<string, unknown> | undefined;
+      try {
+        await c2.query("BEGIN");
+        await c2.query(
+          `SELECT set_config('app.tenant_ids', '{"${tenant.tenantId}"}', true)`,
+        );
+        const r = await c2.query(
+          `SELECT currency_original, amount_original_cents, amount_converted_cents, fx_rate
+             FROM budgeting.expense_ledger
+            WHERE recurring_rule_id = $1 AND tenant_id = $2
+              AND confirmed_at IS NULL AND deleted_at IS NULL`,
+          [ruleId, tenant.tenantId],
+        );
+        await c2.query("COMMIT");
+        row = r.rows[0];
+      } catch (e) {
+        await c2.query("ROLLBACK");
+        throw e;
+      } finally {
+        c2.release();
+        await p2.end();
+      }
+
+      expect(row).toBeDefined();
+      expect(row!.currency_original).toBe("USD");
+      expect(String(row!.amount_original_cents)).toBe("22000");
+      expect(String(row!.amount_converted_cents)).toBe("22000");
+      expect(Number(row!.fx_rate)).toBe(1);
+    },
+  );
 });

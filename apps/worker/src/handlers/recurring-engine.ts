@@ -168,11 +168,16 @@ export async function runRecurringEngine(
               dueDateStr,
               fxProvider,
             });
-            const fxRate = fxComputed.fxRate;
             const fxAsOf = fxComputed.fxAsOf;
             const amountConvertedCents = fxComputed.amountConvertedCents;
 
-            // INSERT into expense_ledger (confirmed_at NULL = draft, per D-PH2-08)
+            // Lock the draft to the BUDGET currency (UAT-Phase6-Test7) — matches the
+            // app-layer engine, the create-recurring-rule inline catch-up, and the
+            // edit-transaction lock semantics. The rule's foreign currency is consumed
+            // ONLY to compute the conversion: `amount_original_cents` becomes the
+            // converted value, `currency_original` is the budget currency, `fx_rate`
+            // is identity. Without this, foreign-currency recurring drafts surfaced
+            // unconverted (in the rule's currency) everywhere they render.
             const insertResult = await drizzleTx.execute(sql`
             INSERT INTO budgeting.expense_ledger
               (id, tenant_id, budget_id, category_id, transaction_date,
@@ -182,8 +187,8 @@ export async function runRecurringEngine(
             VALUES
               (gen_random_uuid(), ${tenant_id}::uuid, ${tenant_id}::uuid,
                ${categoryId}::uuid, ${dueDateStr}::date,
-               ${amountOriginalCents}::bigint, ${rule.currency},
-               ${amountConvertedCents}::bigint, ${fxRate}::numeric, ${fxAsOf}::date,
+               ${amountConvertedCents}::bigint, ${budgetCurrency},
+               ${amountConvertedCents}::bigint, 1::numeric, ${fxAsOf}::date,
                ${note}, ${rule.id}::uuid,
                NULL,
                'SPENDING',
@@ -225,8 +230,10 @@ export async function runRecurringEngine(
                 {
                   draft_id: draftId,
                   rule_name: rule.note ?? "",
-                  amount_cents: amountOriginalCents,
-                  currency: rule.currency,
+                  // Budget-currency-locked (see the INSERT above): the task card
+                  // shows the converted amount in the budget currency, matching the draft.
+                  amount_cents: amountConvertedCents,
+                  currency: budgetCurrency,
                   transaction_date: dueDateStr,
                   category_id: categoryId ?? "",
                 },
