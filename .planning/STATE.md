@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 05 plan 05-19 executed (Reserves tab UI relabel — Available column, 3 totals, no surplus banner) on tasks-redesign branch
-last_updated: "2026-06-06T14:02:07.326Z"
-last_activity: 2026-06-05
+stopped_at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
+last_updated: "2026-06-06T14:52:00.000Z"
+last_activity: 2026-06-06
 progress:
   total_phases: 8
   completed_phases: 7
@@ -207,8 +207,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-06T14:02:07.236Z
-Stopped at: Phase 05 plan 05-19 executed (Reserves tab UI relabel — Available column, 3 totals, no surplus banner) on tasks-redesign branch
+Last session: 2026-06-06T14:52:00.000Z
+Stopped at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
 Resume file: None
 
 ## v1.0 History (archived)
