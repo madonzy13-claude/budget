@@ -814,8 +814,7 @@
         },
         "column": {
           "category": "Kategoria",
-          "reserve": "Rezerwa",
-          "used": "Wykorzystane"
+          "available": "Dostępne"
         },
         "row": {
           "dragHandleAria": "Przeciągnij, aby przenieść {name} między aktywnymi a wykluczonymi.",
@@ -823,17 +822,12 @@
           "swipeRestoreCta": "Przywróć",
           "excludeAria": "Wyklucz {name} z rezerw.",
           "restoreAria": "Przywróć {name} do aktywnych rezerw.",
-          "reserveAria": "Rezerwa dla {name}",
-          "usedAria": "Wykorzystana rezerwa dla {name}"
+          "reserveAria": "Dostępne dla {name}"
         },
         "totals": {
-          "internalLabel": "Σ rezerwy",
-          "walletsLabel": "Σ portfele rezerw"
-        },
-        "surplus": {
-          "topup": "Uzupełnij portfel rezerw o {amount}",
-          "withdraw": "Wypłać {amount} z portfela rezerw",
-          "reconciled": "Rezerwa zbilansowana"
+          "internalLabel": "Razem dostępne",
+          "walletsLabel": "Razem w portfelach",
+          "usedLabel": "Razem wykorzystane (w tym miesiącu)"
         },
         "toast": {
           "saved": "Rezerwa zaktualizowana",

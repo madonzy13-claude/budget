@@ -2,10 +2,11 @@
 /**
  * reserves-table-row.tsx — row for the Reserves tab (NEW engine model).
  *
- * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): an active row renders ONE
- * editable Reserve value (R, `reserveCents`) + a read-only Used value
- * (U, `usedCents`). The old Expected/Actual/Share% triple and the underfunded
- * red-share logic are GONE.
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md) + 05-19 column reshape: an
+ * active row renders ONE editable "Available" value (R, `reserveCents`). The
+ * per-row Used (U) cell is REMOVED — the Σ of usedCents now renders once in the
+ * totals footer (TOTAL USED). The old Expected/Actual/Share% triple and the
+ * underfunded red-share logic are also GONE.
  *
  * UAT-PH5-T3-55:
  *   - Actions column dropped (no MoreHorizontal placeholder).
@@ -14,7 +15,7 @@
  *     and lives behind the row's opaque background. DnD still works:
  *     the drag handle (data-testid="drag-grip-*") opts out of the swipe
  *     pointer listener via `isInteractive`.
- *   - Excluded rows render NAME ONLY — no reserve, no used.
+ *   - Excluded rows render NAME ONLY — no available value.
  *
  * T-05-05: InlineEditCell disabled={true} on Excluded rows — click is a no-op.
  * T-05-10: category name rendered as plain JSX text — React auto-escapes.
@@ -303,76 +304,57 @@ export function ReservesTableRow({
           </span>
         </div>
 
-        {/* Excluded rows render name-only (UAT-PH5-T3-55) — no reserve, no used. */}
+        {/* Excluded rows render name-only (UAT-PH5-T3-55) — no available value.
+            05-19: the per-row Used cell is removed; its sum lives in the footer
+            (TOTAL USED). Active rows now show only the editable Available value. */}
         {!isExcluded && (
-          <>
-            {/* Reserve (R) — the single editable reserve value.
-                UAT-PH5-T3-57: pass the DECIMAL-DISPLAY string (e.g. "8")
-                as InlineEditCell value so the cell's equality check
-                compares decimal-vs-decimal. Earlier we passed the raw
-                cents string "800", which collided whenever the user
-                typed the same digits as the cents value (e.g. "8" with
-                balance 800 → typing "800" matched draft → InlineEditCell
-                short-circuited as no-op and never fired onSave). */}
-            <div className="w-[72px] text-right tabular-nums sm:w-[120px]">
-              <InlineEditCell
-                // value is the editor source — keep it a clean separator-free
-                // decimal so the edit round-trip + no-op compare stay locale-
-                // agnostic; the resting display below is locale-grouped.
-                value={centsToBare(row.reserveCents).replace(/[^0-9.-]/g, "")}
-                ariaLabel={t("reserveAria", { name: row.name })}
-                disabled={false}
-                testId={`reserves-balance-${row.categoryId}`}
-                render={() => (
-                  <span className="text-num-md text-[var(--foreground)]">
-                    {centsToBare(row.reserveCents, locale)}
-                  </span>
-                )}
-                renderEditor={(draft, onChange, _onCommit, onCancel) => (
-                  <Input
-                    autoFocus
-                    type="text"
-                    inputMode="decimal"
-                    defaultValue={String(draft).replace(/[^0-9.-]/g, "")}
-                    onChange={(e) => onChange(e.target.value.replace(",", "."))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") onCancel();
-                      if (e.key === "Enter")
-                        (e.target as HTMLInputElement).blur();
-                    }}
-                    className="h-9 pl-7 text-right"
-                  />
-                )}
-                onSave={async (v) => {
-                  const cleaned = String(v).replace(",", ".");
-                  const n = Number(cleaned || "0");
-                  const cents = BigInt(
-                    Math.round((Number.isFinite(n) ? n : 0) * 100),
-                  );
-                  await onUpdate(cents);
-                }}
-              />
-            </div>
-
-            {/* Used (U) — read-only reserve consumed by overspend. Rendered
-                in the muted "used" tone; a non-zero value signals reserve
-                that has already been drawn down to cover overspend. */}
-            <div
-              className="w-[64px] text-right text-num-md sm:w-[100px]"
-              data-testid={`reserves-used-${row.categoryId}`}
-            >
-              <span
-                className={
-                  BigInt(row.usedCents) > 0n
-                    ? "text-[var(--warning)]"
-                    : "text-[var(--muted-foreground)]"
-                }
-                aria-label={t("usedAria", { name: row.name })}
-              >
-                {centsToBare(row.usedCents, locale)}
-              </span>
-            </div>
-          </>
+          // Available (R) — the single editable reserve value (renamed
+          // "Reserve" → "Available" in 05-19; testId stays reserves-balance-*).
+          // UAT-PH5-T3-57: pass the DECIMAL-DISPLAY string (e.g. "8") as
+          // InlineEditCell value so the cell's equality check compares
+          // decimal-vs-decimal. Earlier we passed the raw cents string "800",
+          // which collided whenever the user typed the same digits as the cents
+          // value (e.g. "8" with balance 800 → typing "800" matched draft →
+          // InlineEditCell short-circuited as no-op and never fired onSave).
+          <div className="w-[88px] text-right tabular-nums sm:w-[140px]">
+            <InlineEditCell
+              // value is the editor source — keep it a clean separator-free
+              // decimal so the edit round-trip + no-op compare stay locale-
+              // agnostic; the resting display below is locale-grouped.
+              value={centsToBare(row.reserveCents).replace(/[^0-9.-]/g, "")}
+              ariaLabel={t("reserveAria", { name: row.name })}
+              disabled={false}
+              testId={`reserves-balance-${row.categoryId}`}
+              render={() => (
+                <span className="text-num-md text-[var(--foreground)]">
+                  {centsToBare(row.reserveCents, locale)}
+                </span>
+              )}
+              renderEditor={(draft, onChange, _onCommit, onCancel) => (
+                <Input
+                  autoFocus
+                  type="text"
+                  inputMode="decimal"
+                  defaultValue={String(draft).replace(/[^0-9.-]/g, "")}
+                  onChange={(e) => onChange(e.target.value.replace(",", "."))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") onCancel();
+                    if (e.key === "Enter")
+                      (e.target as HTMLInputElement).blur();
+                  }}
+                  className="h-9 pl-7 text-right"
+                />
+              )}
+              onSave={async (v) => {
+                const cleaned = String(v).replace(",", ".");
+                const n = Number(cleaned || "0");
+                const cents = BigInt(
+                  Math.round((Number.isFinite(n) ? n : 0) * 100),
+                );
+                await onUpdate(cents);
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

@@ -791,8 +791,7 @@
         },
         "column": {
           "category": "Category",
-          "reserve": "Reserve",
-          "used": "Used"
+          "available": "Available"
         },
         "row": {
           "dragHandleAria": "Drag to move {name} between active and excluded.",
@@ -800,17 +799,12 @@
           "swipeRestoreCta": "Restore",
           "excludeAria": "Exclude {name} from reserves.",
           "restoreAria": "Restore {name} to active reserves.",
-          "reserveAria": "Reserve for {name}",
-          "usedAria": "Reserve used for {name}"
+          "reserveAria": "Available for {name}"
         },
         "totals": {
-          "internalLabel": "Σ reserves",
-          "walletsLabel": "Σ reserve wallets"
-        },
-        "surplus": {
-          "topup": "Top up reserve wallet by {amount}",
-          "withdraw": "Withdraw {amount} from reserve wallet",
-          "reconciled": "Reserve reconciled"
+          "internalLabel": "Total available",
+          "walletsLabel": "Total in wallets",
+          "usedLabel": "Total used (this month)"
         },
         "toast": {
           "saved": "Reserve updated",

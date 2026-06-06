@@ -814,8 +814,7 @@
         },
         "column": {
           "category": "Категорія",
-          "reserve": "Резерв",
-          "used": "Використано"
+          "available": "Доступно"
         },
         "row": {
           "dragHandleAria": "Перетягніть, щоб перенести {name} між активними та виключеними.",
@@ -823,17 +822,12 @@
           "swipeRestoreCta": "Відновити",
           "excludeAria": "Виключити {name} з резервів.",
           "restoreAria": "Повернути {name} до активних резервів.",
-          "reserveAria": "Резерв для {name}",
-          "usedAria": "Використаний резерв для {name}"
+          "reserveAria": "Доступно для {name}"
         },
         "totals": {
-          "internalLabel": "Σ резерви",
-          "walletsLabel": "Σ гаманці резервів"
-        },
-        "surplus": {
-          "topup": "Поповніть гаманець резервів на {amount}",
-          "withdraw": "Зніміть {amount} з гаманця резервів",
-          "reconciled": "Резерв збалансовано"
+          "internalLabel": "Усього доступно",
+          "walletsLabel": "Усього в гаманцях",
+          "usedLabel": "Усього використано (цього місяця)"
         },
         "toast": {
           "saved": "Резерв оновлено",

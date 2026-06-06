@@ -5,10 +5,13 @@
  * W-3 contract: Active section = summary.data.rows; Excluded section = summary.data.excludedRows.
  * Both arrays come from the SINGLE GET /reserves response — no separate categories fetch.
  *
- * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): active rows render the single
- * Reserve (R) value + Used (U); the budget-level SurplusBanner (top-up /
- * withdraw / reconciled) sits in the totals footer. The old Expected/Actual/
- * Share columns + MismatchChip are GONE.
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md) + 05-19 column reshape: active
+ * rows render a single editable "Available" value. The per-row Used column is
+ * removed; this island sums the active rows' usedCents and passes the total to
+ * the footer (TOTAL USED). The footer renders 3 stacked totals (TOTAL AVAILABLE
+ * / TOTAL IN WALLETS / TOTAL USED) and NO surplus banner — the RESERVE_TOPUP
+ * task card is the single reconcile nudge. The old Expected/Actual/Share
+ * columns + MismatchChip + SurplusBanner are GONE.
  *
  * T-05-06: When totals.disabled === true, render notice instead of table.
  * T-05-05: Excluded rows get isExcluded={true} → InlineEditCell disabled → no-op on click.
@@ -155,6 +158,13 @@ export function ReservesTableClient({
   const excludedRows = summary.data.excludedRows;
   const { budgetCurrency } = summary.data.totals;
 
+  // 05-19: TOTAL USED (THIS MONTH) — Σ usedCents over ACTIVE rows only (the same
+  // per-row values the removed Used column showed). UI-only aggregate; no new
+  // DTO field. BigInt to stay precise on serialized-cents strings.
+  const totalUsedCents = activeRows
+    .reduce((sum, r) => sum + BigInt(r.usedCents), 0n)
+    .toString();
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div
@@ -168,32 +178,29 @@ export function ReservesTableClient({
         // iOS home-indicator gutter comfortably.
         className="flex flex-col gap-4 p-4 pb-20 sm:p-6"
       >
-        {/* UAT-PH5-T3-53: single top banner on every viewport. Sits
-            inside the page's flex column so its width matches the
-            category list naturally. Now carries the SurplusBanner
-            (top-up / withdraw / reconciled) sourced from the engine
-            totals (internal vs userDefined). */}
+        {/* UAT-PH5-T3-53: single top totals strip on every viewport. Sits
+            inside the page's flex column so its width matches the category
+            list naturally. 05-19: 3 stacked totals (TOTAL AVAILABLE / TOTAL IN
+            WALLETS / TOTAL USED) — no surplus banner. TOTAL USED = Σ active
+            rows' usedCents, computed here (this island holds the rows). */}
         <ReservesTotalsFooter
           internalCents={summary.data.totals.internalCents}
           userDefinedCents={summary.data.totals.userDefinedCents}
-          surplusCents={summary.data.totals.surplusCents}
-          direction={summary.data.totals.direction}
+          usedCents={totalUsedCents}
           currency={budgetCurrency}
         />
 
         {/* Active section — column headers replace the section caption
-            (UAT-PH5-T3-55: dropped "Active" h3; column headers sit
-            where it was, inline above the row list). New engine model:
-            Category / Reserve / Used. */}
+            (UAT-PH5-T3-55: dropped "Active" h3; column headers sit where it
+            was, inline above the row list). 05-19: two columns now —
+            Category / Available (the Used column is removed; its sum lives in
+            the footer). Header width matches the row's Available cell. */}
         <ActiveSection>
           <div className="flex items-center gap-3 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
             <span className="w-4" aria-hidden="true" />
             <span className="min-w-0 flex-1">{t("column.category")}</span>
-            <span className="w-[72px] text-right sm:w-[120px]">
-              {t("column.reserve")}
-            </span>
-            <span className="w-[64px] text-right sm:w-[100px]">
-              {t("column.used")}
+            <span className="w-[88px] text-right sm:w-[140px]">
+              {t("column.available")}
             </span>
           </div>
           {activeRows.map((r) => (

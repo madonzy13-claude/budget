@@ -1,11 +1,17 @@
 "use client";
 /**
- * reserves-totals-footer.tsx — reserve reconciliation banner (NEW engine model).
+ * reserves-totals-footer.tsx — reserve totals strip (05-19 reshape).
  *
- * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): shows Σ internal (Σ active R)
- * vs Σ reserve wallets (userDefined) and the SurplusBanner that tells the
- * family whether to TOP UP or WITHDRAW (or that reserves are reconciled). The
- * old MismatchChip + walletShare math are GONE.
+ * Renders THREE stacked totals and nothing else (the SurplusBanner is gone —
+ * the RESERVE_TOPUP task card is now the single reconcile nudge):
+ *   TOTAL AVAILABLE          internalCents     (Σ active reserve / "available")
+ *   TOTAL IN WALLETS         userDefinedCents  (Σ RESERVE-wallet balances)
+ *   TOTAL USED (THIS MONTH)  usedCents         (Σ active rows' usedCents)
+ *
+ * `usedCents` is summed by the client island (it holds the rows) and passed in
+ * pre-aggregated — this component stays a dumb presentational primitive. The
+ * "(THIS MONTH)" label is the product copy; usedCents is the engine's running
+ * used reserve and may span months (see 05-19 SUMMARY data caveat).
  *
  * UAT-PH5-T3-53: Single layout on every viewport. Renders inline at the top of
  * the reserves column so its width matches the category list naturally. No
@@ -14,24 +20,21 @@
 import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { centsToBare } from "@/lib/cents-format";
-import { SurplusBanner, type SurplusDirection } from "./surplus-banner";
 
 export interface ReservesTotalsFooterProps {
-  /** Σ active R (engine internal reserve), serialized cents. */
+  /** Σ active reserve (engine internal), serialized cents → TOTAL AVAILABLE. */
   internalCents: string;
-  /** Σ RESERVE-wallet balances (userDefined), serialized cents. */
+  /** Σ RESERVE-wallet balances (userDefined), serialized cents → TOTAL IN WALLETS. */
   userDefinedCents: string;
-  /** userDefined − internal, serialized cents (may be negative). */
-  surplusCents: string;
-  direction: SurplusDirection;
+  /** Σ active rows' usedCents, serialized cents → TOTAL USED (THIS MONTH). */
+  usedCents: string;
   currency: string;
 }
 
 export function ReservesTotalsFooter({
   internalCents,
   userDefinedCents,
-  surplusCents,
-  direction,
+  usedCents,
   currency,
 }: ReservesTotalsFooterProps) {
   const t = useTranslations("bdp.tab.reserves");
@@ -41,11 +44,29 @@ export function ReservesTotalsFooter({
   // group separators are correct. The trailing currency code is intentional.
   const fmt = (cents: string) => centsToBare(cents, locale);
 
-  // |surplus| for the banner — sign is conveyed by direction + accent colour.
-  const absSurplus = (() => {
-    const s = BigInt(surplusCents);
-    return (s < 0n ? -s : s).toString();
-  })();
+  const totals: ReadonlyArray<{
+    key: string;
+    label: string;
+    value: string;
+    testId?: string;
+  }> = [
+    {
+      key: "available",
+      label: t("totals.internalLabel"),
+      value: fmt(internalCents),
+    },
+    {
+      key: "wallets",
+      label: t("totals.walletsLabel"),
+      value: fmt(userDefinedCents),
+    },
+    {
+      key: "used",
+      label: t("totals.usedLabel"),
+      value: fmt(usedCents),
+      testId: "reserves-total-used",
+    },
+  ];
 
   return (
     <div
@@ -53,29 +74,25 @@ export function ReservesTotalsFooter({
       className={[
         "rounded-[var(--radius-md)] border border-[var(--hairline-dark)]",
         "bg-[var(--surface-card-dark)]",
-        "flex flex-col gap-3 px-4 py-3",
-        "sm:flex-row sm:items-center sm:justify-between sm:gap-8",
+        "flex flex-col gap-2 px-4 py-3",
       ].join(" ")}
     >
-      <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 sm:flex sm:flex-row sm:items-baseline sm:gap-4">
-        <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-          {t("totals.internalLabel")}
-        </span>
-        <span className="text-num-md text-right text-[var(--foreground)]">
-          {fmt(internalCents)} {currency}
-        </span>
-        <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-          {t("totals.walletsLabel")}
-        </span>
-        <span className="text-num-md text-right text-[var(--foreground)]">
-          {fmt(userDefinedCents)} {currency}
-        </span>
-      </div>
-
-      <SurplusBanner
-        direction={direction}
-        amountFormatted={`${fmt(absSurplus)} ${currency}`}
-      />
+      {totals.map((row) => (
+        <div
+          key={row.key}
+          className="flex items-baseline justify-between gap-4"
+        >
+          <span className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+            {row.label}
+          </span>
+          <span
+            data-testid={row.testId}
+            className="text-num-md text-right tabular-nums text-[var(--foreground)]"
+          >
+            {row.value} {currency}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
