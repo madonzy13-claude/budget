@@ -1,33 +1,28 @@
--- Lock pre-fix recurring DRAFTS to the budget currency. The worker bug stored them
--- in the rule's foreign currency; amount_converted_cents is already the budget value,
--- so align amount_original_cents / currency_original / fx_rate to it. UNCONFIRMED drafts
--- only. Idempotent: after running, currency_original = budget, so re-runs match 0 rows.
+-- SUPERSEDED / NEUTRALIZED (05-21). DO NOT RE-ENABLE.
 --
--- RLS NOTE: the migrator role is NOBYPASSRLS NOSUPERUSER (D-18) and both
--- budgeting.expense_ledger and tenancy.budgets are FORCE ROW LEVEL SECURITY, so a
--- plain cross-tenant UPDATE/JOIN sees 0 rows (no app.tenant_ids GUC in the migrator
--- session). The migrator OWNS both tables, and a table owner is exempt from RLS only
--- when the table is not FORCE'd. So drop FORCE on both for the duration of this
--- backfill, then immediately restore it. Transient + same-transaction; post-migration.sql
--- re-asserts FORCE on every run, so the security posture is unchanged. We only READ
--- tenancy.budgets here (no mutation — the immutable-currency trigger is untouched).
+-- This migration was a FLAWED attempt to fix unconverted foreign-currency
+-- recurring drafts. SQL cannot call FX, so the original UPDATE could not
+-- actually convert anything — it merely relabeled `currency_original` from the
+-- rule's foreign currency to the budget default on the rate-1 (UNCONVERTED)
+-- amounts. That made the drafts *look* budget-currency while still holding the
+-- foreign magnitude (e.g. "3500 PLN" surfaced as "3500 EUR"), and it CORRUPTED
+-- `currency_original` so the draft row could no longer be trusted.
+--
+-- The correct fix is a re-conversion SCRIPT that re-derives each unconfirmed
+-- recurring draft from its RULE (the source of truth) and converts through the
+-- REAL FrankfurterFxProvider:
+--   scripts/backfill-recurring-draft-fx.ts   (05-21, run-and-delete data fix)
+-- plus a stub guard so the rate-1 InMemoryFxProvider can never reach a write
+-- path again (InMemoryFxProvider.rateAsOf now THROWS on unseeded cross-currency).
+--
+-- The original body toggled FORCE ROW LEVEL SECURITY off/on around a
+-- cross-tenant UPDATE/JOIN (the migrator role is NOBYPASSRLS and both tables are
+-- FORCE'd, so a plain migrator UPDATE sees 0 rows). Re-running it on a FRESH DB
+-- would re-introduce the relabel corruption on any rate-1 draft, so the body is
+-- intentionally a no-op now. The journal entry (idx 31) is preserved to avoid
+-- churning drizzle/meta; this file is kept as a tombstone documenting the
+-- superseded approach.
+--
+-- Intentional no-op (a bare SELECT keeps drizzle-kit happy without mutating).
 --> statement-breakpoint
-ALTER TABLE budgeting.expense_ledger NO FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE tenancy.budgets NO FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
-UPDATE budgeting.expense_ledger el
-   SET amount_original_cents = el.amount_converted_cents,
-       currency_original     = b.default_currency,
-       fx_rate               = 1,
-       updated_at            = now()
-  FROM tenancy.budgets b
- WHERE b.id = el.tenant_id
-   AND el.recurring_rule_id IS NOT NULL
-   AND el.confirmed_at IS NULL
-   AND el.deleted_at IS NULL
-   AND el.currency_original <> b.default_currency;
---> statement-breakpoint
-ALTER TABLE budgeting.expense_ledger FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE tenancy.budgets FORCE ROW LEVEL SECURITY;
+SELECT 1;
