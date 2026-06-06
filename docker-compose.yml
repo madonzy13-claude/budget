@@ -114,6 +114,13 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL_WORKER: ${DATABASE_URL_WORKER}
+      # Phase 7: the hourly budgeting-reconciliation sweep runs the RESERVE_TOPUP /
+      # CUSHION_BELOW_TARGET task generators inside withTenantTx(SYSTEM_USER), which
+      # uses the APP pool (sets per-tenant app.tenant_ids RLS GUC). Without this var
+      # the sweep throws "Missing required env var: DATABASE_URL_APP" on every tenant
+      # and stale tasks never self-heal. The write-path inline hooks live in `api`;
+      # this is the worker-side backstop. (worker is workerDb for its own jobs.)
+      DATABASE_URL_APP: ${DATABASE_URL_APP}
       BUDGET_KEK: ${BUDGET_KEK}
     depends_on:
       migrator:
