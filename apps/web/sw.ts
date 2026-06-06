@@ -13,23 +13,34 @@
  * - /api/workspaces/*  (workspace data)
  * - /api/settings/*  (user settings)
  *
- * Offline navigation fallback: when a navigation request times out AND no
- * cached entry exists, we serve the precached /en/server-down page instead
- * of the browser's default offline screen. On iOS standalone-mode PWAs the
- * default screen renders as a blank dark viewport — users reported it as a
- * "black screen". The fallback runs entirely from the precache, so it works
- * even with no network and no API container.
+ * Offline navigation fallback: when a navigation request cannot reach the
+ * origin we serve the precached /offline.html document instead of the browser's
+ * default offline screen (a blank dark viewport on iOS standalone PWAs — the
+ * "black screen") AND instead of a stale, redirect-prone app/sign-in shell.
+ *
+ * Why a STATIC /offline.html and not the /<locale>/server-down route (05-18):
+ * /<locale>/server-down is a DYNAMIC Next.js route. @serwist/next only adds its
+ * JS *chunk* to __SW_MANIFEST — never a navigable HTML document — so
+ * caches.match("/en/server-down") always MISSED. NetworkFirst then fell back to
+ * whatever HTML happened to sit in the runtime "pages" cache (often a previously
+ * visited authenticated shell or /sign-in). That stale shell re-runs its
+ * client-side auth/locale logic with no live server, bouncing sign-in <-> home
+ * — the infinite offline redirect loop users reported. /offline.html lives in
+ * public/, so the default globPublicPatterns precaches every public file: a HIT
+ * is guaranteed offline, and the static doc never redirects.
  */
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import {
   NetworkOnly,
   CacheFirst,
-  NetworkFirst,
   StaleWhileRevalidate,
   Serwist,
 } from "serwist";
+import { buildOfflineDocument, handleNavigationRequest } from "./sw-offline";
 
-const OFFLINE_FALLBACK_URL = "/en/server-down";
+// OFFLINE_FALLBACK_URL ("/offline.html") + the offline/navigation strategy live
+// in ./sw-offline.ts (pure, unit-tested). See that module's header for the
+// offline-redirect-loop rationale (05-18).
 
 // Bump this suffix whenever the static-asset caching strategy changes so a new
 // service worker abandons the old runtime cache instead of inheriting a stuck
@@ -49,6 +60,16 @@ declare global {
 }
 
 declare const self: any;
+
+/**
+ * Service-worker-bound wrapper: resolves the precached /offline.html via the
+ * real Cache Storage and delegates to the pure builder in ./sw-offline.ts.
+ */
+async function offlineDocument(request: Request): Promise<Response> {
+  return buildOfflineDocument(request, (url) =>
+    caches.match(url, { ignoreSearch: true }),
+  );
+}
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
@@ -89,47 +110,31 @@ const serwist = new Serwist({
         cacheName: SCRIPT_IMAGE_CACHE,
       }),
     },
-    // Next.js pages — NetworkFirst.
-    // T-9-extension: StaleWhileRevalidate served stale authenticated HTML across
-    // sign-in/sign-out boundaries (e.g. signed-out user could navigate to a
-    // previously-visited /workspaces and still see the cached page bypassing
-    // middleware). NetworkFirst forces every navigation to hit the server first
-    // (so middleware runs and middleware-driven redirects work), with the
-    // cache as an offline fallback only.
+    // Next.js page navigations — network-only-then-OFFLINE-DOC.
     //
-    // handlerDidError plugin: NetworkFirst already falls back to the runtime
-    // cache when the network attempt times out. When the runtime cache is
-    // ALSO empty (first-time visitor while offline, or this URL was never
-    // visited) handlerDidError fires and we return the precached
-    // /en/server-down page. Without this hook the browser falls through to
-    // its own default offline UI — which on iOS standalone PWAs is the
-    // blank-black-viewport "black screen" we are fixing.
+    // History (why this is no longer plain NetworkFirst):
+    //   - StaleWhileRevalidate served stale authenticated HTML across
+    //     sign-in/sign-out boundaries (T-9-extension) — fixed by NetworkFirst.
+    //   - NetworkFirst then exposed the OFFLINE REDIRECT LOOP (05-18): when the
+    //     network failed it fell back to whatever HTML sat in the "pages"
+    //     runtime cache. For a navigation that had no exact cache entry,
+    //     NetworkFirst returned a *previously cached different page* (commonly an
+    //     authenticated app shell or /sign-in). That shell re-runs its
+    //     client-side auth/locale logic with no live server and bounces
+    //     sign-in <-> home forever.
+    //
+    // Fix: on a navigation we try the network; if it fails for ANY reason
+    // (offline, timeout, 5xx) we serve the STATIC, non-redirecting
+    // /offline.html document — never a stale page shell. A single failed
+    // dependency therefore yields exactly ONE rendered offline screen and zero
+    // redirects. The offline doc carries `?next=<path>&lang=<locale>` so its
+    // Retry button returns the user to the page they wanted once the API is back
+    // (and `online` auto-retries).
     {
       matcher: ({ request }: { request: Request }) =>
         request.mode === "navigate",
-      handler: new NetworkFirst({
-        cacheName: "pages",
-        networkTimeoutSeconds: 5,
-        plugins: [
-          {
-            handlerDidError: async () => {
-              const cached = await caches.match(OFFLINE_FALLBACK_URL, {
-                ignoreSearch: true,
-              });
-              return (
-                cached ??
-                new Response(
-                  "<!DOCTYPE html><meta charset=utf-8><title>Budget</title><body style='margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#181a20;color:#eaecef;font-family:system-ui;text-align:center;padding:24px'><div><h1 style='font-size:20px;margin:0 0 8px'>We can't reach the server</h1><p style='font-size:14px;color:#848e9c'>Try again in a moment.</p></div></body>",
-                  {
-                    status: 503,
-                    headers: { "content-type": "text/html; charset=utf-8" },
-                  },
-                )
-              );
-            },
-          },
-        ],
-      }),
+      handler: ({ request }: { request: Request }) =>
+        handleNavigationRequest(request, (req) => fetch(req), offlineDocument),
     },
   ],
 });
