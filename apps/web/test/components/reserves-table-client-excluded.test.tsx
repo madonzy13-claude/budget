@@ -5,12 +5,13 @@
  * {reserveCents, usedCents, overspentCents}; totals carry
  * {internalCents, userDefinedCents, surplusCents, direction, disabled, ...}.
  *
- * W-3 acceptance contract:
- * - Active section sources rows from summary.rows (reserve + used cells)
+ * W-3 acceptance contract (updated for 05-19 reshape):
+ * - Active section sources rows from summary.rows (single Available cell, NO used cell)
  * - Excluded section sources rows from summary.excludedRows (name-only)
  * - clientApiFetch is NEVER called with a /categories path (single source of truth)
  * - When totals.disabled=true, renders "Reserves disabled" notice
- * - The SurplusBanner renders in the totals footer with the engine direction
+ * - The totals footer renders 3 stacked labels and NO surplus banner
+ * - The TOTAL USED line sums the active rows' usedCents
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -64,7 +65,14 @@ const initial: ReservesSummaryDto = {
       categoryId: "A",
       name: "Housing",
       reserveCents: "30000",
-      usedCents: "0",
+      usedCents: "1200",
+      overspentCents: "0",
+    },
+    {
+      categoryId: "C",
+      name: "Transport",
+      reserveCents: "20000",
+      usedCents: "800",
       overspentCents: "0",
     },
   ],
@@ -109,7 +117,7 @@ describe("ReservesTableClient — engine model + W-3 excluded rows", () => {
     });
   });
 
-  it("Active section renders the Housing row with a reserve cell", () => {
+  it("Active section renders the Housing row with an available cell and NO used cell", () => {
     renderClient();
     const activeSection = screen.getByTestId("reserves-active-section");
     const housingRow = screen.getByTestId("reserves-row-A");
@@ -119,7 +127,7 @@ describe("ReservesTableClient — engine model + W-3 excluded rows", () => {
     ).not.toBeNull();
     expect(
       housingRow.querySelector('[data-testid="reserves-used-A"]'),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it("Excluded section renders Hobbies as a name-only row (no reserve, no used)", () => {
@@ -136,26 +144,46 @@ describe("ReservesTableClient — engine model + W-3 excluded rows", () => {
     ).toBeNull();
   });
 
-  it("renders the surplus banner in the totals footer", () => {
+  it("renders the totals footer with NO surplus banner (removed in 05-19)", () => {
     renderClient();
-    const banner = screen.getByTestId("reserves-surplus-banner");
-    expect(banner).toHaveAttribute("data-direction", "NONE");
+    expect(screen.getByTestId("reserves-totals-footer")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("reserves-surplus-banner"),
+    ).not.toBeInTheDocument();
   });
 
-  it("renders the TOPUP surplus banner when internal exceeds userDefined", () => {
+  it("footer renders the 3 stacked total labels (available / wallets / used)", () => {
+    renderClient();
+    const footer = screen.getByTestId("reserves-totals-footer");
+    // next-intl mock echoes the key — assert all three label keys render.
+    expect(footer.textContent).toContain("totals.internalLabel");
+    expect(footer.textContent).toContain("totals.walletsLabel");
+    expect(footer.textContent).toContain("totals.usedLabel");
+  });
+
+  it("TOTAL USED line sums the active rows' usedCents (1200 + 800 = 2000c → 20)", () => {
+    renderClient();
+    const usedTotal = screen.getByTestId("reserves-total-used");
+    // 2000 cents → "20" (centsToBare drops the whole-unit .00).
+    expect(usedTotal.textContent).toMatch(/\b20\b/);
+  });
+
+  it("TOTAL USED excludes excluded-row usedCents (only active rows count)", () => {
     renderClient({
-      totals: {
-        ...initial.totals,
-        internalCents: "50000",
-        userDefinedCents: "30000",
-        surplusCents: "-20000",
-        direction: "TOPUP",
-      },
+      excludedRows: [
+        {
+          categoryId: "B",
+          name: "Hobbies",
+          reserveCents: "50000",
+          usedCents: "99900",
+          overspentCents: "0",
+        },
+      ],
     });
-    expect(screen.getByTestId("reserves-surplus-banner")).toHaveAttribute(
-      "data-direction",
-      "TOPUP",
-    );
+    const usedTotal = screen.getByTestId("reserves-total-used");
+    // Still 20 (active 1200+800), the 99900 excluded used is NOT summed.
+    expect(usedTotal.textContent).toMatch(/\b20\b/);
+    expect(usedTotal.textContent).not.toMatch(/999/);
   });
 
   it("clientApiFetch is NEVER called with a /categories path (single-source-of-truth)", () => {

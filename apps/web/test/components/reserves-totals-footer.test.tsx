@@ -1,14 +1,19 @@
 /**
  * reserves-totals-footer.test.tsx — Vitest+RTL tests for ReservesTotalsFooter.
  *
- * Phase 05 reserve rewrite: the footer now renders Σ internal vs Σ wallets +
- * the SurplusBanner (top-up / withdraw / reconciled) driven by `direction`.
+ * 05-19 reshape: the footer now renders 3 stacked totals and NO surplus banner:
+ *   TOTAL AVAILABLE      (internalCents — Σ active reserve)
+ *   TOTAL IN WALLETS     (userDefinedCents — Σ RESERVE-wallet balances)
+ *   TOTAL USED (THIS MONTH)  (usedCents — Σ active rows' usedCents, passed in)
+ *
+ * The SurplusBanner (top-up / withdraw / reconciled) is GONE — the RESERVE_TOPUP
+ * task card outside this component remains the single nudge surface.
  *
  * Coverage:
- * - direction NONE → reconciled banner
- * - direction TOPUP → top-up banner (internal > userDefined)
- * - direction WITHDRAW → withdraw banner (internal < userDefined)
  * - data-testid="reserves-totals-footer" present, not sticky
+ * - NO surplus banner rendered
+ * - all three label keys render (internalLabel / walletsLabel / usedLabel)
+ * - the used value cell renders the passed usedCents formatted as money
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -24,48 +29,68 @@ vi.mock("next-intl", () => ({
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function renderFooter(
-  direction: "TOPUP" | "WITHDRAW" | "NONE",
-  surplusCents: string,
+  overrides?: Partial<{
+    internalCents: string;
+    userDefinedCents: string;
+    usedCents: string;
+    currency: string;
+  }>,
 ) {
   return render(
     <ReservesTotalsFooter
-      internalCents="30000"
-      userDefinedCents="30000"
-      surplusCents={surplusCents}
-      direction={direction}
-      currency="EUR"
+      internalCents={overrides?.internalCents ?? "30000"}
+      userDefinedCents={overrides?.userDefinedCents ?? "10000"}
+      usedCents={overrides?.usedCents ?? "0"}
+      currency={overrides?.currency ?? "EUR"}
     />,
   );
 }
 
 // ─── tests ───────────────────────────────────────────────────────────────────
 
-describe("ReservesTotalsFooter", () => {
-  it("renders the reconciled surplus banner when direction is NONE", () => {
-    renderFooter("NONE", "0");
-    const banner = screen.getByTestId("reserves-surplus-banner");
-    expect(banner).toBeInTheDocument();
-    expect(banner).toHaveAttribute("data-direction", "NONE");
+describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
+  it("does NOT render a surplus banner", () => {
+    renderFooter();
+    expect(
+      screen.queryByTestId("reserves-surplus-banner"),
+    ).not.toBeInTheDocument();
   });
 
-  it("renders the top-up surplus banner when direction is TOPUP", () => {
-    renderFooter("TOPUP", "-1500");
-    expect(screen.getByTestId("reserves-surplus-banner")).toHaveAttribute(
-      "data-direction",
-      "TOPUP",
-    );
+  it("renders the three total label keys", () => {
+    renderFooter();
+    const footer = screen.getByTestId("reserves-totals-footer");
+    expect(footer.textContent).toContain("totals.internalLabel");
+    expect(footer.textContent).toContain("totals.walletsLabel");
+    expect(footer.textContent).toContain("totals.usedLabel");
   });
 
-  it("renders the withdraw surplus banner when direction is WITHDRAW", () => {
-    renderFooter("WITHDRAW", "2500");
-    expect(screen.getByTestId("reserves-surplus-banner")).toHaveAttribute(
-      "data-direction",
-      "WITHDRAW",
-    );
+  it("renders TOTAL AVAILABLE value from internalCents", () => {
+    renderFooter({ internalCents: "30000" });
+    const footer = screen.getByTestId("reserves-totals-footer");
+    expect(footer.textContent).toMatch(/300/);
+  });
+
+  it("renders TOTAL IN WALLETS value from userDefinedCents", () => {
+    renderFooter({ userDefinedCents: "10000" });
+    const footer = screen.getByTestId("reserves-totals-footer");
+    expect(footer.textContent).toMatch(/100/);
+  });
+
+  it("renders TOTAL USED value from usedCents in a dedicated cell", () => {
+    renderFooter({ usedCents: "4500" });
+    const usedTotal = screen.getByTestId("reserves-total-used");
+    // 4500 cents → "45".
+    expect(usedTotal.textContent).toMatch(/45/);
+  });
+
+  it("renders TOTAL USED as 0 when no reserve has been used", () => {
+    renderFooter({ usedCents: "0" });
+    const usedTotal = screen.getByTestId("reserves-total-used");
+    expect(usedTotal.textContent).toMatch(/0/);
   });
 
   it("footer wrapper renders as bordered floating card (not sticky)", () => {
-    renderFooter("NONE", "0");
+    renderFooter();
     const footer = screen.getByTestId("reserves-totals-footer");
     expect(footer.className).not.toContain("sticky");
     expect(footer.className).toContain("rounded-[var(--radius-md)]");
@@ -73,7 +98,7 @@ describe("ReservesTotalsFooter", () => {
   });
 
   it("renders the data-testid attribute", () => {
-    renderFooter("NONE", "0");
+    renderFooter();
     expect(screen.getByTestId("reserves-totals-footer")).toBeInTheDocument();
   });
 });

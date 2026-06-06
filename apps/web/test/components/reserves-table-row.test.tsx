@@ -1,14 +1,15 @@
 /**
  * reserves-table-row.test.tsx — Vitest+RTL tests for ReservesTableRow.
  *
- * Phase 05 reserve rewrite (05-REWRITE-SPEC.md): an active row renders ONE
- * editable Reserve (R, reserveCents) + a read-only Used (U, usedCents). The old
- * Expected/Actual/Share triple is GONE. Excluded rows render name-only.
+ * Phase 05 reserve rewrite (05-REWRITE-SPEC.md) + 05-19 column reshape: an
+ * active row renders ONE editable "Available" value (reserveCents). The
+ * per-row Used (U) cell is REMOVED — its sum now lives in the footer. The old
+ * Expected/Actual/Share triple is also GONE. Excluded rows render name-only.
  *
  * Coverage:
- *   - active row renders the editable reserve cell + the read-only used cell.
- *   - used > 0 renders in the warning tone; used == 0 in the muted tone.
- *   - excluded row renders ONLY the category name (no reserve, no used).
+ *   - active row renders the editable available cell.
+ *   - active row renders NO used cell (reserves-used-<id> is gone).
+ *   - excluded row renders ONLY the category name (no available, no used).
  *   - opacity styling (muted surface) for excluded rows.
  *   - W-5: data-category-id attribute on row.
  *   - inline-edit fires onUpdate with the cents BigInt.
@@ -87,42 +88,30 @@ function renderRow(
 }
 
 describe("ReservesTableRow", () => {
-  describe("active row — reserve + used cells (new engine model)", () => {
-    it("renders the editable reserve cell with the bare reserve value", () => {
+  describe("active row — single Available cell (05-19 reshape)", () => {
+    it("renders the editable available cell with the bare reserve value", () => {
       renderRow(noUsedRow);
-      const reserveCell = screen.getByTestId(
+      const availableCell = screen.getByTestId(
         `reserves-balance-${noUsedRow.categoryId}`,
       );
-      expect(reserveCell.textContent).toMatch(/300/);
+      expect(availableCell.textContent).toMatch(/300/);
     });
 
-    it("renders the read-only used cell", () => {
+    it("renders NO per-row used cell (column removed in 05-19)", () => {
       renderRow(usedRow);
-      const usedCell = screen.getByTestId(
-        `reserves-used-${usedRow.categoryId}`,
-      );
-      expect(usedCell).toBeInTheDocument();
-      expect(usedCell.textContent).toMatch(/50/);
+      expect(
+        screen.queryByTestId(`reserves-used-${usedRow.categoryId}`),
+      ).not.toBeInTheDocument();
+      // The used aria label is gone too — nothing carries the used value.
+      expect(
+        screen.queryByLabelText(
+          `bdp.tab.reserves.row.usedAria:${JSON.stringify({ name: "Transport" })}`,
+        ),
+      ).toBeNull();
     });
 
-    it("used > 0 is rendered in the warning tone", () => {
+    it("does NOT render any share / actual / used column (all dropped)", () => {
       renderRow(usedRow);
-      const used = screen.getByLabelText(
-        `bdp.tab.reserves.row.usedAria:${JSON.stringify({ name: "Transport" })}`,
-      );
-      expect(used.className).toContain("--warning");
-    });
-
-    it("used == 0 is rendered in the muted tone", () => {
-      renderRow(noUsedRow);
-      const used = screen.getByLabelText(
-        `bdp.tab.reserves.row.usedAria:${JSON.stringify({ name: "Housing" })}`,
-      );
-      expect(used.className).toContain("--muted-foreground");
-    });
-
-    it("does NOT render any share / actual column (dropped)", () => {
-      renderRow(noUsedRow);
       // The old zero-state aria labels are gone.
       expect(
         screen.queryByLabelText("bdp.tab.reserves.row.zeroShareAria"),
@@ -135,7 +124,7 @@ describe("ReservesTableRow", () => {
   });
 
   describe("excluded row (name-only)", () => {
-    it("renders ONLY the category name — no reserve cell, no used cell", () => {
+    it("renders ONLY the category name — no available cell, no used cell", () => {
       renderRow(excludedRow, true);
       expect(screen.getByText("Hobbies")).toBeInTheDocument();
       expect(
