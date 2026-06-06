@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 05 plan 05-14 executed (reserve contracts + API routes reshape) on tasks-redesign branch
-last_updated: "2026-06-05T11:20:44.244Z"
+stopped_at: Phase 05 plan 05-19 executed (Reserves tab UI relabel — Available column, 3 totals, no surplus banner) on tasks-redesign branch
+last_updated: "2026-06-06T14:02:07.326Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 56
-  completed_plans: 54
-  percent: 96
+  completed_plans: 59
+  percent: 100
 ---
 
 # Project State
@@ -88,6 +88,7 @@ _Updated after each plan completion_
 | Phase 05 P12 | 31m | 3 tasks | 16 files |
 | Phase 05 P13 | 23min | 3 tasks | 16 files |
 | Phase 05 P14 | 25m | 2 tasks | 5 files |
+| Phase 05 P19 | 25m | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -206,8 +207,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-05T11:19:16.850Z
-Stopped at: Phase 05 plan 05-14 executed (reserve contracts + API routes reshape; factory/boot rewired, /reserves + /spendings-summary new-shape integration tests green) on tasks-redesign branch
+Last session: 2026-06-06T14:02:07.236Z
+Stopped at: Phase 05 plan 05-19 executed (Reserves tab UI relabel — Available column, 3 totals, no surplus banner) on tasks-redesign branch
 Resume file: None
 
 ## v1.0 History (archived)
