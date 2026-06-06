@@ -1,19 +1,22 @@
 import { expect, type Page, type Locator } from "@playwright/test";
 
 /**
- * Page Object for the BDP Reserves tab (Phase 05 reserve rewrite — new model).
+ * Page Object for the BDP Reserves tab (Phase 05 reserve rewrite + 05-19 reshape).
  *
- * The reshaped tab (05-15) renders, per active category, a SINGLE editable
- * Reserve value + a read-only Used value, plus a budget-level surplus banner
- * (top-up / withdraw / reconciled). The old Expected/Actual/Share columns +
- * MismatchChip are gone.
+ * The reshaped tab renders, per active category, a SINGLE editable "Available"
+ * value (no per-row Used cell). The totals footer shows THREE stacked totals —
+ * TOTAL AVAILABLE / TOTAL IN WALLETS / TOTAL USED (THIS MONTH) — and NO surplus
+ * banner (the RESERVE_TOPUP task card is the reconcile nudge). The old
+ * Expected/Actual/Share columns, MismatchChip, per-row Used cell, and
+ * SurplusBanner are all gone.
  *
  * Selectors are keyed off the stable data-testids emitted by
- * reserves-table-row.tsx / reserves-totals-footer.tsx / surplus-banner.tsx:
+ * reserves-table-row.tsx / reserves-totals-footer.tsx:
  *   reserves-row-<categoryId>        — the row wrapper (data-category-id)
- *   reserves-balance-<categoryId>    — the editable Reserve cell (InlineEditCell)
- *   reserves-used-<categoryId>       — the read-only Used cell
- *   reserves-surplus-banner          — the surplus banner (data-direction)
+ *   reserves-balance-<categoryId>    — the editable Available cell (InlineEditCell)
+ *   reserves-active-section          — the active-rows section (holds the headers)
+ *   reserves-totals-footer           — the 3-line totals strip
+ *   reserves-total-used              — the TOTAL USED value cell in the footer
  *   reserves-disabled-notice         — the reserves-disabled notice
  *
  * Categories are addressed by NAME (the row carries the visible name); the PO
@@ -37,31 +40,26 @@ export class ReservesPo {
     return id;
   }
 
-  /** The editable Reserve cell for a category. */
-  async reserveCell(name: string): Promise<Locator> {
+  /** The editable Available cell for a category. */
+  async availableCell(name: string): Promise<Locator> {
     const id = await this.categoryIdOf(name);
     return this.page.getByTestId(`reserves-balance-${id}`);
   }
 
-  /** The read-only Used cell for a category. */
-  async usedCell(name: string): Promise<Locator> {
-    const id = await this.categoryIdOf(name);
-    return this.page.getByTestId(`reserves-used-${id}`);
+  /** The active-rows "Available" column header (asserts the renamed header). */
+  availableColumnHeader(): Locator {
+    return this.page
+      .getByTestId("reserves-active-section")
+      .getByText(/^Available$/);
   }
 
-  /** The budget-level surplus banner (top-up / withdraw / reconciled). */
-  surplusBanner(): Locator {
-    return this.page.getByTestId("reserves-surplus-banner");
-  }
-
-  /** The reserves-disabled notice (reserves_enabled=false). */
-  disabledNotice(): Locator {
-    return this.page.getByTestId("reserves-disabled-notice");
-  }
-
-  /** The active-rows "Used" column header (asserts the new model headers). */
-  usedColumnHeader(): Locator {
-    return this.page.getByTestId("reserves-active-section").getByText(/^Used$/);
+  /** True when any "Used" column header is present in the active section. */
+  async hasUsedColumn(): Promise<boolean> {
+    const count = await this.page
+      .getByTestId("reserves-active-section")
+      .getByText(/^Used$/)
+      .count();
+    return count > 0;
   }
 
   /** True when any "Share" column header is present (should be FALSE now). */
@@ -73,10 +71,30 @@ export class ReservesPo {
     return count > 0;
   }
 
+  /** The totals footer (3 stacked totals). */
+  totalsFooter(): Locator {
+    return this.page.getByTestId("reserves-totals-footer");
+  }
+
+  /** The TOTAL USED (THIS MONTH) value cell. */
+  totalUsed(): Locator {
+    return this.page.getByTestId("reserves-total-used");
+  }
+
+  /** True when the (removed) surplus banner is present (should be FALSE now). */
+  async hasSurplusBanner(): Promise<boolean> {
+    return (await this.page.getByTestId("reserves-surplus-banner").count()) > 0;
+  }
+
+  /** The reserves-disabled notice (reserves_enabled=false). */
+  disabledNotice(): Locator {
+    return this.page.getByTestId("reserves-disabled-notice");
+  }
+
   /**
-   * Edit a category's reserve: open the inline cell, clear it, type the value,
-   * commit with Enter, and wait for the row to settle on the new value.
-   * `value` is a bare major-unit decimal string (e.g. "120").
+   * Edit a category's Available value: open the inline cell, fill the value,
+   * commit with Enter, and wait for the editor to close on the new value.
+   * `value` is a bare major-unit decimal string (e.g. "300").
    */
   async setReserve(name: string, value: string): Promise<void> {
     const id = await this.categoryIdOf(name);
@@ -89,16 +107,5 @@ export class ReservesPo {
     await input.press("Enter");
     // Editor closes once the optimistic write lands; the resting cell shows it.
     await expect(editor).toBeHidden({ timeout: 5000 });
-  }
-
-  /** Assert the surplus banner shows the given direction (TOPUP/WITHDRAW/NONE). */
-  async assertSurplusDirection(
-    direction: "TOPUP" | "WITHDRAW" | "NONE",
-  ): Promise<void> {
-    await expect(this.surplusBanner()).toHaveAttribute(
-      "data-direction",
-      direction,
-      { timeout: 5000 },
-    );
   }
 }

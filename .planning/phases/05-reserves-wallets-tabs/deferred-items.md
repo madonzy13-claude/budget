@@ -158,3 +158,23 @@ still consume the OLD shape and must be reshaped in 05-15:
 - `apps/web/src/hooks/use-spendings-summary.ts`, `use-create-transaction.ts`,
   `use-update-reserve-adjustment.ts`, `apps/web/src/lib/reserve-allocator.ts`
   (delete the dead mirror), and the reserves-tab + spendings-grid components.
+
+# Deferred items — discovered during 05-19 execution
+
+## Stale E2E: `tests/e2e/features/reserves/share-math-and-zero-state.feature` (@phase5)
+
+- **Found during:** 05-19 broader `@phase5` reserves E2E sweep (verification).
+- **Status:** 6 scenarios fail (3 × chromium + mobile) — "show correct shares",
+  "Actual and share render as zero", "reflects the reserve wallet balance".
+- **Root cause:** This feature tests the OLD Expected/Actual/**Share** reserve
+  model, REMOVED in plan **05-15** (engine-model reshape → single Reserve value).
+  It was never retired when the Share column was dropped, so it has been red
+  since 05-15 — predates and is unrelated to 05-19's relabel work.
+- **Untouched by 05-19:** last commit on the file is `d435945` (pre-05-15
+  "split share column"). 05-19 changed no Share/Actual UI or steps; none of the
+  failing scenarios reference 05-19's new keys (`Total available` / `Total in
+wallets` / `Total used` / `column.available` / `reserves-total-used`).
+- **Scope:** Owner of the 05-15 Share-removal cleanup should retire this feature
+  (the Share model no longer exists) or rewrite it against the single-value
+  model. NOT fixed in 05-19 per executor scope boundary (pre-existing failure in
+  a file the plan did not modify).

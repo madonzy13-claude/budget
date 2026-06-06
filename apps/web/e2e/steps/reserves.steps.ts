@@ -144,46 +144,61 @@ When(
 // ───────────────────────────────────────────────────────────────────────────
 
 Then(
-  /^the reserve cell for "(.+?)" is visible$/,
+  /^the available cell for "(.+?)" is visible$/,
   async ({ page }, name: string) => {
     const reserves = new ReservesPo(page);
-    await expect(await reserves.reserveCell(name)).toBeVisible();
+    await expect(await reserves.availableCell(name)).toBeVisible();
   },
 );
 
-Then(
-  /^the used cell for "(.+?)" is visible$/,
-  async ({ page }, name: string) => {
-    const reserves = new ReservesPo(page);
-    await expect(await reserves.usedCell(name)).toBeVisible();
-  },
-);
+Then('the reserves tab has an "Available" column', async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  await expect(reserves.availableColumnHeader()).toBeVisible();
+});
+
+Then('the reserves tab has no "Used" column', async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  expect(await reserves.hasUsedColumn()).toBe(false);
+});
 
 Then('the reserves tab has no "Share" column', async ({ page }) => {
   const reserves = new ReservesPo(page);
   expect(await reserves.hasShareColumn()).toBe(false);
 });
 
-Then("the surplus banner is visible", async ({ page }) => {
+Then("the reserves totals footer is visible", async ({ page }) => {
   const reserves = new ReservesPo(page);
-  await expect(reserves.surplusBanner()).toBeVisible();
+  await expect(reserves.totalsFooter()).toBeVisible();
 });
 
 Then(
-  /^the surplus banner shows the "(TOPUP|WITHDRAW|NONE)" direction$/,
-  async ({ page }, direction: string) => {
+  /^the reserves totals footer shows the "(.+?)" total$/,
+  async ({ page }, label: string) => {
     const reserves = new ReservesPo(page);
-    await reserves.assertSurplusDirection(
-      direction as "TOPUP" | "WITHDRAW" | "NONE",
+    // Labels render uppercased via CSS but the DOM text is the i18n string;
+    // match case-insensitively so the assertion is independent of casing.
+    // Escape regex metacharacters so labels like "Total used (this month)"
+    // match the literal parentheses instead of being read as a capture group.
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await expect(reserves.totalsFooter()).toContainText(
+      new RegExp(escaped, "i"),
+      {
+        timeout: 5000,
+      },
     );
   },
 );
 
+Then("the reserves tab has no surplus banner", async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  expect(await reserves.hasSurplusBanner()).toBe(false);
+});
+
 Then(
-  /^the reserve cell for "(.+?)" shows "(.+?)"$/,
+  /^the available cell for "(.+?)" shows "(.+?)"$/,
   async ({ page }, name: string, value: string) => {
     const reserves = new ReservesPo(page);
-    const cell = await reserves.reserveCell(name);
+    const cell = await reserves.availableCell(name);
     await expect(cell).toContainText(value, { timeout: 5000 });
   },
 );
