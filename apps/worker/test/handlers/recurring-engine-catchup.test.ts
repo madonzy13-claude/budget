@@ -220,7 +220,7 @@ describe("recurring engine catch-up", () => {
     });
 
     const { runRecurringEngine } =
-      await import("@budget/budgeting/src/application/recurring-engine");
+      await import("../../src/handlers/recurring-engine");
 
     const result = await runRecurringEngine(today);
     expect(result.isOk()).toBe(true);
@@ -246,7 +246,7 @@ describe("recurring engine catch-up", () => {
     });
 
     const { runRecurringEngine } =
-      await import("@budget/budgeting/src/application/recurring-engine");
+      await import("../../src/handlers/recurring-engine");
 
     // First run
     const r1 = await runRecurringEngine(today);
@@ -274,7 +274,7 @@ describe("recurring engine catch-up", () => {
     });
 
     const { runRecurringEngine } =
-      await import("@budget/budgeting/src/application/recurring-engine");
+      await import("../../src/handlers/recurring-engine");
 
     const r1 = await runRecurringEngine(today);
     expect(r1.isOk()).toBe(true);
@@ -308,7 +308,7 @@ describe("recurring engine catch-up", () => {
     });
 
     const { runRecurringEngine } =
-      await import("@budget/budgeting/src/application/recurring-engine");
+      await import("../../src/handlers/recurring-engine");
 
     const result = await runRecurringEngine(today);
     expect(result.isOk()).toBe(true);
