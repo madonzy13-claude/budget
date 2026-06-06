@@ -13,10 +13,17 @@
  * Pitfall 7: date string converted via new Date(s + 'T00:00:00Z').
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
 import type {
   TransactionRepo,
   TransactionRow,
 } from "../ports/transaction-repo";
+import type { TenantTx } from "../ports/task-repo";
+import {
+  recomputeReserveTopupTask,
+  type RecomputeReserveTopupTaskDeps,
+} from "./recompute-reserve-topup-task";
 
 export class CurrencyNotSupportedError extends Error {
   readonly kind = "CurrencyNotSupported" as const;
@@ -58,6 +65,20 @@ export interface CreateTransactionDeps {
   getBudgetCurrency?(budgetId: string): Promise<string>;
   /** Back-compat alias of {@link getBudgetCurrency}. Either may be supplied. */
   getWorkspaceDefaultCurrency?(budgetId: string): Promise<string>;
+  /**
+   * 05-17 bugfix: a confirmed transaction that overspends a category draws
+   * reserve (engine op1: R−=draw → internal=ΣR drops → surplus rises), so the
+   * persisted RESERVE_TOPUP shortfall must be recomputed after the create —
+   * otherwise the task message goes stale vs the live reserves banner until the
+   * hourly sweep. Optional + gated so legacy callers (and budget-scoped-only
+   * tests) keep compiling; when all four are present the create fires a
+   * best-effort own-tx recompute (never fails the create — sweep is the
+   * backstop). Mirrors the archive-category / set-category-limit precedent.
+   */
+  taskRepo?: RecomputeReserveTopupTaskDeps["taskRepo"];
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+  budgetCurrencyOf?: RecomputeReserveTopupTaskDeps["budgetCurrencyOf"];
+  isReservesEnabled?: RecomputeReserveTopupTaskDeps["isReservesEnabled"];
 }
 
 export function createTransaction(deps: CreateTransactionDeps) {
@@ -138,6 +159,69 @@ export function createTransaction(deps: CreateTransactionDeps) {
       return err(e as Error);
     }
 
+    // 05-17: refresh RESERVE_TOPUP off the live engine surplus (the create may
+    // have drawn/returned reserve via overspend). Best-effort, own-tx (A2):
+    // the create already committed above, so a recompute failure must NOT fail
+    // the transaction — the hourly reconciliation sweep is the backstop.
+    await maybeRecomputeReserveTopup(deps, input.tenantId, input.actorUserId);
+
     return ok({ transaction: row });
   };
 }
+
+/**
+ * Shared best-effort RESERVE_TOPUP recompute used by create/edit-transaction.
+ * No-op unless taskRepo + reservePositions + isReservesEnabled are all wired
+ * (budgetCurrencyOf falls back to the FX currency resolver). Swallows errors —
+ * the mutation already committed and the sweep reconverges the task.
+ */
+async function maybeRecomputeReserveTopup(
+  deps: {
+    taskRepo?: RecomputeReserveTopupTaskDeps["taskRepo"];
+    reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+    budgetCurrencyOf?: RecomputeReserveTopupTaskDeps["budgetCurrencyOf"];
+    isReservesEnabled?: RecomputeReserveTopupTaskDeps["isReservesEnabled"];
+    getBudgetCurrency?(budgetId: string): Promise<string>;
+    getWorkspaceDefaultCurrency?(budgetId: string): Promise<string>;
+  },
+  tenantId: string,
+  actorUserId: string,
+): Promise<void> {
+  const { taskRepo, reservePositions, isReservesEnabled } = deps;
+  const budgetCurrencyOf =
+    deps.budgetCurrencyOf ??
+    deps.getBudgetCurrency ??
+    deps.getWorkspaceDefaultCurrency;
+  if (
+    !taskRepo ||
+    !reservePositions ||
+    !isReservesEnabled ||
+    !budgetCurrencyOf
+  ) {
+    return;
+  }
+  try {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(actorUserId),
+      async (tx) => {
+        await recomputeReserveTopupTask(
+          tx as unknown as TenantTx,
+          // v1.1 invariant: tenantId === budgetId.
+          { tenantId, budgetId: tenantId },
+          { taskRepo, reservePositions, budgetCurrencyOf, isReservesEnabled },
+        );
+      },
+    );
+    if (r.isErr()) {
+      console.error(
+        "[create-transaction] reserve-topup recompute failed:",
+        r.error,
+      );
+    }
+  } catch (e) {
+    console.error("[create-transaction] reserve-topup recompute threw:", e);
+  }
+}
+
+export { maybeRecomputeReserveTopup as _maybeRecomputeReserveTopup };

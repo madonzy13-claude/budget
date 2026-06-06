@@ -12,6 +12,21 @@ import {
   AlreadyConfirmedError,
   DraftNotFoundError,
 } from "./confirm-recurring-draft";
+import type { TaskRepo, TenantTx } from "../ports/task-repo";
+import {
+  recomputeReserveTopupTask,
+  type RecomputeReserveTopupTaskDeps,
+} from "./recompute-reserve-topup-task";
+
+export interface EditAndConfirmRecurringDraftDeps {
+  /** 05-17: edit-and-confirm flips confirmed_at (and may change amount/category)
+   *  → counted spend → reserve draw → surplus shift. Refresh RESERVE_TOPUP.
+   *  Optional + gated; best-effort own-tx after commit (sweep is the backstop). */
+  taskRepo?: TaskRepo;
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+  budgetCurrencyOf?: RecomputeReserveTopupTaskDeps["budgetCurrencyOf"];
+  isReservesEnabled?: RecomputeReserveTopupTaskDeps["isReservesEnabled"];
+}
 
 export interface EditAndConfirmInput {
   tenantId: string;
@@ -26,7 +41,7 @@ export interface EditAndConfirmInput {
 }
 
 export function editAndConfirmRecurringDraft(
-  _deps: Record<string, unknown> = {},
+  deps: EditAndConfirmRecurringDraftDeps = {},
 ) {
   return async (
     input: EditAndConfirmInput,
@@ -118,6 +133,38 @@ export function editAndConfirmRecurringDraft(
         return { ledgerId: input.draftId };
       },
     );
+
+    // 05-17: refresh RESERVE_TOPUP after a successful edit-and-confirm (the
+    // confirmed row is counted spend → may draw reserve). Best-effort own-tx.
+    if (
+      r.isOk() &&
+      deps.taskRepo &&
+      deps.reservePositions &&
+      deps.budgetCurrencyOf &&
+      deps.isReservesEnabled
+    ) {
+      const taskRepo = deps.taskRepo;
+      const reservePositions = deps.reservePositions;
+      const budgetCurrencyOf = deps.budgetCurrencyOf;
+      const isReservesEnabled = deps.isReservesEnabled;
+      const recomputeR = await withTenantTx(
+        TenantId(input.tenantId),
+        UserId(input.actorUserId),
+        async (tx) => {
+          await recomputeReserveTopupTask(
+            tx as unknown as TenantTx,
+            { tenantId: input.tenantId, budgetId: input.tenantId },
+            { taskRepo, reservePositions, budgetCurrencyOf, isReservesEnabled },
+          );
+        },
+      );
+      if (recomputeR.isErr()) {
+        console.error(
+          "[edit-and-confirm-recurring-draft] reserve-topup recompute failed:",
+          recomputeR.error,
+        );
+      }
+    }
 
     return r;
   };

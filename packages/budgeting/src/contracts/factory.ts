@@ -288,23 +288,48 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       limitRepo,
       taskRepo: createTaskRepo(),
       fxProvider,
+      // 05-17: a limit change moves overage → reserve draw → surplus, so
+      // recompute RESERVE_TOPUP alongside the CUSHION recompute.
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
     }),
     getEffectiveLimit: getEffectiveLimit({ limitRepo }),
     applyBudgetTemplate: applyBudgetTemplate({ templateRepo }),
     setShareOverrides: setShareOverrides({ shareRepo }),
     listShareOverrides: listShareOverrides({ shareRepo }),
-    toggleBudgetMode: toggleBudgetMode({ budgetModeRepo }),
+    // 05-17: a NORMAL↔CUSHION flip changes effLimit for limited categories →
+    // overage → reserve draw → surplus, so recompute RESERVE_TOPUP.
+    toggleBudgetMode: toggleBudgetMode({
+      budgetModeRepo,
+      taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
+    }),
+    // 05-17: thread the RESERVE_TOPUP recompute deps so a confirmed transaction
+    // that overspends a category (draws reserve → internal drops → surplus
+    // rises) refreshes the persisted task off the live engine surplus. Gated +
+    // best-effort inside the use case (own-tx; sweep is the backstop).
     createTransaction: createTransaction({
       transactionRepo,
       accountRepo: repo,
       fxProvider,
       getWorkspaceDefaultCurrency,
+      taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
     }),
     getLatestTransactions: getLatestTransactions({ transactionRepo }),
     editTransaction: editTransaction({
       transactionRepo,
       fxProvider,
       getWorkspaceDefaultCurrency,
+      taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
     }),
     listSupportedCurrencies,
     transactionRepo,
@@ -323,10 +348,21 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     deleteRecurringRule: deleteRecurringRule({ ruleRepo: recurringRuleRepo }),
     // Phase 7 (D-PH7-09 / D-PH7-10): taskRepo injected so confirm + skip
     // auto-resolve the matching PENDING CONFIRM_DRAFT task in the same tx.
+    // 05-17: confirming (or edit-and-confirming) a recurring draft flips
+    // confirmed_at → the row becomes counted spend → may draw reserve, so
+    // recompute RESERVE_TOPUP. Best-effort own-tx after the confirm commits.
     confirmRecurringDraft: confirmRecurringDraft({
       taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
     }),
-    editAndConfirmRecurringDraft: editAndConfirmRecurringDraft(),
+    editAndConfirmRecurringDraft: editAndConfirmRecurringDraft({
+      taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
+    }),
     skipRecurringDraft: skipRecurringDraft({ taskRepo: createTaskRepo() }),
     listPendingDrafts: listPendingDrafts(),
     recurringRuleRepo,

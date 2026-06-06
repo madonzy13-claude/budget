@@ -14,6 +14,8 @@ import type {
   TransactionRepo,
   TransactionRow,
 } from "../ports/transaction-repo";
+import type { RecomputeReserveTopupTaskDeps } from "./recompute-reserve-topup-task";
+import { _maybeRecomputeReserveTopup } from "./create-transaction";
 
 export class TransactionNotFoundError extends Error {
   readonly kind = "TransactionNotFound" as const;
@@ -54,6 +56,16 @@ export interface EditTransactionDeps {
   getBudgetCurrency?(budgetId: string): Promise<string>;
   /** Back-compat alias of {@link getBudgetCurrency}. Either may be supplied. */
   getWorkspaceDefaultCurrency?(budgetId: string): Promise<string>;
+  /**
+   * 05-17 bugfix: an edit can change a category's overspend (amount/category
+   * change) → draw/return reserve → shift surplus, so refresh RESERVE_TOPUP
+   * after the update. Optional + gated (see create-transaction for rationale);
+   * best-effort own-tx, never fails the edit (sweep is the backstop).
+   */
+  taskRepo?: RecomputeReserveTopupTaskDeps["taskRepo"];
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+  budgetCurrencyOf?: RecomputeReserveTopupTaskDeps["budgetCurrencyOf"];
+  isReservesEnabled?: RecomputeReserveTopupTaskDeps["isReservesEnabled"];
 }
 
 export function editTransaction(deps: EditTransactionDeps) {
@@ -173,6 +185,10 @@ export function editTransaction(deps: EditTransactionDeps) {
     if (!updated) {
       return err(new Error("Transaction not found after update"));
     }
+
+    // 05-17: refresh RESERVE_TOPUP off the live engine surplus (best-effort,
+    // own-tx; the edit already committed — recompute failure must not fail it).
+    await _maybeRecomputeReserveTopup(deps, input.tenantId, input.actorUserId);
 
     return ok({ transaction: updated });
   };

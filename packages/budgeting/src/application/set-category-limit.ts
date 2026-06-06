@@ -7,10 +7,13 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { CategoryLimitRepo } from "../ports/category-limit-repo";
-import type { SetLimitInput as RepoInput } from "../ports/category-limit-repo";
 import type { CategoryLimitDto, SetCategoryLimitInput } from "../contracts/api";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { recomputeCushionTask } from "./recompute-cushion-task";
+import {
+  recomputeReserveTopupTask,
+  type RecomputeReserveTopupTaskDeps,
+} from "./recompute-reserve-topup-task";
 import type { FxProviderLike } from "./recurring-engine-fx";
 
 export interface SetCategoryLimitDeps {
@@ -23,6 +26,12 @@ export interface SetCategoryLimitDeps {
    *  callers keep compiling. */
   taskRepo?: TaskRepo;
   fxProvider?: FxProviderLike;
+  /** 05-17: a category limit change shifts effLimit → overage → reserve draw →
+   *  internal (ΣR) → surplus, so refresh RESERVE_TOPUP alongside the cushion
+   *  recompute. Optional + gated; best-effort own-tx (sweep is the backstop). */
+  reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
+  budgetCurrencyOf?: RecomputeReserveTopupTaskDeps["budgetCurrencyOf"];
+  isReservesEnabled?: RecomputeReserveTopupTaskDeps["isReservesEnabled"];
 }
 
 export interface SetCategoryLimitFullInput extends Omit<
@@ -36,6 +45,12 @@ export interface SetCategoryLimitFullInput extends Omit<
   normalCurrency: string;
   cushionAmount: string;
   cushionCurrency: string;
+  /**
+   * true → change ONLY `effectiveFrom`'s month (bounded SCD-2 split), used when
+   * editing a PAST month. Omitted/false → carry forward from `effectiveFrom`
+   * (the historical open-ended behaviour), used for current-month + new limits.
+   */
+  singleMonth?: boolean;
 }
 
 function firstDayOfCurrentMonth(): string {
@@ -48,20 +63,23 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
     input: SetCategoryLimitFullInput,
   ): Promise<Result<CategoryLimitDto, Error>> => {
     const effectiveFrom = input.effectiveFrom ?? firstDayOfCurrentMonth();
-
-    const repoInput: RepoInput = {
-      tenantId: input.tenantId,
-      categoryId: input.categoryId,
-      normalAmount: input.normalAmount,
-      normalCurrency: input.normalCurrency,
-      cushionAmount: input.cushionAmount,
-      cushionCurrency: input.cushionCurrency,
-      effectiveFrom,
-      actorUserId: input.actorUserId,
-    };
+    // Default (and create / current-month edits) carry forward — preserves the
+    // documented SCD-2 contract. The UI sets singleMonth when editing a PAST
+    // month so only that month changes.
+    const carryForward = !input.singleMonth;
 
     try {
-      await deps.limitRepo.setLimit(repoInput);
+      await deps.limitRepo.setLimitForMonth({
+        tenantId: input.tenantId,
+        categoryId: input.categoryId,
+        monthStart: effectiveFrom,
+        normalAmount: input.normalAmount,
+        normalCurrency: input.normalCurrency,
+        cushionAmount: input.cushionAmount,
+        cushionCurrency: input.cushionCurrency,
+        actorUserId: input.actorUserId,
+        carryForward,
+      });
     } catch (e) {
       return err(e as Error);
     }
@@ -102,6 +120,39 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
         console.error(
           "[set-category-limit] cushion recompute failed:",
           recomputeR.error,
+        );
+      }
+    }
+
+    // 05-17: RESERVE_TOPUP recompute. A limit change moves overage → reserve
+    // draw → internal → surplus. Gated on the reserve deps; best-effort own-tx
+    // (A2 — limitRepo.setLimit owns its tx). Never fails the save.
+    if (
+      deps.taskRepo &&
+      deps.reservePositions &&
+      deps.budgetCurrencyOf &&
+      deps.isReservesEnabled
+    ) {
+      const taskRepo = deps.taskRepo;
+      const reservePositions = deps.reservePositions;
+      const budgetCurrencyOf = deps.budgetCurrencyOf;
+      const isReservesEnabled = deps.isReservesEnabled;
+      const reserveR = await withTenantTx(
+        TenantId(input.tenantId),
+        UserId(input.actorUserId),
+        async (tx) => {
+          await recomputeReserveTopupTask(
+            tx as unknown as TenantTx,
+            // v1.1 invariant: tenantId === budgetId.
+            { tenantId: input.tenantId, budgetId: input.tenantId },
+            { taskRepo, reservePositions, budgetCurrencyOf, isReservesEnabled },
+          );
+        },
+      );
+      if (reserveR.isErr()) {
+        console.error(
+          "[set-category-limit] reserve-topup recompute failed:",
+          reserveR.error,
         );
       }
     }
