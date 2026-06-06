@@ -77,8 +77,6 @@ async function buildApp(
     await import("@budget/budgeting/src/application/adjust-category-reserve");
   const { getReservesSummary } =
     await import("@budget/budgeting/src/application/get-reserves-summary");
-  const { createReserveBalanceRepo } =
-    await import("@budget/budgeting/src/adapters/persistence/reserve-balance-repo");
   const { DrizzleReservesSummaryRepo } =
     await import("@budget/budgeting/src/adapters/persistence/reserves-summary-repo");
   // 05-13: the reserve mutations + summary are engine-derived. Wire the real
@@ -130,8 +128,6 @@ async function buildApp(
         budgetCurrencyOf,
         isReservesEnabled,
       }),
-      // stub out unused methods
-      reserveBalanceRepo: createReserveBalanceRepo(),
     },
     tenancy: {
       workspaceRepo: { listForUser: async () => [] },

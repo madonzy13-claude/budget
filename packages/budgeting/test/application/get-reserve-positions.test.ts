@@ -70,8 +70,20 @@ function goldenInputs(
     ]),
     cushionHistory: [],
     adjustmentsByCategory: new Map([
-      [G, [10000n, 110000n, 150000n]],
-      [H, [30000n, -5000n, -25000n, 40000n, 100000n]],
+      [
+        G,
+        [10000n, 110000n, 150000n].map((deltaCents) => ({
+          deltaCents,
+          month: OPEN,
+        })),
+      ],
+      [
+        H,
+        [30000n, -5000n, -25000n, 40000n, 100000n].map((deltaCents) => ({
+          deltaCents,
+          month: OPEN,
+        })),
+      ],
     ]),
     categoryFlags: new Map([
       [
@@ -206,10 +218,19 @@ describe("mapInputsToEvents — chronological mapping", () => {
   it("emits accrual ONLY for closed months, after that month's spend/limit", () => {
     const inputs = goldenInputs({
       spendByCategoryByMonth: new Map([
-        [G, new Map([["2026-05", 5000n], [OPEN, 180000n]])],
+        [
+          G,
+          new Map([
+            ["2026-05", 5000n],
+            [OPEN, 180000n],
+          ]),
+        ],
       ]),
       limitsByMonth: new Map([
-        ["2026-05", new Map([[G, { plannedCents: 20000n, cushionCents: 20000n }]])],
+        [
+          "2026-05",
+          new Map([[G, { plannedCents: 20000n, cushionCents: 20000n }]]),
+        ],
         [OPEN, new Map([[G, { plannedCents: 40000n, cushionCents: 30000n }]])],
       ]),
       adjustmentsByCategory: new Map(),
@@ -240,7 +261,11 @@ describe("mapInputsToEvents — chronological mapping", () => {
     const adjustG = events.filter(
       (e) => e.type === "adjust" && (e as any).categoryId === G,
     ) as Array<{ deltaCents: bigint }>;
-    expect(adjustG.map((e) => e.deltaCents)).toEqual([10000n, 110000n, 150000n]);
+    expect(adjustG.map((e) => e.deltaCents)).toEqual([
+      10000n,
+      110000n,
+      150000n,
+    ]);
     // setUserDefined is the final event.
     expect(events[events.length - 1].type).toBe("setUserDefined");
     // every adjust precedes setUserDefined and follows the open-month spend.

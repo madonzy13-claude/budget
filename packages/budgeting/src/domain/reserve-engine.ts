@@ -18,10 +18,13 @@
  *   left      = max(effLimit − spent, 0)
  *   overspent = overage − U                       // invariant: U + overspent = overage
  *
- *   op1 overage +Δ : draw = min(Δ, R); R -= draw; U += draw
- *   op2 overage −Δ : cut overspent first; remainder U → R
- *   op3 set R to X : d = X − R; if d≥0 cover overspent first (→U), rest → R; else R += d
- *   op4 accrual    : reserve += left   (= op3 with X = R + left)
+ *   op1 overage +Δ : draw = min(Δ, R); R -= draw; U += draw            (transaction)
+ *   op2 overage −Δ : cut overspent first; remainder U → R               (transaction)
+ *   op3 set R to X : d = X − R, as-of the month the adjust was made; if d≥0 cover
+ *                    ONLY that month's overspent (→U), rest → R; else R += d. A
+ *                    closed month's overspent is never retro-covered by an adjust —
+ *                    only transaction edits (op1/op2) change a past month's used.
+ *   op4 accrual    : R += left  (month-close carry; left⇒no overage, never covers)
  *
  *   internal = Σ R (active cats); surplus = userDefined − internal
  *
@@ -44,7 +47,7 @@ export type ReserveEngineEvent =
       month: string;
       deltaCents: bigint; // +add txn / −remove txn / net edit
     }
-  | { type: "adjust"; categoryId: string; deltaCents: bigint } // signed reserve adjustment (op3 via delta)
+  | { type: "adjust"; categoryId: string; deltaCents: bigint; month: string } // signed reserve adjustment (op3 via delta); `month` = the open month WHEN made (asOf)
   | { type: "accrual"; categoryId: string; month: string } // month-close: reserve += left (op4)
   | { type: "cushion"; month: string; on: boolean } // budget-level cushion mode change
   | { type: "exclude"; categoryId: string; excluded: boolean } // reserve_excluded toggle
@@ -149,17 +152,37 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     return s;
   };
 
-  /** Outstanding overspent for a category = Σ overage − U. */
+  /** Outstanding overspent for a category = Σ overage − U (all months). */
   const outstandingOverspent = (c: Cat): bigint => totalOverageApplied(c) - c.U;
 
-  // op3 — set reserve via a signed delta `d = X − R`.
-  const applyAdjustDelta = (c: Cat, d: bigint): void => {
+  /**
+   * Overspent attributable to ONE month, under the oldest-first U allocation:
+   * strictly-older months claim the running U first; whatever this month's overage
+   * can't draw from the remainder is its overspent. Scopes an adjust so it only
+   * ever covers the month it was made in — closed months stay locked.
+   */
+  const monthOverspent = (c: Cat, month: string): bigint => {
+    const overageThis = overageOf(c, month);
+    if (overageThis <= 0n) return 0n;
+    let olderOverage = 0n;
+    for (const m of c.overageApplied.keys()) {
+      if (m < month) olderOverage += overageOf(c, m);
+    }
+    const uForThis = max0(c.U - olderOverage);
+    return overageThis - min(overageThis, uForThis);
+  };
+
+  // op3 — set reserve via a signed delta `d = X − R`, as-of `month` (the open
+  // month WHEN the adjust was made). Raising covers ONLY that month's overspent —
+  // adjusting reserves never retroactively consumes reserve against a closed
+  // month. Lowering just reduces available reserve.
+  const applyAdjustDelta = (c: Cat, d: bigint, month: string): void => {
     if (d >= 0n) {
-      const cover = min(d, outstandingOverspent(c)); // cover outstanding overspent first
+      const cover = min(d, monthOverspent(c, month));
       c.U += cover;
       c.R += d - cover;
     } else {
-      c.R += d; // lowering just reduces available reserve
+      c.R += d;
     }
   };
 
@@ -200,16 +223,18 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
         break;
       }
       case "adjust": {
-        applyAdjustDelta(getCat(ev.categoryId), ev.deltaCents);
+        applyAdjustDelta(getCat(ev.categoryId), ev.deltaCents, ev.month);
         break;
       }
       case "accrual": {
-        // op4 = op3 with X = R + left → delta d = left.
+        // op4 — month-close: carry the month's leftover budget into available
+        // reserve. `left` only exists when there is NO overage, so accrual never
+        // covers overspent; it is a pure R += left.
         const c = getCat(ev.categoryId);
         const left = max0(
           effLimit(c, ev.month) - (c.spent.get(ev.month) ?? 0n),
         );
-        applyAdjustDelta(c, left);
+        c.R += left;
         break;
       }
       case "cushion": {

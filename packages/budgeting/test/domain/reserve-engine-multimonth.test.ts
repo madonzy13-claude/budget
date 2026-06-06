@@ -3,8 +3,10 @@
  * fixture cannot exercise:
  *   - Decision G: closed-month underspend accrues into the running reserve; later
  *     months draw it. Current/open month does NOT accrue.
- *   - Decision I: raising reserve (adjust or accrual) covers OUTSTANDING overspent
- *     across ALL months oldest-first; the per-month `used` split is oldest-first.
+ *   - Adjust is month-scoped (asOf): raising a reserve covers ONLY the overspent of
+ *     the month the adjust was made in. CLOSED months' overspent is locked — an
+ *     adjust never retroactively covers it (reverses the old decision-I "cover all
+ *     months oldest-first"). Closed months change only via transaction edits.
  */
 import { describe, test, expect } from "bun:test";
 import {
@@ -75,11 +77,9 @@ describe("reserveEngine — multi-month accrual (decision G)", () => {
   });
 });
 
-describe("reserveEngine — retroactive coverage oldest-first (decision I)", () => {
-  test("raising reserve covers outstanding overspent oldest-first", () => {
+describe("reserveEngine — adjust is month-scoped, closed months locked", () => {
+  test("an adjust in the open month does NOT retroactively cover closed overspent", () => {
     // Two closed months each overspend 100 with no reserve → overspent 100 + 100, U 0.
-    // Then set reserve to 150 (d=150) → cover 150 of the 200 outstanding overspent,
-    // split OLDEST-FIRST: Jan fully covered (100), Feb half (50), Feb overspent 50.
     const base: ReserveEngineEvent[] = [
       limit300("2026-01"),
       spend("2026-01", 40000n), // overage 100
@@ -98,18 +98,37 @@ describe("reserveEngine — retroactive coverage oldest-first (decision I)", () 
     expect(pre.states.get(G)!.usedCents).toBe(0n);
     expect(pre.states.get(G)!.reserveCents).toBe(0n);
 
+    // Raise reserve to 150 in the OPEN month (2026-03). 2026-03 has no overage, so
+    // the adjust covers NOTHING — the 150 lands entirely in available reserve and
+    // the two closed months keep their locked overspent (the bug fix: adjusting
+    // reserves does not consume reserve against past months).
     const events: ReserveEngineEvent[] = [
       ...base,
-      { type: "adjust", categoryId: G, deltaCents: 15000n }, // set reserve to 150 (R was 0)
+      { type: "adjust", categoryId: G, deltaCents: 15000n, month: "2026-03" },
     ];
     const r = reserveEngine({ events, openMonth: "2026-03" });
 
-    expect(r.states.get(G)!.usedCents).toBe(15000n);
-    expect(r.states.get(G)!.reserveCents).toBe(0n);
-    expect(cell(r, "2026-01").usedCents).toBe(10000n);
-    expect(cell(r, "2026-01").overspentCents).toBe(0n);
-    expect(cell(r, "2026-02").usedCents).toBe(5000n);
-    expect(cell(r, "2026-02").overspentCents).toBe(5000n);
-    expect(r.internalCents).toBe(0n);
+    expect(r.states.get(G)!.usedCents).toBe(0n); // nothing used
+    expect(r.states.get(G)!.reserveCents).toBe(15000n); // all 150 stays available
+    expect(cell(r, "2026-01").usedCents).toBe(0n);
+    expect(cell(r, "2026-01").overspentCents).toBe(10000n); // locked
+    expect(cell(r, "2026-02").usedCents).toBe(0n);
+    expect(cell(r, "2026-02").overspentCents).toBe(10000n); // locked
+    expect(r.internalCents).toBe(15000n);
+  });
+
+  test("an adjust made IN the overspent month still covers that month", () => {
+    // A single open month that overspends 100, then the user raises its reserve in
+    // the SAME (open) month — same-month coverage is unchanged (golden rows 16/20/24).
+    const events: ReserveEngineEvent[] = [
+      limit300("2026-03"),
+      spend("2026-03", 40000n), // overage 100, no reserve → overspent 100
+      { type: "adjust", categoryId: G, deltaCents: 15000n, month: "2026-03" },
+    ];
+    const r = reserveEngine({ events, openMonth: "2026-03" });
+    expect(cell(r, "2026-03").usedCents).toBe(10000n); // covered the 100 overspent
+    expect(cell(r, "2026-03").overspentCents).toBe(0n);
+    expect(r.states.get(G)!.reserveCents).toBe(5000n); // remaining 50 available
+    expect(r.states.get(G)!.usedCents).toBe(10000n);
   });
 });

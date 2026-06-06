@@ -27,7 +27,7 @@ const events: ReserveEngineEvent[] = [
     normalCents: 30000n,
     cushionCents: 30000n,
   },
-  { type: "adjust", categoryId: G, deltaCents: 50000n }, // Grocery reserve 500
+  { type: "adjust", categoryId: G, deltaCents: 50000n, month: "2026-01" }, // Grocery reserve 500 (made in the then-open month)
   { type: "spendDelta", categoryId: G, month: "2026-01", deltaCents: 40000n }, // overage 100 → used 100
   { type: "accrual", categoryId: G, month: "2026-01" },
   {

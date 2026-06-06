@@ -145,7 +145,12 @@ export function mapInputsToEvents(
     for (const [categoryId, byMonth] of inputs.spendByCategoryByMonth) {
       const spent = byMonth.get(month);
       if (spent !== undefined && spent !== 0n) {
-        events.push({ type: "spendDelta", categoryId, month, deltaCents: spent });
+        events.push({
+          type: "spendDelta",
+          categoryId,
+          month,
+          deltaCents: spent,
+        });
       }
     }
 
@@ -162,11 +167,13 @@ export function mapInputsToEvents(
     }
   }
 
-  // 2. adjust — signed deltas (decision E) in stored order, after the open
-  //    month's spend (golden fixture applies all adjusts in the single open month).
+  // 2. adjust — signed deltas (decision E) in stored order. Each carries the month
+  //    it was made in (asOf): the engine covers overspent ONLY for that month, so a
+  //    current-month adjust never retroactively consumes reserve against a closed
+  //    month (an adjust made when a now-closed month was open still covers it).
   for (const [categoryId, deltas] of inputs.adjustmentsByCategory) {
-    for (const deltaCents of deltas) {
-      events.push({ type: "adjust", categoryId, deltaCents });
+    for (const { deltaCents, month } of deltas) {
+      events.push({ type: "adjust", categoryId, deltaCents, month });
     }
   }
 

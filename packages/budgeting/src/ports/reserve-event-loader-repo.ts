@@ -33,9 +33,15 @@ export interface ReserveEventInputs {
    */
   cushionHistory: Array<{ fromMonth: string; on: boolean }>;
   /**
-   * categoryId → ordered signed adjustment deltas (by occurred_at asc).
+   * categoryId → ordered signed adjustments (by occurred_at asc). `month` is the
+   * 'YYYY-MM' the adjustment was made in (its then-open month); the engine scopes
+   * each adjust's overspent coverage to that month so a closed month's overspent
+   * is never retroactively consumed.
    */
-  adjustmentsByCategory: Map<string, bigint[]>;
+  adjustmentsByCategory: Map<
+    string,
+    Array<{ deltaCents: bigint; month: string }>
+  >;
   /**
    * Per-category flags for internal/active filtering (the engine/orchestrator
    * decides archived/excluded handling per decision J — the loader does NOT

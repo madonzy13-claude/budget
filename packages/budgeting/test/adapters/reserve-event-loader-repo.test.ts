@@ -232,7 +232,9 @@ describe("ReserveEventLoaderRepo — load", () => {
     const out = await loader.load(fix.budgetId, fix.budgetId, fix.thisMonth);
     const adj = out.adjustmentsByCategory.get(fix.groceryId);
     expect(adj).toBeDefined();
-    expect(adj).toEqual([fix.adjustmentDelta]);
+    expect(adj).toEqual([
+      { deltaCents: fix.adjustmentDelta, month: fix.thisMonth },
+    ]);
     // Housing has no adjustment.
     expect(out.adjustmentsByCategory.get(fix.housingId)).toBeUndefined();
   });

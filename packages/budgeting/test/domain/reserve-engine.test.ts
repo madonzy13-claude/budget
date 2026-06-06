@@ -88,7 +88,16 @@ function actionToEvents(
     const cat = m[1];
     const target = cents(m[2]);
     const currentR = reserveOf(prev, cat);
-    return [{ type: "adjust", categoryId: cat, deltaCents: target - currentR }];
+    // `month` = the open month WHEN the adjust is made (asOf). An adjust covers
+    // outstanding overspent for THAT month only — closed months stay locked.
+    return [
+      {
+        type: "adjust",
+        categoryId: cat,
+        deltaCents: target - currentR,
+        month: row.month,
+      },
+    ];
   }
 
   if ((m = action.match(/^add (Grocery|Housing) txn (-?\d+)$/))) {
@@ -145,7 +154,7 @@ function actionToEvents(
   throw new Error(`unmapped fixture action: "${action}"`);
 }
 
-describe("reserveEngine — golden fixture (29 rows, every cell)", () => {
+describe("reserveEngine — golden fixture (36 rows, every cell)", () => {
   test("reproduces every numeric cell of the validated golden table", () => {
     const rows = parseGolden();
     const events: ReserveEngineEvent[] = [];
@@ -154,9 +163,11 @@ describe("reserveEngine — golden fixture (29 rows, every cell)", () => {
     for (const row of rows) {
       const action = row.action;
       events.push(...actionToEvents(action, row, prev));
+      // openMonth advances with the action (June for the first 29 rows, July for
+      // the closed-month edits/adjusts) — spend + the read cell stay on June.
       const res = reserveEngine({
         events,
-        openMonth: OPEN,
+        openMonth: row.month,
         reservesEnabled: true,
       });
 
@@ -220,7 +231,7 @@ describe("reserveEngine — operations", () => {
     // R=100, U=0; spend 250 over limit 100 → overage 150 → draw 100, R 0, U 100, overspent 50.
     const r = run([
       seedLimit("c", 10000n, 10000n),
-      { type: "adjust", categoryId: "c", deltaCents: 10000n }, // R = 100
+      { type: "adjust", categoryId: "c", deltaCents: 10000n, month: OPEN }, // R = 100
       { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 25000n },
     ]);
     expect(r.states.get("c")!.reserveCents).toBe(0n);
@@ -234,7 +245,7 @@ describe("reserveEngine — operations", () => {
     const r = run([
       seedLimit("c", 0n, 0n),
       { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 10000n }, // overage 100, no reserve
-      { type: "adjust", categoryId: "c", deltaCents: 10000n }, // cover overspent → U 100, R 0
+      { type: "adjust", categoryId: "c", deltaCents: 10000n, month: OPEN }, // cover overspent → U 100, R 0
       { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: -6000n }, // overage 100→40
     ]);
     expect(r.states.get("c")!.usedCents).toBe(4000n);
@@ -248,7 +259,7 @@ describe("reserveEngine — operations", () => {
     const r = run([
       seedLimit("c", 0n, 0n),
       { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 5000n },
-      { type: "adjust", categoryId: "c", deltaCents: 8000n }, // R was 0 → delta = 80
+      { type: "adjust", categoryId: "c", deltaCents: 8000n, month: OPEN }, // R was 0 → delta = 80
     ]);
     expect(r.states.get("c")!.usedCents).toBe(5000n);
     expect(r.states.get("c")!.reserveCents).toBe(3000n);
@@ -258,8 +269,8 @@ describe("reserveEngine — operations", () => {
   test("op3 — lower just reduces available reserve", () => {
     const r = run([
       seedLimit("c", 10000n, 10000n),
-      { type: "adjust", categoryId: "c", deltaCents: 10000n }, // R = 100
-      { type: "adjust", categoryId: "c", deltaCents: -6000n }, // R = 40
+      { type: "adjust", categoryId: "c", deltaCents: 10000n, month: OPEN }, // R = 100
+      { type: "adjust", categoryId: "c", deltaCents: -6000n, month: OPEN }, // R = 40
     ]);
     expect(r.states.get("c")!.reserveCents).toBe(4000n);
     expect(r.states.get("c")!.usedCents).toBe(0n);
@@ -279,10 +290,10 @@ describe("reserveEngine — operations", () => {
   test("invariant — used + overspent == overage on every cell", () => {
     const r = run([
       seedLimit("c", 30000n, 30000n),
-      { type: "adjust", categoryId: "c", deltaCents: 50000n },
+      { type: "adjust", categoryId: "c", deltaCents: 50000n, month: OPEN },
       { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 120000n },
       { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: -20000n },
-      { type: "adjust", categoryId: "c", deltaCents: 30000n },
+      { type: "adjust", categoryId: "c", deltaCents: 30000n, month: OPEN },
     ]);
     for (const c of r.cells) {
       expect(c.usedCents + c.overspentCents).toBe(c.overageCents);

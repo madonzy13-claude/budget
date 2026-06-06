@@ -147,7 +147,8 @@ export function createReserveEventLoaderRepo(
             const adjustmentRows = (
               await drizzleTx.execute(
                 sql`SELECT category_id::text AS category_id,
-                             delta_cents::text AS delta_cents
+                             delta_cents::text AS delta_cents,
+                             to_char(date_trunc('month', occurred_at), 'YYYY-MM') AS occurred_month
                         FROM budgeting.category_reserve_adjustments
                        WHERE tenant_id = ${tenantId}::uuid
                        ORDER BY category_id, occurred_at ASC`,
@@ -204,14 +205,22 @@ export function createReserveEventLoaderRepo(
         on: (r.mode as string) === "CUSHION",
       }));
 
-      // ── adjustmentsByCategory: grouped ordered bigint arrays (occurred_at asc).
-      const adjustmentsByCategory = new Map<string, bigint[]>();
+      // ── adjustmentsByCategory: grouped ordered {delta, month} (occurred_at asc).
+      // `month` (the adjustment's open month) scopes its overspent coverage in the
+      // engine — a closed month is never retroactively covered by an adjust.
+      const adjustmentsByCategory = new Map<
+        string,
+        Array<{ deltaCents: bigint; month: string }>
+      >();
       for (const r of adjustmentRows) {
         const catId = r.category_id as string;
-        const delta = BigInt(String(r.delta_cents ?? "0"));
+        const entry = {
+          deltaCents: BigInt(String(r.delta_cents ?? "0")),
+          month: toMonthKey(r.occurred_month ?? openMonth),
+        };
         const arr = adjustmentsByCategory.get(catId);
-        if (arr) arr.push(delta);
-        else adjustmentsByCategory.set(catId, [delta]);
+        if (arr) arr.push(entry);
+        else adjustmentsByCategory.set(catId, [entry]);
       }
 
       // ── categoryFlags (no archived filtering — orchestrator decides, decision J).
