@@ -128,6 +128,7 @@ None.
 
 - `d050b4c` — fix(migrations): backfill foreign-currency recurring drafts to budget currency
 - `1621921` — refactor(recurring): delete dead app-layer engine, move catch-up test to worker
+- `faa0b50` — fix(recurring): repoint moved catch-up test imports to worker handler (the rename in 1621921 captured the pre-edit blob; the 4 dynamic imports still pointed at the deleted module — repointed and re-verified 4/4 pass)
 
 ## Self-Check: PASSED
 
