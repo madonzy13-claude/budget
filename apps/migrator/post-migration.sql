@@ -724,3 +724,23 @@ CREATE POLICY budget_share_links_tenant_isolation ON tenancy.budget_share_links
   AS PERMISSIVE FOR ALL TO app_role
   USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+-- ===== Plan 08-01: push_subscriptions + notification_prefs =====
+-- FORCE RLS + GRANTs (migration 0032 creates the tables + policies).
+-- Idempotent: IF NOT EXISTS + DROP IF EXISTS guards.
+GRANT SELECT, INSERT, UPDATE, DELETE ON shared_kernel.push_subscriptions  TO app_role, worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON shared_kernel.notification_prefs TO app_role, worker_role;
+ALTER TABLE shared_kernel.push_subscriptions  FORCE ROW LEVEL SECURITY;
+ALTER TABLE shared_kernel.notification_prefs FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS push_subscriptions_tenant_isolation  ON shared_kernel.push_subscriptions;
+CREATE POLICY push_subscriptions_tenant_isolation ON shared_kernel.push_subscriptions
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING   (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+DROP POLICY IF EXISTS notification_prefs_tenant_isolation ON shared_kernel.notification_prefs;
+CREATE POLICY notification_prefs_tenant_isolation ON shared_kernel.notification_prefs
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING   (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
