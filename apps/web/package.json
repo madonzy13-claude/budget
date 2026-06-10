@@ -39,7 +39,7 @@
     "cmdk": "latest",
     "hono": "^4.12.16",
     "lucide-react": "latest",
-    "next": "^15.3.2",
+    "next": "^16.2.9",
     "next-intl": "^4.4.3",
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
