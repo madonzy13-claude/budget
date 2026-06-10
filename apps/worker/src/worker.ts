@@ -6,6 +6,8 @@ import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { registerRecurringEngine } from "./handlers/recurring-engine";
 import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
 import type { BudgetingReconciliationSweepDeps } from "./handlers/budgeting-reconciliation";
+import { registerPushNotificationHandler } from "./handlers/push-notification-handler";
+import { getSubscriptionsForBudget, deleteSubscription } from "@budget/platform";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";

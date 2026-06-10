@@ -141,6 +141,34 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
+// notificationclick — deep-link handler (D-13 / PWAX-06)
+// When the user taps a push notification, focus an existing window that matches
+// the notification url, or open a new one. The url is set server-side by the
+// push-notification-handler to /budgets/<id>/<tab>?task=<taskId> (T-08-05-02:
+// url is constructed from a fixed template + registry tab, not from arbitrary
+// notification payload data).
+self.addEventListener("notificationclick", (event: any) => {
+  event.notification.close();
+  const url: string = event.notification.data?.url ?? "/";
+  event.waitUntil(
+    (async () => {
+      // Match any window controlled by this SW whose URL ends with our path
+      const clients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const match = clients.find((c: { url: string }) =>
+        c.url.endsWith(url) || c.url.includes(url),
+      );
+      if (match) {
+        await (match as { focus: () => Promise<void> }).focus();
+      } else {
+        await self.clients.openWindow(url);
+      }
+    })(),
+  );
+});
+
 // Self-heal stuck clients: on activate, delete the legacy static-asset runtime
 // caches (and any static cache that is not the current generation) so a worker
 // that pinned a stale CSS/JS bundle starts from an empty cache and refetches.
