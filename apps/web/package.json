@@ -38,6 +38,7 @@
     "clsx": "latest",
     "cmdk": "latest",
     "hono": "^4.12.16",
+    "idb": "^8.0.3",
     "lucide-react": "latest",
     "next": "^15.3.2",
     "next-intl": "^4.4.3",
