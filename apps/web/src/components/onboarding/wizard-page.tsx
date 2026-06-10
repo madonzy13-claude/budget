@@ -36,10 +36,11 @@ import { StepWelcome } from "./steps/step-welcome";
 import { StepBasics } from "./steps/step-basics";
 import { StepType } from "./steps/step-type";
 import { StepFeatures } from "./steps/step-features";
+import { StepPush } from "./steps/step-push";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
 
-type Step = 0 | 1 | 2 | 3 | 4;
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
 interface WizardForm {
   name: string;
@@ -49,6 +50,7 @@ interface WizardForm {
   reservesEnabled: boolean;
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
+  pushEnabled: boolean;
 }
 
 interface WizardPageProps {
@@ -107,6 +109,7 @@ export function WizardPage({
     cushionEnabled: true,
     reservesEnabled: true,
     cushionTargetMonths: 6,
+    pushEnabled: false,
   });
 
   // Update currency with locale guess on client-side mount.
@@ -214,6 +217,8 @@ export function WizardPage({
       } else if (step === 3) {
         setStep(4);
       } else if (step === 4) {
+        setStep(5);
+      } else if (step === 5) {
         await commitWizard();
         return; // avoid setIsLoading(false) on redirect
       }
@@ -224,9 +229,9 @@ export function WizardPage({
     setIsLoading(false);
   }
 
-  /** Handle "Skip" (steps 2 + 3) — advance without persisting. */
+  /** Handle "Skip" (steps 2 + 3 + 4) — advance without persisting. */
   function onSkip() {
-    if (step === 2 || step === 3) {
+    if (step === 2 || step === 3 || step === 4) {
       setStep((s) => (s + 1) as Step);
     }
   }
@@ -245,7 +250,7 @@ export function WizardPage({
    * out-of-bound jump call cannot push the user forward without going
    * through onNext (which enforces validation per step).
    */
-  function onStepJump(target: 1 | 2 | 3 | 4) {
+  function onStepJump(target: 1 | 2 | 3 | 4 | 5) {
     if (target < step) {
       setNameError(null);
       setStep(target);
@@ -285,6 +290,14 @@ export function WizardPage({
         );
       case 4:
         return (
+          <StepPush
+            pushEnabled={form.pushEnabled}
+            onChangePush={(v) => updateForm("pushEnabled", v)}
+            onSkip={onSkip}
+          />
+        );
+      case 5:
+        return (
           <StepReview
             name={form.name}
             currency={form.currency}
@@ -307,7 +320,7 @@ export function WizardPage({
       nextLabel={
         step === 0
           ? tActions("get_started")
-          : step === 4
+          : step === 5
             ? tActions("create_budget")
             : tActions("next")
       }

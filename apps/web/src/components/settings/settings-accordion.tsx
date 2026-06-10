@@ -18,6 +18,7 @@ import { CushionSection } from "@/components/settings/cushion-section";
 import { RecurringSection } from "@/components/settings/recurring-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
+import { PushPrefsSection } from "@/components/settings/push-prefs-section";
 
 export interface SettingsBudget {
   id: string;
@@ -112,7 +113,17 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
         </AccordionItem>
       )}
 
-      {/* 5. Danger Zone */}
+      {/* 5. Notifications (push prefs) */}
+      <AccordionItem value="notifications">
+        <AccordionTrigger className="px-6">
+          {t("push.sectionTitle")}
+        </AccordionTrigger>
+        <AccordionContent className="bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
+          <PushPrefsSection budgetId={budget.id} />
+        </AccordionContent>
+      </AccordionItem>
+
+      {/* 6. Danger Zone */}
       <AccordionItem value="danger-zone">
         <AccordionTrigger className="px-6 text-[var(--trading-down)]">
           {t("sections.danger")}
