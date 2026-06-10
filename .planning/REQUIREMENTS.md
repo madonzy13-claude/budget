@@ -155,7 +155,7 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 ### PWA / Offline / Push (PWAX)
 
-- [ ] **PWAX-01**: Serwist install retained; manifest + service worker register on every page
+- [x] **PWAX-01**: Serwist install retained; manifest + service worker register on every page
 - [x] **PWAX-02**: Offline shell: last-synced budgets, wallets, categories, current-month transactions readable offline (IndexedDB cache)
 - [x] **PWAX-03**: Quick-entry on Spendings grid queues offline-created txns; sync on reconnect with `Idempotency-Key`
 - [ ] **PWAX-04**: VAPID web-push registered per user; user can enable/disable per-budget
@@ -165,10 +165,10 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 ### Internationalization (I18N)
 
 - [ ] **I18N-01**: All v1.1 message keys delivered in EN, PL, UK simultaneously
-- [ ] **I18N-02**: New IA replaces `workspaces.*` and `accounts.*` namespaces with `budgets.*` and `wallets.*`
-- [ ] **I18N-03**: Number/currency formatting uses `Intl.NumberFormat` with budget currency
-- [ ] **I18N-04**: Date formatting uses Temporal API + `Intl.DateTimeFormat` per user locale
-- [ ] **I18N-05**: Locale persisted on `users.locale`; switchable from settings menu
+- [x] **I18N-02**: New IA replaces `workspaces.*` and `accounts.*` namespaces with `budgets.*` and `wallets.*`
+- [x] **I18N-03**: Number/currency formatting uses `Intl.NumberFormat` with budget currency
+- [x] **I18N-04**: Date formatting uses Temporal API + `Intl.DateTimeFormat` per user locale
+- [x] **I18N-05**: Locale persisted on `users.locale`; switchable from settings menu
 
 ### Sharing (SHRD)
 
