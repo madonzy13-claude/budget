@@ -1,6 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 import { routing } from "../i18n/routing";
+import { negotiateLocale } from "./lib/negotiate-locale";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -53,6 +54,32 @@ export default function middleware(request: NextRequest) {
     const res = intlMiddleware(request);
     res.cookies.delete(SESSION_COOKIE);
     return res;
+  }
+
+  // First-visit Accept-Language negotiation (D-20, T-08-04-01).
+  // Fires ONLY when:
+  //   1. No budget-locale cookie (not a returning user / not signed in)
+  //   2. No session (not authenticated)
+  //   3. The path has no locale prefix (bare "/" or "/some-path" without /en|pl|uk/)
+  // In that case, instead of letting next-intl fall back to the hardcoded
+  // defaultLocale ("en"), we read Accept-Language and redirect to the negotiated
+  // locale. The Accept-Language value is validated against the supported-locale
+  // allowlist inside negotiateLocale() — any unsupported tag falls back to "en".
+  const accountLocaleCookie = request.cookies.get(ACCOUNT_LOCALE_COOKIE)?.value;
+  const hasLocaleCookie =
+    !!accountLocaleCookie && LOCALES.includes(accountLocaleCookie);
+  const urlHasLocale = LOCALES.includes(pathname.split("/")[1] ?? "");
+
+  if (!isAuthenticated && !hasLocaleCookie && !urlHasLocale) {
+    const negotiated = negotiateLocale(request.headers.get("accept-language"));
+    // Only redirect when the negotiated locale differs from the default ("en")
+    // to avoid a redirect loop on "en" first visits (next-intl already defaults to en).
+    if (negotiated !== "en") {
+      const url = request.nextUrl.clone();
+      const barePath = pathname || "/";
+      url.pathname = `/${negotiated}${barePath === "/" ? "" : barePath}`;
+      return NextResponse.redirect(url);
+    }
   }
 
   // Logged-in users: the account locale is authoritative. If the URL carries a
