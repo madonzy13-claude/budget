@@ -52,3 +52,13 @@ Feature: Reserves tab — single Available value per category + 3 totals (no ban
     Given reserves are disabled for the budget
     When I open the reserves tab for the budget
     Then the reserves disabled notice is visible
+
+@phase8
+  Scenario: Spending against a reserve-backed category auto-deducts the reserve in real time
+    # Seed a reserve so the engine has something to deduct from.
+    # The column-header reserves-used indicator appears once any spend is posted
+    # against the category (05-REWRITE depletion model: R available drops by the
+    # spend amount; no page reload needed — the UI re-renders on mutation).
+    Given the budget has a confirmed spend of 2000 cents in "Groceries"
+    When I open the spendings tab for the budget
+    Then the reserves-used indicator for "Groceries" is visible in the column header
