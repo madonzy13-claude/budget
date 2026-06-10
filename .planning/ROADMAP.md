@@ -17,13 +17,13 @@ The work is dependency-shaped: schema rename precedes domain rename precedes API
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Schema Migration & Rename Foundation** — Single Drizzle migration: rename workspaces→budgets and accounts→wallets, drop dropped columns, add wallet_type / cushion / sort_index / tasks; nuke dev DB; tenant-leak CI green on new schema [Plan 01-01 ✓ | 01-02..04 pending]
-- [ ] **Phase 2: Domain & API Restructure** — Rename domain entities, strip Transaction, update recurring-engine for extended cadence, wire reserves auto-compute SQL view, ship share-link backend routes; all `/budgets/*` and `/wallets/*` HTTP routes live
+- [x] **Phase 1: Schema Migration & Rename Foundation** — Single Drizzle migration: rename workspaces→budgets and accounts→wallets, drop dropped columns, add wallet_type / cushion / sort_index / tasks; nuke dev DB; tenant-leak CI green on new schema (VERIFICATION: PASS)
+- [x] **Phase 2: Domain & API Restructure** — Rename domain entities, strip Transaction, update recurring-engine for extended cadence, wire reserves auto-compute SQL view, ship share-link backend routes; all `/budgets/*` and `/wallets/*` HTTP routes live (dead-table `account_balance_adjustments` gap resolved — route removed)
 - [x] **Phase 3: Navigation, Home & BDP Frame** — Top-nav budget switcher dropdown, combined home page with per-budget cards + placeholder chart, BDP tab shell with sticky pills + task banner skeleton
 - [x] **Phase 4: Spendings Grid** — The Excel-like core: column-per-category grid, quick-entry, pen-icon side sliders, drag-reorder, arrow-key month navigation, recurring drafts as highlighted rows, real-time reserve-deduction display _(UAT closed: 16/17 pass, 1 skipped — Test 4 retry blocked by shared-stack; security audited 35/35 closed — see 04-SECURITY.md)_
 - [x] **Phase 5: Reserves & Wallets Tabs** — Reserves table with per-category isolated balances + wallet-share column, Wallets tab with always-inline editable rows (name/currency/amount/type) and add/delete (completed 2026-05-17)
 - [x] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow (completed 2026-05-22)
-- [ ] **Phase 7: Tasks Queue** — Banner-with-expand UI, three deterministic generators (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET), kind-specific resolution actions, auto-resolve on state change. CUSHION_BELOW_TARGET surfaces actual cushion-vs-target shortfall (the two legacy 4-kind generators have been dropped from v1.1 scope and deferred to v1.2 Insights).
+- [x] **Phase 7: Tasks Queue** — Banner-with-expand UI, three deterministic generators (RESERVE*TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET), kind-specific resolution actions, auto-resolve on state change. CUSHION_BELOW_TARGET surfaces actual cushion-vs-target shortfall (the two legacy 4-kind generators have been dropped from v1.1 scope and deferred to v1.2 Insights). *(All 10 plans + summaries; CI green on ccca754. Non-CI test-debt tracked in STATE.md: reserve-topup.test.ts:610 it.skip.)\_
 - [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
 
 ## Phase Details
@@ -218,7 +218,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. playwright-bdd `.feature` files cover quick-entry transaction, recurring draft confirm, real-time reserve auto-deduct, cushion-mode toggle, share-link recipient join, and the onboarding wizard end-to-end; Page Objects target renamed entities; fresh-user-per-scenario fixture is retained; E2E is green when run against `PLAYWRIGHT_BASE_URL` from `.env.local`
 5. CI gates green: `make ci-gate` 8/8 on renamed tables (Phase 7 added cushion-summary tenant-leak file); `make test` passes with 80% domain coverage; `bun run test` (Vitest component) passes; `make test-e2e` (Playwright BDD) passes; dependency-cruiser still blocks domain imports of drizzle / Hono / AI SDK / adapters
 
-**Plans**: pending
+**Plans** (7 — Wave 0 foundation → 3 parallel tracks → push wiring → E2E → gate):
+
+- [ ] 08-01-PLAN.md — Wave 1 (autonomous=false, user_setup VAPID): install idb+web-push, push_subscriptions+notification_prefs schema + [BLOCKING] migrate, tenant-leak gate 8→10, i18n completeness gate + all Phase-8 EN/PL/UK keys, 3 Page Objects + 4 test scaffolds (PWAX-04, I18N-01, I18N-02, E2EX-02)
+- [ ] 08-02-PLAN.md — Wave 2: task-repo writeOutbox(task.created) + push repo + /push subscribe/unsubscribe/preferences routes + integration tests (PWAX-04, PWAX-05)
+- [ ] 08-03-PLAN.md — Wave 2: idb offline-cache + offline-queue + use-online-sync reconnect replay + use-create-transaction offline fork + offline-status-badge + sync-issues-list (PWAX-02, PWAX-03)
+- [ ] 08-04-PLAN.md — Wave 2: Accept-Language negotiation + Intl/Temporal format audit + offline/server-down/signedOut fallback screens + staleness marker + manifest installability (I18N-02..05, PWAX-01)
+- [ ] 08-05-PLAN.md — Wave 3: push-notification-handler (extensible registry, generic payload, stale-sub cleanup) + worker register + SW notificationclick + PushPrefsSection + onboarding push step + install banner + profile Install + pending-sync row marker (PWAX-05, PWAX-06, PWAX-01, PWAX-03)
+- [ ] 08-06-PLAN.md — Wave 4: E2E audit-and-fill — spendings/recurring-draft/cushion/share-link features (@phase8) + complete SpendingsPo/OnboardingPo/ShareLinkPo + step bindings + existing-suite audit (E2EX-01..04, PWAX-03, PWAX-06)
+- [ ] 08-07-PLAN.md — Wave 5 (autonomous=false): check:i18n CI step + full gate sweep (ci-gate 10/10, make test, Vitest, test-e2e, dep-cruiser) + web rebuild + DESIGN sweep + human UAT install/push/deep-link (E2EX-05, PWAX-01/04, I18N-01)
+
 **UI hint**: yes
 
 ## Risk Register
@@ -278,7 +287,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 5. Reserves & Wallets Tabs                  | 16/16          | Complete    | 2026-05-17 |
 | 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
 | 7. Tasks Queue                              | 0/10           | Planned     | -          |
-| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD          | Not started | -          |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/7            | Planned     | -          |
 
 ---
 
