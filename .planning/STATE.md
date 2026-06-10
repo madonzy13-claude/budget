@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: milestone
 status: executing
 stopped_at: Phase 08 UI-SPEC approved
-last_updated: "2026-06-10T16:52:48.783Z"
-last_activity: 2026-06-10 -- Phase 08 planning complete
+last_updated: "2026-06-10T17:26:57.291Z"
+last_activity: 2026-06-10 -- Phase 08 execution started
 progress:
   total_phases: 8
   completed_phases: 7
@@ -21,14 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 08 — PWA, Offline, Push, i18n & E2E Hardening (next, not yet planned)
+**Current focus:** Phase 08 — pwa-offline-push-i18n-e2e-hardening
 
 ## Current Position
 
-Phase: 07 (tasks-queue) — COMPLETE (all 10 plans 07-01..07-10 executed + summarized)
+Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTING
+Plan: 1 of 7
 Next: Phase 08 — not yet created. Run `/gsd-plan-phase 08`.
-Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 08 planning complete
+Status: Executing Phase 08
+Last activity: 2026-06-10 -- Phase 08 execution started
 
 ### Known test-debt (non-CI, non-blocking)
 
