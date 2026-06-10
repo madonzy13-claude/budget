@@ -64,10 +64,11 @@ export class OnboardingPo {
    * Navigate to the onboarding wizard.
    */
   async goto(): Promise<void> {
-    await this.page.goto("/en/onboarding");
-    await this.page
-      .waitForLoadState("networkidle", { timeout: 10000 })
-      .catch(() => {});
+    // /onboarding is a retired route that redirect()s to /budgets/new (the real
+    // wizard since Phase 6). Navigate straight to the wizard and wait for the
+    // stepper to render rather than networkidle (which the tunnel can race).
+    await this.page.goto("/en/budgets/new");
+    await this.stepper().waitFor({ state: "visible", timeout: 15000 });
   }
 
   /**
