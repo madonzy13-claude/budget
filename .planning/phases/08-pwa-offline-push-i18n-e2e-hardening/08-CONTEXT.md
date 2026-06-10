@@ -54,7 +54,13 @@ Scope is HOW to harden what's already built. New product capabilities (e.g. non-
 - **D-17 (missing-key behavior):** **Both** — CI completeness gate fails the build on any missing EN/PL/UK key (enforces I18N-01 "delivered simultaneously"), AND runtime **falls back to EN** as a safety net if anything slips. No raw keys, no blanks.
 - **D-18 (translation source):** **Keep existing PL/UK strings** where keys carry over from v1.0; translate only **new/renamed** keys. Preserves prior human edits, minimizes churn.
 - **D-19 (new-key translation):** New/renamed PL/UK strings are **LLM-translated and flagged as machine-origin** for later human review. Keeps the 3-locale CI gate green at launch without blocking on a translator.
-- **D-20 (first-visit locale):** Detect from **browser Accept-Language** → if it matches PL/UK use that, else default EN; then **persist on `users.locale`** (I18N-05). Switchable from the settings/user menu.
+- **D-20 (first-visit locale):** Detect from **browser Accept-Language** → if it matches PL/UK use that, else default EN. This first-visit negotiation is the **only missing piece** — `apps/web/src/middleware.ts` currently bare-`/` → next-intl default `en` with no Accept-Language read; add the negotiation there.
+  - **ALREADY BUILT (do NOT re-scope — verified 2026-06-10):**
+    - Logged-out switcher: `apps/web/src/components/common/public-locale-switcher.tsx` (header, swaps URL locale).
+    - Logged-in switcher: `apps/web/src/components/settings/locale-select.tsx` (Settings — **by-design, not a user-menu item**; the public switcher's own comment states logged-in users change locale only in Settings).
+    - Persist `users.locale` (I18N-05): `PUT /settings/locale` at `apps/api/src/routes/settings.ts:36` writes the column; `users.locale` already exists (`text("locale").notNull().default("en")`).
+    - URL/cookie sync: `budget-locale` cookie set on change + `apps/web/src/middleware.ts` redirects logged-in users to their account locale; `apps/api/src/middleware/i18n.ts` reads `session.user.locale`.
+  - ROADMAP criterion #3 says "switchable from the **user menu**" — satisfied by the **Settings** switcher (deliberate placement). No new switcher UI in Phase 8.
 
 ### E2E (audit-and-fill, NOT a rewrite)
 
