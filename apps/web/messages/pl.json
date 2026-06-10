@@ -21,6 +21,14 @@
       "verify_pending": {
         "title": "Sprawdź skrzynkę odbiorczą",
         "body": "Wysłaliśmy e-mail z linkiem weryfikacyjnym. Kliknij go, zanim się zalogujesz."
+      },
+      "session_expired": {
+        "title": "Twoja sesja wygasła",
+        "body": "Ze względów bezpieczeństwa zostałeś wylogowany. Zaloguj się ponownie, aby kontynuować."
+      },
+      "auth_required": {
+        "title": "Wymagane logowanie",
+        "body": "Musisz być zalogowany, aby uzyskać dostęp do tej strony."
       }
     },
     "reset": {
@@ -39,7 +47,7 @@
     "verify": {
       "banner": {
         "heading": "Zweryfikuj swój e-mail, aby kontynuować",
-        "body": "Wysłaliśmy link na adres {email}. Tworzenie obszarów roboczych i zaproszenia zostaną odblokowane po weryfikacji.",
+        "body": "Wysłaliśmy link na adres {email}. Tworzenie budżetów i zaproszenia zostaną odblokowane po weryfikacji.",
         "resend": "Wyślij e-mail ponownie",
         "cooldown": "Możesz wysłać ponownie za {seconds}s."
       }
@@ -71,6 +79,7 @@
     "signin_link": "Zaloguj się"
   },
   "settings": {
+    "eyebrow": "Konto",
     "heading": "Ustawienia",
     "sessions": {
       "tab": "Sesje",
@@ -82,23 +91,30 @@
         "status": "Status"
       },
       "current_badge": "Bieżąca",
+      "unknown_device": "Nieznane urządzenie",
       "revoke": {
         "label": "Wyloguj tę sesję",
         "confirm": {
           "title": "Wylogować tę sesję?",
           "body": "Zalogowane urządzenie na {device} zostanie natychmiast wylogowane.",
-          "cta": "Wyloguj"
+          "cta": "Wyloguj",
+          "cancel": "Anuluj"
         }
-      }
+      },
+      "success_revoke": "Sesja wylogowana.",
+      "error_revoke": "Nie udało się wylogować sesji. Spróbuj ponownie."
     },
     "display_currency": {
       "label": "Waluta wyświetlania",
-      "helper": "Używana do wyświetlania sum w wielu obszarach roboczych. Każdy obszar roboczy zachowuje własną walutę dla swoich danych.",
-      "tab": "Waluta wyświetlania"
+      "helper": "Używana do wyświetlania sum w wielu budżetach. Każdy budżet zachowuje własną walutę dla swoich danych.",
+      "tab": "Waluta wyświetlania",
+      "save_success": "Waluta wyświetlania zaktualizowana.",
+      "error_save": "Nie udało się zapisać waluty wyświetlania. Spróbuj ponownie."
     },
     "locale": {
       "label": "Język wyświetlania",
-      "tab": "Język"
+      "tab": "Język",
+      "error_save": "Nie udało się zapisać języka. Spróbuj ponownie."
     },
     "providers": {
       "tab": "Dostawcy",
@@ -109,57 +125,151 @@
       "stt": {
         "label": "Wprowadzanie głosowe",
         "helper": "Używane do rejestrowania wydatków przez mowę."
-      }
+      },
+      "footnote": "Faza 1 podpina tylko przełącznik. Adaptery STT i LLM zostaną podłączone w fazie 5."
     },
     "save": "Zapisz zmiany",
-    "save_success": "Ustawienia zapisane."
+    "save_success": "Ustawienia zapisane.",
+    "page_heading": "Ustawienia budżetu",
+    "error_save": "Nie udało się zapisać — spróbuj ponownie",
+    "sections": {
+      "identity": "Tożsamość budżetu",
+      "cushion": "Poduszka",
+      "recurring": "Wydatki cykliczne",
+      "members": "Członkowie",
+      "danger": "Strefa niebezpieczna"
+    },
+    "identity": {
+      "name_label": "Nazwa",
+      "name_saved": "Nazwa budżetu zapisana",
+      "currency_label": "Domyślna waluta",
+      "currency_saved": "Waluta zaktualizowana",
+      "currency_locked_tooltip": "Waluta zablokowana po pierwszej transakcji"
+    },
+    "cushion": {
+      "label": "Tryb poduszki",
+      "help_text": "Używa ściślejszego limitu poduszki dla wszystkich kategorii.",
+      "on_toast": "Tryb poduszki włączony — obowiązują ściślejsze limity",
+      "off_toast": "Tryb poduszki wyłączony — obowiązują limity planowane",
+      "feature_label": "Włącz poduszkę",
+      "feature_help_text": "Planuj niewielką rezerwę finansową obok każdej kategorii. Wyłączenie ukrywa poduszkę wszędzie — w portfelach, w limitach kategorii i w przełączniku miesiąca.",
+      "feature_on_toast": "Poduszka włączona",
+      "feature_off_toast": "Poduszka wyłączona — ukryta wszędzie",
+      "mode_label": "Tryb poduszki",
+      "mode_help_text": "Przełącz bieżący miesiąc na ściślejszy budżet poduszki. W każdej chwili można cofnąć.",
+      "targetMonthsLabel": "Docelowe miesiące",
+      "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
+      "saved": "Cel poduszki zapisany",
+      "preview": "Masz {actual} z {required} — brakuje {shortfall}",
+      "previewMet": "Masz {actual} z {required} — cel osiągnięty",
+      "previewError": "Nie udało się załadować podsumowania poduszki."
+    },
+    "recurring": {
+      "add_rule": "Dodaj regułę",
+      "add_rule_title": "Dodaj regułę cykliczną",
+      "edit_rule_title": "Edytuj regułę cykliczną"
+    },
+    "members": {
+      "empty": "Brak innych członków.",
+      "generate_link": "Wygeneruj link do udostępnienia",
+      "role_owner": "Właściciel",
+      "role_member": "Członek",
+      "revoke_button": "Usuń",
+      "revoke_dialog_title": "Usunąć {name}?",
+      "revoke_dialog_body": "{name} natychmiast straci dostęp do tego budżetu.",
+      "revoke_confirm": "Usuń",
+      "revoke_cancel": "Anuluj",
+      "revoked_toast": "Członek usunięty.",
+      "revoke_error": "Nie udało się usunąć członka. Spróbuj ponownie."
+    },
+    "danger": {
+      "section_title": "Strefa niebezpieczna",
+      "archive_button": "Archiwizuj budżet",
+      "archive_dialog_title": "Zarchiwizować ten budżet?",
+      "archive_dialog_body": "Zostanie ukryty na pulpicie. Twoje dane są zachowane i nic nie jest usuwane.",
+      "archive_confirm": "Archiwizuj",
+      "archive_cancel": "Zostaw",
+      "archived_toast": "Budżet zarchiwizowany.",
+      "archive_error": "Nie udało się zarchiwizować budżetu. Spróbuj ponownie.",
+      "delete_button": "Usuń budżet",
+      "delete_dialog_title": "Trwale usunąć ten budżet?",
+      "delete_dialog_body": "Tej operacji nie można cofnąć. Wszystkie transakcje, kategorie i członkowie zostaną trwale usunięci. Wpisz nazwę budżetu, aby potwierdzić.",
+      "delete_input_placeholder": "Wpisz nazwę budżetu, aby potwierdzić",
+      "delete_confirm": "Usuń na zawsze",
+      "delete_cancel": "Anuluj",
+      "deleted_toast": "Budżet usunięty.",
+      "delete_error": "Nie udało się usunąć budżetu. Spróbuj ponownie.",
+      "name_mismatch_error": "Nazwa nie jest zgodna. Wpisz dokładną nazwę budżetu.",
+      "leave_button": "Opuść budżet",
+      "leave_dialog_title": "Opuścić {name}?",
+      "leave_dialog_body": "Natychmiast stracisz dostęp i nie możesz dołączyć ponownie bez nowego zaproszenia.",
+      "leave_confirm": "Opuść",
+      "leave_cancel": "Zostań",
+      "left_toast": "Opuściłeś budżet.",
+      "leave_error": "Nie udało się opuścić budżetu. Spróbuj ponownie.",
+      "last_owner_tooltip": "Jesteś ostatnim właścicielem. Zamiast tego usuń budżet."
+    }
   },
-  "workspaces": {
+  "budgets": {
     "empty": {
-      "heading": "Utwórz swój pierwszy obszar roboczy",
-      "body": "Obszar roboczy zawiera jeden budżet. Utwórz prywatny dla siebie lub wspólny do planowania z rodziną.",
-      "cta": "Utwórz obszar roboczy"
+      "eyebrow": "Zaczynamy",
+      "heading": "Utwórz swój pierwszy budżet",
+      "body": "Budżet zawiera Twój plan wydatków. Utwórz prywatny dla siebie lub wspólny do planowania z rodziną.",
+      "cta": "Utwórz budżet"
     },
     "create": {
-      "heading": "Nowy obszar roboczy",
+      "heading": "Nowy budżet",
       "name": {
-        "label": "Nazwa obszaru roboczego",
+        "label": "Nazwa budżetu",
         "placeholder": "np. Budżet rodzinny"
       },
       "kind": {
-        "label": "Typ obszaru roboczego",
+        "label": "Typ budżetu",
         "private": "Prywatny — tylko ja",
         "shared": "Wspólny — zaproś rodzinę"
       },
       "currency": {
         "label": "Domyślna waluta",
-        "helper": "To ustawienie jest trwałe — każdy wpis w tym obszarze roboczym jest rozliczany w tej walucie.",
-        "placeholder": "Wyszukaj walutę..."
+        "helper": "To ustawienie jest trwałe — każdy wpis w tym budżecie jest rozliczany w tej walucie.",
+        "placeholder": "Wybierz walutę"
       },
-      "cta": "Utwórz obszar roboczy",
-      "success": "Obszar roboczy \"{name}\" został utworzony."
+      "cta": "Utwórz budżet",
+      "success": "Budżet \"{name}\" został utworzony.",
+      "validation": {
+        "name_required": "Nazwa budżetu jest wymagana.",
+        "currency_required": "Domyślna waluta jest wymagana."
+      }
     },
     "switcher": {
-      "label": "Aktywne obszary robocze",
-      "helper": "Wybierz obszary robocze, które chcesz widzieć. Zapamiętamy to.",
+      "label": "Aktywne budżety",
+      "helper": "Wybierz budżety, które chcesz widzieć. Zapamiętamy to.",
+      "error_save": "Nie udało się zapisać. Spróbuj ponownie.",
       "group": {
         "private": "Prywatne budżety",
         "shared": "Wspólne budżety"
       },
-      "first_pick": "Wybierz co najmniej jeden obszar roboczy, aby rozpocząć.",
+      "first_pick": "Wybierz co najmniej jeden budżet, aby rozpocząć.",
       "select_all": "Zaznacz wszystkie",
-      "active_count": "{count, plural, one {# obszar roboczy} few {# obszary robocze} many {# obszarów roboczych} other {# obszarów roboczych}}"
+      "active_count": "{count, plural, one {# budżet} few {# budżety} many {# budżetów} other {# budżetów}}"
     },
-    "verify_required": "Najpierw zweryfikuj swój e-mail, aby tworzyć obszary robocze lub dołączać do nich.",
+    "verify_required": "Najpierw zweryfikuj swój e-mail, aby tworzyć budżety lub dołączać do nich.",
     "list": {
-      "heading": "Moje obszary robocze",
-      "manage": "Zarządzaj"
+      "heading": "Moje budżety",
+      "manage": "Zarządzaj",
+      "addButton": "Dodaj budżet"
+    },
+    "kindPrivate": "Prywatny",
+    "kindShared": "Wspólny",
+    "new": {
+      "title": "Utwórz budżet",
+      "placeholder": "Kreator wprowadzający pojawi się w fazie 6.",
+      "backToHome": "Powrót do strony głównej"
     }
   },
-  "workspace": {
+  "budget": {
     "shares": {
       "heading": "Udziały w wkładzie",
-      "body": "Ustaw, jaka część budżetu tego obszaru roboczego jest odpowiedzialnością każdego członka. Udziały muszą sumować się do 100%.",
+      "body": "Ustaw, jaka część tego budżetu jest odpowiedzialnością każdego członka. Udziały muszą sumować się do 100%.",
       "col": {
         "member": "Członek",
         "percentage": "Udział"
@@ -171,6 +281,8 @@
       },
       "save": "Zapisz udziały",
       "save_success": "Udziały w wkładzie zaktualizowane.",
+      "save_error": "Nie udało się zapisać udziałów. Spróbuj ponownie.",
+      "saving": "Zapisywanie...",
       "audit_hint": "Każda zmiana jest rejestrowana."
     },
     "invite": {
@@ -181,14 +293,17 @@
       "cta": "Wyślij zaproszenie",
       "success": "Zaproszenie wysłane do {email}.",
       "error": {
-        "already_member": "{email} jest już członkiem tego obszaru roboczego."
+        "already_member": "{email} jest już członkiem tego budżetu."
+      },
+      "validation": {
+        "email_invalid": "Adres e-mail jest nieprawidłowy. Sprawdź format i spróbuj ponownie."
       }
     },
     "leave": {
       "confirm": {
         "title": "Opuścić \"{name}\"?",
-        "body": "Utracisz dostęp do danych tego obszaru roboczego. Właściciel może ponownie Cię zaprosić.",
-        "cta": "Opuść obszar roboczy"
+        "body": "Utracisz dostęp do danych tego budżetu. Właściciel może ponownie Cię zaprosić.",
+        "cta": "Opuść budżet"
       }
     },
     "transfer": {
@@ -218,20 +333,344 @@
   },
   "nav": {
     "dashboard": "Pulpit",
-    "workspaces": "Obszary robocze",
+    "budgets": "Budżety",
     "settings": "Ustawienia",
     "onboarding": "Rozpocznij",
-    "sign_out": "Wyloguj się"
+    "sign_out": "Wyloguj się",
+    "profile": "Profil",
+    "profile_menu_aria": "Otwórz menu profilu",
+    "budget": "Budżet",
+    "wallets": "Portfele",
+    "transactions": "Transakcje",
+    "recurring": "Cykliczne",
+    "budgetSwitcher": {
+      "trigger": {
+        "aria": "Przełącz budżet"
+      }
+    },
+    "switcher": {
+      "personal": "Osobiste",
+      "shared": "Współdzielone",
+      "empty": {
+        "trigger": "Brak budżetów",
+        "body": "Użyj +, aby utworzyć pierwszy budżet.",
+        "cta": "Utwórz budżet"
+      }
+    },
+    "newBudget": "Nowy budżet",
+    "newBudgetTooltip": "Utwórz nowy budżet"
   },
   "onboarding": {
-    "heading": "Skonfiguruj swój pierwszy obszar roboczy",
-    "subtitle": "Prawie gotowe. Utwórz obszar roboczy, aby zacząć śledzić budżet.",
-    "step_workspace": "Utwórz obszar roboczy"
+    "eyebrow": "Krok 1 z 3",
+    "heading": "Skonfiguruj swój pierwszy budżet",
+    "subtitle": "Prawie gotowe. Utwórz budżet, aby zacząć śledzić wydatki.",
+    "step_workspace": "Utwórz budżet",
+    "step_workspace_helper": "Wybierz nazwę i domyślną walutę. Waluty nie można później zmienić.",
+    "page_heading": "Utwórz swój budżet",
+    "welcome_heading": "Utwórzmy Twój pierwszy budżet",
+    "welcome_body": "Cztery szybkie kroki: podstawy, typ, opcjonalne funkcje i przegląd. Wszystko będzie można potem zmienić.",
+    "welcome_cta": "Rozpocznij",
+    "step1_label": "Nazwij swój budżet",
+    "step1_placeholder": "np. Budżet rodzinny 2026",
+    "step1_validation_error": "Nazwa budżetu jest wymagana.",
+    "step2_label": "Wybierz swoją walutę",
+    "step2_help_text": "Możesz to zmienić później, dopóki nie dodasz pierwszej transakcji.",
+    "step3_label": "Dla kogo jest ten budżet?",
+    "step3_option_personal": "Osobisty",
+    "step3_option_personal_sub": "Tylko dla Ciebie",
+    "step3_option_shared": "Wspólny",
+    "step3_option_shared_sub": "Zaproś rodzinę lub domowników",
+    "step4_label": "Wybierz kategorie startowe",
+    "step4_help_text": "Dostosuj limity wydatków po utworzeniu budżetu.",
+    "step4_validation_error": "Wybierz co najmniej jedną kategorię.",
+    "step5_label": "Gotowy do startu?",
+    "step5_summary_intro": "Oto co ustawiłeś:",
+    "cta_next": "Dalej",
+    "cta_create": "Utwórz budżet",
+    "back": "Wstecz",
+    "skip": "Pomiń",
+    "resume_heading": "Witaj ponownie — kontynuuj tam, gdzie skończyłeś",
+    "network_error": "Coś poszło nie tak — spróbuj ponownie",
+    "wizard": {
+      "stepper": {
+        "basics": "Podstawy",
+        "type": "Typ",
+        "features": "Funkcje",
+        "review": "Przegląd",
+        "progress_aria": "Postęp kreatora",
+        "step_completed_aria": "Krok {label} ukończony",
+        "step_active_aria": "Krok {label} aktywny",
+        "step_aria": "Krok {label}"
+      },
+      "basics": {
+        "heading": "Ustaw podstawy",
+        "subheading": "Nazwij budżet i wybierz domyślną walutę.",
+        "name_label": "Nazwa budżetu",
+        "name_placeholder": "np. Budżet rodzinny",
+        "name_required": "Nazwa budżetu jest wymagana.",
+        "currency_label": "Domyślna waluta",
+        "currency_helper": "Możesz to zmienić, dopóki nie dodasz pierwszej transakcji."
+      },
+      "type": {
+        "heading": "Dla kogo jest ten budżet?",
+        "subheading": "Możesz zaprosić innych później — budżety współdzielone trzymają osobne udziały dla każdego członka.",
+        "personal_label": "Osobisty",
+        "personal_sub": "Tylko dla Ciebie",
+        "shared_label": "Wspólny",
+        "shared_sub": "Zaproś rodzinę lub domowników",
+        "group_aria": "Typ budżetu"
+      },
+      "features": {
+        "heading": "Wybierz funkcje",
+        "subheading": "Włącz potrzebne tory. Każdą z opcji można później zmienić w Ustawieniach.",
+        "cushion_label": "Poduszka",
+        "cushion_help": "Zaplanuj niewielką rezerwę finansową obok każdej kategorii, aby zły miesiąc nie wywrócił głównego budżetu. Wyłącz, jeśli nie chcesz żadnej poduszki.",
+        "reserves_label": "Rezerwy",
+        "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączone ukrywa zakładkę Rezerwy.",
+        "targetMonthsLabel": "Docelowe miesiące",
+        "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60."
+      },
+      "review": {
+        "heading": "Gotowy?",
+        "subheading": "Oto, co przygotowaliśmy:",
+        "label_name": "Nazwa",
+        "label_currency": "Waluta",
+        "label_type": "Typ",
+        "label_cushion": "Poduszka",
+        "label_reserves": "Rezerwy",
+        "value_personal": "Osobisty",
+        "value_shared": "Wspólny",
+        "value_enabled": "Włączone",
+        "value_disabled": "Wyłączone",
+        "placeholder_value": "—"
+      },
+      "actions": {
+        "back": "Wstecz",
+        "skip": "Pomiń",
+        "next": "Dalej",
+        "get_started": "Rozpocznij",
+        "create_budget": "Utwórz budżet"
+      },
+      "errors": {
+        "network": "Coś poszło nie tak — spróbuj ponownie"
+      }
+    }
+  },
+  "share": {
+    "generate_button": "Wygeneruj link do udostępnienia",
+    "field_label": "Link z zaproszeniem (wygasa za 7 dni)",
+    "expires_in_7_days": "Wygasa za 7 dni",
+    "copied": "Link skopiowany do schowka",
+    "copy_failed": "Nie udało się skopiować linku — skopiuj go ręcznie",
+    "generate_failed": "Nie udało się wygenerować linku. Spróbuj ponownie.",
+    "copy_aria": "Kopiuj link",
+    "valid_heading": "Zostałeś zaproszony",
+    "valid_body": "Zostałeś zaproszony do dołączenia do wspólnego budżetu.",
+    "authenticated_cta": "Dołącz do budżetu",
+    "unauthenticated_cta": "Zaloguj się, aby zaakceptować",
+    "accepting_cta": "Dołączanie…",
+    "expired_heading": "To zaproszenie wygasło",
+    "expired_body": "Poproś właściciela budżetu o przesłanie nowego linku.",
+    "already_used_heading": "Jesteś już członkiem",
+    "already_used_body": "Dołączyłeś już do budżetu {budgetName}.",
+    "already_used_cta": "Przejdź do budżetu",
+    "not_found_heading": "Zaproszenie nie zostało znalezione",
+    "not_found_body": "Ten link jest nieprawidłowy lub został usunięty.",
+    "not_found_cta": "Wróć do strony głównej",
+    "join_success": "Dołączyłeś do budżetu {budgetName}"
   },
   "dashboard": {
     "heading": "Pulpit",
-    "no_workspaces": "Nie wybrano żadnych aktywnych obszarów roboczych. Użyj przełącznika obszarów roboczych, aby wybrać co najmniej jeden.",
+    "no_workspaces": "Nie wybrano żadnych aktywnych budżetów. Użyj przełącznika budżetów, aby wybrać co najmniej jeden.",
     "totals_in": "Sumy w {currency}"
+  },
+  "budgeting": {
+    "wallets": {
+      "title": "Portfele",
+      "addButton": "Dodaj portfel",
+      "form": {
+        "title": "Nowy portfel",
+        "nameLabel": "Nazwa portfela",
+        "namePlaceholder": "np. Portfel gotówkowy",
+        "kindLabel": "Rodzaj portfela",
+        "currencyLabel": "Waluta",
+        "currencyPlaceholder": "Wybierz walutę",
+        "saveButton": "Zapisz portfel",
+        "cancelButton": "Anuluj"
+      },
+      "kinds": {
+        "CASH": "Gotówka",
+        "CHECKING": "Konto rozliczeniowe",
+        "SAVINGS": "Oszczędnościowe",
+        "CREDIT_CARD": "Karta kredytowa",
+        "LOAN": "Pożyczka",
+        "INVESTMENT": "Inwestycja"
+      },
+      "groups": {
+        "assets": "Aktywa",
+        "liabilities": "Pasywa"
+      },
+      "actions": {
+        "editAria": "Edytuj {name}",
+        "archiveAria": "Archiwizuj {name}",
+        "adjustBalance": "Dostosuj saldo"
+      },
+      "empty": "Brak portfeli. Dodaj pierwszy portfel, aby zacząć śledzić swoje finanse.",
+      "balance": {
+        "in": "Saldo w {currency}",
+        "unavailable": "Kurs niedostępny"
+      }
+    },
+    "transactions": {
+      "title": "Transakcje",
+      "addButton": "Dodaj transakcję",
+      "capture": {
+        "saveExpense": "Zapisz wydatek",
+        "saveIncome": "Zapisz przychód",
+        "saveTransfer": "Zapisz przelew",
+        "amountLabel": "Kwota",
+        "currencyLabel": "Waluta",
+        "dateLabel": "Data",
+        "categoryLabel": "Kategoria",
+        "accountLabel": "Portfel",
+        "noteLabel": "Notatka (opcjonalna)",
+        "kindExpense": "Wydatek",
+        "kindIncome": "Przychód",
+        "kindTransfer": "Przelew"
+      },
+      "list": {
+        "editedBadge": "edytowane",
+        "empty": "Brak transakcji."
+      },
+      "search": {
+        "placeholder": "Szukaj transakcji",
+        "resultsCount": "{count, plural, =0{Brak wyników} =1{1 wynik} few{# wyniki} many{# wyników} other{# wyników}} dla {query}",
+        "noResults": "Żadna transakcja nie pasuje do wyszukiwania"
+      },
+      "filters": {
+        "toolbarLabel": "Filtry transakcji",
+        "dateRange": "Zakres dat",
+        "category": "Kategoria",
+        "account": "Portfel",
+        "kind": "Typ",
+        "clearAll": "Wyczyść wszystkie filtry"
+      },
+      "bulk": {
+        "regionLabel": "Akcje zbiorcze",
+        "selectedCount": "Zaznaczono: {count}",
+        "actionLabel": "Zmień kategorię {count} transakcji",
+        "applyButton": "Zastosuj zmianę kategorii",
+        "applySucceeded": "Zmieniono kategorię {count} transakcji",
+        "applyFailed": "Zbiorcza zmiana kategorii nie powiodła się",
+        "categorySelectLabel": "Nowa kategoria",
+        "categoryPlaceholder": "Wybierz kategorię",
+        "confirmDialog": "Zmienić kategorię {count} transakcji na {category}? Dla każdej zostanie utworzony wiersz korekty."
+      },
+      "edit": {
+        "title": "Edytuj transakcję",
+        "saveButton": "Zapisz zmiany",
+        "cancelButton": "Anuluj",
+        "kindFieldHint": "Nie można zmienić rodzaju — utwórz nową transakcję.",
+        "alreadyCorrected": "Ta transakcja została edytowana przez kogoś innego. Odśwież stronę."
+      },
+      "history": {
+        "panelTitle": "Historia edycji",
+        "originalLabel": "Oryginał",
+        "editedLabel": "Edytowano",
+        "changedFields": "Zmieniono: {fields}"
+      }
+    },
+    "fx": {
+      "preview": "≈ {amount} {currency} @ {rate}, {provider}",
+      "freshnessBadge": "kurs {age}",
+      "stale409Title": "Kurs zmienił się",
+      "stale409Body": "Kurs wymiany zmienił się podczas wypełniania formularza. Nowy kurs to {rate}. Zapisać z nowym kursem?"
+    },
+    "recurring": {
+      "title": "Cykliczne",
+      "addRuleButton": "Dodaj regułę cykliczną",
+      "rule": {
+        "title": "Nowa reguła cykliczna",
+        "editTitle": "Edytuj regułę cykliczną",
+        "saveButton": "Zapisz regułę",
+        "cancelButton": "Anuluj",
+        "amountLabel": "Kwota",
+        "currencyLabel": "Waluta",
+        "kindLabel": "Typ",
+        "kindExpense": "Wydatek",
+        "kindIncome": "Przychód",
+        "kindTransfer": "Przelew",
+        "accountLabel": "Portfel",
+        "categoryLabel": "Kategoria",
+        "categoryNone": "(bez kategorii)",
+        "cadenceLabel": "Częstotliwość",
+        "monthly": "Miesięcznie",
+        "weekly": "Tygodniowo",
+        "yearly": "Rocznie",
+        "anchorDayLabel": "W dniu",
+        "weekdayLabel": "W",
+        "yearlyMonthLabel": "Miesiąc",
+        "weekdays": {
+          "0": "Niedziela",
+          "1": "Poniedziałek",
+          "2": "Wtorek",
+          "3": "Środa",
+          "4": "Czwartek",
+          "5": "Piątek",
+          "6": "Sobota"
+        },
+        "months": {
+          "1": "Styczeń",
+          "2": "Luty",
+          "3": "Marzec",
+          "4": "Kwiecień",
+          "5": "Maj",
+          "6": "Czerwiec",
+          "7": "Lipiec",
+          "8": "Sierpień",
+          "9": "Wrzesień",
+          "10": "Październik",
+          "11": "Listopad",
+          "12": "Grudzień"
+        },
+        "firstDueLabel": "Pierwsza data",
+        "noteLabel": "Notatka (opcjonalnie)",
+        "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
+        "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
+        "categoryPlaceholder": "Wybierz kategorię…"
+      },
+      "list": {
+        "title": "Wydatki cykliczne",
+        "empty": "Brak reguł cyklicznych.",
+        "monthlyOnDay": "Miesięcznie · {day}",
+        "weeklyOnDow": "Tygodniowo · {weekday}",
+        "yearlyOn": "Rocznie · {month} {day}",
+        "daily": "Codziennie",
+        "nextDueLabel": "Następnie: {date}",
+        "editButton": "Edytuj",
+        "archiveButton": "Archiwizuj"
+      },
+      "drafts": {
+        "inboxTitle": "Oczekujące cykliczne",
+        "empty": "Brak oczekujących szkiców.",
+        "confirmButton": "Potwierdź transakcję",
+        "editConfirmButton": "Edytuj i potwierdź",
+        "skipButton": "Pomiń ten okres",
+        "overdueLabel": "Spóźnione {age}",
+        "navBadgeLabel": "{count} spóźnionych"
+      },
+      "errors": {
+        "create": "Nie udało się utworzyć reguły",
+        "update": "Nie udało się zaktualizować reguły",
+        "delete": "Nie udało się usunąć reguły"
+      },
+      "delete": {
+        "title": "Usunąć regułę cykliczną?",
+        "body": "Spowoduje to zatrzymanie przyszłych szkiców. Zatwierdzone transakcje z przeszłości pozostają.",
+        "confirm": "Usuń",
+        "cancel": "Anuluj"
+      }
+    }
   },
   "currency": {
     "picker": {
@@ -250,5 +689,438 @@
       "NOK": "Korona norweska",
       "SEK": "Korona szwedzka"
     }
+  },
+  "budgeting_categories": {
+    "categories": {
+      "title": "Kategorie",
+      "addButton": "Dodaj kategorię",
+      "empty": "Brak kategorii. Dodaj pierwszą kategorię, aby śledzić wydatki.",
+      "form": {
+        "title": "Nowa kategoria",
+        "editTitle": "Edytuj kategorię",
+        "name": "Nazwa kategorii",
+        "namePlaceholder": "np. Mieszkanie",
+        "save": "Zapisz",
+        "cancel": "Anuluj",
+        "errors": {
+          "nameTaken": "Kategoria o tej nazwie już istnieje w tym budżecie.",
+          "generic": "Nie udało się utworzyć kategorii.",
+          "network": "Błąd sieci. Spróbuj ponownie.",
+          "nonNegativeInt": "Kwota musi być nieujemną liczbą całkowitą"
+        }
+      },
+      "overrideBadge": "nadpisanie",
+      "toast": {
+        "created": "Kategoria '{name}' utworzona."
+      },
+      "delete": {
+        "blockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
+        "confirmBody": "Ta operacja trwale usunie kategorię."
+      },
+      "editAria": "Edytuj {name}",
+      "archiveAria": "Archiwizuj {name}"
+    },
+    "limits": {
+      "title": "Limity budżetowe",
+      "normalAmount": "Limit normalny",
+      "cushionAmount": "Limit poduszki",
+      "effectiveFrom": "Obowiązuje od",
+      "save": "Zapisz limity",
+      "currency": "Waluta",
+      "cancel": "Anuluj",
+      "errors": {
+        "saveFailed": "Nie udało się zapisać limitu. Spróbuj ponownie.",
+        "network": "Błąd sieci. Spróbuj ponownie."
+      },
+      "toast": {
+        "saved": "Limit budżetu zapisany."
+      }
+    },
+    "templates": {
+      "title": "Szablony budżetu",
+      "addButton": "Nowy szablon",
+      "applyButton": "Zastosuj szablon",
+      "targetMonth": "Docelowy miesiąc",
+      "empty": "Brak dostępnych szablonów.",
+      "toast": {
+        "applied": "Szablon zastosowany."
+      },
+      "errors": {
+        "applyFailed": "Nie udało się zastosować szablonu.",
+        "network": "Błąd sieci. Spróbuj ponownie."
+      }
+    },
+    "shares": {
+      "title": "Udziały w wydatkach",
+      "sumCounter": "Aktualnie {sum}% — musi wynosić 100%",
+      "sharesNeedUpdate": "Udziały wymagają aktualizacji",
+      "save": "Zapisz udziały",
+      "overrideBadge": "nadpisanie",
+      "userIdPlaceholder": "ID użytkownika",
+      "removeEntryAria": "Usuń wpis",
+      "addMember": "Dodaj członka",
+      "sharePercentageAria": "Udział procentowy dla {name}",
+      "toast": {
+        "saved": "Udziały w wydatkach zaktualizowane."
+      },
+      "errors": {
+        "saveFailed": "Nie udało się zapisać udziałów.",
+        "network": "Błąd sieci. Spróbuj ponownie."
+      }
+    },
+    "budgetMode": {
+      "title": "Tryb budżetu",
+      "NORMAL": "Normalny",
+      "CUSHION": "Poduszka",
+      "save": "Zmień tryb"
+    }
+  },
+  "home": {
+    "heading": "Moje budżety",
+    "card": {
+      "spent": "Wydano w tym miesiącu",
+      "wallets": "Łącznie portfele",
+      "overspentHeading": "Przekroczono",
+      "allOnBudget": "Wszystkie kategorie w budżecie",
+      "error": "Nie udało się załadować podsumowania. Kliknij, aby otworzyć.",
+      "openAria": "Otwórz {budgetName}",
+      "pendingTasksAria": "{count} oczekujących zadań"
+    },
+    "chart": {
+      "placeholder": "Wkrótce: statystyki"
+    },
+    "empty": {
+      "heading": "Witaj — skonfigurujmy Twój pierwszy budżet",
+      "body": "Utwórz budżet, aby śledzić wydatki, portfele i rezerwy.",
+      "cta": "Utwórz pierwszy budżet"
+    }
+  },
+  "bdp": {
+    "tab": {
+      "aria": "Zakładki szczegółów budżetu",
+      "spendings": {
+        "label": "Wydatki",
+        "title": "Wydatki",
+        "placeholder": "Excel-podobna siatka kategorii pojawi się w fazie 4."
+      },
+      "reserves": {
+        "label": "Rezerwy",
+        "title": "Rezerwy",
+        "disabled": "Rezerwy wyłączone",
+        "section": {
+          "active": "Aktywne",
+          "included": "Dołączone",
+          "excluded": "Wykluczone",
+          "excludedEmpty": "Brak wykluczonych kategorii — przeciągnij tutaj kategorię, aby ją wykluczyć"
+        },
+        "column": {
+          "category": "Kategoria",
+          "available": "Dostępne"
+        },
+        "row": {
+          "dragHandleAria": "Przeciągnij, aby przenieść {name} między aktywnymi a wykluczonymi.",
+          "swipeExcludeCta": "Wyklucz",
+          "swipeRestoreCta": "Przywróć",
+          "excludeAria": "Wyklucz {name} z rezerw.",
+          "restoreAria": "Przywróć {name} do aktywnych rezerw.",
+          "reserveAria": "Dostępne dla {name}"
+        },
+        "totals": {
+          "internalLabel": "Razem dostępne",
+          "walletsLabel": "Razem w portfelach",
+          "usedLabel": "Razem wykorzystane",
+          "thisMonth": "w tym miesiącu",
+          "allTime": "od początku"
+        },
+        "toast": {
+          "saved": "Rezerwa zaktualizowana",
+          "saveFailed": "Nie udało się zapisać rezerwy. Sprawdź połączenie i spróbuj ponownie.",
+          "excluded": "{category} wykluczono z rezerw",
+          "included": "{category} dołączono do rezerw",
+          "toggleFailed": "Nie udało się zaktualizować statusu rezerwy. Spróbuj ponownie."
+        },
+        "coverNotice": {
+          "title": "Rezerwa użyta na pokrycie przekroczenia",
+          "body": "{amount} {currency} z rezerwy ustawionej dla „{category}” użyto na pokrycie przekroczenia w tym miesiącu. Dostępna rezerwa „{category}” wynosi teraz {available} {currency}.",
+          "action": "OK"
+        }
+      },
+      "wallets": {
+        "label": "Portfele",
+        "title": "Portfele",
+        "section": {
+          "spendings": "Portfele wydatków",
+          "cushion": "Portfele poduszki",
+          "reserve": "Portfele rezerw"
+        },
+        "sectionLabel": {
+          "spendings": "Wydatki",
+          "cushion": "Poduszka",
+          "reserve": "Rezerwa"
+        },
+        "add": {
+          "spendings": "Dodaj portfel wydatków",
+          "cushion": "Dodaj portfel poduszki",
+          "reserve": "Dodaj portfel rezerwy"
+        },
+        "row": {
+          "namePlaceholder": "Nazwa portfela",
+          "nameAria": "Nazwa portfela. Kliknij, aby edytować.",
+          "currencyAria": "Waluta. Kliknij, aby edytować.",
+          "currencyReadOnlyAria": "Waluta {ccy}. Portfele rezerw muszą używać waluty budżetu.",
+          "amountAria": "Kwota. Kliknij, aby edytować.",
+          "shareAria": "Udział {name} w sumie sekcji.",
+          "dragHandleAria": "Przeciągnij, aby przenieść {name} do innej sekcji.",
+          "trashAria": "Usuń portfel {name}.",
+          "swipeDeleteCta": "Usuń",
+          "customizeAria": "Dostosuj wygląd {name}",
+          "untitled": "Portfel bez nazwy"
+        },
+        "customizer": {
+          "color": "Kolor",
+          "icon": "Ikona",
+          "clearColor": "Wyczyść kolor",
+          "clearIcon": "Wyczyść ikonę",
+          "colorAria": "Kolor {name}",
+          "iconAria": "Ikona {name}",
+          "palette": {
+            "red": "Czerwony",
+            "amber": "Bursztynowy",
+            "yellow": "Żółty",
+            "green": "Zielony",
+            "teal": "Morski",
+            "sky": "Błękitny",
+            "indigo": "Indygo",
+            "pink": "Różowy"
+          }
+        },
+        "toast": {
+          "saved": "Portfel zaktualizowany",
+          "saveFailed": "Nie udało się zapisać portfela. Sprawdź połączenie i spróbuj ponownie.",
+          "created": "Portfel utworzony",
+          "createFailed": "Nie udało się utworzyć portfela. Spróbuj ponownie.",
+          "reorderFailed": "Nie udało się zapisać nowej kolejności. Przywracam.",
+          "archived": "Portfel usunięty",
+          "archiveFailed": "Nie udało się usunąć portfela. Spróbuj ponownie.",
+          "moved": "Przeniesiono {name} do {sectionLabel}",
+          "moveFailed": "Nie udało się przenieść {name}. Zostaje w {originalSectionLabel}.",
+          "reserveCurrencyRejected": "Portfele rezerw muszą być w {budgetCcy}. {name} zostaje w {originalSectionLabel}.",
+          "reserveCurrencyOnEdit": "Portfele rezerw muszą być w {budgetCcy}. Zmiana cofnięta."
+        },
+        "confirm": {
+          "delete": {
+            "title": "Usunąć portfel ''{name}''?",
+            "body": "Tego nie można cofnąć.",
+            "cta": "Usuń",
+            "cancel": "Anuluj"
+          }
+        }
+      },
+      "settings": {
+        "label": "Ustawienia",
+        "title": "Ustawienia",
+        "placeholder": "Tożsamość budżetu, przełącznik poduszki, reguły cykliczne i członkowie pojawią się w fazie 6."
+      }
+    },
+    "pillSlider": {
+      "collapsedHeaderOne": "1 zadanie oczekuje",
+      "collapsedHeaderMany": "{count} zadań oczekuje",
+      "expandAria": "Rozwiń listę zadań",
+      "collapseAria": "Zwiń listę zadań"
+    },
+    "tasks": {
+      "banner": {
+        "trigger": {
+          "aria": "Pokaż oczekujące zadania"
+        },
+        "collapse": {
+          "aria": "Ukryj oczekujące zadania"
+        }
+      },
+      "count": "{count, plural, one {# zadanie oczekujące} few {# zadania oczekujące} many {# zadań oczekujących} other {# zadań oczekujących}}",
+      "title": {
+        "RESERVE_TOPUP": "Uzupełnij rezerwę o {amount}",
+        "CONFIRM_DRAFT": "Potwierdź {ruleName} — {amount}",
+        "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki",
+        "RESERVE_TOPUP_withdraw": "Rezerwa ma {amount} nadwyżki"
+      },
+      "kind": {
+        "RESERVE_TOPUP": "Rezerwa",
+        "CONFIRM_DRAFT": "Szkic",
+        "CUSHION_BELOW_TARGET": "Poduszka"
+      },
+      "action": {
+        "RESERVE_TOPUP": {
+          "label": "Wyrównaj rezerwę",
+          "ariaLabel": "Przejdź do Rezerw, aby wyrównać"
+        },
+        "CONFIRM_DRAFT": {
+          "label": "Potwierdź szkic"
+        },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Uzupełnij poduszkę",
+          "ariaLabel": "Przejdź do Portfeli, aby uzupełnić poduszkę"
+        }
+      },
+      "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie.",
+      "more": "Więcej",
+      "detail": {
+        "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli.",
+        "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
+        "CUSHION_BELOW_TARGET": "Twoja poduszka finansowa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Masz trzy opcje: przelej środki do portfela typu Poduszka, obniż liczbę miesięcy w Ustawienia → Poduszka (mniejszy zapas = mniejsza wymagana poduszka), albo zmniejsz limity niektórych kategorii, żeby spadły średnie miesięczne wydatki.",
+        "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli)."
+      }
+    }
+  },
+  "grid": {
+    "txnSlider": {
+      "cta": {
+        "create": "Zapisz transakcję",
+        "save": "Zapisz zmiany"
+      },
+      "header": {
+        "create": "Nowa transakcja",
+        "edit": "Edytuj transakcję"
+      },
+      "field": {
+        "date": "Data",
+        "category": "Kategoria",
+        "amount": "Kwota",
+        "currency": "Waluta",
+        "note": "Notatka (opcjonalna)"
+      },
+      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})"
+    },
+    "catSlider": {
+      "cta": {
+        "create": "Utwórz kategorię",
+        "save": "Zapisz zmiany"
+      },
+      "header": {
+        "create": "Nowa kategoria",
+        "edit": "Edytuj kategorię"
+      },
+      "field": {
+        "name": "Nazwa",
+        "planned": "Plan miesięczny",
+        "cushion": "Poduszka miesięczna",
+        "icon": "Ikona",
+        "color": "Kolor"
+      },
+      "deleteBlockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
+      "deleteConfirmBody": "Ta operacja trwale usunie kategorię.",
+      "remove": {
+        "title": "Usuń kategorię",
+        "body": "Wybierz sposób usunięcia tej kategorii.",
+        "keepHistory": "Archiwizuj (zachowaj historię)",
+        "everywhere": "Usuń (usuń trwale)"
+      }
+    },
+    "expensesTitle": "Wydatki",
+    "deleteCategory": {
+      "title": "Usunąć kategorię na stałe?",
+      "body": "Spowoduje to trwałe usunięcie kategorii {name} oraz wszystkich jej transakcji, limitów i historii. Tej operacji nie można cofnąć.",
+      "cancel": "Anuluj",
+      "confirm": "Usuń na stałe"
+    },
+    "draft": {
+      "sectionTitle": "Do potwierdzenia",
+      "action": {
+        "confirm": "Potwierdź",
+        "edit": "Edytuj",
+        "dismiss": "Pomiń"
+      }
+    },
+    "row": {
+      "action": {
+        "edit": "Edytuj"
+      }
+    },
+    "txn": {
+      "action": {
+        "delete": "Usuń",
+        "retry": "Ponów"
+      }
+    },
+    "quickEntry": {
+      "placeholder": "…",
+      "title": "wydatki",
+      "addExpenseAria": "Dodaj wydatek do {categoryName}"
+    },
+    "monthNav": {
+      "prev": "Poprzedni miesiąc",
+      "next": "Następny miesiąc",
+      "shortcut": "Cmd + ← lub → aby zmienić miesiąc",
+      "today": "Dziś"
+    },
+    "addCategory": {
+      "trigger": "Dodaj kategorię"
+    },
+    "emptyState": {
+      "noCategories": {
+        "title": "Brak kategorii",
+        "body": "Dodaj pierwszą kategorię, aby zacząć śledzić wydatki.",
+        "cta": "Dodaj kategorię"
+      },
+      "noTxns": "Brak transakcji w tym miesiącu",
+      "noTxnsPast": "Nic nie zapisano w tym miesiącu"
+    },
+    "error": {
+      "quickEntry": "Nie udało się zapisać — dotknij, aby ponowić",
+      "sliderSave": "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.",
+      "reorderSave": "Nie udało się zapisać nowej kolejności. Kolumny zostały przywrócone.",
+      "invalidAmount": "Wpisz liczbę dodatnią",
+      "fxStale": "Kurs wymiany się zmienił. Sprawdź nową kwotę i zapisz ponownie."
+    },
+    "confirm": {
+      "discardChanges": "Masz niezapisane zmiany. Odrzucić je?",
+      "deleteTxn": {
+        "title": "Usunąć transakcję?",
+        "body": "Spowoduje to trwałe usunięcie {amount} z {date}. Tej operacji nie można cofnąć.",
+        "cta": "Usuń",
+        "cancel": "Anuluj"
+      },
+      "dismissDraft": {
+        "title": "Pominąć {ruleName} w {month}?",
+        "body": "Reguła cykliczna nadal będzie działać. Wersja robocza na kolejny miesiąc pojawi się zgodnie z harmonogramem.",
+        "cta": "Pomiń ten miesiąc",
+        "cancel": "Anuluj"
+      }
+    },
+    "header": {
+      "row2": {
+        "planned": "plan",
+        "cushion": "poduszka"
+      },
+      "row3": {
+        "overspent": "przekroczenie"
+      },
+      "row4": {
+        "reservesUsed": "rezerwy użyte"
+      },
+      "row5": {
+        "balance": "pozostało"
+      },
+      "archived": "zarchiwizowano"
+    }
+  },
+  "errors": {
+    "title": "Coś poszło nie tak",
+    "body": "Nie udało się załadować tej strony. Sprawdź połączenie i spróbuj ponownie.",
+    "reload": "Odśwież",
+    "go_home": "Wróć do strony głównej"
+  },
+  "server_down": {
+    "title": "Nie możemy połączyć się z serwerem",
+    "body": "Budget jest chwilowo niedostępny. Sprawdź połączenie — jeśli u Ciebie wszystko działa, nasze serwery łapią oddech. Zaraz wracamy.",
+    "retry": "Spróbuj ponownie",
+    "retrying": "Sprawdzanie…",
+    "still_unreachable": "Serwer wciąż nie odpowiada. Daj mu jeszcze chwilę."
+  },
+  "not_found": {
+    "title": "Nie znaleziono strony",
+    "body": "Ta strona nie istnieje — mogła zostać przeniesiona, zmieniona albo trafiłeś tu ze starego linku.",
+    "go_home": "Wróć do strony głównej",
+    "go_back": "Wstecz"
   }
 }

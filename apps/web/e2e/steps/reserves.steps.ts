@@ -1,0 +1,265 @@
+import { createBdd } from "playwright-bdd";
+import { expect } from "@playwright/test";
+import { test } from "../fixtures/fresh-user-per-scenario";
+import { ReservesPo } from "../page-objects/ReservesPo";
+
+const { Given, When, Then } = createBdd(test);
+
+// ───────────────────────────────────────────────────────────────────────────
+// Seed helpers — wrap pg.Pool with the tenant-id RLS GUC so seeds satisfy the
+// FORCE ROW LEVEL SECURITY policies (mirrors common-steps.ts / tasks.steps.ts).
+// DATABASE_URL_APP host is rewritten @db: → @localhost: so the seed runs from
+// the host while the app talks to the compose `db` service.
+// ───────────────────────────────────────────────────────────────────────────
+
+async function withTenantClient<T>(
+  budgetId: string,
+  fn: (client: import("pg").PoolClient) => Promise<T>,
+): Promise<T> {
+  const { Pool } = await import("pg");
+  const dbUrl =
+    process.env.DATABASE_URL_APP?.replace("@db:", "@localhost:") ?? "";
+  if (!dbUrl)
+    throw new Error("DATABASE_URL_APP not set — cannot seed reserves");
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${budgetId}}`,
+      ]);
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+/** Budget default currency — the RESERVE wallet + limit must match it. */
+async function budgetCurrency(budgetId: string): Promise<string> {
+  return await withTenantClient(budgetId, async (client) => {
+    const res = await client.query<{ default_currency: string }>(
+      `SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`,
+      [budgetId],
+    );
+    return (res.rows[0]?.default_currency ?? "USD").trim();
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Given — seed a category + monthly limit
+// ───────────────────────────────────────────────────────────────────────────
+
+Given(
+  /^the budget has a category "(.+?)" with a monthly limit of (\d+) cents$/,
+  async ({ freshUser }, name: string, limitCents: string) => {
+    const ccy = await budgetCurrency(freshUser.budgetId);
+    const amount = Number(limitCents);
+    await withTenantClient(freshUser.budgetId, async (client) => {
+      const cat = await client.query<{ id: string }>(
+        `INSERT INTO budgeting.categories (id, tenant_id, name, actor_user_id, sort_index)
+         VALUES (gen_random_uuid(), $1::uuid, $2, $3::uuid, 0)
+         RETURNING id`,
+        [freshUser.budgetId, name, freshUser.userId],
+      );
+      const categoryId = cat.rows[0]!.id;
+      // Open-ended limit row (effective_to NULL) the reserve engine reads as the
+      // current effLimit. cushion == normal so cushion-mode does not change it.
+      // effective_from = MONTH START: effectiveForMonth requires effective_from ≤
+      // the month start, so a mid-month date would read as no limit (effLimit 0)
+      // for the open month — which breaks any scenario that overspends a limit.
+      await client.query(
+        `INSERT INTO budgeting.category_limits
+           (id, tenant_id, category_id, normal_amount, normal_currency,
+            cushion_amount, cushion_currency, effective_from, effective_to,
+            actor_user_id)
+         VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $3, $4,
+                 date_trunc('month', (now() AT TIME ZONE 'UTC')::date)::date,
+                 NULL, $5::uuid)`,
+        [freshUser.budgetId, categoryId, amount, ccy, freshUser.userId],
+      );
+    });
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────────
+// Given — seed a RESERVE wallet with a known balance (drives userDefined)
+// ───────────────────────────────────────────────────────────────────────────
+
+Given(
+  /^the budget has a RESERVE wallet "(.+?)" holding (\d+) cents$/,
+  async ({ freshUser }, name: string, balanceCents: string) => {
+    const ccy = await budgetCurrency(freshUser.budgetId);
+    // current_balance is numeric(19,4) in MAJOR units; convert cents → major.
+    const major = (Number(balanceCents) / 100).toFixed(4);
+    await withTenantClient(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.wallets
+           (id, tenant_id, name, currency, current_balance, actor_user_id, wallet_type)
+         VALUES (gen_random_uuid(), $1::uuid, $2, $3, $4::numeric, $5::uuid, 'RESERVE')`,
+        [freshUser.budgetId, name, ccy, major, freshUser.userId],
+      );
+    });
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────────
+// Given — seed a confirmed SPENDING transaction in the OPEN month (overspend)
+// ───────────────────────────────────────────────────────────────────────────
+
+Given(
+  /^the budget has a confirmed spend of (\d+) cents in "(.+?)"$/,
+  async ({ freshUser }, amountCents: string, name: string) => {
+    const ccy = await budgetCurrency(freshUser.budgetId);
+    const cents = Number(amountCents);
+    await withTenantClient(freshUser.budgetId, async (client) => {
+      const cat = await client.query<{ id: string }>(
+        `SELECT id FROM budgeting.categories
+          WHERE tenant_id = $1::uuid AND name = $2 LIMIT 1`,
+        [freshUser.budgetId, name],
+      );
+      const categoryId = cat.rows[0]?.id;
+      if (!categoryId) throw new Error(`category not found for spend: ${name}`);
+      // Confirmed SPENDING dated in the open month, locked to budget currency.
+      await client.query(
+        `INSERT INTO budgeting.expense_ledger
+           (id, tenant_id, budget_id, category_id, transaction_date,
+            amount_original_cents, currency_original, amount_converted_cents,
+            fx_rate, fx_as_of, note, confirmed_at, kind, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2::uuid,
+            (now() AT TIME ZONE 'UTC')::date,
+            $3::bigint, $4, $3::bigint, 1::numeric, (now() AT TIME ZONE 'UTC')::date,
+            'e2e overspend', now(), 'SPENDING', now(), now())`,
+        [freshUser.budgetId, categoryId, cents, ccy],
+      );
+    });
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────────
+// Given — disable reserves for the budget (reserves_enabled=false)
+// ───────────────────────────────────────────────────────────────────────────
+
+Given("reserves are disabled for the budget", async ({ freshUser }) => {
+  await withTenantClient(freshUser.budgetId, async (client) => {
+    await client.query(
+      `UPDATE tenancy.budgets SET reserves_enabled = false WHERE id = $1::uuid`,
+      [freshUser.budgetId],
+    );
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// When — navigate + interact
+// ───────────────────────────────────────────────────────────────────────────
+
+When("I open the reserves tab for the budget", async ({ page, freshUser }) => {
+  await page.goto(`/en/budgets/${freshUser.budgetId}/reserves`);
+  await page
+    .waitForLoadState("networkidle", { timeout: 10000 })
+    .catch(() => {});
+});
+
+When(
+  /^I set the reserve for "(.+?)" to "(.+?)"$/,
+  async ({ page }, name: string, value: string) => {
+    const reserves = new ReservesPo(page);
+    await reserves.setReserve(name, value);
+  },
+);
+
+When("I acknowledge the reserve cover popup", async ({ page }) => {
+  await new ReservesPo(page).acknowledgeCover();
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Then — assertions
+// ───────────────────────────────────────────────────────────────────────────
+
+Then(
+  /^the available cell for "(.+?)" is visible$/,
+  async ({ page }, name: string) => {
+    const reserves = new ReservesPo(page);
+    await expect(await reserves.availableCell(name)).toBeVisible();
+  },
+);
+
+Then('the reserves tab has an "Available" column', async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  await expect(reserves.availableColumnHeader()).toBeVisible();
+});
+
+Then('the reserves tab has no "Used" column', async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  expect(await reserves.hasUsedColumn()).toBe(false);
+});
+
+Then('the reserves tab has no "Share" column', async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  expect(await reserves.hasShareColumn()).toBe(false);
+});
+
+Then("the reserves totals footer is visible", async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  await expect(reserves.totalsFooter()).toBeVisible();
+});
+
+Then(
+  /^the reserves totals footer shows the "(.+?)" total$/,
+  async ({ page }, label: string) => {
+    const reserves = new ReservesPo(page);
+    // Labels render uppercased via CSS but the DOM text is the i18n string;
+    // match case-insensitively so the assertion is independent of casing.
+    // Escape regex metacharacters so labels like "Total used (this month)"
+    // match the literal parentheses instead of being read as a capture group.
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await expect(reserves.totalsFooter()).toContainText(
+      new RegExp(escaped, "i"),
+      {
+        timeout: 5000,
+      },
+    );
+  },
+);
+
+Then("the reserves tab has no surplus banner", async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  expect(await reserves.hasSurplusBanner()).toBe(false);
+});
+
+Then(
+  /^the available cell for "(.+?)" shows "(.+?)"$/,
+  async ({ page }, name: string, value: string) => {
+    const reserves = new ReservesPo(page);
+    const cell = await reserves.availableCell(name);
+    await expect(cell).toContainText(value, { timeout: 5000 });
+  },
+);
+
+Then("the reserves disabled notice is visible", async ({ page }) => {
+  const reserves = new ReservesPo(page);
+  await expect(reserves.disabledNotice()).toBeVisible();
+});
+
+Then("the reserve cover popup is visible", async ({ page }) => {
+  await expect(new ReservesPo(page).coverDialog()).toBeVisible({
+    timeout: 5000,
+  });
+});
+
+Then(
+  /^the reserve cover popup mentions "(.+?)"$/,
+  async ({ page }, text: string) => {
+    await expect(new ReservesPo(page).coverDialog()).toContainText(text, {
+      timeout: 5000,
+    });
+  },
+);

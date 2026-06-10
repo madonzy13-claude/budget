@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavLink } from "./nav-link";
 
 interface BrandMarkProps {
   href: string;
@@ -12,11 +12,11 @@ interface BrandMarkProps {
 export function BrandMark({ href, size = "md" }: BrandMarkProps) {
   const sizeCls = size === "sm" ? "text-[15px]" : "text-[17px]";
   return (
-    <Link
+    <NavLink
       href={href}
       className={`inline-flex items-center font-bold uppercase tracking-[0.04em] text-[var(--primary)] ${sizeCls}`}
     >
       Budget
-    </Link>
+    </NavLink>
   );
 }

@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
-import { MailCheck } from "lucide-react";
+import { MailCheck, Clock, Lock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -11,6 +11,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { BrandMark } from "@/components/common/brand-mark";
+import { PublicLocaleSwitcher } from "@/components/common/public-locale-switcher";
 import { SiteFooter } from "@/components/common/site-footer";
 
 interface SignInPageProps {
@@ -32,17 +33,16 @@ export default async function SignInPage({
   const sp = await searchParams;
   const t = await getTranslations({ locale, namespace: "auth" });
   const showVerifyPending = sp.verify === "pending";
+  const reason = typeof sp.reason === "string" ? sp.reason : null;
+  const showSessionExpired = reason === "session_expired";
+  const showAuthRequired = reason === "required";
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)]">
       <header className="border-b border-[var(--hairline-dark)]">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <BrandMark href={`/${locale}`} />
-          <div className="text-nav-link text-[var(--muted-foreground)]">
-            <span className="num text-[13px] uppercase tracking-wide">
-              {locale.toUpperCase()}
-            </span>
-          </div>
+          <PublicLocaleSwitcher current={locale} />
         </div>
       </header>
 
@@ -58,6 +58,34 @@ export default async function SignInPage({
               <AlertTitle>{t("signin.verify_pending.title")}</AlertTitle>
               <AlertDescription>
                 {t("signin.verify_pending.body")}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {showSessionExpired && (
+            <Alert
+              variant="warning"
+              className="mb-6"
+              data-testid="session-expired-banner"
+            >
+              <Clock />
+              <AlertTitle>{t("signin.session_expired.title")}</AlertTitle>
+              <AlertDescription>
+                {t("signin.session_expired.body")}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {showAuthRequired && (
+            <Alert
+              variant="warning"
+              className="mb-6"
+              data-testid="auth-required-banner"
+            >
+              <Lock />
+              <AlertTitle>{t("signin.auth_required.title")}</AlertTitle>
+              <AlertDescription>
+                {t("signin.auth_required.body")}
               </AlertDescription>
             </Alert>
           )}

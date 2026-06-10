@@ -26,6 +26,7 @@ test("sole owner CANNOT leave (TENT-05)", async () => {
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const owner = await signUp(
@@ -74,6 +75,7 @@ test("member can leave SHARED workspace (TENT-06)", async () => {
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const owner = await signUp(

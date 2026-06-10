@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./src/handlers/recurring-engine": "./src/handlers/recurring-engine.ts",
+    "./src/handlers/budgeting-reconciliation": "./src/handlers/budgeting-reconciliation.ts"
+  },
   "scripts": {
     "start": "bun run src/worker.ts",
     "test": "bun test",
@@ -11,6 +15,10 @@
   "dependencies": {
     "@budget/platform": "workspace:*",
     "@budget/shared-kernel": "workspace:*",
-    "pg-boss": "^12.18.2"
+    "@budget/budgeting": "workspace:*",
+    "pg-boss": "^12.18.2",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.0",
+    "temporal-polyfill": "^0.3.2"
   }
 }

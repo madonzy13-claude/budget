@@ -6,7 +6,7 @@ Feature: Email verification required for sign-in
     Then I am redirected to a sign-in page with verify-pending
     And the verify-pending banner is visible
     And the better-auth session cookie is absent
-    When I navigate to "/en/workspaces"
+    When I navigate to "/en/budgets"
     Then I am redirected to a sign-in page
 
   Scenario Outline: Pre-verify sign-in shows localized error
@@ -23,15 +23,15 @@ Feature: Email verification required for sign-in
       | en     |
       | uk     |
 
-  Scenario: Verified user lands on workspaces after verification
+  Scenario: Verified user lands on the app home after verification
     Given a fresh verified user in "en"
-    Then I am redirected to a workspaces page
+    Then I am redirected to the app home page
 
   Scenario: Verified user can sign out and back in
     Given a fresh verified user in "en"
-    Then I am redirected to a workspaces page
+    Then I am redirected to the app home page
     When I click the sign-out button
     Then I am redirected to a sign-in page
     When I sign in with the fresh user's credentials in "en"
-    Then I am redirected to a workspaces page
+    Then I am redirected to the app home page
     And the email-not-verified error is not visible

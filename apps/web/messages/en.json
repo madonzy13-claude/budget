@@ -21,6 +21,14 @@
       "verify_pending": {
         "title": "Check your inbox",
         "body": "We sent a verification email to your address. Click the link before signing in."
+      },
+      "session_expired": {
+        "title": "Your session expired",
+        "body": "For your security we've signed you out. Please sign in again to continue."
+      },
+      "auth_required": {
+        "title": "Sign in required",
+        "body": "You need to be signed in to access that page."
       }
     },
     "reset": {
@@ -39,7 +47,7 @@
     "verify": {
       "banner": {
         "heading": "Verify your email to continue",
-        "body": "We sent a link to {email}. Workspace creation and invitations unlock once you verify.",
+        "body": "We sent a link to {email}. Budget creation and invitations unlock once you verify.",
         "resend": "Resend email",
         "cooldown": "You can resend in {seconds}s."
       }
@@ -71,6 +79,7 @@
     "signin_link": "Sign in"
   },
   "settings": {
+    "eyebrow": "Account",
     "heading": "Settings",
     "sessions": {
       "tab": "Sessions",
@@ -82,23 +91,30 @@
         "status": "Status"
       },
       "current_badge": "Current",
+      "unknown_device": "Unknown device",
       "revoke": {
         "label": "Sign out this session",
         "confirm": {
           "title": "Sign out this session?",
           "body": "The signed-in device on {device} will be signed out immediately.",
-          "cta": "Sign out"
+          "cta": "Sign out",
+          "cancel": "Cancel"
         }
-      }
+      },
+      "success_revoke": "Session signed out.",
+      "error_revoke": "Failed to sign out session. Try again."
     },
     "display_currency": {
       "label": "Display currency",
-      "helper": "Used to show totals across multiple workspaces. Each workspace keeps its own currency for its own data.",
-      "tab": "Display currency"
+      "helper": "Used to show totals across multiple budgets. Each budget keeps its own currency for its own data.",
+      "tab": "Display currency",
+      "save_success": "Display currency updated.",
+      "error_save": "Failed to save display currency. Try again."
     },
     "locale": {
       "label": "Display language",
-      "tab": "Language"
+      "tab": "Language",
+      "error_save": "Failed to save language. Try again."
     },
     "providers": {
       "tab": "Providers",
@@ -109,57 +125,151 @@
       "stt": {
         "label": "Voice input",
         "helper": "Used for voice-to-text expense capture."
-      }
+      },
+      "footnote": "Phase 1 wires the picker only. STT and LLM adapters connect in Phase 5."
     },
     "save": "Save changes",
-    "save_success": "Settings saved."
+    "save_success": "Settings saved.",
+    "page_heading": "Budget Settings",
+    "error_save": "Failed to save — try again",
+    "sections": {
+      "identity": "Budget Identity",
+      "cushion": "Cushion",
+      "recurring": "Recurring Expenses",
+      "members": "Members",
+      "danger": "Danger Zone"
+    },
+    "identity": {
+      "name_label": "Name",
+      "name_saved": "Budget name saved",
+      "currency_label": "Default currency",
+      "currency_saved": "Currency updated",
+      "currency_locked_tooltip": "Currency locked after first transaction"
+    },
+    "cushion": {
+      "label": "Cushion mode",
+      "help_text": "Uses the tighter cushion budget limit for all categories.",
+      "on_toast": "Cushion mode on — tighter limits active",
+      "off_toast": "Cushion mode off — using planned limits",
+      "feature_label": "Enable cushion",
+      "feature_help_text": "Plan a small financial cushion alongside each category. Turning this off hides the cushion lane everywhere — wallets, category limits, and the monthly mode toggle.",
+      "feature_on_toast": "Cushion enabled",
+      "feature_off_toast": "Cushion disabled — lane hidden everywhere",
+      "mode_label": "Cushion mode",
+      "mode_help_text": "Switch the current month to the tighter cushion budget. Reversible at any time.",
+      "targetMonthsLabel": "Target months",
+      "targetMonthsError": "Months must be a whole number between 1 and 60.",
+      "saved": "Cushion target saved",
+      "preview": "Have {actual} of {required} — short by {shortfall}",
+      "previewMet": "Have {actual} of {required} — target met",
+      "previewError": "Could not load cushion summary."
+    },
+    "recurring": {
+      "add_rule": "Add rule",
+      "add_rule_title": "Add recurring rule",
+      "edit_rule_title": "Edit recurring rule"
+    },
+    "members": {
+      "empty": "No other members yet.",
+      "generate_link": "Generate share link",
+      "role_owner": "Owner",
+      "role_member": "Member",
+      "revoke_button": "Revoke",
+      "revoke_dialog_title": "Remove {name}?",
+      "revoke_dialog_body": "{name} will lose access to this budget immediately.",
+      "revoke_confirm": "Remove",
+      "revoke_cancel": "Cancel",
+      "revoked_toast": "Member removed.",
+      "revoke_error": "Failed to remove member. Try again."
+    },
+    "danger": {
+      "section_title": "Danger Zone",
+      "archive_button": "Archive budget",
+      "archive_dialog_title": "Archive this budget?",
+      "archive_dialog_body": "It will be hidden from your dashboard. Your data is kept and nothing is deleted.",
+      "archive_confirm": "Archive",
+      "archive_cancel": "Keep it",
+      "archived_toast": "Budget archived.",
+      "archive_error": "Failed to archive budget. Try again.",
+      "delete_button": "Delete budget",
+      "delete_dialog_title": "Delete this budget forever?",
+      "delete_dialog_body": "This cannot be undone. All transactions, categories, and members will be permanently deleted. Type the budget name to confirm.",
+      "delete_input_placeholder": "Type budget name to confirm",
+      "delete_confirm": "Delete forever",
+      "delete_cancel": "Cancel",
+      "deleted_toast": "Budget deleted.",
+      "delete_error": "Failed to delete budget. Try again.",
+      "name_mismatch_error": "Name does not match. Please type the exact budget name.",
+      "leave_button": "Leave budget",
+      "leave_dialog_title": "Leave {name}?",
+      "leave_dialog_body": "You will lose access immediately and cannot rejoin without a new invitation.",
+      "leave_confirm": "Leave",
+      "leave_cancel": "Stay",
+      "left_toast": "You have left the budget.",
+      "leave_error": "Failed to leave budget. Try again.",
+      "last_owner_tooltip": "You're the last owner. Delete the budget instead."
+    }
   },
-  "workspaces": {
+  "budgets": {
     "empty": {
-      "heading": "Create your first workspace",
-      "body": "A workspace holds one budget. Make a private one for yourself, or a shared one to plan with family.",
-      "cta": "Create workspace"
+      "eyebrow": "Get started",
+      "heading": "Create your first budget",
+      "body": "A budget holds your spending plan. Make a private one for yourself, or a shared one to plan with family.",
+      "cta": "Create budget"
     },
     "create": {
-      "heading": "New workspace",
+      "heading": "New budget",
       "name": {
-        "label": "Workspace name",
+        "label": "Budget name",
         "placeholder": "e.g. Family budget"
       },
       "kind": {
-        "label": "Workspace type",
+        "label": "Budget type",
         "private": "Private — just me",
         "shared": "Shared — invite family"
       },
       "currency": {
         "label": "Default currency",
-        "helper": "This is permanent — every entry in this workspace settles in this currency.",
-        "placeholder": "Search currency..."
+        "helper": "This is permanent — every entry in this budget settles in this currency.",
+        "placeholder": "Select currency"
       },
-      "cta": "Create workspace",
-      "success": "Workspace \"{name}\" created."
+      "cta": "Create budget",
+      "success": "Budget \"{name}\" created.",
+      "validation": {
+        "name_required": "Budget name is required.",
+        "currency_required": "Default currency is required."
+      }
     },
     "switcher": {
-      "label": "Active workspaces",
-      "helper": "Pick the workspaces you want to see. We'll remember this.",
+      "label": "Active budgets",
+      "helper": "Pick the budgets you want to see. We'll remember this.",
+      "error_save": "Failed to save. Try again.",
       "group": {
         "private": "Private budgets",
         "shared": "Shared budgets"
       },
-      "first_pick": "Pick at least one workspace to start.",
+      "first_pick": "Pick at least one budget to start.",
       "select_all": "Select all",
-      "active_count": "{count, plural, one {# workspace} other {# workspaces}}"
+      "active_count": "{count, plural, one {# budget} other {# budgets}}"
     },
-    "verify_required": "Verify your email first to create or join a workspace.",
+    "verify_required": "Verify your email first to create or join a budget.",
     "list": {
-      "heading": "My workspaces",
-      "manage": "Manage"
+      "heading": "My budgets",
+      "manage": "Manage",
+      "addButton": "Add budget"
+    },
+    "kindPrivate": "Private",
+    "kindShared": "Shared",
+    "new": {
+      "title": "Create budget",
+      "placeholder": "The onboarding wizard lands in Phase 6.",
+      "backToHome": "Back to home"
     }
   },
-  "workspace": {
+  "budget": {
     "shares": {
       "heading": "Contribution shares",
-      "body": "Set what portion of this workspace's budget each member is responsible for. Shares must add up to 100%.",
+      "body": "Set what portion of this budget each member is responsible for. Shares must add up to 100%.",
       "col": {
         "member": "Member",
         "percentage": "Share"
@@ -171,6 +281,8 @@
       },
       "save": "Save shares",
       "save_success": "Contribution shares updated.",
+      "save_error": "Failed to save shares. Try again.",
+      "saving": "Saving...",
       "audit_hint": "Every change is logged."
     },
     "invite": {
@@ -181,14 +293,17 @@
       "cta": "Send invitation",
       "success": "Invitation sent to {email}.",
       "error": {
-        "already_member": "{email} is already a member of this workspace."
+        "already_member": "{email} is already a member of this budget."
+      },
+      "validation": {
+        "email_invalid": "Email isn't a valid address. Check the format and try again."
       }
     },
     "leave": {
       "confirm": {
         "title": "Leave \"{name}\"?",
-        "body": "You'll lose access to this workspace's data. The owner can re-invite you later.",
-        "cta": "Leave workspace"
+        "body": "You'll lose access to this budget's data. The owner can re-invite you later.",
+        "cta": "Leave budget"
       }
     },
     "transfer": {
@@ -218,20 +333,321 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "workspaces": "Workspaces",
+    "budgets": "Budgets",
     "settings": "Settings",
     "onboarding": "Get started",
-    "sign_out": "Sign out"
+    "sign_out": "Sign out",
+    "profile": "Profile",
+    "profile_menu_aria": "Open profile menu",
+    "budget": "Budget",
+    "wallets": "Wallets",
+    "transactions": "Transactions",
+    "recurring": "Recurring",
+    "budgetSwitcher": {
+      "trigger": {
+        "aria": "Switch budget"
+      }
+    },
+    "switcher": {
+      "personal": "Personal",
+      "shared": "Shared",
+      "empty": {
+        "trigger": "No budgets yet",
+        "body": "Use + to create your first budget.",
+        "cta": "Create budget"
+      }
+    },
+    "newBudget": "New budget",
+    "newBudgetTooltip": "Create new budget"
   },
   "onboarding": {
-    "heading": "Set up your first workspace",
-    "subtitle": "You're almost ready. Create a workspace to start tracking your budget.",
-    "step_workspace": "Create workspace"
+    "eyebrow": "Step 1 of 3",
+    "heading": "Set up your first budget",
+    "subtitle": "You're almost ready. Create a budget to start tracking your spending.",
+    "step_workspace": "Create budget",
+    "step_workspace_helper": "Pick a name and default currency. The currency is permanent.",
+    "page_heading": "Create your budget",
+    "welcome_heading": "Let's create your first budget",
+    "welcome_body": "Four quick steps: set the basics, choose its type, pick optional features, then review. You can change everything afterwards.",
+    "welcome_cta": "Get started",
+    "step1_label": "Name your budget",
+    "step1_placeholder": "e.g. Family Budget 2026",
+    "step1_validation_error": "Budget name is required.",
+    "step2_label": "Choose your currency",
+    "step2_help_text": "You can change this later until you add your first transaction.",
+    "step3_label": "Who is this budget for?",
+    "step3_option_personal": "Personal",
+    "step3_option_personal_sub": "Just for you",
+    "step3_option_shared": "Shared",
+    "step3_option_shared_sub": "Invite family or household members",
+    "step4_label": "Pick your starter categories",
+    "step4_help_text": "Adjust spending limits after you create the budget.",
+    "step4_validation_error": "Select at least one category.",
+    "step5_label": "Ready to go?",
+    "step5_summary_intro": "Here's what you set up:",
+    "cta_next": "Next",
+    "cta_create": "Create budget",
+    "back": "Back",
+    "skip": "Skip",
+    "resume_heading": "Welcome back — continue where you left off",
+    "network_error": "Something went wrong — try again",
+    "wizard": {
+      "stepper": {
+        "basics": "Basics",
+        "type": "Type",
+        "features": "Features",
+        "review": "Review",
+        "progress_aria": "Wizard progress",
+        "step_completed_aria": "{label} step completed",
+        "step_active_aria": "{label} step active",
+        "step_aria": "{label} step"
+      },
+      "basics": {
+        "heading": "Set up the basics",
+        "subheading": "Name your budget and pick a default currency.",
+        "name_label": "Budget name",
+        "name_placeholder": "ex. Family Budget",
+        "name_required": "Budget name is required.",
+        "currency_label": "Default currency",
+        "currency_helper": "You can change this later until you add your first transaction."
+      },
+      "type": {
+        "heading": "Who is this budget for?",
+        "subheading": "You can invite people later — Shared budgets keep separate share splits per member.",
+        "personal_label": "Personal",
+        "personal_sub": "Just for you",
+        "shared_label": "Shared",
+        "shared_sub": "Invite family or household members",
+        "group_aria": "Budget type"
+      },
+      "features": {
+        "heading": "Pick your features",
+        "subheading": "Toggle the lanes you want. You can change either later in Settings.",
+        "cushion_label": "Cushion",
+        "cushion_help": "Plan a small financial cushion alongside each category so a bad month doesn't tip the main budget over. Turn off if you don't want any cushion at all.",
+        "reserves_label": "Reserves",
+        "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
+        "targetMonthsLabel": "Target months",
+        "targetMonthsError": "Months must be a whole number between 1 and 60."
+      },
+      "review": {
+        "heading": "Ready to go?",
+        "subheading": "Here's what you set up:",
+        "label_name": "Name",
+        "label_currency": "Currency",
+        "label_type": "Type",
+        "label_cushion": "Cushion",
+        "label_reserves": "Reserves",
+        "value_personal": "Personal",
+        "value_shared": "Shared",
+        "value_enabled": "Enabled",
+        "value_disabled": "Disabled",
+        "placeholder_value": "—"
+      },
+      "actions": {
+        "back": "Back",
+        "skip": "Skip",
+        "next": "Next",
+        "get_started": "Get started",
+        "create_budget": "Create budget"
+      },
+      "errors": {
+        "network": "Something went wrong — try again"
+      }
+    }
   },
   "dashboard": {
     "heading": "Dashboard",
-    "no_workspaces": "No active workspaces selected. Use the workspace switcher to pick at least one.",
+    "no_workspaces": "No active budgets selected. Use the budget switcher to pick at least one.",
     "totals_in": "Totals shown in {currency}"
+  },
+  "budgeting": {
+    "wallets": {
+      "title": "Wallets",
+      "addButton": "Add wallet",
+      "form": {
+        "title": "New wallet",
+        "nameLabel": "Wallet name",
+        "namePlaceholder": "e.g. Cash Wallet",
+        "kindLabel": "Wallet type",
+        "currencyLabel": "Currency",
+        "currencyPlaceholder": "Select currency",
+        "saveButton": "Save wallet",
+        "cancelButton": "Cancel"
+      },
+      "kinds": {
+        "CASH": "Cash",
+        "CHECKING": "Checking",
+        "SAVINGS": "Savings",
+        "CREDIT_CARD": "Credit card",
+        "LOAN": "Loan",
+        "INVESTMENT": "Investment"
+      },
+      "groups": {
+        "assets": "Assets",
+        "liabilities": "Liabilities"
+      },
+      "actions": {
+        "editAria": "Edit {name}",
+        "archiveAria": "Archive {name}",
+        "adjustBalance": "Adjust balance"
+      },
+      "empty": "No wallets yet. Add your first wallet to start tracking your money.",
+      "balance": {
+        "in": "Balance in {currency}",
+        "unavailable": "Rate unavailable"
+      }
+    },
+    "transactions": {
+      "title": "Transactions",
+      "addButton": "Add transaction",
+      "capture": {
+        "saveExpense": "Save expense",
+        "saveIncome": "Save income",
+        "saveTransfer": "Save transfer",
+        "amountLabel": "Amount",
+        "currencyLabel": "Currency",
+        "dateLabel": "Date",
+        "categoryLabel": "Category",
+        "accountLabel": "Wallet",
+        "noteLabel": "Note (optional)",
+        "kindExpense": "Expense",
+        "kindIncome": "Income",
+        "kindTransfer": "Transfer"
+      },
+      "list": {
+        "editedBadge": "edited",
+        "empty": "No transactions yet."
+      },
+      "search": {
+        "placeholder": "Search transactions",
+        "resultsCount": "{count, plural, =0{No results} =1{1 result} other{# results}} for {query}",
+        "noResults": "No transactions match your search"
+      },
+      "filters": {
+        "toolbarLabel": "Transaction filters",
+        "dateRange": "Date range",
+        "category": "Category",
+        "account": "Wallet",
+        "kind": "Kind",
+        "clearAll": "Clear all filters"
+      },
+      "bulk": {
+        "regionLabel": "Bulk actions",
+        "selectedCount": "{count} selected",
+        "actionLabel": "Re-categorize {count} transactions",
+        "applyButton": "Apply re-categorization",
+        "applySucceeded": "Re-categorized {count} transactions",
+        "applyFailed": "Bulk re-categorize failed",
+        "categorySelectLabel": "New category",
+        "categoryPlaceholder": "Select category",
+        "confirmDialog": "Re-categorize {count} transactions to {category}? This creates a correction row for each."
+      },
+      "edit": {
+        "title": "Edit transaction",
+        "saveButton": "Save changes",
+        "cancelButton": "Cancel",
+        "kindFieldHint": "Kind cannot be changed — create a new transaction instead.",
+        "alreadyCorrected": "This transaction was edited by someone else. Please reload."
+      },
+      "history": {
+        "panelTitle": "Edit history",
+        "originalLabel": "Original",
+        "editedLabel": "Edited",
+        "changedFields": "Changed: {fields}"
+      }
+    },
+    "fx": {
+      "preview": "≈ {amount} {currency} @ {rate}, {provider}",
+      "freshnessBadge": "rate {age}",
+      "stale409Title": "Rate has changed",
+      "stale409Body": "The exchange rate updated while the form was open. The new rate is {rate}. Save with the new rate?"
+    },
+    "recurring": {
+      "title": "Recurring",
+      "addRuleButton": "Add recurring rule",
+      "rule": {
+        "title": "New recurring rule",
+        "editTitle": "Edit recurring rule",
+        "saveButton": "Save rule",
+        "cancelButton": "Cancel",
+        "amountLabel": "Amount",
+        "currencyLabel": "Currency",
+        "kindLabel": "Kind",
+        "kindExpense": "Expense",
+        "kindIncome": "Income",
+        "kindTransfer": "Transfer",
+        "accountLabel": "Wallet",
+        "categoryLabel": "Category",
+        "categoryNone": "(no category)",
+        "cadenceLabel": "Cadence",
+        "monthly": "Monthly",
+        "weekly": "Weekly",
+        "yearly": "Yearly",
+        "anchorDayLabel": "On day",
+        "weekdayLabel": "On",
+        "yearlyMonthLabel": "Month",
+        "weekdays": {
+          "0": "Sunday",
+          "1": "Monday",
+          "2": "Tuesday",
+          "3": "Wednesday",
+          "4": "Thursday",
+          "5": "Friday",
+          "6": "Saturday"
+        },
+        "months": {
+          "1": "January",
+          "2": "February",
+          "3": "March",
+          "4": "April",
+          "5": "May",
+          "6": "June",
+          "7": "July",
+          "8": "August",
+          "9": "September",
+          "10": "October",
+          "11": "November",
+          "12": "December"
+        },
+        "firstDueLabel": "First due date",
+        "noteLabel": "Note (optional)",
+        "applyToFutureLabel": "Also apply to future occurrences",
+        "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",
+        "categoryPlaceholder": "Select category…"
+      },
+      "list": {
+        "title": "Recurring rules",
+        "empty": "No recurring expenses yet.",
+        "monthlyOnDay": "Monthly · {day}",
+        "weeklyOnDow": "Weekly · {weekday}",
+        "yearlyOn": "Yearly · {month} {day}",
+        "daily": "Daily",
+        "nextDueLabel": "Next: {date}",
+        "editButton": "Edit",
+        "archiveButton": "Archive"
+      },
+      "drafts": {
+        "inboxTitle": "Pending recurring",
+        "empty": "No pending drafts.",
+        "confirmButton": "Confirm transaction",
+        "editConfirmButton": "Edit & confirm",
+        "skipButton": "Skip this period",
+        "overdueLabel": "Overdue {age}",
+        "navBadgeLabel": "{count} overdue"
+      },
+      "errors": {
+        "create": "Failed to create rule",
+        "update": "Failed to update rule",
+        "delete": "Failed to delete rule"
+      },
+      "delete": {
+        "title": "Delete recurring rule?",
+        "body": "This stops future drafts. Past confirmed transactions are kept.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      }
+    }
   },
   "currency": {
     "picker": {
@@ -250,5 +666,461 @@
       "NOK": "Norwegian Krone",
       "SEK": "Swedish Krona"
     }
+  },
+  "home": {
+    "heading": "My budgets",
+    "card": {
+      "spent": "Spent this month",
+      "wallets": "Total wallets",
+      "overspentHeading": "Overspent",
+      "allOnBudget": "All categories on budget",
+      "error": "Couldn't load summary. Tap to open.",
+      "openAria": "Open {budgetName}",
+      "pendingTasksAria": "{count} pending tasks"
+    },
+    "chart": {
+      "placeholder": "Insights coming soon"
+    },
+    "empty": {
+      "heading": "Welcome — let's set up your first budget",
+      "body": "Create a budget to start tracking spendings, wallets, and reserves.",
+      "cta": "Create your first budget"
+    }
+  },
+  "budgeting_categories": {
+    "categories": {
+      "title": "Categories",
+      "addButton": "Add category",
+      "empty": "No categories yet. Add your first category to track spending.",
+      "form": {
+        "title": "New category",
+        "editTitle": "Edit category",
+        "name": "Category name",
+        "namePlaceholder": "e.g. Housing",
+        "save": "Save",
+        "cancel": "Cancel",
+        "errors": {
+          "nameTaken": "A category with this name already exists in this budget.",
+          "generic": "Failed to create category.",
+          "network": "Network error. Try again.",
+          "nonNegativeInt": "Amount must be a non-negative integer"
+        }
+      },
+      "overrideBadge": "override",
+      "toast": {
+        "created": "Category '{name}' created."
+      },
+      "delete": {
+        "blockedTooltip": "Cannot delete category with existing transactions",
+        "confirmBody": "This will permanently delete the category."
+      },
+      "editAria": "Edit {name}",
+      "archiveAria": "Archive {name}"
+    },
+    "limits": {
+      "title": "Budget limits",
+      "normalAmount": "Normal limit",
+      "cushionAmount": "Cushion limit",
+      "effectiveFrom": "Effective from",
+      "save": "Save limits",
+      "currency": "Currency",
+      "cancel": "Cancel",
+      "errors": {
+        "saveFailed": "Failed to save the limit. Try again.",
+        "network": "Network error. Try again."
+      },
+      "toast": {
+        "saved": "Budget limit saved."
+      }
+    },
+    "templates": {
+      "title": "Budget templates",
+      "addButton": "New template",
+      "applyButton": "Apply template",
+      "targetMonth": "Target month",
+      "empty": "No templates available.",
+      "toast": {
+        "applied": "Template applied."
+      },
+      "errors": {
+        "applyFailed": "Failed to apply template.",
+        "network": "Network error. Try again."
+      }
+    },
+    "shares": {
+      "title": "Contribution shares",
+      "sumCounter": "Currently {sum}% — must equal 100%",
+      "sharesNeedUpdate": "Shares need to be updated",
+      "save": "Save shares",
+      "overrideBadge": "override",
+      "userIdPlaceholder": "User ID",
+      "removeEntryAria": "Remove entry",
+      "addMember": "Add member",
+      "sharePercentageAria": "Share percentage for {name}",
+      "toast": {
+        "saved": "Contribution shares updated."
+      },
+      "errors": {
+        "saveFailed": "Failed to save shares.",
+        "network": "Network error. Try again."
+      }
+    },
+    "budgetMode": {
+      "title": "Budget mode",
+      "NORMAL": "Normal",
+      "CUSHION": "Cushion",
+      "save": "Switch mode"
+    }
+  },
+  "bdp": {
+    "tab": {
+      "aria": "Budget detail tabs",
+      "spendings": {
+        "label": "Spendings",
+        "title": "Spendings",
+        "placeholder": "The Excel-like categories grid lands in Phase 4."
+      },
+      "reserves": {
+        "label": "Reserves",
+        "title": "Reserves",
+        "disabled": "Reserves disabled",
+        "section": {
+          "active": "Active",
+          "included": "Included",
+          "excluded": "Excluded",
+          "excludedEmpty": "No excluded categories — drag a category here to exclude"
+        },
+        "column": {
+          "category": "Category",
+          "available": "Available"
+        },
+        "row": {
+          "dragHandleAria": "Drag to move {name} between active and excluded.",
+          "swipeExcludeCta": "Exclude",
+          "swipeRestoreCta": "Restore",
+          "excludeAria": "Exclude {name} from reserves.",
+          "restoreAria": "Restore {name} to active reserves.",
+          "reserveAria": "Available for {name}"
+        },
+        "totals": {
+          "internalLabel": "Total available",
+          "walletsLabel": "Total in wallets",
+          "usedLabel": "Total used",
+          "thisMonth": "this month",
+          "allTime": "all time"
+        },
+        "toast": {
+          "saved": "Reserve updated",
+          "saveFailed": "Couldn't save reserve. Check your connection and try again.",
+          "excluded": "{category} excluded from reserves",
+          "included": "{category} included in reserves",
+          "toggleFailed": "Couldn't update reserve status. Try again."
+        },
+        "coverNotice": {
+          "title": "Reserve used to cover overspend",
+          "body": "{amount} {currency} of the reserve you set for {category} was used to cover this month's overspend. {category}'s available reserve is now {available} {currency}.",
+          "action": "Got it"
+        }
+      },
+      "wallets": {
+        "label": "Wallets",
+        "title": "Wallets",
+        "section": {
+          "spendings": "Spendings wallets",
+          "cushion": "Cushion wallets",
+          "reserve": "Reserve wallets"
+        },
+        "sectionLabel": {
+          "spendings": "Spendings",
+          "cushion": "Cushion",
+          "reserve": "Reserve"
+        },
+        "add": {
+          "spendings": "Add spendings wallet",
+          "cushion": "Add cushion wallet",
+          "reserve": "Add reserve wallet"
+        },
+        "row": {
+          "namePlaceholder": "Wallet name",
+          "nameAria": "Wallet name. Click to edit.",
+          "currencyAria": "Currency. Click to edit.",
+          "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
+          "amountAria": "Amount. Click to edit.",
+          "shareAria": "{name} share of section total.",
+          "dragHandleAria": "Drag to move {name} to another section.",
+          "trashAria": "Delete wallet {name}.",
+          "swipeDeleteCta": "Delete",
+          "customizeAria": "Customize {name} appearance",
+          "untitled": "Untitled wallet"
+        },
+        "customizer": {
+          "color": "Color",
+          "icon": "Icon",
+          "clearColor": "Clear color",
+          "clearIcon": "Clear icon",
+          "colorAria": "Color {name}",
+          "iconAria": "Icon {name}",
+          "palette": {
+            "red": "Red",
+            "amber": "Amber",
+            "yellow": "Yellow",
+            "green": "Green",
+            "teal": "Teal",
+            "sky": "Sky",
+            "indigo": "Indigo",
+            "pink": "Pink"
+          }
+        },
+        "toast": {
+          "saved": "Wallet updated",
+          "saveFailed": "Couldn't save wallet. Check your connection and try again.",
+          "created": "Wallet created",
+          "createFailed": "Couldn't create wallet. Try again.",
+          "reorderFailed": "Couldn't save the new order. Reverting.",
+          "archived": "Wallet deleted",
+          "archiveFailed": "Couldn't delete wallet. Try again.",
+          "moved": "Moved {name} to {sectionLabel}",
+          "moveFailed": "Couldn't move {name}. It stayed in {originalSectionLabel}.",
+          "reserveCurrencyRejected": "Reserve wallets must be in {budgetCcy}. {name} stayed in {originalSectionLabel}.",
+          "reserveCurrencyOnEdit": "Reserve wallets must be in {budgetCcy}. Change rolled back."
+        },
+        "confirm": {
+          "delete": {
+            "title": "Delete wallet '{name}'?",
+            "body": "This can't be undone here.",
+            "cta": "Delete",
+            "cancel": "Cancel"
+          }
+        }
+      },
+      "settings": {
+        "label": "Settings",
+        "title": "Settings",
+        "placeholder": "Budget identity, cushion toggle, recurring rules, and members land in Phase 6."
+      }
+    },
+    "pillSlider": {
+      "collapsedHeaderOne": "1 task pending",
+      "collapsedHeaderMany": "{count} tasks pending",
+      "expandAria": "Expand task list",
+      "collapseAria": "Collapse task list"
+    },
+    "tasks": {
+      "banner": {
+        "trigger": {
+          "aria": "Show pending tasks"
+        },
+        "collapse": {
+          "aria": "Hide pending tasks"
+        }
+      },
+      "count": "{count, plural, one {# task pending} other {# tasks pending}}",
+      "title": {
+        "RESERVE_TOPUP": "Top up reserve by {amount}",
+        "CONFIRM_DRAFT": "Confirm {ruleName} — {amount}",
+        "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
+        "RESERVE_TOPUP_withdraw": "Reserve has {amount} extra"
+      },
+      "kind": {
+        "RESERVE_TOPUP": "Reserve",
+        "CONFIRM_DRAFT": "Draft",
+        "CUSHION_BELOW_TARGET": "Cushion"
+      },
+      "action": {
+        "RESERVE_TOPUP": {
+          "label": "Fix reserve",
+          "ariaLabel": "Go to Reserves to fix top-up"
+        },
+        "CONFIRM_DRAFT": {
+          "label": "Confirm draft"
+        },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Top up cushion",
+          "ariaLabel": "Go to Wallets to top up cushion"
+        }
+      },
+      "confirmError": "Could not confirm draft. Try again.",
+      "more": "More",
+      "detail": {
+        "RESERVE_TOPUP": "Your reserve wallets hold {amount} less than the sum allocated across reserve categories. You have two options: top up a reserve wallet (move money in) to match the category sum, or reduce some category reserve amounts so the sum drops back to the wallet balance.",
+        "CONFIRM_DRAFT": "A recurring rule has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
+        "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. You have three options: transfer money into a cushion-type wallet to cover the gap, lower the cushion target months in Settings → Cushion (smaller runway = smaller required cushion), or reduce some category limits so the average monthly spend drops.",
+        "RESERVE_TOPUP_withdraw": "Your reserve wallets hold {amount} more than the sum allocated across reserve categories. You have two options: withdraw the surplus from a reserve wallet, or redistribute the extra into category reserves (increase one or more category amounts so they add up to the wallet sum)."
+      }
+    }
+  },
+  "grid": {
+    "txnSlider": {
+      "cta": {
+        "create": "Save transaction",
+        "save": "Save changes"
+      },
+      "header": {
+        "create": "New transaction",
+        "edit": "Edit transaction"
+      },
+      "field": {
+        "date": "Date",
+        "category": "Category",
+        "amount": "Amount",
+        "currency": "Currency",
+        "note": "Note (optional)"
+      },
+      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})"
+    },
+    "catSlider": {
+      "cta": {
+        "create": "Create category",
+        "save": "Save changes"
+      },
+      "header": {
+        "create": "New category",
+        "edit": "Edit category"
+      },
+      "field": {
+        "name": "Name",
+        "planned": "Planned monthly",
+        "cushion": "Cushion monthly",
+        "icon": "Icon",
+        "color": "Color"
+      },
+      "deleteBlockedTooltip": "Cannot delete category with existing transactions",
+      "deleteConfirmBody": "This will permanently delete the category.",
+      "remove": {
+        "title": "Remove category",
+        "body": "Choose how to remove this category.",
+        "keepHistory": "Archive (keep past history)",
+        "everywhere": "Remove (remove permanently)"
+      }
+    },
+    "expensesTitle": "Expenses",
+    "deleteCategory": {
+      "title": "Delete category permanently?",
+      "body": "This permanently deletes {name} and all of its transactions, limits and history. This cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete permanently"
+    },
+    "draft": {
+      "sectionTitle": "To confirm",
+      "action": {
+        "confirm": "Confirm",
+        "edit": "Edit",
+        "dismiss": "Dismiss"
+      }
+    },
+    "row": {
+      "action": {
+        "edit": "Edit"
+      }
+    },
+    "txn": {
+      "action": {
+        "delete": "Delete",
+        "retry": "Retry"
+      }
+    },
+    "quickEntry": {
+      "placeholder": "…",
+      "title": "expenses",
+      "addExpenseAria": "Add expense to {categoryName}"
+    },
+    "monthNav": {
+      "prev": "Previous month",
+      "next": "Next month",
+      "shortcut": "Cmd + ← or → to navigate months",
+      "today": "Today"
+    },
+    "addCategory": {
+      "trigger": "Add category"
+    },
+    "emptyState": {
+      "noCategories": {
+        "title": "No categories yet",
+        "body": "Add your first category to start tracking spendings.",
+        "cta": "Add category"
+      },
+      "noTxns": "No transactions this month",
+      "noTxnsPast": "Nothing recorded for this month"
+    },
+    "error": {
+      "quickEntry": "Couldn't save — tap to retry",
+      "sliderSave": "Couldn't save changes. Check your connection and try again.",
+      "reorderSave": "Couldn't save new order. The columns have been restored.",
+      "invalidAmount": "Enter a positive number",
+      "fxStale": "Exchange rate has updated. Review the new amount and save again."
+    },
+    "confirm": {
+      "discardChanges": "You have unsaved changes. Discard them?",
+      "deleteTxn": {
+        "title": "Delete transaction?",
+        "body": "This will permanently remove {amount} on {date}. This action cannot be undone.",
+        "cta": "Delete",
+        "cancel": "Cancel"
+      },
+      "dismissDraft": {
+        "title": "Skip {ruleName} for {month}?",
+        "body": "The recurring rule will keep running. Next month's draft will appear as scheduled.",
+        "cta": "Skip this month",
+        "cancel": "Cancel"
+      }
+    },
+    "header": {
+      "row2": {
+        "planned": "planned",
+        "cushion": "cushion"
+      },
+      "row3": {
+        "overspent": "overspent"
+      },
+      "row4": {
+        "reservesUsed": "reserves used"
+      },
+      "row5": {
+        "balance": "left"
+      },
+      "archived": "archived"
+    }
+  },
+  "share": {
+    "generate_button": "Generate share link",
+    "field_label": "Invite link (expires in 7 days)",
+    "expires_in_7_days": "Expires in 7 days",
+    "copied": "Link copied to clipboard",
+    "copy_failed": "Could not copy link — copy it manually",
+    "generate_failed": "Failed to generate share link. Try again.",
+    "copy_aria": "Copy link",
+    "valid_heading": "You've been invited",
+    "valid_body": "You've been invited to join a shared budget.",
+    "authenticated_cta": "Join budget",
+    "unauthenticated_cta": "Sign in to accept",
+    "accepting_cta": "Joining…",
+    "expired_heading": "This invitation has expired",
+    "expired_body": "Ask the budget owner to send you a new link.",
+    "already_used_heading": "You're already a member",
+    "already_used_body": "You've already joined {budgetName}.",
+    "already_used_cta": "Go to budget",
+    "not_found_heading": "Invitation not found",
+    "not_found_body": "This link is invalid or has been removed.",
+    "not_found_cta": "Return home",
+    "join_success": "You've joined {budgetName}"
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "body": "We couldn't load this page. Check your connection and try again.",
+    "reload": "Reload",
+    "go_home": "Go to home"
+  },
+  "server_down": {
+    "title": "We can't reach the server",
+    "body": "Budget is offline for the moment. Check your connection — if everything looks fine on your end, our servers are taking a breather. We'll be right back.",
+    "retry": "Try again",
+    "retrying": "Checking…",
+    "still_unreachable": "Still no answer from the server. Give it another moment."
+  },
+  "not_found": {
+    "title": "Page not found",
+    "body": "That page doesn't exist — it may have moved, been renamed, or you might have followed a stale link.",
+    "go_home": "Take me home",
+    "go_back": "Go back"
   }
 }

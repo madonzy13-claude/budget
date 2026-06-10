@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,13 +26,11 @@ import { api } from "@/lib/api-client";
 
 type WorkspaceKind = "PRIVATE" | "SHARED";
 
-const createWorkspaceSchema = z.object({
-  name: z.string().min(1, "Workspace name is required.").max(100),
-  kind: z.enum(["PRIVATE", "SHARED"]),
-  default_currency: z.string().min(3, "Default currency is required.").max(3),
-});
-
-type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>;
+type CreateWorkspaceValues = {
+  name: string;
+  kind: WorkspaceKind;
+  default_currency: string;
+};
 
 interface CreateWorkspaceFormProps {
   locale?: string;
@@ -46,6 +44,22 @@ export function CreateWorkspaceForm({
   const t = useTranslations();
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const createWorkspaceSchema = useMemo(
+    () =>
+      z.object({
+        name: z
+          .string()
+          .min(1, t("budgets.create.validation.name_required"))
+          .max(100),
+        kind: z.enum(["PRIVATE", "SHARED"]),
+        default_currency: z
+          .string()
+          .min(3, t("budgets.create.validation.currency_required"))
+          .max(3),
+      }),
+    [t],
+  );
 
   const form = useForm<CreateWorkspaceValues>({
     resolver: zodResolver(createWorkspaceSchema),
@@ -79,9 +93,12 @@ export function CreateWorkspaceForm({
       }
 
       const created = (await res.json()) as { id: string; name: string };
-      toast.success(t("workspaces.create.success", { name: created.name }));
+      // Workspace context is now URL-driven (/workspaces/[wsId]/...) — no
+      // session "active workspace" to set. Land the user directly inside
+      // their new workspace on the budget tab.
+      toast.success(t("budgets.create.success", { name: created.name }));
       onSuccess?.(created.id);
-      router.push(`/${locale ?? "en"}/workspaces/${created.id}`);
+      router.push(`/${locale ?? "en"}/workspaces/${created.id}/budget`);
     } catch {
       setServerError(t("state.error.network"));
     }
@@ -105,10 +122,10 @@ export function CreateWorkspaceForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("workspaces.create.name.label")}</FormLabel>
+              <FormLabel>{t("budgets.create.name.label")}</FormLabel>
               <FormControl>
                 <Input
-                  placeholder={t("workspaces.create.name.placeholder")}
+                  placeholder={t("budgets.create.name.placeholder")}
                   {...field}
                 />
               </FormControl>
@@ -123,18 +140,18 @@ export function CreateWorkspaceForm({
           name="kind"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("workspaces.create.kind.label")}</FormLabel>
+              <FormLabel>{t("budgets.create.kind.label")}</FormLabel>
               <FormControl>
                 <div role="radiogroup" className="grid gap-2 sm:grid-cols-2">
                   {[
                     {
                       kind: "PRIVATE" as WorkspaceKind,
-                      label: t("workspaces.create.kind.private"),
+                      label: t("budgets.create.kind.private"),
                       Icon: Lock,
                     },
                     {
                       kind: "SHARED" as WorkspaceKind,
-                      label: t("workspaces.create.kind.shared"),
+                      label: t("budgets.create.kind.shared"),
                       Icon: Users,
                     },
                   ].map(({ kind, label, Icon }) => {
@@ -193,17 +210,17 @@ export function CreateWorkspaceForm({
           name="default_currency"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("workspaces.create.currency.label")}</FormLabel>
+              <FormLabel>{t("budgets.create.currency.label")}</FormLabel>
               <FormControl>
                 <CurrencyPicker
                   value={field.value}
                   onSelect={field.onChange}
-                  placeholder={t("workspaces.create.currency.placeholder")}
-                  aria-label={t("workspaces.create.currency.label")}
+                  placeholder={t("budgets.create.currency.placeholder")}
+                  aria-label={t("budgets.create.currency.label")}
                 />
               </FormControl>
               <FormDescription>
-                {t("workspaces.create.currency.helper")}
+                {t("budgets.create.currency.helper")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -217,7 +234,7 @@ export function CreateWorkspaceForm({
               {t("state.loading")}
             </>
           ) : (
-            t("workspaces.create.cta")
+            t("budgets.create.cta")
           )}
         </Button>
       </form>

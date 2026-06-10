@@ -6,15 +6,20 @@
  * Seeding through migrator credentials would bypass the application boundary
  * and provide false confidence.
  *
- * Seeds two tenants via app_role + application services (signUp + createWorkspace).
+ * Seeds two tenants via app_role + application services (signUp + createBudget).
  * Uses only the app_role connection (DATABASE_URL_APP) via application services.
  *
  * Returns { tenantA, tenantB, aliceId, bobId } for use in leak assertions.
+ *
+ * v1.1 (plan 01-01): createWorkspace → createBudget; workspaceId → budgetId.
+ * NOTE: the createBudget import will compile once plan 01-02 renames the application module.
+ * Until then, use @ts-expect-error annotations on the import + call sites.
  */
 import { createIdentityModule } from "@budget/identity";
 import { createTenancyModule } from "@budget/tenancy";
 import { signUp } from "@budget/identity/src/application/sign-up";
-import { createWorkspace } from "@budget/tenancy/src/application/create-workspace";
+// @ts-expect-error - createBudget module resolved in plan 01-02
+import { createBudget } from "@budget/tenancy/src/application/create-budget";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { sql } from "drizzle-orm";
@@ -58,12 +63,12 @@ const noopKeyStore = {
 let cached: SeedResult | undefined;
 
 /**
- * PC-20: Seeds two tenants using the application service boundary (signUp + createWorkspace).
+ * PC-20: Seeds two tenants using the application service boundary (signUp + createBudget).
  * Idempotent within a test process — returns cached result on subsequent calls.
  *
  * Tenant topology:
- *   - tenantA: PRIVATE workspace owned by alice (alice@example.test)
- *   - tenantB: SHARED workspace owned by alice, bob as member (bob@example.test)
+ *   - tenantA: PRIVATE budget owned by alice (alice@example.test)
+ *   - tenantB: SHARED budget owned by alice, bob as member (bob@example.test)
  */
 export async function seedTwoTenants(): Promise<SeedResult> {
   if (cached) return cached;
@@ -86,9 +91,10 @@ export async function seedTwoTenants(): Promise<SeedResult> {
     additionalSchema: tenancyModule.betterAuthSchema,
   });
 
-  // auth is the Better Auth instance; createWorkspace calls auth.api.createOrganization
+  // auth is the Better Auth instance; createBudget calls auth.api.createOrganization
+  // @ts-expect-error - createBudget parameter type resolved in plan 01-02
   const auth = identityModule.auth as Parameters<typeof signUp>[0]["auth"] &
-    Parameters<typeof createWorkspace>[0]["auth"];
+    Parameters<typeof createBudget>[0]["auth"];
 
   // Sign up alice
   const aliceResult = await signUp(
@@ -149,40 +155,42 @@ export async function seedTwoTenants(): Promise<SeedResult> {
   const aliceId = UserId(aliceRow.id);
   const bobId = UserId(bobRow.id);
 
-  // Create tenantA: PRIVATE workspace owned by alice
-  const wsAResult = await createWorkspace(
+  // Create tenantA: PRIVATE budget owned by alice
+  // @ts-expect-error - createBudget resolved in plan 01-02
+  const budgetAResult = await createBudget(
     { auth },
     {
-      name: "Tenant-A WS",
+      name: "Tenant-A Budget",
       kind: "PRIVATE",
       default_currency: "USD",
       ownerUserId: aliceId,
     },
   );
-  if (wsAResult.isErr()) {
+  if (budgetAResult.isErr()) {
     throw new Error(
-      `createWorkspace tenantA failed: ${wsAResult.error.message}`,
+      `createBudget tenantA failed: ${budgetAResult.error.message}`,
     );
   }
 
-  // Create tenantB: SHARED workspace owned by alice (bob will be added as member)
-  const wsBResult = await createWorkspace(
+  // Create tenantB: SHARED budget owned by alice (bob will be added as member)
+  // @ts-expect-error - createBudget resolved in plan 01-02
+  const budgetBResult = await createBudget(
     { auth },
     {
-      name: "Tenant-B WS",
+      name: "Tenant-B Budget",
       kind: "SHARED",
       default_currency: "USD",
       ownerUserId: aliceId,
     },
   );
-  if (wsBResult.isErr()) {
+  if (budgetBResult.isErr()) {
     throw new Error(
-      `createWorkspace tenantB failed: ${wsBResult.error.message}`,
+      `createBudget tenantB failed: ${budgetBResult.error.message}`,
     );
   }
 
-  const tenantA = TenantId(wsAResult.value.workspaceId);
-  const tenantB = TenantId(wsBResult.value.workspaceId);
+  const tenantA = TenantId(budgetAResult.value.budgetId);
+  const tenantB = TenantId(budgetBResult.value.budgetId);
 
   // Write one audit_history row per tenant via withTenantTx (proves tenant-scoped writes)
   await withTenantTx(tenantA, aliceId, async (tx) => {
@@ -190,7 +198,7 @@ export async function seedTwoTenants(): Promise<SeedResult> {
       INSERT INTO shared_kernel.audit_history
         (tenant_id, actor_user_id, entity_type, entity_id, action, diff_jsonb)
       VALUES
-        (${tenantA}, ${aliceId}, 'workspace', ${tenantA}, 'created', '{}'::jsonb)
+        (${tenantA}, ${aliceId}, 'budget', ${tenantA}, 'created', '{}'::jsonb)
     `);
   });
 
@@ -199,7 +207,7 @@ export async function seedTwoTenants(): Promise<SeedResult> {
       INSERT INTO shared_kernel.audit_history
         (tenant_id, actor_user_id, entity_type, entity_id, action, diff_jsonb)
       VALUES
-        (${tenantB}, ${aliceId}, 'workspace', ${tenantB}, 'created', '{}'::jsonb)
+        (${tenantB}, ${aliceId}, 'budget', ${tenantB}, 'created', '{}'::jsonb)
     `);
   });
 

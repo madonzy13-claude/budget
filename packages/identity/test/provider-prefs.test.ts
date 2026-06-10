@@ -15,7 +15,7 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.APP_URL = "http://localhost:3000";
   await startTestcontainer();
-});
+}, 120_000);
 
 test("updateProviderPrefs sets preferred_llm_provider", async () => {
   const email = `prefs-llm-${Date.now()}@example.com`;
@@ -37,11 +37,9 @@ test("updateProviderPrefs sets preferred_llm_provider", async () => {
   expect(r.isOk()).toBe(true);
   if (r.isOk()) {
     const repo = new DrizzleUserRepo();
-    await updateProviderPrefs(
-      { userRepo: repo },
-      UserId(r.value.userId),
-      { llm: "claude_haiku" },
-    );
+    await updateProviderPrefs({ userRepo: repo }, UserId(r.value.userId), {
+      llm: "claude_haiku",
+    });
     const user = await repo.findById(UserId(r.value.userId));
     expect(user?.preferred_llm_provider).toBe("claude_haiku");
     expect(user?.preferred_stt_provider).toBeNull();
@@ -68,11 +66,9 @@ test("updateProviderPrefs sets preferred_stt_provider independently", async () =
   expect(r.isOk()).toBe(true);
   if (r.isOk()) {
     const repo = new DrizzleUserRepo();
-    await updateProviderPrefs(
-      { userRepo: repo },
-      UserId(r.value.userId),
-      { stt: "groq" },
-    );
+    await updateProviderPrefs({ userRepo: repo }, UserId(r.value.userId), {
+      stt: "groq",
+    });
     const user = await repo.findById(UserId(r.value.userId));
     expect(user?.preferred_stt_provider).toBe("groq");
   }
@@ -98,11 +94,10 @@ test("updateProviderPrefs round-trips both providers", async () => {
   expect(r.isOk()).toBe(true);
   if (r.isOk()) {
     const repo = new DrizzleUserRepo();
-    await updateProviderPrefs(
-      { userRepo: repo },
-      UserId(r.value.userId),
-      { llm: "groq", stt: "browser" },
-    );
+    await updateProviderPrefs({ userRepo: repo }, UserId(r.value.userId), {
+      llm: "groq",
+      stt: "browser",
+    });
     const user = await repo.findById(UserId(r.value.userId));
     expect(user?.preferred_llm_provider).toBe("groq");
     expect(user?.preferred_stt_provider).toBe("browser");

@@ -53,13 +53,13 @@ export function SessionsList({ sessions }: SessionsListProps) {
     try {
       await authClient.revokeSession({ token: revokeTarget.id });
       setActiveSessions((prev) => prev.filter((s) => s.id !== revokeTarget.id));
-      toast.success("Session signed out.");
+      toast.success(t("success_revoke"));
     } catch {
-      toast.error("Failed to sign out session. Try again.");
+      toast.error(t("error_revoke"));
     } finally {
       setRevokeTarget(null);
     }
-  }, [revokeTarget]);
+  }, [revokeTarget, t]);
 
   if (activeSessions.length <= 1) {
     return (
@@ -82,7 +82,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
           {activeSessions.map((session) => (
             <TableRow key={session.id}>
               <TableCell className="font-medium text-[var(--foreground)]">
-                {session.deviceInfo ?? "Unknown device"}
+                {session.deviceInfo ?? t("unknown_device")}
               </TableCell>
               <TableCell className="text-[var(--muted-foreground)]">
                 {session.lastActive}
@@ -136,7 +136,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("revoke.confirm.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-[var(--trading-down)] text-[var(--on-dark)] hover:bg-[color-mix(in_oklab,var(--trading-down)_85%,black)]"
               onClick={handleRevoke}

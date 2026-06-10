@@ -1,0 +1,170 @@
+/**
+ * task-repo.ts — Port interface for TaskRepo (BDP-03 + Phase 7 extension).
+ *
+ * No Drizzle imports — hex boundary enforced by dep-cruiser (ENGR-02).
+ * Phase 3 shipped the READ path (`listPending`). Phase 7 extends with write
+ * operations (emit + resolve) for the Tasks queue generators and the resolve
+ * route. All write methods take an OPTIONAL/REQUIRED `tx` parameter so callers
+ * inside an existing `withTenantTx` can piggyback their writes onto the same
+ * transaction — essential for atomic auto-resolve hooks in Plans 04/05/06.
+ *
+ * v1.1 invariant: `budget_id === tenant_id`. Both args are kept on the port
+ * signature so the adapter can scope RLS by tenant_id while filtering by
+ * budget_id — defense-in-depth even though they are equal in v1.1.
+ */
+
+/**
+ * Minimal tx shape needed by callers. The adapter casts to the concrete drizzle
+ * tx type internally. NO drizzle-orm import here (hex boundary — ENGR-02 +
+ * dep-cruiser rule: domain/ports cannot import drizzle-orm).
+ */
+export type TenantTx = {
+  execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+};
+
+/**
+ * The three task kinds shipped in v1.1 Phase 7 (rescoped from the original
+ * 4-kind set — STALE_WALLET and MONTH_END_REVIEW dropped per D-PH7-15;
+ * CUSHION_BELOW_TARGET added per D-PH7-09). DB CHECK constraint mirrors this.
+ */
+export type TaskKind =
+  | "RESERVE_TOPUP"
+  | "CONFIRM_DRAFT"
+  | "CUSHION_BELOW_TARGET";
+
+export type TaskStatus = "PENDING" | "RESOLVED";
+
+export interface TaskSummary {
+  id: string;
+  budget_id: string;
+  kind: TaskKind;
+  status: TaskStatus;
+  payload: Record<string, unknown>;
+  /** ISO-8601 timestamp (UTC). Adapter converts from Postgres `timestamptz`. */
+  created_at: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Per-kind payload types (DTO boundary — bigint serialized as string).       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Payload for a RESERVE_TOPUP task. `direction` distinguishes a top-up
+ * suggestion (limit > actual) from a withdraw suggestion (limit < actual)
+ * — same kind, opposite money flow.
+ */
+export interface ReserveTopupPayload {
+  /** bigint serialized as string (DTO boundary rule). */
+  shortfall_cents: string;
+  direction: "TOPUP" | "WITHDRAW";
+  /** ISO 4217 currency code (e.g., "EUR"). */
+  currency: string;
+}
+
+/**
+ * Payload for a CONFIRM_DRAFT task. Carries enough context for the resolver
+ * UI to render the draft summary without an extra read.
+ */
+export interface ConfirmDraftPayload {
+  draft_id: string;
+  rule_name: string;
+  /** bigint serialized as string (DTO boundary rule). */
+  amount_cents: string;
+  currency: string;
+  /** ISO date "YYYY-MM-DD". */
+  transaction_date: string;
+  category_id: string;
+}
+
+/**
+ * Payload for a CUSHION_BELOW_TARGET task. `target_months` is the configured
+ * cushion target horizon (1..60). Money fields are bigint-as-string.
+ */
+export interface CushionBelowTargetPayload {
+  shortfall_cents: string;
+  required_cents: string;
+  actual_cents: string;
+  currency: string;
+  target_months: number;
+}
+
+export interface TaskRepo {
+  /**
+   * Returns PENDING tasks for the given budget, ordered ASC by `created_at`.
+   * RLS at the DB layer ensures cross-tenant rows are unreachable; route
+   * also asserts `tenantIds.includes(budgetId)` before invoking this.
+   */
+  listPending(budgetId: string, tenantId: string): Promise<TaskSummary[]>;
+
+  /* ------------------------------------------------------------------------ */
+  /* Phase 7 write methods (emit + resolve).                                  */
+  /*                                                                          */
+  /* tx is REQUIRED for emit methods (always called from inside an existing   */
+  /* withTenantTx — generators run inside the tx that produced the trigger    */
+  /* event). tx is OPTIONAL for resolve (POST /tasks/:id/resolve opens its    */
+  /* own tx; inline auto-resolve hooks piggyback the caller's tx).            */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * Idempotent resolve. UPDATEs only when row is PENDING AND tenant_id
+   * matches; cross-tenant attempts silently no-op (0 rows updated). Already
+   * RESOLVED rows are not re-resolved.
+   */
+  resolve(taskId: string, tenantId: string, tx?: TenantTx): Promise<void>;
+
+  /**
+   * Emits a RESERVE_TOPUP task. Idempotent at the DB layer via partial unique
+   * index on (budget_id, kind) WHERE status='PENDING' (migration 0026).
+   */
+  emitReserveTopup(
+    tenantId: string,
+    budgetId: string,
+    payload: ReserveTopupPayload,
+    tx: TenantTx,
+  ): Promise<void>;
+
+  /**
+   * Emits a CONFIRM_DRAFT task. Idempotent at the DB layer via partial unique
+   * index on (payload_json->>'draft_id') WHERE kind='CONFIRM_DRAFT' AND
+   * status='PENDING' (migration 0026).
+   */
+  emitConfirmDraft(
+    tenantId: string,
+    budgetId: string,
+    payload: ConfirmDraftPayload,
+    tx: TenantTx,
+  ): Promise<void>;
+
+  /**
+   * Emits a CUSHION_BELOW_TARGET task. Idempotent at the DB layer via partial
+   * unique index on (budget_id, kind) WHERE status='PENDING' (migration 0026).
+   */
+  emitCushionBelowTarget(
+    tenantId: string,
+    budgetId: string,
+    payload: CushionBelowTargetPayload,
+    tx: TenantTx,
+  ): Promise<void>;
+
+  /**
+   * Resolves all PENDING tasks for a (tenantId, budgetId, kind) tuple in one
+   * statement. Used by auto-resolve hooks when the underlying trigger
+   * condition is no longer true (e.g. cushion target now met).
+   */
+  resolveByKindAndBudget(
+    tenantId: string,
+    budgetId: string,
+    kind: TaskKind,
+    tx: TenantTx,
+  ): Promise<void>;
+
+  /**
+   * Resolves a PENDING CONFIRM_DRAFT task by its embedded draft_id payload
+   * field. Used when a draft is confirmed or dismissed inline (Plan 04).
+   */
+  resolveConfirmDraftByDraftId(
+    tenantId: string,
+    draftId: string,
+    tx: TenantTx,
+  ): Promise<void>;
+}

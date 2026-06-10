@@ -1,0 +1,1 @@
+ALTER TABLE "budgeting"."supported_currencies" ALTER COLUMN "iso_code" SET DATA TYPE varchar(10);

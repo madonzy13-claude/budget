@@ -25,6 +25,7 @@ test("user can be member of 3 SHARED workspaces simultaneously (TENT-04, TENT-09
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   const user = await signUp(

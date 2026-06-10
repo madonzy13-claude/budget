@@ -1,6 +1,6 @@
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type { MemberShareRepo } from "../ports/member-repo";
-import type { WorkspaceRepo } from "../ports/workspace-repo";
+import type { BudgetRepo } from "../ports/budget-repo";
 
 export interface UpdateSharesInput {
   workspaceId: string;
@@ -9,18 +9,23 @@ export interface UpdateSharesInput {
 }
 
 export async function updateShares(
-  deps: { memberShareRepo: MemberShareRepo; workspaceRepo: WorkspaceRepo },
+  deps: {
+    memberShareRepo: MemberShareRepo;
+    budgetRepo?: BudgetRepo;
+    workspaceRepo?: BudgetRepo;
+  },
   input: UpdateSharesInput,
 ): Promise<Result<void, Error>> {
+  const repo = (deps.budgetRepo ?? deps.workspaceRepo)!;
   try {
-    // Verify workspace exists
-    const workspace = await deps.workspaceRepo.findById(input.workspaceId);
+    // Verify budget exists
+    const workspace = await repo.findById(input.workspaceId);
     if (!workspace) {
-      return err(new Error(`Workspace ${input.workspaceId} not found`));
+      return err(new Error(`Budget ${input.workspaceId} not found`));
     }
 
     // Verify owner
-    const members = await deps.workspaceRepo.listMembers(input.workspaceId);
+    const members = await repo.listMembers(input.workspaceId);
     const ownerIds = members
       .filter((m) => m.role === "owner")
       .map((m) => m.userId);

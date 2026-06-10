@@ -44,11 +44,10 @@ export function SignOutButton({ locale }: SignOutButtonProps) {
       className="text-[var(--muted-foreground)] hover:text-[var(--on-dark)]"
     >
       {isSigningOut ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <LogOut className="mr-2 h-4 w-4" />
+        <LogOut className="h-4 w-4" />
       )}
-      {t("sign_out")}
     </Button>
   );
 }

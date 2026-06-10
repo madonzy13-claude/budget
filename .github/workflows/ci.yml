@@ -24,9 +24,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: ESLint
         run: bunx eslint apps packages --ext .ts,.tsx --max-warnings 0
       # Prettier --check intentionally NOT enforced as a hard gate — the existing
@@ -41,9 +41,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Typecheck all workspaces
         run: bun run typecheck
 
@@ -54,9 +54,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: dependency-cruiser
         run: bunx depcruise --config .dependency-cruiser.cjs --output-type err apps packages
 
@@ -67,7 +67,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: ban .transaction( outside tx.ts (PC-04)
         run: bun run grep:no-direct-tx
       - name: ban appPool().connect( outside tx.ts (PC-03)
@@ -80,9 +80,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Override bunfig coverage threshold for scoped run
         run: |
           # The scoped run only covers two pure-domain packages, so the global
@@ -90,7 +90,18 @@ jobs:
           # met by definition. Override to 0 just for this CI step.
           sed -i 's/^coverageThreshold = .*/coverageThreshold = 0.0/' bunfig.toml
       - name: bun test (pure unit tests — no DB)
-        run: bun test packages/shared-kernel packages/crypto apps/api/test --timeout 30000
+        # apps/api/test/routes is excluded — those are integration tests that
+        # require Postgres (DATABASE_URL_APP). They run in the Tenant-leak +
+        # Compose-smoke jobs which spin up postgres. Architecture / schema /
+        # middleware tests under apps/api/test stay DB-free.
+        run: |
+          bun test \
+            packages/shared-kernel \
+            packages/crypto \
+            apps/api/test/architecture \
+            apps/api/test/middleware \
+            apps/api/test/schema \
+            --timeout 30000
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -106,12 +117,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Vitest (via workspace bin so happy-dom resolves)
         run: cd apps/web && bun run test
 
@@ -122,9 +133,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Generate test .env (drives compose init scripts)
         run: |
           cat > .env <<'EOF'
@@ -173,9 +184,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Generate test .env from CI placeholders
         run: |
           cat > .env <<'EOF'
@@ -236,12 +247,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
       - name: Generate test .env (with mailpit for dev override)
@@ -283,7 +294,19 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: "1"
-        run: bunx bddgen && bunx playwright test --reporter=list
+          # Some BDD steps (e.g. task-banner seeding in common-steps.ts)
+          # connect to Postgres directly from the Playwright host process.
+          # The generated .env only feeds docker compose containers, not this
+          # step — pass DATABASE_URL_APP explicitly. The step rewrites the
+          # `@db:` compose hostname to `@localhost:` (db publishes 5432).
+          DATABASE_URL_APP: postgresql://app_role:app_pwd@db:5432/budget
+        # Run from apps/web so bddgen + playwright pick up
+        # apps/web/playwright.config.ts — the same config `make test-e2e`
+        # uses. The repo-root playwright.config.ts only sees the tests/e2e
+        # tree and a single project; running it here diverged CI from local
+        # iteration. apps/web config covers both feature trees (apps/web/e2e
+        # + tests/e2e) and the chromium + mobile projects.
+        run: cd apps/web && bunx bddgen && bunx playwright test --reporter=list
       - name: Diagnostic — api/web container logs on failure
         if: failure()
         run: |
@@ -291,12 +314,13 @@ jobs:
             echo "=== logs: $svc ==="
             docker compose logs --no-color --tail=200 "$svc" 2>&1
           done
-      - name: Upload Playwright report
+      - name: Upload Playwright traces
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-traces
+          # apps/web config writes traces here (trace: retain-on-failure).
+          path: apps/web/test-results/
           if-no-files-found: ignore
       - name: Tear down
         if: always()
@@ -345,9 +369,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.x
+          bun-version: 1.3.12
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
       - name: bun audit (root)
         run: bun audit --audit-level=high
 

@@ -15,7 +15,7 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.APP_URL = "http://localhost:3000";
   await startTestcontainer();
-});
+}, 120_000);
 
 test("user.display_currency is independent of workspace, defaults to USD", async () => {
   const email = `currency-${Date.now()}@example.com`;

@@ -37,7 +37,7 @@ export function SharesEditor({
   workspaceId,
   initialMembers,
 }: SharesEditorProps) {
-  const t = useTranslations("workspace.shares");
+  const t = useTranslations("budget.shares");
   const [members, setMembers] = useState<ShareMember[]>(initialMembers);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);

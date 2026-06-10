@@ -6,7 +6,7 @@ import { UserId } from "@budget/shared-kernel";
 
 beforeAll(async () => {
   await startTestcontainer();
-});
+}, 120_000);
 
 test("withUserContext sets app.current_user_id only", async () => {
   const uid = UserId("00000000-0000-0000-0000-0000000000aa");

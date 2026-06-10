@@ -1,0 +1,140 @@
+/**
+ * quick-entry-input.test.tsx — Vitest+RTL tests for QuickEntryInput component.
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QuickEntryInput } from "../../../src/components/budgeting/spendings-grid/quick-entry-input";
+import { TestQueryProvider } from "../../setup/query-client";
+
+const mockMutate = vi.fn();
+vi.mock("../../../src/hooks/use-create-transaction", () => ({
+  useCreateTransaction: () => ({ mutate: mockMutate }),
+}));
+
+const mockToast = vi.fn();
+vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => mockToast(...args) } }));
+
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string, params?: Record<string, unknown>) => {
+    if (params) return `${key}(${JSON.stringify(params)})`;
+    return key;
+  },
+  useLocale: () => "en",
+}));
+
+const defaultProps = {
+  categoryId: "cat-1",
+  categoryName: "Groceries",
+  budgetId: "budget-1",
+  month: "2026-05",
+  budgetCurrency: "USD",
+  resolvedDate: "2026-05-13",
+};
+
+function renderInput(props = {}) {
+  return render(
+    <TestQueryProvider>
+      <QuickEntryInput {...defaultProps} {...props} />
+    </TestQueryProvider>,
+  );
+}
+
+describe("QuickEntryInput", () => {
+  beforeEach(() => {
+    mockMutate.mockClear();
+    mockToast.mockClear();
+  });
+
+  it("has data-testid=quick-entry-groceries (lowercase categoryName)", () => {
+    renderInput();
+    expect(screen.getByTestId("quick-entry-groceries")).toBeTruthy();
+  });
+
+  it("has inputMode=decimal for mobile (D-PH4-Q2)", () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    expect(input.getAttribute("inputMode") ?? input.getAttribute("inputmode")).toBe("decimal");
+  });
+
+  it("accepts '5.96' and calls mutate with 596 cents on Enter", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "5.96");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 596 }),
+    );
+  });
+
+  it("accepts '5,96' and calls mutate with 596 cents on Enter (D-PH4-Q2)", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "5,96");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 596 }),
+    );
+  });
+
+  it("invalid '1.234' shows error toast and does NOT call mutate", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "1.234");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalled();
+  });
+
+  it("empty input on Enter does nothing", () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it("Escape clears input", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries") as HTMLInputElement;
+    await userEvent.type(input, "5.96");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input.value).toBe("");
+  });
+
+  it("uses resolvedDate prop as transaction date (past month)", async () => {
+    renderInput({ resolvedDate: "2026-04-30" });
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "10");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2026-04-30" }),
+    );
+  });
+
+  it("submits a valid amount on blur", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "12.50");
+    fireEvent.blur(input);
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 1250 }),
+    );
+  });
+
+  it("blur with an invalid value does NOT mutate and shows no toast", async () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "1.234");
+    fireEvent.blur(input);
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it("blur with empty input does nothing", () => {
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    fireEvent.blur(input);
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+});

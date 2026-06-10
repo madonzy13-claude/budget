@@ -26,6 +26,7 @@ test("member (not owner) cannot invite — rejected (TENT-03)", async () => {
     emailSender: sender,
     keyStore: new LibsodiumKeyStore(),
     additionalPlugins: [tenancy.organizationPlugin],
+    additionalSchema: tenancy.betterAuthSchema,
   });
 
   // Create owner + workspace

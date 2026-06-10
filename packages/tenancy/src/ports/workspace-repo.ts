@@ -1,7 +1,5 @@
-import type { WorkspaceDTO, MemberDTO } from "../contracts/api";
-
-export interface WorkspaceRepo {
-  findById(id: string): Promise<WorkspaceDTO | null>;
-  listForUser(userId: string): Promise<WorkspaceDTO[]>;
-  listMembers(workspaceId: string): Promise<MemberDTO[]>;
-}
+/**
+ * workspace-repo.ts — Backward-compat shim (Plan 01-02 rename to budget-repo.ts).
+ * @deprecated use BudgetRepo from budget-repo.ts
+ */
+export type { BudgetRepo as WorkspaceRepo } from "./budget-repo";

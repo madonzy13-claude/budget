@@ -13,21 +13,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { signUp } from "@/lib/auth-client";
-import { locales, localeNames } from "@/lib/locales";
 
 interface SignUpFormProps {
   defaultLocale: string;
@@ -152,32 +143,6 @@ export function SignUpForm({ defaultLocale }: SignUpFormProps) {
               <FormControl>
                 <Input type="password" autoComplete="new-password" {...field} />
               </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="locale"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("signup.locale.label")}</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {locales.map((loc) => (
-                    <SelectItem key={loc} value={loc}>
-                      {localeNames[loc] ?? loc}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormDescription>{t("signup.locale.helper")}</FormDescription>
               <FormMessage />
             </FormItem>
           )}

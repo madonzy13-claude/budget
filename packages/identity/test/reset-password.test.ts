@@ -13,7 +13,7 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.APP_URL = "http://localhost:3000";
   await startTestcontainer();
-});
+}, 120_000);
 
 test("reset-password: requestPasswordReset sends email", async () => {
   const email = `reset-${Date.now()}@example.com`;
@@ -34,7 +34,9 @@ test("reset-password: requestPasswordReset sends email", async () => {
     },
   );
   // Request password reset
-  await auth.api.requestPasswordReset({ body: { email, redirectTo: "/reset" } });
+  await auth.api.requestPasswordReset({
+    body: { email, redirectTo: "/reset" },
+  });
   const resetEmail = sender.sent.find((e) => e.template === "reset-password");
   expect(resetEmail).toBeDefined();
   expect(resetEmail?.to).toBe(email);

@@ -77,11 +77,11 @@ PLAYWRIGHT_BASE_URL_RESOLVED := $(or \
   $(shell test -f .env && grep -E '^APP_URL=' .env | head -1 | cut -d= -f2-), \
   http://localhost:3000)
 
-test-e2e: ## Run Playwright E2E tests against running stack (uses APP_URL from .env.local)
-	PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx bddgen && PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx playwright test
+test-e2e: ## Run Phase 3+ Playwright E2E tests against running stack (uses APP_URL from .env.local, Infisical for DATABASE_URL_APP)
+	cd apps/web && $(INFISICAL) sh -c 'PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx bddgen && PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx playwright test'
 
-test-e2e-ui: ## Run Playwright E2E tests with UI (uses APP_URL from .env.local)
-	PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx bddgen && PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx playwright test --ui
+test-e2e-ui: ## Run Phase 3+ Playwright E2E tests with UI (uses APP_URL from .env.local)
+	cd apps/web && $(INFISICAL) sh -c 'PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx bddgen && PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL_RESOLVED) bunx playwright test --ui'
 
 ci-gate: ## Run tenant-leak CI gate (needs local postgres)
 	$(INFISICAL) bun run test:ci-gate

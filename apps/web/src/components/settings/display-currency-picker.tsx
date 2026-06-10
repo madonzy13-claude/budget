@@ -37,11 +37,9 @@ export function DisplayCurrencyPicker({
       if (!res.ok) {
         throw new Error("Failed to update display currency");
       }
-      toast.success(
-        t("save_success", { defaultValue: "Display currency updated." }),
-      );
+      toast.success(t("save_success"));
     } catch {
-      toast.error("Failed to save display currency. Try again.");
+      toast.error(t("error_save"));
     } finally {
       setIsSaving(false);
     }

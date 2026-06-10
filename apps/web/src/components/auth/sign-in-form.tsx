@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,7 +25,6 @@ interface SignInFormProps {
 
 export function SignInForm({ locale }: SignInFormProps) {
   const t = useTranslations("auth");
-  const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const signInSchema = z.object({
@@ -72,8 +70,23 @@ export function SignInForm({ locale }: SignInFormProps) {
       return;
     }
 
-    router.push(`/${locale}/workspaces`);
-    router.refresh();
+    // The account locale is authoritative for logged-in users. Persist it to
+    // the `budget-locale` cookie so middleware can keep the URL locale in sync,
+    // and land the user directly on their locale's home.
+    const accountLocale = (result.data as { user?: { locale?: string } } | null)
+      ?.user?.locale;
+    const targetLocale = accountLocale ?? locale;
+    if (accountLocale) {
+      document.cookie = `budget-locale=${accountLocale}; path=/; max-age=31536000; samesite=lax`;
+    }
+    // Hard navigation (not router.push) so the new session cookie is
+    // applied on a fresh document load. router.push triggers a Next.js
+    // client-side RSC fetch that races the just-set cookie; when the
+    // destination layout server-redirects (e.g. the (app) onboarding
+    // guard pushing the user to /budgets/new?step=1), the chained RSC
+    // stream lands as an empty document — a blank page that only
+    // recovers after a manual reload.
+    window.location.href = `/${targetLocale}`;
   }
 
   return (

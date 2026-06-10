@@ -155,10 +155,18 @@ export function createAuth(opts: CreateAuthOptions) {
                   VALUES (${user.id}, ${Buffer.from(wrapped.cipherDek)}, ${Buffer.from(wrapped.nonce)})
                   ON CONFLICT (user_id) DO NOTHING
                 `);
+                // ONBD-01: Seed onboarding_progress row so the Task-2 layout guard
+                // fires on the user's first authenticated request and redirects them
+                // to /budgets/new. Idempotent — a re-fired hook never overwrites progress.
+                await tx.execute(sql`
+                  INSERT INTO tenancy.onboarding_progress (user_id, step, completed_at)
+                  VALUES (${user.id}::uuid, 1, NULL)
+                  ON CONFLICT (user_id) DO NOTHING
+                `);
               },
             );
             if (r.isErr()) {
-              // Log but do NOT throw — Phase 6 reconciliation backstop covers the gap.
+              // Log but do NOT throw — signup must never fail because of this hook.
               console.error(
                 "[identity] post-create setup failed for user",
                 user.id,

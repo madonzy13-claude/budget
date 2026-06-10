@@ -13,7 +13,7 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.APP_URL = "http://localhost:3000";
   await startTestcontainer();
-});
+}, 120_000);
 
 test("verify-email: invalid token is rejected", async () => {
   const sender = new StdoutEmailSender();

@@ -28,15 +28,6 @@ Then(
 );
 
 Then(
-  "the currency picker top-currencies header is shown in {string}",
-  async ({ page }, localeStr: string) => {
-    const locale = asLocale(localeStr);
-    const onboardingPage = new OnboardingPage(page, locale);
-    await onboardingPage.expectTopCurrenciesHeader();
-  },
-);
-
-Then(
   "the currency picker offers the US-dollar option in {string}",
   async ({ page }, localeStr: string) => {
     const locale = asLocale(localeStr);

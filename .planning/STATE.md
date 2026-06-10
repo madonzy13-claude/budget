@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
+milestone: v1.1
 milestone_name: milestone
-status: phase_complete
-stopped_at: Phase 1 complete — all 11 plans done
-last_updated: "2026-05-08T06:53:00.000Z"
-last_activity: 2026-05-08 -- Phase 1 UAT complete (10 pass / 2 issue / 0 pending; 12 tests; user confirmed)
+status: executing
+stopped_at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
+last_updated: "2026-06-06T14:52:00.000Z"
+last_activity: 2026-06-06
 progress:
-  total_phases: 6
-  completed_phases: 1
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 8
+  completed_phases: 7
+  total_plans: 56
+  completed_plans: 59
   percent: 100
 ---
 
@@ -18,95 +18,173 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-05)
+See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 1 — Foundations
+**Current focus:** Phase 07 — tasks-queue
 
 ## Current Position
 
-Phase: 1 of 6 (Foundations — COMPLETE)
-Plan: 11 of 11
-Status: All waves complete — Phase 1 fully shipped
-Last activity: 2026-05-06 -- Phase 01 complete
+Phase: 07 (tasks-queue) — EXECUTING
+Plan: 2 of 10
+Status: Ready to execute
+Last activity: 2026-06-05
 
-Progress: [██████████] 100%
+## Phase 3 Plans
+
+| Plan  | Wave | Title                                                                                 | Reqs                            | Depends       |
+| ----- | ---- | ------------------------------------------------------------------------------------- | ------------------------------- | ------------- |
+| 03-01 | 0    | Wave 0 prep: React Query + playwright-bdd install; delete /workspaces tree            | NAV-05                          | —             |
+| 03-02 | 1    | Backend: GET /budgets/:id/home-summary + FxProvider conversion                        | HOME-01, HOME-02                | [03-01]       |
+| 03-03 | 2    | Backend: GET /budgets/:id/tasks?status=pending read shell                             | BDP-03                          | [03-01]       |
+| 03-04 | 3    | BudgetSwitcher + NewBudgetButton + TopNav + (app) layout + middleware x-pathname      | NAV-01..04                      | [03-01,02]    |
+| 03-05 | 4    | Home / route: BudgetCard async RSC + Suspense grid + placeholder chart + empty hero   | HOME-01..04                     | [03-02,04]    |
+| 03-06 | 5    | BDP frame: pill tabs + sticky shell + task banner + 4 placeholder tabs + /budgets/new | BDP-01..05                      | [03-03,04]    |
+| 03-07 | 6    | PL/UK i18n + 4 Gherkin features (playwright-bdd) + Page Objects + Makefile            | NAV-04, HOME-03, BDP-01, BDP-05 | [03-04,05,06] |
+
+## Phase 1 Plans (archived)
+
+| Plan  | Title                                                                                   | Reqs                         | Depends |
+| ----- | --------------------------------------------------------------------------------------- | ---------------------------- | ------- |
+| 01-01 | Schema migration + post-migration.sql + dev DB nuke + CI fixture retarget               | MIG-01..09, MIG-13 (backend) | —       |
+| 01-02 | Domain entity rename (Workspace→Budget, Account→Wallet) + categories.scope drop cascade | MIG-12                       | 01-01   |
+| 01-03 | Hono route rename + middleware header rename (X-Workspace-ID→X-Budget-ID)               | MIG-11                       | 01-02   |
+| 01-04 | i18n EN/PL/UK + web client + ci-gate Playwright verification                            | MIG-10, MIG-13 (Playwright)  | 01-03   |
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 0 (v1.1 — v1.0 history archived)
 - Average duration: —
 - Total execution time: 0 hours
 
 **By Phase:**
 
-| Phase                             | Plans | Total | Avg/Plan |
-| --------------------------------- | ----- | ----- | -------- |
-| 1. Foundations                    | 0     | —     | —        |
-| 2. Budgeting & FX                 | 0     | —     | —        |
-| 3. Reserve, Investments, Cushion  | 0     | —     | —        |
-| 4. Tasks, Insights, Notifications | 0     | —     | —        |
-| 5. Onboarding & Comparison        | 0     | —     | —        |
-| 6. Launch Hardening               | 0     | —     | —        |
+| Phase                                       | Plans | Total | Avg/Plan |
+| ------------------------------------------- | ----- | ----- | -------- |
+| 1. Schema Migration & Rename Foundation     | 4/4   | ~185m | ~46m     |
+| 2. Domain & API Restructure                 | 0/TBD | —     | —        |
+| 3. Navigation, Home & BDP Frame             | 0/TBD | —     | —        |
+| 4. Spendings Grid                           | 0/TBD | —     | —        |
+| 5. Reserves & Wallets Tabs                  | 0/TBD | —     | —        |
+| 6. Settings, Onboarding & Share UI          | 0/TBD | —     | —        |
+| 7. Tasks Queue                              | 0/TBD | —     | —        |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD | —     | —        |
 
 **Recent Trend:**
 
-- Last 5 plans: none
+- Last 5 plans: none in v1.1 (v1.0 history archived to `.planning/archive/v1.0/`)
 - Trend: —
 
 _Updated after each plan completion_
+| Phase 03 P02 | 85min | 3 tasks | 8 files |
+| Phase 3 P3 | 32 | - tasks | - files |
+| Phase 03-navigation-home-bdp-frame P04 | 8min | 3 tasks | 11 files |
+| Phase 3 P5 | 11min | 2 tasks | 9 files |
+| Phase 03 P06 | 12 min | 3 tasks | 15 files |
+| Phase 03 P07 | 17 min | 3 tasks | 13 files |
+| Phase 05-reserves-wallets-tabs P08 | 180 | 5 tasks | 18 files |
+| Phase 05 P12 | 31m | 3 tasks | 16 files |
+| Phase 05 P13 | 23min | 3 tasks | 16 files |
+| Phase 05 P14 | 25m | 2 tasks | 5 files |
+| Phase 05 P19 | 25m | 3 tasks | 16 files |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
 
-- Phase 1: Postgres + tenant_id + RLS (not schema-per-tenant); app + worker roles have NO BYPASSRLS; FORCE ROW LEVEL SECURITY on all user-data tables
-- Phase 1: Better Auth + organization plugin (not Lucia, deprecated) for family workspace
-- Phase 1: Drizzle (not Prisma) for first-class `pgPolicy()` RLS
-- Phase 1: Crypto-shredding day 1 — PII columns separated from ledger; DEK destroy flow ships Phase 6
-- Phase 1: dependency-cruiser CI rule — `domain/` cannot import `drizzle-orm`, Hono, AI SDK, or `adapters/`
-- Phase 5: LLM bounded to Onboarding adapter only; Tasks generators are deterministic
-- Phase 5: Comparison gated behind DPIA + k-anonymity floor (k≥20, tenant-policy-configurable)
-- 01.05: better-auth/adapters/drizzle ships inside better-auth 1.6+ (no @better-auth/drizzle-adapter package)
-- 01.05: listSessions is session-context-based in Better Auth; server-side list returns []; UI uses BA client
-- 01.05: DEK insert in user.create.after is best-effort (PC-09); Phase 6 adds reconciliation worker
-- 01.05: Plain email column kept in identity.users for Phase 1 Better Auth compatibility; Phase 6 drops it
-- 01.06: DrizzleWorkspaceRepo.findById/listMembers use withInfraTx (bootstrap carve-out); no user context at lookup time
-- 01.06: test/helpers.ts pattern for cross-package test helpers (dep-cruiser only restricts src/ not test/ imports)
-- 01.06: PRIVATE-cap trigger PC-18 limitation documented — Phase 6 will harden with SELECT FOR UPDATE
-- 01.06: createTenancyModule uses lazy require() to keep contracts/ free of adapter imports (PC-15)
-- 01.07: PC-27 — withBootstrapUserContext is the dedicated bootstrap primitive for tenant-guard (not raw pool connect); avoids grep:no-pool-connect CI gate
-- 01.07: apps/\*_ cannot statically import packages/_/src/application — route handlers call auth.api directly using factory output
-- 01.08: AppType imported via local shim (api-type.d.ts) not directly from apps/api to prevent pre-existing Hono context type errors cascading
-- 01.08: Tailwind v4 uses @import not @tailwind directives; @apply with CSS variable utilities unsupported in @layer base
-- 01.08: turbopack: false is invalid in Next.js 16 config (object expected, not boolean); Serwist requires --webpack build flag
-- 01.08: sessions-list receives empty array Phase 1; real session list wired Phase 2 (IDNT-04)
-- 01.08: proxy.ts (not middleware.ts) for next-intl routing — avoids next-intl pitfall 12
-- 01.09: API internal port is 4000; compose maps 3001:4000 (external:internal)
-- 01.09: comparison schema created Phase 1 but NOT granted to app_role/worker_role (reserved for comparison_role)
-- 01.09: seed-dev.ts uses HTTP API (not raw Drizzle) to exercise real auth flows (T-13)
-- 01.10: TenantContextMissing + withTenantJobHandler added to packages/platform (referenced by Plan 07 but not created there)
-- 01.10: Tests 1+4 raw pg.Client approach: no mention of app tx primitives in test files (T-13 acceptance criteria requires string absence)
-- 01.10: seed-two-tenants uses createIdentityModule auth directly for createWorkspace (BA auth instance has createOrganization built-in)
-- 01.10: Playwright E2E (PC-10) gated on main or e2e label — requires live compose stack
+**Carried-forward from v1.0 (still in force after restructure):**
+
+- Postgres + tenant_id + RLS (not schema-per-tenant); app + worker roles have NO BYPASSRLS; FORCE ROW LEVEL SECURITY on all user-data tables
+- Better Auth + organization plugin (used for SHARED budgets; app-facing label "shared budget")
+- Drizzle (not Prisma) for first-class `pgPolicy()` RLS
+- Crypto-shredding day 1 — PII columns separated from ledger
+- dependency-cruiser CI rule — `domain/` cannot import `drizzle-orm`, Hono, AI SDK, or `adapters/`
+- 80% domain coverage threshold in `bunfig.toml`
+- TransactionRepo split surface: create() delegates to createInTx()
+- FX freshness gate (60-min server-side threshold; 409 FxRateStale with freshRate payload)
+- Web app avoids bundling pg/drizzle: getSupportedCurrencies() fetches /api/currencies endpoint
+
+**v1.1 milestone decisions (from v1.1-SPEC.md):**
+
+- Rename workspace→budget and account→wallet at every layer in one mega-migration
+- Drop `transaction.kind` / `account_id` / `to_account_id` / `direction` — transactions are categorical-only
+- wallet_type enum is display-only (SPENDINGS / CUSHION / RESERVE); no income/transfer ledger
+- Reserves auto-compute via SQL view (materialized view as fallback in plan-phase)
+- Cushion-mode is a budget-wide toggle with history tracked (SCD-2 mini-table or audit-log snapshot — decision deferred to Phase 1 plan)
+- Tasks queue: 4 deterministic generators (RESERVE_TOPUP / CONFIRM_DRAFT / STALE_WALLET / MONTH_END_REVIEW)
+- Recurring drafts surface only in Spendings grid as highlighted rows (standalone inbox UI removed)
+- Share-link only invite flow (no email send required) via Better Auth orgs invite-token
+- Dev DB nuked — no data preservation; acceptable because no prod deploy
+- [Phase ?]: Phase 3-02: UserDisplayCurrencyReader local port avoids budgeting → identity coupling; FxProvider adapted to rateAsOf; tenant-leak gate 5→6 files
+- [Phase ?]: BDP-03 backend shell ships as port + service + adapter + sub-router trio mirroring HOME-02
+- [Phase ?]: Tenant-leak gate adds one file per new tenant-scoped endpoint; BDP-03 increments 6 -> 7 files
+- [Phase ?]: Plan 03-04: Header z-index bumped from z-40 to z-50 so BudgetSwitcher PopoverContent z-[60] floats above and BDP sticky wrapper z-40 (Plan 03-06) renders below.
+- [Phase ?]: Plan 03-04: Middleware OVERWRITES x-pathname (not set-if-absent) to discard any client-supplied value — T-03-04-06 mitigation.
+- [Phase 3]: Plan 3-5: lucide v1.14 renames BarChart3 → ChartColumn; tests accept svg.lucide-chart-column OR svg.lucide-bar-chart-3 for stability across upgrades
+- [Phase 3]: Plan 3-5: BudgetCard error path keeps Link wrapper so card always routes to /budgets/[id]/spendings — tenant guard enforces access at BDP
+- [Phase 3]: Plan 3-5: Async-RSC + RTL test pattern — await Component({props}) then render(ui); mock @/lib/budget-fetch.server + next-intl/server.getTranslations
+- [Phase ?]: Plan 03-06: i18n bdp.tab.\* nested {label, title, placeholder} shape locked upfront in Task 1 (BLOCKER #11 resolution)
+- [Phase ?]: Plan 03-06: TaskBanner 60s polling test asserts DELTA across vi.advanceTimersByTimeAsync(60_000) rather than exact mount-time call count
+- [Phase 3]: Plan 03-07: Better Auth cookie-copy via /auth/sign-up/email POST + context.addCookies() — preferred over UI form-fill because it survives sign-in form evolution
+- [Phase 3]: Plan 03-07: Dynamic `import('pg')` in E2E task-seeding step keeps pg out of the web bundle
+- [Phase 3]: Plan 03-07: DATABASE_URL_APP rewriter (@db: -> @localhost:) lets E2E steps run from host AND inside compose net
+- [Phase 3]: Plan 03-07: Empty-user step inlines signup (rather than swapping fixtures) because playwright-bdd binds steps to a single test extender
+- [Phase ?]: 05-12: get-reserve-positions is the replay orchestrator (event-loader → reserve-engine); reserves/spendings summaries consume engine cells
+- [Phase ?]: 05-12: reserves DTO reshaped to reserve/used/overspent + internal/userDefined/surplus(+direction); old VIEW/actual/share/mismatch removed
+- [Phase ?]: [Phase 05]: Plan 05-13 — reserve mutations rewritten to the replay model (delta-only adjust = target−currentR, userDefined-only wallet edits, surplus-driven RESERVE_TOPUP); greedy allocator + stored reserveActualCents deleted. Executed on tasks-redesign branch parallel to the main Phase-07 cursor.
+- [Phase 05]: 05-14 — reserve HTTP contracts locked to the engine shape: /reserves rows{reserveCents,usedCents,overspentCents} + totals{internal,userDefined,surplus,direction,disabled,budgetCurrency}; adjust → {reserveCents,deltaCents,summary}; spendings carries reserveUsedCents+overspentCents+balanceCents (no reserveAvailableCents). Routes are thin forwarders — DTO shaped in the use-case, zero route field-logic change. Real-Postgres integration tests assert key-presence + dead-key absence + adjust ledger delta + disabled path (25 reserve-route tests green).
+- [Phase 05]: 05-14 — reserve-balance-repo.ts is now fully orphaned: removed the BudgetingModule field (factory) + the dead boot constructions; getForBudget has ZERO live callers and budget-home-summary-repo reads category_limits, NOT the dropped category_reserve_balance VIEW → no live 500 risk. File deletion deferred to 05-16. Executed on tasks-redesign branch parallel to the Phase-07 cursor (which stays at plan 2 of 10).
 
 ### Pending Todos
 
-None yet.
+- Phase 1 complete — begin Phase 2 planning (Domain & API Restructure)
+- Decide reserves auto-compute as regular view vs materialized view in Phase 2 plan
+- Probe Better Auth orgs invite-token revocation API in Phase 2 spike
+- Investigate pre-existing make ci-gate coverage threshold failure (tenant-leak tests pull transitive imports; ~51% aggregate vs 80% threshold — security tests all pass 25/25)
+
+### Plan 01-01 Decisions (recorded 2026-05-11, execution)
+
+- Conditional DO block for workspace_share_dirty rename — fresh DB installs skip (post-migration.sql creates budget_share_dirty directly)
+- wallet_type stored as text+CHECK in Drizzle schema, PG ENUM in migration SQL — easier future ALTER TYPE
+
+### Plan 01-02 Decisions (recorded 2026-05-11, execution)
+
+- Backward-compat shims: account.ts/account-repo.ts/workspace.ts/workspace-repo.ts kept with re-exports for Plan 01-03 migration period
+- D-07 minimum compile-fix: TransactionRow.kind and TransactionRow.accountId TypeScript fields preserved; SQL INSERTs/SELECTs drop account_id/kind only — Phase 2 reshapes TS types
+- Better Auth organizationId carve-out confirmed: schema.ts organizationId JS field maps to budget_id SQL column per Better Auth org plugin contract
+- Backward-compat export aliases on all renamed Drizzle tables — avoids cascading compile failures before 01-02
+- tasks table ownership DO block in migration handles postgres-superuser dev installs
+- drizzle-kit TTY limitation requires hand-authored migration; journal entry registered manually
+
+### Phase 1 Late Decisions (recorded 2026-05-11, post-research)
+
+- D-10: Header `X-Workspace-ID` → `X-Budget-ID` renamed in lockstep with routes/tables
+- D-11: Cushion column stays `cushion_amount` (already exists in schema); `_cents` suffix not applied
+- D-12: `balance_adjustments` retained (WALT-03 manual edit path); FK cols renamed
+- D-13: `categories.scope` dropped (redundant with budget-level visibility); cascades through ~8 files
+
+### Plan 01-04 Decisions (recorded 2026-05-11, execution)
+
+- workspace-fetch.ts/workspace-fetch.server.ts kept as backward-compat shims re-exporting from budget-fetch to avoid missed import paths
+- D-13 scope cascade: filter chips UI, category form, E2E steps, i18n keys all cleaned up in single plan
+- Migration 0012 made idempotent via DO $$ IF EXISTS $$ wrappers — Postgres lacks IF EXISTS on RENAME TABLE
+- Function ownership fix needed for dev DB (postgres-owned functions from prior superuser post-migration.sql run); fresh DB (CI) creates correctly
+- make ci-gate coverage threshold failure is pre-existing (tenant-leak transitive imports pull uncovered packages); 25/25 security tests pass
+
+### Plan 06-01 Decisions (recorded 2026-05-22, execution)
+
+- D-06/ONBD-07: onboarding_progress is USER-SCOPED (app.current_user_id), not TENANT-SCOPED — one row per user, not per budget; pgPolicy predicate uses nullif(current_setting('app.current_user_id', true), '')::uuid
+- shadcn new-york uses unified radix-ui ^1.4.3 package; accordion.tsx and switch.tsx import from 'radix-ui' directly (not @radix-ui/react-\* sub-packages); this is the current shadcn convention
+- drizzle-kit BigInt serialization bug blocks npx drizzle-kit generate — hand-authored migration 0024 following Phases 1/5 precedent; journal entry registered manually
 
 ### Blockers/Concerns
 
-Open questions to resolve in/before Phase 1 (from research):
-
-- Crypto-shredding key storage: Postgres pgcrypto + KEK env var, or external KMS? Decide before migration #001
-- Better Auth `organization.members` vs domain `family_members`: pick mechanic in Phase 1 plan
-- Hosting region v1: single-region confirmed (PLAT-11); region-per-family is v1.x
-- Voice STT default: Browser Web Speech with Groq fallback, or always-Groq — defer to Phase 5
+- None blocking; roadmap is approved and dependency graph is clean
+- Risk register in ROADMAP.md tracks 10 known risks across phases
 
 ## Quick Tasks Completed
 
@@ -120,8 +198,24 @@ Open questions to resolve in/before Phase 1 (from research):
 | -------- | ---- | ------ | ----------- |
 | _(none)_ |      |        |             |
 
+### Plan 05-11 Decisions (recorded 2026-06-05, execution)
+
+- Reset reserve persistence to replay-on-read (decision B): migration 0030 dropped `categories.reserve_actual_cents` + the `category_reserve_balance` VIEW (applied to live DB; types regenerate from new shape). Kept `category_reserve_adjustments`, `reserves_enabled`, archive cols, `budget_mode_history`, RESERVE wallets.
+- Added `ReserveEventLoaderRepo` (clean port + Drizzle adapter) returning the 8 raw `ReserveEventInputs` the keystone `reserve-engine.ts` consumes; raw→`ReserveEngineEvent[]` mapping deferred to the 05-12 orchestrator. Adapter composes existing ports + in-adapter SQL only.
+- Removed the orphaned `GRANT SELECT ON budgeting.category_reserve_balance` from `apps/migrator/post-migration.sql` (ran on every migrate, errored 42P01 after the VIEW drop).
+- Deferred (05-13/05-16): ~18 src files + boot.ts still reference the dropped VIEW / `createReserveBalanceRepo`; compile-clean but VIEW reads now fail at query time until 05-12 swaps to the event loader.
+
 ## Session Continuity
 
-Last session: 2026-05-07T16:15:00.000Z
-Stopped at: Quick task 260507-m3x complete (E2E Gherkin migration, 32/32 green)
+Last session: 2026-06-06T14:52:00.000Z
+Stopped at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
 Resume file: None
+
+## v1.0 History (archived)
+
+v1.0 milestone (Phases 1–2 shipped, Phases 3–6 frozen) is archived at:
+
+- `.planning/archive/v1.0/ROADMAP.md`
+- `.planning/archive/v1.0/REQUIREMENTS.md`
+
+v1.0 carried-forward production capabilities are listed in `REQUIREMENTS.md` § v1.0 Validated.

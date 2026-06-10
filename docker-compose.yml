@@ -16,7 +16,11 @@ services:
       WORKER_ROLE_PASSWORD: ${WORKER_ROLE_PASSWORD}
       MIGRATOR_ROLE_PASSWORD: ${MIGRATOR_ROLE_PASSWORD}
     volumes:
-      - budget_db_data:/var/lib/postgresql/data
+      # Persistent data → bind mount OUTSIDE repo (postgres chowns to uid 70:70
+      # which then breaks Docker build context reads if kept inside the repo).
+      # Override with POSTGRES_DATA_PATH env var; default sibling path keeps it
+      # outside the build context.
+      - ${POSTGRES_DATA_PATH:-../budget-data/postgres}:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
       - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     ports:
@@ -63,6 +67,11 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       OTEL_SERVICE_NAME: api
+      # DEV-ONLY: opt in to the gated test clock (POST /test/clock). Combined with
+      # the absence of NODE_ENV=production, this lets the E2E reserve golden walk
+      # move the server clock May→June. Prod images/compose never set this, so the
+      # endpoint 404s and serverNow() is always the real clock there.
+      ALLOW_TEST_CLOCK: "1"
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -85,7 +94,11 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     environment:
+      # NEXT_PUBLIC_* is inlined at BUILD time. For server-side fetches that must
+      # resolve at runtime (RSC server actions calling http://api:4000) we set a
+      # separate non-public var that stays a runtime lookup.
       NEXT_PUBLIC_API_URL: http://api:4000
+      API_INTERNAL_URL: http://api:4000
     depends_on:
       api:
         condition: service_healthy
@@ -106,6 +119,13 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL_WORKER: ${DATABASE_URL_WORKER}
+      # Phase 7: the hourly budgeting-reconciliation sweep runs the RESERVE_TOPUP /
+      # CUSHION_BELOW_TARGET task generators inside withTenantTx(SYSTEM_USER), which
+      # uses the APP pool (sets per-tenant app.tenant_ids RLS GUC). Without this var
+      # the sweep throws "Missing required env var: DATABASE_URL_APP" on every tenant
+      # and stale tasks never self-heal. The write-path inline hooks live in `api`;
+      # this is the worker-side backstop. (worker is workerDb for its own jobs.)
+      DATABASE_URL_APP: ${DATABASE_URL_APP}
       BUDGET_KEK: ${BUDGET_KEK}
     depends_on:
       migrator:
@@ -113,6 +133,3 @@ services:
       db:
         condition: service_healthy
 
-volumes:
-  budget_db_data:
-    name: budget_db_data

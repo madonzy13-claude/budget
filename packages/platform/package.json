@@ -24,6 +24,7 @@
     "drizzle-kit": "^0.31.10",
     "@types/libsodium-wrappers": "^0.7.0",
     "@types/nodemailer": "^7.0.0",
-    "@types/pg": "^8.11.0"
+    "@types/pg": "^8.11.0",
+    "hono": "^4.12.16"
   }
 }

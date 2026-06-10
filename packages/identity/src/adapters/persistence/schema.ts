@@ -157,6 +157,9 @@ export const verifications = identity.table(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   () => [
     // Verifications are short-lived tokens managed server-side; no user context required.

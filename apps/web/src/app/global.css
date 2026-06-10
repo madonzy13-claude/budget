@@ -81,6 +81,35 @@
     "SFMono-Regular", "Menlo", "Consolas", monospace;
   --font-mono: var(--font-tabular, "IBM Plex Sans"), ui-monospace,
     "SFMono-Regular", "Menlo", "Consolas", monospace;
+
+  /* ── Animations ─────────────────────────────────────────────── */
+  /* Radix Accordion: animate the content's content-height var so open
+     and close glide instead of snapping. ease-out-expo for the "decel
+     then settle" feel; matches the broader app motion grammar. */
+  --animate-accordion-down: accordion-down 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-accordion-up: accordion-up 180ms cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
 }
 
 @layer base {
@@ -107,6 +136,10 @@
 
     /* Hairlines */
     --hairline-dark: #2b3139;
+    /* Phase 6 components reference `--hairline-on-dark`; alias it to
+       `--hairline-dark` so undefined-var fallback to currentColor (white)
+       stops painting whitish borders on dark surfaces. */
+    --hairline-on-dark: var(--hairline-dark);
 
     /* Text */
     --body-on-dark: #eaecef;
@@ -153,10 +186,31 @@
   body {
     background-color: var(--canvas-dark);
     color: var(--body-on-dark);
+    /* UAT round 14: body lockdown restored. The round-13 attempt to expose
+       native iOS pull-to-refresh by removing `overflow: hidden + height:
+       100%` was wrong — the (app) shell uses a CUSTOM PullToRefresh
+       component bound to `[data-ptr-blur-target]` (drives a yellow
+       indicator + progressive blur). Without the lock, pulling on the
+       header just rubber-banded the body instead of engaging the custom
+       PTR. The header is now inside the gesture surface so pulling from
+       the top nav engages the custom indicator/reload. */
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
   }
 
   body {
     font-feature-settings: "ss01" 1, "cv11" 1, "rlig" 1, "calt" 1;
+  }
+
+  /* Disable iOS Safari double-tap-to-zoom across the app while keeping panning
+     and pinch-zoom available for accessibility. touch-action does NOT inherit,
+     so the universal selector ensures every element handling touches carries
+     it. */
+  html,
+  body,
+  * {
+    touch-action: manipulation;
   }
 
   /* Selection inherits brand voltage */
@@ -165,10 +219,67 @@
     color: var(--on-primary);
   }
 
+  /* See unlayered cursor rules below — moved out of @layer base in
+     round 19 because CSS cascade layers invert !important order
+     (earlier-layer !important beats later-layer !important). With
+     rules in @layer base + !important, Tailwind utility `!cursor-grab`
+     (in @layer utilities) could not override the defaults, which broke
+     the grip handle and category-column wrapper. */
+
+  /* UAT round 17: every native date / time picker uses dark chrome so
+     the calendar popover matches the rest of the dark canvas. `color-
+     scheme: dark` is the standardized hook Chromium/WebKit use to flip
+     the native picker palette without per-component opt-in. */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    color-scheme: dark;
+  }
+
+  /* UAT round 17: when a date input is wrapped in a
+     `.date-input-overlay-host`, hide every part of the native value
+     rendering so a sibling overlay span can paint the formatted display
+     ("13 Jul 2026"). The input still receives clicks and opens the
+     native picker; only the painted text is suppressed. Covers WebKit
+     pseudo-elements (Chrome/Safari/iOS) and the calendar-picker
+     indicator icon Chrome paints on the right edge. */
+  .date-input-overlay-host input[type="date"] {
+    color: transparent !important;
+    caret-color: transparent !important;
+  }
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-text,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-year-field,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-month-field,
+  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-day-field {
+    color: transparent !important;
+  }
+  .date-input-overlay-host input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+  }
+
   /* Focus ring — single source of truth, info-blue at 50% alpha */
   :focus-visible {
     outline: 2px solid color-mix(in oklab, var(--info) 60%, transparent);
     outline-offset: 2px;
+  }
+
+  /* While a transaction amount is being inline-edited, unpin the column
+     sticky bands so the keyboard-available viewport is fully usable. The
+     row containing the input scrolls normally; the sticky header scrolls
+     off the top with it. !important is required because the Tailwind
+     `sticky` utility lives in the utilities layer (higher specificity than
+     this base layer rule). Restored when editing ends. */
+  [data-editing-amount="true"] [data-testid^="column-sticky-"] {
+    position: relative !important;
   }
 }
 
@@ -265,4 +376,98 @@
     border-radius: 9999px;
     padding: 14px 32px;
   }
+}
+
+/* UAT-PH5-T3-41: iOS Safari paints a native focus indicator
+   (outline + box-shadow) on form controls that ignores Tailwind's
+   focus-visible / focus utilities. Strip it globally so our token-
+   driven focus styling is the only thing the user sees. Component
+   classes still drive border color, ring is intentionally none. */
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+[role="combobox"]:focus,
+[role="combobox"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Cursor defaults — UNLAYERED on purpose.
+   ─────────────────────────────────────────────────────────────────── */
+/* Per CSS Cascade Layers spec:
+     • Normal:    unlayered > later-layer > earlier-layer
+     • !important: earlier-layer > later-layer > unlayered
+   These rules are unlayered and use NO !important so they:
+     • Win the cascade vs Tailwind utility *normal* classes (unlayered
+       normal beats @layer utilities normal), giving every plain
+       <button>, <a>, and role-driven interactive its expected cursor
+       with no per-component opt-in. New components inherit free.
+     • LOSE to Tailwind utility `!`-prefixed classes (any !important
+       beats any normal), so `!cursor-grab` / `!cursor-default` can
+       still override at the call site (e.g. RowDragHandle gets grab,
+       CategoryColumn wrapper gets default for read-only summary cells).
+   Earlier rounds (15–18) put these in @layer base with !important and
+   discovered the cascade-layer inversion: my base !important blocked
+   utility !important. This unlayered shape is the cleanest cooperative
+   default that still allows per-call overrides. */
+button,
+summary,
+label[for],
+a[href],
+[role="button"],
+[role="link"],
+[role="tab"],
+[role="menuitem"],
+[role="menuitemcheckbox"],
+[role="menuitemradio"],
+[role="option"],
+[role="combobox"],
+[role="switch"],
+[role="checkbox"],
+[role="radio"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+input:where(
+    [type="text"],
+    [type="email"],
+    [type="tel"],
+    [type="url"],
+    [type="search"],
+    [type="password"],
+    [type="number"]
+  ),
+input:not([type]),
+textarea,
+[role="textbox"],
+[contenteditable="true"] {
+  cursor: text;
+}
+
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"],
+input[type="color"],
+input[type="file"],
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
 }
