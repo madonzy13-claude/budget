@@ -26,7 +26,7 @@
  * via the per-kind Payload interfaces in the port).
  */
 import { sql } from "drizzle-orm";
-import { withTenantTx } from "@budget/platform";
+import { withTenantTx, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type {
   TaskRepo,
@@ -74,14 +74,46 @@ async function emitTaskInTx(
 ): Promise<void> {
   const drizzleTx = tx as DrizzleTx;
   const payloadJson = JSON.stringify(payload);
-  await drizzleTx.execute(sql`
+  const res = await drizzleTx.execute(sql`
     INSERT INTO budgeting.tasks
       (id, tenant_id, budget_id, kind, payload_json, status, created_at)
     VALUES
       (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid,
        ${kind}, ${payloadJson}::jsonb, 'PENDING', now())
     ON CONFLICT DO NOTHING
+    RETURNING id, (xmax = 0) AS inserted
   `);
+  await emitTaskCreatedIfInserted(tx, res, tenantId, budgetId, kind);
+}
+
+/**
+ * Phase 8 (08-02): emit exactly one `task.created` outbox event per *real*
+ * task INSERT so the push worker has something to consume (RESEARCH Pitfall 1).
+ *
+ * Gated on a genuine insert — never on the ON CONFLICT idempotent path:
+ *   - DO NOTHING conflict → RETURNING yields 0 rows → no emit.
+ *   - DO UPDATE conflict  → the row's xmax is set, so `(xmax = 0)` is false → no emit.
+ * Only a fresh row (xmax = 0, freshly inserted) fires the event. This keeps
+ * payload-refresh upserts (RESERVE_TOPUP / CUSHION_BELOW_TARGET) from
+ * re-notifying for a task the user already has.
+ */
+async function emitTaskCreatedIfInserted(
+  tx: TenantTx,
+  res: { rows: Record<string, unknown>[] },
+  tenantId: string,
+  budgetId: string,
+  kind: TaskKind,
+): Promise<void> {
+  const row = res.rows[0];
+  if (!row || row.inserted !== true) return;
+  const taskId = row.id as string;
+  await writeOutbox(tx as unknown as Parameters<typeof writeOutbox>[0], {
+    tenantId: TenantId(tenantId),
+    aggregateType: "task",
+    aggregateId: taskId,
+    eventType: "task.created",
+    payload: { kind, budgetId, taskId },
+  });
 }
 
 export function createTaskRepo(): TaskRepo {
@@ -165,7 +197,7 @@ export function createTaskRepo(): TaskRepo {
       // index tasks_reserve_topup_dedup_idx (budget_id WHERE kind+status pending).
       const drizzleTx = tx as DrizzleTx;
       const payloadJson = JSON.stringify(payload);
-      await drizzleTx.execute(sql`
+      const res = await drizzleTx.execute(sql`
         INSERT INTO budgeting.tasks
           (id, tenant_id, budget_id, kind, payload_json, status, created_at)
         VALUES
@@ -173,7 +205,15 @@ export function createTaskRepo(): TaskRepo {
            'RESERVE_TOPUP', ${payloadJson}::jsonb, 'PENDING', now())
         ON CONFLICT (budget_id) WHERE (kind = 'RESERVE_TOPUP' AND status = 'PENDING')
         DO UPDATE SET payload_json = EXCLUDED.payload_json
+        RETURNING id, (xmax = 0) AS inserted
       `);
+      await emitTaskCreatedIfInserted(
+        tx,
+        res,
+        tenantId,
+        budgetId,
+        "RESERVE_TOPUP",
+      );
     },
 
     async emitConfirmDraft(
@@ -206,7 +246,7 @@ export function createTaskRepo(): TaskRepo {
       // (budget_id WHERE kind='CUSHION_BELOW_TARGET' AND status='PENDING').
       const drizzleTx = tx as DrizzleTx;
       const payloadJson = JSON.stringify(payload);
-      await drizzleTx.execute(sql`
+      const res = await drizzleTx.execute(sql`
         INSERT INTO budgeting.tasks
           (id, tenant_id, budget_id, kind, payload_json, status, created_at)
         VALUES
@@ -214,7 +254,15 @@ export function createTaskRepo(): TaskRepo {
            'CUSHION_BELOW_TARGET', ${payloadJson}::jsonb, 'PENDING', now())
         ON CONFLICT (budget_id) WHERE (kind = 'CUSHION_BELOW_TARGET' AND status = 'PENDING')
         DO UPDATE SET payload_json = EXCLUDED.payload_json
+        RETURNING id, (xmax = 0) AS inserted
       `);
+      await emitTaskCreatedIfInserted(
+        tx,
+        res,
+        tenantId,
+        budgetId,
+        "CUSHION_BELOW_TARGET",
+      );
     },
 
     async resolveByKindAndBudget(tenantId, budgetId, kind, tx) {
