@@ -220,9 +220,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Plans** (7 — Wave 0 foundation → 3 parallel tracks → push wiring → E2E → gate):
 
-- [ ] 08-01-PLAN.md — Wave 1 (autonomous=false, user_setup VAPID): install idb+web-push, push_subscriptions+notification_prefs schema + [BLOCKING] migrate, tenant-leak gate 8→10, i18n completeness gate + all Phase-8 EN/PL/UK keys, 3 Page Objects + 4 test scaffolds (PWAX-04, I18N-01, I18N-02, E2EX-02)
-- [ ] 08-02-PLAN.md — Wave 2: task-repo writeOutbox(task.created) + push repo + /push subscribe/unsubscribe/preferences routes + integration tests (PWAX-04, PWAX-05)
-- [ ] 08-03-PLAN.md — Wave 2: idb offline-cache + offline-queue + use-online-sync reconnect replay + use-create-transaction offline fork + offline-status-badge + sync-issues-list (PWAX-02, PWAX-03)
+- [x] 08-01-PLAN.md — Wave 1 (autonomous=false, user_setup VAPID): install idb+web-push, push_subscriptions+notification_prefs schema + [BLOCKING] migrate, tenant-leak gate 8→10, i18n completeness gate + all Phase-8 EN/PL/UK keys, 3 Page Objects + 4 test scaffolds (PWAX-04, I18N-01, I18N-02, E2EX-02)
+- [x] 08-02-PLAN.md — Wave 2: task-repo writeOutbox(task.created) + push repo + /push subscribe/unsubscribe/preferences routes + integration tests (PWAX-04, PWAX-05)
+- [x] 08-03-PLAN.md — Wave 2: idb offline-cache + offline-queue + use-online-sync reconnect replay + use-create-transaction offline fork + offline-status-badge + sync-issues-list (PWAX-02, PWAX-03)
 - [ ] 08-04-PLAN.md — Wave 2: Accept-Language negotiation + Intl/Temporal format audit + offline/server-down/signedOut fallback screens + staleness marker + manifest installability (I18N-02..05, PWAX-01)
 - [ ] 08-05-PLAN.md — Wave 3: push-notification-handler (extensible registry, generic payload, stale-sub cleanup) + worker register + SW notificationclick + PushPrefsSection + onboarding push step + install banner + profile Install + pending-sync row marker (PWAX-05, PWAX-06, PWAX-01, PWAX-03)
 - [ ] 08-06-PLAN.md — Wave 4: E2E audit-and-fill — spendings/recurring-draft/cushion/share-link features (@phase8) + complete SpendingsPo/OnboardingPo/ShareLinkPo + step bindings + existing-suite audit (E2EX-01..04, PWAX-03, PWAX-06)
