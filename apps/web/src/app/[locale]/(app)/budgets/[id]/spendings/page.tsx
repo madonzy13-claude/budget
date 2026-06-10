@@ -29,7 +29,7 @@ async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; task?: string }>;
 }
 
 export default async function SpendingsPage({
@@ -37,7 +37,7 @@ export default async function SpendingsPage({
   searchParams,
 }: PageProps) {
   const { locale, id: budgetId } = await params;
-  const { month: monthParam } = await searchParams;
+  const { month: monthParam, task: focusTaskId } = await searchParams;
 
   const initialTasks = await fetchInitialTasks(budgetId);
 
@@ -121,6 +121,7 @@ export default async function SpendingsPage({
         locale={locale}
         pill="spendings"
         initialTasks={initialTasks}
+        focusTaskId={focusTaskId}
       />
       <SpendingsGridClient
         budgetId={budgetId}

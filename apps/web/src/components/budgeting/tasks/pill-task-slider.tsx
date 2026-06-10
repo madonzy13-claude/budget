@@ -37,6 +37,8 @@ interface PillTaskSliderProps {
   locale: string;
   pill: Pill;
   initialTasks: TaskSummary[];
+  /** Deep-link: auto-expand the row matching this task id on mount (D-PH7-30 / PWAX-06). */
+  focusTaskId?: string;
 }
 
 export function PillTaskSlider({
@@ -44,6 +46,7 @@ export function PillTaskSlider({
   locale,
   pill,
   initialTasks,
+  focusTaskId,
 }: PillTaskSliderProps) {
   const t = useTranslations();
   const queryClient = useQueryClient();
@@ -70,7 +73,18 @@ export function PillTaskSlider({
   );
 
   // UAT round 2 (issue #5): always start collapsed. User must click to expand.
+  // Deep-link: if focusTaskId is in the filtered pending list, auto-expand on mount.
+  // D-14: if focusTaskId is present but NOT in the list, stay collapsed (silent-land).
   const [expanded, setExpanded] = useState(false);
+
+  // Deep-link auto-expand effect (D-PH7-30 / PWAX-06 / D-14).
+  // Runs once on mount. No toast, no redirect if id is not found (D-14 silent-land).
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const inList = (tasks ?? []).some((t) => t.id === focusTaskId);
+    if (inList) setExpanded(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTaskId]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -146,13 +160,18 @@ export function PillTaskSlider({
             className="bg-[#141920] shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]"
           >
             {filtered.map((task) => (
-              <TaskBannerRow
+              <div
                 key={task.id}
-                task={task}
-                budgetId={budgetId}
-                locale={locale}
-                onResolved={onResolved}
-              />
+                data-testid={`task-banner-${task.id}`}
+                data-expanded={task.id === focusTaskId ? "true" : undefined}
+              >
+                <TaskBannerRow
+                  task={task}
+                  budgetId={budgetId}
+                  locale={locale}
+                  onResolved={onResolved}
+                />
+              </div>
             ))}
           </div>
         ) : null}

@@ -25,10 +25,12 @@ async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
+  searchParams?: Promise<{ task?: string }>;
 }
 
-export default async function ReservesPage({ params }: PageProps) {
+export default async function ReservesPage({ params, searchParams }: PageProps) {
   const { locale, id: budgetId } = await params;
+  const { task: focusTaskId } = (await searchParams) ?? {};
 
   const initialTasks = await fetchInitialTasks(budgetId);
 
@@ -57,6 +59,7 @@ export default async function ReservesPage({ params }: PageProps) {
         locale={locale}
         pill="reserves"
         initialTasks={initialTasks}
+        focusTaskId={focusTaskId}
       />
       <div className="mx-auto w-full max-w-[1280px]">
         <ReservesTableClient budgetId={budgetId} initial={initial} />

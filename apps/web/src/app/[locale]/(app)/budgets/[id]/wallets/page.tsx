@@ -25,10 +25,12 @@ async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
+  searchParams?: Promise<{ task?: string }>;
 }
 
-export default async function WalletsPage({ params }: PageProps) {
+export default async function WalletsPage({ params, searchParams }: PageProps) {
   const { locale, id: budgetId } = await params;
+  const { task: focusTaskId } = (await searchParams) ?? {};
 
   const initialTasks = await fetchInitialTasks(budgetId);
 
@@ -78,6 +80,7 @@ export default async function WalletsPage({ params }: PageProps) {
         locale={locale}
         pill="wallets"
         initialTasks={initialTasks}
+        focusTaskId={focusTaskId}
       />
       <div className="mx-auto w-full max-w-[1280px]">
         <WalletsSectionedList
