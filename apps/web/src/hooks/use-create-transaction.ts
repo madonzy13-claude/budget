@@ -13,6 +13,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
+import { enqueueOfflineTxn } from "@/lib/offline-queue";
 import { mapTxnRowToDTO } from "./use-transactions";
 
 export interface CreateTransactionInput {
@@ -69,11 +70,31 @@ export function useCreateTransaction(budgetId: string, month: string) {
 
   return useMutation({
     mutationFn: async (input: CreateTransactionInput) => {
+      const key = generateIdempotencyKey();
+
+      // Offline fork: enqueue to IndexedDB instead of POST (D-03 per-row pending)
+      if (!navigator.onLine) {
+        await enqueueOfflineTxn({
+          idempotencyKey: key,
+          budgetId,
+          payload: {
+            date: input.date,
+            category_id: input.categoryId,
+            amount_original_cents: input.amountCents,
+            currency_original: input.currency,
+            note: input.note ?? null,
+          },
+          enqueuedAt: new Date().toISOString(),
+        });
+        // Return null → triggers onError path → unsent: true marker
+        return null;
+      }
+
       const res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": generateIdempotencyKey(),
+          "Idempotency-Key": key,
         },
         body: JSON.stringify({
           date: input.date,
