@@ -182,6 +182,28 @@
       "revoked_toast": "Member removed.",
       "revoke_error": "Failed to remove member. Try again."
     },
+    "push": {
+      "sectionTitle": "Notifications",
+      "enableLabel": "Push notifications",
+      "enableDescription": "Receive alerts for tasks needing your attention",
+      "kindsLabel": "Notify me for",
+      "kind": {
+        "RESERVE_TOPUP": {
+          "label": "Reserve top-up needed",
+          "description": "When a reserve needs topping up"
+        },
+        "CONFIRM_DRAFT": {
+          "label": "Draft needs confirming",
+          "description": "When a recurring draft awaits confirmation"
+        },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Cushion below target",
+          "description": "When the cushion balance falls short of the goal"
+        }
+      },
+      "permissionDenied": "Notification permission denied. Enable it in your browser settings.",
+      "saved": "Notification preferences saved."
+    },
     "danger": {
       "section_title": "Danger Zone",
       "archive_button": "Archive budget",
@@ -454,11 +476,17 @@
       "errors": {
         "network": "Something went wrong — try again"
       }
+    },
+    "push": {
+      "stepTitle": "Enable push notifications",
+      "enableLabel": "Enable push notifications",
+      "enableDescription": "Get alerted when tasks need your attention — works even when the app is closed.",
+      "skip": "Skip for now"
     }
   },
   "dashboard": {
     "heading": "Dashboard",
-    "no_workspaces": "No active budgets selected. Use the budget switcher to pick at least one.",
+    "no_budgets_selected": "No active budgets selected. Use the budget switcher to pick at least one.",
     "totals_in": "Totals shown in {currency}"
   },
   "budgeting": {
@@ -1122,5 +1150,67 @@
     "body": "That page doesn't exist — it may have moved, been renamed, or you might have followed a stale link.",
     "go_home": "Take me home",
     "go_back": "Go back"
+  },
+  "pwa": {
+    "install": {
+      "banner": {
+        "ariaLabel": "Install Budget app",
+        "body": "Install Budget for faster access and offline use",
+        "learnMore": "Learn more",
+        "cta": "Install app",
+        "dismiss": "Dismiss install banner"
+      },
+      "dialog": {
+        "title": "Why install Budget?",
+        "benefit1": "Works offline — access your budget without internet",
+        "benefit2": "Faster load — launches from home screen, no browser chrome",
+        "benefit3": "Push notifications — get task alerts without opening a browser",
+        "close": "Close"
+      },
+      "menuItem": "Install app",
+      "notAvailable": "Install not available in this browser"
+    }
+  },
+  "offline": {
+    "heading": "You're offline",
+    "body": "Budget is offline. Check your connection and try again.",
+    "reload": "Try again",
+    "unavailable": {
+      "heading": "Not available offline",
+      "body": "This data hasn't been loaded yet. Connect to the internet and reload.",
+      "retry": "Retry when online"
+    }
+  },
+  "sync": {
+    "staleness": "Last synced {relativeTime}",
+    "badge": {
+      "ariaLabel": "{count, plural, one {# transaction pending sync} other {# transactions pending sync}}"
+    },
+    "row": {
+      "pending": "Pending"
+    },
+    "issues": {
+      "title": "Sync issues",
+      "description": "These transactions could not sync. Review and resolve manually.",
+      "reason": {
+        "VALIDATION_ERROR": "Rejected — invalid data",
+        "ARCHIVED_CATEGORY": "Rejected — category no longer active",
+        "MONTH_ROLLED": "Rejected — month has closed",
+        "UNKNOWN": "Sync failed — try again later"
+      },
+      "enqueuedAt": "Queued {relativeTime}",
+      "dismiss": "Dismiss",
+      "dismissed": "Transaction dismissed."
+    }
+  },
+  "serverDown": {
+    "heading": "Service unavailable",
+    "body": "Budget can't reach the server right now. Your data is safe.",
+    "reload": "Reload",
+    "signedOut": {
+      "heading": "You're signed out",
+      "body": "Can't sign in right now due to a server problem. Your data is safe.",
+      "reload": "Reload"
+    }
   }
 }

@@ -208,6 +208,28 @@
       "left_toast": "Opuściłeś budżet.",
       "leave_error": "Nie udało się opuścić budżetu. Spróbuj ponownie.",
       "last_owner_tooltip": "Jesteś ostatnim właścicielem. Zamiast tego usuń budżet."
+    },
+    "push": {
+      "sectionTitle": "Powiadomienia",
+      "enableLabel": "Powiadomienia push",
+      "enableDescription": "Otrzymuj alerty o zadaniach wymagających Twojej uwagi",
+      "kindsLabel": "Powiadamiaj mnie o",
+      "kind": {
+        "RESERVE_TOPUP": {
+          "label": "Wymagane uzupełnienie rezerwy",
+          "description": "Gdy rezerwa wymaga uzupełnienia"
+        },
+        "CONFIRM_DRAFT": {
+          "label": "Szkic wymaga potwierdzenia",
+          "description": "Gdy cykliczny szkic oczekuje na potwierdzenie"
+        },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Poduszka poniżej celu",
+          "description": "Gdy saldo poduszki jest poniżej wyznaczonego celu"
+        }
+      },
+      "permissionDenied": "Uprawnienie do powiadomień zostało odrzucone. Włącz je w ustawieniach przeglądarki.",
+      "saved": "Preferencje powiadomień zapisane."
     }
   },
   "budgets": {
@@ -454,6 +476,12 @@
       "errors": {
         "network": "Coś poszło nie tak — spróbuj ponownie"
       }
+    },
+    "push": {
+      "stepTitle": "Włącz powiadomienia push",
+      "enableLabel": "Włącz powiadomienia push",
+      "enableDescription": "Otrzymuj alerty, gdy zadania wymagają Twojej uwagi — nawet gdy aplikacja jest zamknięta.",
+      "skip": "Pomiń na razie"
     }
   },
   "share": {
@@ -481,7 +509,7 @@
   },
   "dashboard": {
     "heading": "Pulpit",
-    "no_workspaces": "Nie wybrano żadnych aktywnych budżetów. Użyj przełącznika budżetów, aby wybrać co najmniej jeden.",
+    "no_budgets_selected": "Nie wybrano żadnych aktywnych budżetów. Użyj przełącznika budżetów, aby wybrać co najmniej jeden.",
     "totals_in": "Sumy w {currency}"
   },
   "budgeting": {
@@ -1122,5 +1150,71 @@
     "body": "Ta strona nie istnieje — mogła zostać przeniesiona, zmieniona albo trafiłeś tu ze starego linku.",
     "go_home": "Wróć do strony głównej",
     "go_back": "Wstecz"
+  },
+  "pwa": {
+    "_machineTranslated": true,
+    "install": {
+      "banner": {
+        "ariaLabel": "Zainstaluj aplikację Budget",
+        "body": "Zainstaluj Budget dla szybszego dostępu i korzystania offline",
+        "learnMore": "Dowiedz się więcej",
+        "cta": "Zainstaluj aplikację",
+        "dismiss": "Odrzuć baner instalacji"
+      },
+      "dialog": {
+        "title": "Dlaczego warto zainstalować Budget?",
+        "benefit1": "Działa offline — dostęp do budżetu bez internetu",
+        "benefit2": "Szybsze ładowanie — uruchamia się z ekranu głównego, bez przeglądarki",
+        "benefit3": "Powiadomienia push — otrzymuj alerty o zadaniach bez otwierania przeglądarki",
+        "close": "Zamknij"
+      },
+      "menuItem": "Zainstaluj aplikację",
+      "notAvailable": "Instalacja niedostępna w tej przeglądarce"
+    }
+  },
+  "offline": {
+    "_machineTranslated": true,
+    "heading": "Jesteś offline",
+    "body": "Budget jest offline. Sprawdź połączenie i spróbuj ponownie.",
+    "reload": "Spróbuj ponownie",
+    "unavailable": {
+      "heading": "Niedostępne offline",
+      "body": "Te dane nie zostały jeszcze załadowane. Połącz się z internetem i odśwież.",
+      "retry": "Spróbuj ponownie po połączeniu"
+    }
+  },
+  "sync": {
+    "_machineTranslated": true,
+    "staleness": "Ostatnia synchronizacja {relativeTime}",
+    "badge": {
+      "ariaLabel": "{count, plural, one {# transakcja oczekuje na synchronizację} other {# transakcje oczekują na synchronizację}}"
+    },
+    "row": {
+      "pending": "Oczekuje"
+    },
+    "issues": {
+      "title": "Problemy z synchronizacją",
+      "description": "Tych transakcji nie udało się zsynchronizować. Sprawdź i rozwiąż ręcznie.",
+      "reason": {
+        "VALIDATION_ERROR": "Odrzucono — nieprawidłowe dane",
+        "ARCHIVED_CATEGORY": "Odrzucono — kategoria nie jest już aktywna",
+        "MONTH_ROLLED": "Odrzucono — miesiąc został zamknięty",
+        "UNKNOWN": "Synchronizacja nie powiodła się — spróbuj później"
+      },
+      "enqueuedAt": "W kolejce {relativeTime}",
+      "dismiss": "Odrzuć",
+      "dismissed": "Transakcja odrzucona."
+    }
+  },
+  "serverDown": {
+    "_machineTranslated": true,
+    "heading": "Usługa niedostępna",
+    "body": "Budget nie może teraz połączyć się z serwerem. Twoje dane są bezpieczne.",
+    "reload": "Odśwież",
+    "signedOut": {
+      "heading": "Zostałeś wylogowany",
+      "body": "Nie można teraz zalogować się z powodu problemu z serwerem. Twoje dane są bezpieczne.",
+      "reload": "Odśwież"
+    }
   }
 }
