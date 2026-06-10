@@ -44,7 +44,10 @@ ALTER TABLE shared_kernel.notification_prefs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shared_kernel.notification_prefs FORCE ROW LEVEL SECURITY;
 
 --> statement-breakpoint
--- RLS policies: tenant_id ANY(app.tenant_ids) — mirrors idempotency_keys pattern
+-- RLS policies: tenant_id ANY(app.tenant_ids) — mirrors idempotency_keys pattern.
+-- DROP IF EXISTS first so the statement is idempotent (CREATE POLICY has no
+-- IF NOT EXISTS); safe re-run even if the policy was created out-of-band.
+DROP POLICY IF EXISTS push_subscriptions_tenant_isolation ON shared_kernel.push_subscriptions;
 CREATE POLICY push_subscriptions_tenant_isolation
   ON shared_kernel.push_subscriptions
   AS PERMISSIVE FOR ALL
@@ -53,6 +56,7 @@ CREATE POLICY push_subscriptions_tenant_isolation
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
 --> statement-breakpoint
+DROP POLICY IF EXISTS notification_prefs_tenant_isolation ON shared_kernel.notification_prefs;
 CREATE POLICY notification_prefs_tenant_isolation
   ON shared_kernel.notification_prefs
   AS PERMISSIVE FOR ALL
