@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
-status: executing
-stopped_at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
-last_updated: "2026-06-06T14:52:00.000Z"
-last_activity: 2026-06-06
+status: CI green on HEAD ccca754 — all 16 jobs success (lint, typecheck, unit, web-vitest, tenant-leak 45/0, compose-smoke, E2E Playwright BDD, semgrep, gitleaks, bun-audit, hadolint×4).
+stopped_at: Phase 8 context gathered
+last_updated: "2026-06-10T15:25:46.474Z"
+last_activity: 2026-06-10
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 56
-  completed_plans: 59
+  completed_plans: 61
   percent: 100
 ---
 
@@ -21,14 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 07 — tasks-queue
+**Current focus:** Phase 08 — PWA, Offline, Push, i18n & E2E Hardening (next, not yet planned)
 
 ## Current Position
 
-Phase: 07 (tasks-queue) — EXECUTING
-Plan: 2 of 10
-Status: Ready to execute
-Last activity: 2026-06-05
+Phase: 07 (tasks-queue) — COMPLETE (all 10 plans 07-01..07-10 executed + summarized)
+Next: Phase 08 — not yet created. Run `/gsd-plan-phase 08`.
+Status: CI green on HEAD ccca754 — all 16 jobs success (lint, typecheck, unit, web-vitest, tenant-leak 45/0, compose-smoke, E2E Playwright BDD, semgrep, gitleaks, bun-audit, hadolint×4).
+Last activity: 2026-06-10
+
+### Known test-debt (non-CI, non-blocking)
+
+CI does NOT run `packages/budgeting/test/**` or `apps/api/test/routes/**` integration suites. Two phase-07 verification gaps live there, so they do not gate merge:
+
+- `packages/budgeting/test/tasks/reserve-topup.test.ts:610` — `it.skip("hourly sweep …")` still skipped (Plan 07-06 promised a real assertion).
+- `resolve-idempotency.test.ts` / `cushion-summary` assertions flagged in 07-VERIFICATION.md (2026-05-31) — re-verify if those suites are ever wired into CI.
+
+Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc comments remain; route removed.
 
 ## Phase 3 Plans
 
@@ -207,9 +216,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-06T14:52:00.000Z
-Stopped at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
-Resume file: None
+Last session: 2026-06-10T15:25:46.443Z
+Stopped at: Phase 8 context gathered
+Resume file: .planning/phases/08-pwa-offline-push-i18n-e2e-hardening/08-CONTEXT.md
 
 ## v1.0 History (archived)
 
