@@ -121,7 +121,9 @@ describe("WizardPage — deferred-create step machine", () => {
       expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 4 → Review: "Create budget" fires the deferred POST.
+    // Step 4 → Push (skippable): advance to Review.
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    // Step 5 → Review: "Create budget" fires the deferred POST.
     fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
     await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
     const [callArg] = mockBudgetsPost.mock.calls[0] as [
@@ -174,7 +176,8 @@ describe("WizardPage — deferred-create step machine", () => {
       "onboarding-cushion-target-months",
     ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "12" } });
-    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3→4
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3→4 Features→Push
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 4→5 Push→Review
     fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
     await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockBudgetsPatch).toHaveBeenCalled());
