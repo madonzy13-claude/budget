@@ -159,8 +159,8 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 - [x] **PWAX-02**: Offline shell: last-synced budgets, wallets, categories, current-month transactions readable offline (IndexedDB cache)
 - [x] **PWAX-03**: Quick-entry on Spendings grid queues offline-created txns; sync on reconnect with `Idempotency-Key`
 - [ ] **PWAX-04**: VAPID web-push registered per user; user can enable/disable per-budget
-- [ ] **PWAX-05**: Push fires on task create (RESERVE_TOPUP · CONFIRM_DRAFT · STALE_WALLET · MONTH_END_REVIEW) respecting user prefs
-- [ ] **PWAX-06**: Push payload deep-links to `/budgets/[id]/[tab]` with task expanded
+- [x] **PWAX-05**: Push fires on task create (RESERVE_TOPUP · CONFIRM_DRAFT · STALE_WALLET · MONTH_END_REVIEW) respecting user prefs
+- [x] **PWAX-06**: Push payload deep-links to `/budgets/[id]/[tab]` with task expanded
 
 ### Internationalization (I18N)
 
