@@ -422,7 +422,8 @@
         "progress_aria": "Прогрес майстра",
         "step_completed_aria": "Крок {label} завершено",
         "step_active_aria": "Крок {label} активний",
-        "step_aria": "Крок {label}"
+        "step_aria": "Крок {label}",
+        "push": "Сповіщення"
       },
       "basics": {
         "heading": "Налаштуйте основи",

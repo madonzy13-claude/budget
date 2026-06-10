@@ -422,7 +422,8 @@
         "progress_aria": "Wizard progress",
         "step_completed_aria": "{label} step completed",
         "step_active_aria": "{label} step active",
-        "step_aria": "{label} step"
+        "step_aria": "{label} step",
+        "push": "Push"
       },
       "basics": {
         "heading": "Set up the basics",

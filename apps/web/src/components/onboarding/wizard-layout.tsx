@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface WizardLayoutProps {
-  // Step 0 = welcome screen (no stepper progress); 1..4 = real wizard steps.
-  currentStep: 0 | 1 | 2 | 3 | 4;
+  // Step 0 = welcome screen (no stepper progress); 1..5 = real wizard steps.
+  currentStep: 0 | 1 | 2 | 3 | 4 | 5;
   children: React.ReactNode;
   onBack?: () => void;
   onSkip?: () => void;
@@ -25,7 +25,7 @@ interface WizardLayoutProps {
    * to the same setStep used by Back. The stepper only fires it for
    * completed segments, so we don't need extra guards in the parent.
    */
-  onStepJump?: (step: 1 | 2 | 3 | 4) => void;
+  onStepJump?: (step: 1 | 2 | 3 | 4 | 5) => void;
   isLoading?: boolean;
   nextLabel?: string;
   className?: string;
@@ -43,11 +43,11 @@ export function WizardLayout({
   className,
 }: WizardLayoutProps) {
   const t = useTranslations("onboarding.wizard.actions");
-  const isLastStep = currentStep === 4;
+  const isLastStep = currentStep === 5;
   const showBack = currentStep > 1;
-  // Steps 2 and 3 are optional — user can Skip past Type and Features.
-  // Step 4 (Review) is the terminal action, not a skippable step.
-  const showSkip = currentStep === 2 || currentStep === 3;
+  // Steps 2, 3, and 4 are optional — user can Skip past Type, Features, and Push.
+  // Step 5 (Review) is the terminal action, not a skippable step.
+  const showSkip = currentStep === 2 || currentStep === 3 || currentStep === 4;
 
   const primaryLabel =
     nextLabel ?? (isLastStep ? t("create_budget") : t("next"));

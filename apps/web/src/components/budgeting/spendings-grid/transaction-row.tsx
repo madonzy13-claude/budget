@@ -9,7 +9,8 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Pencil, Trash2, Loader2, RotateCcw } from "lucide-react";
+import { Pencil, Trash2, Loader2, RotateCcw, Clock } from "lucide-react";
+import { getOfflineQueue } from "@/lib/offline-queue";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
@@ -45,6 +46,8 @@ export interface TransactionRowProps {
     note?: string | null;
     pending?: boolean;
     unsent?: boolean;
+    /** Idempotency key used for offline queue lookup (PWAX-03 pending marker) */
+    idempotencyKey?: string;
   };
   budgetId: string;
   month: string;
@@ -70,6 +73,7 @@ export function TransactionRow({
 }: TransactionRowProps) {
   const t = useTranslations("grid.txn");
   const tc = useTranslations("grid.confirm.deleteTxn");
+  const tSync = useTranslations("sync.row");
   const locale = useLocale();
   const [revealed, setRevealed] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -81,6 +85,26 @@ export function TransactionRow({
 
   const deleteMutation = useDeleteTransaction(budgetId, month);
   const updateMutation = useUpdateTransaction(budgetId, month);
+
+  // PWAX-03: pending-sync marker — shown when idempotencyKey is in the offline queue
+  const [isOfflinePending, setIsOfflinePending] = useState(false);
+  useEffect(() => {
+    if (!txn.idempotencyKey) return;
+    let cancelled = false;
+    getOfflineQueue()
+      .then((queue) => {
+        if (cancelled) return;
+        setIsOfflinePending(
+          queue.some((q) => q.idempotencyKey === txn.idempotencyKey),
+        );
+      })
+      .catch(() => {
+        // IDB unavailable — no marker shown
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [txn.idempotencyKey]);
 
   const showChips = (hovered || revealed) && !editing && !readOnly;
 
@@ -437,6 +461,18 @@ export function TransactionRow({
           </TooltipProvider>
         )}
       </div>
+
+      {/* Offline pending-sync marker (PWAX-03) */}
+      {isOfflinePending && (
+        <span
+          data-testid={`txn-pending-${txn.id}`}
+          aria-label="Pending sync"
+          className="flex shrink-0 items-center gap-1 text-xs text-[var(--muted-foreground)]"
+        >
+          <Clock className="h-3 w-3" aria-hidden="true" />
+          {tSync("pending")}
+        </span>
+      )}
 
       {/* Action chips — shown on hover (desktop) or tap-reveal (touch) */}
       {showChips && (

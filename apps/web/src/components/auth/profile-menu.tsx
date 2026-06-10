@@ -43,10 +43,12 @@ import {
 import { useRouter } from "next/navigation";
 import { NavLink } from "@/components/common/nav-link";
 import { useTranslations } from "next-intl";
-import { LogOut, User, Settings as SettingsIcon } from "lucide-react";
+import { LogOut, User, Settings as SettingsIcon, Download } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { getDeferredPrompt } from "@/lib/pwa-install-store";
 
 export interface ProfileMenuProps {
   locale: string;
@@ -68,9 +70,11 @@ function initialsOf(name: string, email: string): string {
 
 export function ProfileMenu({ locale, user }: ProfileMenuProps) {
   const t = useTranslations("nav");
+  const tPwa = useTranslations("pwa.install");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isStandaloneMode, setIsStandaloneMode] = useState(false);
   const menuId = useId();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -82,6 +86,12 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
       supportsHover.current = window.matchMedia(
         "(hover: hover) and (pointer: fine)",
       ).matches;
+      // Detect standalone mode
+      setIsStandaloneMode(
+        window.matchMedia("(display-mode: standalone)").matches ||
+          ("standalone" in window.navigator &&
+            (window.navigator as { standalone?: boolean }).standalone === true),
+      );
     }
     return () => {
       if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -255,6 +265,30 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             <SettingsIcon className="h-4 w-4 text-[var(--muted-foreground)]" />
             <span>{t("settings")}</span>
           </NavLink>
+          {/* Install app — hidden when already in standalone mode */}
+          {!isStandaloneMode && (
+            <>
+              <div className="my-1 h-px bg-[var(--hairline-on-dark)]" />
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="profile-menu-install"
+                onClick={async () => {
+                  setOpen(false);
+                  const prompt = getDeferredPrompt();
+                  if (prompt) {
+                    await prompt.prompt();
+                  } else {
+                    toast.info(tPwa("notAvailable"));
+                  }
+                }}
+                className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-[var(--surface-elevated-dark)]"
+              >
+                <Download className="h-4 w-4 text-[var(--muted-foreground)]" />
+                <span>{tPwa("menuItem")}</span>
+              </button>
+            </>
+          )}
           <div className="my-1 h-px bg-[var(--hairline-on-dark)]" />
           <button
             type="button"

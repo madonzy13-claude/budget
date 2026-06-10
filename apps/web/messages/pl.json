@@ -422,7 +422,8 @@
         "progress_aria": "Postęp kreatora",
         "step_completed_aria": "Krok {label} ukończony",
         "step_active_aria": "Krok {label} aktywny",
-        "step_aria": "Krok {label}"
+        "step_aria": "Krok {label}",
+        "push": "Powiadomienia"
       },
       "basics": {
         "heading": "Ustaw podstawy",

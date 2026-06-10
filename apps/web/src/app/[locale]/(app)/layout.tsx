@@ -10,6 +10,7 @@ import {
 import { TopNav } from "@/components/budgeting/top-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { PullToRefresh } from "@/components/common/pull-to-refresh";
+import { InstallBanner } from "@/components/common/install-banner";
 
 // The (app) shell is per-user: session lookup, onboarding-progress fetch,
 // and the budget switcher all depend on the request's cookies. Without this
@@ -198,6 +199,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
             transition: "filter 150ms ease-out",
           }}
         >
+          <InstallBanner />
           <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
             <TopNav locale={locale} activeBudgetId={activeBudgetId} />
           </header>
