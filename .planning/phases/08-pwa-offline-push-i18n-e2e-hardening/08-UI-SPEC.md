@@ -1,7 +1,8 @@
 ---
 phase: 8
 slug: pwa-offline-push-i18n-e2e-hardening
-status: draft
+status: approved
+reviewed_at: 2026-06-10T16:12:00Z
 shadcn_initialized: true
 preset: "style=new-york, baseColor=zinc, rsc=true, cssVariables=true, prefix=''"
 created: 2026-06-10
