@@ -180,10 +180,10 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 ### E2E (E2EX)
 
-- [ ] **E2EX-01**: Existing playwright-bdd `.feature` files migrated to new IA (budgets/wallets, spendings grid, reserves, settings)
-- [ ] **E2EX-02**: Page Objects refactored for renamed entities
-- [ ] **E2EX-03**: New scenarios for: quick-entry txn, recurring draft confirm, reserve auto-deduct, cushion mode toggle, share link join, onboarding wizard
-- [ ] **E2EX-04**: Fresh-user-per-scenario fixture retained
+- [x] **E2EX-01**: Existing playwright-bdd `.feature` files migrated to new IA (budgets/wallets, spendings grid, reserves, settings)
+- [x] **E2EX-02**: Page Objects refactored for renamed entities
+- [x] **E2EX-03**: New scenarios for: quick-entry txn, recurring draft confirm, reserve auto-deduct, cushion mode toggle, share link join, onboarding wizard
+- [x] **E2EX-04**: Fresh-user-per-scenario fixture retained
 - [ ] **E2EX-05**: E2E green against `PLAYWRIGHT_BASE_URL` from `.env.local`
 
 ### Engineering Discipline (ENGR)

@@ -225,7 +225,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 08-03-PLAN.md — Wave 2: idb offline-cache + offline-queue + use-online-sync reconnect replay + use-create-transaction offline fork + offline-status-badge + sync-issues-list (PWAX-02, PWAX-03)
 - [x] 08-04-PLAN.md — Wave 2: Accept-Language negotiation + Intl/Temporal format audit + offline/server-down/signedOut fallback screens + staleness marker + manifest installability (I18N-02..05, PWAX-01)
 - [x] 08-05-PLAN.md — Wave 3: push-notification-handler (extensible registry, generic payload, stale-sub cleanup) + worker register + SW notificationclick + PushPrefsSection + onboarding push step + install banner + profile Install + pending-sync row marker (PWAX-05, PWAX-06, PWAX-01, PWAX-03)
-- [ ] 08-06-PLAN.md — Wave 4: E2E audit-and-fill — spendings/recurring-draft/cushion/share-link features (@phase8) + complete SpendingsPo/OnboardingPo/ShareLinkPo + step bindings + existing-suite audit (E2EX-01..04, PWAX-03, PWAX-06)
+- [x] 08-06-PLAN.md — Wave 4: E2E audit-and-fill — spendings/recurring-draft/cushion/share-link features (@phase8) + complete SpendingsPo/OnboardingPo/ShareLinkPo + step bindings + existing-suite audit (E2EX-01..04, PWAX-03, PWAX-06)
 - [ ] 08-07-PLAN.md — Wave 5 (autonomous=false): check:i18n CI step + full gate sweep (ci-gate 10/10, make test, Vitest, test-e2e, dep-cruiser) + web rebuild + DESIGN sweep + human UAT install/push/deep-link (E2EX-05, PWAX-01/04, I18N-01)
 
 **UI hint**: yes
@@ -287,7 +287,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 5. Reserves & Wallets Tabs                  | 16/16          | Complete    | 2026-05-17 |
 | 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
 | 7. Tasks Queue                              | 0/10           | Planned     | -          |
-| 8. PWA, Offline, Push, i18n & E2E Hardening | 0/7            | Planned     | -          |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 6/7            | In Progress |            |
 
 ---
 
