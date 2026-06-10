@@ -14,7 +14,11 @@ import { renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { wipeBudgetCache } from "../src/lib/offline-cache";
-import { enqueueOfflineTxn, getOfflineQueue } from "../src/lib/offline-queue";
+import {
+  enqueueOfflineTxn,
+  getOfflineQueue,
+  removeFromQueue,
+} from "../src/lib/offline-queue";
 
 // Mock clientApiFetch — module must be mocked before hook import
 vi.mock("../src/lib/budget-fetch", () => ({
@@ -57,6 +61,11 @@ async function fireOnline() {
 
 beforeEach(async () => {
   await wipeBudgetCache();
+  // fake-indexeddb is shared across test files — drain any queue items left
+  // by other files so queue[0] assertions read only this test's own writes.
+  for (const item of await getOfflineQueue()) {
+    await removeFromQueue(item.idempotencyKey);
+  }
   vi.clearAllMocks();
 });
 
@@ -73,8 +82,10 @@ describe("useOnlineSync — 200 branch", () => {
 
     await fireOnline();
 
-    const remaining = await getOfflineQueue();
-    expect(remaining).toHaveLength(0);
+    // Replay is async (open db → fetch → remove); poll until it settles.
+    await vi.waitFor(async () => {
+      expect(await getOfflineQueue()).toHaveLength(0);
+    });
 
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["transactions", "budget-abc"] }),
@@ -111,9 +122,12 @@ describe("useOnlineSync — 422 branch (4xx → sync-issue)", () => {
     renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
     await fireOnline();
 
-    const queue = await getOfflineQueue();
-    expect(queue).toHaveLength(1);
-    expect(queue[0].failReason).toBe("VALIDATION_ERROR");
+    // markQueueItemFailed runs async after the 422 response; poll for it.
+    await vi.waitFor(async () => {
+      const queue = await getOfflineQueue();
+      expect(queue).toHaveLength(1);
+      expect(queue[0].failReason).toBe("VALIDATION_ERROR");
+    });
   });
 });
 
@@ -128,6 +142,8 @@ describe("useOnlineSync — 503 branch (5xx → leave in queue)", () => {
     renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
     await fireOnline();
 
+    // Wait for the replay attempt to actually fire before asserting no-change.
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
     const queue = await getOfflineQueue();
     expect(queue).toHaveLength(1);
     expect(queue[0].failReason).toBeUndefined();
@@ -141,6 +157,7 @@ describe("useOnlineSync — 503 branch (5xx → leave in queue)", () => {
     renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
     await fireOnline();
 
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
     const queue = await getOfflineQueue();
     expect(queue).toHaveLength(1);
   });
