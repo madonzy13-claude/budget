@@ -25,6 +25,10 @@ export interface SpendingsSummaryDTO {
     activeBudgetCents: string;
     spentCents: string;
     reserveUsedCents: string;
+    reserveAvailableCents: string;
+    reserveExcluded?: boolean;
+    /** Archived "keep history" — column rendered greyed + read-only. */
+    archived?: boolean;
     overspentCents: string;
     balanceCents: string;
   }>;

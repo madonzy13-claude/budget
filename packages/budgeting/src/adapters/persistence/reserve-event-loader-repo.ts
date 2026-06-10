@@ -28,7 +28,7 @@
 import { sql } from "drizzle-orm";
 import { Temporal } from "temporal-polyfill";
 import { withTenantTx } from "@budget/platform";
-import { TenantId, UserId } from "@budget/shared-kernel";
+import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
 import type {
   ReserveEventInputs,
   ReserveEventLoaderRepo,
@@ -109,7 +109,11 @@ export function createReserveEventLoaderRepo(
         }
         currentYM = Temporal.PlainYearMonth.from(openMonthOverride);
       } else {
-        currentYM = ymOfInstant(Temporal.Now.instant(), tz);
+        // serverNow() = real now() unless the gated test clock is on.
+        currentYM = ymOfInstant(
+          Temporal.Instant.fromEpochMilliseconds(serverNow().getTime()),
+          tz,
+        );
       }
       const openMonth = currentYM.toString(); // 'YYYY-MM'
       const nextMonthStart = currentYM
@@ -206,8 +210,8 @@ export function createReserveEventLoaderRepo(
       }));
 
       // ── adjustmentsByCategory: grouped ordered {delta, month} (occurred_at asc).
-      // `month` (the adjustment's open month) scopes its overspent coverage in the
-      // engine — a closed month is never retroactively covered by an adjust.
+      // `month` (the adjustment's open month) scopes its overspent coverage to that
+      // month — a closed month is never retroactively covered by an adjust.
       const adjustmentsByCategory = new Map<
         string,
         Array<{ deltaCents: bigint; month: string }>

@@ -41,9 +41,14 @@ export function useDeleteTransaction(budgetId: string, month: string) {
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["transactions", budgetId, month] });
+      // Cross-month reserve pool → refresh ALL months' summaries (partial key).
       qc.invalidateQueries({
-        queryKey: ["spendings-summary", budgetId, month],
+        queryKey: ["spendings-summary", budgetId],
       });
+      // Deleting a transaction repays the reserve pool (any month) and shifts
+      // the RESERVE_TOPUP mismatch — refresh the reserves tab + pill badge live.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

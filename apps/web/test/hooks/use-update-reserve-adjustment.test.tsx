@@ -350,4 +350,93 @@ describe("useUpdateReserveAdjustment", () => {
       "bdp.tab.reserves.toast.saved",
     );
   });
+
+  // ── Cover reveal: adjust consumed reserve to cover this month's overspend ──
+
+  const coverSummary: ReservesSummaryDto = {
+    rows: [
+      {
+        categoryId: "cat-A",
+        name: "Housing",
+        reserveCents: "20000", // typed 50000, 30000 went to cover overspend
+        usedCents: "30000",
+        overspentCents: "0",
+      },
+    ],
+    excludedRows: [],
+    totals: {
+      internalCents: "20000",
+      userDefinedCents: "100000",
+      surplusCents: "80000",
+      direction: "WITHDRAW",
+      disabled: false,
+      budgetCurrency: "EUR",
+    },
+  };
+
+  it("cover>0: fires onCoverDetected and DEFERS the snap (no summary write, no saved toast)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        reserveCents: "20000",
+        deltaCents: "50000",
+        summary: coverSummary,
+      }),
+    });
+    const onCoverDetected = vi.fn();
+    const setDataSpy = vi.spyOn(client, "setQueryData");
+
+    const { result } = renderHook(
+      () => useUpdateReserveAdjustment(BUDGET_ID, { onCoverDetected }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 50000 });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // cover = 50000 (typed) − 20000 (settled) = 30000.
+    expect(onCoverDetected).toHaveBeenCalledWith({
+      categoryId: "cat-A",
+      coverCents: 30000n,
+      summary: coverSummary,
+    });
+    // Snap is deferred to the caller — the hook must NOT write the summary…
+    expect(setDataSpy).not.toHaveBeenCalledWith(
+      ["budget", BUDGET_ID, "reserves"],
+      coverSummary,
+    );
+    // …and must NOT fire the generic saved toast (the popup is the ack).
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("cover>0 with no handler: falls back to snapping the summary (safe default)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        reserveCents: "20000",
+        deltaCents: "50000",
+        summary: coverSummary,
+      }),
+    });
+    const setDataSpy = vi.spyOn(client, "setQueryData");
+
+    const { result } = renderHook(() => useUpdateReserveAdjustment(BUDGET_ID), {
+      wrapper,
+    });
+
+    await act(async () => {
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 50000 });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(setDataSpy).toHaveBeenCalledWith(
+      ["budget", BUDGET_ID, "reserves"],
+      coverSummary,
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "bdp.tab.reserves.toast.saved",
+    );
+  });
 });

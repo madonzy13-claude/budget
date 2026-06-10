@@ -37,6 +37,8 @@ export function useMonthParam(budgetTz: string = "UTC") {
   }
 
   function next() {
+    // Never navigate into a future month — the current month is the max.
+    if (isCurrentMonth) return;
     setMonth(month.add({ months: 1 }));
   }
 

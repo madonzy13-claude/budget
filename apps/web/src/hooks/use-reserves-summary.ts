@@ -22,8 +22,10 @@ export interface ReservesSummaryRow {
   name: string;
   /** R — available reserve for this category (serialized cents). */
   reserveCents: string;
-  /** U — reserve consumed by overspend (cumulative, serialized cents). */
+  /** U — reserve consumed by overspend (cumulative / ALL TIME, serialized cents). */
   usedCents: string;
+  /** Reserve drawn in the open ('this') month only (serialized cents). */
+  usedThisMonthCents: string;
   /** Σ per-month overspent for this category (serialized cents). */
   overspentCents: string;
 }
@@ -37,6 +39,10 @@ export interface ReservesSummaryTotals {
   surplusCents: string;
   /** TOPUP when internal>userDefined, WITHDRAW when less, NONE at parity. */
   direction: "TOPUP" | "WITHDRAW" | "NONE";
+  /** Σ used reserve over all non-excluded categories incl. archived (ALL TIME). */
+  usedCents: string;
+  /** Same, open month only (THIS MONTH). */
+  usedThisMonthCents: string;
   disabled: boolean;
   budgetCurrency: string;
 }

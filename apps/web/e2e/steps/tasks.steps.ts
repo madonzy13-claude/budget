@@ -1,8 +1,6 @@
 import { createBdd } from "playwright-bdd";
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
-import { ReservesPo } from "../page-objects/ReservesPo";
-import { WalletsPo } from "../page-objects/WalletsPo";
 import { SettingsPo } from "../page-objects/SettingsPo";
 import { BdpTabsPo } from "../page-objects/BdpTabsPo";
 import { PillTaskSliderPo } from "../page-objects/PillTaskSliderPo";
@@ -27,9 +25,7 @@ interface SeedPayload {
 
 async function withTenantClient<T>(
   budgetId: string,
-  fn: (
-    client: import("pg").PoolClient,
-  ) => Promise<T>,
+  fn: (client: import("pg").PoolClient) => Promise<T>,
 ): Promise<T> {
   const { Pool } = await import("pg");
   const dbUrl =
@@ -189,7 +185,8 @@ Given(
 When(
   /^I open the reserves tab for "(.+?)"$/,
   async ({ page, freshUser }, name: string) => {
-    if (freshUser.budgetName !== name) throw new Error(`Unknown budget '${name}'`);
+    if (freshUser.budgetName !== name)
+      throw new Error(`Unknown budget '${name}'`);
     await page.goto(`/en/budgets/${freshUser.budgetId}/reserves`);
     await page
       .waitForLoadState("networkidle", { timeout: 10000 })
@@ -200,7 +197,8 @@ When(
 When(
   /^I open the wallets tab for "(.+?)"$/,
   async ({ page, freshUser }, name: string) => {
-    if (freshUser.budgetName !== name) throw new Error(`Unknown budget '${name}'`);
+    if (freshUser.budgetName !== name)
+      throw new Error(`Unknown budget '${name}'`);
     await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
     await page
       .waitForLoadState("networkidle", { timeout: 10000 })
@@ -211,7 +209,8 @@ When(
 When(
   /^I open the spendings tab for "(.+?)"$/,
   async ({ page, freshUser }, name: string) => {
-    if (freshUser.budgetName !== name) throw new Error(`Unknown budget '${name}'`);
+    if (freshUser.budgetName !== name)
+      throw new Error(`Unknown budget '${name}'`);
     await page.goto(`/en/budgets/${freshUser.budgetId}/spendings`);
     await page
       .waitForLoadState("networkidle", { timeout: 10000 })
@@ -272,13 +271,10 @@ Then(
   },
 );
 
-Then(
-  /^the (\w+) pill shows no badge$/,
-  async ({ page }, pillWord: string) => {
-    const tabs = new BdpTabsPo(page);
-    await tabs.assertBadgeCount(pillFromText(pillWord), 0);
-  },
-);
+Then(/^the (\w+) pill shows no badge$/, async ({ page }, pillWord: string) => {
+  const tabs = new BdpTabsPo(page);
+  await tabs.assertBadgeCount(pillFromText(pillWord), 0);
+});
 
 // -----------------------------------------------------------------------
 // Then — Per-pill slider assertions
@@ -333,8 +329,11 @@ Then(
   /^within (\d+) seconds the cushion target months input shows (\d+)$/,
   async ({ page }, secs: string, value: string) => {
     const settings = new SettingsPo(page);
-    await expect(settings.cushionTargetMonthsInput()).toHaveValue(String(value), {
-      timeout: Number(secs) * 1000,
-    });
+    await expect(settings.cushionTargetMonthsInput()).toHaveValue(
+      String(value),
+      {
+        timeout: Number(secs) * 1000,
+      },
+    );
   },
 );

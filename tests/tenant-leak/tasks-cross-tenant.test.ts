@@ -220,6 +220,11 @@ describe("tasks POST resolve cross-tenant gate", () => {
     const pool = new Pool({ connectionString: DB_URL });
     const client = await pool.connect();
     try {
+      // is_local=true scopes the GUC to the current transaction; without an
+      // explicit BEGIN the set_config auto-commits and the RLS predicate sees
+      // no tenant_ids on the next statement (row filtered → undefined). Wrap
+      // the read so the scope persists through the SELECT.
+      await client.query("BEGIN");
       await client.query(
         `SELECT set_config('app.tenant_ids', '{"${budgetA.budgetId}"}', true)`,
       );
@@ -227,6 +232,7 @@ describe("tasks POST resolve cross-tenant gate", () => {
         `SELECT status FROM budgeting.tasks WHERE id = $1::uuid`,
         [taskInA],
       );
+      await client.query("COMMIT");
       expect(res.rows[0]?.status).toBe("PENDING");
     } finally {
       client.release();
@@ -241,6 +247,9 @@ describe("tasks POST resolve cross-tenant gate", () => {
     const pool = new Pool({ connectionString: DB_URL });
     const client = await pool.connect();
     try {
+      // Same transaction-local GUC scoping as above — wrap so RLS sees the
+      // tenant scope when the verification SELECT runs.
+      await client.query("BEGIN");
       await client.query(
         `SELECT set_config('app.tenant_ids', '{"${budgetA.budgetId}"}', true)`,
       );
@@ -248,6 +257,7 @@ describe("tasks POST resolve cross-tenant gate", () => {
         `SELECT status FROM budgeting.tasks WHERE id = $1::uuid`,
         [taskInA],
       );
+      await client.query("COMMIT");
       expect(res.rows[0]?.status).toBe("RESOLVED");
     } finally {
       client.release();

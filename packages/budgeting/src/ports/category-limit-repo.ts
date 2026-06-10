@@ -28,8 +28,32 @@ export interface CategoryLimitRow {
   createdAt: Date;
 }
 
+export interface SetLimitForMonthInput {
+  tenantId: string;
+  categoryId: string;
+  monthStart: string; // YYYY-MM-01
+  normalAmount: string; // cents as string
+  normalCurrency: string;
+  cushionAmount: string;
+  cushionCurrency: string;
+  actorUserId: string;
+  /**
+   * true  → carry forward from this month (current/latest-month edit): the value
+   *         applies to this month and every later month until the next change.
+   * false → bound the change to JUST this month (past-month edit): split the
+   *         covering SCD-2 segment so earlier and later months keep their values.
+   */
+  carryForward: boolean;
+}
+
 export interface CategoryLimitRepo {
   setLimit(input: SetLimitInput): Promise<void>;
+  /**
+   * Set a category's limit for a specific month. Past-month edits (carryForward
+   * = false) change ONLY that month via an SCD-2 split; current-month edits
+   * (carryForward = true) behave like setLimit (apply from this month onward).
+   */
+  setLimitForMonth(input: SetLimitForMonthInput): Promise<void>;
   getEffectiveLimit(
     tenantId: string,
     categoryId: string,

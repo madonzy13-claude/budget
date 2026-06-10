@@ -150,6 +150,172 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
     if (r.isErr()) throw r.error;
   }
 
+  async setLimitForMonth(
+    input: import("../../ports/category-limit-repo").SetLimitForMonthInput,
+  ): Promise<void> {
+    // Current/latest-month edit → carry forward (apply from this month onward).
+    if (input.carryForward) {
+      return this.setLimit({
+        tenantId: input.tenantId,
+        categoryId: input.categoryId,
+        normalAmount: input.normalAmount,
+        normalCurrency: input.normalCurrency,
+        cushionAmount: input.cushionAmount,
+        cushionCurrency: input.cushionCurrency,
+        effectiveFrom: input.monthStart,
+        actorUserId: input.actorUserId,
+      });
+    }
+
+    // Past-month edit → bound the change to JUST this month, splitting the
+    // SCD-2 segment that covers it so earlier/later months keep their values.
+    const tid = TenantId(input.tenantId);
+    const uid = UserId(input.actorUserId);
+    const m = input.monthStart;
+
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${input.tenantId} || '::' || ${input.categoryId} || '::category_limits'))`,
+      );
+
+      // The segment covering this month + the boundary decisions (computed in
+      // SQL so all date math is native). effective_to is the inclusive last day.
+      const sres = await tx.execute<{
+        id: string;
+        normal_amount: string;
+        cushion_amount: string;
+        normal_currency: string;
+        cushion_currency: string;
+        eff_to: string | null;
+        from_before: boolean;
+        is_exact: boolean;
+        extends_beyond: boolean;
+      }>(sql`
+        SELECT id,
+               normal_amount::text, cushion_amount::text,
+               normal_currency, cushion_currency,
+               effective_to::text AS eff_to,
+               (effective_from < ${m}::date) AS from_before,
+               (effective_from = ${m}::date
+                 AND effective_to = (${m}::date + INTERVAL '1 month' - INTERVAL '1 day')) AS is_exact,
+               (effective_to IS NULL
+                 OR effective_to > (${m}::date + INTERVAL '1 month' - INTERVAL '1 day')) AS extends_beyond
+        FROM budgeting.category_limits
+        WHERE category_id = ${input.categoryId}::uuid
+          AND effective_from <= ${m}::date
+          AND (effective_to IS NULL OR effective_to >= ${m}::date)
+        ORDER BY effective_from DESC
+        LIMIT 1
+      `);
+      const S = sres.rows[0];
+
+      const insertMonth = (
+        normal: string,
+        cushion: string,
+        normalCur: string,
+        cushionCur: string,
+      ) =>
+        tx.execute(sql`
+          INSERT INTO budgeting.category_limits
+            (tenant_id, category_id, normal_amount, normal_currency,
+             cushion_amount, cushion_currency, effective_from, effective_to, actor_user_id)
+          VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
+                  ${normal}::bigint, ${normalCur},
+                  ${cushion}::bigint, ${cushionCur},
+                  ${m}::date, (${m}::date + INTERVAL '1 month' - INTERVAL '1 day'), ${input.actorUserId}::uuid)
+        `);
+
+      if (!S) {
+        // No limit this month (a gap) → standalone single-month segment.
+        await insertMonth(
+          input.normalAmount,
+          input.cushionAmount,
+          input.normalCurrency,
+          input.cushionCurrency,
+        );
+      } else if (S.is_exact) {
+        // Already exactly this month → update in place.
+        await tx.execute(sql`
+          UPDATE budgeting.category_limits
+          SET normal_amount = ${input.normalAmount}::bigint,
+              normal_currency = ${input.normalCurrency},
+              cushion_amount = ${input.cushionAmount}::bigint,
+              cushion_currency = ${input.cushionCurrency},
+              actor_user_id = ${input.actorUserId}::uuid
+          WHERE id = ${S.id}::uuid
+        `);
+      } else if (S.from_before) {
+        // S starts before this month: shrink it to end the day before, resume
+        // the old value the month after (if it extended beyond), insert the new.
+        await tx.execute(sql`
+          UPDATE budgeting.category_limits
+          SET effective_to = ${m}::date - INTERVAL '1 day'
+          WHERE id = ${S.id}::uuid
+        `);
+        if (S.extends_beyond) {
+          if (S.eff_to === null) {
+            await tx.execute(sql`
+              INSERT INTO budgeting.category_limits
+                (tenant_id, category_id, normal_amount, normal_currency,
+                 cushion_amount, cushion_currency, effective_from, actor_user_id)
+              VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
+                      ${S.normal_amount}::bigint, ${S.normal_currency},
+                      ${S.cushion_amount}::bigint, ${S.cushion_currency},
+                      (${m}::date + INTERVAL '1 month'), ${input.actorUserId}::uuid)
+            `);
+          } else {
+            await tx.execute(sql`
+              INSERT INTO budgeting.category_limits
+                (tenant_id, category_id, normal_amount, normal_currency,
+                 cushion_amount, cushion_currency, effective_from, effective_to, actor_user_id)
+              VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
+                      ${S.normal_amount}::bigint, ${S.normal_currency},
+                      ${S.cushion_amount}::bigint, ${S.cushion_currency},
+                      (${m}::date + INTERVAL '1 month'), ${S.eff_to}::date, ${input.actorUserId}::uuid)
+            `);
+          }
+        }
+        await insertMonth(
+          input.normalAmount,
+          input.cushionAmount,
+          input.normalCurrency,
+          input.cushionCurrency,
+        );
+      } else {
+        // S starts exactly at this month and extends beyond: push S to start the
+        // month after (it resumes the old value) and insert the new single month.
+        await tx.execute(sql`
+          UPDATE budgeting.category_limits
+          SET effective_from = (${m}::date + INTERVAL '1 month')
+          WHERE id = ${S.id}::uuid
+        `);
+        await insertMonth(
+          input.normalAmount,
+          input.cushionAmount,
+          input.normalCurrency,
+          input.cushionCurrency,
+        );
+      }
+
+      await writeAudit(tx, {
+        tenantId: tid,
+        entityType: "category_limit",
+        entityId: input.categoryId,
+        action: "update",
+        actorUserId: uid,
+        before: S ?? null,
+        after: {
+          normalAmount: input.normalAmount,
+          cushionAmount: input.cushionAmount,
+          month: m,
+          bounded: true,
+        },
+      });
+    });
+
+    if (r.isErr()) throw r.error;
+  }
+
   async getEffectiveLimit(
     tenantId: string,
     categoryId: string,

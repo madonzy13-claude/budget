@@ -786,8 +786,9 @@
         "disabled": "Reserves disabled",
         "section": {
           "active": "Active",
+          "included": "Included",
           "excluded": "Excluded",
-          "excludedEmpty": "No excluded categories"
+          "excludedEmpty": "No excluded categories — drag a category here to exclude"
         },
         "column": {
           "category": "Category",
@@ -804,7 +805,9 @@
         "totals": {
           "internalLabel": "Total available",
           "walletsLabel": "Total in wallets",
-          "usedLabel": "Total used (this month)"
+          "usedLabel": "Total used",
+          "thisMonth": "this month",
+          "allTime": "all time"
         },
         "toast": {
           "saved": "Reserve updated",
@@ -812,6 +815,11 @@
           "excluded": "{category} excluded from reserves",
           "included": "{category} included in reserves",
           "toggleFailed": "Couldn't update reserve status. Try again."
+        },
+        "coverNotice": {
+          "title": "Reserve used to cover overspend",
+          "body": "{amount} {currency} of the reserve you set for {category} was used to cover this month's overspend. {category}'s available reserve is now {available} {currency}.",
+          "action": "Got it"
         }
       },
       "wallets": {
@@ -980,10 +988,17 @@
       "deleteConfirmBody": "This will permanently delete the category.",
       "remove": {
         "title": "Remove category",
-        "body": "Choose how to remove this category. Your transactions are always kept.",
-        "keepHistory": "Remove from now on (keep past history)",
-        "everywhere": "Remove from every month"
+        "body": "Choose how to remove this category.",
+        "keepHistory": "Archive (keep past history)",
+        "everywhere": "Remove (remove permanently)"
       }
+    },
+    "expensesTitle": "Expenses",
+    "deleteCategory": {
+      "title": "Delete category permanently?",
+      "body": "This permanently deletes {name} and all of its transactions, limits and history. This cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete permanently"
     },
     "draft": {
       "sectionTitle": "To confirm",
@@ -1062,7 +1077,8 @@
       },
       "row5": {
         "balance": "left"
-      }
+      },
+      "archived": "archived"
     }
   },
   "share": {

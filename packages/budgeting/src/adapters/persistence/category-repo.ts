@@ -16,6 +16,7 @@ function rowToCategory(row: {
   name: string;
   parent_id: string | null;
   archived_at: Date | null;
+  archived_from?: Date | string | null;
   created_at: Date;
   actor_user_id: string;
   sort_index?: number;
@@ -30,8 +31,11 @@ function rowToCategory(row: {
     new Date(row.created_at),
     row.actor_user_id,
   );
-  // Attach sort_index as a plain property (domain class does not track it — adapter concern)
+  // Attach sort_index + archived_from as plain properties (domain class doesn't
+  // track them — adapter concern). archivedFrom drives the grid's greyed,
+  // read-only "archived (keep history)" column for the months it's still shown.
   (cat as any).sortIndex = row.sort_index ?? 0;
+  (cat as any).archivedFrom = row.archived_from ?? null;
   return cat;
 }
 
@@ -109,28 +113,45 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     return rowToCategory(r.value);
   }
 
-  async list(tenantId: string, includeArchived: boolean): Promise<Category[]> {
+  async list(
+    tenantId: string,
+    includeArchived: boolean,
+    asOfMonth?: string,
+  ): Promise<Category[]> {
     const tid = TenantId(tenantId);
     const uid = UserId(tenantId);
     const r = await withTenantTx(tid, uid, async (tx) => {
+      // Issue 1b: a category is visible for month M when it isn't fully removed
+      // (archived_at IS NULL) AND it hasn't been month-scoped-removed as of M
+      // (archived_from IS NULL OR archived_from > M). asOfMonth defaults to the
+      // current month for current-state reads (reserves, default grid).
       const result = await tx.execute<{
         id: string;
         tenant_id: string;
         name: string;
         parent_id: string | null;
         archived_at: Date | null;
+        archived_from: Date | null;
         created_at: Date;
         actor_user_id: string;
         sort_index: number;
       }>(
         includeArchived
-          ? sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id, sort_index
+          ? sql`SELECT id, tenant_id, name, parent_id::text, archived_at, archived_from, created_at, actor_user_id, sort_index
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                 ORDER BY sort_index ASC, created_at ASC`
-          : sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id, sort_index
+          : // A "keep history" archive (archived_from set, archived_at NULL) stays
+            // visible THROUGH its archived_from month (>= M) so the current month
+            // still shows it (greyed, read-only); only FUTURE months (M after
+            // archived_from) drop it. Fully-removed (archived_at) is always hidden.
+            sql`SELECT id, tenant_id, name, parent_id::text, archived_at, archived_from, created_at, actor_user_id, sort_index
                 FROM budgeting.categories
-                WHERE tenant_id = ${tenantId}::uuid AND archived_at IS NULL
+                WHERE tenant_id = ${tenantId}::uuid
+                  AND archived_at IS NULL
+                  AND (archived_from IS NULL
+                       OR archived_from >= COALESCE(${asOfMonth ?? null}::date,
+                                                   date_trunc('month', CURRENT_DATE)::date))
                 ORDER BY sort_index ASC, created_at ASC`,
       );
       return result.rows;
@@ -143,9 +164,10 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     tenantId: string,
     budgetId: string,
     includeArchived: boolean,
+    asOfMonth?: string,
   ): Promise<Category[]> {
     // v1.1 invariant: budget_id === tenant_id; categories are tenant-scoped
-    return this.list(tenantId, includeArchived);
+    return this.list(tenantId, includeArchived, asOfMonth);
   }
 
   async reorder(
@@ -160,7 +182,9 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     const r = await withTenantTx(tid, uid, async (tx) => {
       // Build VALUES (id::uuid, sort_index) pairs — cast idx to INTEGER explicitly
       // to avoid "column sort_index is of type integer but expression is of type text"
-      const rows = orderedIds.map((id, idx) => sql`(${id}::uuid, ${idx + 1}::integer)`);
+      const rows = orderedIds.map(
+        (id, idx) => sql`(${id}::uuid, ${idx + 1}::integer)`,
+      );
       const result = await tx.execute(
         sql`UPDATE budgeting.categories
                SET sort_index = data.idx
@@ -201,15 +225,43 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     tenantId: string,
     categoryId: string,
     actorUserId: string,
+    opts?: { archivedFrom?: string | null; hideAll?: boolean },
   ): Promise<void> {
     const tid = TenantId(tenantId);
     const uid = UserId(actorUserId);
+    // Default (and the "remove past too" mode) hides the category in EVERY
+    // month: archived_at set + archived_from epoch. "Keep history" sets only
+    // archived_from to the given month (archived_at stays NULL), so the category
+    // remains visible in months before it.
+    const hideAll = opts?.hideAll ?? !opts?.archivedFrom;
 
     const r = await withTenantTx(tid, uid, async (tx) => {
+      if (hideAll) {
+        await tx.execute(
+          sql`UPDATE budgeting.categories
+              SET archived_at = now(), archived_from = DATE '0001-01-01'
+              WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+        );
+      } else {
+        await tx.execute(
+          sql`UPDATE budgeting.categories
+              SET archived_from = ${opts!.archivedFrom}::date, archived_at = NULL
+              WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+        );
+      }
+
+      // Removing a category (EITHER mode) drops its future recurring rules and
+      // any still-unconfirmed drafts, so nothing new lands in it going forward.
       await tx.execute(
-        sql`UPDATE budgeting.categories
-            SET archived_at = now()
-            WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+        sql`DELETE FROM budgeting.recurring_rules
+            WHERE category_id = ${categoryId}::uuid
+              AND tenant_id = ${tenantId}::uuid`,
+      );
+      await tx.execute(
+        sql`DELETE FROM budgeting.expense_ledger
+            WHERE category_id = ${categoryId}::uuid
+              AND tenant_id = ${tenantId}::uuid
+              AND confirmed_at IS NULL`,
       );
 
       await writeAudit(tx, {
@@ -227,6 +279,58 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         aggregateType: "category",
         aggregateId: categoryId,
         eventType: "budgeting.category.archived",
+        payload: { actorUserId },
+      });
+    });
+
+    if (r.isErr()) throw r.error;
+  }
+
+  async hardDelete(
+    tenantId: string,
+    categoryId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const tid = TenantId(tenantId);
+    const uid = UserId(actorUserId);
+    // No DB-level FK constraints reference category_id, so deleting the category
+    // alone would orphan its child rows. Purge every child table by category_id
+    // (tenant-scoped), then the category, in one transaction.
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      for (const table of [
+        "budgeting.expense_ledger", // transactions + drafts
+        "budgeting.category_limits",
+        "budgeting.category_reserve_adjustments",
+        "budgeting.category_share_overrides",
+        "budgeting.recurring_rules",
+        "budgeting.spending_by_category_month",
+      ]) {
+        await tx.execute(
+          sql`DELETE FROM ${sql.raw(table)}
+              WHERE category_id = ${categoryId}::uuid
+                AND tenant_id = ${tenantId}::uuid`,
+        );
+      }
+      await tx.execute(
+        sql`DELETE FROM budgeting.categories
+            WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+      );
+
+      await writeAudit(tx, {
+        tenantId: tid,
+        entityType: "category",
+        entityId: categoryId,
+        action: "delete",
+        actorUserId: uid,
+        before: { id: categoryId },
+        after: null,
+      });
+
+      await writeOutbox(tx, {
+        tenantId: tid,
+        aggregateType: "category",
+        aggregateId: categoryId,
+        eventType: "budgeting.category.deleted",
         payload: { actorUserId },
       });
     });

@@ -6,9 +6,10 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { MonthNavigator } from "../../../src/components/budgeting/spendings-grid/month-navigator";
 
 const mockPush = vi.fn();
+let mockSearchParamsValue = "month=2026-05";
 
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("month=2026-05"),
+  useSearchParams: () => new URLSearchParams(mockSearchParamsValue),
   useRouter: () => ({ push: mockPush }),
   usePathname: () => "/en/budgets/abc/spendings",
 }));
@@ -41,17 +42,27 @@ vi.mock("temporal-polyfill", () => {
     subtract({ months }: { months: number }) {
       let m = this.month - months;
       let y = this.year;
-      while (m <= 0) { m += 12; y -= 1; }
+      while (m <= 0) {
+        m += 12;
+        y -= 1;
+      }
       return new PlainYearMonth(y, m);
     }
     add({ months }: { months: number }) {
       let m = this.month + months;
       let y = this.year;
-      while (m > 12) { m -= 12; y += 1; }
+      while (m > 12) {
+        m -= 12;
+        y += 1;
+      }
       return new PlainYearMonth(y, m);
     }
-    toPlainYearMonth() { return this; }
-    get daysInMonth() { return 30; }
+    toPlainYearMonth() {
+      return this;
+    }
+    get daysInMonth() {
+      return 30;
+    }
   };
   return {
     Temporal: {
@@ -66,7 +77,10 @@ vi.mock("temporal-polyfill", () => {
 });
 
 describe("MonthNavigator", () => {
-  beforeEach(() => mockPush.mockClear());
+  beforeEach(() => {
+    mockPush.mockClear();
+    mockSearchParamsValue = "month=2026-05";
+  });
 
   it("renders data-testid=month-navigator-label", () => {
     render(<MonthNavigator month="2026-05" />);
@@ -86,19 +100,33 @@ describe("MonthNavigator", () => {
   it("clicking prev button calls router.push with decremented month", () => {
     render(<MonthNavigator month="2026-05" />);
     fireEvent.click(screen.getByTestId("month-navigator-prev"));
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("month=2026-04"));
+    expect(mockPush).toHaveBeenCalledWith(
+      expect.stringContaining("month=2026-04"),
+    );
   });
 
   it("clicking next button calls router.push with incremented month", () => {
+    // next() is blocked on the current month (no future nav), so start in the past.
+    mockSearchParamsValue = "month=2026-04";
+    render(<MonthNavigator month="2026-04" />);
+    fireEvent.click(screen.getByTestId("month-navigator-next"));
+    expect(mockPush).toHaveBeenCalledWith(
+      expect.stringContaining("month=2026-05"),
+    );
+  });
+
+  it("clicking next button is a no-op on the current month (no future nav)", () => {
     render(<MonthNavigator month="2026-05" />);
     fireEvent.click(screen.getByTestId("month-navigator-next"));
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("month=2026-06"));
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("plain ArrowLeft does NOTHING (D-PH4-Q3)", () => {
     render(<MonthNavigator month="2026-05" />);
     act(() => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
+      );
     });
     expect(mockPush).not.toHaveBeenCalled();
   });
@@ -107,25 +135,41 @@ describe("MonthNavigator", () => {
     render(<MonthNavigator month="2026-05" />);
     act(() => {
       window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "ArrowLeft", metaKey: true, bubbles: true }),
+        new KeyboardEvent("keydown", {
+          key: "ArrowLeft",
+          metaKey: true,
+          bubbles: true,
+        }),
       );
     });
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("month=2026-04"));
+    expect(mockPush).toHaveBeenCalledWith(
+      expect.stringContaining("month=2026-04"),
+    );
   });
 
   it("Cmd+ArrowRight navigates next", () => {
-    render(<MonthNavigator month="2026-05" />);
+    // Past month so next() is not blocked by the no-future-navigation guard.
+    mockSearchParamsValue = "month=2026-04";
+    render(<MonthNavigator month="2026-04" />);
     act(() => {
       window.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "ArrowRight", metaKey: true, bubbles: true }),
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          metaKey: true,
+          bubbles: true,
+        }),
       );
     });
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("month=2026-06"));
+    expect(mockPush).toHaveBeenCalledWith(
+      expect.stringContaining("month=2026-05"),
+    );
   });
 
   it("Today button absent when on current month", () => {
     render(<MonthNavigator month="2026-05" />);
-    const todayBtn = document.querySelector('[data-testid="month-navigator-today"]');
+    const todayBtn = document.querySelector(
+      '[data-testid="month-navigator-today"]',
+    );
     expect(todayBtn).toBeNull();
   });
 });

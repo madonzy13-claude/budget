@@ -91,6 +91,16 @@ export class ReservesPo {
     return this.page.getByTestId("reserves-disabled-notice");
   }
 
+  /** The acknowledge-only "reserve used to cover overspend" popup. */
+  coverDialog(): Locator {
+    return this.page.getByTestId("reserve-cover-dialog");
+  }
+
+  /** Click the popup's single "Got it" action (the only way to dismiss it). */
+  async acknowledgeCover(): Promise<void> {
+    await this.page.getByTestId("reserve-cover-ack").click();
+  }
+
   /**
    * Edit a category's Available value: open the inline cell, fill the value,
    * commit with Enter, and wait for the editor to close on the new value.

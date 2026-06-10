@@ -50,7 +50,26 @@ export function recomputeTotals(
   };
 }
 
-export function useUpdateReserveAdjustment(budgetId: string) {
+/**
+ * When the adjust's added reserve is fully/partially consumed covering THIS
+ * month's overspend, the resulting reserve lands BELOW the typed target
+ * (`reserveCents < expectedCents`). `cover = expectedCents − reserveCents`.
+ * The caller (reserves island) uses `onCoverDetected` to show the acknowledge
+ * popup + count-down reveal; the hook then DEFERS the authoritative cache snap
+ * so the optimistic (pre-settle) numbers stay on screen until the reveal runs.
+ */
+export interface UpdateReserveAdjustmentOpts {
+  onCoverDetected?: (e: {
+    categoryId: string;
+    coverCents: bigint;
+    summary: ReservesSummaryDto;
+  }) => void;
+}
+
+export function useUpdateReserveAdjustment(
+  budgetId: string,
+  opts: UpdateReserveAdjustmentOpts = {},
+) {
   const qc = useQueryClient();
   const t = useTranslations("bdp.tab.reserves.toast");
 
@@ -117,14 +136,32 @@ export function useUpdateReserveAdjustment(budgetId: string) {
       toast.error(t("saveFailed"));
     },
 
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // Adjust fires recomputeReserveTopupTask server-side — refresh the badge.
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+
+      // Did part of the added reserve cover THIS month's overspend? cover =
+      // typed target − resulting reserve. When it did (and a caller wants the
+      // reveal), DEFER the snap: keep the optimistic numbers on screen so the
+      // popup + count-down can run, then the caller applies `summary` itself.
+      const cover =
+        data?.reserveCents !== undefined
+          ? BigInt(variables.expectedCents) - BigInt(data.reserveCents)
+          : 0n;
+      if (data?.summary && cover > 0n && opts.onCoverDetected) {
+        opts.onCoverDetected({
+          categoryId: variables.categoryId,
+          coverCents: cover,
+          summary: data.summary,
+        });
+        return; // no snap, no generic toast — the popup is the acknowledgment
+      }
+
       // Server returned the authoritative summary — snap to it (no refetch).
       if (data?.summary) {
         qc.setQueryData(["budget", budgetId, "reserves"], data.summary);
       }
       toast.success(t("saved"));
-      // Adjust fires recomputeReserveTopupTask server-side — refresh the badge.
-      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

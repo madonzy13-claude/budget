@@ -17,29 +17,32 @@ import type { WalletDto } from "../../src/hooks/use-wallets";
 // WalletRow uses useTranslations("bdp.tab.wallets.row") → t("namePlaceholder")
 // WalletDeleteConfirm uses useTranslations("bdp.tab.wallets.confirm.delete") → t("title", {name})
 vi.mock("next-intl", () => ({
-  useTranslations: (_ns: string) => (key: string, params?: Record<string, unknown>) => {
-    const map: Record<string, string> = {
-      "namePlaceholder": "Wallet name",
-      "nameAria": "Wallet name. Click to edit.",
-      "currencyAria": "Currency. Click to edit.",
-      "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
-      "amountAria": "Amount. Click to edit.",
-      "shareAria": "{name} share of section total.",
-      "dragHandleAria": "Drag to move {name} to another section.",
-      "trashAria": "Delete wallet {name}.",
-      "title": "Delete wallet '{name}'?",
-      "body": "This can't be undone here.",
-      "cta": "Delete",
-      "cancel": "Cancel",
-    };
-    let s = map[key] ?? key;
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        s = s.replace(`{${k}}`, String(v));
+  useTranslations:
+    (_ns: string) => (key: string, params?: Record<string, unknown>) => {
+      const map: Record<string, string> = {
+        namePlaceholder: "Wallet name",
+        nameAria: "Wallet name. Click to edit.",
+        currencyAria: "Currency. Click to edit.",
+        currencyReadOnlyAria:
+          "Currency {ccy}. Reserve wallets must match budget currency.",
+        amountAria: "Amount. Click to edit.",
+        shareAria: "{name} share of section total.",
+        dragHandleAria: "Drag to move {name} to another section.",
+        trashAria: "Delete wallet {name}.",
+        title: "Delete wallet '{name}'?",
+        body: "This can't be undone here.",
+        cta: "Delete",
+        cancel: "Cancel",
+      };
+      let s = map[key] ?? key;
+      if (params) {
+        for (const [k, v] of Object.entries(params)) {
+          s = s.replace(`{${k}}`, String(v));
+        }
       }
-    }
-    return s;
-  },
+      return s;
+    },
+  useLocale: () => "en",
 }));
 
 // Mock @dnd-kit/core — no real DND needed for unit tests
@@ -72,7 +75,9 @@ vi.mock("@dnd-kit/sortable", () => ({
     isDragging: false,
     isOver: false,
   }),
-  SortableContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SortableContext: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   verticalListSortingStrategy: undefined,
 }));
 
@@ -91,7 +96,13 @@ vi.mock("sonner", () => ({
 
 // Mock CurrencyPicker — minimal select stub
 vi.mock("../../src/components/common/currency-picker", () => ({
-  CurrencyPicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+  CurrencyPicker: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+  }) => (
     <select
       data-testid="currency-picker"
       value={value}
@@ -182,7 +193,9 @@ describe("WalletRow — persisted mode", () => {
       />,
     );
     // No InlineEditCell for currency in RESERVE section — plain text span
-    const currencyCell = screen.queryByTestId(`wallet-currency-${RESERVE_WALLET.id}`);
+    const currencyCell = screen.queryByTestId(
+      `wallet-currency-${RESERVE_WALLET.id}`,
+    );
     expect(currencyCell).toBeNull();
     // Should have aria-label indicating read-only
     const readOnlySpan = screen.getByLabelText(/Currency EUR/);
@@ -263,7 +276,9 @@ describe("WalletRow — persisted mode", () => {
         isReserveSection={false}
       />,
     );
-    const swipeBtn = screen.getByTestId(`wallet-swipe-delete-${SPENDINGS_WALLET.id}`);
+    const swipeBtn = screen.getByTestId(
+      `wallet-swipe-delete-${SPENDINGS_WALLET.id}`,
+    );
     expect(swipeBtn).toBeInTheDocument();
     expect(swipeBtn.className).toContain("sm:hidden");
   });
@@ -299,7 +314,9 @@ describe("WalletRow — persisted mode", () => {
     );
     fireEvent.click(screen.getByTestId(`wallet-trash-${SPENDINGS_WALLET.id}`));
     await waitFor(() => {
-      expect(screen.getByText("This can't be undone here.")).toBeInTheDocument();
+      expect(
+        screen.getByText("This can't be undone here."),
+      ).toBeInTheDocument();
     });
   });
 });

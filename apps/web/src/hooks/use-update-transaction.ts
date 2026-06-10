@@ -93,9 +93,14 @@ export function useUpdateTransaction(budgetId: string, month: string) {
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["transactions", budgetId, month] });
+      // Cross-month reserve pool → refresh ALL months' summaries (partial key).
       qc.invalidateQueries({
-        queryKey: ["spendings-summary", budgetId, month],
+        queryKey: ["spendings-summary", budgetId],
       });
+      // Editing an amount/category re-derives the reserve pool (any month) and
+      // shifts the RESERVE_TOPUP mismatch — refresh reserves tab + pill badge.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     },
   });
 }

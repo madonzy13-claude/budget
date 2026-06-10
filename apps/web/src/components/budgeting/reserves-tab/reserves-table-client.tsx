@@ -30,15 +30,40 @@ import {
   useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useReservesSummary,
   type ReservesSummaryDto,
 } from "@/hooks/use-reserves-summary";
 import { useUpdateReserveAdjustment } from "@/hooks/use-update-reserve-adjustment";
 import { useToggleCategoryReserveExcluded } from "@/hooks/use-toggle-category-reserve-excluded";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { animateCountTriple, type CountTriple } from "@/lib/animate-count";
+import { centsToBare } from "@/lib/cents-format";
 import { ReservesTableRow } from "./reserves-table-row";
 import { ReservesTotalsFooter } from "./reserves-totals-footer";
+
+/** Captured state for the cover reveal (popup + count-down). */
+interface CoverReveal {
+  categoryId: string;
+  categoryName: string;
+  coverCents: bigint;
+  /** Settled Available for the category after cover (cents). */
+  availableAfterCents: bigint;
+  from: CountTriple;
+  to: CountTriple;
+  /** Authoritative summary to commit once the count-down finishes. */
+  summary: ReservesSummaryDto;
+}
 
 // ─── Droppable section wrappers ─────────────────────────────────────────────
 
@@ -49,7 +74,10 @@ function ActiveSection({ children }: { children: React.ReactNode }) {
       ref={setNodeRef}
       data-testid="reserves-active-section"
       className={[
-        "flex flex-col gap-2 rounded-[var(--radius-lg)] p-2",
+        // Mobile: no horizontal inset so row cards reach the same width as the
+        // task pane above (both then sit at the page's px-4 gutter). Desktop
+        // keeps the p-2 drop-zone inset (px-6 + 2 == task pane's px-8).
+        "flex flex-col gap-2 rounded-[var(--radius-lg)] py-2 sm:p-2",
         isOver
           ? "ring-2 ring-dashed ring-[var(--info)] bg-[var(--surface-elevated-dark)]/60"
           : "",
@@ -69,7 +97,10 @@ function ExcludedSection({ children }: { children: React.ReactNode }) {
       ref={setNodeRef}
       data-testid="reserves-excluded-section"
       className={[
-        "flex flex-col gap-2 rounded-[var(--radius-lg)] p-2",
+        // Mobile: no horizontal inset so row cards reach the same width as the
+        // task pane above (both then sit at the page's px-4 gutter). Desktop
+        // keeps the p-2 drop-zone inset (px-6 + 2 == task pane's px-8).
+        "flex flex-col gap-2 rounded-[var(--radius-lg)] py-2 sm:p-2",
         isOver
           ? "ring-2 ring-dashed ring-[var(--info)] bg-[var(--surface-elevated-dark)]/60"
           : "",
@@ -94,11 +125,92 @@ export function ReservesTableClient({
   initial,
 }: ReservesTableClientProps) {
   const t = useTranslations("bdp.tab.reserves");
+  const locale = useLocale();
+  const qc = useQueryClient();
 
   // Single query — W-3 single source of truth for Active + Excluded
   const summary = useReservesSummary(budgetId, initial);
-  const updateAdjustment = useUpdateReserveAdjustment(budgetId);
+
+  // ── Cover reveal: an adjust whose added reserve covered this month's
+  // overspend lands BELOW the typed target. Instead of snapping, notify the
+  // user (acknowledge-only popup) then count the numbers down to the settled
+  // values. `reveal` holds the from/to + the summary to commit on finish; `anim`
+  // is the live interpolated triple while the tween runs.
+  const [reveal, setReveal] = React.useState<CoverReveal | null>(null);
+  const [popupOpen, setPopupOpen] = React.useState(false);
+  const [anim, setAnim] = React.useState<CountTriple | null>(null);
+  const cancelAnimRef = React.useRef<(() => void) | null>(null);
+
+  React.useEffect(() => () => cancelAnimRef.current?.(), []);
+
+  const onCoverDetected = React.useCallback(
+    (e: {
+      categoryId: string;
+      coverCents: bigint;
+      summary: ReservesSummaryDto;
+    }) => {
+      const cache = qc.getQueryData<ReservesSummaryDto>([
+        "budget",
+        budgetId,
+        "reserves",
+      ]);
+      // No optimistic baseline to animate from → just commit the summary.
+      if (!cache) {
+        qc.setQueryData(["budget", budgetId, "reserves"], e.summary);
+        return;
+      }
+      const fromRow = cache.rows.find((r) => r.categoryId === e.categoryId);
+      const toRow = e.summary.rows.find((r) => r.categoryId === e.categoryId);
+      setReveal({
+        categoryId: e.categoryId,
+        categoryName: fromRow?.name ?? toRow?.name ?? "",
+        coverCents: e.coverCents,
+        availableAfterCents: BigInt(toRow?.reserveCents ?? "0"),
+        from: {
+          available: Number(BigInt(fromRow?.reserveCents ?? "0")),
+          totalAvailable: Number(BigInt(cache.totals.internalCents)),
+          totalUsed: Number(BigInt(cache.totals.usedCents)),
+        },
+        to: {
+          available: Number(BigInt(toRow?.reserveCents ?? "0")),
+          totalAvailable: Number(BigInt(e.summary.totals.internalCents)),
+          totalUsed: Number(BigInt(e.summary.totals.usedCents)),
+        },
+        summary: e.summary,
+      });
+      setPopupOpen(true);
+    },
+    [qc, budgetId],
+  );
+
+  const updateAdjustment = useUpdateReserveAdjustment(budgetId, {
+    onCoverDetected,
+  });
   const toggleExcluded = useToggleCategoryReserveExcluded(budgetId);
+
+  // User acknowledged the popup (no cancel): close it, then count the three
+  // numbers from their pre-settle values to the settled ones; commit the
+  // authoritative summary exactly at the tween's end value (no jump).
+  const acknowledgeCover = React.useCallback(
+    (r: CoverReveal) => {
+      setPopupOpen(false);
+      setAnim(r.from);
+      cancelAnimRef.current?.();
+      cancelAnimRef.current = animateCountTriple(
+        r.from,
+        r.to,
+        700,
+        (v) => setAnim(v),
+        () => {
+          qc.setQueryData(["budget", budgetId, "reserves"], r.summary);
+          setAnim(null);
+          setReveal(null);
+          cancelAnimRef.current = null;
+        },
+      );
+    },
+    [qc, budgetId],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -158,12 +270,20 @@ export function ReservesTableClient({
   const excludedRows = summary.data.excludedRows;
   const { budgetCurrency } = summary.data.totals;
 
-  // 05-19: TOTAL USED (THIS MONTH) — Σ usedCents over ACTIVE rows only (the same
-  // per-row values the removed Used column showed). UI-only aggregate; no new
-  // DTO field. BigInt to stay precise on serialized-cents strings.
-  const totalUsedCents = activeRows
-    .reduce((sum, r) => sum + BigInt(r.usedCents), 0n)
-    .toString();
+  // TOTAL USED comes from the API totals (server sums EVERY non-excluded
+  // category incl. archived "keep history" rows that aren't displayed here).
+  const totalUsedCents = summary.data.totals.usedCents;
+  const totalUsedThisMonthCents = summary.data.totals.usedThisMonthCents;
+
+  // While the cover count-down runs, the footer renders the interpolated
+  // totals (TOTAL AVAILABLE ↓ by cover, TOTAL USED ↑ by cover); otherwise the
+  // authoritative cache values.
+  const footerInternalCents =
+    anim !== null
+      ? String(anim.totalAvailable)
+      : summary.data.totals.internalCents;
+  const footerUsedCents =
+    anim !== null ? String(anim.totalUsed) : totalUsedCents;
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
@@ -178,31 +298,13 @@ export function ReservesTableClient({
         // iOS home-indicator gutter comfortably.
         className="flex flex-col gap-4 p-4 pb-20 sm:p-6"
       >
-        {/* UAT-PH5-T3-53: single top totals strip on every viewport. Sits
-            inside the page's flex column so its width matches the category
-            list naturally. 05-19: 3 stacked totals (TOTAL AVAILABLE / TOTAL IN
-            WALLETS / TOTAL USED) — no surplus banner. TOTAL USED = Σ active
-            rows' usedCents, computed here (this island holds the rows). */}
-        <ReservesTotalsFooter
-          internalCents={summary.data.totals.internalCents}
-          userDefinedCents={summary.data.totals.userDefinedCents}
-          usedCents={totalUsedCents}
-          currency={budgetCurrency}
-        />
-
-        {/* Active section — column headers replace the section caption
-            (UAT-PH5-T3-55: dropped "Active" h3; column headers sit where it
-            was, inline above the row list). 05-19: two columns now —
-            Category / Available (the Used column is removed; its sum lives in
-            the footer). Header width matches the row's Available cell. */}
+        {/* Active section — titled "Included" (mirrors the "Excluded" h3
+            below). The Category/Available column headers are dropped per UAT;
+            the row's own Available cell keeps its width. */}
         <ActiveSection>
-          <div className="flex items-center gap-3 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-            <span className="w-4" aria-hidden="true" />
-            <span className="min-w-0 flex-1">{t("column.category")}</span>
-            <span className="w-[88px] text-right sm:w-[140px]">
-              {t("column.available")}
-            </span>
-          </div>
+          <h3 className="px-2 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+            {t("section.included")}
+          </h3>
           {activeRows.map((r) => (
             // Plan 07-08 D-PH7-26: ReservesTableRow now accepts an optional
             // `pendingTaskId` prop that renders a PencilLine indicator inline
@@ -220,6 +322,11 @@ export function ReservesTableClient({
               row={r}
               currency={budgetCurrency}
               isExcluded={false}
+              displayReserveCentsOverride={
+                anim !== null && reveal?.categoryId === r.categoryId
+                  ? BigInt(anim.available)
+                  : null
+              }
               onUpdate={async (newCents) => {
                 // Adjust takes the TARGET reserve value; the server computes the
                 // signed ledger delta. No-op when unchanged.
@@ -243,6 +350,19 @@ export function ReservesTableClient({
             <div className="px-3 py-2 text-caption text-[var(--muted-foreground)]" />
           )}
         </ActiveSection>
+
+        {/* Totals — compact, right-aligned, rendered BELOW the included
+            (active) categories. 3 totals (TOTAL AVAILABLE / TOTAL IN WALLETS /
+            TOTAL USED); a green-up/red-down arrow on TOTAL IN WALLETS signals
+            wallet vs needed. TOTAL USED = Σ active rows' usedCents (computed
+            here — this island holds the rows). */}
+        <ReservesTotalsFooter
+          internalCents={footerInternalCents}
+          userDefinedCents={summary.data.totals.userDefinedCents}
+          usedThisMonthCents={totalUsedThisMonthCents}
+          usedAllTimeCents={footerUsedCents}
+          currency={budgetCurrency}
+        />
 
         {/* Excluded section — name-only rows (UAT-PH5-T3-55: dashes
             removed) sourced from excludedRows (W-3 single-source). */}
@@ -275,6 +395,42 @@ export function ReservesTableClient({
           )}
         </ExcludedSection>
       </div>
+
+      {/* Cover reveal — acknowledge-only (no cancel, no Esc/overlay dismiss).
+          The adjust is already committed server-side; this notifies the user
+          that part of the reserve they set covered this month's overspend,
+          then the count-down (driven by `anim`) shows the numbers settling. */}
+      {reveal && (
+        <AlertDialog open={popupOpen} onOpenChange={() => {}}>
+          <AlertDialogContent
+            data-testid="reserve-cover-dialog"
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("coverNotice.title")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("coverNotice.body", {
+                  amount: centsToBare(reveal.coverCents.toString(), locale),
+                  category: reveal.categoryName,
+                  available: centsToBare(
+                    reveal.availableAfterCents.toString(),
+                    locale,
+                  ),
+                  currency: budgetCurrency,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction
+                data-testid="reserve-cover-ack"
+                onClick={() => acknowledgeCover(reveal)}
+              >
+                {t("coverNotice.action")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </DndContext>
   );
 }

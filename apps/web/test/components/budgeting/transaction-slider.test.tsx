@@ -175,6 +175,41 @@ describe("TransactionSlider", () => {
     expect(body.currencyOrig).toBeUndefined();
   });
 
+  it("edit mode: amount accepts a comma decimal separator (10,50 → 1050 cents)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ transaction: {} }),
+    });
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const user = userEvent.setup();
+    render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const amount = document.getElementById(
+      "txn-slider-amount",
+    ) as HTMLInputElement;
+    await user.clear(amount);
+    await user.type(amount, "10,50");
+    const save = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("txnSlider.cta.save"))!;
+    await user.click(save);
+
+    // The Zod schema must accept "," as the decimal separator, otherwise the
+    // form fails validation and never submits (no PATCH fires).
+    const patchCall = fetchMock.mock.calls.find(
+      (c) =>
+        (c[1] as { method?: string })?.method === "PATCH" &&
+        String(c[0]).includes("/transactions/tx-1"),
+    );
+    expect(patchCall).toBeTruthy();
+    const body = JSON.parse((patchCall![1] as { body: string }).body);
+    expect(body.amount_original_cents).toBe(1050);
+  });
+
   it("edit mode: re-opening with a different transaction resets the form to the new values", () => {
     const { rerender } = render(
       <TestQueryProvider>

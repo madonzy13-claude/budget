@@ -21,9 +21,20 @@ function positions(): ReservePositionsResult {
         {
           categoryId: G,
           reserveCents: 130000n,
-          usedCents: 140000n,
+          usedCents: 140000n, // ALL TIME
           overspentCents: 0n,
-          byMonth: new Map(),
+          byMonth: new Map([
+            [
+              "2026-06",
+              {
+                usedCents: 20000n, // THIS MONTH (open month)
+                overspentCents: 0n,
+                overageCents: 0n,
+                leftCents: 0n,
+                endReserveCents: 0n,
+              },
+            ],
+          ]),
         },
       ],
       [
@@ -37,6 +48,7 @@ function positions(): ReservePositionsResult {
         },
       ],
     ]),
+    openMonth: "2026-06",
     internalCents: 210000n,
     userDefinedCents: 300000n,
     surplusCents: 90000n,
@@ -63,7 +75,8 @@ describe("buildReservesSummaryDto", () => {
     const g = dto.rows.find((r) => r.categoryId === G)!;
     expect(g.name).toBe("Grocery");
     expect(g.reserveCents).toBe("130000");
-    expect(g.usedCents).toBe("140000");
+    expect(g.usedCents).toBe("140000"); // ALL TIME (cumulative)
+    expect(g.usedThisMonthCents).toBe("20000"); // open-month cell only
     expect(g.overspentCents).toBe("0");
 
     expect(dto.totals.internalCents).toBe("210000");
@@ -72,6 +85,37 @@ describe("buildReservesSummaryDto", () => {
     expect(dto.totals.direction).toBe("WITHDRAW");
     expect(dto.totals.disabled).toBe(false);
     expect(dto.totals.budgetCurrency).toBe("EUR");
+  });
+
+  it("TOTAL USED counts used from a category present in positions but NOT listed (archived)", () => {
+    const pos = positions();
+    pos.positions.set("ARC", {
+      categoryId: "ARC",
+      reserveCents: 0n,
+      usedCents: 5000n,
+      overspentCents: 0n,
+      byMonth: new Map([
+        [
+          "2026-06",
+          {
+            usedCents: 5000n,
+            overspentCents: 0n,
+            overageCents: 0n,
+            leftCents: 0n,
+            endReserveCents: 0n,
+          },
+        ],
+      ]),
+    } as any);
+    const dto = buildReservesSummaryDto({
+      positions: pos,
+      categories: cats, // ARC is NOT listed → not a row, but its used still counts
+      budgetCurrency: "EUR",
+      disabled: false,
+    });
+    expect(dto.totals.usedCents).toBe("205000"); // 140000 + 60000 + 5000
+    expect(dto.totals.usedThisMonthCents).toBe("25000"); // G 20000 + ARC 5000
+    expect(dto.rows.find((r) => r.categoryId === "ARC")).toBeUndefined();
   });
 
   it("excluded categories become name-only rows (reserve hidden)", () => {
@@ -110,6 +154,7 @@ describe("buildReservesSummaryDto", () => {
     const dto = buildReservesSummaryDto({
       positions: {
         positions: new Map(),
+        openMonth: "2026-06",
         internalCents: 0n,
         userDefinedCents: 0n,
         surplusCents: 0n,

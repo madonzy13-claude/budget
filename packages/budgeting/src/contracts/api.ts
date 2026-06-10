@@ -126,6 +126,9 @@ export const setLimitSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  // true → change only effectiveFrom's month (bounded past-month edit). Omitted
+  // → carry forward from effectiveFrom (the SCD-2 default).
+  singleMonth: z.boolean().optional(),
 });
 
 export type SetCategoryLimitInput = z.infer<typeof setLimitSchema>;

@@ -54,19 +54,25 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
         e.preventDefault();
         prev();
       }
-      if (e.key === "ArrowRight") {
+      if (e.key === "ArrowRight" && !isCurrentMonth) {
         e.preventDefault();
         next();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prev, next]);
+  }, [prev, next, isCurrentMonth]);
 
   return (
     <div
       className={cn(
-        "relative flex h-12 items-center justify-center gap-2 px-4",
+        // 3-column grid: equal 1fr side lanes keep the centre controls truly
+        // centred, while the right lane holds the optional "Today" button in
+        // its OWN space. The button used to be `absolute right-4`, which on a
+        // narrow (mobile) viewport overlapped the centred "next" chevron and
+        // swallowed its clicks (Playwright: "today intercepts pointer events").
+        // A dedicated lane removes the overlap at every width / locale.
+        "relative grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-2 px-4",
         // Sticks just under the BDP tabs (48px tall, sticky top-0 in the
         // (app) scroll container). The earlier 112px constant assumed the
         // (app) header was sticky too — it isn't, after the mobile-scroll
@@ -80,46 +86,61 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
         className,
       )}
     >
-      <button
-        type="button"
-        data-testid="month-navigator-prev"
-        aria-label={t("prev")}
-        onClick={prev}
-        className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-      >
-        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-      </button>
+      {/* Left lane (empty) balances the right lane so the controls stay centred. */}
+      <span aria-hidden="true" />
 
-      {/* Live region for a11y month change announcement */}
-      <span
-        data-testid="month-navigator-label"
-        aria-live="polite"
-        className="min-w-[160px] text-center text-sm font-medium text-[var(--body-on-dark)]"
-      >
-        {monthLabel}
-      </span>
-
-      <button
-        type="button"
-        data-testid="month-navigator-next"
-        aria-label={t("next")}
-        onClick={next}
-        className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-      >
-        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-      </button>
-
-      {!isCurrentMonth && (
+      <div className="flex items-center justify-center gap-2">
         <button
           type="button"
-          data-testid="month-navigator-today"
-          onClick={today}
-          className="absolute right-4 flex h-8 items-center gap-1 rounded px-3 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)]"
+          data-testid="month-navigator-prev"
+          aria-label={t("prev")}
+          onClick={prev}
+          className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--surface-elevated-dark)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
         >
-          <RotateCcw className="h-3 w-3" aria-hidden="true" />
-          {t("today")}
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </button>
-      )}
+
+        {/* Live region for a11y month change announcement */}
+        <span
+          data-testid="month-navigator-label"
+          aria-live="polite"
+          className="min-w-[120px] sm:min-w-[160px] text-center text-sm font-medium text-[var(--body-on-dark)]"
+        >
+          {monthLabel}
+        </span>
+
+        <button
+          type="button"
+          data-testid="month-navigator-next"
+          aria-label={t("next")}
+          onClick={next}
+          disabled={isCurrentMonth}
+          aria-disabled={isCurrentMonth}
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-[var(--primary)]",
+            isCurrentMonth
+              ? "cursor-not-allowed opacity-30"
+              : "hover:bg-[var(--surface-elevated-dark)]",
+          )}
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Right lane: optional "Today" reset — its own column, never overlaps. */}
+      <div className="flex justify-end">
+        {!isCurrentMonth && (
+          <button
+            type="button"
+            data-testid="month-navigator-today"
+            onClick={today}
+            className="flex h-8 items-center gap-1 rounded px-3 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)]"
+          >
+            <RotateCcw className="h-3 w-3" aria-hidden="true" />
+            {t("today")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,10 @@
-@phase5
+@phase5 @skip-phase-05-debt
+# SUPERSEDED by the 05-19 reserves reshape: the per-row "wallet share" column
+# (RSRV-06) was removed. The reserves tab now renders a single editable Available
+# value per category + three totals (TOTAL AVAILABLE / IN WALLETS / USED) and no
+# Share %, so these "share" assertions no longer have a UI to target. Re-enable
+# only if a share breakdown is reintroduced. (Not a regression of the reserve
+# engine — the golden table carries no per-category share.)
 Feature: Reserves — share math + em-dash zero state (RSRV-06, D-PH5-R4)
 
   Scenario: Two categories with reserves and one reserve wallet show correct shares

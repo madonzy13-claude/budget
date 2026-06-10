@@ -809,8 +809,9 @@
         "disabled": "Rezerwy wyłączone",
         "section": {
           "active": "Aktywne",
+          "included": "Dołączone",
           "excluded": "Wykluczone",
-          "excludedEmpty": "Brak wykluczonych kategorii"
+          "excludedEmpty": "Brak wykluczonych kategorii — przeciągnij tutaj kategorię, aby ją wykluczyć"
         },
         "column": {
           "category": "Kategoria",
@@ -827,7 +828,9 @@
         "totals": {
           "internalLabel": "Razem dostępne",
           "walletsLabel": "Razem w portfelach",
-          "usedLabel": "Razem wykorzystane (w tym miesiącu)"
+          "usedLabel": "Razem wykorzystane",
+          "thisMonth": "w tym miesiącu",
+          "allTime": "od początku"
         },
         "toast": {
           "saved": "Rezerwa zaktualizowana",
@@ -835,6 +838,11 @@
           "excluded": "{category} wykluczono z rezerw",
           "included": "{category} dołączono do rezerw",
           "toggleFailed": "Nie udało się zaktualizować statusu rezerwy. Spróbuj ponownie."
+        },
+        "coverNotice": {
+          "title": "Rezerwa użyta na pokrycie przekroczenia",
+          "body": "{amount} {currency} z rezerwy ustawionej dla „{category}” użyto na pokrycie przekroczenia w tym miesiącu. Dostępna rezerwa „{category}” wynosi teraz {available} {currency}.",
+          "action": "OK"
         }
       },
       "wallets": {
@@ -1003,10 +1011,17 @@
       "deleteConfirmBody": "Ta operacja trwale usunie kategorię.",
       "remove": {
         "title": "Usuń kategorię",
-        "body": "Wybierz sposób usunięcia tej kategorii. Twoje transakcje zawsze pozostają.",
-        "keepHistory": "Usuń od teraz (zachowaj historię)",
-        "everywhere": "Usuń ze wszystkich miesięcy"
+        "body": "Wybierz sposób usunięcia tej kategorii.",
+        "keepHistory": "Archiwizuj (zachowaj historię)",
+        "everywhere": "Usuń (usuń trwale)"
       }
+    },
+    "expensesTitle": "Wydatki",
+    "deleteCategory": {
+      "title": "Usunąć kategorię na stałe?",
+      "body": "Spowoduje to trwałe usunięcie kategorii {name} oraz wszystkich jej transakcji, limitów i historii. Tej operacji nie można cofnąć.",
+      "cancel": "Anuluj",
+      "confirm": "Usuń na stałe"
     },
     "draft": {
       "sectionTitle": "Do potwierdzenia",
@@ -1085,7 +1100,8 @@
       },
       "row5": {
         "balance": "pozostało"
-      }
+      },
+      "archived": "zarchiwizowano"
     }
   },
   "errors": {

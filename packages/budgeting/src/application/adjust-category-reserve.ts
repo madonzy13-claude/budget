@@ -63,7 +63,9 @@ export interface AdjustCategoryReserveInput {
 
 export interface AdjustCategoryReserveResult {
   categoryId: string;
-  /** Final reserve value after this adjustment (== target). */
+  /** Engine-derived reserve after this adjustment. Equals the target UNLESS the
+   *  raise covered this month's overspend, in which case it is `target − cover`
+   *  (the client diffs this against `expectedCents` to drive the cover reveal). */
   reserveCents: string;
   /** Delta appended to the ledger (0 = no-op). */
   deltaCents: string;
@@ -174,9 +176,18 @@ export function adjustCategoryReserve(deps: AdjustCategoryReserveDeps) {
         );
       }
 
+      // The ACTUAL post-adjust reserve is the engine-derived value, NOT the
+      // typed target: when the raise covered this month's overspend, the
+      // settled reserve is `target − cover` (the summary row holds it). The
+      // client diffs `expectedCents − reserveCents` to detect that cover and
+      // show the count-down reveal, so return the real value here.
+      const settledReserveCents =
+        summary.rows.find((r) => r.categoryId === input.categoryId)
+          ?.reserveCents ?? target.toString();
+
       return ok({
         categoryId: input.categoryId,
-        reserveCents: target.toString(),
+        reserveCents: settledReserveCents,
         deltaCents: delta.toString(),
         summary,
       });

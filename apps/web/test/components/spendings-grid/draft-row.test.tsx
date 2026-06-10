@@ -68,11 +68,25 @@ describe("DraftRow", () => {
     expect(style).toMatch(/background-color:\s*#181c22/i);
   });
 
-  it("REGRESSION-GUARD: pointermove does NOT reveal chips", () => {
+  it("REGRESSION-GUARD: pointermove does NOT JS-reveal chips (CSS hover only)", () => {
     renderDraftRow();
     const row = screen.getByTestId("draft-row-rent");
-    act(() => { fireEvent.pointerMove(row); });
-    expect(document.querySelector('[data-testid="draft-action-confirm"]')).toBeNull();
+    const chips = screen.getByTestId("draft-action-confirm").parentElement!;
+    // Hidden by default; chips reveal on DESKTOP HOVER via CSS (sm:group-hover),
+    // never via a JS pointermove handler.
+    expect(chips.className).toContain("hidden");
+    expect(chips.className).toContain("sm:group-hover:flex");
+    act(() => {
+      fireEvent.pointerMove(row);
+    });
+    expect(chips.className).toContain("hidden"); // still not JS-revealed
+  });
+
+  it("desktop: chips reveal on HOVER — row is a group, chips carry group-hover", () => {
+    renderDraftRow();
+    expect(screen.getByTestId("draft-row-rent").className).toContain("group");
+    const chips = screen.getByTestId("draft-action-confirm").parentElement!;
+    expect(chips.className).toContain("sm:group-hover:flex");
   });
 
   it("single click reveals Confirm, Edit, Dismiss chips", () => {
@@ -111,7 +125,9 @@ describe("DraftRow", () => {
     const row = screen.getByTestId("draft-row-rent");
     const amountCell = row.querySelector(".flex-1") as HTMLElement;
     fireEvent.doubleClick(amountCell);
-    const input = row.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    const input = row.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
     expect(input).toBeTruthy();
     fireEvent.change(input, { target: { value: "70" } });
     fireEvent.blur(input);
@@ -125,7 +141,9 @@ describe("DraftRow", () => {
     const row = screen.getByTestId("draft-row-rent");
     const amountCell = row.querySelector(".flex-1") as HTMLElement;
     fireEvent.doubleClick(amountCell);
-    const input = row.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    const input = row.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "70" } });
     fireEvent.keyDown(input, { key: "Escape" });
     fireEvent.blur(input);
@@ -137,7 +155,9 @@ describe("DraftRow", () => {
     const row = screen.getByTestId("draft-row-rent");
     const amountCell = row.querySelector(".flex-1") as HTMLElement;
     fireEvent.doubleClick(amountCell);
-    const input = row.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    const input = row.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
     // Pre-filled with original "30" — submit unchanged.
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockConfirmMutate).not.toHaveBeenCalled();
@@ -148,7 +168,9 @@ describe("DraftRow", () => {
     const row = screen.getByTestId("draft-row-rent");
     const amountCell = row.querySelector(".flex-1") as HTMLElement;
     fireEvent.doubleClick(amountCell);
-    const input = row.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    const input = row.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
     fireEvent.blur(input);
     expect(mockConfirmMutate).not.toHaveBeenCalled();
   });
@@ -158,7 +180,9 @@ describe("DraftRow", () => {
     const row = screen.getByTestId("draft-row-rent");
     const amountCell = row.querySelector(".flex-1") as HTMLElement;
     fireEvent.doubleClick(amountCell);
-    const input = row.querySelector('input[inputmode="decimal"]') as HTMLInputElement;
+    const input = row.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "55" } });
     fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.blur(input);

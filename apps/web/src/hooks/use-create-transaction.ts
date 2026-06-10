@@ -146,8 +146,11 @@ export function useCreateTransaction(budgetId: string, month: string) {
     },
 
     onSettled: () => {
+      // Reserve is a CROSS-MONTH pool: a txn in ANY month re-splits EVERY
+      // month's reserve (most-recent-first), so refresh ALL months' summaries,
+      // not just the viewed one (partial key → matches every month).
       qc.invalidateQueries({
-        queryKey: ["spendings-summary", budgetId, month],
+        queryKey: ["spendings-summary", budgetId],
       });
       qc.invalidateQueries({
         queryKey: ["transactions", budgetId, month],

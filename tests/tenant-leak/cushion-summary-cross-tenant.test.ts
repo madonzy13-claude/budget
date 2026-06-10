@@ -90,8 +90,8 @@ async function seedBudgetWithCushion(): Promise<SeededBudget> {
     );
     await client.query(
       `INSERT INTO budgeting.category_limits
-         (id, tenant_id, category_id, normal_amount, cushion_amount, effective_from, actor_user_id, created_at)
-       VALUES ($1, $2, $3, 0, 50000::bigint, '2026-01-01'::date, $4, now())`,
+         (id, tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency, effective_from, actor_user_id, created_at)
+       VALUES ($1, $2, $3, 0, 'EUR', 50000::bigint, 'EUR', '2026-01-01'::date, $4, now())`,
       [limitId, budgetId, categoryId, userId],
     );
     await client.query(

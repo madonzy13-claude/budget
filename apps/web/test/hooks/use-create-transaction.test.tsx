@@ -298,6 +298,15 @@ describe("useCreateTransaction — onSuccess cache shape", () => {
     );
     expect(invalidatedKeys).toContainEqual(["budget", BUDGET_ID, "reserves"]);
     expect(invalidatedKeys).toContainEqual(["tasks", BUDGET_ID, "pending"]);
+    // Reserve is a CROSS-MONTH pool: a txn re-splits every month's reserve, so
+    // the spendings-summary invalidation must be budget-wide (all months), NOT
+    // pinned to the viewed month — otherwise other months show stale reserve.
+    expect(invalidatedKeys).toContainEqual(["spendings-summary", BUDGET_ID]);
+    expect(invalidatedKeys).not.toContainEqual([
+      "spendings-summary",
+      BUDGET_ID,
+      MONTH,
+    ]);
   });
 
   it("transactionsByCatId correctly groups transaction after onSuccess (no disappearing rows)", async () => {

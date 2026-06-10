@@ -68,8 +68,7 @@ function fakePositions(opts: {
     });
   }
   const internalCents =
-    opts.internalCents ??
-    Object.values(reserves).reduce((a, b) => a + b, 0n);
+    opts.internalCents ?? Object.values(reserves).reduce((a, b) => a + b, 0n);
   const userDefinedCents = opts.userDefinedCents ?? 0n;
   const surplusCents = userDefinedCents - internalCents;
   return {
@@ -90,11 +89,7 @@ function mockCategoriesRepo(opts: {
   return {
     findById: opts.findById ?? (async () => null),
     list: async () => opts.list ?? [],
-    setReserveExcluded: async (
-      _t: string,
-      _c: string,
-      excluded: boolean,
-    ) => {
+    setReserveExcluded: async (_t: string, _c: string, excluded: boolean) => {
       if (opts.capture) {
         opts.capture.exclude = true;
         opts.capture.excludedValue = excluded;
@@ -313,8 +308,19 @@ describe("adjustCategoryReserve use case", () => {
           }),
           list: [{ id: "c1", name: "Food", reserveExcluded: false }],
         }),
-        reservePositions: async () =>
-          ok(fakePositions({ reservesByCat: { c1: 100n } })),
+        // Stateful: the FIRST read is currentR (100 → delta +400); the read AFTER
+        // the write reflects the engine resolving R to the target (no overspend
+        // here, so the settled reserve == target 500). The use case now returns
+        // the SETTLED reserve from this post-write summary, not the raw target.
+        reservePositions: (() => {
+          let n = 0;
+          return async () => {
+            n += 1;
+            return ok(
+              fakePositions({ reservesByCat: { c1: n === 1 ? 100n : 500n } }),
+            );
+          };
+        })(),
       }),
     );
 
@@ -323,7 +329,7 @@ describe("adjustCategoryReserve use case", () => {
     expect(cap.ledgerDelta).toBe(400n);
     if (r.isOk()) {
       expect(r.value.deltaCents).toBe("400");
-      expect(r.value.reserveCents).toBe("500"); // == target
+      expect(r.value.reserveCents).toBe("500"); // settled == target (no cover)
     }
   });
 
@@ -620,12 +626,7 @@ describe("archiveCategory use case — both modes, no sibling spill", () => {
         createdAt: new Date(),
         isArchived: () => false,
       }),
-      archive: async (
-        _t: string,
-        _id: string,
-        _actor: string,
-        opts: any,
-      ) => {
+      archive: async (_t: string, _id: string, _actor: string, opts: any) => {
         calls.push({ opts });
       },
     };
@@ -685,7 +686,9 @@ describe("archiveCategory use case — both modes, no sibling spill", () => {
       taskRepo: taskRepo as any,
       // After archiving, internal drops below userDefined → surplus > 0 → WITHDRAW.
       reservePositions: async () =>
-        ok(fakePositions({ reservesByCat: { A: 100n }, userDefinedCents: 500n })),
+        ok(
+          fakePositions({ reservesByCat: { A: 100n }, userDefinedCents: 500n }),
+        ),
       budgetCurrencyOf: async () => "EUR",
       isReservesEnabled: async () => true,
     } as any);
@@ -743,7 +746,9 @@ describe("archiveWallet use case — no reserve allocation", () => {
       } as any,
       // userDefined drops to 0 (last reserve wallet) → surplus = 0 − 5000 = −5000 → TOPUP.
       reservePositions: async () =>
-        ok(fakePositions({ reservesByCat: { A: 5000n }, userDefinedCents: 0n })),
+        ok(
+          fakePositions({ reservesByCat: { A: 5000n }, userDefinedCents: 0n }),
+        ),
       budgetCurrencyOf: async () => "EUR",
       isReservesEnabled: async () => true,
     } as any);

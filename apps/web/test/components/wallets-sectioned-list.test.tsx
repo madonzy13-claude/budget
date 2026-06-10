@@ -46,6 +46,7 @@ vi.mock("next-intl", () => ({
       }
       return s;
     },
+  useLocale: () => "en",
 }));
 
 // Mock @dnd-kit/core

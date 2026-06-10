@@ -7,7 +7,7 @@
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
-import { TenantId, UserId } from "@budget/shared-kernel";
+import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
 import type {
   CategoryReserveAdjustmentsRepo,
   CategoryReserveAdjustmentRow,
@@ -26,13 +26,17 @@ export class DrizzleCategoryReserveAdjustmentsRepo implements CategoryReserveAdj
 
     const r = await withTenantTx(tid, uid, async (tx) => {
       const result = await tx.execute<{ id: string; occurred_at: Date }>(
+        // occurred_at = serverNow() (= real now() when the test clock is off, so
+        // identical to the DB default; the gated test clock can move it to drive a
+        // multi-month timeline). occurred_at's month is the adjust's asOf month.
         sql`INSERT INTO budgeting.category_reserve_adjustments
-              (tenant_id, category_id, delta_cents, note, created_by)
+              (tenant_id, category_id, delta_cents, note, created_by, occurred_at)
             VALUES
               (${input.tenantId}::uuid, ${input.categoryId}::uuid,
                ${input.deltaCents.toString()}::bigint,
                ${input.note ?? null},
-               ${input.actorUserId}::uuid)
+               ${input.actorUserId}::uuid,
+               ${serverNow().toISOString()}::timestamptz)
             RETURNING id, occurred_at`,
       );
 

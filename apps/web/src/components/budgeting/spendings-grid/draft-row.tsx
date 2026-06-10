@@ -3,9 +3,10 @@
  * draft-row.tsx — Pending recurring draft row.
  *
  * D-PH4-R1: background --surface-elevated-dark + 3px dashed --primary left border.
- * D-PH4-R2: Single click reveals [Confirm][Edit][Dismiss]. Double-click = edit-and-promote.
+ * D-PH4-R2: Tap reveals [Confirm][Edit][Dismiss] on touch. Double-click = edit-and-promote.
  * D-PH4-INT5: Enter after inline edit calls useConfirmDraft with amountOverride.
- * NO hover/onMouseEnter (D-PH4-INT1).
+ * Desktop: the action chips also reveal on HOVER (group-hover) — tap-reveal is
+ * kept for touch where there is no hover.
  */
 import { useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
@@ -31,9 +32,18 @@ export interface DraftRowProps {
   /** Inset top shadow — used on the first draft so the draft section reads
    *  as if it sits "underneath" the confirmed group. */
   topShadow?: boolean;
+  /** Archived (keep-history) column → locked: no reveal, no confirm/edit/dismiss. */
+  readOnly?: boolean;
 }
 
-export function DraftRow({ draft, budgetId, month, onEdit, topShadow }: DraftRowProps) {
+export function DraftRow({
+  draft,
+  budgetId,
+  month,
+  onEdit,
+  topShadow,
+  readOnly = false,
+}: DraftRowProps) {
   const t = useTranslations("grid.draft");
   const locale = useLocale();
   const { revealed, setRevealed, ref } = useRevealActions();
@@ -50,10 +60,12 @@ export function DraftRow({ draft, budgetId, month, onEdit, topShadow }: DraftRow
   const formattedAmount = centsToBare(draft.amountConvertedCents, locale);
 
   function handleClick() {
+    if (readOnly) return;
     setRevealed(!revealed);
   }
 
   function handleDoubleClick(e: React.MouseEvent) {
+    if (readOnly) return;
     e.stopPropagation();
     setEditValue((parseInt(draft.amountConvertedCents, 10) / 100).toString());
     cancelledRef.current = false;
@@ -68,10 +80,7 @@ export function DraftRow({ draft, budgetId, month, onEdit, topShadow }: DraftRow
     // Unchanged value = no-op: closing the editor is the only action. The
     // draft stays pending until the user actually changes the amount or
     // clicks Confirm directly.
-    if (
-      cents === null ||
-      cents === parseInt(draft.amountConvertedCents, 10)
-    ) {
+    if (cents === null || cents === parseInt(draft.amountConvertedCents, 10)) {
       setEditing(false);
       return;
     }
@@ -110,7 +119,7 @@ export function DraftRow({ draft, budgetId, month, onEdit, topShadow }: DraftRow
           : undefined,
       }}
       className={cn(
-        "flex min-h-[40px] items-center gap-1 px-2 py-1",
+        "group flex min-h-[40px] items-center gap-1 px-2 py-1",
         // Draft bg sits a step darker than the column (#1e2329) — row reads as
         // "tentative / not yet confirmed" without competing with confirmed rows.
         "cursor-pointer select-none text-[var(--muted-foreground)]",
@@ -133,16 +142,23 @@ export function DraftRow({ draft, budgetId, month, onEdit, topShadow }: DraftRow
         ) : (
           <span className="flex min-w-0 items-baseline gap-2 text-sm text-[var(--muted-foreground)]">
             <span className="shrink-0">{formattedAmount}</span>
+            {/* note + ruleName hide once the action chips show (tap-revealed OR
+                desktop hover) so all three chips fit without clipping. */}
             {draft.note && !revealed ? (
               <span
                 data-testid="draft-row-note"
-                className="min-w-0 truncate text-xs text-[var(--muted-foreground)]"
+                className="min-w-0 truncate text-xs text-[var(--muted-foreground)] sm:group-hover:hidden"
               >
                 {draft.note}
               </span>
             ) : null}
             {draft.ruleName ? (
-              <span className="shrink-0 text-xs text-[var(--muted-foreground)]">
+              <span
+                className={cn(
+                  "shrink-0 text-xs text-[var(--muted-foreground)] sm:group-hover:hidden",
+                  revealed && "hidden",
+                )}
+              >
                 {draft.ruleName}
               </span>
             ) : null}
@@ -150,9 +166,17 @@ export function DraftRow({ draft, budgetId, month, onEdit, topShadow }: DraftRow
         )}
       </div>
 
-      {/* Action chips — icon-only so all three fit inside the narrow column. */}
-      {revealed && !editing && (
-        <div className="flex items-center gap-0.5">
+      {/* Action chips — icon-only so all three fit inside the narrow column.
+          Hidden until tap-reveal (touch) or hover (desktop, sm:group-hover).
+          Archived (readOnly) columns never reveal them. */}
+      {!editing && !readOnly && (
+        <div
+          className={cn(
+            "shrink-0 items-center gap-0.5",
+            revealed ? "flex" : "hidden",
+            "sm:group-hover:flex",
+          )}
+        >
           <button
             type="button"
             data-testid="draft-action-confirm"

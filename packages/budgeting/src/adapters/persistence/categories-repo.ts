@@ -131,6 +131,7 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
       }>(
         // Current-state read (reserves): hide fully-removed (archived_at) and
         // month-removed-as-of-this-month (archived_from <= current month).
+        // Archived categories never appear on the Reserves tab.
         // 05-12: the stored-actual column was dropped (0030 reset) — engine-derived.
         sql`SELECT id, name, reserve_excluded, archived_at, sort_index
             FROM budgeting.categories

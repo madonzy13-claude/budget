@@ -57,9 +57,17 @@ export interface SpendingsSummaryCategoryDTO {
   cushionCents: string;
   activeBudgetCents: string;
   spentCents: string;
-  /** Reserve drawn for THIS month (engine cell.usedCents). */
+  /** Reserve drawn for THIS month (clamped ≤ reserveAvailableCents). */
   reserveUsedCents: string;
-  /** Overspend NOT covered by reserve for THIS month (engine cell.overspentCents). */
+  /** Reserve AVAILABLE to this month = used + free reserve at the month's end.
+   *  The denominator of the "used / available" display. */
+  reserveAvailableCents: string;
+  /** reserve_excluded NOW — the grid renders "available" as a dash when true. */
+  reserveExcluded: boolean;
+  /** Archived "keep history" (archived_from set) — the grid renders this column
+   *  greyed + read-only (no quick entry / edit). Hidden entirely in future months. */
+  archived: boolean;
+  /** Overspend NOT covered by reserve for THIS month (overage − reserveUsed). */
   overspentCents: string;
   balanceCents: string;
 }
@@ -70,13 +78,6 @@ export interface SpendingsSummaryDTO {
   budgetTz: string; // IANA timezone — resolves D-PH4-Q5 RSC timezone gap
   cushionModeEnabled: boolean;
   categories: SpendingsSummaryCategoryDTO[];
-}
-
-/** Convert Money to bigint cents (multiply decimal amount × 100, round to integer). */
-function moneyToCents(money: import("@budget/shared-kernel").Money): bigint {
-  // Money.amount is a Big instance; multiply by 100 and convert to bigint
-  const centsStr = money.amount.times(100).toFixed(0);
-  return BigInt(centsStr);
 }
 
 export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
@@ -122,10 +123,19 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             input.budgetId,
             monthStart,
           ),
+          // Reserve cells are sliced from the CURRENT-month pool computation, NOT
+          // recomputed at the viewed month. A per-category reserve is a single
+          // POOL whose coverage depends on the whole ledger (leftover reserve
+          // sweeps onto any month's overspend). Passing the viewed month as the
+          // open month would truncate LATER spend (loader date-bounds spend at the
+          // open month) while still loading later reserve top-ups — so those
+          // top-ups would sweep back onto the viewed past month, making its cell
+          // differ from the same month seen "live". Omitting month → loader uses
+          // serverNow()'s month, and byMonth.get(input.month) selects the slice.
+          // This also keeps the grid numbers identical to the reserves tab.
           deps.reservePositions({
             tenantId: input.tenantId,
             budgetId: input.budgetId,
-            month: input.month,
           }),
         ]);
 
@@ -147,13 +157,25 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const active = meta.cushionModeEnabled ? cushion : planned;
           const spent = perCatSpend.get(c.id) ?? 0n;
 
-          // Engine cell for THIS month → used + overspent. When the engine
-          // emitted no cell for the month (no activity it tracked), fall back to
-          // the raw over-budget figure with no reserve coverage.
-          const cell = positions.get(c.id)?.byMonth.get(input.month);
-          const reserveUsed = cell?.usedCents ?? 0n;
-          const overspent =
-            cell?.overspentCents ?? (spent > active ? spent - active : 0n);
+          // Engine cell for THIS month → used + overspent + the free reserve at the
+          // month's end. When the engine emitted no cell (no activity it tracked),
+          // fall back to the raw over-budget figure with no reserve coverage.
+          const pos = positions.get(c.id);
+          const cell = pos?.byMonth.get(input.month);
+          const reserveExcluded = pos?.reserveExcluded ?? false;
+          const overage =
+            cell?.overageCents ?? (spent > active ? spent - active : 0n);
+          const rawUsed = cell?.usedCents ?? 0n;
+          // "Reserve available to this month" = used + free reserve at month's end
+          // (clamped ≥ 0). Used is then clamped ≤ available so we never display
+          // spending more reserve than was available — e.g. if the reserve was later
+          // reduced below what this month had used, the shown used drops to match.
+          const endReserve = cell?.endReserveCents ?? 0n;
+          const reserveAvailable =
+            rawUsed + endReserve > 0n ? rawUsed + endReserve : 0n;
+          const reserveUsed =
+            rawUsed < reserveAvailable ? rawUsed : reserveAvailable;
+          const overspent = overage - reserveUsed;
           const balance = active - spent + reserveUsed;
 
           return {
@@ -167,6 +189,9 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             activeBudgetCents: active.toString(),
             spentCents: spent.toString(),
             reserveUsedCents: reserveUsed.toString(),
+            reserveAvailableCents: reserveAvailable.toString(),
+            reserveExcluded,
+            archived: (c as any).archivedFrom != null,
             overspentCents: overspent.toString(),
             balanceCents: balance.toString(),
           };

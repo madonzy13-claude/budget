@@ -49,6 +49,12 @@ export interface ReservesTableRowProps {
    * the prop is undefined to preserve the Phase 5 layout.
    */
   pendingTaskId?: string;
+  /**
+   * Cover-reveal: while the count-down tween runs, the parent feeds the
+   * interpolated Available (cents) here so the resting cell shows the number
+   * ticking DOWN to its settled value. `null`/undefined → render `reserveCents`.
+   */
+  displayReserveCentsOverride?: bigint | null;
 }
 
 export function ReservesTableRow({
@@ -57,6 +63,7 @@ export function ReservesTableRow({
   onUpdate,
   onSwipeAction,
   pendingTaskId,
+  displayReserveCentsOverride,
 }: ReservesTableRowProps) {
   const t = useTranslations("bdp.tab.reserves.row");
   const locale = useLocale();
@@ -327,7 +334,12 @@ export function ReservesTableRow({
               testId={`reserves-balance-${row.categoryId}`}
               render={() => (
                 <span className="text-num-md text-[var(--foreground)]">
-                  {centsToBare(row.reserveCents, locale)}
+                  {centsToBare(
+                    displayReserveCentsOverride != null
+                      ? displayReserveCentsOverride.toString()
+                      : row.reserveCents,
+                    locale,
+                  )}
                 </span>
               )}
               renderEditor={(draft, onChange, _onCommit, onCancel) => (

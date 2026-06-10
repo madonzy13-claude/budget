@@ -182,6 +182,28 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     return session?.user?.id ?? "";
   }
 
+  // A transaction changes a category's cumulative reserve usage, which shifts the
+  // expected reserve and therefore the RESERVE_TOPUP shortfall. Recompute the task
+  // after every mutation (best-effort A2 — the hourly sweep is the backstop) so the
+  // task message never goes stale relative to the reserves tab.
+  const budgetingModule = "budgeting" in deps ? deps.budgeting : null;
+  async function syncReserveTopup(
+    tenantId: string,
+    budgetId: string,
+    userId: string,
+  ): Promise<void> {
+    if (!budgetingModule?.recomputeReserveTopup) return;
+    try {
+      await budgetingModule.recomputeReserveTopup({
+        tenantId,
+        budgetId,
+        actorUserId: userId,
+      });
+    } catch {
+      // best-effort; the hourly reconciliation sweep reconverges the task.
+    }
+  }
+
   // ── POST / — create transaction ──────────────────────────────────────
   app.post("/", zValidator("json", createSchema), async (c) => {
     const body = c.req.valid("json");
@@ -209,6 +231,7 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       return c.json({ error: e.message }, 422);
     }
 
+    await syncReserveTopup(tenantId, budgetId, userId);
     return c.json({ transaction: serializeRow(r.value.transaction) }, 201);
   });
 
@@ -241,6 +264,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       return c.json({ error: e.message }, 422);
     }
 
+    await syncReserveTopup(
+      tenantId,
+      c.req.param("budgetId") ?? tenantId,
+      userId,
+    );
     return c.json({ transaction: serializeRow(r.value.transaction) }, 200);
   });
 
@@ -259,6 +287,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     const row = await transactionRepo.findById(tenantId, txId);
     if (!row) return c.json({ error: "not_found" }, 404);
 
+    await syncReserveTopup(
+      tenantId,
+      c.req.param("budgetId") ?? tenantId,
+      userId,
+    );
     return c.json({ transaction: serializeRow(row) }, 200);
   });
 
@@ -274,6 +307,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       return c.json({ error: (e as Error).message }, 422);
     }
 
+    await syncReserveTopup(
+      tenantId,
+      c.req.param("budgetId") ?? tenantId,
+      userId,
+    );
     return new Response(null, { status: 204 });
   });
 
@@ -360,6 +398,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       return c.json({ error: r.error.message }, 422);
     }
 
+    await syncReserveTopup(
+      tenantId,
+      c.req.param("budgetId") ?? tenantId,
+      userId,
+    );
     return c.json(r.value, 200);
   });
 

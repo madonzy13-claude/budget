@@ -16,7 +16,7 @@
  *  - Preview "met" styling when shortfall ≤ 0 (trading-up).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TestQueryProvider } from "../../setup/query-client";
 
@@ -42,6 +42,7 @@ vi.mock("@/lib/budget-fetch", () => ({
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, vars?: Record<string, unknown>) =>
     vars ? `${key}:${JSON.stringify(vars)}` : key,
+  useLocale: () => "en",
 }));
 
 vi.mock("sonner", () => ({
@@ -49,8 +50,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@tanstack/react-query")>();
+  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
     useQuery: (...args: unknown[]) => useQueryMock(...args),
@@ -142,9 +142,7 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
       expect(input.getAttribute("aria-invalid")).toBe("true");
     });
     expect(patchMock).not.toHaveBeenCalled();
-    expect(
-      document.getElementById("cushion-target-error"),
-    ).not.toBeNull();
+    expect(document.getElementById("cushion-target-error")).not.toBeNull();
   });
 
   it("edit + blur with value=61 shows inline error and does NOT PATCH", async () => {

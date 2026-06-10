@@ -28,10 +28,15 @@ const testDir = defineBddConfig({
 export default defineConfig({
   testDir,
   fullyParallel: false,
-  // Sequential in CI: parallel workers race on same-domain auth cookies /
-  // sessions between concurrent sign-up scenarios. Local dev keeps default
-  // parallelism for speed.
-  workers: process.env["CI"] ? 1 : undefined,
+  // Always serial (1 worker). Two reasons: (1) parallel workers race on
+  // same-domain auth cookies / sessions between concurrent sign-up scenarios;
+  // (2) the @reserves-golden walk drives a PROCESS-GLOBAL gated test clock
+  // (POST /test/clock moves the API's serverNow May→June) — any concurrent
+  // scenario would observe that overridden clock, so the suite must run one
+  // scenario at a time. CI already used 1; this makes local match (determinism
+  // over speed). A per-request (AsyncLocalStorage) clock would restore
+  // parallelism but is a larger change.
+  workers: 1,
   // playwright-bdd 8.5.0 has a known race condition where the first scenario in
   // a feature file occasionally hits "bddTestData not found" when picked up by
   // a fresh worker before its bdd-data registry is populated. A single retry

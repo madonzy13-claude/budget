@@ -158,13 +158,22 @@ export function createTaskRepo(): TaskRepo {
       payload: ReserveTopupPayload,
       tx,
     ) {
-      await emitTaskInTx(
-        tx,
-        tenantId,
-        budgetId,
-        "RESERVE_TOPUP",
-        payload as unknown as Record<string, unknown>,
-      );
+      // Unlike the other kinds, the RESERVE_TOPUP shortfall must track the live
+      // reserve gap — so on conflict REFRESH the payload (DO UPDATE) instead of
+      // DO NOTHING, otherwise an already-pending task keeps a stale amount after
+      // a transaction/adjustment changes the reserve. Targets the partial unique
+      // index tasks_reserve_topup_dedup_idx (budget_id WHERE kind+status pending).
+      const drizzleTx = tx as DrizzleTx;
+      const payloadJson = JSON.stringify(payload);
+      await drizzleTx.execute(sql`
+        INSERT INTO budgeting.tasks
+          (id, tenant_id, budget_id, kind, payload_json, status, created_at)
+        VALUES
+          (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid,
+           'RESERVE_TOPUP', ${payloadJson}::jsonb, 'PENDING', now())
+        ON CONFLICT (budget_id) WHERE (kind = 'RESERVE_TOPUP' AND status = 'PENDING')
+        DO UPDATE SET payload_json = EXCLUDED.payload_json
+      `);
     },
 
     async emitConfirmDraft(
@@ -188,13 +197,24 @@ export function createTaskRepo(): TaskRepo {
       payload: CushionBelowTargetPayload,
       tx,
     ) {
-      await emitTaskInTx(
-        tx,
-        tenantId,
-        budgetId,
-        "CUSHION_BELOW_TARGET",
-        payload as unknown as Record<string, unknown>,
-      );
+      // Like RESERVE_TOPUP, the cushion shortfall must track the live numbers —
+      // so on conflict REFRESH the payload (DO UPDATE) instead of DO NOTHING.
+      // Otherwise an already-pending task keeps a stale shortfall after a
+      // cushion_amount / target-months / cushion-wallet change (the wallets task
+      // showed €5,300 while settings recomputed €8,900). Targets the partial
+      // unique index tasks_cushion_below_target_dedup_idx
+      // (budget_id WHERE kind='CUSHION_BELOW_TARGET' AND status='PENDING').
+      const drizzleTx = tx as DrizzleTx;
+      const payloadJson = JSON.stringify(payload);
+      await drizzleTx.execute(sql`
+        INSERT INTO budgeting.tasks
+          (id, tenant_id, budget_id, kind, payload_json, status, created_at)
+        VALUES
+          (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid,
+           'CUSHION_BELOW_TARGET', ${payloadJson}::jsonb, 'PENDING', now())
+        ON CONFLICT (budget_id) WHERE (kind = 'CUSHION_BELOW_TARGET' AND status = 'PENDING')
+        DO UPDATE SET payload_json = EXCLUDED.payload_json
+      `);
     },
 
     async resolveByKindAndBudget(tenantId, budgetId, kind, tx) {

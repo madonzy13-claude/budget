@@ -38,6 +38,8 @@ import { createSpendingsSummaryRoute } from "./routes/spendings-summary";
 import { budgetMembersRoutesFactory } from "./routes/budget-members";
 import { budgetArchiveRoutesFactory } from "./routes/budget-archive";
 import { onboardingRoutesFactory } from "./routes/onboarding";
+import { createTestClockRoute } from "./routes/test-clock";
+import { testClockEnabled } from "@budget/shared-kernel";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -48,6 +50,16 @@ export function createApp(deps: BootedDeps) {
 
   // 2. Health probe — public, no session resolution needed
   app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));
+
+  // Gated test clock — mounted ONLY in a non-prod process explicitly opted in via
+  // ALLOW_TEST_CLOCK=1. In production this branch is dead → the route 404s and the
+  // server clock is always real. Used by the E2E reserve golden walk (May→June).
+  if (testClockEnabled()) {
+    app.route("/test/clock", createTestClockRoute());
+    deps.logger.warn(
+      "TEST CLOCK ENABLED — /test/clock mounted; serverNow() can be overridden (non-prod only)",
+    );
+  }
 
   // 3. Better Auth handler — public
   app.route("/auth", authRoutes(deps));

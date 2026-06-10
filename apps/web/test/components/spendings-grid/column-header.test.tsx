@@ -27,6 +27,7 @@ const summary = {
   activeBudgetCents: "12000",
   spentCents: "5000",
   reserveUsedCents: "0",
+  reserveAvailableCents: "0",
   overspentCents: "0",
   balanceCents: "7000",
 };
@@ -119,6 +120,107 @@ describe("ColumnHeader", () => {
         ),
       ).toBeNull();
     });
+
+    it("shows 'used / available' — used in the reserves-used testid, available greyed alongside", () => {
+      renderHeader({
+        summary: {
+          ...summary,
+          reserveUsedCents: "2800",
+          reserveAvailableCents: "8000",
+        },
+      });
+      const used = document.querySelector(
+        '[data-testid="column-header-groceries-reserves-used"]',
+      );
+      const avail = document.querySelector(
+        '[data-testid="column-header-groceries-reserves-available"]',
+      );
+      expect(used?.textContent).toContain("28"); // used (white), bare-formatted
+      expect(avail?.textContent).toContain("/");
+      expect(avail?.textContent).toContain("80"); // available (grey), bare-formatted
+    });
+
+    it("included + zero reserve still shows '0 / 0'", () => {
+      renderHeader({
+        summary: {
+          ...summary,
+          reserveUsedCents: "0",
+          reserveAvailableCents: "0",
+          reserveExcluded: false,
+        },
+      });
+      const avail = document.querySelector(
+        '[data-testid="column-header-groceries-reserves-available"]',
+      );
+      expect(avail?.textContent).toContain("/");
+      expect(avail?.textContent).toContain("0");
+    });
+
+    it("excluded + used>0 → 'used / —'", () => {
+      renderHeader({
+        summary: {
+          ...summary,
+          reserveUsedCents: "4500",
+          reserveAvailableCents: "0",
+          reserveExcluded: true,
+        },
+      });
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-groceries-reserves-used"]',
+        )?.textContent,
+      ).toContain("45");
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-groceries-reserves-available"]',
+        )?.textContent,
+      ).toContain("—");
+    });
+
+    it("excluded + used 0 → just '—' (no available span)", () => {
+      renderHeader({
+        summary: {
+          ...summary,
+          reserveUsedCents: "0",
+          reserveAvailableCents: "0",
+          reserveExcluded: true,
+        },
+      });
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-groceries-reserves-used"]',
+        )?.textContent,
+      ).toBe("—");
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-groceries-reserves-available"]',
+        ),
+      ).toBeNull();
+    });
+  });
+
+  it("archived → red trash replaces the edit pen; click fires onPermanentDelete", () => {
+    const onPermanentDelete = vi.fn();
+    renderHeader({ archived: true, onPermanentDelete });
+    expect(
+      document.querySelector('[data-testid="column-header-pen-groceries"]'),
+    ).toBeNull();
+    const trash = document.querySelector(
+      '[data-testid="column-header-trash-groceries"]',
+    );
+    expect(trash).toBeTruthy();
+    fireEvent.click(trash!);
+    expect(onPermanentDelete).toHaveBeenCalledWith("cat-1");
+  });
+
+  it("not archived → edit pen present, no trash", () => {
+    renderHeader();
+    expect(
+      document.querySelector('[data-testid="column-header-pen-groceries"]'),
+    ).toBeTruthy();
+    expect(
+      document.querySelector('[data-testid="column-header-trash-groceries"]'),
+    ).toBeNull();
   });
 
   it("REGRESSION-GUARD (D-PH4-INT4): double-click on header cell does NOTHING", () => {

@@ -2,7 +2,7 @@
  * toggle-budget-mode.ts — Application use case: set workspace budget mode
  * D-04-e: SCD-2 pattern for NORMAL|CUSHION mode history.
  */
-import { type Result } from "@budget/shared-kernel";
+import { serverNow, type Result } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { BudgetModeRepo, BudgetMode } from "../ports/budget-mode-repo";
@@ -34,7 +34,7 @@ export interface ToggleBudgetModeFullInput {
 }
 
 function firstDayOfCurrentMonth(): string {
-  const now = new Date();
+  const now = serverNow();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 }
 

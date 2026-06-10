@@ -66,6 +66,7 @@ const initial: ReservesSummaryDto = {
       name: "Housing",
       reserveCents: "30000",
       usedCents: "1200",
+      usedThisMonthCents: "1200",
       overspentCents: "0",
     },
     {
@@ -73,6 +74,7 @@ const initial: ReservesSummaryDto = {
       name: "Transport",
       reserveCents: "20000",
       usedCents: "800",
+      usedThisMonthCents: "800",
       overspentCents: "0",
     },
   ],
@@ -82,6 +84,7 @@ const initial: ReservesSummaryDto = {
       name: "Hobbies",
       reserveCents: "50000",
       usedCents: "0",
+      usedThisMonthCents: "0",
       overspentCents: "0",
     },
   ],
@@ -90,6 +93,8 @@ const initial: ReservesSummaryDto = {
     userDefinedCents: "30000",
     surplusCents: "0",
     direction: "NONE",
+    usedCents: "2000", // server TOTAL USED (all time) = active 1200 + 800
+    usedThisMonthCents: "2000", // this month
     disabled: false,
     budgetCurrency: "EUR",
   },
@@ -165,7 +170,7 @@ describe("ReservesTableClient — engine model + W-3 excluded rows", () => {
     renderClient();
     const usedTotal = screen.getByTestId("reserves-total-used");
     // 2000 cents → "20" (centsToBare drops the whole-unit .00).
-    expect(usedTotal.textContent).toMatch(/\b20\b/);
+    expect(usedTotal.textContent).toMatch(/20 EUR/);
   });
 
   it("TOTAL USED excludes excluded-row usedCents (only active rows count)", () => {
@@ -176,13 +181,14 @@ describe("ReservesTableClient — engine model + W-3 excluded rows", () => {
           name: "Hobbies",
           reserveCents: "50000",
           usedCents: "99900",
+          usedThisMonthCents: "99900",
           overspentCents: "0",
         },
       ],
     });
     const usedTotal = screen.getByTestId("reserves-total-used");
     // Still 20 (active 1200+800), the 99900 excluded used is NOT summed.
-    expect(usedTotal.textContent).toMatch(/\b20\b/);
+    expect(usedTotal.textContent).toMatch(/20 EUR/);
     expect(usedTotal.textContent).not.toMatch(/999/);
   });
 

@@ -51,6 +51,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/budgeting/fields/date-input";
 import { AmountInput } from "@/components/budgeting/fields/amount-input";
+import { parseDecimal } from "@/lib/decimal";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { FxFreshnessBadge } from "@/components/budgeting/fx-freshness-badge";
 import { CurrencyPicker } from "@/components/common/currency-picker";
@@ -84,9 +85,18 @@ export interface TransactionSliderProps {
 }
 
 const schema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    // No future-dated transactions — cap at the last day of the current month.
+    .refine((d) => d <= lastDayOfCurrentMonthIso(), {
+      message: "future_date_not_allowed",
+    }),
   categoryId: z.string().min(1),
-  amountOrig: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  // Accept BOTH "." and "," as the decimal separator — parseDecimal normalises
+  // the comma to a dot on submit. A period-only regex here rejected "10,50"
+  // before submit ever ran, so the comma fix in onSubmit could never apply.
+  amountOrig: z.string().regex(/^\d+([.,]\d{1,2})?$/),
   currencyOrig: z.string().length(3),
   note: z.string().max(500).nullable().optional(),
 });
@@ -95,6 +105,16 @@ type FormValues = z.infer<typeof schema>;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Last day of the CURRENT month (UTC, matching todayIso). Transactions cannot
+ *  be dated into a future month — this is the date picker's max. */
+function lastDayOfCurrentMonthIso(): string {
+  const now = new Date();
+  // Day 0 of next month = last day of this month.
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
+    .toISOString()
+    .slice(0, 10);
 }
 
 // Prefill the amount field using the same rules as the grid (centsToBare):
@@ -131,6 +151,10 @@ export function TransactionSlider({
     qc.invalidateQueries({ queryKey: ["transactions", budgetId, month] });
     qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId, month] });
     qc.invalidateQueries({ queryKey: ["drafts", budgetId, month] });
+    // A confirmed/edited/deleted transaction re-derives the reserve pool (any
+    // month) and the RESERVE_TOPUP mismatch — refresh reserves tab + pill badge.
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+    qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
   }
   const [fxPreview, setFxPreview] = useState<FxQuote | null>(null);
   const [fxLoading, setFxLoading] = useState(false);
@@ -203,7 +227,7 @@ export function TransactionSlider({
       setFxPreview(null);
       return;
     }
-    if (!amountOrig || parseFloat(amountOrig) <= 0) {
+    if (!amountOrig || (parseDecimal(amountOrig) ?? 0) <= 0) {
       setFxPreview(null);
       return;
     }
@@ -234,7 +258,8 @@ export function TransactionSlider({
   async function onSubmit(values: FormValues) {
     // API contract is snake_case with integer cents (createSchema / patchSchema).
     // Sending camelCase keys here would silently drop most fields server-side.
-    const amountCents = Math.round(parseFloat(values.amountOrig) * 100);
+    // parseDecimal accepts both "." and "," as the decimal separator → cents.
+    const amountCents = parseDecimal(values.amountOrig) ?? 0;
     const body: Record<string, unknown> = {
       date: values.date,
       category_id: values.categoryId,
@@ -359,6 +384,7 @@ export function TransactionSlider({
                       <DateInput
                         value={field.value}
                         onChange={field.onChange}
+                        max={lastDayOfCurrentMonthIso()}
                         aria-invalid={!!form.formState.errors.date}
                         id="txn-slider-date"
                       />
@@ -455,7 +481,7 @@ export function TransactionSlider({
                     amount: centsToBare(
                       String(
                         Math.round(
-                          parseFloat(amountOrig) *
+                          ((parseDecimal(amountOrig) ?? 0) / 100) *
                             parseFloat(fxPreview.rate) *
                             100,
                         ),

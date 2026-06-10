@@ -28,6 +28,10 @@ export interface SpendingsSummaryCategoryDTO {
   activeBudgetCents: string;
   spentCents: string;
   reserveUsedCents: string;
+  reserveAvailableCents: string;
+  reserveExcluded?: boolean;
+  /** Archived "keep history" — column greyed + read-only (no quick entry / edit). */
+  archived?: boolean;
   overspentCents: string;
   balanceCents: string;
 }
@@ -54,6 +58,8 @@ export interface CategoryColumnProps {
   onEditTxn: (txId: string) => void;
   onEditDraft: (draftId: string) => void;
   onEditCategory: (categoryId: string) => void;
+  /** Permanent-delete an archived category (trash on the column header). */
+  onPermanentDelete?: (categoryId: string) => void;
 }
 
 export function CategoryColumn({
@@ -71,8 +77,14 @@ export function CategoryColumn({
   onEditTxn,
   onEditDraft,
   onEditCategory,
+  onPermanentDelete,
 }: CategoryColumnProps) {
   const tDraft = useTranslations("grid.draft");
+  const tGrid = useTranslations("grid");
+  // Archived "keep history": the column is read-only — no quick entry, no
+  // category edit — and visually dimmed. Hidden entirely in future months
+  // (filtered server-side), so this only renders for the months it still shows.
+  const archived = summary.archived ?? false;
   const {
     attributes,
     listeners,
@@ -85,7 +97,9 @@ export function CategoryColumn({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    // Archived "keep history" columns fade out (inline style wins over the
+    // Tailwind opacity class, which the dragging opacity would otherwise clobber).
+    opacity: isDragging ? 0.5 : archived ? 0.5 : 1,
   };
 
   return (
@@ -104,7 +118,16 @@ export function CategoryColumn({
       // reserves-used / balance). Pinning with !important here makes
       // the summary cells read as non-interactive; the name-cell Row 1
       // re-applies cursor-pointer inside ColumnHeader.
-      className="w-[140px] sm:w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip !cursor-default"
+      // w-max + min-w baseline: the column sits at the baseline width and
+      // grows ONLY when the Reserves row ("10 456.87 / 15 456.45") needs it.
+      // Every other element is w-0 min-w-full (fills but never drives width),
+      // so a long name/note can't widen the column — only the reserve value can.
+      className={cn(
+        "w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip !cursor-default",
+        // Archived "keep history": darker #14181D surface (same as excluded
+        // reserve rows); the fade comes from the inline `opacity` above.
+        archived && "!bg-[#14181D] text-[#7A7C7F]",
+      )}
     >
       {/* Top backdrop. Pure-CSS, sticky-pinned at grid.top. Solid canvas-bg
           rectangle covering top 12px of the column (matches the rounded-xl
@@ -143,6 +166,7 @@ export function CategoryColumn({
           // wrapper top (column's own top has scrolled out of the clip), the
           // rounded outline still reads as the column's rounded corners.
           "sticky top-0 z-10 bg-[var(--surface-card-dark)] rounded-t-xl border-x border-t border-[var(--border)] -mx-px -mt-px",
+          archived && "!bg-[#14181D]",
           gridScrolled &&
             (transactions.length > 0 || drafts.length > 0) &&
             "shadow-[0_6px_8px_-4px_rgba(0,0,0,0.55)]",
@@ -155,16 +179,25 @@ export function CategoryColumn({
           dragGripProps={listeners ?? {}}
           onEdit={onEditCategory}
           reservesEnabled={reservesEnabled}
+          archived={archived}
+          onPermanentDelete={onPermanentDelete}
         />
 
-        <QuickEntryInput
-          categoryId={category.id}
-          categoryName={category.name}
-          budgetId={budgetId}
-          month={month}
-          budgetCurrency={budgetCurrency}
-          resolvedDate={resolvedQuickEntryDate}
-        />
+        {/* w-0 min-w-full: the quick-entry input fills the column but its
+            intrinsic width must not widen it (only the Reserves row may).
+            Archived columns are read-only → no quick entry. */}
+        {!archived && (
+          <div className="w-0 min-w-full">
+            <QuickEntryInput
+              categoryId={category.id}
+              categoryName={category.name}
+              budgetId={budgetId}
+              month={month}
+              budgetCurrency={budgetCurrency}
+              resolvedDate={resolvedQuickEntryDate}
+            />
+          </div>
+        )}
 
         {/* Hidden-content indicator. grid-template-rows from 0fr→1fr is the
             canonical Tailwind height-animation trick: both directions
@@ -191,8 +224,27 @@ export function CategoryColumn({
       </div>
 
       {/* Transaction list — both axes allowed: vertical drag scrolls the
-          rows, horizontal drag pans the grid between categories. */}
-      <div className="flex flex-col gap-[var(--spacing-xs)] flex-1">
+          rows, horizontal drag pans the grid between categories.
+          w-0 min-w-full: long notes/amounts truncate within the column
+          instead of widening it (only the Reserves row drives width). */}
+      <div className="flex flex-col gap-[var(--spacing-xs)] flex-1 w-0 min-w-full">
+        {/* "expenses" section label — ONLY for archived columns, which have no
+            quick-entry input (a normal column's quick-entry already carries this
+            label). A top line separates it from the "left" summary row above. */}
+        {archived && transactions.length > 0 && (
+          // Matches the summary-row separators exactly: same 1px
+          // `--hairline-dark` rule (ColumnHeader uses `border-b` of it). The
+          // `mt-0.5` is load-bearing, NOT spacing: this border-top shares its
+          // top edge pixel with the sticky header band (z-10, solid bg), which
+          // paints OVER it and makes the line vanish. Nudging 2px down clears
+          // the shared edge so the rule renders — while still scrolling under
+          // the band normally (no z-index hack that would break the pinned
+          // state). Pixel-verified identical to the planned/overspent rule
+          // (mean row luminance 30.1, same as the summary separators).
+          <div className="mt-0.5 border-t border-[var(--hairline-dark)] px-2 pt-1.5 pb-1.5 text-[10px] lowercase tracking-wide text-[var(--muted-foreground)]">
+            {tGrid("expensesTitle")}
+          </div>
+        )}
         {transactions.map((t, i) => (
           <TransactionRow
             key={t.id}
@@ -200,6 +252,7 @@ export function CategoryColumn({
             budgetId={budgetId}
             month={month}
             onEdit={onEditTxn}
+            readOnly={archived}
             // Round the bottom of the last confirmed row when drafts follow,
             // so the confirmed group reads as a closed group above the
             // draft section beneath.
@@ -213,7 +266,7 @@ export function CategoryColumn({
             column bottom so the lane reads as a contiguous group. */}
         {drafts.length > 0 ? (
           <>
-            <div className="mt-2 px-2 pt-1 text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
+            <div className="mt-2 px-2 pt-1 pb-1.5 text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
               {tDraft("sectionTitle")}
             </div>
             <div
@@ -232,6 +285,7 @@ export function CategoryColumn({
                     month={month}
                     onEdit={onEditDraft}
                     topShadow={i === 0}
+                    readOnly={archived}
                   />
                 ))}
             </div>

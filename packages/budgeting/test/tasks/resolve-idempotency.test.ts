@@ -33,9 +33,8 @@ const DB_URL = process.env.DATABASE_URL_APP;
 
 const { resetPools, withTenantTx } = await import("@budget/platform");
 const { TenantId, UserId } = await import("@budget/shared-kernel");
-const { createTaskRepo } = await import(
-  "@budget/budgeting/src/adapters/persistence/task-repo"
-);
+const { createTaskRepo } =
+  await import("@budget/budgeting/src/adapters/persistence/task-repo");
 resetPools();
 
 interface SeededBudget {
@@ -118,7 +117,7 @@ async function seedTask(
 
 /** SELECT a task by id with RLS bypassed (raw client) so we can inspect state. */
 async function readTaskState(
-  taskId: string,
+  _taskId: string,
 ): Promise<{ status: string; resolved_at: string | null } | null> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
@@ -277,7 +276,11 @@ describe("TaskRepo adapter — resolve idempotency", () => {
         await repo.resolveConfirmDraftByDraftId(
           budgetA.budgetId,
           draftId,
-          tx as unknown as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> },
+          tx as unknown as {
+            execute: (
+              q: unknown,
+            ) => Promise<{ rows: Record<string, unknown>[] }>;
+          },
         );
       },
     );

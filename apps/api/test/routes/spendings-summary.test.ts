@@ -281,8 +281,10 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     expect(cat.reserveUsedCents).toBe("0"); // no reserve set → nothing drawn
     expect(cat.overspentCents).toBe("0");
     expect(cat.balanceCents).toBe("40000"); // 100000 - 60000
-    // The OLD funded/available concept is GONE — no reserveAvailableCents key.
-    expect(cat).not.toHaveProperty("reserveAvailableCents");
+    // reserveAvailableCents = used + free reserve at the month's end, EXCLUDING the
+    // month's OWN accrual (the 400 underspend is for next month, not this one) → 0 / 0.
+    expect(cat).toHaveProperty("reserveAvailableCents");
+    expect(cat.reserveAvailableCents).toBe("0");
   });
 
   it("reserve-overflow: spent > active + reserve → overspentCents > 0 (RSCM-04)", async () => {

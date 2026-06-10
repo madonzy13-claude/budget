@@ -17,7 +17,11 @@ import type {
 import { ok } from "@budget/shared-kernel";
 
 /** Engine cell for a single (category, month). */
-type Cell = { usedCents: bigint; overspentCents: bigint };
+type Cell = {
+  usedCents: bigint;
+  overspentCents: bigint;
+  endReserveCents?: bigint;
+};
 
 const TENANT = "tenant-1";
 const BUDGET = "budget-1";
@@ -60,7 +64,10 @@ function makeDeps(overrides: {
   limits?: Map<string, { planned: bigint; cushion: bigint }>;
   /** Per-month SCD-2 limits keyed by 'YYYY-MM' — lets a test give May and June
    *  different budgets. Falls back to `limits` for unlisted months. */
-  limitsByMonth?: Map<string, Map<string, { planned: bigint; cushion: bigint }>>;
+  limitsByMonth?: Map<
+    string,
+    Map<string, { planned: bigint; cushion: bigint }>
+  >;
   /**
    * Engine cells the replay orchestrator would return: cat → ('YYYY-MM' → cell).
    * reserveUsed/overspent for the viewed month come STRAIGHT from here — mirrors
@@ -71,6 +78,8 @@ function makeDeps(overrides: {
   positionsError?: boolean;
   /** Injected clock so "is the viewed month the current month" is deterministic. */
   now?: () => Date;
+  /** reserve_excluded flag for the fake position (drives the dash display). */
+  reserveExcluded?: boolean;
 }) {
   const categories = overrides.categories ?? [];
   const meta = overrides.meta !== undefined ? overrides.meta : makeMeta();
@@ -104,7 +113,11 @@ function makeDeps(overrides: {
   const cellsByCat = overrides.cells ?? new Map<string, Map<string, Cell>>();
   const reservePositions = async () => {
     if (overrides.positionsError) {
-      return { isOk: () => false, isErr: () => true, error: new Error("boom") } as any;
+      return {
+        isOk: () => false,
+        isErr: () => true,
+        error: new Error("boom"),
+      } as any;
     }
     const positions = new Map<string, ReservePosition>();
     for (const [id, byMonthCells] of cellsByCat) {
@@ -116,6 +129,7 @@ function makeDeps(overrides: {
             overspentCents: c.overspentCents,
             overageCents: c.usedCents + c.overspentCents,
             leftCents: 0n,
+            endReserveCents: c.endReserveCents ?? 0n,
           },
         ]),
       );
@@ -130,6 +144,7 @@ function makeDeps(overrides: {
         reserveCents: 0n,
         usedCents: used,
         overspentCents: overspent,
+        reserveExcluded: overrides.reserveExcluded ?? false,
         byMonth,
       });
     }
@@ -334,7 +349,10 @@ describe("getSpendingsSummary", () => {
     const spend = new Map([[CAT_A, 83000n]]);
     const limits = new Map([[CAT_A, { planned: 2000n, cushion: 2000n }]]);
     const cells = new Map([
-      [CAT_A, new Map([[MONTH, { usedCents: 71000n, overspentCents: 10000n }]])],
+      [
+        CAT_A,
+        new Map([[MONTH, { usedCents: 71000n, overspentCents: 10000n }]]),
+      ],
     ]);
     const svc = getSpendingsSummary(
       makeDeps({ categories: cats, spend, limits, cells }),
@@ -371,7 +389,11 @@ describe("getSpendingsSummary", () => {
         now: () => new Date("2026-06-15T00:00:00Z"),
       }),
     );
-    const r = await svc({ tenantId: TENANT, budgetId: BUDGET, month: "2026-05" });
+    const r = await svc({
+      tenantId: TENANT,
+      budgetId: BUDGET,
+      month: "2026-05",
+    });
     expect(r.isOk()).toBe(true);
     if (r.isOk()) {
       const cat = r.value.categories[0];
@@ -400,6 +422,98 @@ describe("getSpendingsSummary", () => {
     }
   });
 
+  it("reserveAvailableCents = used + free reserve at month's end; used clamped ≤ available", async () => {
+    const cats = [makeCategory(CAT_A, 0)];
+    // Viewed month May: used 28, free reserve at May end 0 → available 28 ("28/28").
+    const svcCapped = getSpendingsSummary(
+      makeDeps({
+        categories: cats,
+        spend: new Map([[CAT_A, 5000n]]),
+        limitsByMonth: new Map([
+          ["2026-05", new Map([[CAT_A, { planned: 0n, cushion: 0n }]])],
+        ]),
+        cells: new Map([
+          [
+            CAT_A,
+            new Map([
+              [
+                "2026-05",
+                {
+                  usedCents: 2800n,
+                  overspentCents: 2200n,
+                  endReserveCents: 0n,
+                },
+              ],
+            ]),
+          ],
+        ]),
+      }),
+    );
+    const a = await svcCapped({
+      tenantId: TENANT,
+      budgetId: BUDGET,
+      month: "2026-05",
+    });
+    expect(a.isOk()).toBe(true);
+    if (a.isOk()) {
+      const c = a.value.categories[0];
+      expect(c.reserveUsedCents).toBe("2800");
+      expect(c.reserveAvailableCents).toBe("2800"); // 28 used + 0 free
+    }
+
+    // Viewed month with free reserve left: used 61, free at end 19 → available 80.
+    const svcFree = getSpendingsSummary(
+      makeDeps({
+        categories: cats,
+        spend: new Map([[CAT_A, 6100n]]),
+        limitsByMonth: new Map([
+          ["2026-06", new Map([[CAT_A, { planned: 0n, cushion: 0n }]])],
+        ]),
+        cells: new Map([
+          [
+            CAT_A,
+            new Map([
+              [
+                "2026-06",
+                {
+                  usedCents: 6100n,
+                  overspentCents: 0n,
+                  endReserveCents: 1900n,
+                },
+              ],
+            ]),
+          ],
+        ]),
+      }),
+    );
+    const b = await svcFree({
+      tenantId: TENANT,
+      budgetId: BUDGET,
+      month: "2026-06",
+    });
+    expect(b.isOk()).toBe(true);
+    if (b.isOk()) {
+      const c = b.value.categories[0];
+      expect(c.reserveUsedCents).toBe("6100");
+      expect(c.reserveAvailableCents).toBe("8000"); // 61 used + 19 free
+    }
+  });
+
+  it("passes reserveExcluded through to the DTO (drives the dash display)", async () => {
+    const svc = getSpendingsSummary(
+      makeDeps({
+        categories: [makeCategory(CAT_A, 0)],
+        reserveExcluded: true,
+        cells: new Map([
+          [CAT_A, new Map([[MONTH, { usedCents: 0n, overspentCents: 0n }]])],
+        ]),
+      }),
+    );
+    const r = await svc({ tenantId: TENANT, budgetId: BUDGET, month: MONTH });
+    expect(r.isOk()).toBe(true);
+    if (r.isOk()) expect(r.value.categories[0].reserveExcluded).toBe(true);
+  });
+
   it("cushionModeEnabled flag propagated to DTO top level", async () => {
     const svc = getSpendingsSummary(
       makeDeps({ meta: makeMeta({ cushionModeEnabled: true }) }),
@@ -408,6 +522,76 @@ describe("getSpendingsSummary", () => {
     expect(r.isOk()).toBe(true);
     if (r.isOk()) {
       expect(r.value.cushionModeEnabled).toBe(true);
+    }
+  });
+
+  it("computes reserves at the CURRENT month (no viewed-month openMonth override)", async () => {
+    // Reserve is a single per-category pool; a past month's cell must reflect the
+    // reserve state as of NOW, so the service must NOT pass the viewed month as the
+    // reserve open month (that would truncate later spend but still sweep later
+    // reserve top-ups back onto the viewed month). Lock it: capture the arg.
+    const seen: Array<{ month?: string }> = [];
+    const positions = new Map<string, ReservePosition>([
+      [
+        CAT_A,
+        {
+          categoryId: CAT_A,
+          reserveCents: 0n,
+          usedCents: 10000n,
+          overspentCents: 20000n,
+          reserveExcluded: false,
+          byMonth: new Map([
+            [
+              "2026-05",
+              {
+                usedCents: 10000n,
+                overspentCents: 20000n,
+                overageCents: 30000n,
+                leftCents: 0n,
+                endReserveCents: 0n,
+              },
+            ],
+          ]),
+        },
+      ],
+    ]);
+    const result: ReservePositionsResult = {
+      positions,
+      internalCents: 0n,
+      userDefinedCents: 0n,
+      surplusCents: 0n,
+      direction: "NONE",
+    };
+    const deps = makeDeps({
+      categories: [makeCategory(CAT_A, 1)],
+      spend: new Map([[CAT_A, 30000n]]),
+      limitsByMonth: new Map([
+        ["2026-05", new Map([[CAT_A, { planned: 0n, cushion: 0n }]])],
+      ]),
+    });
+    // Swap in a spying reservePositions that records the month it was called with.
+    deps.reservePositions = (async (input: {
+      tenantId: string;
+      budgetId: string;
+      month?: string;
+    }) => {
+      seen.push({ month: input.month });
+      return ok(result);
+    }) as typeof deps.reservePositions;
+
+    // Viewing a PAST month (May) while "now" is later.
+    const r = await getSpendingsSummary(deps)({
+      tenantId: TENANT,
+      budgetId: BUDGET,
+      month: "2026-05",
+    });
+    expect(r.isOk()).toBe(true);
+    expect(seen.length).toBe(1);
+    expect(seen[0].month).toBeUndefined(); // current-month pool, NOT the viewed month
+    if (r.isOk()) {
+      // The viewed month's slice is still selected from byMonth.
+      expect(r.value.categories[0].reserveUsedCents).toBe("10000");
+      expect(r.value.categories[0].overspentCents).toBe("20000");
     }
   });
 });

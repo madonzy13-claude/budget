@@ -15,20 +15,16 @@
  *   ReservePositionsResult { positions, internalCents, userDefinedCents, surplusCents, direction }
  *
  * Event ordering (deterministic — pinned by the golden reproduction test):
- *   1. Walk months ASCENDING from the earliest seen month through openMonth.
- *      For each month, in order:
- *        a. setLimit  — when that month has an effective limit (limitsByMonth).
- *        b. cushion   — when a cushionHistory segment begins at this month.
- *        c. spendDelta— one event carrying the month's whole spent figure
- *           (each month's `spent` is independent in the engine, so the delta
- *           from a 0 baseline == the absolute spent).
- *        d. accrual   — ONLY for CLOSED months (month < openMonth), per decision
- *           G. The open month never accrues.
- *   2. adjust events (signed deltas, decision E) — appended in stored order
- *      AFTER the open month's spend, matching the golden fixture where every
- *      adjustment happens in the single open month against the current R.
- *   3. exclude / archive — from categoryFlags (drop a category out of internal).
- *   4. setUserDefined — Σ RESERVE-wallet balances (surplus input only).
+ *   1. Walk months ASCENDING. For each month, in order: setLimit, cushion, adjust,
+ *      spendDelta, accrual. A month therefore draws ONLY from the reserve available
+ *      by its own end (carried-in R + reserve added IN that month) and is CAPPED at
+ *      it — a transaction can never pull in reserve added in a LATER month. The
+ *      CURRENT (open) month sees all currently-available reserve; a closed month is
+ *      bounded by its month-end balance. (Adjust is folded before spend so op1's
+ *      capacity-bounded draw consumes new reserve first — avoids op3 over-cover with
+ *      interleaved signed adjusts. Accrual is CLOSED months only, decision G.)
+ *   2. exclude / archive — from categoryFlags (drop a category out of internal).
+ *   3. setUserDefined — Σ RESERVE-wallet balances (surplus input only).
  *
  * Pure: no Drizzle, no Temporal here — the loader owns IO + the TZ-correct open
  * month. Money stays in cents (bigint); display wrapping is the route's job (05-14).
@@ -50,6 +46,8 @@ export interface ReservePosition {
   usedCents: bigint;
   /** Σ over this category's months of per-month overspent (= Σ overage − U). */
   overspentCents: bigint;
+  /** reserve_excluded flag NOW — the grid shows a dash for "available" when true. */
+  reserveExcluded: boolean;
   /** Per-(category, month) cells for the spendings grid. 'YYYY-MM' → cell. */
   byMonth: Map<
     string,
@@ -58,12 +56,17 @@ export interface ReservePosition {
       overspentCents: bigint;
       overageCents: bigint;
       leftCents: bigint;
+      /** Free reserve at this month's end. "Available to this month" = used + this. */
+      endReserveCents: bigint;
     }
   >;
 }
 
 export interface ReservePositionsResult {
   positions: Map<string, ReservePosition>;
+  /** The open ('current') month 'YYYY-MM' the fold resolved to — lets callers
+   *  pick each position's current-month cell (e.g. TOTAL USED this month). */
+  openMonth: string;
   /** Σ R over active (non-excluded, non-archived) categories. 0 when disabled. */
   internalCents: bigint;
   /** Σ RESERVE-wallet balances. */
@@ -98,6 +101,11 @@ function monthsAscending(inputs: ReserveEventInputs): string[] {
   }
   for (const m of inputs.limitsByMonth.keys()) set.add(m);
   for (const seg of inputs.cushionHistory) set.add(seg.fromMonth);
+  // Adjust months: a reserve set in month M must be replayed in M's slot so a
+  // LATER month's overspend can draw it (op1). Without this, a reserve set in a
+  // month with no spend/limit would be dropped from the timeline.
+  for (const deltas of inputs.adjustmentsByCategory.values())
+    for (const a of deltas) set.add(a.month);
   set.add(inputs.openMonth);
   return [...set].sort();
 }
@@ -116,14 +124,30 @@ export function mapInputsToEvents(
   const cushionAt = new Map<string, boolean>();
   for (const seg of inputs.cushionHistory) cushionAt.set(seg.fromMonth, seg.on);
 
-  // Categories that ever have a limit/spend, so accrual + spend cover them all.
-  const limitCatsByMonth = inputs.limitsByMonth;
+  // Adjusts grouped by the month they were made in (asOf), preserving each
+  // category's stored (occurred-asc) order.
+  const adjustsByMonth = new Map<
+    string,
+    Array<{ categoryId: string; deltaCents: bigint }>
+  >();
+  for (const [categoryId, deltas] of inputs.adjustmentsByCategory) {
+    for (const { deltaCents, month } of deltas) {
+      const arr = adjustsByMonth.get(month);
+      if (arr) arr.push({ categoryId, deltaCents });
+      else adjustsByMonth.set(month, [{ categoryId, deltaCents }]);
+    }
+  }
 
+  // Walk months ASCENDING. Each month draws ONLY from the reserve available by its
+  // own end (the running R that carried in + what was added IN that month) — a
+  // transaction is capped at the reserve that existed that month and can never pull
+  // in reserve added in a LATER month. The CURRENT (open) month therefore sees all
+  // currently-available reserve; a closed month is bounded by its month-end balance.
+  // Within a month: setLimit → cushion → adjust → spend → accrual.
   for (const month of months) {
     const closed = month < inputs.openMonth;
 
-    // a. setLimit — every category with an effective limit this month.
-    const limits = limitCatsByMonth.get(month);
+    const limits = inputs.limitsByMonth.get(month);
     if (limits) {
       for (const [categoryId, lim] of limits) {
         events.push({
@@ -136,12 +160,20 @@ export function mapInputsToEvents(
       }
     }
 
-    // b. cushion — a mode segment that begins at this month.
     if (cushionAt.has(month)) {
       events.push({ type: "cushion", month, on: cushionAt.get(month)! });
     }
 
-    // c. spendDelta — the month's whole spent for each category that spent.
+    // adjust BEFORE spend — op1's capacity-bounded draw consumes reserves built
+    // this month first; folding spend first and leaning on op3 cover OVER-COVERS
+    // when signed adjusts interleave (R can go negative).
+    const monthAdjusts = adjustsByMonth.get(month);
+    if (monthAdjusts) {
+      for (const { categoryId, deltaCents } of monthAdjusts) {
+        events.push({ type: "adjust", categoryId, deltaCents, month });
+      }
+    }
+
     for (const [categoryId, byMonth] of inputs.spendByCategoryByMonth) {
       const spent = byMonth.get(month);
       if (spent !== undefined && spent !== 0n) {
@@ -154,7 +186,7 @@ export function mapInputsToEvents(
       }
     }
 
-    // d. accrual — CLOSED months only (decision G). Open month never accrues.
+    // accrual — CLOSED months only (decision G); the open month never accrues.
     if (closed) {
       const accrualCats = new Set<string>();
       if (limits) for (const id of limits.keys()) accrualCats.add(id);
@@ -167,29 +199,23 @@ export function mapInputsToEvents(
     }
   }
 
-  // 2. adjust — signed deltas (decision E) in stored order. Each carries the month
-  //    it was made in (asOf): the engine covers overspent ONLY for that month, so a
-  //    current-month adjust never retroactively consumes reserve against a closed
-  //    month (an adjust made when a now-closed month was open still covers it).
-  for (const [categoryId, deltas] of inputs.adjustmentsByCategory) {
-    for (const { deltaCents, month } of deltas) {
-      events.push({ type: "adjust", categoryId, deltaCents, month });
-    }
-  }
-
-  // 3. exclude / archive — drop categories out of `internal` (decision C / J).
+  // ── 3. exclude / archive — drop categories out of `internal` (decision C / J).
   for (const [categoryId, flags] of inputs.categoryFlags) {
     if (flags.reserveExcluded) {
       events.push({ type: "exclude", categoryId, excluded: true });
     }
-    if (flags.archivedAt) {
+    // Archive reaches the engine when EITHER timestamp is set: "all" stamps
+    // archived_at; "current_future" (keep history) stamps ONLY archived_from and
+    // leaves archived_at NULL — gating on archivedAt alone missed it, so the
+    // category's reserve stayed in `internal` (the TOTAL AVAILABLE 210-vs-110 bug).
+    if (flags.archivedAt || flags.archivedFrom) {
       // `archivedFrom` set → current_future; absent → all (decision J).
       const mode = flags.archivedFrom ? "current_future" : "all";
       events.push({ type: "archive", categoryId, mode });
     }
   }
 
-  // 4. setUserDefined — Σ RESERVE-wallet balances (surplus input only).
+  // ── 4. setUserDefined — Σ RESERVE-wallet balances (surplus input only).
   events.push({ type: "setUserDefined", cents: inputs.userDefinedCents });
 
   return events;
@@ -227,6 +253,7 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
             overspentCents: bigint;
             overageCents: bigint;
             leftCents: bigint;
+            endReserveCents: bigint;
           }
         >
       >();
@@ -243,6 +270,7 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
           overspentCents: c.overspentCents,
           overageCents: c.overageCents,
           leftCents: c.leftCents,
+          endReserveCents: c.endReserveCents,
         });
         overspentByCat.set(
           c.categoryId,
@@ -269,6 +297,8 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
           // disabled per decision K — the engine zeroes per-month used in cells).
           usedCents: usedByCat.get(categoryId) ?? 0n,
           overspentCents: overspentByCat.get(categoryId) ?? 0n,
+          reserveExcluded:
+            inputs.categoryFlags.get(categoryId)?.reserveExcluded ?? false,
           byMonth: byMonthByCat.get(categoryId) ?? new Map(),
         });
       }
@@ -279,6 +309,7 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
 
       return ok({
         positions,
+        openMonth: inputs.openMonth,
         internalCents: engine.internalCents,
         userDefinedCents: engine.userDefinedCents,
         surplusCents,

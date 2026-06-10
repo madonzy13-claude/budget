@@ -28,6 +28,7 @@ import { archiveCategory } from "../application/archive-category";
 import { listCategories } from "../application/list-categories";
 import { findCategoryById } from "../application/find-category-by-id";
 import { renameCategory } from "../application/rename-category";
+import { permanentlyDeleteCategory } from "../application/permanently-delete-category";
 import { setCategoryLimit } from "../application/set-category-limit";
 import { getEffectiveLimit } from "../application/get-effective-limit";
 import { applyBudgetTemplate } from "../application/apply-budget-template";
@@ -90,6 +91,7 @@ export interface BudgetingModule {
   listCategories: ReturnType<typeof listCategories>;
   findCategoryById: ReturnType<typeof findCategoryById>;
   renameCategory: ReturnType<typeof renameCategory>;
+  permanentlyDeleteCategory: ReturnType<typeof permanentlyDeleteCategory>;
   setCategoryLimit: ReturnType<typeof setCategoryLimit>;
   getEffectiveLimit: ReturnType<typeof getEffectiveLimit>;
   applyBudgetTemplate: ReturnType<typeof applyBudgetTemplate>;
@@ -281,6 +283,9 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listCategories: listCategories({ repo: categoryRepo }),
     findCategoryById: findCategoryById({ repo: categoryRepo }),
     renameCategory: renameCategory({ repo: categoryRepo }),
+    permanentlyDeleteCategory: permanentlyDeleteCategory({
+      repo: categoryRepo,
+    }),
     // Phase 7 (D-PH7-19): inject taskRepo + fxProvider so a category limit
     // change auto-emits/resolves CUSHION_BELOW_TARGET (cushion_amount is on
     // category_limits — every limit change can shift cushion required).

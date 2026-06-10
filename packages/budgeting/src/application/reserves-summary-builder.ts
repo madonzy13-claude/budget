@@ -43,7 +43,12 @@ export function buildReservesSummaryDto(args: {
       categoryId: c.id,
       name: c.name,
       reserveCents: (p?.reserveCents ?? 0n).toString(),
+      // usedCents is cumulative across all months (ALL TIME); usedThisMonthCents
+      // is just the open month's draw (THIS MONTH).
       usedCents: (p?.usedCents ?? 0n).toString(),
+      usedThisMonthCents: (
+        p?.byMonth.get(positions.openMonth)?.usedCents ?? 0n
+      ).toString(),
       overspentCents: (p?.overspentCents ?? 0n).toString(),
     };
   };
@@ -61,8 +66,23 @@ export function buildReservesSummaryDto(args: {
       name: c.name,
       reserveCents: "0",
       usedCents: "0",
+      usedThisMonthCents: "0",
       overspentCents: "0",
     }));
+
+  // TOTAL USED counts EVERY non-excluded category's used reserve — including
+  // ARCHIVED "keep history" categories (which are not shown as rows but whose
+  // historical draw still counts). Excluded categories are skipped.
+  const excludedIds = new Set(
+    categories.filter((c) => c.reserveExcluded).map((c) => c.id),
+  );
+  let usedAllTime = 0n;
+  let usedThisMonth = 0n;
+  for (const [id, p] of positions.positions) {
+    if (excludedIds.has(id)) continue;
+    usedAllTime += p.usedCents;
+    usedThisMonth += p.byMonth.get(positions.openMonth)?.usedCents ?? 0n;
+  }
 
   return {
     rows,
@@ -72,6 +92,8 @@ export function buildReservesSummaryDto(args: {
       userDefinedCents: positions.userDefinedCents.toString(),
       surplusCents: positions.surplusCents.toString(),
       direction: positions.direction,
+      usedCents: usedAllTime.toString(),
+      usedThisMonthCents: usedThisMonth.toString(),
       disabled,
       budgetCurrency,
     },

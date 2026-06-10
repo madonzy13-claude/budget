@@ -103,21 +103,55 @@ export function createCategoriesRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
-  // POST /categories/:id/archive — archive
+  // POST /categories/:id/archive — archive (mode: "all" hides everywhere;
+  // "current_future" keeps history — visible in past months it had activity).
   app.post("/:id/archive", async (c) => {
     const session = c.get("session");
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const { id: categoryId } = c.req.param();
+    const body = (await c.req.json().catch(() => ({}))) as { mode?: unknown };
+    const mode =
+      body.mode === "current_future" || body.mode === "all"
+        ? body.mode
+        : undefined;
 
     const r = await deps.budgeting.archiveCategory({
       tenantId,
       categoryId,
       actorUserId: userId,
+      mode,
     });
 
     if (r.isErr()) return c.json({ error: r.error.message }, 422);
     return c.json(r.value);
+  });
+
+  // DELETE /categories/:id — PERMANENT hard delete (category + all its data).
+  // Only surfaced in the UI for already-archived categories, behind a confirm.
+  app.delete("/:id", async (c) => {
+    const session = c.get("session");
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const { id: categoryId } = c.req.param();
+    const budgetId = c.req.param("budgetId");
+    if (budgetId && budgetId !== tenantId) {
+      return c.json({ error: "tenant_mismatch" }, 403);
+    }
+
+    const r = await deps.budgeting.permanentlyDeleteCategory({
+      tenantId,
+      categoryId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) {
+      if (r.error.message === "not_found") {
+        return c.json({ error: "not_found" }, 404);
+      }
+      return serverError(c, "permanently_delete_category_failed", r.error);
+    }
+    return c.body(null, 204);
   });
 
   // PUT /sort-order — reorder categories (GRID-09)

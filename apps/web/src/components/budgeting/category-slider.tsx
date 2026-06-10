@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/sheet";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -93,6 +92,12 @@ export interface CategorySliderProps {
   };
   txnsCount?: number;
   /**
+   * The month the grid is viewing ('YYYY-MM'). The planned/cushion limit edit
+   * is written for THIS month — past months are bounded to just that month,
+   * the current month carries forward. Defaults to the current month.
+   */
+  month?: string;
+  /**
    * Phase 6 onboarding rewrite: when false, the Cushion monthly amount
    * field is hidden in the slider. Submit still posts cushionAmount = 0
    * (or the existing value), so disabling the master flag doesn't strand
@@ -144,7 +149,7 @@ export function CategorySlider({
   budgetId,
   budgetCurrency,
   initial,
-  txnsCount = 0,
+  month,
   cushionEnabled = true,
 }: CategorySliderProps) {
   const t = useTranslations("grid");
@@ -211,10 +216,19 @@ export function CategorySlider({
   }, [open, initial?.categoryId]);
 
   async function onSubmit(values: FormValues) {
-    // SCD-2 limits are evaluated as-of the month start by spendings-summary —
-    // a mid-month effectiveFrom would leave the new limit invisible for the
-    // current month. Anchor to the first of the current month.
-    const effectiveFrom = `${new Date().toISOString().slice(0, 7)}-01`;
+    // SCD-2 limits are evaluated as-of the month start. EDITING writes the limit
+    // for the month the grid is viewing (not always "today") so a past month can
+    // be changed — the backend bounds a past-month edit to just that month and
+    // carries a current-month edit forward. CREATING a new category always
+    // anchors to the current month (a new category shouldn't exist only in a past
+    // month). Falls back to the current month.
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const targetMonth =
+      mode === "edit" ? (month ?? currentMonth) : currentMonth;
+    const effectiveFrom = `${targetMonth}-01`;
+    // Editing a PAST month changes only that month; current/future + new
+    // categories carry forward (the SCD-2 default).
+    const singleMonth = mode === "edit" && targetMonth < currentMonth;
     const normalAmount = decimalToCents(values.plannedCents);
     const cushionAmount = decimalToCents(values.cushionCents);
 
@@ -280,6 +294,7 @@ export function CategorySlider({
               normalAmount,
               cushionAmount,
               effectiveFrom,
+              singleMonth,
             }),
           },
         ),
@@ -296,19 +311,20 @@ export function CategorySlider({
     router.refresh();
   }
 
-  async function handleDelete() {
+  async function handleDelete(mode: "current_future" | "all") {
     if (!initial?.categoryId) return;
     setIsDeleting(true);
     try {
-      // UAT round 14: the backend exposes POST /:id/archive (soft delete
-      // via SCD-2 archived_at). There is NO DELETE route — calling
-      // method: "DELETE" silently 404'd, leaving the AlertDialog dismissed
-      // but the category still visible in the grid. Hitting the archive
-      // route flips archived_at, and listCategories filters those rows
-      // out by default, so the column disappears on router.refresh().
+      // POST /:id/archive soft-removes the category. mode "current_future" keeps
+      // history (visible in past months it had activity, gone from now on); mode
+      // "all" hides it everywhere. Either way transactions are kept in the DB.
       const res = await clientApiFetch(
         `/budgets/${budgetId}/categories/${initial.categoryId}/archive`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode }),
+        },
       );
       if (res.ok) {
         setDeleteOpen(false);
@@ -527,20 +543,15 @@ export function CategorySlider({
               />
 
               <SheetFooter className="mt-auto pt-4 flex gap-3">
-                {/* Delete button — edit mode, only if txnsCount === 0 */}
+                {/* Remove button — edit mode. Categories WITH transactions can
+                    be removed too (the dialog offers "keep history"). */}
                 {mode === "edit" && (
                   <Button
                     type="button"
                     variant="destructive"
                     data-testid="cat-slider-delete"
                     onClick={() => setDeleteOpen(true)}
-                    disabled={isSubmitting || isDeleting || txnsCount > 0}
-                    aria-disabled={txnsCount > 0 ? "true" : undefined}
-                    title={
-                      txnsCount > 0
-                        ? t("catSlider.deleteBlockedTooltip")
-                        : undefined
-                    }
+                    disabled={isSubmitting || isDeleting}
                     className="h-12 w-full sm:flex-1"
                   >
                     {t("txn.action.delete")}
@@ -570,26 +581,41 @@ export function CategorySlider({
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirm.deleteTxn.title")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("catSlider.remove.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("catSlider.deleteConfirmBody")}
+              {t("catSlider.remove.body")}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>
-              {t("confirm.deleteTxn.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void handleDelete()}
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="cat-remove-keep-history"
+              onClick={() => void handleDelete("current_future")}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="h-12 w-full justify-start text-left"
             >
               {isDeleting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                t("confirm.deleteTxn.cta")
+                t("catSlider.remove.keepHistory")
               )}
-            </AlertDialogAction>
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              data-testid="cat-remove-all"
+              onClick={() => void handleDelete("all")}
+              disabled={isDeleting}
+              className="h-12 w-full justify-start text-left"
+            >
+              {t("catSlider.remove.everywhere")}
+            </Button>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              {t("confirm.deleteTxn.cancel")}
+            </AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

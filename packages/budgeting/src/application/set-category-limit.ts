@@ -3,7 +3,7 @@
  * D-04-c: effectiveFrom defaults to first day of current month.
  * SCD-2: closes previous open row, inserts new one.
  */
-import { ok, err, type Result } from "@budget/shared-kernel";
+import { ok, err, serverNow, type Result } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { CategoryLimitRepo } from "../ports/category-limit-repo";
@@ -54,7 +54,7 @@ export interface SetCategoryLimitFullInput extends Omit<
 }
 
 function firstDayOfCurrentMonth(): string {
-  const now = new Date();
+  const now = serverNow();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 }
 

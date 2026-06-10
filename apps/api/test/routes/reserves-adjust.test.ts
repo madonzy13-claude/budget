@@ -182,6 +182,69 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
     expect(row?.reserveCents).toBe("50000");
   });
 
+  it("200 cover: raising an overspent category returns the SETTLED reserve (target − cover)", async () => {
+    const f = await createFixture();
+    const a = await buildApp(f.userId, f.budgetId);
+    const pool = new Pool({ connectionString: DB_URL });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('app.tenant_ids', '{"${f.budgetId}"}', true)`,
+      );
+      await client.query(
+        `SELECT set_config('app.current_user_id', '${f.userId}', true)`,
+      );
+      // Limit 50000c effective from the MONTH START so it is the open month's
+      // effLimit (effective_from must be ≤ the month start to apply).
+      await client.query(
+        `INSERT INTO budgeting.category_limits
+           (id, tenant_id, category_id, normal_amount, normal_currency,
+            cushion_amount, cushion_currency, effective_from, effective_to, actor_user_id)
+         VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 50000, 'EUR', 50000, 'EUR',
+                 date_trunc('month', (now() AT TIME ZONE 'UTC')::date)::date,
+                 NULL, $3::uuid)`,
+        [f.budgetId, f.categoryId, f.userId],
+      );
+      // Confirmed overspend of 80000c this month → overage 30000c, no reserve.
+      await client.query(
+        `INSERT INTO budgeting.expense_ledger
+           (id, tenant_id, budget_id, category_id, transaction_date,
+            amount_original_cents, currency_original, amount_converted_cents,
+            fx_rate, fx_as_of, kind, confirmed_at, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2::uuid,
+                 (now() AT TIME ZONE 'UTC')::date, 80000, 'EUR', 80000, 1,
+                 (now() AT TIME ZONE 'UTC')::date, 'SPENDING', now(), now())`,
+        [f.budgetId, f.categoryId],
+      );
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+      await pool.end();
+    }
+
+    const res = await a.request(
+      `/budgets/${f.budgetId}/reserves/${f.categoryId}/adjust`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedCents: 50000 }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    // 50000 typed; 30000 covered this month's overspend → settled reserve 20000.
+    // The handler returns the SETTLED value (not the target) so the client can
+    // detect cover (50000 − 20000 = 30000) and run the count-down reveal.
+    expect(body.reserveCents).toBe("20000");
+    const catRow = body.summary.rows.find(
+      (r: any) => r.categoryId === f.categoryId,
+    );
+    expect(catRow?.reserveCents).toBe("20000");
+    expect(catRow?.usedCents).toBe("30000");
+    expect(catRow?.overspentCents).toBe("0");
+  });
+
   it("200 lower reserve: appends a negative delta, no sibling spill", async () => {
     // Prior reserve is 50000 (set by the previous test). Lower to 25000 →
     // delta = 25000 − 50000 = −25000. Categories are independent (no spill).

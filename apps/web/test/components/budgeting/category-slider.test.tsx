@@ -201,7 +201,10 @@ describe("CategorySlider", () => {
     expect(deleteBtn).toBeTruthy();
   });
 
-  it("edit mode: Delete button disabled when txnsCount > 0", () => {
+  it("edit mode: Delete button enabled even when txnsCount > 0 (archive keeps history)", () => {
+    // The delete flow now archives (soft-delete) and preserves transactions in
+    // both modes, so it is no longer blocked by transaction count — the button
+    // stays available regardless of how many transactions the category has.
     render(
       <TestQueryProvider>
         <CategorySlider {...editProps} txnsCount={5} />
@@ -210,17 +213,9 @@ describe("CategorySlider", () => {
     const deleteBtn = document.querySelector(
       "[data-testid='cat-slider-delete']",
     ) as HTMLButtonElement | null;
-    // Either disabled or has aria-disabled
-    if (deleteBtn) {
-      expect(
-        deleteBtn.disabled ||
-          deleteBtn.getAttribute("aria-disabled") === "true",
-      ).toBe(true);
-    } else {
-      // Button might not be rendered at all when has txns
-      // Either approach is valid per spec
-      expect(true).toBe(true);
-    }
+    expect(deleteBtn).toBeTruthy();
+    expect(deleteBtn!.disabled).toBe(false);
+    expect(deleteBtn!.getAttribute("aria-disabled")).not.toBe("true");
   });
 
   // ── UAT Defect 2: create response parsing ────────────────────────────
@@ -598,8 +593,11 @@ describe("CategorySlider", () => {
       expect(deleteBtn).toBeTruthy();
       await user.click(deleteBtn);
 
-      // Confirm in the AlertDialog — label is `confirm.deleteTxn.cta`
-      const confirmBtn = await screen.findByText("confirm.deleteTxn.cta");
+      // Confirm in the AlertDialog — the delete dialog now offers two archive
+      // modes; "keep history" (current_future) is the POST /archive path.
+      const confirmBtn = (await screen.findByTestId(
+        "cat-remove-keep-history",
+      )) as HTMLButtonElement;
       await user.click(confirmBtn);
 
       await waitFor(() => expect(fetchMock).toHaveBeenCalled());

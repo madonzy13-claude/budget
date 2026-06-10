@@ -105,6 +105,14 @@ export function PullToRefresh() {
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
+      // Opt-out regions: a gesture that starts inside an element marked
+      // [data-no-pull-refresh] (e.g. the spendings grid — it has its own
+      // scroll and must never trigger a page reload) does NOT pull-to-refresh.
+      // Pulling elsewhere on the page (e.g. the month slider above the grid)
+      // still works.
+      const startTarget =
+        e.target instanceof Element ? (e.target as Element) : null;
+      if (startTarget?.closest("[data-no-pull-refresh]")) return;
       // Both the outer main AND any inner scroll container must be at
       // the top — otherwise the user's gesture is "scroll within that
       // list", not "pull to refresh".

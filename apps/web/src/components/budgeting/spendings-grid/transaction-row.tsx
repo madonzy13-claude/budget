@@ -54,6 +54,9 @@ export interface TransactionRowProps {
    *  drafts follow, so the confirmed group reads as a closed group above
    *  the draft section. */
   roundedBottom?: boolean;
+  /** Archived (keep-history) column → row is locked: no click-to-edit, no
+   *  double-tap edit, no action chips. */
+  readOnly?: boolean;
 }
 
 export function TransactionRow({
@@ -63,6 +66,7 @@ export function TransactionRow({
   onEdit,
   onRetry,
   roundedBottom,
+  readOnly = false,
 }: TransactionRowProps) {
   const t = useTranslations("grid.txn");
   const tc = useTranslations("grid.confirm.deleteTxn");
@@ -78,7 +82,7 @@ export function TransactionRow({
   const deleteMutation = useDeleteTransaction(budgetId, month);
   const updateMutation = useUpdateTransaction(budgetId, month);
 
-  const showChips = (hovered || revealed) && !editing;
+  const showChips = (hovered || revealed) && !editing && !readOnly;
 
   // Inline-edit focus management for iOS Safari.
   //
@@ -283,7 +287,7 @@ export function TransactionRow({
   const cellRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = cellRef.current;
-    if (!el) return;
+    if (!el || readOnly) return; // archived column → no double-tap edit
     const startEditingNow = () => {
       setEditValue((parseInt(txn.amountConvertedCents, 10) / 100).toString());
       setEditing(true);
@@ -306,7 +310,7 @@ export function TransactionRow({
     };
     el.addEventListener("touchstart", handler, { passive: false });
     return () => el.removeEventListener("touchstart", handler);
-  }, [txn.amountConvertedCents]);
+  }, [txn.amountConvertedCents, readOnly]);
 
   function commitEdit() {
     const trimmed = editValue.trim();
@@ -345,14 +349,14 @@ export function TransactionRow({
       data-testid={`txn-row-${txn.amountConvertedCents}`}
       data-pending={txn.pending ? "true" : undefined}
       data-unsent={txn.unsent ? "true" : undefined}
-      onClick={handleClick}
+      onClick={readOnly ? undefined : handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       role="row"
       tabIndex={0}
       className={cn(
         "flex min-h-[40px] items-center gap-2 px-3 py-1",
-        "cursor-pointer select-none",
+        readOnly ? "cursor-default select-none" : "cursor-pointer select-none",
         roundedBottom && "rounded-b-md",
         showChips && "bg-[var(--surface-elevated-dark)]",
         txn.unsent && "ring-1 ring-[var(--destructive)]",
@@ -365,7 +369,7 @@ export function TransactionRow({
       <div
         ref={cellRef}
         data-amount-cell
-        onDoubleClick={handleAmountDoubleClick}
+        onDoubleClick={readOnly ? undefined : handleAmountDoubleClick}
         style={{
           touchAction: "manipulation",
           WebkitUserSelect: "none",

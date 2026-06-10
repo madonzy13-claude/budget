@@ -67,6 +67,11 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       OTEL_SERVICE_NAME: api
+      # DEV-ONLY: opt in to the gated test clock (POST /test/clock). Combined with
+      # the absence of NODE_ENV=production, this lets the E2E reserve golden walk
+      # move the server clock May→June. Prod images/compose never set this, so the
+      # endpoint 404s and serverNow() is always the real clock there.
+      ALLOW_TEST_CLOCK: "1"
     depends_on:
       migrator:
         condition: service_completed_successfully

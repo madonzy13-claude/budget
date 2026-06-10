@@ -32,7 +32,8 @@ function renderFooter(
   overrides?: Partial<{
     internalCents: string;
     userDefinedCents: string;
-    usedCents: string;
+    usedThisMonthCents: string;
+    usedAllTimeCents: string;
     currency: string;
   }>,
 ) {
@@ -40,7 +41,8 @@ function renderFooter(
     <ReservesTotalsFooter
       internalCents={overrides?.internalCents ?? "30000"}
       userDefinedCents={overrides?.userDefinedCents ?? "10000"}
-      usedCents={overrides?.usedCents ?? "0"}
+      usedThisMonthCents={overrides?.usedThisMonthCents ?? "0"}
+      usedAllTimeCents={overrides?.usedAllTimeCents ?? "0"}
       currency={overrides?.currency ?? "EUR"}
     />,
   );
@@ -76,15 +78,22 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
     expect(footer.textContent).toMatch(/100/);
   });
 
-  it("renders TOTAL USED value from usedCents in a dedicated cell", () => {
-    renderFooter({ usedCents: "4500" });
+  it("renders TOTAL USED (this month) value from usedThisMonthCents", () => {
+    renderFooter({ usedThisMonthCents: "4500" });
     const usedTotal = screen.getByTestId("reserves-total-used");
     // 4500 cents → "45".
     expect(usedTotal.textContent).toMatch(/45/);
   });
 
+  it("renders TOTAL USED (all time) in its own cell", () => {
+    renderFooter({ usedThisMonthCents: "4500", usedAllTimeCents: "12300" });
+    const allTime = screen.getByTestId("reserves-total-used-alltime");
+    // 12300 cents → "123".
+    expect(allTime.textContent).toMatch(/123/);
+  });
+
   it("renders TOTAL USED as 0 when no reserve has been used", () => {
-    renderFooter({ usedCents: "0" });
+    renderFooter({ usedThisMonthCents: "0" });
     const usedTotal = screen.getByTestId("reserves-total-used");
     expect(usedTotal.textContent).toMatch(/0/);
   });
@@ -100,5 +109,41 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
   it("renders the data-testid attribute", () => {
     renderFooter();
     expect(screen.getByTestId("reserves-totals-footer")).toBeInTheDocument();
+  });
+
+  // Arrow beside TOTAL IN WALLETS: wallet vs needed (= TOTAL AVAILABLE).
+  it("wallet MORE than needed → green up arrow (no down)", () => {
+    renderFooter({ internalCents: "10000", userDefinedCents: "30000" });
+    expect(screen.getByTestId("reserves-wallets-arrow-up")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("reserves-wallets-arrow-down"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("wallet LESS than needed → red down arrow (no up)", () => {
+    renderFooter({ internalCents: "30000", userDefinedCents: "10000" });
+    expect(
+      screen.getByTestId("reserves-wallets-arrow-down"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("reserves-wallets-arrow-up"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("wallet EQUALS needed → no arrow", () => {
+    renderFooter({ internalCents: "20000", userDefinedCents: "20000" });
+    expect(
+      screen.queryByTestId("reserves-wallets-arrow-up"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("reserves-wallets-arrow-down"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("totals block is right-aligned (ml-auto) and width-bounded", () => {
+    renderFooter();
+    const footer = screen.getByTestId("reserves-totals-footer");
+    expect(footer.className).toContain("ml-auto");
+    expect(footer.className).toContain("max-w-full");
   });
 });

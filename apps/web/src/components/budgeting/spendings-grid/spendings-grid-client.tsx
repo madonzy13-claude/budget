@@ -36,6 +36,19 @@ import { AddCategoryColumn } from "./add-category-column";
 import { MonthNavigator } from "./month-navigator";
 import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { clientApiFetch } from "@/lib/budget-fetch";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { useReorderCategories } from "@/hooks/use-reorder-categories";
 import { useMonthParam } from "@/hooks/use-month-param";
 import {
@@ -83,6 +96,7 @@ function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
     activeBudgetCents: "0",
     spentCents: "0",
     reserveUsedCents: "0",
+    reserveAvailableCents: "0",
     overspentCents: "0",
     balanceCents: "0",
   };
@@ -111,6 +125,39 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
   });
 
   const qc = useQueryClient();
+  const router = useRouter();
+  const tDel = useTranslations("grid.deleteCategory");
+  // Permanent-delete confirm for an archived column's trash.
+  const [deleteCat, setDeleteCat] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirmPermanentDelete() {
+    if (!deleteCat) return;
+    setDeleting(true);
+    try {
+      const res = await clientApiFetch(
+        `/budgets/${budgetId}/categories/${deleteCat.id}`,
+        { method: "DELETE" },
+      );
+      if (res.ok) {
+        setDeleteCat(null);
+        setLocalCategoryOrder((prev) =>
+          prev.filter((c) => c.id !== deleteCat.id),
+        );
+        qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+        qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
+        qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
+        qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+        router.refresh();
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const [localCategoryOrder, setLocalCategoryOrder] = useState<CategoryDTO[]>(
     props.initialCategories,
   );
@@ -332,6 +379,17 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     };
   }, [catSlider.categoryId, localCategoryOrder, summaryByCatId]);
 
+  // An archived ("keep history") category is shown ONLY in months where it has
+  // at least one transaction; otherwise it's dropped from the grid (this month).
+  const visibleCategories = useMemo(
+    () =>
+      localCategoryOrder.filter((c) => {
+        if (!summaryByCatId.get(c.id)?.archived) return true;
+        return (transactionsByCatId.get(c.id) ?? []).length > 0;
+      }),
+    [localCategoryOrder, summaryByCatId, transactionsByCatId],
+  );
+
   return (
     <>
       <MonthNavigator month={month} budgetTz={budgetTz} />
@@ -339,6 +397,9 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         ref={gridRef}
         onScroll={handleGridScroll}
         data-testid="spendings-grid"
+        // Pulling down inside the grid must NOT reload the page — only the month
+        // slider above does (it sits outside this container). See pull-to-refresh.tsx.
+        data-no-pull-refresh=""
         // The grid is its own scroll container for both axes. Bounded height
         // (viewport minus the top app-bar + month nav, ~160px) lets the
         // sticky column-header band stick to the top of THIS container while
@@ -368,10 +429,10 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         >
           <div className="flex gap-2 w-fit mx-auto">
             <SortableContext
-              items={localCategoryOrder.map((c) => c.id)}
+              items={visibleCategories.map((c) => c.id)}
               strategy={horizontalListSortingStrategy}
             >
-              {localCategoryOrder.map((c) => (
+              {visibleCategories.map((c) => (
                 <CategoryColumn
                   key={c.id}
                   category={c}
@@ -395,6 +456,9 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
                   }
                   onEditCategory={(categoryId) =>
                     setCatSlider({ open: true, mode: "edit", categoryId })
+                  }
+                  onPermanentDelete={() =>
+                    setDeleteCat({ id: c.id, name: c.name })
                   }
                 />
               ))}
@@ -439,11 +503,45 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         mode={catSlider.mode}
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
+        month={month}
         cushionEnabled={cushionEnabled}
         {...(catSlider.mode === "edit" && editCatInitial
           ? { initial: editCatInitial }
           : {})}
       />
+
+      {/* Permanent-delete confirm — archived column trash. Destructive. */}
+      <AlertDialog
+        open={!!deleteCat}
+        onOpenChange={(o) => {
+          if (!o) setDeleteCat(null);
+        }}
+      >
+        <AlertDialogContent data-testid="category-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tDel("title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tDel("body", { name: deleteCat?.name ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              {tDel("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="category-delete-confirm"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmPermanentDelete();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {tDel("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -131,12 +131,21 @@ describe("useMonthParam", () => {
   });
 
   it("next() increments month", () => {
-    mockSearchParamsValue = "month=2026-05";
+    // Start from a past month — next() is intentionally blocked on the current
+    // month (no future navigation), so increment must be exercised from < now.
+    mockSearchParamsValue = "month=2026-04";
     const { result } = renderHook(() => useMonthParam());
     act(() => result.current.next());
     expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining("month=2026-06"),
+      expect.stringContaining("month=2026-05"),
     );
+  });
+
+  it("next() is a no-op on the current month (no future navigation)", () => {
+    mockSearchParamsValue = "month=2026-05";
+    const { result } = renderHook(() => useMonthParam());
+    act(() => result.current.next());
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("today() sets to current month", () => {
