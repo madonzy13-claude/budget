@@ -61,4 +61,24 @@ export class SettingsPo {
   async assertCushionPreviewContains(text: string | RegExp): Promise<void> {
     await expect(this.cushionPreview()).toContainText(text);
   }
+
+  /**
+   * The share URL field that appears in the Members section after
+   * generating an invite link. testid = "share-url-field" (share-url-field.tsx).
+   */
+  shareUrlField() {
+    return this.page.getByTestId("share-url-field");
+  }
+
+  /**
+   * Click the "Generate invite link" / "Invite member" button in the Members
+   * section to reveal the ShareUrlField. Located by visible text since
+   * members-section.tsx uses no testid on this button.
+   */
+  async clickGenerateInviteLink(): Promise<void> {
+    await this.page
+      .getByRole("button", { name: /invite|generate|share/i })
+      .first()
+      .click();
+  }
 }
