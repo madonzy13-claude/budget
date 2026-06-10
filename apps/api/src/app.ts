@@ -32,6 +32,7 @@ import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createRecurringRulesRoute } from "./routes/recurring-rules";
 import { createTasksRoute } from "./routes/tasks";
+import { createPushRoute } from "./routes/push";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import { createShareJoinRoute } from "./routes/share-join";
 import { createSpendingsSummaryRoute } from "./routes/spendings-summary";
@@ -88,6 +89,7 @@ export function createApp(deps: BootedDeps) {
   app.use("/budgets/*", requireAuth);
   app.use("/currencies/*", requireAuth);
   app.use("/settings/*", requireAuth);
+  app.use("/push/*", requireAuth);
   // SETT-05/07: budget members sub-router mounted BEFORE budgetsRoutesFactory
   // so /:id/members is not swallowed by the /:id param handler in budgetsRoutesFactory.
   app.route("/budgets", budgetMembersRoutesFactory(deps));
@@ -128,6 +130,7 @@ export function createApp(deps: BootedDeps) {
   app.route("/budgets/:budgetId/transactions", createTransactionsRoute(deps));
 
   app.route("/settings", settingsRoutesFactory(deps));
+  app.route("/push", createPushRoute(deps));
   app.route("/currencies", createCurrenciesRoute(deps));
 
   // 6b. Budget-scoped routes — every handler reads tenantIds; we MUST 403
