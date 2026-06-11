@@ -64,8 +64,10 @@ Then(
 
 Then("the draft confirm button is visible", async ({ page }) => {
   const spendings = new SpendingsPo(page);
-  // Row actions are hidden until hover (desktop sm:group-hover) / tap-reveal.
-  await page.locator('[data-testid^="draft-row-"]').first().hover();
+  // Row actions are hidden until revealed. Hover only works above the `sm`
+  // breakpoint (sm:group-hover); the mobile project must use tap-reveal, so
+  // click the row — it sets `revealed` on every viewport.
+  await page.locator('[data-testid^="draft-row-"]').first().click();
   await expect(spendings.draftConfirmButton()).toBeVisible({ timeout: 5000 });
 });
 
@@ -75,8 +77,9 @@ When(
     const spendings = new SpendingsPo(page);
     const row = spendings.draftRow(ruleName);
     await expect(row).toBeVisible({ timeout: 8000 });
-    // Reveal the hover/tap-gated action buttons before clicking confirm.
-    await row.hover();
+    // Reveal the action buttons via tap-reveal (works on all viewports;
+    // hover-reveal only exists above the `sm` breakpoint).
+    await row.click();
     await spendings.draftConfirmButton().click();
   },
 );

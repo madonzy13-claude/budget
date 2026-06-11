@@ -1,4 +1,5 @@
 import { test as base } from "playwright-bdd";
+import { fetchWith429Retry } from "./fetch-with-429-retry";
 
 interface FreshUser {
   email: string;
@@ -180,11 +181,13 @@ export async function signUpViaHttp(
   password: string,
   name: string,
 ): Promise<{ userId: string; setCookieHeaders: string[] }> {
-  const res = await fetch(`${baseUrl}/auth/sign-up/email`, {
-    method: "POST",
-    headers: { "content-type": "application/json", Origin: baseUrl },
-    body: JSON.stringify({ email, password, name }),
-  });
+  const res = await fetchWith429Retry(() =>
+    fetch(`${baseUrl}/auth/sign-up/email`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Origin: baseUrl },
+      body: JSON.stringify({ email, password, name }),
+    }),
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
     throw new Error(`signUpEmail failed (${res.status}): ${body}`);
