@@ -66,33 +66,29 @@ When(
   /^I advance through the wizard basics step with name "(.+?)"$/,
   async ({ page }, budgetName: string) => {
     const onboarding = new OnboardingPo(page);
-    // Step 0: Welcome — click Next/Get started to advance.
-    await onboarding.clickNext();
-    // Step 1: Basics — fill in the budget name then click Next.
+    // Real step order: 0 Welcome, 1 Type, 2 Basics, 3 Features, 4 Push, 5 Review.
+    await onboarding.clickNext(); // 0 Welcome ("Get started") → 1 Type
+    await onboarding.clickNext(); // 1 Type (default PRIVATE) → 2 Basics
     const nameInput = page.getByTestId("wizard-step1-name");
     await nameInput.waitFor({ state: "visible", timeout: 8000 });
     await nameInput.fill(budgetName);
-    await onboarding.clickNext();
+    await onboarding.clickNext(); // 2 Basics → 3 Features
   },
 );
 
 When("I advance past the optional wizard steps", async ({ page }) => {
   const onboarding = new OnboardingPo(page);
-  // Steps 2 (Type), 3 (Features), 4 (Push) are skippable.
-  // Skip Type and Features; handle Push separately for assertion purposes.
-  await onboarding.clickSkip(); // skip Type (step 2)
-  await onboarding.clickSkip(); // skip Features (step 3)
-  // Now on Push step (step 4) — do NOT skip here; caller asserts push switch.
+  // Now on Features (step 3); skip it to land on Push (step 4).
+  // Do NOT skip Push — the caller asserts the push switch.
+  await onboarding.clickSkip(); // skip Features (3) → 4 Push
 });
 
 When(
   "I advance past the optional wizard steps to the push step",
   async ({ page }) => {
     const onboarding = new OnboardingPo(page);
-    // Skip Type (step 2) and Features (step 3) to land on Push (step 4).
-    await onboarding.clickSkip(); // skip Type
-    await onboarding.clickSkip(); // skip Features
-    // Now on the Push step.
+    // On Features (step 3); skip it to land on Push (step 4).
+    await onboarding.clickSkip(); // skip Features (3) → 4 Push
   },
 );
 
@@ -108,8 +104,15 @@ When("I skip the push step", async ({ page }) => {
 
 When("I complete the wizard", async ({ page }) => {
   const onboarding = new OnboardingPo(page);
-  // At step 5 (Review) click the primary button which creates the budget.
-  await onboarding.clickNext();
+  // Called from either the Push step (needs Push→Review then Create) or the
+  // Review step (after skipping Push). Advance until "Create budget" shows,
+  // then click it.
+  const createBtn = page.getByRole("button", { name: /create budget/i });
+  for (let i = 0; i < 3; i++) {
+    if (await createBtn.isVisible().catch(() => false)) break;
+    await onboarding.clickNext();
+  }
+  await createBtn.click();
 });
 
 Then("I land on the new budget spendings page", async ({ page }) => {

@@ -40,7 +40,9 @@ export class OnboardingPo {
    * Located by text since wizard-layout.tsx has no testid on the Skip button.
    */
   skipButton(): Locator {
-    return this.page.getByRole("button", { name: /skip/i });
+    // The Push step shows both a footer "Skip" and the step's own "Skip for
+    // now" — either advances. .first() avoids a strict-mode ambiguity error.
+    return this.page.getByRole("button", { name: /skip/i }).first();
   }
 
   /**
@@ -48,8 +50,9 @@ export class OnboardingPo {
    * Located by role; the label changes per step so we match broadly.
    */
   nextButton(): Locator {
+    // Step 0 = "Get started", steps 1-4 = "Next", step 5 = "Create budget".
     return this.page.getByRole("button", {
-      name: /next|create budget|finish/i,
+      name: /get started|next|create budget|finish/i,
     });
   }
 
