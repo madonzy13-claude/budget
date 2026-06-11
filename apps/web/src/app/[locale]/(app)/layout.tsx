@@ -11,6 +11,7 @@ import { TopNav } from "@/components/budgeting/top-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
+import { ViewportDebug } from "@/components/common/viewport-debug";
 import { OfflineStatusBadge } from "@/components/common/offline-status-badge";
 import { SyncIssuesList } from "@/components/common/sync-issues-list";
 
@@ -204,6 +205,8 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           }}
         >
           <InstallBanner />
+          {/* UAT-08 device diagnostics — renders only with ?vpdbg=1. */}
+          <ViewportDebug />
           {/* Global offline/sync indicators (PWAX-02/03) — render app-wide. */}
           <OfflineStatusBadge />
           <SyncIssuesList />
