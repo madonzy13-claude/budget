@@ -13,7 +13,36 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "VPDBG-r4";
+const BUILD_MARKER = "VPDBG-r5";
+
+const FLAG_KEY = "vpdbg";
+
+export function isVpdbgEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.location.search.includes("vpdbg=1")) {
+    try {
+      localStorage.setItem(FLAG_KEY, "1");
+    } catch {
+      // ignore
+    }
+    return true;
+  }
+  try {
+    return localStorage.getItem(FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function toggleVpdbg(): boolean {
+  try {
+    const next = localStorage.getItem(FLAG_KEY) === "1" ? "0" : "1";
+    localStorage.setItem(FLAG_KEY, next);
+    return next === "1";
+  } catch {
+    return false;
+  }
+}
 
 interface Metrics {
   innerH: number;
@@ -72,7 +101,7 @@ export function ViewportDebug() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    if (!window.location.search.includes("vpdbg=1")) return;
+    if (!isVpdbgEnabled()) return;
     setEnabled(true);
     const update = () => setMetrics(readMetrics());
     update();
@@ -102,7 +131,10 @@ export function ViewportDebug() {
       <div>
         main {m.mainClientH}/{m.mainScrollH} top {m.mainScrollTop}
       </div>
-      <div>lastRowGap {m.lastRowGap}</div>
+      <div>
+        toEnd {m.mainScrollH - m.mainClientH - m.mainScrollTop} · lastRowGap{" "}
+        {m.lastRowGap}
+      </div>
     </div>
   );
 }

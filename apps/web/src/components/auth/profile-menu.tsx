@@ -54,6 +54,7 @@ import {
 } from "@/lib/pwa-install-store";
 import { isIos } from "@/lib/ios-install";
 import { IosInstallDialog } from "@/components/common/ios-install-dialog";
+import { toggleVpdbg } from "@/components/common/viewport-debug";
 
 export interface ProfileMenuProps {
   locale: string;
@@ -302,6 +303,21 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
               </button>
             </>
           )}
+          {/* TEMPORARY (UAT-08 viewport debugging): toggles the ?vpdbg
+              overlay from inside the installed PWA, where URL params are
+              unreachable. Remove once the iOS bottom-clipping bug closes. */}
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="profile-menu-diagnostics"
+            onClick={() => {
+              toggleVpdbg();
+              window.location.reload();
+            }}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)]"
+          >
+            <span className="text-xs">Diagnostics</span>
+          </button>
           <div className="my-1 h-px bg-[var(--hairline-on-dark)]" />
           <button
             type="button"
