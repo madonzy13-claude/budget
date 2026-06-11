@@ -73,6 +73,10 @@ async function buildApp(userId: string, tenantId: string) {
     await import("@budget/budgeting/src/application/set-share-overrides");
   const { listShareOverrides } =
     await import("@budget/budgeting/src/application/list-share-overrides");
+  const { permanentlyDeleteCategory } =
+    await import("@budget/budgeting/src/application/permanently-delete-category");
+  const { unarchiveCategory } =
+    await import("@budget/budgeting/src/application/unarchive-category");
 
   const repo = new DrizzleCategoryRepo();
   const limitRepo = new DrizzleCategoryLimitRepo();
@@ -82,6 +86,8 @@ async function buildApp(userId: string, tenantId: string) {
     budgeting: {
       createCategory: createCategory({ repo }),
       archiveCategory: archiveCategory({ repo }),
+      unarchiveCategory: unarchiveCategory({ repo, limitRepo }),
+      permanentlyDeleteCategory: permanentlyDeleteCategory({ repo }),
       listCategories: listCategories({ repo }),
       findCategoryById: findCategoryById({ repo }),
       renameCategory: renameCategory({ repo }),
@@ -253,6 +259,161 @@ describe("POST /categories/:id/limits", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.normalAmount).toBe("30000");
+  });
+});
+
+describe("POST /categories/:id/unarchive", () => {
+  let localUserId: string;
+  let localTenantId: string;
+
+  beforeAll(async () => {
+    const t = await createTestUser();
+    localUserId = t.userId;
+    localTenantId = t.tenantId;
+  });
+
+  it("unarchives a kept-history archived category → 200 + archivedAt null", async () => {
+    const app = await buildApp(localUserId, localTenantId);
+    // Create a category
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Unarchive Me", scope: "SHARED" }),
+      })
+    ).json();
+    const catId = created.category.id;
+
+    // Archive as "keep history" (current_future mode)
+    const archiveRes = await app.request(`/categories/${catId}/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "current_future" }),
+    });
+    expect(archiveRes.status).toBe(200);
+
+    // Unarchive
+    const res = await app.request(`/categories/${catId}/unarchive`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.archivedAt).toBeNull();
+    expect(body.id).toBe(catId);
+  });
+
+  it("tenant-mismatch budgetId → 403", async () => {
+    const app = await buildApp(localUserId, localTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Another Cat", scope: "SHARED" }),
+      })
+    ).json();
+    const catId = created.category.id;
+
+    // Build an app with a DIFFERENT tenantId to simulate cross-tenant request
+    const other = await createTestUser();
+    const otherApp = await buildApp(other.userId, other.tenantId);
+
+    // Mount with budgetId param mismatch by routing under /budgets/:budgetId
+    const mismatchApp = new (await import("hono")).Hono();
+    mismatchApp.use(async (c, next) => {
+      c.set("session", { user: { id: other.userId } });
+      c.set("tenantId", other.tenantId);
+      c.set("tenantIds", [other.tenantId]);
+      c.set("userId", other.userId);
+      await next();
+    });
+    const { createCategoriesRoute } = await import("../../src/routes/categories");
+    const { DrizzleCategoryRepo } = await import(
+      "@budget/budgeting/src/adapters/persistence/category-repo"
+    );
+    const { DrizzleCategoryLimitRepo } = await import(
+      "@budget/budgeting/src/adapters/persistence/category-limit-repo"
+    );
+    const { unarchiveCategory } = await import(
+      "@budget/budgeting/src/application/unarchive-category"
+    );
+    const { permanentlyDeleteCategory } = await import(
+      "@budget/budgeting/src/application/permanently-delete-category"
+    );
+    const { archiveCategory } = await import(
+      "@budget/budgeting/src/application/archive-category"
+    );
+    const { createCategory } = await import(
+      "@budget/budgeting/src/application/create-category"
+    );
+    const { listCategories } = await import(
+      "@budget/budgeting/src/application/list-categories"
+    );
+    const { findCategoryById } = await import(
+      "@budget/budgeting/src/application/find-category-by-id"
+    );
+    const { renameCategory } = await import(
+      "@budget/budgeting/src/application/rename-category"
+    );
+    const { setCategoryLimit } = await import(
+      "@budget/budgeting/src/application/set-category-limit"
+    );
+    const { getEffectiveLimit } = await import(
+      "@budget/budgeting/src/application/get-effective-limit"
+    );
+    const { setShareOverrides } = await import(
+      "@budget/budgeting/src/application/set-share-overrides"
+    );
+    const { listShareOverrides } = await import(
+      "@budget/budgeting/src/application/list-share-overrides"
+    );
+    const r2 = new DrizzleCategoryRepo();
+    const l2 = new DrizzleCategoryLimitRepo();
+    const mismatchDeps = {
+      budgeting: {
+        createCategory: createCategory({ repo: r2 }),
+        archiveCategory: archiveCategory({ repo: r2 }),
+        unarchiveCategory: unarchiveCategory({ repo: r2, limitRepo: l2 }),
+        permanentlyDeleteCategory: permanentlyDeleteCategory({ repo: r2 }),
+        listCategories: listCategories({ repo: r2 }),
+        findCategoryById: findCategoryById({ repo: r2 }),
+        renameCategory: renameCategory({ repo: r2 }),
+        setCategoryLimit: setCategoryLimit({ limitRepo: l2 }),
+        getEffectiveLimit: getEffectiveLimit({ limitRepo: l2 }),
+        setShareOverrides: setShareOverrides({
+          shareRepo: new (await import("@budget/budgeting/src/adapters/persistence/share-override-repo")).DrizzleShareOverrideRepo(),
+        }),
+        listShareOverrides: listShareOverrides({
+          shareRepo: new (await import("@budget/budgeting/src/adapters/persistence/share-override-repo")).DrizzleShareOverrideRepo(),
+        }),
+      },
+    } as unknown as import("../../src/boot").BootedDeps;
+    // Production mount pattern — :budgetId param so the route guard can read it.
+    mismatchApp.route(
+      "/budgets/:budgetId/categories",
+      createCategoriesRoute(mismatchDeps),
+    );
+
+    const res = await mismatchApp.request(
+      `/budgets/${localTenantId}/categories/${catId}/unarchive`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 422 when category is not archived", async () => {
+    const app = await buildApp(localUserId, localTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Not Archived", scope: "SHARED" }),
+      })
+    ).json();
+    const res = await app.request(
+      `/categories/${created.category.id}/unarchive`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(422);
   });
 });
 
