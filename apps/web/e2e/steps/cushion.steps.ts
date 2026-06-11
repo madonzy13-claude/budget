@@ -39,9 +39,10 @@ Then(
   /^the cushion target months input shows (\d+)$/,
   async ({ page }, months: string) => {
     const settings = new SettingsPo(page);
-    await expect(settings.cushionTargetMonthsInput()).toHaveValue(months, {
-      timeout: 5000,
-    });
+    await expect(settings.cushionTargetMonthsInput()).toHaveValue(
+      String(months),
+      { timeout: 5000 },
+    );
   },
 );
 
