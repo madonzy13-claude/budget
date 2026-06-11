@@ -50,7 +50,7 @@ export default async function HomePage({ params }: HomePageProps) {
   // and made budget cards visibly narrower on mobile). max-w-[1280px]
   // still caps it on desktop; mx-auto centers below the cap.
   return (
-    <main className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12">
+    <main className="pb-shell-safe mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12">
       <h1 className="text-title-lg text-[var(--body-on-dark)] mb-6">
         {t("heading")}
       </h1>

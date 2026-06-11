@@ -78,7 +78,9 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
           initialTasks={initialTasks}
         />
       </div>
-      {children}
+      {/* pb-shell-safe: standalone-only bottom clearance INSIDE the page
+          content — the only placement iOS WebKit honors (see global.css). */}
+      <div className="pb-shell-safe">{children}</div>
     </>
   );
 }

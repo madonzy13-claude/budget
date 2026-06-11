@@ -493,21 +493,21 @@ button:disabled,
   }
 }
 
-/* UAT-08: standalone full-scroll clearance. iOS WebKit ignores BOTH
-   padding-bottom on the scrolling overflow element AND ::after generated
-   content on it (device-verified: computed afterH 98px, zero layout
-   contribution). Only a real DOM child reliably extends the scroll range,
-   hence [data-shell-bottom-spacer] in (app)/layout.tsx. env() covers the
-   home indicator, 64px is breathing room. Browser tabs don't need it: the
-   page scrolls natively and the display-mode:browser block above pads
-   normal document flow instead. */
-[data-shell-bottom-spacer] {
-  flex-shrink: 0;
-  height: 0;
-}
+/* UAT-08: standalone full-scroll clearance — applied to PAGE CONTENT, not
+   the shell. Every shell-level mechanism failed on iOS WebKit while
+   passing on Chromium (device-verified across SHELL-R8..R10):
+   padding-bottom on the scroll container is ignored; ::after on it
+   computes a height but never enters the scroll flow; a real sibling
+   spacer lands at the flex-basis-0 box edge (~container height) because
+   iOS sizes the flex-1 overlay to the container and lets content
+   overflow past it, while Chromium sizes it to content (min-height:auto)
+   — which is exactly why headless checks kept passing as the device
+   stayed glued. Padding INSIDE the in-flow page content has no engine
+   disagreement to lose: block-flow padding always extends scrollHeight.
+   Applied on the BDP children wrapper and the home page root. */
 @media (display-mode: standalone) {
-  [data-shell-bottom-spacer] {
-    height: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  .pb-shell-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
   }
 }
 

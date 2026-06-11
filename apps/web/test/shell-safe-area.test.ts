@@ -29,19 +29,30 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(mainTag).toContain("data-shell-scroll");
   });
 
-  it("standalone gets a REAL bottom spacer element — iOS drops padding AND ::after", () => {
-    // Device-verified on SHELL-R9: iOS WebKit computes the ::after height
-    // (98px) but excludes generated content from the scroll flow on this
-    // flex+overflow container, same as it ignores padding-bottom there.
-    // Only a real DOM child reliably extends the scroll range.
-    expect(layout).toMatch(/data-shell-bottom-spacer/);
+  it("standalone clearance lives INSIDE page content (.pb-shell-safe) — every shell-level mechanism failed on iOS", () => {
+    // Device-verified SHELL-R8..R10: scroll-container padding ignored;
+    // ::after computes height but never enters the scroll flow; a real
+    // sibling spacer lands at the flex-basis-0 box edge while content
+    // overflows past it. Padding inside in-flow page content is the only
+    // engine-agnostic placement.
     const standaloneBlock = globalCss.match(
       /@media\s*\(display-mode:\s*standalone\)\s*{([\s\S]*?)\n}/,
     )?.[1];
     expect(standaloneBlock).toBeTruthy();
     expect(standaloneBlock).toMatch(
-      /data-shell-bottom-spacer[^}]*height:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
+      /\.pb-shell-safe[^}]*padding-bottom:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
     );
+    // Applied where it covers all mobile surfaces:
+    const bdpLayout = readFileSync(
+      resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+      "utf8",
+    );
+    expect(bdpLayout).toMatch(/pb-shell-safe/);
+    const homePage = readFileSync(
+      resolve(__dirname, "../src/app/[locale]/(app)/page.tsx"),
+      "utf8",
+    );
+    expect(homePage).toMatch(/pb-shell-safe/);
   });
 
   it("browser display-mode unlocks native page scroll (bar collapse needs PAGE scroll)", () => {

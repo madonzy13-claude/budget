@@ -246,12 +246,6 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
             className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none"
           >
             <NavPendingOverlay className="flex-1">{children}</NavPendingOverlay>
-            {/* Real DOM spacer: iOS WebKit computes a height for a ::after
-                on this flex+overflow container but excludes it from the
-                scroll flow (SHELL-R9 device finding: afterH 98px yet
-                lastRowGap 0). Height comes from global.css per
-                display-mode. */}
-            <div data-shell-bottom-spacer aria-hidden="true" />
           </main>
         </div>
         <Toaster />

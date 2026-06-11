@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R10";
+const BUILD_MARKER = "SHELL-R11";
 
 const FLAG_KEY = "vpdbg";
 
@@ -88,11 +88,10 @@ function readMetrics(): Metrics {
         ? "legacy-standalone"
         : "none"),
     afterH: (() => {
-      const spacer = document.querySelector<HTMLElement>(
-        "[data-shell-bottom-spacer]",
-      );
-      // offsetHeight = real layout truth (computed style lied on iOS ::after)
-      return spacer ? `${spacer.offsetHeight}px` : "no-spacer";
+      const padded = document.querySelector<HTMLElement>(".pb-shell-safe");
+      return padded
+        ? getComputedStyle(padded).paddingBottom
+        : "no-pb-shell-safe";
     })(),
     mainClientH: main?.clientHeight ?? -1,
     mainScrollH: main?.scrollHeight ?? -1,
