@@ -11,6 +11,8 @@ import { TopNav } from "@/components/budgeting/top-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
+import { OfflineStatusBadge } from "@/components/common/offline-status-badge";
+import { SyncIssuesList } from "@/components/common/sync-issues-list";
 
 // The (app) shell is per-user: session lookup, onboarding-progress fetch,
 // and the budget switcher all depend on the request's cookies. Without this
@@ -202,6 +204,9 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           }}
         >
           <InstallBanner />
+          {/* Global offline/sync indicators (PWAX-02/03) — render app-wide. */}
+          <OfflineStatusBadge />
+          <SyncIssuesList />
           <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
             <TopNav locale={locale} activeBudgetId={activeBudgetId} />
           </header>

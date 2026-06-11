@@ -22,6 +22,13 @@ export interface CreateTransactionInput {
   date: string;
   currency: string;
   note?: string | null;
+  /**
+   * Idempotency key shared between onMutate (optimistic row) and mutationFn
+   * (offline enqueue / POST header). onMutate stamps it so the optimistic row
+   * carries the SAME key that lands in the offline queue — that's how the
+   * per-row pending-sync marker (PWAX-03) matches the row to the queue.
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -70,7 +77,9 @@ export function useCreateTransaction(budgetId: string, month: string) {
 
   return useMutation({
     mutationFn: async (input: CreateTransactionInput) => {
-      const key = generateIdempotencyKey();
+      // onMutate runs first and stamps input.idempotencyKey; reuse it so the
+      // queued key matches the optimistic row's key (PWAX-03 marker).
+      const key = input.idempotencyKey ?? generateIdempotencyKey();
 
       // Offline fork: enqueue to IndexedDB instead of POST (D-03 per-row pending)
       if (!navigator.onLine) {
@@ -112,6 +121,10 @@ export function useCreateTransaction(budgetId: string, month: string) {
       await qc.cancelQueries({ queryKey: ["transactions", budgetId, month] });
       const previous = qc.getQueryData(["transactions", budgetId, month]);
       const optimisticId = `opt-${generateIdempotencyKey()}`;
+      // Stamp the shared idempotency key onto the variables so mutationFn
+      // enqueues under the same key the optimistic row advertises.
+      const key = input.idempotencyKey ?? generateIdempotencyKey();
+      input.idempotencyKey = key;
 
       qc.setQueryData(["transactions", budgetId, month], (old: unknown) => {
         const arr = Array.isArray(old) ? old : [];
@@ -120,6 +133,7 @@ export function useCreateTransaction(budgetId: string, month: string) {
             id: optimisticId,
             pending: true,
             unsent: false,
+            idempotencyKey: key,
             categoryId: input.categoryId,
             amountConvertedCents: input.amountCents.toString(),
             currencyConverted: input.currency,
