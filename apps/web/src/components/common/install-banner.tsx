@@ -1,25 +1,22 @@
 "use client";
 
 /**
- * install-banner.tsx — PWA install / open-app ribbon (08-05, reworked in UAT-08)
+ * install-banner.tsx — PWA install suggestion ribbon (08-05, reworked in UAT-08)
  *
- * Three modes:
- *   install   — beforeinstallprompt captured: Install CTA runs the native prompt
- *   install (iOS) — iOS never fires beforeinstallprompt; CTA opens the
- *                   Share → Add to Home Screen instructions dialog instead
- *   open-app  — app already installed but page runs in a browser tab:
- *               CTA opens the app scope in a new top-level context so
- *               browsers with link capturing (launch_handler) focus the
- *               installed app window
+ * Mobile-only (hidden above the `sm` breakpoint — desktop installs via the
+ * profile-menu entry). Renders when the app is installable and not installed:
+ *   - Chromium: beforeinstallprompt captured → CTA runs the native prompt
+ *   - iOS: no beforeinstallprompt exists → CTA opens the Share → Add to
+ *     Home Screen instructions dialog
  *
- * Never renders in standalone mode. Each mode has its own persistent
- * dismissal key so dismissing the install offer doesn't suppress the
- * later open-app hint (and vice versa).
+ * Hidden when: standalone, already installed (appinstalled flag or the
+ * prompt-silence heuristic in install-detect.ts), or dismissed via ✕
+ * (persisted in localStorage).
  */
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { X, Download, ExternalLink } from "lucide-react";
+import { X, Download, WifiOff, Zap, Bell } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +37,6 @@ import { shouldAssumeInstalled } from "@/lib/install-detect";
 import { IosInstallDialog } from "./ios-install-dialog";
 
 const DISMISSED_KEY = "pwa-install-dismissed";
-const OPEN_APP_DISMISSED_KEY = "pwa-open-app-dismissed";
 
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
@@ -51,20 +47,12 @@ function isStandalone(): boolean {
   );
 }
 
-function flagSet(key: string): boolean {
+function isDismissed(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return localStorage.getItem(key) === "1";
+    return localStorage.getItem(DISMISSED_KEY) === "1";
   } catch {
     return false;
-  }
-}
-
-function setFlag(key: string) {
-  try {
-    localStorage.setItem(key, "1");
-  } catch {
-    // storage unavailable
   }
 }
 
@@ -75,7 +63,7 @@ export function InstallBanner() {
   const [ios, setIos] = useState(false);
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
   const [iosDialogOpen, setIosDialogOpen] = useState(false);
-  // Bumped on dismiss so the mode recomputes after the localStorage write.
+  // Bumped on dismiss so visibility recomputes after the localStorage write.
   const [, setDismissTick] = useState(0);
 
   useEffect(() => {
@@ -142,63 +130,25 @@ export function InstallBanner() {
     setHasPrompt(false);
   }
 
-  function handleOpenApp() {
-    // New top-level navigation: browsers with link capturing enabled
-    // (manifest launch_handler) route it to the installed app window.
-    window.open(`${window.location.origin}/`, "_blank", "noopener");
-  }
-
-  function handleDismiss(key: string) {
-    setFlag(key);
+  function handleDismiss() {
+    try {
+      localStorage.setItem(DISMISSED_KEY, "1");
+    } catch {
+      // storage unavailable
+    }
     setDismissTick((n) => n + 1);
   }
 
-  const mode: "install" | "open-app" | null = (() => {
-    if (isStandalone()) return null;
-    if (installed) return flagSet(OPEN_APP_DISMISSED_KEY) ? null : "open-app";
-    if ((hasPrompt || ios) && !flagSet(DISMISSED_KEY)) return "install";
-    return null;
-  })();
+  const visible =
+    !isStandalone() && !installed && (hasPrompt || ios) && !isDismissed();
 
-  if (mode === null) return null;
+  if (!visible) return null;
 
-  if (mode === "open-app") {
-    return (
-      <div
-        data-testid="install-banner"
-        role="banner"
-        aria-label={t("openApp.ariaLabel")}
-        className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--primary)_15%,var(--surface-card-dark))] px-4 py-2.5 text-sm"
-      >
-        <ExternalLink
-          className="h-4 w-4 shrink-0 text-[var(--primary)]"
-          aria-hidden="true"
-        />
-        <span className="flex-1 text-[var(--body-on-dark)]">
-          {t("openApp.body")}
-        </span>
-
-        <button
-          type="button"
-          data-testid="install-banner-open-app"
-          onClick={handleOpenApp}
-          className="shrink-0 rounded bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90"
-        >
-          {t("openApp.cta")}
-        </button>
-
-        <button
-          type="button"
-          data-testid="install-banner-dismiss"
-          aria-label={t("banner.dismiss")}
-          onClick={() => handleDismiss(OPEN_APP_DISMISSED_KEY)}
-          className="shrink-0 rounded p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </div>
-    );
-  }
+  const benefits = [
+    { icon: WifiOff, label: t("dialog.benefit1") },
+    { icon: Zap, label: t("dialog.benefit2") },
+    { icon: Bell, label: t("dialog.benefit3") },
+  ];
 
   return (
     <>
@@ -206,7 +156,7 @@ export function InstallBanner() {
         data-testid="install-banner"
         role="banner"
         aria-label={t("banner.ariaLabel")}
-        className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--primary)_15%,var(--surface-card-dark))] px-4 py-2.5 text-sm"
+        className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--primary)_15%,var(--surface-card-dark))] px-4 py-2.5 text-sm sm:hidden"
       >
         <Download
           className="h-4 w-4 shrink-0 text-[var(--primary)]"
@@ -238,7 +188,7 @@ export function InstallBanner() {
           type="button"
           data-testid="install-banner-dismiss"
           aria-label={t("banner.dismiss")}
-          onClick={() => handleDismiss(DISMISSED_KEY)}
+          onClick={handleDismiss}
           className="shrink-0 rounded p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -250,16 +200,31 @@ export function InstallBanner() {
           <DialogHeader>
             <DialogTitle>{t("dialog.title")}</DialogTitle>
           </DialogHeader>
-          <ul className="space-y-3 py-2">
-            <li className="text-sm text-[var(--body-on-dark)]">
-              {t("dialog.benefit1")}
-            </li>
-            <li className="text-sm text-[var(--body-on-dark)]">
-              {t("dialog.benefit2")}
-            </li>
-            <li className="text-sm text-[var(--body-on-dark)]">
-              {t("dialog.benefit3")}
-            </li>
+          <ul className="space-y-4 py-2">
+            {benefits.map(({ icon: Icon, label }) => {
+              const [head, ...rest] = label.split("—");
+              const detail = rest.join("—").trim();
+              return (
+                <li key={label} className="flex items-start gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface-elevated-dark)]">
+                    <Icon
+                      className="h-4 w-4 text-[var(--primary)]"
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <span className="min-w-0 text-sm">
+                    <span className="block font-semibold text-[var(--body-on-dark)]">
+                      {head.trim()}
+                    </span>
+                    {detail ? (
+                      <span className="block text-[var(--muted-foreground)]">
+                        {detail}
+                      </span>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
           <DialogClose asChild>
             <button

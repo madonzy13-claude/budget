@@ -239,8 +239,8 @@ describe("InstallBanner — iOS (no beforeinstallprompt support)", () => {
   });
 });
 
-describe("InstallBanner — installed state (open-app banner)", () => {
-  test("appinstalled event records installed and switches banner to open-app mode", async () => {
+describe("InstallBanner — installed state", () => {
+  test("appinstalled event records installed and hides the banner", async () => {
     const prompt = makeDeferredPrompt();
     setDeferredPrompt(prompt);
 
@@ -256,60 +256,13 @@ describe("InstallBanner — installed state (open-app banner)", () => {
 
     expect(isInstalled()).toBe(true);
     await waitFor(() => {
-      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("install-banner-cta")).not.toBeInTheDocument();
-  });
-
-  test("installed + browser tab renders open-app banner instead of install banner", async () => {
-    setInstalled(true);
-
-    render(<InstallBanner />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("install-banner-cta")).not.toBeInTheDocument();
-  });
-
-  test("open-app CTA opens the app scope in a new top-level context", async () => {
-    setInstalled(true);
-    const openSpy = vi
-      .spyOn(window, "open")
-      .mockReturnValue(null as unknown as Window);
-
-    render(<InstallBanner />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("install-banner-open-app"));
-    expect(openSpy).toHaveBeenCalled();
-    openSpy.mockRestore();
-  });
-
-  test("dismissing open-app banner persists separately from install dismissal", async () => {
-    setInstalled(true);
-
-    render(<InstallBanner />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("install-banner-dismiss"));
-
-    expect(localStorage.getItem("pwa-open-app-dismissed")).toBe("1");
-    expect(localStorage.getItem("pwa-install-dismissed")).toBeNull();
-    await waitFor(() => {
       expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
     });
   });
 
-  test("open-app banner suppressed when previously dismissed", async () => {
+  test("does not render when already installed (even on iOS)", async () => {
     setInstalled(true);
-    localStorage.setItem("pwa-open-app-dismissed", "1");
+    iosMock.value = true;
 
     render(<InstallBanner />);
 
@@ -319,14 +272,33 @@ describe("InstallBanner — installed state (open-app banner)", () => {
 
     expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
   });
+
+  test("banner is mobile-only (hidden above the sm breakpoint)", async () => {
+    const prompt = makeDeferredPrompt();
+    setDeferredPrompt(prompt);
+
+    render(<InstallBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("install-banner").className).toContain(
+      "sm:hidden",
+    );
+  });
 });
 
 describe("InstallBanner — installed heuristic (pre-existing installs)", () => {
-  test("no prompt + heuristic positive → open-app banner after probe window", async () => {
+  test("no prompt + heuristic positive → banner suppressed after probe window", async () => {
     vi.useFakeTimers();
     assumeInstalledMock.value = true;
+    iosMock.value = true; // banner would otherwise render on iOS
 
     render(<InstallBanner />);
+
+    // flush mount effects (fake timers: no waitFor here)
+    await act(async () => {});
+    expect(screen.getByTestId("install-banner")).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(2600);
@@ -334,9 +306,8 @@ describe("InstallBanner — installed heuristic (pre-existing installs)", () => 
     vi.useRealTimers();
 
     await waitFor(() => {
-      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
+      expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
     });
-    expect(screen.queryByTestId("install-banner-cta")).not.toBeInTheDocument();
   });
 
   test("late beforeinstallprompt reverses the heuristic back to install mode", async () => {
@@ -350,10 +321,6 @@ describe("InstallBanner — installed heuristic (pre-existing installs)", () => 
     });
     vi.useRealTimers();
 
-    await waitFor(() => {
-      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
-    });
-
     await act(async () => {
       setDeferredPrompt(makeDeferredPrompt());
     });
@@ -361,20 +328,5 @@ describe("InstallBanner — installed heuristic (pre-existing installs)", () => 
     await waitFor(() => {
       expect(screen.getByTestId("install-banner-cta")).toBeInTheDocument();
     });
-    expect(
-      screen.queryByTestId("install-banner-open-app"),
-    ).not.toBeInTheDocument();
-  });
-
-  test("heuristic negative → no banner at all without a prompt (non-Chromium)", async () => {
-    assumeInstalledMock.value = false;
-
-    render(<InstallBanner />);
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
-
-    expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
   });
 });

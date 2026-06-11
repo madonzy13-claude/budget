@@ -1165,7 +1165,7 @@
       "dialog": {
         "title": "Dlaczego warto zainstalować Budget?",
         "benefit1": "Działa offline — dostęp do budżetu bez internetu",
-        "benefit2": "Szybsze ładowanie — uruchamia się z ekranu głównego, bez przeglądarki",
+        "benefit2": "Szybszy dostęp — uruchamia się prosto z ekranu początkowego",
         "benefit3": "Powiadomienia push — otrzymuj alerty o zadaniach bez otwierania przeglądarki",
         "close": "Zamknij"
       },
@@ -1177,11 +1177,6 @@
         "step2": "Przewiń w dół i stuknij „Do ekranu początkowego”",
         "step3": "Stuknij „Dodaj” — Budget pojawi się na ekranie początkowym",
         "close": "Rozumiem"
-      },
-      "openApp": {
-        "ariaLabel": "Otwórz zainstalowaną aplikację Budget",
-        "body": "Budget jest zainstalowany — korzystaj z pełnej wersji w aplikacji",
-        "cta": "Otwórz aplikację"
       }
     }
   },

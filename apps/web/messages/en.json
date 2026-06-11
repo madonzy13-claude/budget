@@ -1164,7 +1164,7 @@
       "dialog": {
         "title": "Why install Budget?",
         "benefit1": "Works offline — access your budget without internet",
-        "benefit2": "Faster load — launches from home screen, no browser chrome",
+        "benefit2": "Faster access — launches straight from your home screen",
         "benefit3": "Push notifications — get task alerts without opening a browser",
         "close": "Close"
       },
@@ -1176,11 +1176,6 @@
         "step2": "Scroll down and tap “Add to Home Screen”",
         "step3": "Tap “Add” — Budget appears on your home screen",
         "close": "Got it"
-      },
-      "openApp": {
-        "ariaLabel": "Open the installed Budget app",
-        "body": "Budget is installed — get the full experience in the app",
-        "cta": "Open app"
       }
     }
   },
