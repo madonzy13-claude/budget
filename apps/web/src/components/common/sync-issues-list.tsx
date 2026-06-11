@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import {
   getOfflineQueue,
   removeFromQueue,
+  OFFLINE_QUEUE_CHANGED_EVENT,
   type OfflineTxn,
 } from "@/lib/offline-queue";
 
@@ -34,8 +35,12 @@ export function SyncIssuesList() {
 
   useEffect(() => {
     refresh();
+    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refresh);
     const timer = setInterval(refresh, POLL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refresh);
+      clearInterval(timer);
+    };
   }, []);
 
   async function handleDismiss(key: string) {

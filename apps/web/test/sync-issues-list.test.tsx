@@ -21,6 +21,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 vi.mock("../src/lib/offline-queue", () => ({
   getOfflineQueue: vi.fn(),
   removeFromQueue: vi.fn(),
+  OFFLINE_QUEUE_CHANGED_EVENT: "offline-queue-changed",
 }));
 
 import { getOfflineQueue, removeFromQueue } from "../src/lib/offline-queue";
