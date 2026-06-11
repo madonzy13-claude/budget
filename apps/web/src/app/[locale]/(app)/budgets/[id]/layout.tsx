@@ -69,6 +69,7 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
       <div
         className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
         data-testid="bdp-sticky-wrapper"
+        data-bdp-tabs
       >
         <BdpTabs
           locale={locale}

@@ -229,16 +229,6 @@
     color: var(--on-primary);
   }
 
-  /* UAT-08: full-scroll bottom clearance (standalone path — browser tabs
-     override this in the unlayered display-mode:browser block, where the
-     native bar collapse owns the bottom edge). env() covers the home
-     indicator; the constant is breathing room so the last row never
-     kisses the screen edge. The earlier 100lvh - 100svh term is gone:
-     it was only meaningful pre-native-scroll and risked a negative
-     contribution on engines that disagree about the units in standalone. */
-  main[data-shell-scroll] {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
-  }
 
 
   /* See unlayered cursor rules below — moved out of @layer base in
@@ -490,6 +480,32 @@ button:disabled,
     min-height: 0;
     overflow-y: visible;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 48px);
+  }
+  /* UAT feedback: keep the header pinned during native page scroll, like
+     standalone. The BDP tab band (sticky top-0) must then stick BELOW the
+     header — 4rem TopNav (h-16) + 1px border — instead of sliding under. */
+  [data-shell-header] {
+    position: sticky;
+    top: 0;
+  }
+  [data-bdp-tabs] {
+    top: calc(4rem + 1px);
+  }
+}
+
+/* UAT-08: standalone full-scroll clearance. iOS WebKit ignores
+   padding-bottom on the scrolling overflow element itself, so the PWA's
+   last row stayed glued to the screen edge no matter the padding value.
+   A generated flex child is real content — the scroll range includes it.
+   env() covers the home indicator, 64px is breathing room. Browser tabs
+   don't need it: the page scrolls natively and the display-mode:browser
+   block above pads normal document flow instead. */
+@media (display-mode: standalone) {
+  main[data-shell-scroll]::after {
+    content: "";
+    display: block;
+    flex-shrink: 0;
+    height: calc(env(safe-area-inset-bottom, 0px) + 64px);
   }
 }
 

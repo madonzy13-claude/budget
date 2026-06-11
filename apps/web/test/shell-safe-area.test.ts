@@ -29,12 +29,17 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(mainTag).toContain("data-shell-scroll");
   });
 
-  it("global.css gives the scroll surface inset + breathing-room clearance", () => {
-    // env() covers the home indicator; the constant is the extra margin the
-    // user asked for at full scroll. No viewport-unit arithmetic — the
-    // lvh-svh term risked a negative contribution in standalone.
-    expect(globalCss).toMatch(
-      /data-shell-scroll[^}]*padding-bottom:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
+  it("standalone gets a real ::after spacer — iOS drops scroll-container padding-bottom", () => {
+    // WebKit ignores padding-bottom on the overflow element itself when the
+    // inner container scrolls (standalone path) — the PWA's last row stayed
+    // glued to the screen edge with padding alone. A generated flex child
+    // is real content, so the scroll range includes it.
+    const standaloneBlock = globalCss.match(
+      /@media\s*\(display-mode:\s*standalone\)\s*{([\s\S]*?)\n}/,
+    )?.[1];
+    expect(standaloneBlock).toBeTruthy();
+    expect(standaloneBlock).toMatch(
+      /data-shell-scroll\]::after[^}]*height:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
     );
   });
 
@@ -49,6 +54,27 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(browserBlock).toMatch(/height:\s*auto/);
     expect(browserBlock).toMatch(/overflow:\s*visible/);
     expect(browserBlock).toMatch(/data-shell-scroll[^}]*overflow-y:\s*visible/);
+  });
+
+  it("browser mode pins the header and offsets the BDP tab band below it", () => {
+    // Native page scroll would carry the header away; UAT feedback wants it
+    // pinned like standalone. The tab band (sticky top-0) must then stick
+    // BELOW the 65px header (h-16 + 1px border) instead of sliding under it.
+    const browserBlock = globalCss.match(
+      /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+    )?.[1];
+    expect(browserBlock).toMatch(
+      /data-shell-header[^}]*position:\s*sticky[^}]*top:\s*0/,
+    );
+    expect(browserBlock).toMatch(
+      /data-bdp-tabs[^}]*top:\s*calc\(4rem \+ 1px\)/,
+    );
+    expect(layout).toMatch(/<header[^>]*data-shell-header/);
+    const bdpLayout = readFileSync(
+      resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+      "utf8",
+    );
+    expect(bdpLayout).toMatch(/data-bdp-tabs/);
   });
 
   it("custom pull-to-refresh stays standalone-only (browser gets native PTR)", () => {
@@ -74,7 +100,7 @@ describe("(app) shell clears iOS bottom UI", () => {
   });
 
   it("header compensates the top inset once viewport-fit=cover activates it", () => {
-    const headerTag = layout.match(/<header className=[^>]*>/)?.[0] ?? "";
+    const headerTag = layout.match(/<header[^>]*>/)?.[0] ?? "";
     expect(headerTag).toContain("safe-area-inset-top");
   });
 });
