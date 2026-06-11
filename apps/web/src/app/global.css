@@ -493,18 +493,20 @@ button:disabled,
   }
 }
 
-/* UAT-08: standalone full-scroll clearance. iOS WebKit ignores
-   padding-bottom on the scrolling overflow element itself, so the PWA's
-   last row stayed glued to the screen edge no matter the padding value.
-   A generated flex child is real content — the scroll range includes it.
-   env() covers the home indicator, 64px is breathing room. Browser tabs
-   don't need it: the page scrolls natively and the display-mode:browser
-   block above pads normal document flow instead. */
+/* UAT-08: standalone full-scroll clearance. iOS WebKit ignores BOTH
+   padding-bottom on the scrolling overflow element AND ::after generated
+   content on it (device-verified: computed afterH 98px, zero layout
+   contribution). Only a real DOM child reliably extends the scroll range,
+   hence [data-shell-bottom-spacer] in (app)/layout.tsx. env() covers the
+   home indicator, 64px is breathing room. Browser tabs don't need it: the
+   page scrolls natively and the display-mode:browser block above pads
+   normal document flow instead. */
+[data-shell-bottom-spacer] {
+  flex-shrink: 0;
+  height: 0;
+}
 @media (display-mode: standalone) {
-  main[data-shell-scroll]::after {
-    content: "";
-    display: block;
-    flex-shrink: 0;
+  [data-shell-bottom-spacer] {
     height: calc(env(safe-area-inset-bottom, 0px) + 64px);
   }
 }

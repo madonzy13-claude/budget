@@ -87,7 +87,13 @@ function readMetrics(): Metrics {
       ((window.navigator as { standalone?: boolean }).standalone
         ? "legacy-standalone"
         : "none"),
-    afterH: main ? getComputedStyle(main, "::after").height : "n/a",
+    afterH: (() => {
+      const spacer = document.querySelector<HTMLElement>(
+        "[data-shell-bottom-spacer]",
+      );
+      // offsetHeight = real layout truth (computed style lied on iOS ::after)
+      return spacer ? `${spacer.offsetHeight}px` : "no-spacer";
+    })(),
     mainClientH: main?.clientHeight ?? -1,
     mainScrollH: main?.scrollHeight ?? -1,
     mainScrollTop: Math.round((main as HTMLElement)?.scrollTop ?? -1),

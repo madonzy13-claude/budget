@@ -29,17 +29,18 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(mainTag).toContain("data-shell-scroll");
   });
 
-  it("standalone gets a real ::after spacer — iOS drops scroll-container padding-bottom", () => {
-    // WebKit ignores padding-bottom on the overflow element itself when the
-    // inner container scrolls (standalone path) — the PWA's last row stayed
-    // glued to the screen edge with padding alone. A generated flex child
-    // is real content, so the scroll range includes it.
+  it("standalone gets a REAL bottom spacer element — iOS drops padding AND ::after", () => {
+    // Device-verified on SHELL-R9: iOS WebKit computes the ::after height
+    // (98px) but excludes generated content from the scroll flow on this
+    // flex+overflow container, same as it ignores padding-bottom there.
+    // Only a real DOM child reliably extends the scroll range.
+    expect(layout).toMatch(/data-shell-bottom-spacer/);
     const standaloneBlock = globalCss.match(
       /@media\s*\(display-mode:\s*standalone\)\s*{([\s\S]*?)\n}/,
     )?.[1];
     expect(standaloneBlock).toBeTruthy();
     expect(standaloneBlock).toMatch(
-      /data-shell-scroll\]::after[^}]*height:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
+      /data-shell-bottom-spacer[^}]*height:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
     );
   });
 
