@@ -42,6 +42,16 @@ export interface CategoryRepo {
     actorUserId: string,
   ): Promise<void>;
   /**
+   * Unarchive a category. Clears archived_from and archived_at (set both NULL),
+   * restoring the category to active status. Does NOT resurrect deleted
+   * recurring_rules or drafts — archive removed them intentionally.
+   */
+  unarchive(
+    tenantId: string,
+    categoryId: string,
+    actorUserId: string,
+  ): Promise<void>;
+  /**
    * PERMANENTLY delete a category and all its data (transactions, drafts,
    * limits, reserve adjustments, share overrides, recurring rules, projections)
    * in one transaction. Destructive + irreversible — only offered for already

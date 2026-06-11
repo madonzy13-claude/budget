@@ -98,11 +98,12 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         name: string;
         parent_id: string | null;
         archived_at: Date | null;
+        archived_from: Date | string | null;
         created_at: Date;
         actor_user_id: string;
         sort_index: number;
       }>(
-        sql`SELECT id, tenant_id, name, parent_id::text, archived_at, created_at, actor_user_id, sort_index
+        sql`SELECT id, tenant_id, name, parent_id::text, archived_at, archived_from::text, created_at, actor_user_id, sort_index
             FROM budgeting.categories
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
@@ -279,6 +280,43 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         aggregateType: "category",
         aggregateId: categoryId,
         eventType: "budgeting.category.archived",
+        payload: { actorUserId },
+      });
+    });
+
+    if (r.isErr()) throw r.error;
+  }
+
+  async unarchive(
+    tenantId: string,
+    categoryId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const tid = TenantId(tenantId);
+    const uid = UserId(actorUserId);
+
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      await tx.execute(
+        sql`UPDATE budgeting.categories
+            SET archived_from = NULL, archived_at = NULL
+            WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+      );
+
+      await writeAudit(tx, {
+        tenantId: tid,
+        entityType: "category",
+        entityId: categoryId,
+        action: "update",
+        actorUserId: uid,
+        before: { archivedAt: new Date().toISOString() },
+        after: { archivedAt: null },
+      });
+
+      await writeOutbox(tx, {
+        tenantId: tid,
+        aggregateType: "category",
+        aggregateId: categoryId,
+        eventType: "budgeting.category.unarchived",
         payload: { actorUserId },
       });
     });

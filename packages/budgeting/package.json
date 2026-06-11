@@ -31,6 +31,8 @@
     "./src/adapters/persistence/budget-mode-repo": "./src/adapters/persistence/budget-mode-repo.ts",
     "./src/application/create-category": "./src/application/create-category.ts",
     "./src/application/archive-category": "./src/application/archive-category.ts",
+    "./src/application/unarchive-category": "./src/application/unarchive-category.ts",
+    "./src/application/permanently-delete-category": "./src/application/permanently-delete-category.ts",
     "./src/application/list-categories": "./src/application/list-categories.ts",
     "./src/application/find-category-by-id": "./src/application/find-category-by-id.ts",
     "./src/application/rename-category": "./src/application/rename-category.ts",

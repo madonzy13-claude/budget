@@ -8,8 +8,13 @@ GRANT USAGE ON SCHEMA identity, tenancy, shared_kernel, budgeting TO app_role, w
 -- comparison schema: app_role + worker_role have NO USAGE (Phase 5 introduces comparison_role).
 
 -- D-23 / ENGR-06: append-only ledger.
+-- Quick 260611-vuo amendment: DELETE granted to app_role ONLY — category archive
+-- purges unconfirmed drafts and DELETE /categories/:id (permanent delete, behind a
+-- confirm dialog, audit_history records it) purges all the category's ledger rows.
+-- worker_role stays strictly append-only. RLS tenant-scopes every DELETE.
 REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role;
 GRANT SELECT, INSERT ON budgeting.expense_ledger TO app_role, worker_role;
+GRANT DELETE ON budgeting.expense_ledger TO app_role;
 
 -- Pitfall 6: FORCE RLS on every user-data table. Add new tables here as later plans introduce them.
 ALTER TABLE budgeting.expense_ledger FORCE ROW LEVEL SECURITY;
@@ -609,8 +614,10 @@ CREATE INDEX IF NOT EXISTS expense_ledger_tenant_category_date_idx
 -- expense_ledger_tenant_account_date_idx: account_id dropped in v1.1 (MIG-03); index not created.
 
 -- Re-assert REVOKE (safe after Drizzle push which may GRANT more broadly)
+-- Quick 260611-vuo: app_role keeps DELETE (category archive/permanent-delete purge).
 REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role;
 GRANT SELECT, INSERT ON budgeting.expense_ledger TO app_role, worker_role;
+GRANT DELETE ON budgeting.expense_ledger TO app_role;
 
 -- spending_by_category_month table (ENGR-14 projection) — Drizzle push creates it
 ALTER TABLE budgeting.spending_by_category_month FORCE ROW LEVEL SECURITY;
@@ -707,10 +714,14 @@ GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, curren
 
 -- Phase 5 plan 05-01: category_reserve_adjustments (append-only ledger, D-PH5-R8)
 -- FORCE RLS was applied by migration 0020 via ALTER TABLE ... FORCE ROW LEVEL SECURITY.
--- GRANTs: INSERT only for app_role (append-only); SELECT for both roles; no UPDATE/DELETE.
+-- GRANTs: INSERT only for app_role (append-only); SELECT for both roles; no UPDATE.
+-- Quick 260611-vuo: DELETE granted to app_role ONLY — DELETE /categories/:id
+-- (permanent category delete) purges the category's adjustment rows. worker_role
+-- stays append-only. RLS tenant-scopes every DELETE.
 ALTER TABLE budgeting.category_reserve_adjustments FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON budgeting.category_reserve_adjustments TO app_role, worker_role;
 REVOKE UPDATE, DELETE ON budgeting.category_reserve_adjustments FROM app_role, worker_role;
+GRANT DELETE ON budgeting.category_reserve_adjustments TO app_role;
 
 -- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
 GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;

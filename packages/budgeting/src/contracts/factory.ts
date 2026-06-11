@@ -25,6 +25,7 @@ import { listAccounts } from "../application/list-accounts";
 import { findAccountById } from "../application/find-account-by-id";
 import { createCategory } from "../application/create-category";
 import { archiveCategory } from "../application/archive-category";
+import { unarchiveCategory } from "../application/unarchive-category";
 import { listCategories } from "../application/list-categories";
 import { findCategoryById } from "../application/find-category-by-id";
 import { renameCategory } from "../application/rename-category";
@@ -88,6 +89,7 @@ export interface BudgetingModule {
   findAccountById: ReturnType<typeof findAccountById>;
   createCategory: ReturnType<typeof createCategory>;
   archiveCategory: ReturnType<typeof archiveCategory>;
+  unarchiveCategory: ReturnType<typeof unarchiveCategory>;
   listCategories: ReturnType<typeof listCategories>;
   findCategoryById: ReturnType<typeof findCategoryById>;
   renameCategory: ReturnType<typeof renameCategory>;
@@ -275,6 +277,14 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     // No sibling release.
     archiveCategory: archiveCategory({
       repo: categoryRepo,
+      taskRepo: createTaskRepo(),
+      reservePositions,
+      budgetCurrencyOf: getWorkspaceDefaultCurrency,
+      isReservesEnabled,
+    }),
+    unarchiveCategory: unarchiveCategory({
+      repo: categoryRepo,
+      limitRepo,
       taskRepo: createTaskRepo(),
       reservePositions,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,

@@ -127,6 +127,30 @@ export function createCategoriesRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // POST /categories/:id/unarchive — revert an archived "keep history" category.
+  // No request body. Same-month: limits unchanged. Months-later: zeroes
+  // strictly-between months, sets current month to archive-month limits.
+  app.post("/:id/unarchive", async (c) => {
+    const session = c.get("session");
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const { id: categoryId } = c.req.param();
+    const budgetId = c.req.param("budgetId");
+
+    if (budgetId && budgetId !== tenantId) {
+      return c.json({ error: "tenant_mismatch" }, 403);
+    }
+
+    const r = await deps.budgeting.unarchiveCategory({
+      tenantId,
+      categoryId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) return c.json({ error: r.error.message }, 422);
+    return c.json(r.value);
+  });
+
   // DELETE /categories/:id — PERMANENT hard delete (category + all its data).
   // Only surfaced in the UI for already-archived categories, behind a confirm.
   app.delete("/:id", async (c) => {
