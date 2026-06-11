@@ -38,6 +38,27 @@ describe("(app) shell clears iOS bottom UI", () => {
     );
   });
 
+  it("browser display-mode unlocks native page scroll (bar collapse needs PAGE scroll)", () => {
+    // iOS Safari only collapses its bottom bar and extends the viewport
+    // edge-to-edge (google.com behavior) when the page itself scrolls.
+    // The locked-body + inner-scroll architecture is standalone-only.
+    const browserBlock = globalCss.match(
+      /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+    )?.[1];
+    expect(browserBlock).toBeTruthy();
+    expect(browserBlock).toMatch(/height:\s*auto/);
+    expect(browserBlock).toMatch(/overflow:\s*visible/);
+    expect(browserBlock).toMatch(/data-shell-scroll[^}]*overflow-y:\s*visible/);
+  });
+
+  it("custom pull-to-refresh stays standalone-only (browser gets native PTR)", () => {
+    const ptr = readFileSync(
+      resolve(__dirname, "../src/components/common/pull-to-refresh.tsx"),
+      "utf8",
+    );
+    expect(ptr).toMatch(/display-mode:\s*standalone/);
+  });
+
   it("html/body and the shell are sized to the large viewport (100lvh)", () => {
     // iOS Safari never resizes the viewport when only an INNER container
     // scrolls (page scroll is locked for the custom PTR), so a dvh/svh-sized

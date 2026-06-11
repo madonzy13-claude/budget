@@ -241,6 +241,7 @@
     );
   }
 
+
   /* See unlayered cursor rules below — moved out of @layer base in
      round 19 because CSS cascade layers invert !important order
      (earlier-layer !important beats later-layer !important). With
@@ -459,6 +460,38 @@ button:disabled,
 [role="button"][aria-disabled="true"],
 [aria-disabled="true"] {
   cursor: not-allowed;
+}
+
+/* UAT-08: browser-tab mode scrolls the PAGE natively. iOS Safari only
+   collapses its bottom bar and extends the viewport edge-to-edge (the
+   google.com / home-assistant.io behavior) when the page itself scrolls —
+   the locked-body + inner-scroll architecture kept the bar permanently
+   expanded with a dead band beneath it. Standalone keeps the locked body +
+   custom pull-to-refresh; in the browser the platform provides both
+   gestures natively (the custom PTR bails — see pull-to-refresh.tsx). The
+   header intentionally scrolls away; the BDP tab band (sticky top-0 in
+   budgets/[id]/layout.tsx) takes over as the pinned navigation.
+   UNLAYERED on purpose: the shell's flex-1 / min-h-0 / overflow-y-auto are
+   Tailwind utilities (@layer utilities) — a base-layer override loses the
+   cascade; unlayered normal rules win (same rationale as the cursor rules
+   above). */
+@media (display-mode: browser) {
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
+  }
+  [data-shell-root] {
+    height: auto;
+    min-height: 100lvh;
+  }
+  main[data-shell-scroll] {
+    flex: none;
+    min-height: 0;
+    overflow-y: visible;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 48px);
+  }
 }
 
 input:where(

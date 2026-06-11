@@ -69,6 +69,16 @@ export function PullToRefresh() {
   const innerScrollRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    // UAT-08: standalone-only. In browser tabs the page scrolls natively
+    // (global.css display-mode:browser block) so the platform provides its
+    // own pull-to-refresh and bottom-bar collapse; the custom gesture would
+    // fight the native one.
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      ("standalone" in window.navigator &&
+        (window.navigator as { standalone?: boolean }).standalone === true);
+    if (!standalone) return;
+
     // The gesture surface spans BOTH the header and the main scroll area
     // (see (app)/layout.tsx — `[data-ptr-blur-target]` wraps them). The
     // real scroll surface is still `<main>` (body locked overflow:hidden

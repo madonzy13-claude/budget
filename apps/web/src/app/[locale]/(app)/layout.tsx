@@ -169,7 +169,10 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
        click and the new RSC commit. The header sits OUTSIDE the overlay so
        the user can re-orient (and re-navigate) while the swap settles. */
     <NavPendingProvider>
-      <div className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
+      <div
+        data-shell-root
+        className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]"
+      >
         <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
         {/* PullToRefresh is mounted once at the shell level so every
             authenticated route inherits the gesture automatically.
