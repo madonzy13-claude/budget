@@ -42,6 +42,11 @@ export const viewport: Viewport = {
   // for accessibility is still honored by iOS regardless of these values.
   maximumScale: 1,
   userScalable: false,
+  // UAT-08: required for env(safe-area-inset-*) to resolve on iOS — the
+  // (app) shell pads its scroll surface with the bottom inset so content
+  // clears Safari's floating bottom bar / the home indicator. The header
+  // compensates the top inset (see (app)/layout.tsx).
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

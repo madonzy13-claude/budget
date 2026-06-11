@@ -207,7 +207,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           {/* Global offline/sync indicators (PWAX-02/03) — render app-wide. */}
           <OfflineStatusBadge />
           <SyncIssuesList />
-          <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
+          {/* pt-[env(safe-area-inset-top)]: with viewport-fit=cover the page
+              extends under the status bar in standalone mode — the header
+              absorbs the inset so the nav stays below the clock/notch.
+              Resolves to 0 in browser tabs. */}
+          <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 pt-[env(safe-area-inset-top)] backdrop-blur">
             <TopNav locale={locale} activeBudgetId={activeBudgetId} />
           </header>
           {/* overscroll-y-none mirrors the global.css rule on html+body.

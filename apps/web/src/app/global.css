@@ -196,7 +196,14 @@
        the top nav engages the custom indicator/reload. */
     overscroll-behavior: none;
     overflow: hidden;
+    /* UAT-08: 100% resolves against the static ICB on iOS while the (app)
+       shell inside is h-dvh (dynamic). When Safari's bottom bar collapses,
+       dvh grows past the body's fixed 100% box and overflow:hidden clips
+       the shell's bottom rows into an unreachable black band. Pinning
+       html/body to the same dynamic unit keeps body and shell in lockstep.
+       The 100% line stays as fallback for engines without dvh. */
     height: 100%;
+    height: 100dvh;
   }
 
   body {
