@@ -256,4 +256,115 @@ describe("ColumnHeader", () => {
     const left = screen.getByTestId("column-header-groceries-balance");
     expect(left.textContent).toBe("0");
   });
+
+  describe("260611-vuo: archived-column fixes + full-width name + column-wide reveal", () => {
+    it("BUG1: non-archived column does not render the archived label", () => {
+      renderHeader({
+        category: { ...category, name: "Subscription" },
+      });
+      // t() mock returns the key — an archived label would surface as "archived".
+      expect(screen.queryByText("archived")).toBeNull();
+    });
+
+    it("BUG1: action buttons live in an absolute overlay cluster (no reserved inline width)", () => {
+      renderHeader();
+      const cluster = document.querySelector(
+        '[data-testid="column-header-actions"]',
+      );
+      expect(cluster).toBeTruthy();
+      // Overlay cluster: absolutely positioned so the hidden pen/trash never
+      // steals inline width from the name span.
+      expect(cluster!.className).toContain("absolute");
+    });
+
+    it("FEATURE4: archived header renders BOTH trash and revert buttons", () => {
+      renderHeader({
+        archived: true,
+        onPermanentDelete: vi.fn(),
+        onUnarchive: vi.fn(),
+      });
+      expect(
+        document.querySelector('[data-testid="column-header-trash-groceries"]'),
+      ).toBeTruthy();
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-revert-groceries"]',
+        ),
+      ).toBeTruthy();
+    });
+
+    it("FEATURE4: non-archived header renders neither trash nor revert", () => {
+      renderHeader();
+      expect(
+        document.querySelector('[data-testid="column-header-trash-groceries"]'),
+      ).toBeNull();
+      expect(
+        document.querySelector(
+          '[data-testid="column-header-revert-groceries"]',
+        ),
+      ).toBeNull();
+    });
+
+    it("FEATURE4: clicking revert calls onUnarchive(categoryId) — no confirm dialog", () => {
+      const onUnarchive = vi.fn();
+      renderHeader({ archived: true, onUnarchive });
+      const revert = document.querySelector(
+        '[data-testid="column-header-revert-groceries"]',
+      );
+      expect(revert).toBeTruthy();
+      fireEvent.click(revert!);
+      expect(onUnarchive).toHaveBeenCalledWith("cat-1");
+    });
+
+    it("BUG2: trash revealed via a summary-cell tap still fires onPermanentDelete", () => {
+      const onPermanentDelete = vi.fn();
+      renderHeader({ archived: true, onPermanentDelete });
+      // Reveal by tapping a summary cell (column-wide reveal), then click trash.
+      const overspent = document.querySelector(
+        '[data-testid="column-header-groceries-overspent"]',
+      );
+      fireEvent.click(overspent!);
+      const trash = document.querySelector(
+        '[data-testid="column-header-trash-groceries"]',
+      );
+      // Hidden state carries opacity-0 + pointer-events-none — both must be gone.
+      expect(trash!.className).not.toContain("opacity-0");
+      expect(trash!.className).not.toContain("pointer-events-none");
+      fireEvent.click(trash!);
+      expect(onPermanentDelete).toHaveBeenCalledWith("cat-1");
+    });
+
+    it("FEATURE3: clicking the overspent cell reveals the pen (reveal lifted to header root)", () => {
+      renderHeader();
+      const overspent = document.querySelector(
+        '[data-testid="column-header-groceries-overspent"]',
+      );
+      fireEvent.click(overspent!);
+      const pen = document.querySelector(
+        '[data-testid="column-header-pen-groceries"]',
+      );
+      expect(pen!.className).not.toContain("opacity-0");
+      expect(pen!.className).not.toContain("pointer-events-none");
+    });
+
+    it("FEATURE3: clicking the balance (left) cell reveals the pen", () => {
+      renderHeader();
+      const balance = document.querySelector(
+        '[data-testid="column-header-groceries-balance"]',
+      );
+      fireEvent.click(balance!);
+      const pen = document.querySelector(
+        '[data-testid="column-header-pen-groceries"]',
+      );
+      expect(pen!.className).not.toContain("opacity-0");
+      expect(pen!.className).not.toContain("pointer-events-none");
+    });
+
+    it("FEATURE3: header root carries the group class + column-header-root testid", () => {
+      renderHeader();
+      const root = document.querySelector('[data-testid="column-header-root"]');
+      expect(root).toBeTruthy();
+      expect(root!.className).toContain("group");
+    });
+  });
 });
