@@ -219,6 +219,7 @@ export async function createBudgetViaHttp(
   baseUrl: string,
   cookieHeader: string,
   name: string,
+  kind: "PRIVATE" | "SHARED" = "PRIVATE",
 ): Promise<string> {
   const res = await fetch(`${baseUrl}/api/budgets`, {
     method: "POST",
@@ -227,7 +228,7 @@ export async function createBudgetViaHttp(
       cookie: cookieHeader,
       Origin: baseUrl,
     },
-    body: JSON.stringify({ name, kind: "PRIVATE", default_currency: "USD" }),
+    body: JSON.stringify({ name, kind, default_currency: "USD" }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
@@ -303,6 +304,52 @@ export const testEmpty = base.extend<{
       .filter((c): c is ParsedCookie => c !== null);
     await context.addCookies(cookies);
     await use({ email, password, userId });
+  },
+});
+
+/** Variant fixture: signed-in user with a SHARED budget — for share-link scenarios. */
+export const testSharedUser = base.extend<{ sharedUser: FreshUser }>({
+  sharedUser: async ({ context, baseURL }, use) => {
+    const baseUrl =
+      baseURL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+    const email = `phase8-e2e-shared-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}@test.local`;
+    const password = "Test1234!Phase8";
+    const name = "Phase 8 Shared User";
+
+    // 1. Sign up + verify via mailpit so a session cookie exists.
+    const { userId, setCookieHeaders } = await signUpViaHttp(
+      baseUrl,
+      email,
+      password,
+      name,
+    );
+
+    // 2. Copy session cookies into the Playwright browser context.
+    const cookies = setCookieHeaders
+      .map((line) => parseSetCookieToPlaywright(line, baseUrl))
+      .filter((c): c is ParsedCookie => c !== null);
+    if (cookies.length === 0) {
+      throw new Error(
+        "signup response had no Set-Cookie headers — Better Auth session cookie cannot be replayed",
+      );
+    }
+    await context.addCookies(cookies);
+
+    // 3. Build a Cookie header for subsequent API calls.
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+    // 4. Create a SHARED budget via the API (Members section requires SHARED kind).
+    const budgetName = "My E2E Budget";
+    const budgetId = await createBudgetViaHttp(
+      baseUrl,
+      cookieHeader,
+      budgetName,
+      "SHARED",
+    );
+
+    await use({ email, password, userId, budgetId, budgetName });
   },
 });
 

@@ -71,6 +71,25 @@ export class SettingsPo {
   }
 
   /**
+   * Open the Members accordion section (collapsed by default). Mirrors
+   * openCushionSection(). Trigger label = i18n `settings.sections.members`
+   * (EN: "Members"). Idempotent — skips click if already expanded.
+   */
+  async openMembersSection(): Promise<void> {
+    const trigger = this.page.getByRole("button", {
+      name: /^Members$/,
+    });
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
+    // Wait for the generate button to be attached inside the expanded section.
+    await this.page
+      .getByRole("button", { name: /invite|generate|share/i })
+      .first()
+      .waitFor({ state: "attached" });
+  }
+
+  /**
    * Click the "Generate invite link" / "Invite member" button in the Members
    * section to reveal the ShareUrlField. Located by visible text since
    * members-section.tsx uses no testid on this button.

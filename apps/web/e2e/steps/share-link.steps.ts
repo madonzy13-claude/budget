@@ -1,15 +1,34 @@
 import { createBdd } from "playwright-bdd";
 import { expect } from "@playwright/test";
-import { test } from "../fixtures/fresh-user-per-scenario";
+import { testSharedUser } from "../fixtures/fresh-user-per-scenario";
 import { SettingsPo } from "../page-objects/SettingsPo";
 import { ShareLinkPo } from "../page-objects/ShareLinkPo";
 
-const { When, Then } = createBdd(test);
+const { Given, When, Then } = createBdd(testSharedUser);
+
+// ─── Background ───────────────────────────────────────────────────────────────
+
+Given("I am signed in as a fresh shared user", async ({ sharedUser }) => {
+  // Fixture has already created the SHARED budget and seeded the session cookie.
+  void sharedUser;
+});
+
+When(
+  "I navigate to the shared budget settings page",
+  async ({ page, sharedUser }) => {
+    await page.goto(`/en/budgets/${sharedUser.budgetId}/settings`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+  },
+);
 
 // ─── Share link — owner side ─────────────────────────────────────────────────
 
 When("I generate an invite link", async ({ page }) => {
   const settings = new SettingsPo(page);
+  // Members section is collapsed by default — expand it first.
+  await settings.openMembersSection();
   await settings.clickGenerateInviteLink();
   // Wait for the share URL field to appear after the API call.
   await expect(settings.shareUrlField()).toBeVisible({ timeout: 8000 });

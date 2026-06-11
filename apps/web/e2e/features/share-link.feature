@@ -2,15 +2,15 @@
 Feature: Share link — generate in Settings and recipient join flow
 
   Background:
-    Given I am signed in as a fresh user
+    Given I am signed in as a fresh shared user
 
   Scenario: Share link can be generated in Settings
-    When I open the settings tab for "My E2E Budget"
+    When I navigate to the shared budget settings page
     And I generate an invite link
     Then the share URL field is visible and contains a URL
 
   Scenario: Recipient following the link sees the join card
-    When I open the settings tab for "My E2E Budget"
+    When I navigate to the shared budget settings page
     And I generate an invite link
     And I copy the invite token from the share URL field
     And I visit the join page with the copied token
