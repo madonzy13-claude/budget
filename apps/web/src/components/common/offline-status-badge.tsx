@@ -11,7 +11,10 @@
  */
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { getOfflineQueue } from "@/lib/offline-queue";
+import {
+  getOfflineQueue,
+  OFFLINE_QUEUE_CHANGED_EVENT,
+} from "@/lib/offline-queue";
 
 const POLL_MS = 5_000; // refresh queue count every 5 s while tab is open
 
@@ -45,12 +48,14 @@ export function OfflineStatusBadge() {
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refreshQueue);
 
     const timer = setInterval(refreshQueue, POLL_MS);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refreshQueue);
       clearInterval(timer);
     };
   }, []);

@@ -23,6 +23,7 @@ vi.mock("next-intl", () => ({
 // Mock offline-queue
 vi.mock("../src/lib/offline-queue", () => ({
   getOfflineQueue: vi.fn(),
+  OFFLINE_QUEUE_CHANGED_EVENT: "offline-queue-changed",
 }));
 
 import { getOfflineQueue } from "../src/lib/offline-queue";
