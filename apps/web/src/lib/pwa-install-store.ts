@@ -17,6 +17,11 @@ const _listeners = new Set<Listener>();
 
 export function setDeferredPrompt(prompt: DeferredPrompt | null) {
   _deferredPrompt = prompt;
+  // A real prompt proves the app is NOT installed — undo any heuristic guess.
+  if (prompt && _sessionInstalled) {
+    _sessionInstalled = false;
+    notifyInstalled();
+  }
   _listeners.forEach((l) => l(prompt));
 }
 
@@ -42,6 +47,9 @@ const INSTALLED_KEY = "pwa-installed";
 type InstalledListener = (installed: boolean) => void;
 
 let _installed: boolean | null = null;
+// Session-only heuristic guess (install-detect.ts). Never persisted: a wrong
+// guess must not outlive the tab, and a captured prompt reverses it.
+let _sessionInstalled = false;
 const _installedListeners = new Set<InstalledListener>();
 
 function readInstalled(): boolean {
@@ -53,13 +61,19 @@ function readInstalled(): boolean {
   }
 }
 
+function notifyInstalled() {
+  const v = isInstalled();
+  _installedListeners.forEach((l) => l(v));
+}
+
 export function isInstalled(): boolean {
   if (_installed === null) _installed = readInstalled();
-  return _installed;
+  return _installed || _sessionInstalled;
 }
 
 export function setInstalled(installed: boolean) {
   _installed = installed;
+  if (!installed) _sessionInstalled = false;
   try {
     if (installed) localStorage.setItem(INSTALLED_KEY, "1");
     else localStorage.removeItem(INSTALLED_KEY);
@@ -67,7 +81,14 @@ export function setInstalled(installed: boolean) {
     // storage unavailable — in-memory state still works for this session
   }
   if (installed && _deferredPrompt) setDeferredPrompt(null);
-  _installedListeners.forEach((l) => l(installed));
+  notifyInstalled();
+}
+
+/** Heuristic installed flag — session-only, see install-detect.ts. */
+export function markSessionInstalled(installed: boolean) {
+  if (_sessionInstalled === installed) return;
+  _sessionInstalled = installed;
+  notifyInstalled();
 }
 
 export function subscribeToInstalled(listener: InstalledListener): () => void {

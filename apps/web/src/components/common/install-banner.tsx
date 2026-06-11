@@ -32,9 +32,11 @@ import {
   subscribeToDeferredPrompt,
   getDeferredPrompt,
   setInstalled,
+  markSessionInstalled,
   subscribeToInstalled,
 } from "@/lib/pwa-install-store";
 import { isIos } from "@/lib/ios-install";
+import { shouldAssumeInstalled } from "@/lib/install-detect";
 import { IosInstallDialog } from "./ios-install-dialog";
 
 const DISMISSED_KEY = "pwa-install-dismissed";
@@ -102,7 +104,23 @@ export function InstallBanner() {
     });
     const unsubInstalled = subscribeToInstalled(setInstalledState);
 
+    // Pre-existing installs never fire beforeinstallprompt and predate the
+    // persisted appinstalled flag. Probe: if no prompt materialized within
+    // the window on a Chromium browser with an active SW, assume installed
+    // (session-only; a late prompt reverses it via the store).
+    const probe = setTimeout(() => {
+      if (
+        shouldAssumeInstalled({
+          swControlled: !!window.navigator.serviceWorker?.controller,
+          hasPrompt: !!getDeferredPrompt(),
+        })
+      ) {
+        markSessionInstalled(true);
+      }
+    }, 2500);
+
     return () => {
+      clearTimeout(probe);
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onAppInstalled);
       unsubPrompt();

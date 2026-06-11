@@ -28,6 +28,12 @@ vi.mock("@/lib/ios-install", () => ({
   isIos: () => iosMock.value,
 }));
 
+// Installed-heuristic — controllable per test
+const assumeInstalledMock = { value: false };
+vi.mock("@/lib/install-detect", () => ({
+  shouldAssumeInstalled: () => assumeInstalledMock.value,
+}));
+
 // Mock sonner (Dialog uses it in some flows)
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -71,6 +77,7 @@ function makeDeferredPrompt() {
 beforeEach(() => {
   vi.clearAllMocks();
   iosMock.value = false;
+  assumeInstalledMock.value = false;
   // Clear store
   setDeferredPrompt(null);
   setInstalled(false);
@@ -303,6 +310,64 @@ describe("InstallBanner — installed state (open-app banner)", () => {
   test("open-app banner suppressed when previously dismissed", async () => {
     setInstalled(true);
     localStorage.setItem("pwa-open-app-dismissed", "1");
+
+    render(<InstallBanner />);
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
+  });
+});
+
+describe("InstallBanner — installed heuristic (pre-existing installs)", () => {
+  test("no prompt + heuristic positive → open-app banner after probe window", async () => {
+    vi.useFakeTimers();
+    assumeInstalledMock.value = true;
+
+    render(<InstallBanner />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(2600);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("install-banner-cta")).not.toBeInTheDocument();
+  });
+
+  test("late beforeinstallprompt reverses the heuristic back to install mode", async () => {
+    vi.useFakeTimers();
+    assumeInstalledMock.value = true;
+
+    render(<InstallBanner />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(2600);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      setDeferredPrompt(makeDeferredPrompt());
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-cta")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("install-banner-open-app"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("heuristic negative → no banner at all without a prompt (non-Chromium)", async () => {
+    assumeInstalledMock.value = false;
 
     render(<InstallBanner />);
 
