@@ -15,33 +15,12 @@ import { useEffect, useState } from "react";
 // device is still serving cached assets, not that the fix failed.
 const BUILD_MARKER = "VPDBG-r5";
 
-const FLAG_KEY = "vpdbg";
-
+// Param-only on purpose: the localStorage flag + profile-menu toggle used
+// during the UAT-08 bottom-clipping hunt are gone, so devices that had the
+// flag set stop showing the overlay automatically.
 export function isVpdbgEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  if (window.location.search.includes("vpdbg=1")) {
-    try {
-      localStorage.setItem(FLAG_KEY, "1");
-    } catch {
-      // ignore
-    }
-    return true;
-  }
-  try {
-    return localStorage.getItem(FLAG_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function toggleVpdbg(): boolean {
-  try {
-    const next = localStorage.getItem(FLAG_KEY) === "1" ? "0" : "1";
-    localStorage.setItem(FLAG_KEY, next);
-    return next === "1";
-  } catch {
-    return false;
-  }
+  return window.location.search.includes("vpdbg=1");
 }
 
 interface Metrics {
