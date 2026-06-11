@@ -43,10 +43,30 @@ Then(
 
 When("the browser goes offline", async ({ context }) => {
   await context.setOffline(true);
+  // Playwright's setOffline does not reliably flip navigator.onLine when a
+  // service worker is active, and the app's offline fork keys off
+  // navigator.onLine. Force it in-page and fire the offline event so the
+  // app takes its offline path.
+  const [pg] = context.pages();
+  await pg.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      get: () => false,
+    });
+    window.dispatchEvent(new Event("offline"));
+  });
 });
 
 When("the browser comes back online", async ({ context }) => {
   await context.setOffline(false);
+  const [pg] = context.pages();
+  await pg.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      get: () => true,
+    });
+    window.dispatchEvent(new Event("online"));
+  });
 });
 
 Then(

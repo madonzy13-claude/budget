@@ -16,6 +16,14 @@ import { generateIdempotencyKey } from "@/lib/idempotency";
 import { enqueueOfflineTxn } from "@/lib/offline-queue";
 import { mapTxnRowToDTO } from "./use-transactions";
 
+/** Thrown by the offline fork so React Query routes to onError (keep the row). */
+export class OfflineEnqueuedError extends Error {
+  constructor() {
+    super("offline-enqueued");
+    this.name = "OfflineEnqueuedError";
+  }
+}
+
 export interface CreateTransactionInput {
   categoryId: string;
   amountCents: number;
@@ -95,8 +103,11 @@ export function useCreateTransaction(budgetId: string, month: string) {
           },
           enqueuedAt: new Date().toISOString(),
         });
-        // Return null → triggers onError path → unsent: true marker
-        return null;
+        // Throw a sentinel so React Query takes the onError path: it KEEPS the
+        // optimistic row (with its idempotencyKey) and flags it unsent, instead
+        // of onSuccess(null) replacing it via mapTxnRowToDTO(null) — which wiped
+        // the key and the offline state, so the pending-sync marker never showed.
+        throw new OfflineEnqueuedError();
       }
 
       const res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {

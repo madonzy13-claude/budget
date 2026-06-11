@@ -8,6 +8,18 @@
  */
 import { openBudgetDB } from "./offline-cache";
 
+/**
+ * Broadcast so queue-dependent UI (per-row pending marker, offline badge,
+ * sync-issues list) re-reads the queue immediately after a mutation — they
+ * can't await the IDB write themselves and would otherwise race it on mount.
+ */
+export const OFFLINE_QUEUE_CHANGED_EVENT = "offline-queue-changed";
+function notifyQueueChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(OFFLINE_QUEUE_CHANGED_EVENT));
+  }
+}
+
 export interface OfflineTxn {
   /** UUID generated at enqueue time — re-used verbatim on replay (idempotency). */
   idempotencyKey: string;
@@ -24,6 +36,7 @@ export async function enqueueOfflineTxn(
   const db = await openBudgetDB();
   await db.put("offline-queue", txn);
   db.close();
+  notifyQueueChanged();
 }
 
 export async function getOfflineQueue(): Promise<OfflineTxn[]> {
@@ -37,6 +50,7 @@ export async function removeFromQueue(idempotencyKey: string): Promise<void> {
   const db = await openBudgetDB();
   await db.delete("offline-queue", idempotencyKey);
   db.close();
+  notifyQueueChanged();
 }
 
 export async function markQueueItemFailed(
@@ -49,4 +63,5 @@ export async function markQueueItemFailed(
     await db.put("offline-queue", { ...item, failReason: reason });
   }
   db.close();
+  notifyQueueChanged();
 }

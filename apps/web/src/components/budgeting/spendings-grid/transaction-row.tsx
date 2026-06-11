@@ -10,7 +10,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2, Loader2, RotateCcw, Clock } from "lucide-react";
-import { getOfflineQueue } from "@/lib/offline-queue";
+import {
+  getOfflineQueue,
+  OFFLINE_QUEUE_CHANGED_EVENT,
+} from "@/lib/offline-queue";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
@@ -91,18 +94,29 @@ export function TransactionRow({
   useEffect(() => {
     if (!txn.idempotencyKey) return;
     let cancelled = false;
-    getOfflineQueue()
-      .then((queue) => {
-        if (cancelled) return;
-        setIsOfflinePending(
-          queue.some((q) => q.idempotencyKey === txn.idempotencyKey),
-        );
-      })
-      .catch(() => {
-        // IDB unavailable — no marker shown
-      });
+    const check = () => {
+      getOfflineQueue()
+        .then((queue) => {
+          if (cancelled) return;
+          setIsOfflinePending(
+            queue.some((q) => q.idempotencyKey === txn.idempotencyKey),
+          );
+        })
+        .catch(() => {
+          // IDB unavailable — no marker shown
+        });
+    };
+    check();
+    // Re-check when the queue changes (the enqueue lands just after mount) and
+    // on connectivity flips, so the marker isn't stuck on its mount-time read.
+    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, check);
+    window.addEventListener("online", check);
+    window.addEventListener("offline", check);
     return () => {
       cancelled = true;
+      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, check);
+      window.removeEventListener("online", check);
+      window.removeEventListener("offline", check);
     };
   }, [txn.idempotencyKey]);
 
