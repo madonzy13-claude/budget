@@ -60,6 +60,8 @@ export interface CategoryColumnProps {
   onEditCategory: (categoryId: string) => void;
   /** Permanent-delete an archived category (trash on the column header). */
   onPermanentDelete?: (categoryId: string) => void;
+  /** Revert (unarchive) an archived category — no confirm (260611-vuo). */
+  onUnarchive?: (categoryId: string) => void;
 }
 
 export function CategoryColumn({
@@ -78,6 +80,7 @@ export function CategoryColumn({
   onEditDraft,
   onEditCategory,
   onPermanentDelete,
+  onUnarchive,
 }: CategoryColumnProps) {
   const tDraft = useTranslations("grid.draft");
   const tGrid = useTranslations("grid");
@@ -181,6 +184,7 @@ export function CategoryColumn({
           reservesEnabled={reservesEnabled}
           archived={archived}
           onPermanentDelete={onPermanentDelete}
+          onUnarchive={onUnarchive}
         />
 
         {/* w-0 min-w-full: the quick-entry input fills the column but its

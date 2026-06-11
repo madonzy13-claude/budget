@@ -158,6 +158,23 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     }
   }
 
+  // Revert (unarchive) an archived column — NO confirm dialog (260611-vuo).
+  // On success the category becomes a normal editable column again; the
+  // backend replays limits for the months it was absent.
+  async function unarchiveCategory(catId: string) {
+    const res = await clientApiFetch(
+      `/budgets/${budgetId}/categories/${catId}/unarchive`,
+      { method: "POST" },
+    );
+    if (res.ok) {
+      qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+      qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
+      qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+      router.refresh();
+    }
+  }
+
   const [localCategoryOrder, setLocalCategoryOrder] = useState<CategoryDTO[]>(
     props.initialCategories,
   );
@@ -460,6 +477,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
                   onPermanentDelete={() =>
                     setDeleteCat({ id: c.id, name: c.name })
                   }
+                  onUnarchive={() => void unarchiveCategory(c.id)}
                 />
               ))}
             </SortableContext>
