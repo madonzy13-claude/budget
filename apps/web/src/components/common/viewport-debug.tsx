@@ -13,14 +13,28 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "VPDBG-r5";
+const BUILD_MARKER = "SHELL-R9";
 
-// Param-only on purpose: the localStorage flag + profile-menu toggle used
-// during the UAT-08 bottom-clipping hunt are gone, so devices that had the
-// flag set stop showing the overlay automatically.
+const FLAG_KEY = "vpdbg";
+
 export function isVpdbgEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  return window.location.search.includes("vpdbg=1");
+  if (window.location.search.includes("vpdbg=1")) return true;
+  try {
+    return localStorage.getItem(FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function toggleVpdbg(): boolean {
+  try {
+    const next = localStorage.getItem(FLAG_KEY) === "1" ? "0" : "1";
+    localStorage.setItem(FLAG_KEY, next);
+    return next === "1";
+  } catch {
+    return false;
+  }
 }
 
 interface Metrics {
@@ -30,7 +44,8 @@ interface Metrics {
   bodyH: number;
   safeTop: number;
   safeBottom: number;
-  standalone: boolean;
+  displayMode: string;
+  afterH: string;
   mainClientH: number;
   mainScrollH: number;
   mainScrollTop: number;
@@ -65,9 +80,14 @@ function readMetrics(): Metrics {
     bodyH: Math.round(document.body.getBoundingClientRect().height),
     safeTop: probeEnvInset("top"),
     safeBottom: probeEnvInset("bottom"),
-    standalone:
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as { standalone?: boolean }).standalone === true,
+    displayMode:
+      ["standalone", "browser", "minimal-ui", "fullscreen"].find(
+        (m) => window.matchMedia(`(display-mode: ${m})`).matches,
+      ) ??
+      ((window.navigator as { standalone?: boolean }).standalone
+        ? "legacy-standalone"
+        : "none"),
+    afterH: main ? getComputedStyle(main, "::after").height : "n/a",
     mainClientH: main?.clientHeight ?? -1,
     mainScrollH: main?.scrollHeight ?? -1,
     mainScrollTop: Math.round((main as HTMLElement)?.scrollTop ?? -1),
@@ -106,7 +126,9 @@ export function ViewportDebug() {
       <div>
         safeTop {m.safeTop} · safeBottom {m.safeBottom}
       </div>
-      <div>standalone {String(m.standalone)}</div>
+      <div>
+        mode {m.displayMode} · afterH {m.afterH}
+      </div>
       <div>
         main {m.mainClientH}/{m.mainScrollH} top {m.mainScrollTop}
       </div>

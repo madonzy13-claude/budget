@@ -22,7 +22,7 @@ describe("ViewportDebug", () => {
     window.history.replaceState({}, "", "/?vpdbg=1");
     render(<ViewportDebug />);
     const overlay = screen.getByTestId("viewport-debug");
-    expect(overlay.textContent).toContain("VPDBG");
+    expect(overlay.textContent).toContain("SHELL-R");
     expect(overlay.textContent).toContain("innerH");
   });
 });
