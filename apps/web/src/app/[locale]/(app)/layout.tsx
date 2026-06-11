@@ -227,13 +227,15 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               SiteFooter removed (UAT-Phase6-Test7 retest #2): the
               in-app shell no longer carries the marketing-style
               footer — the page is the product. */}
-          {/* pb-[env(safe-area-inset-bottom)]: iOS Safari's floating bottom
-              bar overlays the layout viewport (exposed via the bottom inset
-              since iOS 15 even without viewport-fit=cover), and standalone
-              has the home indicator in the same zone. Padding the scroll
-              surface keeps the last row reachable; resolves to 0 on
-              platforms without bottom UI. */}
-          <main className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none pb-[env(safe-area-inset-bottom)]">
+          {/* data-shell-scroll: global.css pads this surface with
+              env(safe-area-inset-bottom) so the last rows clear iOS
+              Safari's floating bottom bar — and zeroes the padding in
+              display-mode standalone, where the same inset rendered as a
+              dead band above the home indicator (UAT-08 regression). */}
+          <main
+            data-shell-scroll
+            className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none"
+          >
             <NavPendingOverlay className="flex-1">{children}</NavPendingOverlay>
           </main>
         </div>

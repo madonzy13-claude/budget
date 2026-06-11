@@ -24,9 +24,22 @@ const rootLayout = readFileSync(
 );
 
 describe("(app) shell clears iOS bottom UI", () => {
-  it("pads the <main> scroll surface with env(safe-area-inset-bottom)", () => {
-    const mainTag = layout.match(/<main className=[^>]*>/)?.[0] ?? "";
-    expect(mainTag).toContain("safe-area-inset-bottom");
+  it("marks the <main> scroll surface for the browser-only bottom clearance rule", () => {
+    const mainTag = layout.match(/<main[^>]*className=[^>]*>/)?.[0] ?? "";
+    expect(mainTag).toContain("data-shell-scroll");
+  });
+
+  it("global.css pads the scroll surface in browser mode and zeroes it in standalone", () => {
+    // Browser Safari floats its bottom bar OVER the page → env() clearance
+    // needed. Standalone has no bar; the same padding rendered as a dead
+    // 34px band above the home indicator (UAT regression), so display-mode
+    // standalone must reset it to 0.
+    expect(globalCss).toMatch(
+      /data-shell-scroll[^}]*padding-bottom:\s*env\(safe-area-inset-bottom/,
+    );
+    expect(globalCss).toMatch(
+      /@media\s*\(display-mode:\s*standalone\)[\s\S]*data-shell-scroll[^}]*padding-bottom:\s*0/,
+    );
   });
 
   it("html/body track the dynamic viewport (100dvh) so the h-dvh shell is never clipped", () => {

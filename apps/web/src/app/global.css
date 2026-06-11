@@ -226,6 +226,23 @@
     color: var(--on-primary);
   }
 
+  /* UAT-08: iOS Safari (browser only) floats its bottom bar OVER the layout
+     viewport — without clearance the shell's last rows are unreachable
+     behind it. env(safe-area-inset-bottom) resolves to that obscured zone
+     once viewport-fit=cover is set (root layout viewport export).
+     Standalone has no floating bar; the identical padding there rendered
+     as a dead ~34px band above the home indicator, so display-mode
+     standalone resets it — content stays flush to the bottom edge exactly
+     as it was before the fix. */
+  main[data-shell-scroll] {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (display-mode: standalone) {
+    main[data-shell-scroll] {
+      padding-bottom: 0;
+    }
+  }
+
   /* See unlayered cursor rules below — moved out of @layer base in
      round 19 because CSS cascade layers invert !important order
      (earlier-layer !important beats later-layer !important). With
