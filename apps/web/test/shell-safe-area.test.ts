@@ -29,24 +29,23 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(mainTag).toContain("data-shell-scroll");
   });
 
-  it("global.css pads the scroll surface in browser mode and zeroes it in standalone", () => {
-    // Browser Safari floats its bottom bar OVER the page → env() clearance
-    // needed. Standalone has no bar; the same padding rendered as a dead
-    // 34px band above the home indicator (UAT regression), so display-mode
-    // standalone must reset it to 0.
+  it("global.css gives the scroll surface bar-delta + inset + breathing-room clearance", () => {
+    // 100lvh - 100svh = exactly the browser bar height (0 in standalone);
+    // env() covers the home indicator; the constant is the extra margin the
+    // user asked for at full scroll.
     expect(globalCss).toMatch(
-      /data-shell-scroll[^}]*padding-bottom:\s*env\(safe-area-inset-bottom/,
-    );
-    expect(globalCss).toMatch(
-      /@media\s*\(display-mode:\s*standalone\)[\s\S]*data-shell-scroll[^}]*padding-bottom:\s*0/,
+      /data-shell-scroll[^}]*padding-bottom:\s*calc\(\s*100lvh\s*-\s*100svh\s*\+\s*env\(safe-area-inset-bottom/,
     );
   });
 
-  it("html/body track the dynamic viewport (100dvh) so the h-dvh shell is never clipped", () => {
-    // height:100% on iOS is the static ICB while the inner shell is h-dvh —
-    // when Safari's bar collapses the shell outgrows the overflow:hidden
-    // body and the bottom rows get clipped into a dead black band.
-    expect(globalCss).toMatch(/height:\s*100dvh/);
+  it("html/body and the shell are sized to the large viewport (100lvh)", () => {
+    // iOS Safari never resizes the viewport when only an INNER container
+    // scrolls (page scroll is locked for the custom PTR), so a dvh/svh-sized
+    // shell leaves a permanent dead band where the expanded bar was. lvh
+    // paints edge-to-edge; content slides under the translucent bar like a
+    // native list. In standalone lvh == screen height — no change there.
+    expect(globalCss).toMatch(/height:\s*100lvh/);
+    expect(layout).toMatch(/h-lvh/);
   });
 
   it("viewport-fit=cover is set so env(safe-area-inset-*) resolves on iOS", () => {

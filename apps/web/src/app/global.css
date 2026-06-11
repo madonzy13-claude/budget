@@ -196,14 +196,17 @@
        the top nav engages the custom indicator/reload. */
     overscroll-behavior: none;
     overflow: hidden;
-    /* UAT-08: 100% resolves against the static ICB on iOS while the (app)
-       shell inside is h-dvh (dynamic). When Safari's bottom bar collapses,
-       dvh grows past the body's fixed 100% box and overflow:hidden clips
-       the shell's bottom rows into an unreachable black band. Pinning
-       html/body to the same dynamic unit keeps body and shell in lockstep.
-       The 100% line stays as fallback for engines without dvh. */
+    /* UAT-08: large-viewport sizing. iOS Safari only resizes the viewport
+       when the PAGE scrolls — ours never does (body locked for the custom
+       PTR; an inner <main> scrolls) — so dvh/% stay pinned to the
+       expanded-bar size and the zone where the bar was is a permanent dead
+       black band. 100lvh paints edge-to-edge; content slides under the
+       translucent bar like a native list, and the shell's scroll surface
+       carries matching bottom clearance (see main[data-shell-scroll]).
+       In standalone lvh == screen height, so nothing changes there.
+       The 100% line stays as fallback for engines without lvh. */
     height: 100%;
-    height: 100dvh;
+    height: 100lvh;
   }
 
   body {
@@ -226,21 +229,14 @@
     color: var(--on-primary);
   }
 
-  /* UAT-08: iOS Safari (browser only) floats its bottom bar OVER the layout
-     viewport — without clearance the shell's last rows are unreachable
-     behind it. env(safe-area-inset-bottom) resolves to that obscured zone
-     once viewport-fit=cover is set (root layout viewport export).
-     Standalone has no floating bar; the identical padding there rendered
-     as a dead ~34px band above the home indicator, so display-mode
-     standalone resets it — content stays flush to the bottom edge exactly
-     as it was before the fix. */
+  /* UAT-08: full-scroll bottom clearance for the lvh-sized shell.
+     100lvh - 100svh = exactly the browser bar height (0 in standalone),
+     env() covers the home indicator, and the constant is breathing room
+     so the last row never kisses the bar/edge at full scroll. */
   main[data-shell-scroll] {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  @media (display-mode: standalone) {
-    main[data-shell-scroll] {
-      padding-bottom: 0;
-    }
+    padding-bottom: calc(
+      100lvh - 100svh + env(safe-area-inset-bottom, 0px) + 24px
+    );
   }
 
   /* See unlayered cursor rules below — moved out of @layer base in

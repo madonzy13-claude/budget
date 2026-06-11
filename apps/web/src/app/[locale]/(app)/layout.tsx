@@ -160,7 +160,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   return (
     /* global.css locks html + body to height:100% + overflow:hidden (anti
        rubber-band guard for iOS). The (app) shell must therefore own the
-       scroll, which is why the root is `h-dvh flex-col` and the main slot
+       scroll, which is why the root is `h-lvh flex-col` and the main slot
        gets `flex-1 min-h-0 overflow-y-auto` — without min-h-0 the flex
        child grows past its parent and clips on mobile (regression seen
        after the D-08 onboarding-guard refactor). */
@@ -169,7 +169,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
        click and the new RSC commit. The header sits OUTSIDE the overlay so
        the user can re-orient (and re-navigate) while the swap settles. */
     <NavPendingProvider>
-      <div className="flex h-dvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
+      <div className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
         <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
         {/* PullToRefresh is mounted once at the shell level so every
             authenticated route inherits the gesture automatically.
