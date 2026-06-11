@@ -1,13 +1,58 @@
 import { createBdd } from "playwright-bdd";
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
+import {
+  createRecurringRuleViaHttp,
+  createCategoryViaHttp,
+} from "../fixtures/fresh-user-per-scenario";
 import { SpendingsPo } from "../page-objects/SpendingsPo";
 
-const { When, Then } = createBdd(test);
+const { Given, When, Then } = createBdd(test);
+
+// ─── Seed a real recurring rule so useDrafts returns a pending draft row ─────
+
+Given(
+  /^a recurring rule "(.+?)" is due this month in budget "(.+?)"$/,
+  async (
+    { context, baseURL, freshUser },
+    ruleName: string,
+    _budgetName: string,
+  ) => {
+    const baseUrl =
+      baseURL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+    const cookies = await context.cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const firstDueDate = `${yyyy}-${mm}-${dd}`;
+    const cadenceAnchor = today.getDate();
+    // The grid renders drafts grouped by category; a null-category draft is
+    // dropped. Create a real category first and attach the rule to it.
+    const categoryId = await createCategoryViaHttp(
+      baseUrl,
+      cookieHeader,
+      freshUser.budgetId,
+      "Housing",
+    );
+    await createRecurringRuleViaHttp(
+      baseUrl,
+      cookieHeader,
+      freshUser.budgetId,
+      {
+        note: ruleName,
+        amount: "1000.00",
+        currency: "USD",
+        firstDueDate,
+        cadenceAnchor,
+        categoryId,
+      },
+    );
+  },
+);
 
 // ─── Draft row assertions ────────────────────────────────────────────────────
-// NOTE: "CONFIRM_DRAFT" task seeding reuses the Given step already defined in
-// tasks.steps.ts. Navigation reuses When steps from tasks.steps.ts.
 
 Then(
   /^the draft row for rule "(.+?)" is visible$/,
@@ -19,6 +64,8 @@ Then(
 
 Then("the draft confirm button is visible", async ({ page }) => {
   const spendings = new SpendingsPo(page);
+  // Row actions are hidden until hover (desktop sm:group-hover) / tap-reveal.
+  await page.locator('[data-testid^="draft-row-"]').first().hover();
   await expect(spendings.draftConfirmButton()).toBeVisible({ timeout: 5000 });
 });
 
@@ -26,8 +73,10 @@ When(
   /^I confirm the draft for rule "(.+?)"$/,
   async ({ page }, ruleName: string) => {
     const spendings = new SpendingsPo(page);
-    // First ensure the draft row is visible before clicking confirm.
-    await expect(spendings.draftRow(ruleName)).toBeVisible({ timeout: 8000 });
+    const row = spendings.draftRow(ruleName);
+    await expect(row).toBeVisible({ timeout: 8000 });
+    // Reveal the hover/tap-gated action buttons before clicking confirm.
+    await row.hover();
     await spendings.draftConfirmButton().click();
   },
 );

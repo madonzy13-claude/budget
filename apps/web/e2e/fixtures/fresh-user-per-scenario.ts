@@ -214,6 +214,74 @@ export async function signUpViaHttp(
   return { userId, setCookieHeaders };
 }
 
+/** Create a recurring rule via the API — materialises a pending draft for the current month. */
+export async function createRecurringRuleViaHttp(
+  baseUrl: string,
+  cookieHeader: string,
+  budgetId: string,
+  opts: {
+    note: string;
+    amount: string; // decimal string e.g. "1000.00"
+    currency: string;
+    firstDueDate: string; // YYYY-MM-DD
+    cadenceAnchor: number; // 1-31
+    categoryId: string; // draft must have a real category or the grid drops it
+  },
+): Promise<string> {
+  const res = await fetch(
+    `${baseUrl}/api/budgets/${budgetId}/recurring-rules`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: cookieHeader,
+        Origin: baseUrl,
+        "X-Budget-ID": budgetId,
+      },
+      body: JSON.stringify({
+        category_id: opts.categoryId,
+        amount: opts.amount,
+        currency: opts.currency,
+        note: opts.note,
+        first_due_date: opts.firstDueDate,
+        cadence: "MONTHLY",
+        cadence_anchor: opts.cadenceAnchor,
+      }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "<unreadable>");
+    throw new Error(`createRecurringRule failed (${res.status}): ${body}`);
+  }
+  const body = (await res.json()) as { id: string };
+  return body.id;
+}
+
+/** Create a category via the API; returns the new category id. */
+export async function createCategoryViaHttp(
+  baseUrl: string,
+  cookieHeader: string,
+  budgetId: string,
+  name: string,
+): Promise<string> {
+  const res = await fetch(`${baseUrl}/api/budgets/${budgetId}/categories`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: cookieHeader,
+      Origin: baseUrl,
+      "X-Budget-ID": budgetId,
+    },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "<unreadable>");
+    throw new Error(`createCategory failed (${res.status}): ${body}`);
+  }
+  const body = (await res.json()) as { id?: string; category?: { id: string } };
+  return body.id ?? body.category?.id ?? "";
+}
+
 /** Create a budget via the API using the freshly-acquired session cookies. */
 export async function createBudgetViaHttp(
   baseUrl: string,

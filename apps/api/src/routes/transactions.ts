@@ -114,6 +114,10 @@ function serializeRow(row: {
     fx_as_of: row.fxAsOf,
     note: row.note ?? null,
     recurring_rule_id: row.recurringRuleId ?? null,
+    // Recurring drafts carry the rule's note as their note at materialization
+    // (create-recurring-rule.ts). The drafts UI reads `rule_name` to label the
+    // row; expose it for recurring rows so draft rows aren't rendered nameless.
+    rule_name: row.recurringRuleId ? (row.note ?? null) : null,
     confirmed_at: row.confirmedAt?.toISOString() ?? null,
     kind: row.kind,
     created_at: row.createdAt.toISOString(),
