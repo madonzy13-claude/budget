@@ -85,8 +85,10 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   }
   if (!session) {
     const cookieStore = await cookies();
-    const hasStaleCookie = !!cookieStore.get("better-auth.session_token")
-      ?.value;
+    // Better Auth prefixes the cookie `__Secure-` over HTTPS — check both.
+    const hasStaleCookie =
+      !!cookieStore.get("__Secure-better-auth.session_token")?.value ||
+      !!cookieStore.get("better-auth.session_token")?.value;
     const reason = hasStaleCookie ? "session_expired" : "required";
     redirect(`/${locale}/sign-in?reason=${reason}`);
   }

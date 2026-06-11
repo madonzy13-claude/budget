@@ -18,7 +18,18 @@ const PUBLIC_BUDGET_PATHS = ["/budgets/join/"];
 // protected route (no auth required) and not an auth route (we never want
 // to bounce authenticated users away from it). The default fall-through
 // (intl-only handling) is exactly the behaviour we want.
+// Better Auth names the session cookie `better-auth.session_token` over HTTP but
+// prefixes it `__Secure-better-auth.session_token` over HTTPS (secure context).
+// The middleware must recognise BOTH or every authenticated route bounces to
+// /sign-in once the app is served over HTTPS (e.g. behind the Cloudflare tunnel).
 const SESSION_COOKIE = "better-auth.session_token";
+const SECURE_SESSION_COOKIE = "__Secure-better-auth.session_token";
+function sessionCookieValue(request: NextRequest): string | undefined {
+  return (
+    request.cookies.get(SECURE_SESSION_COOKIE)?.value ??
+    request.cookies.get(SESSION_COOKIE)?.value
+  );
+}
 // Holds the signed-in user's account locale (set on sign-in + by Settings,
 // kept in sync by LocaleCookieSync). Logged-in users are redirected so the
 // URL locale always matches this. Logged-out users keep whatever locale the
@@ -40,7 +51,7 @@ function stripLocale(pathname: string): string {
 
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAuthenticated = !!request.cookies.get(SESSION_COOKIE)?.value;
+  const isAuthenticated = !!sessionCookieValue(request);
   const bare = stripLocale(pathname);
   const locale = extractLocale(pathname);
   const reason = request.nextUrl.searchParams.get("reason");
@@ -53,6 +64,7 @@ export default function middleware(request: NextRequest) {
   if (sessionExpired && AUTH_ROUTES.some((r) => bare.startsWith(r))) {
     const res = intlMiddleware(request);
     res.cookies.delete(SESSION_COOKIE);
+    res.cookies.delete(SECURE_SESSION_COOKIE);
     return res;
   }
 
