@@ -4,6 +4,9 @@
   "description": "Family budgeting and wealth tracker",
   "start_url": "/",
   "display": "standalone",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "background_color": "#181a20",
   "theme_color": "#0b0e11",
   "categories": ["finance", "productivity"],

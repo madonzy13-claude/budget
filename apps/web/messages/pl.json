@@ -1170,7 +1170,19 @@
         "close": "Zamknij"
       },
       "menuItem": "Zainstaluj aplikację",
-      "notAvailable": "Instalacja niedostępna w tej przeglądarce"
+      "notAvailable": "Instalacja niedostępna w tej przeglądarce",
+      "ios": {
+        "title": "Zainstaluj na iPhonie lub iPadzie",
+        "step1": "Stuknij przycisk Udostępnij na pasku przeglądarki",
+        "step2": "Przewiń w dół i stuknij „Do ekranu początkowego”",
+        "step3": "Stuknij „Dodaj” — Budget pojawi się na ekranie początkowym",
+        "close": "Rozumiem"
+      },
+      "openApp": {
+        "ariaLabel": "Otwórz zainstalowaną aplikację Budget",
+        "body": "Budget jest zainstalowany — korzystaj z pełnej wersji w aplikacji",
+        "cta": "Otwórz aplikację"
+      }
     }
   },
   "offline": {

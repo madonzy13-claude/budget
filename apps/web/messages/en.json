@@ -1169,7 +1169,19 @@
         "close": "Close"
       },
       "menuItem": "Install app",
-      "notAvailable": "Install not available in this browser"
+      "notAvailable": "Install not available in this browser",
+      "ios": {
+        "title": "Install on iPhone or iPad",
+        "step1": "Tap the Share button in your browser toolbar",
+        "step2": "Scroll down and tap “Add to Home Screen”",
+        "step3": "Tap “Add” — Budget appears on your home screen",
+        "close": "Got it"
+      },
+      "openApp": {
+        "ariaLabel": "Open the installed Budget app",
+        "body": "Budget is installed — get the full experience in the app",
+        "cta": "Open app"
+      }
     }
   },
   "offline": {

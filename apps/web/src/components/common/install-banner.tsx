@@ -1,24 +1,25 @@
 "use client";
 
 /**
- * install-banner.tsx — PWA install prompt ribbon (Task 4, Phase 08-05)
+ * install-banner.tsx — PWA install / open-app ribbon (08-05, reworked in UAT-08)
  *
- * Renders only when:
- *   1. beforeinstallprompt has fired (captured prompt)
- *   2. Not running in standalone mode (not already installed)
- *   3. User has not dismissed (localStorage pwa-install-dismissed != "1")
+ * Three modes:
+ *   install   — beforeinstallprompt captured: Install CTA runs the native prompt
+ *   install (iOS) — iOS never fires beforeinstallprompt; CTA opens the
+ *                   Share → Add to Home Screen instructions dialog instead
+ *   open-app  — app already installed but page runs in a browser tab:
+ *               CTA opens the app scope in a new top-level context so
+ *               browsers with link capturing (launch_handler) focus the
+ *               installed app window
  *
- * Defers to VerifyEmailBanner: rendered above it in layout, but checks
- * for the verify-email-banner's presence to yield if both are visible.
- *
- * Install click  → deferredPrompt.prompt() + hide
- * ✕ click        → localStorage pwa-install-dismissed=1 + hide
- * Learn more     → opens a Dialog listing 3 benefits
+ * Never renders in standalone mode. Each mode has its own persistent
+ * dismissal key so dismissing the install offer doesn't suppress the
+ * later open-app hint (and vice versa).
  */
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { X, Download } from "lucide-react";
+import { X, Download, ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,9 +31,14 @@ import {
   setDeferredPrompt,
   subscribeToDeferredPrompt,
   getDeferredPrompt,
+  setInstalled,
+  subscribeToInstalled,
 } from "@/lib/pwa-install-store";
+import { isIos } from "@/lib/ios-install";
+import { IosInstallDialog } from "./ios-install-dialog";
 
 const DISMISSED_KEY = "pwa-install-dismissed";
+const OPEN_APP_DISMISSED_KEY = "pwa-open-app-dismissed";
 
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
@@ -43,69 +49,138 @@ function isStandalone(): boolean {
   );
 }
 
-function isDismissed(): boolean {
+function flagSet(key: string): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return localStorage.getItem(DISMISSED_KEY) === "1";
+    return localStorage.getItem(key) === "1";
   } catch {
     return false;
+  }
+}
+
+function setFlag(key: string) {
+  try {
+    localStorage.setItem(key, "1");
+  } catch {
+    // storage unavailable
   }
 }
 
 export function InstallBanner() {
   const t = useTranslations("pwa.install");
   const [hasPrompt, setHasPrompt] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [installed, setInstalledState] = useState(false);
+  const [ios, setIos] = useState(false);
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
+  const [iosDialogOpen, setIosDialogOpen] = useState(false);
+  // Bumped on dismiss so the mode recomputes after the localStorage write.
+  const [, setDismissTick] = useState(0);
 
   useEffect(() => {
-    // Check initial conditions
-    if (isStandalone() || isDismissed()) return;
+    if (isStandalone()) return;
 
-    // Listen for beforeinstallprompt
+    setIos(isIos());
+
     function onBeforeInstallPrompt(e: Event) {
       e.preventDefault();
       setDeferredPrompt(
         e as unknown as Parameters<typeof setDeferredPrompt>[0],
       );
       setHasPrompt(true);
-      setVisible(true);
+    }
+
+    function onAppInstalled() {
+      setInstalled(true);
     }
 
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
 
     // Subscribe to store in case prompt was already captured by another listener
-    const unsub = subscribeToDeferredPrompt((prompt) => {
-      if (prompt && !isStandalone() && !isDismissed()) {
-        setHasPrompt(true);
-        setVisible(true);
-      }
+    const unsubPrompt = subscribeToDeferredPrompt((prompt) => {
+      if (prompt && !isStandalone()) setHasPrompt(true);
     });
+    const unsubInstalled = subscribeToInstalled(setInstalledState);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      unsub();
+      window.removeEventListener("appinstalled", onAppInstalled);
+      unsubPrompt();
+      unsubInstalled();
     };
   }, []);
 
   async function handleInstall() {
+    if (ios) {
+      setIosDialogOpen(true);
+      return;
+    }
     const prompt = getDeferredPrompt();
     if (!prompt) return;
     await prompt.prompt();
+    // A BeforeInstallPromptEvent is single-use; the browser refires
+    // beforeinstallprompt later if the user dismissed the native prompt.
     setDeferredPrompt(null);
-    setVisible(false);
+    setHasPrompt(false);
   }
 
-  function handleDismiss() {
-    try {
-      localStorage.setItem(DISMISSED_KEY, "1");
-    } catch {
-      // storage unavailable
-    }
-    setVisible(false);
+  function handleOpenApp() {
+    // New top-level navigation: browsers with link capturing enabled
+    // (manifest launch_handler) route it to the installed app window.
+    window.open(`${window.location.origin}/`, "_blank", "noopener");
   }
 
-  if (!hasPrompt || !visible) return null;
+  function handleDismiss(key: string) {
+    setFlag(key);
+    setDismissTick((n) => n + 1);
+  }
+
+  const mode: "install" | "open-app" | null = (() => {
+    if (isStandalone()) return null;
+    if (installed) return flagSet(OPEN_APP_DISMISSED_KEY) ? null : "open-app";
+    if ((hasPrompt || ios) && !flagSet(DISMISSED_KEY)) return "install";
+    return null;
+  })();
+
+  if (mode === null) return null;
+
+  if (mode === "open-app") {
+    return (
+      <div
+        data-testid="install-banner"
+        role="banner"
+        aria-label={t("openApp.ariaLabel")}
+        className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--primary)_15%,var(--surface-card-dark))] px-4 py-2.5 text-sm"
+      >
+        <ExternalLink
+          className="h-4 w-4 shrink-0 text-[var(--primary)]"
+          aria-hidden="true"
+        />
+        <span className="flex-1 text-[var(--body-on-dark)]">
+          {t("openApp.body")}
+        </span>
+
+        <button
+          type="button"
+          data-testid="install-banner-open-app"
+          onClick={handleOpenApp}
+          className="shrink-0 rounded bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90"
+        >
+          {t("openApp.cta")}
+        </button>
+
+        <button
+          type="button"
+          data-testid="install-banner-dismiss"
+          aria-label={t("banner.dismiss")}
+          onClick={() => handleDismiss(OPEN_APP_DISMISSED_KEY)}
+          className="shrink-0 rounded p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -145,7 +220,7 @@ export function InstallBanner() {
           type="button"
           data-testid="install-banner-dismiss"
           aria-label={t("banner.dismiss")}
-          onClick={handleDismiss}
+          onClick={() => handleDismiss(DISMISSED_KEY)}
           className="shrink-0 rounded p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
@@ -178,6 +253,8 @@ export function InstallBanner() {
           </DialogClose>
         </DialogContent>
       </Dialog>
+
+      <IosInstallDialog open={iosDialogOpen} onOpenChange={setIosDialogOpen} />
     </>
   );
 }

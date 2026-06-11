@@ -11,11 +11,21 @@ import {
   act,
 } from "@testing-library/react";
 import { InstallBanner } from "@/components/common/install-banner";
-import { setDeferredPrompt } from "@/lib/pwa-install-store";
+import {
+  setDeferredPrompt,
+  setInstalled,
+  isInstalled,
+} from "@/lib/pwa-install-store";
 
 // Mock next-intl
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+}));
+
+// iOS detection — controllable per test
+const iosMock = { value: false };
+vi.mock("@/lib/ios-install", () => ({
+  isIos: () => iosMock.value,
 }));
 
 // Mock sonner (Dialog uses it in some flows)
@@ -27,8 +37,11 @@ vi.mock("sonner", () => ({
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
     open ? <div data-testid="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  DialogContent: ({
+    children,
+    ...props
+  }: { children: React.ReactNode } & Record<string, unknown>) => (
+    <div {...props}>{children}</div>
   ),
   DialogHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -57,8 +70,10 @@ function makeDeferredPrompt() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  iosMock.value = false;
   // Clear store
   setDeferredPrompt(null);
+  setInstalled(false);
   // Clear localStorage
   localStorage.clear();
   // Default: NOT standalone
@@ -164,6 +179,130 @@ describe("InstallBanner", () => {
 
     const prompt = makeDeferredPrompt();
     setDeferredPrompt(prompt);
+
+    render(<InstallBanner />);
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
+  });
+});
+
+describe("InstallBanner — iOS (no beforeinstallprompt support)", () => {
+  test("renders on iOS even without a captured prompt", async () => {
+    iosMock.value = true;
+
+    render(<InstallBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner")).toBeInTheDocument();
+    });
+  });
+
+  test("install CTA on iOS opens Add-to-Home-Screen instructions dialog", async () => {
+    iosMock.value = true;
+
+    render(<InstallBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("install-banner-cta"));
+    });
+
+    expect(screen.getByTestId("ios-install-dialog")).toBeInTheDocument();
+    expect(mockPrompt).not.toHaveBeenCalled();
+  });
+
+  test("does not render on iOS when previously dismissed", async () => {
+    iosMock.value = true;
+    localStorage.setItem("pwa-install-dismissed", "1");
+
+    render(<InstallBanner />);
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
+  });
+});
+
+describe("InstallBanner — installed state (open-app banner)", () => {
+  test("appinstalled event records installed and switches banner to open-app mode", async () => {
+    const prompt = makeDeferredPrompt();
+    setDeferredPrompt(prompt);
+
+    render(<InstallBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-cta")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new Event("appinstalled"));
+    });
+
+    expect(isInstalled()).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("install-banner-cta")).not.toBeInTheDocument();
+  });
+
+  test("installed + browser tab renders open-app banner instead of install banner", async () => {
+    setInstalled(true);
+
+    render(<InstallBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("install-banner-cta")).not.toBeInTheDocument();
+  });
+
+  test("open-app CTA opens the app scope in a new top-level context", async () => {
+    setInstalled(true);
+    const openSpy = vi
+      .spyOn(window, "open")
+      .mockReturnValue(null as unknown as Window);
+
+    render(<InstallBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("install-banner-open-app"));
+    expect(openSpy).toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
+
+  test("dismissing open-app banner persists separately from install dismissal", async () => {
+    setInstalled(true);
+
+    render(<InstallBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("install-banner-open-app")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("install-banner-dismiss"));
+
+    expect(localStorage.getItem("pwa-open-app-dismissed")).toBe("1");
+    expect(localStorage.getItem("pwa-install-dismissed")).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByTestId("install-banner")).not.toBeInTheDocument();
+    });
+  });
+
+  test("open-app banner suppressed when previously dismissed", async () => {
+    setInstalled(true);
+    localStorage.setItem("pwa-open-app-dismissed", "1");
 
     render(<InstallBanner />);
 

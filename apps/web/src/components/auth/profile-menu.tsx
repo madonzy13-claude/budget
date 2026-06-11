@@ -48,7 +48,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { getDeferredPrompt } from "@/lib/pwa-install-store";
+import {
+  getDeferredPrompt,
+  subscribeToInstalled,
+} from "@/lib/pwa-install-store";
+import { isIos } from "@/lib/ios-install";
+import { IosInstallDialog } from "@/components/common/ios-install-dialog";
 
 export interface ProfileMenuProps {
   locale: string;
@@ -75,6 +80,8 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
   const [open, setOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isStandaloneMode, setIsStandaloneMode] = useState(false);
+  const [pwaInstalled, setPwaInstalled] = useState(false);
+  const [iosDialogOpen, setIosDialogOpen] = useState(false);
   const menuId = useId();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -93,7 +100,9 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             (window.navigator as { standalone?: boolean }).standalone === true),
       );
     }
+    const unsubInstalled = subscribeToInstalled(setPwaInstalled);
     return () => {
+      unsubInstalled();
       if (closeTimer.current) clearTimeout(closeTimer.current);
     };
   }, []);
@@ -265,8 +274,8 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             <SettingsIcon className="h-4 w-4 text-[var(--muted-foreground)]" />
             <span>{t("settings")}</span>
           </NavLink>
-          {/* Install app — hidden when already in standalone mode */}
-          {!isStandaloneMode && (
+          {/* Install app — hidden in standalone mode or once installed */}
+          {!isStandaloneMode && !pwaInstalled && (
             <>
               <div className="my-1 h-px bg-[var(--hairline-on-dark)]" />
               <button
@@ -278,6 +287,10 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
                   const prompt = getDeferredPrompt();
                   if (prompt) {
                     await prompt.prompt();
+                  } else if (isIos()) {
+                    // iOS never exposes a programmatic prompt — show the
+                    // Share → Add to Home Screen instructions instead.
+                    setIosDialogOpen(true);
                   } else {
                     toast.info(tPwa("notAvailable"));
                   }
@@ -306,6 +319,7 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
           </button>
         </div>
       )}
+      <IosInstallDialog open={iosDialogOpen} onOpenChange={setIosDialogOpen} />
     </div>
   );
 }
