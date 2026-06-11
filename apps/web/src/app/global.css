@@ -229,16 +229,15 @@
     color: var(--on-primary);
   }
 
-  /* UAT-08: full-scroll bottom clearance for the lvh-sized shell.
-     100lvh - 100svh = exactly the browser bar height (0 in standalone),
-     env() covers the home indicator, and the constant is breathing room
-     so the last row never kisses the bar/edge at full scroll (bumped
-     24px → 48px on UAT feedback — bottom rows felt glued to the edge in
-     standalone). */
+  /* UAT-08: full-scroll bottom clearance (standalone path — browser tabs
+     override this in the unlayered display-mode:browser block, where the
+     native bar collapse owns the bottom edge). env() covers the home
+     indicator; the constant is breathing room so the last row never
+     kisses the screen edge. The earlier 100lvh - 100svh term is gone:
+     it was only meaningful pre-native-scroll and risked a negative
+     contribution on engines that disagree about the units in standalone. */
   main[data-shell-scroll] {
-    padding-bottom: calc(
-      100lvh - 100svh + env(safe-area-inset-bottom, 0px) + 48px
-    );
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
   }
 
 

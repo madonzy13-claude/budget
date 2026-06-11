@@ -29,12 +29,12 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(mainTag).toContain("data-shell-scroll");
   });
 
-  it("global.css gives the scroll surface bar-delta + inset + breathing-room clearance", () => {
-    // 100lvh - 100svh = exactly the browser bar height (0 in standalone);
+  it("global.css gives the scroll surface inset + breathing-room clearance", () => {
     // env() covers the home indicator; the constant is the extra margin the
-    // user asked for at full scroll.
+    // user asked for at full scroll. No viewport-unit arithmetic — the
+    // lvh-svh term risked a negative contribution in standalone.
     expect(globalCss).toMatch(
-      /data-shell-scroll[^}]*padding-bottom:\s*calc\(\s*100lvh\s*-\s*100svh\s*\+\s*env\(safe-area-inset-bottom/,
+      /data-shell-scroll[^}]*padding-bottom:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
     );
   });
 
