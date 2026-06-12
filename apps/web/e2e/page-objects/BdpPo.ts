@@ -28,6 +28,16 @@ export class BdpPo {
     return this.page.locator("[data-shell-header]");
   }
 
+  /** The sticky BDP tab band ([data-bdp-tabs]). */
+  bdpBand() {
+    return this.page.locator("[data-bdp-tabs]");
+  }
+
+  /** The shell root element ([data-shell-root]). */
+  shellRoot() {
+    return this.page.locator("[data-shell-root]");
+  }
+
   /**
    * The tasks banner for a given pill tab.
    * Matches PillTaskSliderPo.root() locator — exposed here for geometry

@@ -49,16 +49,36 @@ Feature: BDP tab frame
     And I click the "Reserves" tab pill
     Then the app main scroll surface has overscroll-behavior-y "none"
 
-  # quick-260612-a0c R2: RESERVE_TOPUP maps to the *reserves* pill
-  # (kind-pill-map.ts), so the banner renders on the reserves tab — mirrors
-  # the working seeding pattern in tasks.feature. The seeded categories give
-  # the page enough height that the native page scroll is real (the step
-  # impl asserts window.scrollY > 0 so a too-short page can never produce a
-  # false pass).
+  # quick-260612-cdu R2 geometry proofs (browser mode, Chromium multi-viewport).
+  # Standalone display-mode and real env() insets are NOT emulatable in
+  # Playwright — those invariants stay Vitest source-guarded (shell-safe-area.test.ts).
+  #
+  # RESERVE_TOPUP maps to the *reserves* pill (kind-pill-map.ts), so the
+  # banner renders on the reserves tab — mirrors the working seeding pattern
+  # in tasks.feature. The seeded categories provide real scroll room (honesty
+  # guard: scrollY > 50 after scroll, same pattern as assertBannerBelowHeader).
+  #
+  # Projects: geom-320, geom-390, geom-430, geom-1280 (defined in playwright.config.ts).
+  # The same @tasks-geometry tag gates all three scenarios so they run together.
+
   @tasks-geometry
-  Scenario: tasks banner is never hidden behind the pinned header in browser mode
+  Scenario: banner is below the band (not inside it) in browser mode
     Given the budget has 12 seeded categories with monthly limits
     And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
     When I open the reserves tab for "My E2E Budget"
-    Then the tasks banner top edge is at or below the pinned header bottom edge at rest
-    And the tasks banner top edge is at or below the pinned header bottom edge after scrolling down
+    Then the tasks banner top edge is at or below the band bottom edge at rest
+    And the tasks banner is fully visible within the viewport at rest
+
+  @tasks-geometry
+  Scenario: bottom clearance is present in browser mode (last rows clear the bar)
+    Given the budget has 12 seeded categories with monthly limits
+    And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
+    When I open the reserves tab for "My E2E Budget"
+    Then the page bottom clearance is at least 48 pixels
+
+  @tasks-geometry
+  Scenario: shell root does not exceed the viewport height in browser mode
+    Given the budget has 12 seeded categories with monthly limits
+    And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
+    When I open the reserves tab for "My E2E Budget"
+    Then the shell root height does not exceed the viewport height

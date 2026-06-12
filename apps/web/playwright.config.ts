@@ -56,5 +56,46 @@ export default defineConfig({
         viewport: { width: 390, height: 844 },
       },
     },
+    // ── Geometry projects (SHELL-R12 browser-mode multi-viewport proofs) ──
+    // These run the @tasks-geometry scenarios across phone/phablet/desktop
+    // widths to prove banner placement, bottom clearance, and shell sizing
+    // are device-agnostic. Chromium only — no engine emulates display-mode:
+    // standalone or real env() insets; those invariants stay Vitest-guarded.
+    {
+      name: "geom-320",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 320, height: 568 },
+      },
+    },
+    {
+      name: "geom-390",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+      },
+    },
+    {
+      name: "geom-430",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 430, height: 932 },
+      },
+    },
+    {
+      name: "geom-1280",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 800 },
+      },
+    },
+    // WebKit (closest to Safari for flex/scroll geometry in browser mode).
+    // TODO: enable once `bunx playwright install webkit` succeeds in CI and
+    // the fresh-user auth flow is stable on WebKit without destabilising the
+    // suite. Leave commented until validated (SHELL-R12 TODO).
+    // {
+    //   name: "webkit-geom",
+    //   use: { ...devices["Desktop Safari"], viewport: { width: 390, height: 844 } },
+    // },
   ],
 });
