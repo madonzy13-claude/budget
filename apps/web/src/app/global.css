@@ -473,13 +473,17 @@ button:disabled,
   }
   [data-shell-root] {
     height: auto;
-    /* 100dvh tracks the DYNAMIC (small/visible) viewport so the shell never
-       exceeds the painted region when Safari's bottom bar is shown. Using
-       100lvh (large viewport) here caused an unpainted dead band at the bottom
-       when the bar was visible — the shell root extended past the visible area.
-       The standalone html,body 100lvh rule (base block above) is deliberate and
-       must NOT be changed; only this browser-mode path uses dvh. */
-    min-height: 100dvh;
+    /* SHELL-R16: Round 2 (0e07dd6) set 100dvh here to kill a "black band" —
+       that was a MISDIAGNOSIS. The real black-band cause was round-4 stacked
+       clearances (removed in R14). dvh caps the painted canvas at the bar's
+       top edge, so the R15 grid box (100lvh − top) extends into an unpainted
+       region → the Safari black block. 100lvh paints the canvas edge-to-edge
+       under the translucent bar (matches base html,body:209 and standalone).
+       Bar-collapse still works because html,body overflow is visible (above) —
+       the PAGE scrolls. Safe now: the dvh cap was the sole remaining clip
+       in the chain (audit: all other ancestors have overflow:visible in
+       browser mode). */
+    min-height: 100lvh;
   }
   main[data-shell-scroll] {
     flex: none;

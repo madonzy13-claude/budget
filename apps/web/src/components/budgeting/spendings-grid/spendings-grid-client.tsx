@@ -331,7 +331,27 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     void safeBottom; // used conceptually; spacer height: JSX env+64 fallback,
     // browser-mode env+96 override in global.css ([data-grid-tail-spacer]).
 
+    // SHELL-R16: iOS keyboard open fires visualViewport resize+scroll →
+    // rect.top shifts → a recompute shrinks the fixed-height box → reflow
+    // clamps scrollTop → the edited bottom row snaps back out of view (1-in-3,
+    // races the keyboard animation). Freeze remeasure while a field inside the
+    // scroller has focus; one rAF remeasure on focusout restores the correct
+    // box height for the collapsed keyboard.
+    const isKeyboardEditing = (): boolean => {
+      const a = document.activeElement as HTMLElement | null;
+      return !!(
+        el &&
+        a &&
+        el.contains(a) &&
+        (a.tagName === "INPUT" ||
+          a.tagName === "TEXTAREA" ||
+          a.isContentEditable)
+      );
+    };
+
     function updateMaxH() {
+      // Freeze: skip remeasure while a field inside the scroller is focused.
+      if (isKeyboardEditing()) return;
       const rect = el!.getBoundingClientRect();
       const top = Math.max(0, Math.round(rect.top));
       el!.style.setProperty(
@@ -340,7 +360,17 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       );
     }
 
+    // Single remeasure after the keyboard collapses: one rAF lets WebKit
+    // finish restoring the layout viewport before we take the measurement.
+    function onFocusOut() {
+      requestAnimationFrame(() => {
+        if (!isKeyboardEditing()) updateMaxH();
+      });
+    }
+
     updateMaxH();
+    el.addEventListener("focusout", onFocusOut);
+
     const ro = new ResizeObserver(updateMaxH);
     ro.observe(el);
 
@@ -351,6 +381,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     }
 
     return () => {
+      el.removeEventListener("focusout", onFocusOut);
       ro.disconnect();
       window.removeEventListener("resize", updateMaxH);
       if (typeof window !== "undefined" && window.visualViewport) {

@@ -497,8 +497,14 @@ describe("Round 5 — browser box extends UNDER the bar (SHELL-R15)", () => {
     expect(standaloneBlock).not.toMatch(/data-grid-tail-spacer/);
   });
 
-  it("R5-D: BUILD_MARKER is SHELL-R15", () => {
-    expect(viewportDebugR5).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R15["']/);
+  it("R5-D: BUILD_MARKER is in the SHELL-R15+ chain (exact marker in R6-D)", () => {
+    // Exact-marker assertion lives in the latest round's block (R6-D).
+    // R14 references survive as historical comments — only the BUILD_MARKER
+    // const itself must be R15+.
+    expect(viewportDebugR5).not.toMatch(
+      /BUILD_MARKER\s*=\s*["']SHELL-R1[0-4]["']/,
+    );
+    expect(viewportDebugR5).toMatch(/SHELL-R1[5-9]/);
   });
 
   it("R5-E: overlay reports box-bottom − vv-bottom (gridBoxBeyondVv)", () => {
@@ -568,24 +574,78 @@ describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issue
     );
   });
 
-  // ── Issue #5: Black band ─────────────────────────────────────────────────
-  it("#5: browser-mode [data-shell-root] uses 100dvh (not 100lvh) to track dynamic viewport", () => {
-    // 100lvh = large viewport (bar hidden); when bar shown the shell extends
-    // past the visible area → dead band. 100dvh tracks the small/visible area.
+  // ── Issue #5 (superseded by R6): the old #5 asserted 100dvh as the fix.
+  // R6 reverts that misdiagnosis — see the Round 6 describe block for the
+  // authoritative assertion (browser-mode [data-shell-root] must be 100lvh).
+  it("#5: standalone base 100lvh rule is untouched (dead-band fix must stay)", () => {
+    // The standalone locked-body 100lvh is the deliberate dead-band fix — do not touch.
+    expect(globalCss).toMatch(/height:\s*100lvh/);
+  });
+});
+
+describe("Round 6 — shell canvas extends under the bar + keyboard remeasure freeze (SHELL-R16)", () => {
+  // T1: browser-mode [data-shell-root] → 100lvh (reverts round-2 dvh misdiagnosis)
+  // T2: grid remeasure freeze while keyboard open (fix inline-edit jump-back)
+  const viewportDebug = readFileSync(
+    resolve(__dirname, "../src/components/common/viewport-debug.tsx"),
+    "utf8",
+  );
+  const spendingsGrid = readFileSync(
+    resolve(
+      __dirname,
+      "../src/components/budgeting/spendings-grid/spendings-grid-client.tsx",
+    ),
+    "utf8",
+  );
+  const spendingsGridCode = spendingsGrid
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  // T1: Shell root dvh → lvh
+
+  it("R6-A: browser-mode [data-shell-root] block does NOT contain min-height:100dvh and DOES use 100lvh", () => {
     const browserBlock =
       globalCss.match(
         /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
       )?.[1] ?? "";
-    expect(browserBlock).not.toMatch(
-      /\[data-shell-root\][^}]*min-height:\s*100lvh/,
-    );
-    expect(browserBlock).toMatch(
-      /\[data-shell-root\][^}]*min-height:\s*100dvh/,
-    );
+    const shellRootBlock =
+      browserBlock.match(/\[data-shell-root\]\s*{[^}]*}/)?.[0] ?? "";
+    expect(shellRootBlock).not.toMatch(/min-height:\s*100dvh/);
+    expect(shellRootBlock).toMatch(/100lvh/);
   });
 
-  it("#5: standalone base 100lvh rule is untouched (dead-band fix must stay)", () => {
-    // The standalone locked-body 100lvh is the deliberate dead-band fix — do not touch.
+  it("R6-B: standalone invariant — base html,body still uses height:100lvh (untouched)", () => {
     expect(globalCss).toMatch(/height:\s*100lvh/);
+    const standaloneBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*standalone\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(standaloneBlock ?? "").not.toMatch(/min-height:\s*100dvh/);
+  });
+
+  it("R6-C: viewport-debug overlay exposes shellRootClientH and shellRootMinH clip-chain probes", () => {
+    expect(viewportDebug).toMatch(/shellRootClientH/);
+    expect(viewportDebug).toMatch(/shellRootMinH/);
+  });
+
+  it("R6-D: BUILD_MARKER is exactly SHELL-R16", () => {
+    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R16["']/);
+  });
+
+  // T2: Keyboard-aware remeasure freeze
+
+  it("R6-E: updateMaxH is guarded — source contains activeElement + .contains( freeze check", () => {
+    expect(spendingsGridCode).toMatch(/activeElement/);
+    expect(spendingsGridCode).toMatch(/\.contains\(/);
+  });
+
+  it("R6-F: a focusout/blur path triggers a single remeasure on keyboard collapse", () => {
+    expect(spendingsGridCode).toMatch(/focusout|blur/);
+  });
+
+  it("R6-G: visualViewport resize and scroll listeners are STILL attached", () => {
+    expect(spendingsGridCode).toMatch(
+      /visualViewport[\s\S]{0,200}(resize|scroll)/,
+    );
   });
 });

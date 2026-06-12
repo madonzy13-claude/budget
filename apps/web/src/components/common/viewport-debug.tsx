@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R15";
+const BUILD_MARKER = "SHELL-R16";
 
 const FLAG_KEY = "vpdbg";
 
@@ -80,6 +80,10 @@ interface Metrics {
   mainScrollH: number;
   mainScrollTop: number;
   lastRowGap: number;
+  // SHELL-R16: clip-chain probes — shell root + ptr-blur ancestor heights
+  shellRootClientH: number;
+  shellRootMinH: string;
+  ptrBlurClientH: number;
   sheet: SheetMetrics | null;
   grid: GridMetrics | null;
 }
@@ -205,6 +209,12 @@ function readMetrics(): Metrics {
     });
     lastRowGap = Math.round(window.innerHeight - deepest);
   }
+  // SHELL-R16: clip-chain probes
+  const shellRootEl = document.querySelector<HTMLElement>("[data-shell-root]");
+  const ptrBlurEl = document.querySelector<HTMLElement>(
+    "[data-ptr-blur-target]",
+  );
+
   return {
     innerH: window.innerHeight,
     vvH: Math.round(window.visualViewport?.height ?? -1),
@@ -212,6 +222,11 @@ function readMetrics(): Metrics {
     bodyH: Math.round(document.body.getBoundingClientRect().height),
     safeTop: probeEnvInset("top"),
     safeBottom: probeEnvInset("bottom"),
+    shellRootClientH: shellRootEl?.clientHeight ?? -1,
+    shellRootMinH: shellRootEl
+      ? getComputedStyle(shellRootEl).minHeight
+      : "n/a",
+    ptrBlurClientH: ptrBlurEl?.clientHeight ?? -1,
     displayMode:
       ["standalone", "browser", "minimal-ui", "fullscreen"].find(
         (m) => window.matchMedia(`(display-mode: ${m})`).matches,
@@ -275,6 +290,10 @@ export function ViewportDebug() {
         toEnd {m.mainScrollH - m.mainClientH - m.mainScrollTop} · lastRowGap{" "}
         {m.lastRowGap}
       </div>
+      <div>
+        shellRootClientH {m.shellRootClientH} · shellRootMinH {m.shellRootMinH}
+      </div>
+      <div>ptrBlurClientH {m.ptrBlurClientH}</div>
       {m.grid && (
         <>
           <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">
