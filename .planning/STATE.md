@@ -29,7 +29,7 @@ Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verificat
 Plan: 7 of 7 complete (all SUMMARYs present)
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
 Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
-Last activity: 2026-06-12 - Completed quick task 260612-a0c: shell safe-area regression fixes (sheet bottom gap, banner under pinned header)
+Last activity: 2026-06-12 - Completed quick task 260612-cdu: iOS shell round 2 (sheets, banner, scroll clearance, black band) — device checkpoint pending
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -199,11 +199,12 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Quick Tasks Completed
 
-| ID         | Date       | Task                                                                                                                                  | Status     | Plan                                                                                 | Summary                                                                                    |
-| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| 260507-m3x | 2026-05-07 | Migrate E2E tests to Gherkin (playwright-bdd) + Page Objects + freshUser fixture                                                      | complete ✓ | [PLAN](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-PLAN.md)             | [SUMMARY](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-SUMMARY.md)             |
-| 260611-vuo | 2026-06-11 | BDP archived-category fixes: full-width names, dead trash (42501 grants), column-wide reveal, unarchive lifecycle                     | complete ✓ | [PLAN](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-PLAN.md) | [SUMMARY](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-SUMMARY.md) |
-| 260612-a0c | 2026-06-12 | Shell safe-area regressions: standalone sheet bottom gap (in-sheet spacer), tasks banner under pinned header (moved into sticky band) | complete ✓ | [PLAN](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-PLAN.md) | [SUMMARY](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-SUMMARY.md) |
+| ID         | Date       | Task                                                                                                                                          | Status                         | Plan                                                                                 | Summary                                                                                    |
+| ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 260507-m3x | 2026-05-07 | Migrate E2E tests to Gherkin (playwright-bdd) + Page Objects + freshUser fixture                                                              | complete ✓                     | [PLAN](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-PLAN.md)             | [SUMMARY](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-SUMMARY.md)             |
+| 260611-vuo | 2026-06-11 | BDP archived-category fixes: full-width names, dead trash (42501 grants), column-wide reveal, unarchive lifecycle                             | complete ✓                     | [PLAN](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-PLAN.md) | [SUMMARY](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-SUMMARY.md) |
+| 260612-a0c | 2026-06-12 | Shell safe-area regressions: standalone sheet bottom gap (in-sheet spacer), tasks banner under pinned header (moved into sticky band)         | complete ✓                     | [PLAN](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-PLAN.md) | [SUMMARY](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-SUMMARY.md) |
+| 260612-cdu | 2026-06-12 | iOS shell round 2: sheet autofocus pan + top inset, banner below band, grid tail clearance, browser-mode clearance floor, black band (100dvh) | complete ✓ (device T4 pending) | [PLAN](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-PLAN.md) | [SUMMARY](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-SUMMARY.md) |
 
 ## Deferred Items
 
