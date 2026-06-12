@@ -75,7 +75,11 @@ const SheetContent = React.forwardRef<
           className="pointer-events-none hidden h-[env(safe-area-inset-top,0px)] shrink-0 [@media(display-mode:standalone)]:block"
         />
       )}
-      <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
+      {/* Root cause #1 (quick-260612-e82): bare top-4 anchored X above the R2 top
+          spacer and above the px-6 py-4 title row. New offset = env(safe-area-inset-top,0px)+22px:
+          in browser env→0 so top:22px centers on the py-4/text-xl header (16px pad + ~14px half);
+          in standalone it adds the same inset the top spacer applies, dropping X to the title level. */}
+      <SheetClose className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+22px)] rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetClose>

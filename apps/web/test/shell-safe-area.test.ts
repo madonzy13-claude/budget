@@ -219,6 +219,40 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
   });
 });
 
+describe("Round 3 sheet X alignment + banner trim (SHELL-R13)", () => {
+  const pillTaskSlider = readFileSync(
+    resolve(__dirname, "../src/components/budgeting/tasks/pill-task-slider.tsx"),
+    "utf8",
+  );
+
+  it("Test A: SheetClose top offset tracks env(safe-area-inset-top) — no bare top-4", () => {
+    // Root cause #1: bare `top-4` anchors X to Content box top, ABOVE the R2 top spacer
+    // and ABOVE the px-6 py-4 title row. Fix: offset = env(safe-area-inset-top,0px)+22px
+    // so X aligns with the title vertical center in both browser (env→0) and standalone.
+    // Strip comments before matching so the explanatory comment doesn't false-match.
+    const sheetCode = sheetTsx
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    // Must NOT use bare top-4
+    expect(sheetCode).not.toMatch(/\btop-4\b/);
+    // Must use env(safe-area-inset-top in the top offset
+    expect(sheetCode).toMatch(/top-\[calc\(env\(safe-area-inset-top/);
+  });
+
+  it("Test B: PillTaskSlider wrapper uses mb-1.5 (not mb-3) — gutter halved", () => {
+    // Root cause #3: mb-3 (12px) reported too big; halved to mb-1.5 (6px).
+    // mt-3 (top gutter below band) is unchanged.
+    const pillCode = pillTaskSlider
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(pillCode).not.toMatch(/\bmb-3\b/);
+    expect(pillCode).toMatch(/\bmb-1\.5\b/);
+    // mt-3 stays
+    expect(pillCode).toMatch(/\bmt-3\b/);
+  });
+});
+
 describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issues #2-5)", () => {
   const bdpLayout = readFileSync(
     resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),

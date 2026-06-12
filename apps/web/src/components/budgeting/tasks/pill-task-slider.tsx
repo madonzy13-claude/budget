@@ -130,8 +130,8 @@ export function PillTaskSlider({
     // content BELOW the [data-bdp-tabs] sticky band (first child of the
     // pb-shell-safe wrapper in bdp/[id]/layout.tsx) — at rest fully visible
     // under the band; it may scroll under the band/header on page scroll.
-    // mt-3: gutter below the band's border-b. mb-3: gutter above {children}.
-    <div className="mx-auto mb-3 mt-3 w-full max-w-[1280px] px-4 sm:px-8">
+    // mt-3: gutter below the band's border-b. mb-1.5: gutter above {children} (halved, quick-260612-e82 R3).
+    <div className="mx-auto mb-1.5 mt-3 w-full max-w-[1280px] px-4 sm:px-8">
       <div
         data-testid="pill-task-slider"
         data-pill={pill}
