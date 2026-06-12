@@ -29,7 +29,7 @@ Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verificat
 Plan: 7 of 7 complete (all SUMMARYs present)
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
 Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
-Last activity: 2026-06-12 - Completed quick task 260612-cdu: iOS shell round 2 (sheets, banner, scroll clearance, black band) — device checkpoint pending
+Last activity: 2026-06-12 - Completed quick task 260612-e82: iOS shell round 3 (sheet X alignment, measured grid scroller, banner trim) — device checkpoint pending
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -205,6 +205,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | 260611-vuo | 2026-06-11 | BDP archived-category fixes: full-width names, dead trash (42501 grants), column-wide reveal, unarchive lifecycle                             | complete ✓                     | [PLAN](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-PLAN.md) | [SUMMARY](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-SUMMARY.md) |
 | 260612-a0c | 2026-06-12 | Shell safe-area regressions: standalone sheet bottom gap (in-sheet spacer), tasks banner under pinned header (moved into sticky band)         | complete ✓                     | [PLAN](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-PLAN.md) | [SUMMARY](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-SUMMARY.md) |
 | 260612-cdu | 2026-06-12 | iOS shell round 2: sheet autofocus pan + top inset, banner below band, grid tail clearance, browser-mode clearance floor, black band (100dvh) | complete ✓ (device T4 pending) | [PLAN](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-PLAN.md) | [SUMMARY](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-SUMMARY.md) |
+| 260612-e82 | 2026-06-12 | iOS shell round 3: sheet X aligned to title, ResizeObserver-measured grid scroller (SHELL-R13), banner gutter trim                            | complete ✓ (device pending)    | [PLAN](quick/260612-e82-ios-shell-round-3-sheet-x-button-alignme/260612-e82-PLAN.md) | [SUMMARY](quick/260612-e82-ios-shell-round-3-sheet-x-button-alignme/260612-e82-SUMMARY.md) |
 
 ## Deferred Items
 
