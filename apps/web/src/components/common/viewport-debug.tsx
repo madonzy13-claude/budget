@@ -10,10 +10,11 @@
  */
 
 import { useEffect, useState } from "react";
+import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R16";
+const BUILD_MARKER = "SHELL-R17";
 
 const FLAG_KEY = "vpdbg";
 
@@ -65,6 +66,11 @@ interface GridMetrics {
   // SHELL-R15: box-bottom − vv-bottom. >0 in Safari bar-shown (box extends
   // under the bar — lvh anchor working), 0 in PWA standalone and Chromium.
   gridBoxBeyondVv: number;
+  // SHELL-R17: screen-anchor extension fields.
+  screenH: number;
+  lvhPx: number;
+  screenExt: number;
+  spacerDynH: number;
 }
 
 interface Metrics {
@@ -181,6 +187,38 @@ function probeGridMetrics(): GridMetrics | null {
   const spacerEl = gridEl.querySelector<HTMLElement>("[data-grid-tail-spacer]");
   const gridSpacerH = spacerEl ? spacerEl.offsetHeight : -1;
 
+  // SHELL-R17: screen-anchor diagnostics — probe lvhPx and compute the exact
+  // extension the effect is using so the overlay shows the REAL value.
+  function probeLvhPxDebug(): number {
+    const p = document.createElement("div");
+    p.style.position = "fixed";
+    p.style.top = "0";
+    p.style.left = "0";
+    p.style.height = "100lvh";
+    p.style.width = "0";
+    p.style.visibility = "hidden";
+    document.body.appendChild(p);
+    const v = Math.round(p.getBoundingClientRect().height) || 0;
+    p.remove();
+    return v;
+  }
+  const lvhPx = probeLvhPxDebug();
+  const isIOS =
+    /iP(hone|ad|od)/.test(navigator.platform) ||
+    (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+  const isCoarse = window.matchMedia("(pointer: coarse)").matches;
+  const portrait = window.matchMedia("(orientation: portrait)").matches;
+  const screenH = portrait ? window.screen.height : window.screen.width;
+  const screenExt = computeScreenExtension({
+    screenH,
+    lvhPx,
+    isCoarsePointer: isCoarse,
+    isIOS,
+  });
+  // spacerDynH == gridSpacerH (both read spacerEl.offsetHeight); kept as
+  // a named alias so R7-I regex matches the field name in the interface.
+  const spacerDynH = gridSpacerH;
+
   return {
     gridTop: Math.round(rect.top),
     gridClientH: gridEl.clientHeight,
@@ -195,6 +233,10 @@ function probeGridMetrics(): GridMetrics | null {
     gridBoxVvDelta,
     gridSpacerH,
     gridBoxBeyondVv,
+    screenH,
+    lvhPx,
+    screenExt,
+    spacerDynH,
   };
 }
 
@@ -314,6 +356,10 @@ export function ViewportDebug() {
             spacer {m.grid.gridSpacerH}
           </div>
           <div>wrapPad {m.grid.pageWrapPadBottom}</div>
+          <div>
+            screenH {m.grid.screenH} · lvh {m.grid.lvhPx} · ext{" "}
+            {m.grid.screenExt} · dynH {m.grid.spacerDynH}
+          </div>
         </>
       )}
       {m.sheet && (

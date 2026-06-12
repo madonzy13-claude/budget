@@ -13,6 +13,7 @@
  * Drag listeners scoped to grip handle only — NOT on column body.
  */
 import { useState, useMemo, useEffect, useRef } from "react";
+import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -349,15 +350,62 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       );
     };
 
+    // SHELL-R17: one-shot 100lvh probe — deterministic lvhPx for the gate fn.
+    // Mirrors probeEnvBottom (:307-315); created+removed inside updateMaxH
+    // so each call gets a fresh reading (orientation changes invalidate it).
+    function probeLvhPx(): number {
+      const p = document.createElement("div");
+      p.style.position = "fixed";
+      p.style.top = "0";
+      p.style.left = "0";
+      p.style.height = "100lvh";
+      p.style.width = "0";
+      p.style.visibility = "hidden";
+      document.body.appendChild(p);
+      const v = Math.round(p.getBoundingClientRect().height) || 0;
+      p.remove();
+      return v;
+    }
+
     function updateMaxH() {
       // Freeze: skip remeasure while a field inside the scroller is focused.
       if (isKeyboardEditing()) return;
       const rect = el!.getBoundingClientRect();
       const top = Math.max(0, Math.round(rect.top));
+
+      // SHELL-R17: iOS-browser-only extension past 100lvh to physical screen bottom.
+      // Compute per-call so orientation changes (screen dim swap) are reflected.
+      const isIOS =
+        /iP(hone|ad|od)/.test(navigator.platform) ||
+        (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+      const isCoarse = window.matchMedia("(pointer: coarse)").matches;
+      const portrait = window.matchMedia("(orientation: portrait)").matches;
+      const screenH = portrait ? window.screen.height : window.screen.width;
+      const lvhPx = probeLvhPx();
+      const ext = computeScreenExtension({
+        screenH,
+        lvhPx,
+        isCoarsePointer: isCoarse,
+        isIOS,
+      });
+
       el!.style.setProperty(
         "--grid-max-h",
-        `max(160px, calc(100lvh - ${top}px))`,
+        `max(160px, calc(100lvh - ${top}px + ${ext}px))`,
       );
+
+      // Dynamic spacer — BROWSER ONLY. Standalone keeps the JSX env+64 fallback
+      // (frozen, user-approved). When ext==0 (desktop/Android/Chromium) → env+96
+      // exactly matching R15/R16 so e2e geometry assertions are unchanged.
+      if (!isStandalone) {
+        const spacerEl = el!.querySelector<HTMLElement>(
+          "[data-grid-tail-spacer]",
+        );
+        spacerEl?.style.setProperty(
+          "--grid-tail-spacer-h",
+          `calc(env(safe-area-inset-bottom, 0px) + ${96 + ext}px)`,
+        );
+      }
     }
 
     // Single remeasure after the keyboard collapses: one rAF lets WebKit
@@ -375,6 +423,10 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     ro.observe(el);
 
     window.addEventListener("resize", updateMaxH, { passive: true });
+    // SHELL-R17: orientationchange fires on iOS when the user rotates the
+    // device — screen.height/screen.width swap at that point, so we need a
+    // fresh measurement. The resize event timing can lag the swap.
+    window.addEventListener("orientationchange", updateMaxH, { passive: true });
     if (typeof window !== "undefined" && window.visualViewport) {
       window.visualViewport.addEventListener("resize", updateMaxH);
       window.visualViewport.addEventListener("scroll", updateMaxH);
@@ -384,6 +436,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       el.removeEventListener("focusout", onFocusOut);
       ro.disconnect();
       window.removeEventListener("resize", updateMaxH);
+      window.removeEventListener("orientationchange", updateMaxH);
       if (typeof window !== "undefined" && window.visualViewport) {
         window.visualViewport.removeEventListener("resize", updateMaxH);
         window.visualViewport.removeEventListener("scroll", updateMaxH);

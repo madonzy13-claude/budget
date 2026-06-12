@@ -520,7 +520,7 @@ button:disabled,
      Standalone keeps the JSX fallback env+64 (user-approved, untouched).
      Unlayered so it beats the Tailwind h-[calc(...)] utility (@layer). */
   [data-grid-tail-spacer] {
-    height: calc(env(safe-area-inset-bottom, 0px) + 96px);
+    height: var(--grid-tail-spacer-h, calc(env(safe-area-inset-bottom, 0px) + 96px));
   }
 }
 

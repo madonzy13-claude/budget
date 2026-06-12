@@ -469,18 +469,15 @@ describe("Round 5 — browser box extends UNDER the bar (SHELL-R15)", () => {
     );
   });
 
-  it("R5-B: browser-mode tail spacer floor is 96px (bar ~50px + indicator zone)", () => {
-    // Browser mode resolves env(safe-area-inset-bottom)≈0 while the bar eats
-    // ~50px — the flat 64px spacer left the last fully-scrolled row partially
-    // hidden in the under-bar zone now that the box extends beneath the bar.
-    // Display-mode-scoped override in global.css (same scoping mechanism as
-    // the R14 clearance rules); unlayered so it beats the Tailwind utility.
+  it("R5-B: browser-mode tail spacer consumes --grid-tail-spacer-h var (dynamic, 96px fallback) [superseded by R7-G]", () => {
+    // R17: the literal +96px becomes a CSS var fallback so the effect can write
+    // the dynamic extension. The browser block must use the var form.
     const browserBlock =
       globalCss.match(
         /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
       )?.[1] ?? "";
     expect(browserBlock).toMatch(
-      /\[data-grid-tail-spacer\][^}]*height:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*96px\)/,
+      /\[data-grid-tail-spacer\][^}]*height:\s*var\(--grid-tail-spacer-h/,
     );
   });
 
@@ -628,8 +625,8 @@ describe("Round 6 — shell canvas extends under the bar + keyboard remeasure fr
     expect(viewportDebug).toMatch(/shellRootMinH/);
   });
 
-  it("R6-D: BUILD_MARKER is exactly SHELL-R16", () => {
-    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R16["']/);
+  it("R6-D: BUILD_MARKER is exactly SHELL-R17 [updated from R16 by R17 round]", () => {
+    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R17["']/);
   });
 
   // T2: Keyboard-aware remeasure freeze
@@ -647,5 +644,104 @@ describe("Round 6 — shell canvas extends under the bar + keyboard remeasure fr
     expect(spendingsGridCode).toMatch(
       /visualViewport[\s\S]{0,200}(resize|scroll)/,
     );
+  });
+});
+
+describe("Round 7 — grid box to physical screen bottom (SHELL-R17)", () => {
+  const spendingsGrid = readFileSync(
+    resolve(
+      __dirname,
+      "../src/components/budgeting/spendings-grid/spendings-grid-client.tsx",
+    ),
+    "utf8",
+  );
+  // Strip comments for logic assertions (same pattern as R6 block).
+  const spendingsGridCode = spendingsGrid
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  const viewportDebug = readFileSync(
+    resolve(__dirname, "../src/components/common/viewport-debug.tsx"),
+    "utf8",
+  );
+  const globalCss = readFileSync(
+    resolve(__dirname, "../src/app/global.css"),
+    "utf8",
+  );
+
+  it("R7-A: spendings-grid-client imports computeScreenExtension and calls it inside the effect", () => {
+    expect(spendingsGrid).toMatch(/computeScreenExtension/);
+    expect(spendingsGrid).toMatch(/grid-screen-anchor/);
+    // Must be called inside the effect (not just imported).
+    expect(spendingsGridCode).toMatch(/computeScreenExtension\s*\(/);
+  });
+
+  it("R7-B: --grid-max-h formula adds an extension term to the lvh calc", () => {
+    // The extension (ext/extPx variable) must appear in the --grid-max-h formula.
+    expect(spendingsGridCode).toMatch(
+      /--grid-max-h[\s\S]{0,200}100lvh[\s\S]{0,80}ext/,
+    );
+  });
+
+  it("R7-C: a one-shot 100lvh probe element is created and removed (deterministic lvhPx)", () => {
+    // The effect creates a position:fixed probe with height:100lvh to measure lvhPx.
+    expect(spendingsGridCode).toMatch(/100lvh/);
+    expect(spendingsGridCode).toMatch(/probeLvhPx|lvhPx/);
+  });
+
+  it("R7-D: dynamic spacer var --grid-tail-spacer-h is setProperty'd, browser-only (!isStandalone guard)", () => {
+    expect(spendingsGridCode).toMatch(/--grid-tail-spacer-h/);
+    // Must be guarded by !isStandalone so standalone path is never touched.
+    expect(spendingsGridCode).toMatch(
+      /isStandalone[\s\S]{0,200}--grid-tail-spacer-h/,
+    );
+  });
+
+  it("R7-E: keyboard freeze STILL gates the whole updateMaxH (isKeyboardEditing early-return before any setProperty)", () => {
+    // The freeze check must come before the first setProperty call.
+    expect(spendingsGridCode).toMatch(
+      /isKeyboardEditing[\s\S]{0,1200}setProperty/,
+    );
+    // And the early-return must precede the setProperty.
+    const freezeIdx = spendingsGridCode.indexOf("isKeyboardEditing()");
+    const setPropIdx = spendingsGridCode.indexOf("setProperty");
+    expect(freezeIdx).toBeGreaterThanOrEqual(0);
+    expect(setPropIdx).toBeGreaterThanOrEqual(0);
+    expect(freezeIdx).toBeLessThan(setPropIdx);
+  });
+
+  it("R7-F: orientationchange listener is attached (screen dim swap on iOS)", () => {
+    expect(spendingsGridCode).toMatch(/orientationchange/);
+  });
+
+  it("R7-G: global.css browser [data-grid-tail-spacer] consumes var(--grid-tail-spacer-h) with 96px fallback", () => {
+    const browserBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(browserBlock).toMatch(
+      /\[data-grid-tail-spacer\][^}]*height:\s*var\(--grid-tail-spacer-h,\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*96px\)\)/,
+    );
+  });
+
+  it("R7-H: standalone invariants frozen — JSX spacer still env+64; standalone block does NOT reference data-grid-tail-spacer", () => {
+    // JSX fallback class governs standalone (the var is never set in standalone).
+    expect(spendingsGrid).toMatch(
+      /h-\[calc\(env\(safe-area-inset-bottom,0px\)\+64px\)\]/,
+    );
+    const standaloneBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*standalone\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(standaloneBlock).not.toMatch(/data-grid-tail-spacer/);
+  });
+
+  it("R7-I: BUILD_MARKER == SHELL-R17 exactly; overlay reports screenH/lvhPx/screenExt/spacer probes", () => {
+    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R17["']/);
+    // Overlay must expose the new R17 diagnostic fields.
+    expect(viewportDebug).toMatch(/screenH/);
+    expect(viewportDebug).toMatch(/lvhPx|lvh/);
+    expect(viewportDebug).toMatch(/screenExt|gridExtension|ext/);
+    expect(viewportDebug).toMatch(/spacerDynH|gridSpacerDyn|dynH/);
   });
 });
