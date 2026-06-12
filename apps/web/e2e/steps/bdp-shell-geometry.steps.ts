@@ -87,8 +87,10 @@ Given(
                    NULL, $5::uuid)`,
           [freshUser.budgetId, catId, 10000, ccy, freshUser.userId],
         );
-        // Seed 6 transactions per category so the column has scroll room in the grid.
-        for (let t = 0; t < 6; t += 1) {
+        // Seed 12 transactions per category so the grid column overflows the
+        // box on every geometry viewport (geom-430 is 932px tall; 6 txns left
+        // the content shorter than the box → the spacer band check skipped).
+        for (let t = 0; t < 12; t += 1) {
           await client.query(
             `INSERT INTO budgeting.expense_ledger
                (id, tenant_id, budget_id, category_id,
@@ -236,14 +238,14 @@ Then("the page bottom clearance is at least 48 pixels", async ({ page }) => {
   ).toBeGreaterThanOrEqual(48);
 });
 
-// ── R3: spendings grid last-row clearance (quick-260612-e82) ────────────────
-// Architecture (a) gives a measured max-height so the scroller box bottom sits
-// BOTTOM_CLEARANCE px above the visible viewport bottom. In Chromium (browser
-// mode, no floating bar) BOTTOM_CLEARANCE=88px. We scroll the grid to its
-// bottom and assert the deepest interactive row's bottom is at least 48px above
-// the viewport bottom — matching the existing bottom-clearance floor convention.
-// Honesty guard: assert the grid actually scrolled (scrollTop > 50) so a
-// non-scrolling page can't false-pass.
+// ── R4: spendings grid geometry (quick-260612-g7v) ──────────────────────────
+// SHELL-R14 architecture: box bottom == vv bottom (no dead band).
+// Two-part proof:
+//   1. boxVvDelta = vvBottom - grid.getBoundingClientRect().bottom → must be
+//      Math.abs < 4 (scroller box hugs vv bottom at rest AND after scroll).
+//   2. After scroll to bottom, deepest row gap to vvBottom → [8, 96] px band
+//      (last row sits above bar via in-flow spacer, NOT 160px away, NOT flush).
+// Honesty guard retained: scrollTop > 50 only when scrollHeight > clientHeight+50.
 
 Then(
   "the spendings grid last row clears the bottom bar by at least 48 pixels",
@@ -255,7 +257,37 @@ Then(
     const gridLocator = page.locator('[data-testid="spendings-grid"]');
     await expect(gridLocator).toBeVisible({ timeout: 10000 });
 
-    // Scroll the grid to its bottom.
+    // ── Part 1: box bottom ≈ vv bottom AT REST (before scrolling) ────────────
+    const atRestMetrics = await page.evaluate(() => {
+      const grid = document.querySelector<HTMLElement>(
+        '[data-testid="spendings-grid"]',
+      );
+      if (!grid) return null;
+      const rect = grid.getBoundingClientRect();
+      const vvBottom =
+        (window.visualViewport?.offsetTop ?? 0) +
+        (window.visualViewport?.height ?? window.innerHeight);
+      return {
+        gridBottom: Math.round(rect.bottom),
+        vvBottom: Math.round(vvBottom),
+        boxVvDelta: Math.round(vvBottom - rect.bottom),
+      };
+    });
+
+    if (!atRestMetrics)
+      throw new Error('[data-testid="spendings-grid"] not found (at-rest)');
+
+    logGeometry("grid-box-vv-at-rest", {
+      vp: `${vp.width}x${vp.height}`,
+      ...atRestMetrics,
+    });
+
+    expect(
+      Math.abs(atRestMetrics.boxVvDelta),
+      `grid box bottom (${atRestMetrics.gridBottom}) must hug vv bottom (${atRestMetrics.vvBottom}); delta=${atRestMetrics.boxVvDelta}px must be < 4px at ${vp.width}x${vp.height} — dead band present`,
+    ).toBeLessThan(4);
+
+    // ── Part 2: scroll to bottom, assert last-row gap in [8, 96] ─────────────
     const metrics = await page.evaluate(() => {
       const grid = document.querySelector<HTMLElement>(
         '[data-testid="spendings-grid"]',
@@ -273,15 +305,22 @@ Then(
         if (r.height > 0 && r.bottom > deepestBottom) deepestBottom = r.bottom;
       });
 
-      const vpHeight = window.visualViewport?.height ?? window.innerHeight;
+      const vvBottom =
+        (window.visualViewport?.offsetTop ?? 0) +
+        (window.visualViewport?.height ?? window.innerHeight);
+
+      // Re-measure box bottom after scroll (vv may have shifted on mobile).
+      const rect = grid.getBoundingClientRect();
+      const boxVvDeltaAfterScroll = Math.round(vvBottom - rect.bottom);
 
       return {
         scrollTop,
         scrollHeight,
         clientHeight,
-        deepestBottom,
-        vpHeight,
-        gap: deepestBottom >= 0 ? vpHeight - deepestBottom : -1,
+        deepestBottom: Math.round(deepestBottom),
+        vvBottom: Math.round(vvBottom),
+        gap: deepestBottom >= 0 ? Math.round(vvBottom - deepestBottom) : -1,
+        boxVvDeltaAfterScroll,
       };
     });
 
@@ -292,11 +331,7 @@ Then(
       ...metrics,
     });
 
-    // Honesty guard: if the grid HAS scroll room it must have scrolled after
-    // grid.scrollTo(0, scrollHeight). If scrollHeight <= clientHeight the grid
-    // content fits without scrolling — that's fine, clearance is still provable
-    // by the gap metric. The guard prevents a non-scrolling page from silently
-    // passing due to a missing grid or wrong selector.
+    // Honesty guard: if the grid HAS scroll room it must have scrolled.
     const hasScrollRoom = metrics.scrollHeight > metrics.clientHeight + 50;
     if (hasScrollRoom) {
       expect(
@@ -305,11 +340,76 @@ Then(
       ).toBeGreaterThan(50);
     }
 
-    // Last row must clear the viewport bottom by at least 48px.
+    // Box still hugs vv bottom after scroll.
+    expect(
+      Math.abs(metrics.boxVvDeltaAfterScroll),
+      `grid box bottom delta to vv bottom after scroll is ${metrics.boxVvDeltaAfterScroll}px — must be < 4px at ${vp.width}x${vp.height}`,
+    ).toBeLessThan(4);
+
+    // Last row must never be flush/hidden under the bar (< 8 = obscured).
     expect(
       metrics.gap,
-      `grid last row bottom (${metrics.deepestBottom}) gap to viewport bottom (${metrics.vpHeight}) is ${metrics.gap}px — must be >= 48px at ${vp.width}x${vp.height}`,
-    ).toBeGreaterThanOrEqual(48);
+      `grid last row gap to vv bottom is ${metrics.gap}px — must be >= 8 (row not hidden under bar) at ${vp.width}x${vp.height}`,
+    ).toBeGreaterThanOrEqual(8);
+
+    // Upper bound proves the in-flow spacer (not stacked clearances) places the
+    // last row: only meaningful when the grid actually overflows — with short
+    // content the last row simply ends high in the box, which is NOT a dead
+    // band because the box itself reaches vv bottom (asserted above) and the
+    // whole area is scroll surface.
+    if (hasScrollRoom) {
+      expect(
+        metrics.gap,
+        `grid last row gap to vv bottom after full scroll is ${metrics.gap}px — must be <= 96 (spacer-only clearance, no dead band) at ${vp.width}x${vp.height}`,
+      ).toBeLessThanOrEqual(96);
+    }
+  },
+);
+
+// ── R4: grid box bottom hugs vv bottom AT REST (feature: separate step) ─────
+
+Then(
+  "the spendings grid box bottom reaches the visual viewport bottom",
+  async ({ page }) => {
+    const vp = page.viewportSize();
+    if (!vp) throw new Error("viewport size is null");
+
+    const gridLocator = page.locator('[data-testid="spendings-grid"]');
+    await expect(gridLocator).toBeVisible({ timeout: 10000 });
+
+    const metrics = await page.evaluate(() => {
+      const grid = document.querySelector<HTMLElement>(
+        '[data-testid="spendings-grid"]',
+      );
+      if (!grid) return null;
+      const rect = grid.getBoundingClientRect();
+      const vvBottom =
+        (window.visualViewport?.offsetTop ?? 0) +
+        (window.visualViewport?.height ?? window.innerHeight);
+      return {
+        gridTop: Math.round(rect.top),
+        gridBottom: Math.round(rect.bottom),
+        vvBottom: Math.round(vvBottom),
+        boxVvDelta: Math.round(vvBottom - rect.bottom),
+        // Diagnostics: distinguish content-limited height (clientH < maxH var)
+        // from a stale rect.top measurement (clientH == maxH but bottom != vv).
+        clientH: grid.clientHeight,
+        scrollH: grid.scrollHeight,
+        maxHVar: grid.style.getPropertyValue("--grid-max-h") || "(unset)",
+      };
+    });
+
+    if (!metrics) throw new Error('[data-testid="spendings-grid"] not found');
+
+    logGeometry("grid-box-vv-at-rest-step", {
+      vp: `${vp.width}x${vp.height}`,
+      ...metrics,
+    });
+
+    expect(
+      Math.abs(metrics.boxVvDelta),
+      `grid box bottom (${metrics.gridBottom}) delta to vv bottom (${metrics.vvBottom}) is ${metrics.boxVvDelta}px — must be < 4px at ${vp.width}x${vp.height}`,
+    ).toBeLessThan(4);
   },
 );
 

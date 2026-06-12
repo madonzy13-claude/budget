@@ -88,3 +88,9 @@ Feature: BDP tab frame
     Given the budget has 12 seeded categories with monthly limits
     When I open the BDP spendings tab for "My E2E Budget"
     Then the spendings grid last row clears the bottom bar by at least 48 pixels
+
+  @tasks-geometry
+  Scenario: spendings grid box bottom reaches the visual viewport bottom at rest
+    Given the budget has 12 seeded categories with monthly limits
+    When I open the BDP spendings tab for "My E2E Budget"
+    Then the spendings grid box bottom reaches the visual viewport bottom
