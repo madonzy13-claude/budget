@@ -59,21 +59,36 @@ const SheetContent = React.forwardRef<
     <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
+      data-sheet-content
       {...props}
     >
+      {/* TOP safe-area inset for left/right full-height drawers in standalone.
+          With viewport-fit=cover the sheet's top edge renders under the Dynamic
+          Island / status bar. An in-flow spacer (not padding-top: that's
+          stripped by callers who pass p-0) pushes SheetClose + children below
+          the inset. Standalone-scoped so browser mode is unchanged.
+          page-level .pb-shell-safe must never reach this portal (quick-260612-a0c R1). */}
+      {(side === "left" || side === "right") && (
+        <div
+          aria-hidden
+          data-sheet-safe-area-top
+          className="pointer-events-none hidden h-[env(safe-area-inset-top,0px)] shrink-0 [@media(display-mode:standalone)]:block"
+        />
+      )}
       <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetClose>
       {children}
-      {/* Sheets portal to body and are ICB-anchored — page-level .pb-shell-safe
-          must never reach them (quick-260612-a0c R1). The full-height left/right
-          drawers absorb the iOS home-indicator inset INSIDE the sheet via this
-          in-flow spacer. A real DOM spacer, not padding-bottom: iOS WebKit
-          ignores end-of-scroll padding on scroll containers (device-verified
-          SHELL-R8..R10), and a pb-* utility on the variant would be stripped by
-          tailwind-merge wherever callers pass p-0 (all three edit sliders do).
-          Standalone-scoped so browser mode gets no extra flex-gap row. */}
+      {/* BOTTOM safe-area inset — Sheets portal to body and are ICB-anchored;
+          page-level .pb-shell-safe must never reach them (quick-260612-a0c R1).
+          The full-height left/right drawers absorb the iOS home-indicator inset
+          INSIDE the sheet via this in-flow spacer. A real DOM spacer, not
+          padding-bottom: iOS WebKit ignores end-of-scroll padding on scroll
+          containers (device-verified SHELL-R8..R10), and a pb-* utility on the
+          variant would be stripped by tailwind-merge wherever callers pass p-0
+          (all three edit sliders do). Standalone-scoped so browser mode gets no
+          extra flex-gap row. */}
       {(side === "left" || side === "right") && (
         <div
           aria-hidden

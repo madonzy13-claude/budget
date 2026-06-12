@@ -340,6 +340,14 @@ export function TransactionSlider({
           side="right"
           className="w-screen sm:w-[480px] sm:max-w-[480px] bg-[var(--surface-card-dark)] p-0 flex flex-col overflow-y-auto"
           data-testid="txn-slider-content"
+          // iOS standalone PWA: Radix auto-focuses the first field on open →
+          // the soft keyboard pans the layout viewport up (no browser chrome to
+          // absorb it), shifting the whole sheet up and hiding the title/X.
+          // Prevent autofocus; the user taps to focus, and transaction-row.tsx
+          // already scrolls focused inputs into view.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+          }}
           // The delete-confirmation AlertDialog renders in its own portal, so
           // Radix's outside-detection treats clicks/escape inside it as
           // "outside" the Sheet and would close both. Keep the Sheet open

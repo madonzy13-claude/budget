@@ -143,3 +143,78 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(headerTag).toContain("safe-area-inset-top");
   });
 });
+
+describe("PWA sheet displacement fixes (SHELL-R12)", () => {
+  const categorySlider = readFileSync(
+    resolve(__dirname, "../src/components/budgeting/category-slider.tsx"),
+    "utf8",
+  );
+  const transactionSlider = readFileSync(
+    resolve(__dirname, "../src/components/budgeting/transaction-slider.tsx"),
+    "utf8",
+  );
+  const recurringRuleForm = readFileSync(
+    resolve(__dirname, "../src/components/budgeting/recurring-rule-form.tsx"),
+    "utf8",
+  );
+  const viewportDebug = readFileSync(
+    resolve(__dirname, "../src/components/common/viewport-debug.tsx"),
+    "utf8",
+  );
+
+  it("sheet.tsx compensates env(safe-area-inset-top) in standalone (top inset, root cause a)", () => {
+    // In standalone with viewport-fit=cover the sheet top renders under the
+    // Dynamic Island / status bar. An in-flow top spacer scoped to
+    // @media(display-mode:standalone) pushes the title/X below the inset.
+    expect(sheetTsx).toMatch(/safe-area-inset-top/);
+    // Standalone-scoped so browser mode is unchanged.
+    expect(sheetTsx).toMatch(/display-mode:\s*standalone/);
+  });
+
+  it("sheet.tsx carries data-sheet-content on SheetPrimitive.Content for overlay targeting", () => {
+    // The diagnostics overlay and future tests locate the open sheet via
+    // [data-sheet-content]. Stable selector decoupled from Radix internals.
+    expect(sheetTsx).toMatch(/data-sheet-content/);
+  });
+
+  it("category-slider SheetContent has onOpenAutoFocus preventDefault (root cause b)", () => {
+    // Radix auto-focuses the first focusable element on open. In standalone
+    // the soft keyboard pans the layout viewport up — no browser chrome to
+    // absorb it — shifting the sheet up and hiding the title/X. Preventing
+    // default stops the pan; the user taps to focus.
+    expect(categorySlider).toMatch(/onOpenAutoFocus/);
+    // Must be on the SheetContent, not any inner dialog.
+    const sheetContentBlock =
+      categorySlider.match(/<SheetContent[\s\S]*?>/)?.[0] ?? "";
+    expect(sheetContentBlock).toMatch(/onOpenAutoFocus/);
+  });
+
+  it("transaction-slider SheetContent has onOpenAutoFocus preventDefault (root cause b)", () => {
+    expect(transactionSlider).toMatch(/onOpenAutoFocus/);
+    // The sheet-level SheetContent is the first <SheetContent in the file.
+    const firstSheetContent =
+      transactionSlider.match(/<SheetContent[\s\S]*?>/)?.[0] ?? "";
+    expect(firstSheetContent).toMatch(/onOpenAutoFocus/);
+  });
+
+  it("recurring-rule-form SheetContent has onOpenAutoFocus preventDefault (root cause b)", () => {
+    expect(recurringRuleForm).toMatch(/onOpenAutoFocus/);
+    const sheetContentBlock =
+      recurringRuleForm.match(/<SheetContent[\s\S]*?>/)?.[0] ?? "";
+    expect(sheetContentBlock).toMatch(/onOpenAutoFocus/);
+  });
+
+  it("viewport-debug BUILD_MARKER has been bumped past SHELL-R11", () => {
+    // A screenshot showing SHELL-R11 means stale cached assets.
+    expect(viewportDebug).not.toMatch(/SHELL-R11/);
+    expect(viewportDebug).toMatch(/SHELL-R12/);
+  });
+
+  it("viewport-debug overlay probes open sheet geometry (data-sheet-content selector)", () => {
+    // When a sheet is open the overlay reports rect, visualViewport,
+    // env insets, ancestor transforms, and activeElement — needed for
+    // device-only diagnosis of the keyboard-pan residue.
+    expect(viewportDebug).toMatch(/data-sheet-content/);
+    expect(viewportDebug).toMatch(/activeElement/);
+  });
+});

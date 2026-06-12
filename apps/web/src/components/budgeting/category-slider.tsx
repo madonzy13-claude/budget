@@ -353,6 +353,13 @@ export function CategorySlider({
           side="right"
           className="w-screen sm:w-[480px] sm:max-w-[480px] bg-[var(--surface-card-dark)] p-0 flex flex-col overflow-y-auto"
           data-testid="cat-slider-content"
+          // iOS standalone PWA: Radix auto-focuses the first field on open →
+          // the soft keyboard pans the layout viewport up (no browser chrome to
+          // absorb it), shifting the whole sheet up and hiding the title/X.
+          // Prevent autofocus; the user taps to focus.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+          }}
           onPointerDownOutside={(e) => {
             if (deleteOpenRef.current) e.preventDefault();
           }}

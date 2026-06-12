@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R11";
+const BUILD_MARKER = "SHELL-R12";
 
 const FLAG_KEY = "vpdbg";
 
@@ -37,6 +37,19 @@ export function toggleVpdbg(): boolean {
   }
 }
 
+interface SheetMetrics {
+  rectTop: number;
+  rectBottom: number;
+  rectHeight: number;
+  vvOffsetTop: number;
+  vvHeight: number;
+  vvScale: number;
+  safeTop: number;
+  safeBottom: number;
+  activeElement: string;
+  ancestorTransforms: string;
+}
+
 interface Metrics {
   innerH: number;
   vvH: number;
@@ -50,6 +63,7 @@ interface Metrics {
   mainScrollH: number;
   mainScrollTop: number;
   lastRowGap: number;
+  sheet: SheetMetrics | null;
 }
 
 function probeEnvInset(side: "top" | "bottom"): number {
@@ -60,6 +74,41 @@ function probeEnvInset(side: "top" | "bottom"): number {
   const v = parseFloat(getComputedStyle(el).paddingTop) || 0;
   el.remove();
   return v;
+}
+
+function probeOpenSheet(): SheetMetrics | null {
+  const sheetEl = document.querySelector<HTMLElement>("[data-sheet-content]");
+  if (!sheetEl) return null;
+
+  const rect = sheetEl.getBoundingClientRect();
+  const vv = window.visualViewport;
+
+  // Walk ancestor chain to collect any non-none transform/filter/contain.
+  const transforms: string[] = [];
+  let el: HTMLElement | null = sheetEl.parentElement;
+  while (el && el !== document.body) {
+    const cs = getComputedStyle(el);
+    const t = cs.transform;
+    const f = cs.filter;
+    const c = cs.contain;
+    if (t && t !== "none") transforms.push(`transform:${t}`);
+    if (f && f !== "none") transforms.push(`filter:${f}`);
+    if (c && c !== "none") transforms.push(`contain:${c}`);
+    el = el.parentElement;
+  }
+
+  return {
+    rectTop: Math.round(rect.top),
+    rectBottom: Math.round(rect.bottom),
+    rectHeight: Math.round(rect.height),
+    vvOffsetTop: Math.round(vv?.offsetTop ?? -1),
+    vvHeight: Math.round(vv?.height ?? -1),
+    vvScale: vv?.scale ?? -1,
+    safeTop: probeEnvInset("top"),
+    safeBottom: probeEnvInset("bottom"),
+    activeElement: document.activeElement?.tagName ?? "none",
+    ancestorTransforms: transforms.join("; ") || "none",
+  };
 }
 
 function readMetrics(): Metrics {
@@ -97,6 +146,7 @@ function readMetrics(): Metrics {
     mainScrollH: main?.scrollHeight ?? -1,
     mainScrollTop: Math.round((main as HTMLElement)?.scrollTop ?? -1),
     lastRowGap,
+    sheet: probeOpenSheet(),
   };
 }
 
@@ -141,6 +191,25 @@ export function ViewportDebug() {
         toEnd {m.mainScrollH - m.mainClientH - m.mainScrollTop} · lastRowGap{" "}
         {m.lastRowGap}
       </div>
+      {m.sheet && (
+        <>
+          <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">
+            [sheet open]
+          </div>
+          <div>
+            rect {m.sheet.rectTop}↑ {m.sheet.rectBottom}↓ h{m.sheet.rectHeight}
+          </div>
+          <div>
+            vv offset {m.sheet.vvOffsetTop} h {m.sheet.vvHeight} scale{" "}
+            {m.sheet.vvScale}
+          </div>
+          <div>
+            safe ↑{m.sheet.safeTop} ↓{m.sheet.safeBottom} · active{" "}
+            {m.sheet.activeElement}
+          </div>
+          <div>anc: {m.sheet.ancestorTransforms}</div>
+        </>
+      )}
     </div>
   );
 }

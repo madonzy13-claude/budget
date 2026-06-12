@@ -299,6 +299,13 @@ export function RecurringRuleForm({
       <SheetContent
         side="right"
         className="w-full sm:max-w-md flex flex-col p-0"
+        // iOS standalone PWA: Radix auto-focuses the first field on open →
+        // the soft keyboard pans the layout viewport up (no browser chrome to
+        // absorb it), shifting the whole sheet up and hiding the title/X.
+        // Prevent autofocus; the user taps to focus.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+        }}
       >
         <SheetHeader className="px-6 py-4 border-b border-[var(--hairline-dark)]">
           <SheetTitle>
