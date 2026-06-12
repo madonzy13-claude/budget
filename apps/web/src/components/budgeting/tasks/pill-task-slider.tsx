@@ -126,8 +126,11 @@ export function PillTaskSlider({
     // (logo→profile) and the BDP content: mx-auto max-w-[1280px] with the
     // header's px-4 sm:px-8 gutters. Previously full-viewport (px-3 sm:px-4),
     // which overhung the content column on desktop.
-    // mb-3: the slider now lives INSIDE the [data-bdp-tabs] sticky band
-    // (quick-260612-a0c R2) — keep a gutter above the band's border-b.
+    // Placement (quick-260612-cdu R2): the slider renders as normal page
+    // content BELOW the [data-bdp-tabs] sticky band (first child of the
+    // pb-shell-safe wrapper in bdp/[id]/layout.tsx) — at rest fully visible
+    // under the band; it may scroll under the band/header on page scroll.
+    // mt-3: gutter below the band's border-b. mb-3: gutter above {children}.
     <div className="mx-auto mb-3 mt-3 w-full max-w-[1280px] px-4 sm:px-8">
       <div
         data-testid="pill-task-slider"
