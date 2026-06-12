@@ -14,6 +14,7 @@ import { Temporal } from "temporal-polyfill";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
 import { mapTxnRowToDTO } from "@/lib/txn-mapper";
+import { ScrollResetOnMount } from "@/components/common/scroll-reset-on-mount";
 
 // quick-260612-a0c R2: PillTaskSlider no longer renders here — the BDP layout
 // renders the active pill's slider INSIDE the [data-bdp-tabs] sticky band so
@@ -110,6 +111,12 @@ export default async function SpendingsPage({
   // vertical scroll; clearance lives in the in-flow tail spacer inside it.
   return (
     <div data-no-page-clearance>
+      {/* Tab-switch scroll reset: wallets/home are page-scrolling tabs; when
+          the user switches to spendings, the shared main[data-shell-scroll]
+          container retains its scrollTop from the previous tab. Reset it to 0
+          so the month navigator is not hidden under the pinned pills band and
+          so --grid-max-h measurement (rect.top) is taken at the correct position. */}
+      <ScrollResetOnMount />
       <SpendingsGridClient
         budgetId={budgetId}
         budgetCurrency={

@@ -19,7 +19,7 @@ import { expect } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { BdpPo } from "../page-objects/BdpPo";
 
-const { Given, Then } = createBdd(test);
+const { Given, Then, When } = createBdd(test);
 
 // ---------------------------------------------------------------------------
 // Given — bulk category seeding so the page has real scroll room.
@@ -435,6 +435,79 @@ Then(
     ).toBeLessThanOrEqual(4);
   },
 );
+
+// ── Tab-switch scroll reset (added issue) ────────────────────────────────────
+// Wallets is a page-scrolling tab; when the user switches client-side to
+// Spendings, main[data-shell-scroll].scrollTop is preserved from Wallets.
+// ScrollResetOnMount resets it to 0 on mount. These two steps prove it.
+
+When("I scroll the page down on wallets tab", async ({ page }) => {
+  // Scroll the shared main[data-shell-scroll] element down so the test
+  // starts with a non-zero scrollTop (mirrors the user scenario).
+  await page.evaluate(() => {
+    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
+    if (main) {
+      main.scrollTop = 300;
+    } else {
+      window.scrollTo(0, 300);
+    }
+  });
+  await page.waitForTimeout(100);
+});
+
+Then("the page scroll position is at the top", async ({ page }) => {
+  // After the tab switch + ScrollResetOnMount, the main container must be
+  // scrolled back to 0. Allow one rAF + paint cycle to settle.
+  await page.waitForTimeout(200);
+
+  const scrollTop = await page.evaluate(() => {
+    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
+    return main ? main.scrollTop : window.scrollY;
+  });
+
+  expect(
+    scrollTop,
+    `main[data-shell-scroll].scrollTop is ${scrollTop}px after tab switch — ScrollResetOnMount did not fire or is broken`,
+  ).toBe(0);
+});
+
+Then("the month navigator is fully below the sticky band", async ({ page }) => {
+  const bdp = new BdpPo(page);
+
+  // The month navigator sits above the spendings grid — find it by its
+  // navigation role or by a known text pattern (e.g. the current month).
+  // Fall back to the first visible element below the band if not found.
+  const band = bdp.bdpBand();
+  const bandBox = await band.boundingBox();
+  if (!bandBox) throw new Error("[data-bdp-tabs] band not found");
+
+  const bandBottom = bandBox.y + bandBox.height;
+
+  // The month navigator label sits above the spendings grid columns. Its
+  // canonical test-id is month-navigator-label (month-navigator.tsx:105).
+  // Asserting against the real element makes this a HARD geometry check —
+  // no soft skip — so the tab-switch fix is actually proven.
+  const monthNav = page.getByTestId("month-navigator-label").first();
+  await monthNav.waitFor({ state: "visible", timeout: 5000 });
+
+  const monthNavBox = await monthNav.boundingBox();
+  if (!monthNavBox) {
+    throw new Error(
+      "month-navigator-label is visible but has no bounding box — cannot assert geometry",
+    );
+  }
+
+  logGeometry("month-nav-vs-band", {
+    bandBottom,
+    monthNavTop: monthNavBox.y,
+    monthNavBottom: monthNavBox.y + monthNavBox.height,
+  });
+
+  expect(
+    monthNavBox.y,
+    `month navigator top (${monthNavBox.y}) must be >= band bottom (${bandBottom}) — navigator is hidden under the pills band after tab switch`,
+  ).toBeGreaterThanOrEqual(bandBottom - 1); // 1px tolerance for sub-pixel rounding
+});
 
 // ── Issue #5: shell root does not exceed viewport ────────────────────────────
 
