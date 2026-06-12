@@ -218,3 +218,85 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
     expect(viewportDebug).toMatch(/activeElement/);
   });
 });
+
+describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issues #2-5)", () => {
+  const bdpLayout = readFileSync(
+    resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+    "utf8",
+  );
+  const spendingsGrid = readFileSync(
+    resolve(
+      __dirname,
+      "../src/components/budgeting/spendings-grid/spendings-grid-client.tsx",
+    ),
+    "utf8",
+  );
+
+  // ── Issue #2: Banner below band ──────────────────────────────────────────
+  it("#2: ActivePillTaskSlider is NOT inside [data-bdp-tabs] wrapper", () => {
+    // User wants the banner as normal page content BELOW the sticky band,
+    // not occluded inside it. Extract the data-bdp-tabs block and assert
+    // ActivePillTaskSlider does not appear in it.
+    const dataBdpTabsBlock =
+      bdpLayout.match(/data-bdp-tabs[\s\S]*?<\/div>/)?.[0] ?? "";
+    expect(dataBdpTabsBlock).not.toMatch(/ActivePillTaskSlider/);
+  });
+
+  it("#2: ActivePillTaskSlider IS inside the pb-shell-safe content wrapper", () => {
+    // After the move it renders as the first child of the content wrapper
+    // so it scrolls with the page content, fully visible at rest under the band.
+    // Match from the JSX opening tag of the pb-shell-safe div.
+    const pbShellBlock =
+      bdpLayout.match(/<div className="pb-shell-safe">[\s\S]*?<\/div>/)?.[0] ??
+      "";
+    expect(pbShellBlock).toMatch(/ActivePillTaskSlider/);
+  });
+
+  // ── Issue #3: Grid tail spacer ───────────────────────────────────────────
+  it("#3: spendings grid scroll container has an in-flow bottom spacer with env(safe-area-inset-bottom)", () => {
+    // iOS WebKit ignores pb-* on scroll containers at end-of-scroll (SHELL-R8..R10).
+    // A real aria-hidden sibling spacer child extends scrollHeight.
+    expect(spendingsGrid).toMatch(/env\(safe-area-inset-bottom/);
+    // Must be an in-flow element, not a container class.
+    expect(spendingsGrid).toMatch(/aria-hidden/);
+  });
+
+  it("#3: spendings grid no longer uses the stale 176px magic constant", () => {
+    // The -176px constant tracked the old band height before the banner moved;
+    // replaced with dvh-based formula or a less brittle constant.
+    expect(spendingsGrid).not.toMatch(/-176px/);
+  });
+
+  // ── Issue #4: Browser bottom clearance ──────────────────────────────────
+  it("#4: browser-mode main[data-shell-scroll] padding-bottom floor is >=64px", () => {
+    // Safari's bottom bar is ~50px; env≈0 when bar visible → need explicit floor.
+    const browserBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(browserBlock).toMatch(
+      /main\[data-shell-scroll\][^}]*padding-bottom:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*(?:6[4-9]|7[0-9]|80)px\)/,
+    );
+  });
+
+  // ── Issue #5: Black band ─────────────────────────────────────────────────
+  it("#5: browser-mode [data-shell-root] uses 100dvh (not 100lvh) to track dynamic viewport", () => {
+    // 100lvh = large viewport (bar hidden); when bar shown the shell extends
+    // past the visible area → dead band. 100dvh tracks the small/visible area.
+    const browserBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(browserBlock).not.toMatch(
+      /\[data-shell-root\][^}]*min-height:\s*100lvh/,
+    );
+    expect(browserBlock).toMatch(
+      /\[data-shell-root\][^}]*min-height:\s*100dvh/,
+    );
+  });
+
+  it("#5: standalone base 100lvh rule is untouched (dead-band fix must stay)", () => {
+    // The standalone locked-body 100lvh is the deliberate dead-band fix — do not touch.
+    expect(globalCss).toMatch(/height:\s*100lvh/);
+  });
+});

@@ -7,7 +7,7 @@ import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 
 /**
  * BDP layout (Plan 03-06 BDP-01) — single sticky wrapper at top:64px holding
- * the optional task banner + pill tabs row, then `{children}` (tab content).
+ * the pill tabs row, then `{children}` (tab content).
  *
  * Z-stack (locked across phases):
  *   - top-nav header z-50 (Plan 03-04)
@@ -21,11 +21,11 @@ import type { TaskSummary } from "@/components/budgeting/task-banner-row";
  * ActivePillTaskSlider (the active pill's task strip). TaskBanner removed —
  * per-pill sliders replace it.
  *
- * quick-260612-a0c R2: the active pill's PillTaskSlider renders HERE, inside
- * the [data-bdp-tabs] sticky wrapper — NOT in the tab pages. As page content
- * it slid under the pinned [data-shell-header] during native page scroll in
- * browser mode. Inside the band it inherits the sticky offset + z-40 and is
- * never occluded (matches this layout's original BDP-01 design).
+ * quick-260612-cdu R2 (user round-2 feedback): ActivePillTaskSlider moved OUT
+ * of [data-bdp-tabs] and into the pb-shell-safe content wrapper as normal page
+ * content. At rest it is fully visible directly under the band. On page scroll
+ * it may scroll under the sticky band/header (acceptable — it is page content).
+ * Previously it was inside the sticky band, which the user rejected.
  *
  * Pitfall 4 guard: every /budgets/{id}/... fetch passes `id` as the
  * serverApiFetch first arg so X-Budget-ID is set (T-03-06-08).
@@ -86,6 +86,12 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
           reservesEnabled={reservesEnabled}
           initialTasks={initialTasks}
         />
+      </div>
+      {/* pb-shell-safe: standalone-only bottom clearance INSIDE the page
+          content — the only placement iOS WebKit honors (see global.css).
+          ActivePillTaskSlider renders here as the first child so it is normal
+          page content directly below the band (quick-260612-cdu R2). */}
+      <div className="pb-shell-safe">
         {/* Suspense: ActivePillTaskSlider reads useSearchParams (deep-link
             ?task=) — boundary keeps any CSR bailout local to the strip. */}
         <Suspense fallback={null}>
@@ -95,10 +101,8 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
             initialTasks={initialTasks}
           />
         </Suspense>
+        {children}
       </div>
-      {/* pb-shell-safe: standalone-only bottom clearance INSIDE the page
-          content — the only placement iOS WebKit honors (see global.css). */}
-      <div className="pb-shell-safe">{children}</div>
     </>
   );
 }

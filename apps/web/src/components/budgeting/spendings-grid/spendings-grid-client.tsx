@@ -432,12 +432,17 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         // user's gesture had a slight downward angle during column
         // horizontal swipes (UAT round 9). "none" blocks the bounce
         // entirely on this element.
-        // 100svh (small viewport height) — iOS Safari's URL bar collapses on
-        // scroll and changes 100vh out from under us; svh stays fixed to the
-        // smaller (URL-bar-expanded) state so the wrapper doesn't grow
-        // beyond the visible area when the bar hides.
+        // 100dvh (dynamic viewport height) tracks the visible area regardless
+        // of whether Safari's URL bar is shown or hidden. The previous magic
+        // constant was calibrated to the old band height before the banner
+        // moved outside the sticky wrapper (quick-260612-cdu R2); it over-
+        // constrained the box after the banner moved out. Using a less brittle
+        // offset (-128px: ~64px header + ~64px band) keeps the grid within view.
+        // iOS WebKit ignores pb-* on scroll containers at end-of-scroll
+        // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
+        // scrollHeight past the last row instead.
         style={{ overscrollBehavior: "none" }}
-        className="mt-4 overflow-auto max-h-[calc(100svh-176px)] px-3 sm:px-6 pb-6"
+        className="mt-4 overflow-auto max-h-[calc(100dvh-128px)] px-3 sm:px-6"
       >
         <DndContext
           sensors={sensors}
@@ -499,6 +504,17 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
             </div>
           </div>
         </DndContext>
+        {/* iOS WebKit end-of-scroll spacer (SHELL-R8..R10): padding-bottom on
+            a scroll container is ignored at the scroll tail on iOS Safari.
+            A real in-flow aria-hidden block appended after all content extends
+            scrollHeight so the last transaction row is reachable with clearance.
+            env(safe-area-inset-bottom) adds home-indicator room; 64px is the
+            visual breathing room beneath the last row. */}
+        <div
+          aria-hidden
+          data-grid-tail-spacer
+          className="h-[calc(env(safe-area-inset-bottom,0px)+64px)] shrink-0 w-full pointer-events-none"
+        />
       </div>
 
       <TransactionSlider

@@ -473,13 +473,23 @@ button:disabled,
   }
   [data-shell-root] {
     height: auto;
-    min-height: 100lvh;
+    /* 100dvh tracks the DYNAMIC (small/visible) viewport so the shell never
+       exceeds the painted region when Safari's bottom bar is shown. Using
+       100lvh (large viewport) here caused an unpainted dead band at the bottom
+       when the bar was visible — the shell root extended past the visible area.
+       The standalone html,body 100lvh rule (base block above) is deliberate and
+       must NOT be changed; only this browser-mode path uses dvh. */
+    min-height: 100dvh;
   }
   main[data-shell-scroll] {
     flex: none;
     min-height: 0;
     overflow-y: visible;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 48px);
+    /* env(safe-area-inset-bottom) ≈ 0 in browser mode when Safari's bar is
+       visible — the bar eats ~50px. An explicit floor (72px) ensures the last
+       rows clear the bottom bar regardless of env resolution.
+       The standalone code path uses .pb-shell-safe — no double-pad risk. */
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
   }
   /* UAT feedback: keep the header pinned during native page scroll, like
      standalone. The BDP tab band (sticky top-0) must then stick BELOW the
