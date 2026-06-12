@@ -66,6 +66,36 @@ async function seedTask(
   if (payload.currency !== undefined) payloadJson.currency = payload.currency;
   if (payload.ruleName !== undefined) payloadJson.rule_name = payload.ruleName;
   return await withTenantClient(budgetId, async (client) => {
+    // 260612-kxd T3: production CONFIRM_DRAFT tasks ALWAYS carry a
+    // payload.draft_id pointing at a live unconfirmed expense_ledger row,
+    // and listPending now self-heals (hides) orphan tasks whose draft is
+    // gone. A bare task INSERT is orphan-shaped and would be (correctly)
+    // filtered out — so seed a real draft row and reference it.
+    if (kind === "CONFIRM_DRAFT") {
+      const cat = await client.query<{ id: string }>(
+        `SELECT id FROM budgeting.categories
+          WHERE tenant_id = $1::uuid AND archived_at IS NULL
+          ORDER BY sort_index ASC LIMIT 1`,
+        [budgetId],
+      );
+      const categoryId = cat.rows[0]?.id ?? null;
+      const amountCents = payload.amountCents ?? 1000;
+      const currency = payload.currency ?? "EUR";
+      const draft = await client.query<{ id: string }>(
+        `INSERT INTO budgeting.expense_ledger
+           (id, tenant_id, budget_id, category_id, transaction_date,
+            amount_original_cents, currency_original,
+            amount_converted_cents, fx_rate, fx_as_of,
+            confirmed_at, kind, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, CURRENT_DATE,
+                 $3::bigint, $4, $3::bigint, '1'::numeric, CURRENT_DATE,
+                 NULL, 'SPENDING', now(), now())
+         RETURNING id`,
+        [budgetId, categoryId, String(amountCents), currency],
+      );
+      payloadJson.draft_id = draft.rows[0].id;
+      if (categoryId) payloadJson.category_id = categoryId;
+    }
     const res = await client.query<{ id: string }>(
       `INSERT INTO budgeting.tasks (id, tenant_id, budget_id, kind, payload_json, status)
        VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, $3::jsonb, 'PENDING')
