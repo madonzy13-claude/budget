@@ -130,12 +130,17 @@ export function createTaskRepo(): TaskRepo {
           const drizzleTx = tx as DrizzleTx;
           // 260612-kxd T3: self-heal orphan CONFIRM_DRAFT rows at read time.
           // A CONFIRM_DRAFT task is only actionable while its draft is live
-          // (exists, not soft-deleted, not dismissed, not yet confirmed). Any
-          // delete path that misses the in-tx resolve (or pre-existing orphans
-          // like the "Maczfit" task) is hidden here on the next banner read —
-          // no manual SQL. The EXISTS subquery joins el.tenant_id to
+          // (exists, not soft-deleted, not dismissed, not yet confirmed) AND
+          // its category is not archived (archived_at set → the draft is
+          // invisible in the UI, nothing to confirm — the legacy "Maczfit"
+          // shape, where an archive's draft purge silently failed
+          // pre-grants-fix). Any delete path that misses the in-tx resolve
+          // (or pre-existing stale rows) is hidden here on the next banner
+          // read — no manual SQL. The EXISTS subquery joins el.tenant_id to
           // tasks.tenant_id (T-kxd-02: another tenant's draft state can never
-          // hide/heal this tenant's task).
+          // hide/heal this tenant's task); the category probe joins both
+          // el.category_id and el.tenant_id for the same reason. A draft with
+          // NULL category_id stays visible (NOT EXISTS over zero rows).
           const res = await drizzleTx.execute(sql`
             SELECT id, budget_id, kind, status, payload_json, created_at
               FROM budgeting.tasks
@@ -152,6 +157,13 @@ export function createTaskRepo(): TaskRepo {
                       AND el.deleted_at IS NULL
                       AND el.dismissed_at IS NULL
                       AND el.confirmed_at IS NULL
+                      AND NOT EXISTS (
+                        SELECT 1
+                          FROM budgeting.categories c
+                         WHERE c.id = el.category_id
+                           AND c.tenant_id = el.tenant_id
+                           AND c.archived_at IS NOT NULL
+                      )
                  )
                )
              ORDER BY created_at ASC

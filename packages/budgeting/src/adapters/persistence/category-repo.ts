@@ -251,6 +251,28 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         );
       }
 
+      // 260612-kxd T3 addendum: resolve CONFIRM_DRAFT tasks for this
+      // category's drafts BEFORE the expense_ledger purge below — the
+      // subquery must still see the draft rows to match
+      // payload_json->>'draft_id'. Archive makes the drafts invisible in the
+      // UI, so their tasks are no longer actionable; without this the banner
+      // kept a ghost task (the live "Maczfit" row survived exactly this way
+      // when an archive's draft purge silently failed pre-grants-fix).
+      // Same shape as hardDelete: idempotent (status='PENDING' guard) and
+      // double tenant-scoped (T-kxd-01).
+      await tx.execute(
+        sql`UPDATE budgeting.tasks
+               SET status = 'RESOLVED', resolved_at = now()
+             WHERE tenant_id = ${tenantId}::uuid
+               AND kind = 'CONFIRM_DRAFT'
+               AND status = 'PENDING'
+               AND payload_json->>'draft_id' IN (
+                 SELECT id::text FROM budgeting.expense_ledger
+                  WHERE category_id = ${categoryId}::uuid
+                    AND tenant_id = ${tenantId}::uuid
+               )`,
+      );
+
       // Removing a category (EITHER mode) drops its future recurring rules and
       // any still-unconfirmed drafts, so nothing new lands in it going forward.
       await tx.execute(

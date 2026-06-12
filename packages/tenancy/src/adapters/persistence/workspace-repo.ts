@@ -116,10 +116,37 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         FROM tenancy.budgets w
         INNER JOIN tenancy.budget_members m ON m.budget_id = w.id
         LEFT JOIN (
-          SELECT budget_id, COUNT(*)::bigint AS pending
-            FROM budgeting.tasks
-           WHERE status = 'PENDING'
-           GROUP BY budget_id
+          -- 260612-kxd T3 addendum: badge must match the banner — count only
+          -- ACTIONABLE tasks. Same predicate as budgeting task-repo
+          -- listPending (kept in sync by apps/api/test/routes/
+          -- budgets-active.test.ts "banner parity"): a CONFIRM_DRAFT counts
+          -- only while its draft is live (exists, not soft-deleted/dismissed/
+          -- confirmed) and its category is not archived. Tenant-joined on
+          -- el.tenant_id/c.tenant_id — cross-tenant rows can never affect
+          -- this count (RLS via app.tenant_ids backs this up).
+          SELECT t.budget_id, COUNT(*)::bigint AS pending
+            FROM budgeting.tasks t
+           WHERE t.status = 'PENDING'
+             AND (
+               t.kind <> 'CONFIRM_DRAFT'
+               OR EXISTS (
+                 SELECT 1
+                   FROM budgeting.expense_ledger el
+                  WHERE el.id::text = t.payload_json->>'draft_id'
+                    AND el.tenant_id = t.tenant_id
+                    AND el.deleted_at IS NULL
+                    AND el.dismissed_at IS NULL
+                    AND el.confirmed_at IS NULL
+                    AND NOT EXISTS (
+                      SELECT 1
+                        FROM budgeting.categories c
+                       WHERE c.id = el.category_id
+                         AND c.tenant_id = el.tenant_id
+                         AND c.archived_at IS NOT NULL
+                    )
+               )
+             )
+           GROUP BY t.budget_id
         ) tk ON tk.budget_id = w.id
         WHERE m.user_id = ${userId}
           AND w.archived_at IS NULL
