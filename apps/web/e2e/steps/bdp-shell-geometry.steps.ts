@@ -212,6 +212,76 @@ Then("the page bottom clearance is at least 48 pixels", async ({ page }) => {
   ).toBeGreaterThanOrEqual(48);
 });
 
+// ── R3: spendings grid last-row clearance (quick-260612-e82) ────────────────
+// Architecture (a) gives a measured max-height so the scroller box bottom sits
+// BOTTOM_CLEARANCE px above the visible viewport bottom. In Chromium (browser
+// mode, no floating bar) BOTTOM_CLEARANCE=88px. We scroll the grid to its
+// bottom and assert the deepest interactive row's bottom is at least 48px above
+// the viewport bottom — matching the existing bottom-clearance floor convention.
+// Honesty guard: assert the grid actually scrolled (scrollTop > 50) so a
+// non-scrolling page can't false-pass.
+
+Then(
+  "the spendings grid last row clears the bottom bar by at least 48 pixels",
+  async ({ page }) => {
+    const vp = page.viewportSize();
+    if (!vp) throw new Error("viewport size is null");
+
+    // Wait for the grid to be present (spendings tab may still be loading).
+    const gridLocator = page.locator('[data-testid="spendings-grid"]');
+    await expect(gridLocator).toBeVisible({ timeout: 10000 });
+
+    // Scroll the grid to its bottom.
+    const metrics = await page.evaluate(() => {
+      const grid = document.querySelector<HTMLElement>(
+        '[data-testid="spendings-grid"]',
+      );
+      if (!grid) return null;
+      grid.scrollTo(0, grid.scrollHeight);
+      const scrollTop = grid.scrollTop;
+      const scrollHeight = grid.scrollHeight;
+      const clientHeight = grid.clientHeight;
+
+      // Find the deepest interactive element inside the grid.
+      let deepestBottom = -1;
+      grid.querySelectorAll("button, li, a").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && r.bottom > deepestBottom) deepestBottom = r.bottom;
+      });
+
+      const vpHeight = window.visualViewport?.height ?? window.innerHeight;
+
+      return {
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+        deepestBottom,
+        vpHeight,
+        gap: deepestBottom >= 0 ? vpHeight - deepestBottom : -1,
+      };
+    });
+
+    if (!metrics) throw new Error('[data-testid="spendings-grid"] not found');
+
+    logGeometry("grid-clearance", {
+      vp: `${vp.width}x${vp.height}`,
+      ...metrics,
+    });
+
+    // Honesty guard: grid must have actually scrolled.
+    expect(
+      metrics.scrollTop,
+      `grid did not scroll (scrollTop=${metrics.scrollTop}) — no scroll room means test cannot prove clearance; need at least 12 categories`,
+    ).toBeGreaterThan(50);
+
+    // Last row must clear the viewport bottom by at least 48px.
+    expect(
+      metrics.gap,
+      `grid last row bottom (${metrics.deepestBottom}) gap to viewport bottom (${metrics.vpHeight}) is ${metrics.gap}px — must be >= 48px at ${vp.width}x${vp.height}`,
+    ).toBeGreaterThanOrEqual(48);
+  },
+);
+
 // ── Issue #5: shell root does not exceed viewport ────────────────────────────
 
 Then(

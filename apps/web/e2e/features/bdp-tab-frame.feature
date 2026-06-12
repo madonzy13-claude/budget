@@ -82,3 +82,9 @@ Feature: BDP tab frame
     And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
     When I open the reserves tab for "My E2E Budget"
     Then the shell root height does not exceed the viewport height
+
+  @tasks-geometry
+  Scenario: spendings grid last row clears the bottom bar in browser mode
+    Given the budget has 12 seeded categories with monthly limits
+    When I open the BDP spendings tab for "My E2E Budget"
+    Then the spendings grid last row clears the bottom bar by at least 48 pixels
