@@ -417,6 +417,76 @@ describe("POST /categories/:id/unarchive", () => {
   });
 });
 
+describe("DELETE /categories/:id — CONFIRM_DRAFT orphan prevention (260612-kxd T3-D)", () => {
+  it("hard-delete of a category with an open draft+task leaves no PENDING CONFIRM_DRAFT in the banner read", async () => {
+    const { seedDraftWithTask } = await import(
+      "../../../../packages/budgeting/test/draft-task-fixtures"
+    );
+    const fx = await seedDraftWithTask({ archivedCategory: true });
+
+    const { createCategoriesRoute } = await import("../../src/routes/categories");
+    const { createTasksRoute } = await import("../../src/routes/tasks");
+    const { DrizzleCategoryRepo } = await import(
+      "@budget/budgeting/src/adapters/persistence/category-repo"
+    );
+    const { createTaskRepo } = await import(
+      "@budget/budgeting/src/adapters/persistence/task-repo"
+    );
+    const { permanentlyDeleteCategory } = await import(
+      "@budget/budgeting/src/application/permanently-delete-category"
+    );
+    const { listPendingTasks } = await import(
+      "@budget/budgeting/src/application/list-pending-tasks"
+    );
+
+    const deps = {
+      budgeting: {
+        permanentlyDeleteCategory: permanentlyDeleteCategory({
+          repo: new DrizzleCategoryRepo(),
+        }),
+        listPendingTasks: listPendingTasks({ taskRepo: createTaskRepo() }),
+      },
+    } as unknown as import("../../src/boot").BootedDeps;
+
+    const app = new Hono();
+    app.use(async (c, next) => {
+      c.set("session", { user: { id: fx.userId } });
+      c.set("tenantId", fx.budgetId);
+      c.set("tenantIds", [fx.budgetId]);
+      c.set("userId", fx.userId);
+      await next();
+    });
+    app.route("/categories", createCategoriesRoute(deps));
+    app.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
+
+    // Sanity: the CONFIRM_DRAFT task is in the banner BEFORE the delete.
+    const before = await app.request(
+      `/budgets/${fx.budgetId}/tasks?status=pending`,
+    );
+    expect(before.status).toBe(200);
+    const beforeBody = await before.json();
+    expect(
+      beforeBody.tasks.some((t: { id: string }) => t.id === fx.taskId),
+    ).toBe(true);
+
+    // Hard-delete the archived category (purges its drafts).
+    const del = await app.request(`/categories/${fx.categoryId}`, {
+      method: "DELETE",
+    });
+    expect(del.status).toBe(204);
+
+    // Banner read AFTER: the task must be gone — no Maczfit-style orphan.
+    const after = await app.request(
+      `/budgets/${fx.budgetId}/tasks?status=pending`,
+    );
+    expect(after.status).toBe(200);
+    const afterBody = await after.json();
+    expect(
+      afterBody.tasks.some((t: { id: string }) => t.id === fx.taskId),
+    ).toBe(false);
+  });
+});
+
 describe("PUT /categories/:id/share-overrides", () => {
   beforeAll(async () => {
     const t = await createTestUser();

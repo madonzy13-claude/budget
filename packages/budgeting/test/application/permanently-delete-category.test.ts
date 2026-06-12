@@ -50,3 +50,52 @@ describe("permanentlyDeleteCategory", () => {
     expect((repo as any).calls).toHaveLength(0);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* 260612-kxd T3-A — integration (real Postgres, CLAUDE.md rule 3):           */
+/* hard-deleting a category with an open recurring draft must RESOLVE the     */
+/* draft's PENDING CONFIRM_DRAFT task in the SAME transaction. Today          */
+/* category-repo.hardDelete purges expense_ledger but never touches           */
+/* budgeting.tasks → the "Maczfit" orphan banner task. RED until fixed.       */
+/* -------------------------------------------------------------------------- */
+const DB_URL_RAW = process.env.DATABASE_URL_APP;
+if (DB_URL_RAW) {
+  // Docker hostname → localhost so the host-side test runner reaches the DB.
+  process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
+}
+
+describe.skipIf(!DB_URL_RAW)(
+  "permanentlyDeleteCategory — CONFIRM_DRAFT atomicity (real Postgres)",
+  () => {
+    it("resolves the draft's PENDING CONFIRM_DRAFT task in the same call (no second poll)", async () => {
+      const { resetPools } = await import("@budget/platform");
+      resetPools();
+      const { DrizzleCategoryRepo } = await import(
+        "../../src/adapters/persistence/category-repo"
+      );
+      const { seedDraftWithTask, readTaskStatus, draftRowExists } =
+        await import("../draft-task-fixtures");
+
+      const fx = await seedDraftWithTask({ archivedCategory: true });
+
+      const svc = permanentlyDeleteCategory({
+        repo: new DrizzleCategoryRepo(),
+      });
+      const r = await svc({
+        tenantId: fx.budgetId,
+        categoryId: fx.categoryId,
+        actorUserId: fx.userId,
+      });
+      expect(r.isOk()).toBe(true);
+
+      // Draft purged with the category…
+      expect(await draftRowExists(fx.budgetId, fx.draftId)).toBe(false);
+      // …and its CONFIRM_DRAFT task closed in the same transaction — the
+      // banner must never show a task for a draft that no longer exists.
+      const task = await readTaskStatus(fx.budgetId, fx.taskId);
+      expect(task).not.toBeNull();
+      expect(task?.status).toBe("RESOLVED");
+      expect(task?.resolved_at).not.toBeNull();
+    });
+  },
+);
