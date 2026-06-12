@@ -22,4 +22,20 @@ export class BdpPo {
   stickyWrapper() {
     return this.page.getByTestId("bdp-sticky-wrapper");
   }
+
+  /** The pinned [data-shell-header] element (sticky top:0 in browser mode). */
+  shellHeader() {
+    return this.page.locator("[data-shell-header]");
+  }
+
+  /**
+   * The tasks banner for a given pill tab.
+   * Matches PillTaskSliderPo.root() locator — exposed here for geometry
+   * assertions that don't need the full PO.
+   */
+  tasksBanner(pill: "wallets" | "spendings" | "reserves" | "settings") {
+    return this.page.locator(
+      `[data-testid="pill-task-slider"][data-pill="${pill}"]`,
+    );
+  }
 }

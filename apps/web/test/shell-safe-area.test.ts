@@ -22,6 +22,10 @@ const rootLayout = readFileSync(
   resolve(__dirname, "../src/app/layout.tsx"),
   "utf8",
 );
+const sheetTsx = readFileSync(
+  resolve(__dirname, "../src/components/ui/sheet.tsx"),
+  "utf8",
+);
 
 describe("(app) shell clears iOS bottom UI", () => {
   it("marks the <main> scroll surface for the browser-only bottom clearance rule", () => {
@@ -87,6 +91,23 @@ describe("(app) shell clears iOS bottom UI", () => {
       "utf8",
     );
     expect(bdpLayout).toMatch(/data-bdp-tabs/);
+  });
+
+  it("right-side Sheet variant is decoupled from .pb-shell-safe page padding (quick-260612-a0c R1)", () => {
+    // Sheets portal to document.body and use `position:fixed` anchored to the
+    // Initial Containing Block (ICB). The right/left full-height variant uses
+    // `inset-y-0 h-full` — it already reaches the ICB bottom. The HOME INDICATOR
+    // inset must be absorbed INSIDE the sheet content via safe-area bottom padding,
+    // NOT via .pb-shell-safe (which is page-content padding inside the scroll
+    // surface and must not influence portaled fixed elements).
+    //
+    // Assert: right variant carries safe-area-inset-bottom compensation.
+    expect(sheetTsx).toMatch(/safe-area-inset-bottom/);
+    // Assert: sheet.tsx does NOT reference .pb-shell-safe (blast-radius boundary).
+    expect(sheetTsx).not.toMatch(/pb-shell-safe/);
+    // Assert: right variant keeps inset-y-0 (ICB-anchored top+bottom via fixed).
+    const rightVariant = sheetTsx.match(/right:\s*["']([^"']+)["']/)?.[1] ?? "";
+    expect(rightVariant).toContain("inset-y-0");
   });
 
   it("custom pull-to-refresh stays standalone-only (browser gets native PTR)", () => {

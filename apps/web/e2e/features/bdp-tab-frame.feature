@@ -48,3 +48,17 @@ Feature: BDP tab frame
     When I open the BDP for "My E2E Budget"
     And I click the "Reserves" tab pill
     Then the app main scroll surface has overscroll-behavior-y "none"
+
+  # quick-260612-a0c R2: RESERVE_TOPUP maps to the *reserves* pill
+  # (kind-pill-map.ts), so the banner renders on the reserves tab — mirrors
+  # the working seeding pattern in tasks.feature. The seeded categories give
+  # the page enough height that the native page scroll is real (the step
+  # impl asserts window.scrollY > 0 so a too-short page can never produce a
+  # false pass).
+  @tasks-geometry
+  Scenario: tasks banner is never hidden behind the pinned header in browser mode
+    Given the budget has 12 seeded categories with monthly limits
+    And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
+    When I open the reserves tab for "My E2E Budget"
+    Then the tasks banner top edge is at or below the pinned header bottom edge at rest
+    And the tasks banner top edge is at or below the pinned header bottom edge after scrolling down
