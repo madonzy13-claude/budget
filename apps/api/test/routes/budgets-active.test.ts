@@ -269,8 +269,12 @@ describe.if(DB_REACHABLE)(
     });
 
     it("returns pendingTasksCount=2 after seeding 2 PENDING tasks of different kinds", async () => {
+      // 260612-kxd addendum: the second kind used to be a CONFIRM_DRAFT with
+      // an empty payload — orphan-shaped, which the badge now correctly
+      // EXCLUDES (see the actionability test below). Use a kind that is
+      // always actionable so this test keeps pinning the plain count path.
       await seedTask({ budgetId: fix.budgetId, kind: "RESERVE_TOPUP" });
-      await seedTask({ budgetId: fix.budgetId, kind: "CONFIRM_DRAFT" });
+      await seedTask({ budgetId: fix.budgetId, kind: "CUSHION_BELOW_TARGET" });
 
       const budgets = await getActiveBudgets(fix.userId);
       const b = budgets.find((b) => b.id === fix.budgetId);
@@ -290,6 +294,30 @@ describe.if(DB_REACHABLE)(
       const b = budgets.find((b) => b.id === fix.budgetId);
       expect(b).toBeDefined();
       expect(b!.pendingTasksCount).toBe(2);
+    });
+
+    it("excludes non-actionable CONFIRM_DRAFT tasks from the badge count (banner parity)", async () => {
+      // 260612-kxd addendum: the home-card badge must match the banner —
+      // both show only ACTIONABLE tasks. Two non-actionable shapes:
+
+      // (a) orphan-shaped — empty payload, no draft row → not counted.
+      await seedTask({ budgetId: fix.budgetId, kind: "CONFIRM_DRAFT" });
+      const budgets = await getActiveBudgets(fix.userId);
+      const b = budgets.find((x) => x.id === fix.budgetId);
+      expect(b).toBeDefined();
+      expect(b!.pendingTasksCount).toBe(2);
+
+      // (b) Maczfit shape — live draft but ARCHIVED category → not counted,
+      //     while the budget's RESERVE_TOPUP still is (no over-filter).
+      const { seedDraftWithTask, seedReserveTopupTask } = await import(
+        "../../../../packages/budgeting/test/draft-task-fixtures"
+      );
+      const fx = await seedDraftWithTask({ archivedCategory: true });
+      await seedReserveTopupTask(fx);
+      const budgets2 = await getActiveBudgets(fx.userId);
+      const b2 = budgets2.find((x) => x.id === fx.budgetId);
+      expect(b2).toBeDefined();
+      expect(b2!.pendingTasksCount).toBe(1);
     });
   },
 );

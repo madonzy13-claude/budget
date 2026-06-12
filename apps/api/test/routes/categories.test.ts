@@ -459,7 +459,10 @@ describe("DELETE /categories/:id — CONFIRM_DRAFT orphan prevention (260612-kxd
     app.route("/categories", createCategoriesRoute(deps));
     app.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
 
-    // Sanity: the CONFIRM_DRAFT task is in the banner BEFORE the delete.
+    // 260612-kxd addendum: the category is ARCHIVED, so its CONFIRM_DRAFT
+    // task is non-actionable and must ALREADY be hidden from the banner
+    // BEFORE the permanent delete (read-time self-heal of the legacy
+    // Maczfit shape — archived pre-grants-fix, draft purge silently failed).
     const before = await app.request(
       `/budgets/${fx.budgetId}/tasks?status=pending`,
     );
@@ -467,13 +470,22 @@ describe("DELETE /categories/:id — CONFIRM_DRAFT orphan prevention (260612-kxd
     const beforeBody = await before.json();
     expect(
       beforeBody.tasks.some((t: { id: string }) => t.id === fx.taskId),
-    ).toBe(true);
+    ).toBe(false);
 
     // Hard-delete the archived category (purges its drafts).
     const del = await app.request(`/categories/${fx.categoryId}`, {
       method: "DELETE",
     });
     expect(del.status).toBe(204);
+
+    // The delete must also flip the row to RESOLVED in the same tx (write
+    // path stays correct even though the read already hid the task).
+    const { readTaskStatus } = await import(
+      "../../../../packages/budgeting/test/draft-task-fixtures"
+    );
+    const task = await readTaskStatus(fx.budgetId, fx.taskId);
+    expect(task).not.toBeNull();
+    expect(task?.status).toBe("RESOLVED");
 
     // Banner read AFTER: the task must be gone — no Maczfit-style orphan.
     const after = await app.request(

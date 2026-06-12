@@ -165,6 +165,22 @@ describe.skipIf(!DB_URL_RAW)(
       }
     });
 
+    it("hides a CONFIRM_DRAFT task whose category is archived (legacy Maczfit shape), keeps RESERVE_TOPUP", async () => {
+      // The live Maczfit row: draft EXISTS and is live (the archive-time purge
+      // silently failed pre-42501-grants-fix), but the category has
+      // archived_at set → the draft is invisible in the UI, the task is not
+      // actionable. The read must heal this legacy shape with no manual SQL.
+      const { svc, seedDraftWithTask, seedReserveTopupTask } = await setup();
+      const fx = await seedDraftWithTask({ archivedCategory: true });
+      const topup = await seedReserveTopupTask(fx);
+      const r = await svc({ tenantId: fx.budgetId, budgetId: fx.budgetId });
+      expect(r.isOk()).toBe(true);
+      if (r.isOk()) {
+        expect(r.value.some((t) => t.id === fx.taskId)).toBe(false);
+        expect(r.value.some((t) => t.id === topup.taskId)).toBe(true);
+      }
+    });
+
     it("keeps a CONFIRM_DRAFT task whose draft is live and unconfirmed (no over-filter)", async () => {
       const { svc, seedDraftWithTask } = await setup();
       const fx = await seedDraftWithTask();
