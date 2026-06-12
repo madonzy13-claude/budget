@@ -29,7 +29,7 @@ Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verificat
 Plan: 7 of 7 complete (all SUMMARYs present)
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
 Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
-Last activity: 2026-06-12 - Completed quick task 260612-g7v: spendings dead band (SHELL-R14/R15) — PWA approved, Safari re-check pending
+Last activity: 2026-06-12 - Completed quick task 260612-kxd: SHELL-R16 + CONFIRM_DRAFT atomicity — device checkpoint pending
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -207,6 +207,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | 260612-cdu | 2026-06-12 | iOS shell round 2: sheet autofocus pan + top inset, banner below band, grid tail clearance, browser-mode clearance floor, black band (100dvh) | complete ✓ (device T4 pending)              | [PLAN](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-PLAN.md) | [SUMMARY](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-SUMMARY.md) |
 | 260612-e82 | 2026-06-12 | iOS shell round 3: sheet X aligned to title, ResizeObserver-measured grid scroller (SHELL-R13), banner gutter trim                            | complete ✓ (device pending)                 | [PLAN](quick/260612-e82-ios-shell-round-3-sheet-x-button-alignme/260612-e82-PLAN.md) | [SUMMARY](quick/260612-e82-ios-shell-round-3-sheet-x-button-alignme/260612-e82-SUMMARY.md) |
 | 260612-g7v | 2026-06-12 | Spendings dead band: removed stacked clearances (SHELL-R14), lvh under-bar anchor + 96px browser spacer (SHELL-R15); PWA device-approved      | complete ✓ (Safari device re-check pending) | [PLAN](quick/260612-g7v-spendings-dead-band-remove-stacked-botto/260612-g7v-PLAN.md) | [SUMMARY](quick/260612-g7v-spendings-dead-band-remove-stacked-botto/260612-g7v-SUMMARY.md) |
+| 260612-kxd | 2026-06-12 | Round 5: shell-root dvh cap revert (SHELL-R16), keyboard remeasure freeze, atomic CONFIRM_DRAFT closure on archive/delete + read self-heal    | complete ✓ (device checkpoint pending)      | [PLAN](quick/260612-kxd-shell-clip-chain-dvh-grid-keyboard-remea/260612-kxd-PLAN.md) | [SUMMARY](quick/260612-kxd-shell-clip-chain-dvh-grid-keyboard-remea/260612-kxd-SUMMARY.md) |
 
 ## Deferred Items
 
