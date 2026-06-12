@@ -174,7 +174,9 @@ function probeGridMetrics(): GridMetrics | null {
     gridClientH: gridEl.clientHeight,
     gridScrollH: gridEl.scrollHeight,
     gridScrollTop: Math.round(gridEl.scrollTop),
-    gridMaxH: getComputedStyle(gridEl).maxHeight,
+    // SHELL-R14: the var is consumed as FIXED height (h-, not max-h-), so
+    // computed maxHeight is "none" — report the effect-written var instead.
+    gridMaxH: gridEl.style.getPropertyValue("--grid-max-h") || "(unset)",
     gridToEnd: gridEl.scrollHeight - gridEl.clientHeight - gridEl.scrollTop,
     gridLastRowGap,
     pageWrapPadBottom,
