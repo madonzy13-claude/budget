@@ -279,8 +279,9 @@ describe("Round 3 sheet X alignment + banner trim (SHELL-R13)", () => {
     expect(spendingsGrid).toMatch(/getBoundingClientRect/);
     // CSS var driven bound
     expect(spendingsGrid).toMatch(/--grid-max-h/);
-    // CSS var consumed in className
-    expect(spendingsGrid).toMatch(/max-h-\[var\(--grid-max-h/);
+    // CSS var consumed in className — SHELL-R14: FIXED height (h-, not max-h-)
+    // so the box reaches vv bottom even with short content (see R4-F).
+    expect(spendingsGrid).toMatch(/(?<!max-)h-\[var\(--grid-max-h/);
   });
 
   it("Test D: grid measured bound uses visualViewport height (not just innerHeight)", () => {
@@ -424,6 +425,16 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
     expect(viewportDebugR4).toMatch(/pageWrapPadBottom/);
     expect(viewportDebugR4).toMatch(/gridBoxVvDelta/);
     expect(viewportDebugR4).toMatch(/gridSpacerH/);
+  });
+
+  it("R4-J: grid consumes --grid-max-h as FIXED height (h-, not max-h-)", () => {
+    // Live geometry proof (geom-390): with max-h- the box stops short of the
+    // vv bottom whenever content height < available space (clientH 639 <
+    // maxH 666 → 27px dead band below the box). FIXED height guarantees
+    // box bottom == vv bottom regardless of content height — the entire
+    // area below the band is the scroll surface.
+    expect(spendingsGridCode).toMatch(/(?<!max-)h-\[var\(--grid-max-h/);
+    expect(spendingsGridCode).not.toMatch(/max-h-\[var\(--grid-max-h/);
   });
 });
 

@@ -501,15 +501,19 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         // horizontal swipes (UAT round 9). "none" blocks the bounce
         // entirely on this element.
         // Architecture (a) — measured bound (quick-260612-e82 R3, see ResizeObserver effect above).
-        // --grid-max-h is written by the effect: visualViewport.height − scrollerTop − BOTTOM_CLEARANCE.
+        // --grid-max-h is written by the effect: visualViewport.height − scrollerTop.
         // Because scrollerTop is MEASURED (getBoundingClientRect) it self-corrects for every band
         // above the grid (header inset, BDP band, banner) — killing the constant-rot bug.
+        // SHELL-R14: FIXED height (h-, not max-h-) so the scroller box always
+        // reaches the vv bottom even when content is shorter than the available
+        // space — the whole screen below the band is the scroll surface (no
+        // dead band where touch gestures hit the static page instead).
         // Fallback 80vh applies only pre-measure / SSR.
         // iOS WebKit ignores pb-* on scroll containers at end-of-scroll
         // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
         // scrollHeight past the last row instead.
         style={{ overscrollBehavior: "none" }}
-        className="mt-4 overflow-auto max-h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
+        className="mt-4 overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
       >
         <DndContext
           sensors={sensors}
