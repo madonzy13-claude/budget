@@ -138,11 +138,15 @@ function probeGridMetrics(): GridMetrics | null {
     (window.visualViewport?.height ?? window.innerHeight);
 
   // Walk interactive elements inside the grid to find the deepest one visible.
+  // Transaction rows are div[role="row"][data-testid^="txn-row-"], not
+  // button/li/a — include them or the probe only sees the sticky header band.
   let deepestBottom = -1;
-  gridEl.querySelectorAll("button, li, a").forEach((el) => {
-    const r = el.getBoundingClientRect();
-    if (r.height > 0 && r.bottom > deepestBottom) deepestBottom = r.bottom;
-  });
+  gridEl
+    .querySelectorAll('button, li, a, [data-testid^="txn-row-"]')
+    .forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && r.bottom > deepestBottom) deepestBottom = r.bottom;
+    });
   const gridLastRowGap =
     deepestBottom >= 0 ? Math.round(vvBottom - deepestBottom) : -1;
 

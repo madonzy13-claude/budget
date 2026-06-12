@@ -298,12 +298,18 @@ Then(
       const scrollHeight = grid.scrollHeight;
       const clientHeight = grid.clientHeight;
 
-      // Find the deepest interactive element inside the grid.
+      // Find the deepest interactive element inside the grid. Transaction
+      // rows are div[role="row"][data-testid^="txn-row-"] (NOT button/li/a) —
+      // without them the probe only sees the sticky header band (~215px) and
+      // the gap measures the header, not the last row.
       let deepestBottom = -1;
-      grid.querySelectorAll("button, li, a").forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.height > 0 && r.bottom > deepestBottom) deepestBottom = r.bottom;
-      });
+      grid
+        .querySelectorAll('button, li, a, [data-testid^="txn-row-"]')
+        .forEach((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.height > 0 && r.bottom > deepestBottom)
+            deepestBottom = r.bottom;
+        });
 
       const vvBottom =
         (window.visualViewport?.offsetTop ?? 0) +
