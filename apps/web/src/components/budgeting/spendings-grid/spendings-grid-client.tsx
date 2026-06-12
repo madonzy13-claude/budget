@@ -288,10 +288,11 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
   // top offset, which changes whenever the header inset, BDP band, banner, or soft
   // keyboard shift the layout. The constant rotted across every round.
   //
-  // Fix: measure scroller.getBoundingClientRect().top at runtime, compute
-  //   maxH = visualViewport.height − top − BOTTOM_CLEARANCE
-  // and write it into --grid-max-h on the element. The CSS class consumes the var.
-  // BOTTOM_CLEARANCE: standalone = home-indicator + slack; browser = Safari bar (~80px) + slack.
+  // Fix: measure scroller.getBoundingClientRect().top at runtime, write
+  //   --grid-max-h: max(160px, calc(100lvh - <top>px))
+  // on the element. The CSS class consumes the var. SHELL-R15: the bottom
+  // anchors to the LARGE viewport (lvh) so the box extends under Safari's
+  // translucent bar instead of clipping at its top edge (see updateMaxH).
   // The ResizeObserver fires on the element itself (its own size changes) plus window
   // resize and visualViewport resize/scroll cover keyboard, orientation, and bar collapse.
   useEffect(() => {
@@ -313,21 +314,30 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       return v;
     }
     const safeBottom = isStandalone ? probeEnvBottom() : 0;
-    // SHELL-R14 box==vv-bottom architecture: the scroller box reaches the vv
-    // bottom (no BOTTOM_CLEARANCE subtraction). ALL clearance lives inside the
-    // scrolled content as the in-flow tail spacer (data-grid-tail-spacer).
-    // iOS ignores end-of-scroll container padding (SHELL-R8..R10); the in-flow
-    // spacer is the only reliable placement. safeBottom retained for spacer use.
-    void safeBottom; // used conceptually; spacer is h-[calc(env+64px)] in JSX
+    // SHELL-R15 box-under-bar architecture: measured TOP, lvh BOTTOM.
+    // R14's box bottom (visualViewport.height − top) landed exactly at the
+    // Safari bar's TOP edge, so the overflow container CLIPPED content there
+    // — bare black page background showed in the under-bar zone (device
+    // IMG_2787) while native page-scrolling pages paint content beneath the
+    // translucent bar. Anchoring the bottom to 100lvh (large viewport):
+    //  - browser, bar shown:  box extends under the bar → content scrolls
+    //    beneath it like a native list (no clipped dead band);
+    //  - browser, bar collapsed: lvh == visible viewport → exact fit;
+    //  - standalone: lvh == screen → identical to R14 (user-approved);
+    //  - Chromium: lvh == vvh → geometry e2e unchanged.
+    // ALL clearance still lives inside the scrolled content as the in-flow
+    // tail spacer (data-grid-tail-spacer) — iOS ignores end-of-scroll
+    // container padding (SHELL-R8..R10). safeBottom retained for spacer use.
+    void safeBottom; // used conceptually; spacer height: JSX env+64 fallback,
+    // browser-mode env+96 override in global.css ([data-grid-tail-spacer]).
 
     function updateMaxH() {
       const rect = el!.getBoundingClientRect();
-      const vh =
-        typeof window !== "undefined" && window.visualViewport
-          ? window.visualViewport.height
-          : window.innerHeight;
-      const maxH = Math.max(160, Math.floor(vh - rect.top));
-      el!.style.setProperty("--grid-max-h", maxH + "px");
+      const top = Math.max(0, Math.round(rect.top));
+      el!.style.setProperty(
+        "--grid-max-h",
+        `max(160px, calc(100lvh - ${top}px))`,
+      );
     }
 
     updateMaxH();
@@ -579,8 +589,11 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
             a scroll container is ignored at the scroll tail on iOS Safari.
             A real in-flow aria-hidden block appended after all content extends
             scrollHeight so the last transaction row is reachable with clearance.
-            env(safe-area-inset-bottom) adds home-indicator room; 64px is the
-            visual breathing room beneath the last row. */}
+            Height: env+64px fallback here (= standalone, user-approved R14);
+            browser mode gets an env+96px override in global.css
+            ([data-grid-tail-spacer], unlayered) — the box now extends UNDER
+            the Safari bar (lvh bottom), so the last fully-scrolled row needs
+            bar height (~50px) + indicator-zone room to clear the VISIBLE area. */}
         <div
           aria-hidden
           data-grid-tail-spacer

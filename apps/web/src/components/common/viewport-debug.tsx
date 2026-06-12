@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R14";
+const BUILD_MARKER = "SHELL-R15";
 
 const FLAG_KEY = "vpdbg";
 
@@ -62,6 +62,9 @@ interface GridMetrics {
   pageWrapPadBottom: string;
   gridBoxVvDelta: number;
   gridSpacerH: number;
+  // SHELL-R15: box-bottom − vv-bottom. >0 in Safari bar-shown (box extends
+  // under the bar — lvh anchor working), 0 in PWA standalone and Chromium.
+  gridBoxBeyondVv: number;
 }
 
 interface Metrics {
@@ -164,8 +167,11 @@ function probeGridMetrics(): GridMetrics | null {
     el2 = el2.parentElement;
   }
 
-  // SHELL-R14: vvBottom − grid box bottom (should be ≈0 after fix).
+  // SHELL-R14: vvBottom − grid box bottom (≈0 = box not falling short).
   const gridBoxVvDelta = Math.round(vvBottom - rect.bottom);
+
+  // SHELL-R15: box bottom − vvBottom (positive = box extends UNDER the bar).
+  const gridBoxBeyondVv = Math.round(rect.bottom - vvBottom);
 
   // SHELL-R14: height of the in-flow tail spacer inside the grid.
   const spacerEl = gridEl.querySelector<HTMLElement>("[data-grid-tail-spacer]");
@@ -184,6 +190,7 @@ function probeGridMetrics(): GridMetrics | null {
     pageWrapPadBottom,
     gridBoxVvDelta,
     gridSpacerH,
+    gridBoxBeyondVv,
   };
 }
 
@@ -284,7 +291,8 @@ export function ViewportDebug() {
             toEnd {m.grid.gridToEnd} · gridLastRowGap {m.grid.gridLastRowGap}
           </div>
           <div>
-            boxVvΔ {m.grid.gridBoxVvDelta} · spacer {m.grid.gridSpacerH}
+            boxVvΔ {m.grid.gridBoxVvDelta} · beyondVv {m.grid.gridBoxBeyondVv} ·
+            spacer {m.grid.gridSpacerH}
           </div>
           <div>wrapPad {m.grid.pageWrapPadBottom}</div>
         </>
