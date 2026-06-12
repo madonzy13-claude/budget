@@ -335,6 +335,24 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     // alone would orphan its child rows. Purge every child table by category_id
     // (tenant-scoped), then the category, in one transaction.
     const r = await withTenantTx(tid, uid, async (tx) => {
+      // 260612-kxd T3: resolve CONFIRM_DRAFT tasks for this category's drafts
+      // BEFORE the expense_ledger purge below — the subquery must still see
+      // the draft rows to match payload_json->>'draft_id'. Without this,
+      // hard-deleting a category with a pending recurring draft left an
+      // orphan PENDING task (the "Maczfit" banner ghost). Idempotent
+      // (status='PENDING' guard) and double tenant-scoped (T-kxd-01).
+      await tx.execute(
+        sql`UPDATE budgeting.tasks
+               SET status = 'RESOLVED', resolved_at = now()
+             WHERE tenant_id = ${tenantId}::uuid
+               AND kind = 'CONFIRM_DRAFT'
+               AND status = 'PENDING'
+               AND payload_json->>'draft_id' IN (
+                 SELECT id::text FROM budgeting.expense_ledger
+                  WHERE category_id = ${categoryId}::uuid
+                    AND tenant_id = ${tenantId}::uuid
+               )`,
+      );
       for (const table of [
         "budgeting.expense_ledger", // transactions + drafts
         "budgeting.category_limits",

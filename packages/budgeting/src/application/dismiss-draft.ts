@@ -4,15 +4,10 @@
  * The recurring_rule keeps running; next month's draft will materialize.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
-import { withTenantTx } from "@budget/platform";
-import { TenantId, UserId } from "@budget/shared-kernel";
 import type { ExpenseLedgerDraftPortRepo } from "../ports/expense-ledger-draft-port-repo";
-import type { TaskRepo, TenantTx } from "../ports/task-repo";
 
 export interface DismissDraftDeps {
   repo: ExpenseLedgerDraftPortRepo;
-  /** Phase 7 (D-PH7-10): auto-resolve the CONFIRM_DRAFT task on dismiss. */
-  taskRepo?: TaskRepo;
 }
 
 export interface DismissDraftInput {
@@ -49,27 +44,10 @@ export function dismissDraft(deps: DismissDraftDeps) {
         return err(e as DismissDraftError);
       }
 
-      // Phase 7 (D-PH7-10) — A2 fallback: deps.repo.dismiss owns its tx
-      // (audit + outbox writes live inside); we open a separate withTenantTx
-      // for the resolve so the banner refreshes on next poll. Trade-off:
-      // a successful dismiss that races with a concurrent resolve could in
-      // principle leave the task PENDING for one poll cycle, but the partial
-      // unique index + idempotent UPDATE keeps the system convergent.
-      if (deps.taskRepo) {
-        const taskRepo = deps.taskRepo;
-        await withTenantTx(
-          TenantId(input.tenantId),
-          UserId(input.actorUserId),
-          async (tx) => {
-            await taskRepo.resolveConfirmDraftByDraftId(
-              input.tenantId,
-              input.draftId,
-              tx as unknown as TenantTx,
-            );
-          },
-        );
-      }
-
+      // 260612-kxd T3: the CONFIRM_DRAFT task resolve now lives INSIDE
+      // repo.dismiss's transaction (expense-ledger-draft-port-repo.ts) —
+      // dismiss + resolve commit together. The Phase 7 "A2 fallback"
+      // (separate withTenantTx here, one-poll orphan window) is gone.
       return ok(undefined);
     } catch (e) {
       const wrapped = Object.assign(e as Error, { kind: "Unknown" as const });

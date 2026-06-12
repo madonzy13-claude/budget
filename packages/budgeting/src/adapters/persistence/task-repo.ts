@@ -128,12 +128,32 @@ export function createTaskRepo(): TaskRepo {
         UserId(SYSTEM_USER_ID),
         async (tx) => {
           const drizzleTx = tx as DrizzleTx;
+          // 260612-kxd T3: self-heal orphan CONFIRM_DRAFT rows at read time.
+          // A CONFIRM_DRAFT task is only actionable while its draft is live
+          // (exists, not soft-deleted, not dismissed, not yet confirmed). Any
+          // delete path that misses the in-tx resolve (or pre-existing orphans
+          // like the "Maczfit" task) is hidden here on the next banner read —
+          // no manual SQL. The EXISTS subquery joins el.tenant_id to
+          // tasks.tenant_id (T-kxd-02: another tenant's draft state can never
+          // hide/heal this tenant's task).
           const res = await drizzleTx.execute(sql`
             SELECT id, budget_id, kind, status, payload_json, created_at
               FROM budgeting.tasks
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${tenantId}::uuid
                AND status = 'PENDING'
+               AND (
+                 kind <> 'CONFIRM_DRAFT'
+                 OR EXISTS (
+                   SELECT 1
+                     FROM budgeting.expense_ledger el
+                    WHERE el.id::text = tasks.payload_json->>'draft_id'
+                      AND el.tenant_id = tasks.tenant_id
+                      AND el.deleted_at IS NULL
+                      AND el.dismissed_at IS NULL
+                      AND el.confirmed_at IS NULL
+                 )
+               )
              ORDER BY created_at ASC
           `);
           return res.rows.map((row): TaskSummary => {
