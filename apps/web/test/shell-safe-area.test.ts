@@ -205,10 +205,12 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
   });
 
   it("viewport-debug BUILD_MARKER has been bumped past SHELL-R11", () => {
-    // A screenshot showing SHELL-R11 or SHELL-R12 means stale cached assets.
+    // A screenshot showing R11/R12/R13 means stale cached assets.
     expect(viewportDebug).not.toMatch(/SHELL-R11/);
     expect(viewportDebug).not.toMatch(/SHELL-R12/);
-    expect(viewportDebug).toMatch(/SHELL-R13/);
+    expect(viewportDebug).not.toMatch(/SHELL-R13/);
+    // R14+ accepted (chain advances each round)
+    expect(viewportDebug).toMatch(/SHELL-R1[4-9]/);
   });
 
   it("viewport-debug overlay probes open sheet geometry (data-sheet-content selector)", () => {
@@ -281,10 +283,11 @@ describe("Round 3 sheet X alignment + banner trim (SHELL-R13)", () => {
     expect(spendingsGrid).toMatch(/max-h-\[var\(--grid-max-h/);
   });
 
-  it("Test D: grid measured bound uses visualViewport height + bottom clearance (not just innerHeight)", () => {
-    // Root cause #2b: Safari browser floating bar overlaps grid; box bottom must sit above bar.
-    // The measurement must use visualViewport.height (not just innerHeight) AND subtract a
-    // bottom clearance so the scroller box bottom ends above the bar.
+  it("Test D: grid measured bound uses visualViewport height (not just innerHeight)", () => {
+    // Root cause #2b: measurement uses visualViewport.height so the box tracks
+    // the actual visual viewport. SHELL-R14 removes the BOTTOM_CLEARANCE
+    // subtraction (box now reaches vv bottom; clearance moves to tail spacer).
+    // The BOTTOM_CLEARANCE assertion is superseded by R4-A in the Round 4 block.
     const spendingsGrid = readFileSync(
       resolve(
         __dirname,
@@ -293,17 +296,15 @@ describe("Round 3 sheet X alignment + banner trim (SHELL-R13)", () => {
       "utf8",
     );
     expect(spendingsGrid).toMatch(/visualViewport/);
-    // A bottom clearance constant subtracted from the measured height
-    expect(spendingsGrid).toMatch(/BOTTOM_CLEARANCE/);
     // Tail spacer with env(safe-area-inset-bottom) still present (existing assertion #3)
     expect(spendingsGrid).toMatch(/env\(safe-area-inset-bottom/);
     expect(spendingsGrid).toMatch(/aria-hidden/);
   });
 
-  it("Test E: viewport-debug BUILD_MARKER is SHELL-R13 and grid block is present", () => {
-    // SHELL-R13 overlay: grid-scroller metrics (gridTop, gridMaxH, gridLastRowGap) allow
-    // device-screenshot diagnosis of any residual clearance error.
-    expect(viewportDebugR3).toMatch(/SHELL-R13/);
+  it("Test E: viewport-debug BUILD_MARKER is >= SHELL-R13 and grid block is present", () => {
+    // SHELL-R13 introduced grid-scroller metrics; R14+ continues the chain.
+    // Accept R13 OR any later marker (chain advances each round).
+    expect(viewportDebugR3).toMatch(/SHELL-R1[3-9]/);
     // Grid scroller probed
     expect(viewportDebugR3).toMatch(/spendings-grid/);
     // Grid metrics surfaced

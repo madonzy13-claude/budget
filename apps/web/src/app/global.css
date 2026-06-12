@@ -488,8 +488,15 @@ button:disabled,
     /* env(safe-area-inset-bottom) ≈ 0 in browser mode when Safari's bar is
        visible — the bar eats ~50px. An explicit floor (72px) ensures the last
        rows clear the bottom bar regardless of env resolution.
-       The standalone code path uses .pb-shell-safe — no double-pad risk. */
+       The standalone code path uses .pb-shell-safe — no double-pad risk.
+       SHELL-R14: inner-scrolling tabs opt out via :has([data-no-page-clearance])
+       so the grid scroller box is not dead-banded by this page-level floor. */
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  }
+  /* SHELL-R14: zero the browser floor for pages whose content owns the scroll
+     surface (e.g. spendings grid). :has() is safe — iOS 16.4+. */
+  main[data-shell-scroll]:has([data-no-page-clearance]) {
+    padding-bottom: 0;
   }
   /* UAT feedback: keep the header pinned during native page scroll, like
      standalone. The BDP tab band (sticky top-0) must then stick BELOW the
@@ -518,6 +525,13 @@ button:disabled,
 @media (display-mode: standalone) {
   .pb-shell-safe {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  }
+  /* SHELL-R14: zero the standalone clearance for inner-scrolling tabs.
+     The [data-no-page-clearance] wrapper neutralizes .pb-shell-safe on the
+     spendings subtree while page-scrolling tabs keep their clearance. */
+  [data-no-page-clearance],
+  [data-no-page-clearance] .pb-shell-safe {
+    padding-bottom: 0;
   }
 }
 

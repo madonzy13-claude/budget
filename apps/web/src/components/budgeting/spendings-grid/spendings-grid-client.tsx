@@ -313,8 +313,12 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       return v;
     }
     const safeBottom = isStandalone ? probeEnvBottom() : 0;
-    // Standalone: home-indicator + 16px slack. Browser: Safari bar (~50-80px) + 8px slack = 88px.
-    const BOTTOM_CLEARANCE = isStandalone ? safeBottom + 16 : 88;
+    // SHELL-R14 box==vv-bottom architecture: the scroller box reaches the vv
+    // bottom (no BOTTOM_CLEARANCE subtraction). ALL clearance lives inside the
+    // scrolled content as the in-flow tail spacer (data-grid-tail-spacer).
+    // iOS ignores end-of-scroll container padding (SHELL-R8..R10); the in-flow
+    // spacer is the only reliable placement. safeBottom retained for spacer use.
+    void safeBottom; // used conceptually; spacer is h-[calc(env+64px)] in JSX
 
     function updateMaxH() {
       const rect = el!.getBoundingClientRect();
@@ -322,7 +326,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         typeof window !== "undefined" && window.visualViewport
           ? window.visualViewport.height
           : window.innerHeight;
-      const maxH = Math.max(160, Math.floor(vh - rect.top - BOTTOM_CLEARANCE));
+      const maxH = Math.max(160, Math.floor(vh - rect.top));
       el!.style.setProperty("--grid-max-h", maxH + "px");
     }
 

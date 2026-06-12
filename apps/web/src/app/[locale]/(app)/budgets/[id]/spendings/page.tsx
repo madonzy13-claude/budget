@@ -104,32 +104,38 @@ export default async function SpendingsPage({
   const reservesEnabled = budgetMeta?.reservesEnabled ?? true;
   const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
 
+  // SHELL-R14: data-no-page-clearance opts this inner-scrolling tab out of
+  // the page-level bottom clearances (browser floor + standalone pb-shell-safe)
+  // that would dead-strip below the grid box. The grid scroller owns all
+  // vertical scroll; clearance lives in the in-flow tail spacer inside it.
   return (
-    <SpendingsGridClient
-      budgetId={budgetId}
-      budgetCurrency={
-        (summary as { budgetCurrency?: string }).budgetCurrency ?? "USD"
-      }
-      budgetTz={(summary as { budgetTz?: string }).budgetTz ?? "UTC"}
-      month={month}
-      reservesEnabled={reservesEnabled}
-      cushionEnabled={cushionEnabled}
-      initialCategories={
-        categories as Parameters<
-          typeof SpendingsGridClient
-        >[0]["initialCategories"]
-      }
-      initialTransactions={
-        transactions as Parameters<
-          typeof SpendingsGridClient
-        >[0]["initialTransactions"]
-      }
-      initialDrafts={
-        drafts as Parameters<typeof SpendingsGridClient>[0]["initialDrafts"]
-      }
-      initialSummary={
-        summary as Parameters<typeof SpendingsGridClient>[0]["initialSummary"]
-      }
-    />
+    <div data-no-page-clearance>
+      <SpendingsGridClient
+        budgetId={budgetId}
+        budgetCurrency={
+          (summary as { budgetCurrency?: string }).budgetCurrency ?? "USD"
+        }
+        budgetTz={(summary as { budgetTz?: string }).budgetTz ?? "UTC"}
+        month={month}
+        reservesEnabled={reservesEnabled}
+        cushionEnabled={cushionEnabled}
+        initialCategories={
+          categories as Parameters<
+            typeof SpendingsGridClient
+          >[0]["initialCategories"]
+        }
+        initialTransactions={
+          transactions as Parameters<
+            typeof SpendingsGridClient
+          >[0]["initialTransactions"]
+        }
+        initialDrafts={
+          drafts as Parameters<typeof SpendingsGridClient>[0]["initialDrafts"]
+        }
+        initialSummary={
+          summary as Parameters<typeof SpendingsGridClient>[0]["initialSummary"]
+        }
+      />
+    </div>
   );
 }

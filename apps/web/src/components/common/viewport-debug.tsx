@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R13";
+const BUILD_MARKER = "SHELL-R14";
 
 const FLAG_KEY = "vpdbg";
 
@@ -58,6 +58,10 @@ interface GridMetrics {
   gridMaxH: string;
   gridToEnd: number;
   gridLastRowGap: number;
+  // SHELL-R14 new metrics
+  pageWrapPadBottom: string;
+  gridBoxVvDelta: number;
+  gridSpacerH: number;
 }
 
 interface Metrics {
@@ -142,6 +146,29 @@ function probeGridMetrics(): GridMetrics | null {
   const gridLastRowGap =
     deepestBottom >= 0 ? Math.round(vvBottom - deepestBottom) : -1;
 
+  // SHELL-R14: page-wrapper computed padding-bottom (nearest .pb-shell-safe
+  // or [data-no-page-clearance] ancestor).
+  let pageWrapPadBottom = "n/a";
+  let el2: HTMLElement | null = gridEl.parentElement;
+  while (el2 && el2 !== document.body) {
+    const cs = getComputedStyle(el2);
+    if (
+      el2.classList.contains("pb-shell-safe") ||
+      el2.hasAttribute("data-no-page-clearance")
+    ) {
+      pageWrapPadBottom = cs.paddingBottom;
+      break;
+    }
+    el2 = el2.parentElement;
+  }
+
+  // SHELL-R14: vvBottom − grid box bottom (should be ≈0 after fix).
+  const gridBoxVvDelta = Math.round(vvBottom - rect.bottom);
+
+  // SHELL-R14: height of the in-flow tail spacer inside the grid.
+  const spacerEl = gridEl.querySelector<HTMLElement>("[data-grid-tail-spacer]");
+  const gridSpacerH = spacerEl ? spacerEl.offsetHeight : -1;
+
   return {
     gridTop: Math.round(rect.top),
     gridClientH: gridEl.clientHeight,
@@ -150,6 +177,9 @@ function probeGridMetrics(): GridMetrics | null {
     gridMaxH: getComputedStyle(gridEl).maxHeight,
     gridToEnd: gridEl.scrollHeight - gridEl.clientHeight - gridEl.scrollTop,
     gridLastRowGap,
+    pageWrapPadBottom,
+    gridBoxVvDelta,
+    gridSpacerH,
   };
 }
 
@@ -249,6 +279,10 @@ export function ViewportDebug() {
           <div>
             toEnd {m.grid.gridToEnd} · gridLastRowGap {m.grid.gridLastRowGap}
           </div>
+          <div>
+            boxVvΔ {m.grid.gridBoxVvDelta} · spacer {m.grid.gridSpacerH}
+          </div>
+          <div>wrapPad {m.grid.pageWrapPadBottom}</div>
         </>
       )}
       {m.sheet && (
