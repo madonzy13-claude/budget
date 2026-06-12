@@ -299,17 +299,25 @@ Then(
       const clientHeight = grid.clientHeight;
 
       // Find the deepest interactive element inside the grid. Transaction
-      // rows are div[role="row"][data-testid^="txn-row-"] (NOT button/li/a) —
-      // without them the probe only sees the sticky header band (~215px) and
-      // the gap measures the header, not the last row.
+      // rows (txn-row-*) AND draft rows (draft-row-*) are div[role="row"]
+      // (NOT button/li/a) — without [role="row"] the probe only sees the
+      // sticky header band (~215px) and the gap measures the header, not
+      // the last row.
       let deepestBottom = -1;
-      grid
-        .querySelectorAll('button, li, a, [data-testid^="txn-row-"]')
-        .forEach((el) => {
-          const r = el.getBoundingClientRect();
-          if (r.height > 0 && r.bottom > deepestBottom)
-            deepestBottom = r.bottom;
-        });
+      let deepestId = "";
+      grid.querySelectorAll('button, li, a, [role="row"]').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && r.bottom > deepestBottom) {
+          deepestBottom = r.bottom;
+          deepestId =
+            el.getAttribute("data-testid") ??
+            `${el.tagName}:${(el.textContent ?? "").slice(0, 20)}`;
+        }
+      });
+      const txnRowCount = grid.querySelectorAll(
+        '[data-testid^="txn-row-"]',
+      ).length;
+      const roleRowCount = grid.querySelectorAll('[role="row"]').length;
 
       const vvBottom =
         (window.visualViewport?.offsetTop ?? 0) +
@@ -324,6 +332,9 @@ Then(
         scrollHeight,
         clientHeight,
         deepestBottom: Math.round(deepestBottom),
+        deepestId,
+        txnRowCount,
+        roleRowCount,
         vvBottom: Math.round(vvBottom),
         gap: deepestBottom >= 0 ? Math.round(vvBottom - deepestBottom) : -1,
         boxVvDeltaAfterScroll,
