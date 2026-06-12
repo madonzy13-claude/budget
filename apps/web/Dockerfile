@@ -4,7 +4,7 @@
 # Stage 3: Minimal runtime image
 
 # Stage 1: Install
-FROM oven/bun:1.3.12-slim AS installer
+FROM oven/bun:1.3.14-slim AS installer
 
 WORKDIR /app
 
@@ -38,7 +38,7 @@ ENV GIT_COMMIT=$GIT_COMMIT
 RUN cd apps/web && bunx next build
 
 # Stage 3: Runtime
-FROM oven/bun:1.3.12-slim AS runtime
+FROM oven/bun:1.3.14-slim AS runtime
 
 WORKDIR /app
 
