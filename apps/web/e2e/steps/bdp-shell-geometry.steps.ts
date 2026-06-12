@@ -238,13 +238,17 @@ Then("the page bottom clearance is at least 48 pixels", async ({ page }) => {
   ).toBeGreaterThanOrEqual(48);
 });
 
-// ── R4: spendings grid geometry (quick-260612-g7v) ──────────────────────────
-// SHELL-R14 architecture: box bottom == vv bottom (no dead band).
+// ── R4/R5: spendings grid geometry (quick-260612-g7v) ───────────────────────
+// SHELL-R15 architecture: box bottom anchors to 100lvh — it may extend BELOW
+// the vv bottom (Safari bar shown: content paints under the translucent bar)
+// but must never FALL SHORT of it (that clips content → dead band).
 // Two-part proof:
 //   1. boxVvDelta = vvBottom - grid.getBoundingClientRect().bottom → must be
-//      Math.abs < 4 (scroller box hugs vv bottom at rest AND after scroll).
-//   2. After scroll to bottom, deepest row gap to vvBottom → [8, 96] px band
-//      (last row sits above bar via in-flow spacer, NOT 160px away, NOT flush).
+//      <= 4 (box reaches vv bottom; negative = extends below, allowed) at
+//      rest AND after scroll. Chromium: lvh == vvh → delta ≈ 0.
+//   2. After scroll to bottom, deepest row gap to vvBottom → [8, 128] px band
+//      (last row sits above the bar via the in-flow spacer — browser floor is
+//      env+96px since R15 — NOT 160px away, NOT flush).
 // Honesty guard retained: scrollTop > 50 only when scrollHeight > clientHeight+50.
 
 Then(
@@ -283,9 +287,9 @@ Then(
     });
 
     expect(
-      Math.abs(atRestMetrics.boxVvDelta),
-      `grid box bottom (${atRestMetrics.gridBottom}) must hug vv bottom (${atRestMetrics.vvBottom}); delta=${atRestMetrics.boxVvDelta}px must be < 4px at ${vp.width}x${vp.height} — dead band present`,
-    ).toBeLessThan(4);
+      atRestMetrics.boxVvDelta,
+      `grid box bottom (${atRestMetrics.gridBottom}) must reach vv bottom (${atRestMetrics.vvBottom}); shortfall=${atRestMetrics.boxVvDelta}px must be <= 4px at ${vp.width}x${vp.height} — dead band present (box may extend BELOW vv bottom: lvh anchor, SHELL-R15)`,
+    ).toBeLessThanOrEqual(4);
 
     // ── Part 2: scroll to bottom, assert last-row gap in [8, 96] ─────────────
     const metrics = await page.evaluate(() => {
@@ -357,11 +361,11 @@ Then(
       ).toBeGreaterThan(50);
     }
 
-    // Box still hugs vv bottom after scroll.
+    // Box still reaches vv bottom after scroll (may extend below — R15 lvh).
     expect(
-      Math.abs(metrics.boxVvDeltaAfterScroll),
-      `grid box bottom delta to vv bottom after scroll is ${metrics.boxVvDeltaAfterScroll}px — must be < 4px at ${vp.width}x${vp.height}`,
-    ).toBeLessThan(4);
+      metrics.boxVvDeltaAfterScroll,
+      `grid box bottom shortfall to vv bottom after scroll is ${metrics.boxVvDeltaAfterScroll}px — must be <= 4px at ${vp.width}x${vp.height}`,
+    ).toBeLessThanOrEqual(4);
 
     // Last row must never be flush/hidden under the bar (< 8 = obscured).
     expect(
@@ -375,10 +379,12 @@ Then(
     // band because the box itself reaches vv bottom (asserted above) and the
     // whole area is scroll surface.
     if (hasScrollRoom) {
+      // Browser-mode spacer floor is env+96px since SHELL-R15 (Chromium
+      // matches display-mode: browser, env→0 → spacer = 96px exactly).
       expect(
         metrics.gap,
-        `grid last row gap to vv bottom after full scroll is ${metrics.gap}px — must be <= 96 (spacer-only clearance, no dead band) at ${vp.width}x${vp.height}`,
-      ).toBeLessThanOrEqual(96);
+        `grid last row gap to vv bottom after full scroll is ${metrics.gap}px — must be <= 128 (spacer-only clearance, no dead band) at ${vp.width}x${vp.height}`,
+      ).toBeLessThanOrEqual(128);
     }
   },
 );
@@ -424,9 +430,9 @@ Then(
     });
 
     expect(
-      Math.abs(metrics.boxVvDelta),
-      `grid box bottom (${metrics.gridBottom}) delta to vv bottom (${metrics.vvBottom}) is ${metrics.boxVvDelta}px — must be < 4px at ${vp.width}x${vp.height}`,
-    ).toBeLessThan(4);
+      metrics.boxVvDelta,
+      `grid box bottom (${metrics.gridBottom}) shortfall to vv bottom (${metrics.vvBottom}) is ${metrics.boxVvDelta}px — must be <= 4px at ${vp.width}x${vp.height} (box may extend below: lvh anchor, SHELL-R15)`,
+    ).toBeLessThanOrEqual(4);
   },
 );
 
