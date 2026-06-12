@@ -350,18 +350,11 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
 
-  it("R4-A: updateMaxH formula is vh - rect.top with NO clearance subtraction", () => {
-    // The box must now extend to vv bottom. BOTTOM_CLEARANCE must NOT appear
-    // in the maxH assignment line. Strip comments so the guard comment doesn't
-    // false-match.
-    // The line must match: Math.max(160, Math.floor(vh - rect.top))
-    expect(spendingsGridCode).toMatch(
-      /Math\.max\(160,\s*Math\.floor\(vh\s*-\s*rect\.top\s*\)\)/,
-    );
-    // The maxH assignment must NOT subtract BOTTOM_CLEARANCE
-    const maxHLine =
-      spendingsGridCode.match(/const maxH\s*=\s*[^;]+;/)?.[0] ?? "";
-    expect(maxHLine).not.toMatch(/BOTTOM_CLEARANCE/);
+  it("R4-A (amended by R5): box height subtracts NO clearance constant", () => {
+    // SHELL-R15 superseded the px formula (vv.height - rect.top) with an lvh
+    // bottom anchor — see R5-A. The R4 invariant that survives: no
+    // BOTTOM_CLEARANCE (or any stacked-clearance constant) in the height math.
+    expect(spendingsGridCode).not.toMatch(/BOTTOM_CLEARANCE/);
   });
 
   it("R4-B: in-flow tail spacer still present (aria-hidden + env(safe-area-inset-bottom))", () => {
@@ -414,11 +407,13 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
     expect(bdpLayoutR4).toMatch(/pb-shell-safe/);
   });
 
-  it("R4-H: BUILD_MARKER is SHELL-R14 (not R11/R12/R13)", () => {
+  it("R4-H: BUILD_MARKER advanced past SHELL-R13 (chain marker)", () => {
+    // Exact-marker assertion lives in the latest round's block (R5-D);
+    // this guard only proves the stale R11-R13 markers are gone.
     expect(viewportDebugR4).not.toMatch(/SHELL-R11/);
     expect(viewportDebugR4).not.toMatch(/SHELL-R12/);
     expect(viewportDebugR4).not.toMatch(/SHELL-R13/);
-    expect(viewportDebugR4).toMatch(/SHELL-R14/);
+    expect(viewportDebugR4).toMatch(/SHELL-R1[4-9]/);
   });
 
   it("R4-I: viewport-debug overlay reports pageWrapPadBottom, gridBoxVvDelta, gridSpacerH", () => {
@@ -435,6 +430,81 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
     // area below the band is the scroll surface.
     expect(spendingsGridCode).toMatch(/(?<!max-)h-\[var\(--grid-max-h/);
     expect(spendingsGridCode).not.toMatch(/max-h-\[var\(--grid-max-h/);
+  });
+});
+
+describe("Round 5 — browser box extends UNDER the bar (SHELL-R15)", () => {
+  // Device round 5 (IMG_2787): PWA standalone perfect (user-approved — do NOT
+  // change), but Safari browser mode showed a residual black band exactly
+  // at/below the bottom bar. Root cause: the R14 box bottom
+  // (visualViewport.height − top) lands at the bar's TOP edge, so the
+  // overflow container CLIPS content there; native page-scrolling pages paint
+  // content under the translucent bar (canvas extends to the physical screen
+  // bottom). Fix: anchor the box bottom to the LARGE viewport (100lvh) — bar
+  // shown: box extends under the bar, content scrolls beneath it like native;
+  // bar collapsed: lvh == visible viewport → exact fit; standalone:
+  // lvh == screen → identical to R14.
+  const spendingsGrid = readFileSync(
+    resolve(
+      __dirname,
+      "../src/components/budgeting/spendings-grid/spendings-grid-client.tsx",
+    ),
+    "utf8",
+  );
+  const spendingsGridCode = spendingsGrid
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  const viewportDebugR5 = readFileSync(
+    resolve(__dirname, "../src/components/common/viewport-debug.tsx"),
+    "utf8",
+  );
+
+  it("R5-A: --grid-max-h bottom anchors to 100lvh (measured top, lvh bottom)", () => {
+    // The ResizeObserver/visualViewport-driven measured TOP stays; only the
+    // bottom basis changes from vv.height px math to the lvh CSS unit.
+    expect(spendingsGridCode).toMatch(/--grid-max-h[\s\S]{0,120}100lvh/);
+    // The old px formula (vv.height − rect.top) must be gone.
+    expect(spendingsGridCode).not.toMatch(
+      /Math\.floor\(vh\s*-\s*rect\.top\s*\)/,
+    );
+  });
+
+  it("R5-B: browser-mode tail spacer floor is 96px (bar ~50px + indicator zone)", () => {
+    // Browser mode resolves env(safe-area-inset-bottom)≈0 while the bar eats
+    // ~50px — the flat 64px spacer left the last fully-scrolled row partially
+    // hidden in the under-bar zone now that the box extends beneath the bar.
+    // Display-mode-scoped override in global.css (same scoping mechanism as
+    // the R14 clearance rules); unlayered so it beats the Tailwind utility.
+    const browserBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(browserBlock).toMatch(
+      /\[data-grid-tail-spacer\][^}]*height:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*96px\)/,
+    );
+  });
+
+  it("R5-C: standalone tail spacer is UNCHANGED (user-approved env+64 fallback)", () => {
+    // The JSX fallback class is what standalone resolves (no override there).
+    expect(spendingsGrid).toMatch(
+      /h-\[calc\(env\(safe-area-inset-bottom,0px\)\+64px\)\]/,
+    );
+    // The standalone block must NOT touch the spacer — PWA is user-approved.
+    const standaloneBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*standalone\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(standaloneBlock).not.toMatch(/data-grid-tail-spacer/);
+  });
+
+  it("R5-D: BUILD_MARKER is SHELL-R15", () => {
+    expect(viewportDebugR5).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R15["']/);
+  });
+
+  it("R5-E: overlay reports box-bottom − vv-bottom (gridBoxBeyondVv)", () => {
+    // Sign semantics: >0 in Safari bar-shown (box extends under the bar),
+    // 0 in PWA standalone and Chromium (lvh == vvh).
+    expect(viewportDebugR5).toMatch(/gridBoxBeyondVv/);
   });
 });
 
