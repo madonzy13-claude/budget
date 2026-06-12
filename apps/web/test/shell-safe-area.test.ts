@@ -313,6 +313,119 @@ describe("Round 3 sheet X alignment + banner trim (SHELL-R13)", () => {
   });
 });
 
+describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", () => {
+  const spendingsGrid = readFileSync(
+    resolve(
+      __dirname,
+      "../src/components/budgeting/spendings-grid/spendings-grid-client.tsx",
+    ),
+    "utf8",
+  );
+  const spendingsGridCode = spendingsGrid
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  const viewportDebugR4 = readFileSync(
+    resolve(__dirname, "../src/components/common/viewport-debug.tsx"),
+    "utf8",
+  );
+  const bdpLayoutR4 = readFileSync(
+    resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+    "utf8",
+  );
+  const homePageR4 = readFileSync(
+    resolve(__dirname, "../src/app/[locale]/(app)/page.tsx"),
+    "utf8",
+  );
+  const spendingsPageR4 = readFileSync(
+    resolve(
+      __dirname,
+      "../src/app/[locale]/(app)/budgets/[id]/spendings/page.tsx",
+    ),
+    "utf8",
+  );
+  const spendingsPageCode = spendingsPageR4
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  it("R4-A: updateMaxH formula is vh - rect.top with NO clearance subtraction", () => {
+    // The box must now extend to vv bottom. BOTTOM_CLEARANCE must NOT appear
+    // in the maxH assignment line. Strip comments so the guard comment doesn't
+    // false-match.
+    // The line must match: Math.max(160, Math.floor(vh - rect.top))
+    expect(spendingsGridCode).toMatch(
+      /Math\.max\(160,\s*Math\.floor\(vh\s*-\s*rect\.top\s*\)\)/,
+    );
+    // The maxH assignment must NOT subtract BOTTOM_CLEARANCE
+    const maxHLine =
+      spendingsGridCode.match(/const maxH\s*=\s*[^;]+;/)?.[0] ?? "";
+    expect(maxHLine).not.toMatch(/BOTTOM_CLEARANCE/);
+  });
+
+  it("R4-B: in-flow tail spacer still present (aria-hidden + env(safe-area-inset-bottom))", () => {
+    // All clearance lives in the spacer, not the box formula.
+    expect(spendingsGrid).toMatch(/data-grid-tail-spacer/);
+    expect(spendingsGrid).toMatch(/aria-hidden/);
+    expect(spendingsGrid).toMatch(/env\(safe-area-inset-bottom/);
+  });
+
+  it("R4-C: spendings page wrapper uses data-no-page-clearance to opt out of page-level clearance", () => {
+    // The spendings page content must carry data-no-page-clearance so the
+    // browser floor + pb-shell-safe do NOT dead-strip the inner-scrolling tab.
+    expect(spendingsPageCode).toMatch(/data-no-page-clearance/);
+    // The wrapper must NOT carry pb-shell-safe (inner scroller, not page scroll).
+    expect(spendingsPageCode).not.toMatch(/pb-shell-safe/);
+  });
+
+  it("R4-D: global.css zeros page clearances for data-no-page-clearance subtrees in both modes", () => {
+    // Standalone: [data-no-page-clearance] or its .pb-shell-safe descendant gets padding-bottom:0
+    const standaloneBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*standalone\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(standaloneBlock).toMatch(/data-no-page-clearance/);
+    // Browser: main[data-shell-scroll]:has([data-no-page-clearance]) { padding-bottom: 0 }
+    const browserBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(browserBlock).toMatch(/data-no-page-clearance/);
+  });
+
+  it("R4-E: browser floor rule still present for non-opted-out pages", () => {
+    // The main[data-shell-scroll] floor must still exist.
+    const browserBlock =
+      globalCss.match(
+        /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
+      )?.[1] ?? "";
+    expect(browserBlock).toMatch(
+      /main\[data-shell-scroll\][^}]*padding-bottom:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*(?:6[4-9]|7[0-9]|80)px\)/,
+    );
+  });
+
+  it("R4-F: home page still has pb-shell-safe (page-scrolling tab clearance retained)", () => {
+    expect(homePageR4).toMatch(/pb-shell-safe/);
+  });
+
+  it("R4-G: bdp layout.tsx still carries pb-shell-safe on the content wrapper", () => {
+    // The wrapper covers ActivePillTaskSlider + page-scrolling tab children.
+    expect(bdpLayoutR4).toMatch(/pb-shell-safe/);
+  });
+
+  it("R4-H: BUILD_MARKER is SHELL-R14 (not R11/R12/R13)", () => {
+    expect(viewportDebugR4).not.toMatch(/SHELL-R11/);
+    expect(viewportDebugR4).not.toMatch(/SHELL-R12/);
+    expect(viewportDebugR4).not.toMatch(/SHELL-R13/);
+    expect(viewportDebugR4).toMatch(/SHELL-R14/);
+  });
+
+  it("R4-I: viewport-debug overlay reports pageWrapPadBottom, gridBoxVvDelta, gridSpacerH", () => {
+    expect(viewportDebugR4).toMatch(/pageWrapPadBottom/);
+    expect(viewportDebugR4).toMatch(/gridBoxVvDelta/);
+    expect(viewportDebugR4).toMatch(/gridSpacerH/);
+  });
+});
+
 describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issues #2-5)", () => {
   const bdpLayout = readFileSync(
     resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
