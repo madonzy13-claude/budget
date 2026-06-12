@@ -282,6 +282,70 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     };
   }, []);
 
+  // Architecture (a) — runtime-measured grid scroller bound (quick-260612-e82 R3).
+  //
+  // Root cause: viewport-unit math (dvh-constant) cannot know the scroller's actual
+  // top offset, which changes whenever the header inset, BDP band, banner, or soft
+  // keyboard shift the layout. The constant rotted across every round.
+  //
+  // Fix: measure scroller.getBoundingClientRect().top at runtime, compute
+  //   maxH = visualViewport.height − top − BOTTOM_CLEARANCE
+  // and write it into --grid-max-h on the element. The CSS class consumes the var.
+  // BOTTOM_CLEARANCE: standalone = home-indicator + slack; browser = Safari bar (~80px) + slack.
+  // The ResizeObserver fires on the element itself (its own size changes) plus window
+  // resize and visualViewport resize/scroll cover keyboard, orientation, and bar collapse.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+
+    const isStandalone =
+      typeof window !== "undefined" &&
+      window.matchMedia("(display-mode: standalone)").matches;
+
+    // One-shot env probe for home-indicator height in standalone.
+    function probeEnvBottom(): number {
+      const probe = document.createElement("div");
+      probe.style.position = "fixed";
+      probe.style.paddingBottom = "env(safe-area-inset-bottom, 0px)";
+      document.body.appendChild(probe);
+      const v = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+      probe.remove();
+      return v;
+    }
+    const safeBottom = isStandalone ? probeEnvBottom() : 0;
+    // Standalone: home-indicator + 16px slack. Browser: Safari bar (~50-80px) + 8px slack = 88px.
+    const BOTTOM_CLEARANCE = isStandalone ? safeBottom + 16 : 88;
+
+    function updateMaxH() {
+      const rect = el!.getBoundingClientRect();
+      const vh =
+        typeof window !== "undefined" && window.visualViewport
+          ? window.visualViewport.height
+          : window.innerHeight;
+      const maxH = Math.max(160, Math.floor(vh - rect.top - BOTTOM_CLEARANCE));
+      el!.style.setProperty("--grid-max-h", maxH + "px");
+    }
+
+    updateMaxH();
+    const ro = new ResizeObserver(updateMaxH);
+    ro.observe(el);
+
+    window.addEventListener("resize", updateMaxH, { passive: true });
+    if (typeof window !== "undefined" && window.visualViewport) {
+      window.visualViewport.addEventListener("resize", updateMaxH);
+      window.visualViewport.addEventListener("scroll", updateMaxH);
+    }
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateMaxH);
+      if (typeof window !== "undefined" && window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", updateMaxH);
+        window.visualViewport.removeEventListener("scroll", updateMaxH);
+      }
+    };
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, {
@@ -432,17 +496,16 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         // user's gesture had a slight downward angle during column
         // horizontal swipes (UAT round 9). "none" blocks the bounce
         // entirely on this element.
-        // 100dvh (dynamic viewport height) tracks the visible area regardless
-        // of whether Safari's URL bar is shown or hidden. The previous magic
-        // constant was calibrated to the old band height before the banner
-        // moved outside the sticky wrapper (quick-260612-cdu R2); it over-
-        // constrained the box after the banner moved out. Using a less brittle
-        // offset (-128px: ~64px header + ~64px band) keeps the grid within view.
+        // Architecture (a) — measured bound (quick-260612-e82 R3, see ResizeObserver effect above).
+        // --grid-max-h is written by the effect: visualViewport.height − scrollerTop − BOTTOM_CLEARANCE.
+        // Because scrollerTop is MEASURED (getBoundingClientRect) it self-corrects for every band
+        // above the grid (header inset, BDP band, banner) — killing the constant-rot bug.
+        // Fallback 80vh applies only pre-measure / SSR.
         // iOS WebKit ignores pb-* on scroll containers at end-of-scroll
         // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
         // scrollHeight past the last row instead.
         style={{ overscrollBehavior: "none" }}
-        className="mt-4 overflow-auto max-h-[calc(100dvh-128px)] px-3 sm:px-6"
+        className="mt-4 overflow-auto max-h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
       >
         <DndContext
           sensors={sensors}

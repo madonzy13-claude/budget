@@ -205,9 +205,10 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
   });
 
   it("viewport-debug BUILD_MARKER has been bumped past SHELL-R11", () => {
-    // A screenshot showing SHELL-R11 means stale cached assets.
+    // A screenshot showing SHELL-R11 or SHELL-R12 means stale cached assets.
     expect(viewportDebug).not.toMatch(/SHELL-R11/);
-    expect(viewportDebug).toMatch(/SHELL-R12/);
+    expect(viewportDebug).not.toMatch(/SHELL-R12/);
+    expect(viewportDebug).toMatch(/SHELL-R13/);
   });
 
   it("viewport-debug overlay probes open sheet geometry (data-sheet-content selector)", () => {
@@ -221,7 +222,14 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
 
 describe("Round 3 sheet X alignment + banner trim (SHELL-R13)", () => {
   const pillTaskSlider = readFileSync(
-    resolve(__dirname, "../src/components/budgeting/tasks/pill-task-slider.tsx"),
+    resolve(
+      __dirname,
+      "../src/components/budgeting/tasks/pill-task-slider.tsx",
+    ),
+    "utf8",
+  );
+  const viewportDebugR3 = readFileSync(
+    resolve(__dirname, "../src/components/common/viewport-debug.tsx"),
     "utf8",
   );
 
@@ -250,6 +258,58 @@ describe("Round 3 sheet X alignment + banner trim (SHELL-R13)", () => {
     expect(pillCode).toMatch(/\bmb-1\.5\b/);
     // mt-3 stays
     expect(pillCode).toMatch(/\bmt-3\b/);
+  });
+
+  it("Test C: spendings grid uses ResizeObserver + getBoundingClientRect (not 100dvh-128px)", () => {
+    // Root cause #2a: viewport-unit math cannot know scroller top offset → constant rots.
+    // Architecture (a): ResizeObserver measures rect.top → computes maxH → writes --grid-max-h.
+    const spendingsGrid = readFileSync(
+      resolve(
+        __dirname,
+        "../src/components/budgeting/spendings-grid/spendings-grid-client.tsx",
+      ),
+      "utf8",
+    );
+    // Old constant must be gone
+    expect(spendingsGrid).not.toMatch(/100dvh-128px/);
+    // Runtime measurement present
+    expect(spendingsGrid).toMatch(/ResizeObserver/);
+    expect(spendingsGrid).toMatch(/getBoundingClientRect/);
+    // CSS var driven bound
+    expect(spendingsGrid).toMatch(/--grid-max-h/);
+    // CSS var consumed in className
+    expect(spendingsGrid).toMatch(/max-h-\[var\(--grid-max-h/);
+  });
+
+  it("Test D: grid measured bound uses visualViewport height + bottom clearance (not just innerHeight)", () => {
+    // Root cause #2b: Safari browser floating bar overlaps grid; box bottom must sit above bar.
+    // The measurement must use visualViewport.height (not just innerHeight) AND subtract a
+    // bottom clearance so the scroller box bottom ends above the bar.
+    const spendingsGrid = readFileSync(
+      resolve(
+        __dirname,
+        "../src/components/budgeting/spendings-grid/spendings-grid-client.tsx",
+      ),
+      "utf8",
+    );
+    expect(spendingsGrid).toMatch(/visualViewport/);
+    // A bottom clearance constant subtracted from the measured height
+    expect(spendingsGrid).toMatch(/BOTTOM_CLEARANCE/);
+    // Tail spacer with env(safe-area-inset-bottom) still present (existing assertion #3)
+    expect(spendingsGrid).toMatch(/env\(safe-area-inset-bottom/);
+    expect(spendingsGrid).toMatch(/aria-hidden/);
+  });
+
+  it("Test E: viewport-debug BUILD_MARKER is SHELL-R13 and grid block is present", () => {
+    // SHELL-R13 overlay: grid-scroller metrics (gridTop, gridMaxH, gridLastRowGap) allow
+    // device-screenshot diagnosis of any residual clearance error.
+    expect(viewportDebugR3).toMatch(/SHELL-R13/);
+    // Grid scroller probed
+    expect(viewportDebugR3).toMatch(/spendings-grid/);
+    // Grid metrics surfaced
+    expect(viewportDebugR3).toMatch(/gridMaxH|gridScrollH|gridClientH/);
+    // Grid last-row gap metric
+    expect(viewportDebugR3).toMatch(/gridLastRowGap/);
   });
 });
 

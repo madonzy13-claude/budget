@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R12";
+const BUILD_MARKER = "SHELL-R13";
 
 const FLAG_KEY = "vpdbg";
 
@@ -50,6 +50,16 @@ interface SheetMetrics {
   ancestorTransforms: string;
 }
 
+interface GridMetrics {
+  gridTop: number;
+  gridClientH: number;
+  gridScrollH: number;
+  gridScrollTop: number;
+  gridMaxH: string;
+  gridToEnd: number;
+  gridLastRowGap: number;
+}
+
 interface Metrics {
   innerH: number;
   vvH: number;
@@ -64,6 +74,7 @@ interface Metrics {
   mainScrollTop: number;
   lastRowGap: number;
   sheet: SheetMetrics | null;
+  grid: GridMetrics | null;
 }
 
 function probeEnvInset(side: "top" | "bottom"): number {
@@ -111,6 +122,37 @@ function probeOpenSheet(): SheetMetrics | null {
   };
 }
 
+function probeGridMetrics(): GridMetrics | null {
+  const gridEl = document.querySelector<HTMLElement>(
+    '[data-testid="spendings-grid"]',
+  );
+  if (!gridEl) return null;
+
+  const rect = gridEl.getBoundingClientRect();
+  const vvBottom =
+    (window.visualViewport?.offsetTop ?? 0) +
+    (window.visualViewport?.height ?? window.innerHeight);
+
+  // Walk interactive elements inside the grid to find the deepest one visible.
+  let deepestBottom = -1;
+  gridEl.querySelectorAll("button, li, a").forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.height > 0 && r.bottom > deepestBottom) deepestBottom = r.bottom;
+  });
+  const gridLastRowGap =
+    deepestBottom >= 0 ? Math.round(vvBottom - deepestBottom) : -1;
+
+  return {
+    gridTop: Math.round(rect.top),
+    gridClientH: gridEl.clientHeight,
+    gridScrollH: gridEl.scrollHeight,
+    gridScrollTop: Math.round(gridEl.scrollTop),
+    gridMaxH: getComputedStyle(gridEl).maxHeight,
+    gridToEnd: gridEl.scrollHeight - gridEl.clientHeight - gridEl.scrollTop,
+    gridLastRowGap,
+  };
+}
+
 function readMetrics(): Metrics {
   const main = document.querySelector("main[data-shell-scroll]");
   let lastRowGap = NaN;
@@ -147,6 +189,7 @@ function readMetrics(): Metrics {
     mainScrollTop: Math.round((main as HTMLElement)?.scrollTop ?? -1),
     lastRowGap,
     sheet: probeOpenSheet(),
+    grid: probeGridMetrics(),
   };
 }
 
@@ -191,6 +234,23 @@ export function ViewportDebug() {
         toEnd {m.mainScrollH - m.mainClientH - m.mainScrollTop} · lastRowGap{" "}
         {m.lastRowGap}
       </div>
+      {m.grid && (
+        <>
+          <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">
+            [grid]
+          </div>
+          <div>
+            top {m.grid.gridTop} · maxH {m.grid.gridMaxH}
+          </div>
+          <div>
+            client {m.grid.gridClientH} / scroll {m.grid.gridScrollH} st{" "}
+            {m.grid.gridScrollTop}
+          </div>
+          <div>
+            toEnd {m.grid.gridToEnd} · gridLastRowGap {m.grid.gridLastRowGap}
+          </div>
+        </>
+      )}
       {m.sheet && (
         <>
           <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">
