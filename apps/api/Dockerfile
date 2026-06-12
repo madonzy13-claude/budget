@@ -1,5 +1,5 @@
 # Stage 1: install workspace dependencies
-FROM oven/bun:1.3.12-slim AS deps
+FROM oven/bun:1.3.14-slim AS deps
 WORKDIR /app
 COPY package.json ./
 COPY apps/api/package.json apps/api/
