@@ -9,30 +9,18 @@
  */
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets-sectioned-list";
-import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
 import type { WalletDto } from "@/hooks/use-wallets";
-import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 
-async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
-  const res = await serverApiFetch(
-    budgetId,
-    `/budgets/${budgetId}/tasks?status=pending`,
-  );
-  if (!res.ok) return [];
-  const body = (await res.json()) as { tasks?: TaskSummary[] };
-  return body.tasks ?? [];
-}
+// quick-260612-a0c R2: PillTaskSlider no longer renders here — the BDP layout
+// renders the active pill's slider INSIDE the [data-bdp-tabs] sticky band so
+// it can never slide under the pinned header (see ActivePillTaskSlider).
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
-  searchParams?: Promise<{ task?: string }>;
 }
 
-export default async function WalletsPage({ params, searchParams }: PageProps) {
-  const { locale, id: budgetId } = await params;
-  const { task: focusTaskId } = (await searchParams) ?? {};
-
-  const initialTasks = await fetchInitialTasks(budgetId);
+export default async function WalletsPage({ params }: PageProps) {
+  const { id: budgetId } = await params;
 
   const [walletsRes, budgetRes] = await Promise.all([
     serverApiFetch(budgetId, "/wallets"),
@@ -74,23 +62,14 @@ export default async function WalletsPage({ params, searchParams }: PageProps) {
   // forced height; content ends where content ends and the canvas
   // fills the rest of the viewport without a visible boundary.
   return (
-    <>
-      <PillTaskSlider
+    <div className="mx-auto w-full max-w-[1280px]">
+      <WalletsSectionedList
         budgetId={budgetId}
-        locale={locale}
-        pill="wallets"
-        initialTasks={initialTasks}
-        focusTaskId={focusTaskId}
+        budgetCurrency={budgetCurrency}
+        initial={wallets}
+        reservesEnabled={reservesEnabled}
+        cushionEnabled={cushionEnabled}
       />
-      <div className="mx-auto w-full max-w-[1280px]">
-        <WalletsSectionedList
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-          initial={wallets}
-          reservesEnabled={reservesEnabled}
-          cushionEnabled={cushionEnabled}
-        />
-      </div>
-    </>
+    </div>
   );
 }

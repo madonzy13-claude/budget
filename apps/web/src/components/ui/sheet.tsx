@@ -66,6 +66,21 @@ const SheetContent = React.forwardRef<
         <span className="sr-only">Close</span>
       </SheetClose>
       {children}
+      {/* Sheets portal to body and are ICB-anchored — page-level .pb-shell-safe
+          must never reach them (quick-260612-a0c R1). The full-height left/right
+          drawers absorb the iOS home-indicator inset INSIDE the sheet via this
+          in-flow spacer. A real DOM spacer, not padding-bottom: iOS WebKit
+          ignores end-of-scroll padding on scroll containers (device-verified
+          SHELL-R8..R10), and a pb-* utility on the variant would be stripped by
+          tailwind-merge wherever callers pass p-0 (all three edit sliders do).
+          Standalone-scoped so browser mode gets no extra flex-gap row. */}
+      {(side === "left" || side === "right") && (
+        <div
+          aria-hidden
+          data-sheet-safe-area
+          className="pointer-events-none hidden h-[env(safe-area-inset-bottom,0px)] shrink-0 [@media(display-mode:standalone)]:block"
+        />
+      )}
     </SheetPrimitive.Content>
   </SheetPortal>
 ));

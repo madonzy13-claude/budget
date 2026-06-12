@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { BdpTabs } from "@/components/budgeting/bdp-tabs";
+import { ActivePillTaskSlider } from "@/components/budgeting/tasks/active-pill-task-slider";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 
 /**
@@ -15,8 +17,15 @@ import type { TaskSummary } from "@/components/budgeting/task-banner-row";
  * Membership gate (T-03-06-01): fetch /budgets/active and verify `id` is in
  * the list; on miss redirect to `/${locale}` (home) — NOT /workspaces (gone).
  *
- * Tasks-Redesign: initialTasks passed to BdpTabs (and from there to each pill's
- * PillTaskSlider). TaskBanner removed from layout — per-pill sliders replace it.
+ * Tasks-Redesign: initialTasks passed to BdpTabs (badges) and to
+ * ActivePillTaskSlider (the active pill's task strip). TaskBanner removed —
+ * per-pill sliders replace it.
+ *
+ * quick-260612-a0c R2: the active pill's PillTaskSlider renders HERE, inside
+ * the [data-bdp-tabs] sticky wrapper — NOT in the tab pages. As page content
+ * it slid under the pinned [data-shell-header] during native page scroll in
+ * browser mode. Inside the band it inherits the sticky offset + z-40 and is
+ * never occluded (matches this layout's original BDP-01 design).
  *
  * Pitfall 4 guard: every /budgets/{id}/... fetch passes `id` as the
  * serverApiFetch first arg so X-Budget-ID is set (T-03-06-08).
@@ -77,6 +86,15 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
           reservesEnabled={reservesEnabled}
           initialTasks={initialTasks}
         />
+        {/* Suspense: ActivePillTaskSlider reads useSearchParams (deep-link
+            ?task=) — boundary keeps any CSR bailout local to the strip. */}
+        <Suspense fallback={null}>
+          <ActivePillTaskSlider
+            budgetId={id}
+            locale={locale}
+            initialTasks={initialTasks}
+          />
+        </Suspense>
       </div>
       {/* pb-shell-safe: standalone-only bottom clearance INSIDE the page
           content — the only placement iOS WebKit honors (see global.css). */}

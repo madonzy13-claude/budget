@@ -103,8 +103,14 @@ describe("(app) shell clears iOS bottom UI", () => {
     //
     // Assert: right variant carries safe-area-inset-bottom compensation.
     expect(sheetTsx).toMatch(/safe-area-inset-bottom/);
-    // Assert: sheet.tsx does NOT reference .pb-shell-safe (blast-radius boundary).
-    expect(sheetTsx).not.toMatch(/pb-shell-safe/);
+    // Assert: sheet.tsx CODE does NOT reference .pb-shell-safe (blast-radius
+    // boundary). Comments are allowed to mention it — the explanatory comment
+    // in SheetContent is required — so strip comments before matching.
+    const sheetCode = sheetTsx
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(sheetCode).not.toMatch(/pb-shell-safe/);
     // Assert: right variant keeps inset-y-0 (ICB-anchored top+bottom via fixed).
     const rightVariant = sheetTsx.match(/right:\s*["']([^"']+)["']/)?.[1] ?? "";
     expect(rightVariant).toContain("inset-y-0");

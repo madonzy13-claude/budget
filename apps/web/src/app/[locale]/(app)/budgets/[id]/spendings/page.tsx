@@ -13,33 +13,23 @@
 import { Temporal } from "temporal-polyfill";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
-import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
 import { mapTxnRowToDTO } from "@/lib/txn-mapper";
-import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 
-async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
-  const res = await serverApiFetch(
-    budgetId,
-    `/budgets/${budgetId}/tasks?status=pending`,
-  );
-  if (!res.ok) return [];
-  const body = (await res.json()) as { tasks?: TaskSummary[] };
-  return body.tasks ?? [];
-}
+// quick-260612-a0c R2: PillTaskSlider no longer renders here — the BDP layout
+// renders the active pill's slider INSIDE the [data-bdp-tabs] sticky band so
+// it can never slide under the pinned header (see ActivePillTaskSlider).
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ month?: string; task?: string }>;
+  searchParams: Promise<{ month?: string }>;
 }
 
 export default async function SpendingsPage({
   params,
   searchParams,
 }: PageProps) {
-  const { locale, id: budgetId } = await params;
-  const { month: monthParam, task: focusTaskId } = await searchParams;
-
-  const initialTasks = await fetchInitialTasks(budgetId);
+  const { id: budgetId } = await params;
+  const { month: monthParam } = await searchParams;
 
   // T-04-04-01: regex-validate ?month before any use
   const month =
@@ -115,40 +105,31 @@ export default async function SpendingsPage({
   const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
 
   return (
-    <>
-      <PillTaskSlider
-        budgetId={budgetId}
-        locale={locale}
-        pill="spendings"
-        initialTasks={initialTasks}
-        focusTaskId={focusTaskId}
-      />
-      <SpendingsGridClient
-        budgetId={budgetId}
-        budgetCurrency={
-          (summary as { budgetCurrency?: string }).budgetCurrency ?? "USD"
-        }
-        budgetTz={(summary as { budgetTz?: string }).budgetTz ?? "UTC"}
-        month={month}
-        reservesEnabled={reservesEnabled}
-        cushionEnabled={cushionEnabled}
-        initialCategories={
-          categories as Parameters<
-            typeof SpendingsGridClient
-          >[0]["initialCategories"]
-        }
-        initialTransactions={
-          transactions as Parameters<
-            typeof SpendingsGridClient
-          >[0]["initialTransactions"]
-        }
-        initialDrafts={
-          drafts as Parameters<typeof SpendingsGridClient>[0]["initialDrafts"]
-        }
-        initialSummary={
-          summary as Parameters<typeof SpendingsGridClient>[0]["initialSummary"]
-        }
-      />
-    </>
+    <SpendingsGridClient
+      budgetId={budgetId}
+      budgetCurrency={
+        (summary as { budgetCurrency?: string }).budgetCurrency ?? "USD"
+      }
+      budgetTz={(summary as { budgetTz?: string }).budgetTz ?? "UTC"}
+      month={month}
+      reservesEnabled={reservesEnabled}
+      cushionEnabled={cushionEnabled}
+      initialCategories={
+        categories as Parameters<
+          typeof SpendingsGridClient
+        >[0]["initialCategories"]
+      }
+      initialTransactions={
+        transactions as Parameters<
+          typeof SpendingsGridClient
+        >[0]["initialTransactions"]
+      }
+      initialDrafts={
+        drafts as Parameters<typeof SpendingsGridClient>[0]["initialDrafts"]
+      }
+      initialSummary={
+        summary as Parameters<typeof SpendingsGridClient>[0]["initialSummary"]
+      }
+    />
   );
 }

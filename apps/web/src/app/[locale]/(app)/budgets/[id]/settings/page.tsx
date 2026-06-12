@@ -1,18 +1,10 @@
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { SettingsAccordion } from "@/components/settings/settings-accordion";
-import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
 import type { SettingsBudget } from "@/components/settings/settings-accordion";
-import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 
-async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
-  const res = await serverApiFetch(
-    budgetId,
-    `/budgets/${budgetId}/tasks?status=pending`,
-  );
-  if (!res.ok) return [];
-  const body = (await res.json()) as { tasks?: TaskSummary[] };
-  return body.tasks ?? [];
-}
+// quick-260612-a0c R2: PillTaskSlider no longer renders here — the BDP layout
+// renders the active pill's slider INSIDE the [data-bdp-tabs] sticky band so
+// it can never slide under the pinned header (see ActivePillTaskSlider).
 
 /**
  * /budgets/[id]/settings — Phase 6 settings tab.
@@ -43,9 +35,7 @@ interface BudgetApiResponse {
 }
 
 export default async function BdpSettingsPage({ params }: PageProps) {
-  const { locale, id: budgetId } = await params;
-
-  const initialTasks = await fetchInitialTasks(budgetId);
+  const { id: budgetId } = await params;
 
   const res = await serverApiFetch(budgetId, `/budgets/${budgetId}`);
   const raw: BudgetApiResponse | null = res.ok
@@ -67,17 +57,9 @@ export default async function BdpSettingsPage({ params }: PageProps) {
   };
 
   return (
-    <>
-      <PillTaskSlider
-        budgetId={budgetId}
-        locale={locale}
-        pill="settings"
-        initialTasks={initialTasks}
-      />
-      <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
-        {/* h1 omitted — the BDP tab "Settings" is already the page title. */}
-        <SettingsAccordion budget={budget} />
-      </main>
-    </>
+    <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
+      {/* h1 omitted — the BDP tab "Settings" is already the page title. */}
+      <SettingsAccordion budget={budget} />
+    </main>
   );
 }

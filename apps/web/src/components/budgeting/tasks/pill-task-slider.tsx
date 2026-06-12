@@ -83,7 +83,7 @@ export function PillTaskSlider({
     if (!focusTaskId) return;
     const inList = (tasks ?? []).some((t) => t.id === focusTaskId);
     if (inList) setExpanded(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTaskId]);
 
   useEffect(() => {
@@ -126,7 +126,9 @@ export function PillTaskSlider({
     // (logo→profile) and the BDP content: mx-auto max-w-[1280px] with the
     // header's px-4 sm:px-8 gutters. Previously full-viewport (px-3 sm:px-4),
     // which overhung the content column on desktop.
-    <div className="mx-auto mt-3 w-full max-w-[1280px] px-4 sm:px-8">
+    // mb-3: the slider now lives INSIDE the [data-bdp-tabs] sticky band
+    // (quick-260612-a0c R2) — keep a gutter above the band's border-b.
+    <div className="mx-auto mb-3 mt-3 w-full max-w-[1280px] px-4 sm:px-8">
       <div
         data-testid="pill-task-slider"
         data-pill={pill}
