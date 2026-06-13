@@ -25,6 +25,11 @@ export function appPool(): Pool {
     _appPool = new Pool({
       connectionString: requireEnv("DATABASE_URL_APP"),
       application_name: "budget-api",
+      // PERF 260613-dn1 #2: default pg max is 10 → contention collapse under
+      // parallel home-page load (72 concurrent txs for 12-budget user; parallel
+      // measured at 7261ms vs serial 1087ms). max:25 absorbs burst while keeping
+      // api(25)+worker(10) well under PG max_connections=100.
+      max: 25,
     });
   }
   return _appPool;

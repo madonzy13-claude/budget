@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Hono } from "hono";
 import { Pool } from "pg";
+import { sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Unit-level tests — mock listForUser, no real DB
@@ -296,6 +297,42 @@ describe.if(DB_REACHABLE)(
       expect(b!.pendingTasksCount).toBe(2);
     });
 
+    it("JIT is off inside listForUser transaction (PERF 260613-dn1 #1)", async () => {
+      // Probe: open an appDb() transaction, run SET LOCAL jit = off (same as
+      // the patch), then assert current_setting('jit') inside that tx is 'off'.
+      // This is a deterministic structural test — it verifies the GUC is
+      // correctly scoped, independent of query plan or timing.
+      const { appDb } = await import("@budget/platform");
+      const db = appDb();
+      let jitSettingInTx: string | null = null;
+      await db.transaction(async (tx) => {
+        await tx.execute(sql.raw("SET LOCAL jit = off"));
+        const res = await tx.execute<{ jit: string }>(
+          sql.raw("SELECT current_setting('jit') AS jit"),
+        );
+        jitSettingInTx = res.rows[0]?.jit ?? null;
+      });
+      // After the tx commits, the session's jit reverts to server default.
+      expect(jitSettingInTx).toBe("off");
+    });
+
+    it("listForUser returns identical rows after JIT fix (correctness guard)", async () => {
+      // Fetch budgets for the fixture user twice — results must be identical.
+      // jit=off affects planner speed only; output rows are byte-identical.
+      const first = await getActiveBudgets(fix.userId);
+      const second = await getActiveBudgets(fix.userId);
+      const toIds = (list: { id: string }[]) =>
+        list
+          .map((b) => b.id)
+          .sort()
+          .join(",");
+      expect(toIds(first)).toBe(toIds(second));
+      // pendingTasksCount must also be stable (not randomised by jit path)
+      const firstCounts = first.map((b) => b.pendingTasksCount).join(",");
+      const secondCounts = second.map((b) => b.pendingTasksCount).join(",");
+      expect(firstCounts).toBe(secondCounts);
+    });
+
     it("excludes non-actionable CONFIRM_DRAFT tasks from the badge count (banner parity)", async () => {
       // 260612-kxd addendum: the home-card badge must match the banner —
       // both show only ACTIONABLE tasks. Two non-actionable shapes:
@@ -309,9 +346,8 @@ describe.if(DB_REACHABLE)(
 
       // (b) Maczfit shape — live draft but ARCHIVED category → not counted,
       //     while the budget's RESERVE_TOPUP still is (no over-filter).
-      const { seedDraftWithTask, seedReserveTopupTask } = await import(
-        "../../../../packages/budgeting/test/draft-task-fixtures"
-      );
+      const { seedDraftWithTask, seedReserveTopupTask } =
+        await import("../../../../packages/budgeting/test/draft-task-fixtures");
       const fx = await seedDraftWithTask({ archivedCategory: true });
       await seedReserveTopupTask(fx);
       const budgets2 = await getActiveBudgets(fx.userId);

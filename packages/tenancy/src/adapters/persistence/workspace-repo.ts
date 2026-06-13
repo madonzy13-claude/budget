@@ -98,6 +98,14 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         }
       }
 
+      // PERF 260613-dn1 #1: planner mis-estimates the correlated EXISTS
+      // pending-tasks subquery at cost ~504k (> jit_above_cost 100k) → 882ms
+      // JIT compile for a 41ms query. SET LOCAL scopes jit=off to THIS tx only
+      // (NOT a global server jit=off, which would slow legitimate analytics).
+      // withUserContext opens one appDb().transaction; SET LOCAL auto-reverts at
+      // COMMIT — no global server change, RLS tenant isolation unchanged.
+      await tx.execute(sql.raw("SET LOCAL jit = off"));
+
       const result = await tx.execute<{
         id: string;
         slug: string;
