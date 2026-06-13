@@ -395,18 +395,7 @@ CREATE POLICY wallets_worker_cron_scan ON budgeting.wallets
   AS PERMISSIVE FOR SELECT TO worker_role
   USING (true);
 
--- D-04 / TENT-11: default_currency immutable post-create.
-CREATE OR REPLACE FUNCTION tenancy.budgets_block_currency_change() RETURNS trigger AS $$
-BEGIN
-  IF NEW.default_currency IS DISTINCT FROM OLD.default_currency THEN
-    RAISE EXCEPTION 'default_currency is immutable post-create (TENT-11, D-04)';
-  END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS budgets_currency_immutable ON tenancy.budgets;
-CREATE TRIGGER budgets_currency_immutable
-  BEFORE UPDATE ON tenancy.budgets
-  FOR EACH ROW EXECUTE FUNCTION tenancy.budgets_block_currency_change();
+-- D-04/TENT-11 currency lock is enforced in the app layer (budget-identity route + workspaceRepo.hasTransactions); the old DB trigger was over-broad (blocked zero-tx) and was removed in migration 0035.
 
 -- PC-11 (TENT-10, D-02): TOCTOU race-free PRIVATE-cap guard. Postgres unique partial indexes
 -- cannot reference subqueries, so we use a BEFORE INSERT trigger that runs in the same tx

@@ -108,14 +108,40 @@ describe("Budget identity routes (SETT-02)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("PATCH /budgets/:id with default_currency when budget has transactions → 409", async () => {
-    const app = buildApp({ user: { id: "user-001" } });
+  it("PATCH /budgets/:id with default_currency when budget has transactions → 409, updateIdentity NOT called", async () => {
+    let called = false;
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
+      hasTransactions: true,
+      updateIdentitySpy: () => {
+        called = true;
+      },
+    });
     const res = await app.request("/budgets/budget-001", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ default_currency: "EUR" }),
     });
     expect(res.status).toBe(409);
+    expect(called).toBe(false);
+  });
+
+  // quick-260613-nkb: the bug — a ZERO-transaction budget MUST be able to change
+  // its default currency (200 + updateIdentity called with { defaultCurrency }).
+  it("PATCH /budgets/:id with default_currency on a ZERO-transaction budget → 200, updateIdentity called", async () => {
+    let captured: Record<string, unknown> | null = null;
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
+      hasTransactions: false,
+      updateIdentitySpy: (_id, patch) => {
+        captured = patch;
+      },
+    });
+    const res = await app.request("/budgets/budget-001", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ default_currency: "EUR" }),
+    });
+    expect(res.status).toBe(200);
+    expect(captured).toEqual({ defaultCurrency: "EUR" });
   });
 
   it("PATCH /budgets/:id by non-owner member → 403 (T-06-02-00 owner gate)", async () => {

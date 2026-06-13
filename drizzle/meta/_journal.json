@@ -239,6 +239,13 @@
       "when": 1749815000000,
       "tag": "0034_budget_nav_perf_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0035_drop_currency_immutable_trigger",
+      "breakpoints": true
     }
   ]
 }

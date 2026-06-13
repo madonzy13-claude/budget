@@ -10,6 +10,51 @@ export interface OrgDeps {
   appUrl: string;
 }
 
+/**
+ * D-04/TENT-11 currency lock — TRANSACTION-AWARE (quick-260613-nkb).
+ *
+ * Mirrors workspaceRepo.hasTransactions exactly: a budget's default_currency is
+ * editable until the first non-deleted budgeting.expense_ledger row, then locked.
+ * Throws if locked; resolves silently if allowed. Exported so it is unit-testable
+ * without driving Better Auth's HTTP/session machinery.
+ *
+ * @throws Error when the budget already has a non-deleted transaction.
+ */
+export async function assertCurrencyChangeAllowed(input: {
+  orgId: string;
+  actorUserId: string;
+}): Promise<void> {
+  const { orgId, actorUserId } = input;
+  if (!orgId) {
+    // Cannot determine which budget — stay conservative (do NOT silently allow).
+    throw new Error(
+      "default_currency change rejected: budget id could not be resolved (TENT-11, D-04)",
+    );
+  }
+  const safeId = orgId.replace(/[^a-fA-F0-9-]/g, "");
+  const r = await withTenantTx(
+    TenantId(orgId),
+    UserId(actorUserId || orgId),
+    async (tx) => {
+      // Mirror hasTransactions: set app.tenant_ids so RLS exposes the ledger row.
+      await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeId}}'`));
+      const res = await tx.execute<{ exists: boolean }>(sql`
+        SELECT EXISTS(
+          SELECT 1 FROM budgeting.expense_ledger
+          WHERE budget_id = ${orgId}::uuid AND deleted_at IS NULL
+        ) AS exists
+      `);
+      return res.rows[0]?.exists ?? false;
+    },
+  );
+  if (r.isErr()) throw r.error;
+  if (r.value) {
+    throw new Error(
+      "default_currency is locked after the first transaction (TENT-11, D-04)",
+    );
+  }
+}
+
 export function createOrganizationPlugin(deps: OrgDeps) {
   return organization({
     // TENT-09: unlimited orgs per user
@@ -90,19 +135,42 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         }
       },
 
-      // D-04: default_currency immutable
-
+      // D-04/TENT-11: default_currency locked only AFTER the first transaction (matches app guard).
+      // quick-260613-nkb: the PATCH /budgets/:id route bypasses Better Auth (it calls
+      // workspaceRepo.updateIdentity directly), so this hook is DORMANT for the active
+      // bug — but we relax it to the SAME transaction-aware rule so every write path is
+      // consistent and the latent unconditional-throw trap is removed. The invariant is
+      // preserved: a budget WITH a non-deleted transaction still cannot change currency.
       beforeUpdateOrganization: async (params: any) => {
-        // 'data' contains proposed updates — block if it includes default_currency at all
-        const data = params.data ?? params;
+        // Better Auth passes { organization: ctx.body.data, user, member } to this
+        // hook (see better-auth/.../routes/crud-org.mjs). `organization` here is the
+        // PROPOSED update payload (not the persisted org). Tolerate the older flat
+        // shape (`params.data`) for safety.
+        const data = params.organization ?? params.data ?? params;
         if (
-          (data as { default_currency?: unknown }).default_currency !==
+          (data as { default_currency?: unknown }).default_currency ===
           undefined
         ) {
-          throw new Error(
-            "default_currency is immutable post-create (TENT-11, D-04)",
-          );
+          return; // nothing to check — same as before
         }
+
+        // Resolve the budget (org) id. Better Auth gives us `member.organizationId`
+        // (the org being updated); fall back to other shapes for robustness.
+        const orgId =
+          (params as { member?: { organizationId?: string } }).member
+            ?.organizationId ??
+          (params as { organizationId?: string }).organizationId ??
+          (data as { organizationId?: string; id?: string }).organizationId ??
+          (data as { id?: string }).id ??
+          "";
+        // actor for the tx: prefer the session user; else the membership user id.
+        const actorUserId =
+          (params as { user?: { id?: string } }).user?.id ??
+          (params as { member?: { userId?: string } }).member?.userId ??
+          (params as { userId?: string }).userId ??
+          "";
+        // Shared transaction-aware rule (also exercised directly in tests).
+        await assertCurrencyChangeAllowed({ orgId, actorUserId });
       },
 
       // D-06: SHARED budget gains member → insert 0% share row.
