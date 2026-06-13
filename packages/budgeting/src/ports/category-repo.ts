@@ -35,11 +35,16 @@ export interface CategoryRepo {
     actorUserId: string,
     opts?: { archivedFrom?: string | null; hideAll?: boolean },
   ): Promise<void>;
+  /**
+   * Rename a category, optionally recoloring it in the same write (260613-v1p).
+   * Pass opts.colorKey to set/clear the color; omit opts to leave color untouched.
+   */
   rename(
     tenantId: string,
     categoryId: string,
     newName: string,
     actorUserId: string,
+    opts?: { colorKey: string | null },
   ): Promise<void>;
   /**
    * Unarchive a category. Clears archived_from and archived_at (set both NULL),

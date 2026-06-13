@@ -147,6 +147,102 @@ describe("POST /categories", () => {
   });
 });
 
+// 260613-v1p: per-category color must PERSIST end-to-end (survives reload).
+// Verified gap: colorKey was dropped by createCategorySchema, never SELECTed,
+// and read as a dead `(c as any).colorKey` that was always null. Migration 0036
+// adds budgeting.categories.color_key; these assert the full round-trip.
+describe("category color persistence (260613-v1p)", () => {
+  beforeAll(async () => {
+    const t = await createTestUser();
+    testUserId = t.userId;
+    testTenantId = t.tenantId;
+  });
+
+  it("POST {name, colorKey:'blue'} → GET /:id returns colorKey 'blue'", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Groceries v1p", colorKey: "blue" }),
+      })
+    ).json();
+    expect(created.category.colorKey).toBe("blue");
+
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBe("blue");
+  });
+
+  it("POST with no colorKey → colorKey null", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Colorless v1p" }),
+      })
+    ).json();
+    expect(created.category.colorKey).toBeNull();
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBeNull();
+  });
+
+  it("PATCH {name, colorKey:'red'} → GET /:id returns colorKey 'red'", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Recolor v1p", colorKey: "green" }),
+      })
+    ).json();
+    const patched = await app.request(`/categories/${created.category.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Recolor v1p", colorKey: "red" }),
+    });
+    expect(patched.status).toBe(200);
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBe("red");
+  });
+
+  it("PATCH {name, colorKey:null} clears the color", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Clear v1p", colorKey: "purple" }),
+      })
+    ).json();
+    await app.request(`/categories/${created.category.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Clear v1p", colorKey: null }),
+    });
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBeNull();
+  });
+
+  it("POST with unknown colorKey 'mauve' → 422 (zod enum)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Bad color v1p", colorKey: "mauve" }),
+    });
+    expect(res.status).toBe(422);
+  });
+});
+
 describe("GET /categories", () => {
   beforeAll(async () => {
     const t = await createTestUser();

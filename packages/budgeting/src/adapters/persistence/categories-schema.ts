@@ -26,6 +26,10 @@ export const categories = budgeting.table(
     tenantId: uuid("tenant_id").notNull(),
     name: text("name").notNull(),
     parentId: uuid("parent_id"),
+    // 260613-v1p: per-category color cue. Nullable (NULL = no color = no accent
+    // bar). Values constrained to the 8 palette keys at the API/zod boundary; the
+    // column stays plain text so a future palette change needs no migration.
+    colorKey: text("color_key"),
     // scope column DROPPED in v1.1 (D-13): visibility is budget-level, not per-category
     sortIndex: integer("sort_index").notNull().default(0),
     archivedAt: timestamp("archived_at", { withTimezone: true }),

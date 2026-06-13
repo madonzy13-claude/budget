@@ -20,6 +20,7 @@ function rowToCategory(row: {
   created_at: Date;
   actor_user_id: string;
   sort_index?: number;
+  color_key?: string | null;
 }): Category {
   const { Category: CategoryClass } = require("../../domain/category");
   const cat = new CategoryClass(
@@ -30,6 +31,7 @@ function rowToCategory(row: {
     row.archived_at ? new Date(row.archived_at) : null,
     new Date(row.created_at),
     row.actor_user_id,
+    row.color_key ?? null,
   );
   // Attach sort_index + archived_from as plain properties (domain class doesn't
   // track them — adapter concern). archivedFrom drives the grid's greyed,
@@ -49,10 +51,11 @@ export class DrizzleCategoryRepo implements CategoryRepo {
       // last (rightmost) in the grid instead of defaulting to 0.
       await tx.execute(
         sql`INSERT INTO budgeting.categories
-              (id, tenant_id, name, parent_id, archived_at, created_at, actor_user_id, sort_index)
+              (id, tenant_id, name, parent_id, color_key, archived_at, created_at, actor_user_id, sort_index)
             VALUES
               (${category.id}::uuid, ${category.tenantId}::uuid, ${category.name},
                ${category.parentId ? sql`${category.parentId}::uuid` : sql`NULL`},
+               ${category.colorKey ?? null},
                ${category.archivedAt?.toISOString() ?? null},
                ${category.createdAt.toISOString()}, ${category.actorUserId}::uuid,
                (SELECT COALESCE(MAX(sort_index), -1) + 1
@@ -70,6 +73,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         after: {
           name: category.name,
           parentId: category.parentId,
+          colorKey: category.colorKey,
         },
       });
 
@@ -102,8 +106,9 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         created_at: Date;
         actor_user_id: string;
         sort_index: number;
+        color_key: string | null;
       }>(
-        sql`SELECT id, tenant_id, name, parent_id::text, archived_at, archived_from::text, created_at, actor_user_id, sort_index
+        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index
             FROM budgeting.categories
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
@@ -136,9 +141,10 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         created_at: Date;
         actor_user_id: string;
         sort_index: number;
+        color_key: string | null;
       }>(
         includeArchived
-          ? sql`SELECT id, tenant_id, name, parent_id::text, archived_at, archived_from, created_at, actor_user_id, sort_index
+          ? sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                 ORDER BY sort_index ASC, created_at ASC`
@@ -146,7 +152,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
             // visible THROUGH its archived_from month (>= M) so the current month
             // still shows it (greyed, read-only); only FUTURE months (M after
             // archived_from) drop it. Fully-removed (archived_at) is always hidden.
-            sql`SELECT id, tenant_id, name, parent_id::text, archived_at, archived_from, created_at, actor_user_id, sort_index
+            sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                   AND archived_at IS NULL
@@ -421,16 +427,28 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     categoryId: string,
     newName: string,
     actorUserId: string,
+    opts?: { colorKey: string | null },
   ): Promise<void> {
     const tid = TenantId(tenantId);
     const uid = UserId(actorUserId);
+    // 260613-v1p: recolor in the same UPDATE only when opts is present
+    // (presence-aware), so a rename-only edit never wipes the stored color.
+    const recolor = opts !== undefined;
 
     const r = await withTenantTx(tid, uid, async (tx) => {
-      await tx.execute(
-        sql`UPDATE budgeting.categories
-            SET name = ${newName}
-            WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
-      );
+      if (recolor) {
+        await tx.execute(
+          sql`UPDATE budgeting.categories
+              SET name = ${newName}, color_key = ${opts!.colorKey ?? null}
+              WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+        );
+      } else {
+        await tx.execute(
+          sql`UPDATE budgeting.categories
+              SET name = ${newName}
+              WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+        );
+      }
 
       await writeAudit(tx, {
         tenantId: tid,
@@ -439,7 +457,9 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         action: "update",
         actorUserId: uid,
         before: null,
-        after: { name: newName },
+        after: recolor
+          ? { name: newName, colorKey: opts!.colorKey ?? null }
+          : { name: newName },
       });
 
       await writeOutbox(tx, {

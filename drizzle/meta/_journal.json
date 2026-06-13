@@ -246,6 +246,13 @@
       "when": 1781600000000,
       "tag": "0035_drop_currency_immutable_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781735400000,
+      "tag": "0036_category_color_key",
+      "breakpoints": true
     }
   ]
 }

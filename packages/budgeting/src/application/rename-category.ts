@@ -15,6 +15,10 @@ export function renameCategory(deps: RenameCategoryDeps) {
     categoryId: string;
     name: string;
     actorUserId: string;
+    // 260613-v1p: optional recolor in the same PATCH. undefined → leave color
+    // untouched; null → clear it; a key → set it. The route passes through
+    // exactly what zod parsed (presence-aware).
+    colorKey?: string | null;
   }): Promise<Result<CategoryDto, Error>> => {
     const category = await deps.repo.findById(input.tenantId, input.categoryId);
     if (!category) {
@@ -24,12 +28,18 @@ export function renameCategory(deps: RenameCategoryDeps) {
     const result = category.rename(input.name);
     if (result.isErr()) return err(result.error);
 
+    // Only recolor when colorKey was explicitly provided (presence-aware), so a
+    // rename-only PATCH never wipes an existing color.
+    const recolor = input.colorKey !== undefined;
+    if (recolor) category.recolor(input.colorKey ?? null);
+
     try {
       await deps.repo.rename(
         input.tenantId,
         input.categoryId,
         input.name,
         input.actorUserId,
+        recolor ? { colorKey: input.colorKey ?? null } : undefined,
       );
     } catch (e) {
       return err(e as Error);
@@ -41,6 +51,7 @@ export function renameCategory(deps: RenameCategoryDeps) {
       parentId: category.parentId,
       archivedAt: category.archivedAt?.toISOString() ?? null,
       createdAt: category.createdAt.toISOString(),
+      colorKey: category.colorKey,
     });
   };
 }

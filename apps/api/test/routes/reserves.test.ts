@@ -70,10 +70,11 @@ async function createFixture(currency = "EUR"): Promise<Fixture> {
     await client.query(
       `SELECT set_config('app.current_user_id', '${userId}', true)`,
     );
-    // Two categories.
+    // Two categories. Grocery carries a color (260613-v1p) so the reserves DTO
+    // must thread colorKey through; Housing stays colorless (null → no bar).
     await client.query(
-      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
-       VALUES ($1, $2, 'Grocery', now(), $3), ($4, $2, 'Housing', now(), $3)`,
+      `INSERT INTO budgeting.categories (id, tenant_id, name, color_key, created_at, actor_user_id)
+       VALUES ($1, $2, 'Grocery', 'blue', now(), $3), ($4, $2, 'Housing', NULL, now(), $3)`,
       [groceryId, budgetId, userId, housingId],
     );
     // Limits (normal 300 / 500; cushion 300 / 250) so the engine has an
@@ -233,6 +234,15 @@ describe("GET /budgets/:id/reserves", () => {
     expect(row.reserveCents).toBe("0");
     expect(row.usedCents).toBe("0");
     expect(row.overspentCents).toBe("0");
+  });
+
+  it("rows carry the category colorKey (260613-v1p); colorless category → null", async () => {
+    const res = await app.request(`/budgets/${fix.budgetId}/reserves`);
+    const body = (await res.json()) as any;
+    const grocery = body.rows.find((r: any) => r.categoryId === fix.groceryId);
+    const housing = body.rows.find((r: any) => r.categoryId === fix.housingId);
+    expect(grocery.colorKey).toBe("blue");
+    expect(housing.colorKey).toBeNull();
   });
 
   it("totals carry internal/userDefined/surplus/direction and NOT the dead totals keys", async () => {

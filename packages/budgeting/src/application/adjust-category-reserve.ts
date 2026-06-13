@@ -92,6 +92,7 @@ async function buildSummary(
         id: c.id,
         name: c.name,
         reserveExcluded: c.reserveExcluded ?? false,
+        colorKey: c.colorKey ?? null,
       })),
       budgetCurrency,
       disabled: false,

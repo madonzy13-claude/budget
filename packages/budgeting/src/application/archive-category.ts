@@ -109,6 +109,7 @@ export function archiveCategory(deps: ArchiveCategoryDeps) {
       // "keep history" leaves archived_at NULL (still visible in past months).
       archivedAt: keepHistory ? null : now.toISOString(),
       createdAt: category.createdAt.toISOString(),
+      colorKey: category.colorKey ?? null,
     });
   };
 }

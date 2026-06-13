@@ -17,6 +17,8 @@ export interface CategoryRow {
   archivedAt: Date | null;
   /** Present on list(); 0 when never touched. Drives drag-reorder ordering. */
   sortIndex?: number;
+  /** 260613-v1p: per-category color key (null = no color → no reserves-row bar). */
+  colorKey: string | null;
 }
 
 export interface CategoriesRepo {

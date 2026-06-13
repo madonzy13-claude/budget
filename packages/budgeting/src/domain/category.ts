@@ -15,7 +15,15 @@ export class Category {
     public archivedAt: Date | null,
     public readonly createdAt: Date,
     public readonly actorUserId: string,
+    // 260613-v1p: per-category color key (one of the 8 palette keys) or null.
+    // Mutable so editCategory can recolor; drives the UI accent bar only.
+    public colorKey: string | null = null,
   ) {}
+
+  /** Set or clear the category color (260613-v1p). null clears it (→ no bar). */
+  recolor(colorKey: string | null): void {
+    this.colorKey = colorKey;
+  }
 
   isRoot(): boolean {
     return this.parentId === null;

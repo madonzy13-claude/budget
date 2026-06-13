@@ -23,6 +23,7 @@ export function findCategoryById(deps: FindCategoryByIdDeps) {
         parentId: cat.parentId,
         archivedAt: cat.archivedAt?.toISOString() ?? null,
         createdAt: cat.createdAt.toISOString(),
+        colorKey: cat.colorKey ?? null,
       });
     } catch (e) {
       return err(e as Error);

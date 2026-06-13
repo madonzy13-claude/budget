@@ -172,6 +172,7 @@ export function unarchiveCategory(deps: UnarchiveCategoryDeps) {
       parentId: category.parentId,
       archivedAt: null,
       createdAt: category.createdAt.toISOString(),
+      colorKey: category.colorKey ?? null,
     });
   };
 }

@@ -23,6 +23,7 @@ export function listCategories(deps: ListCategoriesDeps) {
           parentId: c.parentId,
           archivedAt: c.archivedAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
+          colorKey: c.colorKey ?? null,
         })),
       );
     } catch (e) {

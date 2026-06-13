@@ -165,6 +165,7 @@ export function updateWallet(deps: UpdateWalletDeps) {
             id: c.id,
             name: c.name,
             reserveExcluded: c.reserveExcluded ?? false,
+            colorKey: c.colorKey ?? null,
           })),
           budgetCurrency: budgetCcy,
           disabled: !enabled,
