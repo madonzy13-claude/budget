@@ -29,7 +29,7 @@ Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verificat
 Plan: 7 of 7 complete (all SUMMARYs present)
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
 Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
-Last activity: 2026-06-13 - Completed quick task 260613-pdb: reserves one-row message, cushion preview guard, BDP single loading skeleton
+Last activity: 2026-06-13 - Completed quick task 260613-v1p: category color persisted (migration 0036) + 4px accent bar on spendings/reserves, icon picker removed
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -215,6 +215,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | 260613-jp6 | 2026-06-13 | Spendings loading skeleton now mirrors the column-card grid (month nav + 3 column cards w/ planned/overspent/reserves/left rows + expenses input) instead of a generic list                                                                                                                        | complete ✓ (deployed)                            | —                                                                                    | [SUMMARY](quick/260613-jp6-spendings-loading-tsx-skeleton-must-mirr/260613-jp6-SUMMARY.md) |
 | 260613-nkb | 2026-06-13 | Fix currency change blocked on zero-transaction budgets: dropped stale `budgets_currency_immutable` DB trigger (migration 0035 + post-migration.sql), relaxed Better Auth hook to transaction-aware rule; app guard preserves lock-after-first-transaction. Live: zero-tx EUR→USD 200, with-tx 409 | complete ✓ (live-verified)                       | [PLAN](quick/260613-nkb-fix-currency-change-blocked-on-zero-tran/260613-nkb-PLAN.md) | [SUMMARY](quick/260613-nkb-fix-currency-change-blocked-on-zero-tran/260613-nkb-SUMMARY.md) |
 | 260613-pdb | 2026-06-13 | Reserves noCategories shortened to one row (en/pl/uk); cushion preview hidden when required=0 (no "Have 0 of 0 — target met"); BDP double-skeleton collapsed to one via non-suspending layout + Suspense data child (membership gate preserved), deleted generic loading.tsx                       | complete ✓ (live e2e 5/5)                        | [PLAN](quick/260613-pdb-reserves-nocategories-one-row-text-hide-/260613-pdb-PLAN.md) | [SUMMARY](quick/260613-pdb-reserves-nocategories-one-row-text-hide-/260613-pdb-SUMMARY.md) |
+| 260613-v1p | 2026-06-13 | Category color: persisted end-to-end (migration 0036 color_key — was never stored before; zod silently dropped it), rendered as 4px left accent bar on spendings columns + reserves rows (shared category-colors map); removed dead icon picker (no icon_key column ever existed)                  | complete ✓ (live-verified)                       | [PLAN](quick/260613-v1p-remove-category-icon-picker-render-categ/260613-v1p-PLAN.md) | [SUMMARY](quick/260613-v1p-remove-category-icon-picker-render-categ/260613-v1p-SUMMARY.md) |
 
 ## Deferred Items
 
