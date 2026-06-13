@@ -840,7 +840,9 @@
           "active": "Aktywne",
           "included": "Dołączone",
           "excluded": "Wykluczone",
-          "excludedEmpty": "Brak wykluczonych kategorii — przeciągnij tutaj kategorię, aby ją wykluczyć"
+          "excludedEmpty": "Brak wykluczonych kategorii — przeciągnij tutaj kategorię, aby ją wykluczyć",
+          "noCategories": "Brak kategorii — najpierw dodaj kategorię na karcie Wydatki",
+          "includedEmpty": "Brak dołączonych kategorii — przeciągnij tutaj kategorię, aby ją dołączyć"
         },
         "column": {
           "category": "Kategoria",

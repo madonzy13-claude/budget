@@ -347,7 +347,11 @@ export function ReservesTableClient({
             />
           ))}
           {activeRows.length === 0 && (
-            <div className="px-3 py-2 text-caption text-[var(--muted-foreground)]" />
+            <div className="px-3 py-2 text-caption text-[var(--muted-foreground)]">
+              {excludedRows.length === 0
+                ? t("section.noCategories")
+                : t("section.includedEmpty")}
+            </div>
           )}
         </ActiveSection>
 

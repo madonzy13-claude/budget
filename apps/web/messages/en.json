@@ -817,7 +817,9 @@
           "active": "Active",
           "included": "Included",
           "excluded": "Excluded",
-          "excludedEmpty": "No excluded categories — drag a category here to exclude"
+          "excludedEmpty": "No excluded categories — drag a category here to exclude",
+          "noCategories": "No categories yet — add a category in the Spendings tab first",
+          "includedEmpty": "No included categories — drag a category here to include"
         },
         "column": {
           "category": "Category",
