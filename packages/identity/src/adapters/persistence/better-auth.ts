@@ -94,6 +94,27 @@ export function createAuth(opts: CreateAuthOptions) {
       autoSignInAfterVerification: true,
       expiresIn: 86400,
     },
+    // 260613-hig T3: short-TTL signed cookie cache to avoid a DB session lookup
+    // on EVERY API request. A spendings nav fires ~8 parallel fetches — each
+    // previously hit identity.sessions. With cookieCache enabled, getSession reads
+    // the signed session snapshot from the cookie instead of querying the DB.
+    //
+    // maxAge 60s: session revocation (logout / expiry) takes effect within one
+    // minute — acceptable UX (session cookie itself is also expired on sign-out
+    // so the browser stops sending it immediately; only a manually crafted
+    // request within the 60s window would get the cached session).
+    //
+    // refreshCache is intentionally omitted: in the stateful DB setup, setting
+    // refreshCache=true triggers a warning + no-op. Without it, Better Auth uses
+    // the cookieRefreshCache=false path — reads from the signed cookie only,
+    // no DB round-trip. Session DB is still the source of truth for new sessions
+    // and token rotation; the cache is a read-time optimisation only.
+    session: {
+      cookieCache: {
+        enabled: true,
+        maxAge: 60, // 60s TTL — revocation effective within one minute
+      },
+    },
     user: {
       additionalFields: {
         locale: {
