@@ -403,7 +403,7 @@ describe.if(DB_REACHABLE)(
       // Use fix.userId which has at least one budget — real tenant context
       let planJson: unknown = null;
 
-      const r = await withUserContext(UserId(fix.userId), async (tx) => {
+      await withUserContext(UserId(fix.userId), async (tx) => {
         // Set tenant_ids GUC (same as listForUser does)
         const memberRows = await tx.execute<{ budget_id: string }>(sql`
           SELECT budget_id FROM tenancy.budget_members WHERE user_id = ${fix.userId}::uuid
@@ -414,12 +414,15 @@ describe.if(DB_REACHABLE)(
             .filter((id) => /^[0-9a-fA-F-]{36}$/.test(id))
             .join(",");
           if (safeIds) {
-            await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeIds}}'`));
+            await tx.execute(
+              sql.raw(`SET LOCAL app.tenant_ids = '{${safeIds}}'`),
+            );
           }
         }
 
         // EXPLAIN the scoped LATERAL query (the NEW form — after the fix)
-        const explainResult = await tx.execute<{ "QUERY PLAN": unknown }>(sql.raw(`
+        const explainResult = await tx.execute<{ "QUERY PLAN": unknown }>(
+          sql.raw(`
           EXPLAIN (FORMAT JSON, ANALYZE FALSE)
           SELECT w.id, w.slug, w.name, w.kind, w.default_currency,
                  w.owner_user_id, w.member_count, w.created_at, w.cushion_mode_enabled,
@@ -454,12 +457,12 @@ describe.if(DB_REACHABLE)(
           ) tk ON true
           WHERE m.user_id = '${fix.userId}'::uuid
             AND w.archived_at IS NULL
-        `));
+        `),
+        );
         planJson = explainResult.rows[0]?.["QUERY PLAN"];
         return null;
       });
 
-      // r.isOk() - withUserContext returns Result
       expect(planJson).toBeDefined();
 
       // Parse the plan and assert no JIT block + cost < 100k
@@ -469,7 +472,9 @@ describe.if(DB_REACHABLE)(
       };
 
       // No JIT block (or JIT Functions = 0)
-      const jit = plan?.JIT as { Functions?: number; Inlining?: boolean } | undefined;
+      const jit = plan?.JIT as
+        | { Functions?: number; Inlining?: boolean }
+        | undefined;
       if (jit) {
         // If JIT block present, Functions must be 0
         expect(jit.Functions ?? 0).toBe(0);
