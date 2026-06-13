@@ -436,39 +436,72 @@ Then(
   },
 );
 
-// ── Tab-switch scroll reset (added issue) ────────────────────────────────────
-// Wallets is a page-scrolling tab; when the user switches client-side to
-// Spendings, main[data-shell-scroll].scrollTop is preserved from Wallets.
-// ScrollResetOnMount resets it to 0 on mount. These two steps prove it.
+// ── Tab-switch scroll reset (SHELL-R18 rewrite) ──────────────────────────────
+// Round 6 tautology fix: the old step scrolled main[data-shell-scroll] (always
+// 0 in browser mode — overflow-y:visible) then asserted main.scrollTop. This
+// never reproduced the device bug. The new step scrolls the REAL browser-mode
+// root (window) and asserts ALL three roots are 0 after the tab switch.
+//
+// Note: if Chromium scrolls a different root than WebKit, this e2e is a smoke
+// check. The authoritative guards are the Vitest unit test (window.scrollTo
+// proven, Task 1) + the SHELL-R18 device overlay (winY / seTop / under fields).
 
 When("I scroll the page down on wallets tab", async ({ page }) => {
-  // Scroll the shared main[data-shell-scroll] element down so the test
-  // starts with a non-zero scrollTop (mirrors the user scenario).
+  // Scroll the REAL browser-mode root: window + scrollingElement + main.
+  // All three writes ensure the scroll registers in whichever mode Chromium
+  // presents. After the timeout, assert the page actually moved so this step
+  // can never silently scroll nothing (tautology guard).
   await page.evaluate(() => {
-    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
-    if (main) {
-      main.scrollTop = 300;
-    } else {
-      window.scrollTo(0, 300);
+    window.scrollTo(0, 300);
+    if (document.scrollingElement) {
+      (document.scrollingElement as HTMLElement).scrollTop = 300;
     }
+    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
+    if (main) main.scrollTop = 300;
   });
   await page.waitForTimeout(100);
+
+  const { win, main } = await page.evaluate(() => ({
+    win: window.scrollY,
+    main:
+      document.querySelector<HTMLElement>("main[data-shell-scroll]")
+        ?.scrollTop ?? 0,
+  }));
+
+  expect(
+    win > 50 || main > 50,
+    `page did not scroll — win=${win}, main=${main} (both <= 50px); step cannot reproduce the device scenario`,
+  ).toBeTruthy();
 });
 
 Then("the page scroll position is at the top", async ({ page }) => {
-  // After the tab switch + ScrollResetOnMount, the main container must be
-  // scrolled back to 0. Allow one rAF + paint cycle to settle.
+  // After tab switch + ScrollResetOnMount rAF, ALL scroll roots must be 0.
+  // Allow one rAF + paint cycle to settle.
   await page.waitForTimeout(200);
 
-  const scrollTop = await page.evaluate(() => {
-    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
-    return main ? main.scrollTop : window.scrollY;
-  });
+  const { win, se, main } = await page.evaluate(() => ({
+    win: window.scrollY,
+    se: (document.scrollingElement as HTMLElement | null)?.scrollTop ?? 0,
+    main:
+      document.querySelector<HTMLElement>("main[data-shell-scroll]")
+        ?.scrollTop ?? 0,
+  }));
+
+  // window assert is the one that proves the real fix (the round-6 miss).
+  expect(
+    win,
+    `window.scrollY is ${win}px after tab switch — ScrollResetOnMount did not reset the browser-mode window root`,
+  ).toBeLessThanOrEqual(1);
 
   expect(
-    scrollTop,
-    `main[data-shell-scroll].scrollTop is ${scrollTop}px after tab switch — ScrollResetOnMount did not fire or is broken`,
-  ).toBe(0);
+    se,
+    `document.scrollingElement.scrollTop is ${se}px after tab switch — html/body scroll root not zeroed`,
+  ).toBeLessThanOrEqual(1);
+
+  expect(
+    main,
+    `main[data-shell-scroll].scrollTop is ${main}px after tab switch — standalone scroller not zeroed`,
+  ).toBeLessThanOrEqual(1);
 });
 
 Then("the month navigator is fully below the sticky band", async ({ page }) => {

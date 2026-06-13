@@ -14,7 +14,7 @@ import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R17";
+const BUILD_MARKER = "SHELL-R18";
 
 const FLAG_KEY = "vpdbg";
 
@@ -90,6 +90,13 @@ interface Metrics {
   shellRootClientH: number;
   shellRootMinH: string;
   ptrBlurClientH: number;
+  // SHELL-R18: scroll-root diagnostics (browser vs standalone)
+  winScrollY: number;
+  scrollingElTop: number;
+  // SHELL-R18: month-nav vs sticky band occlusion probe
+  monthNavTop: number;
+  bandBottom: number;
+  monthNavUnderBand: number; // >0 = OCCLUDED (the bug); <=0 = clear
   sheet: SheetMetrics | null;
   grid: GridMetrics | null;
 }
@@ -257,6 +264,28 @@ function readMetrics(): Metrics {
     "[data-ptr-blur-target]",
   );
 
+  // SHELL-R18: scroll-root diagnostics — which root holds scroll in each mode.
+  const winScrollY = Math.round(window.scrollY);
+  const scrollingElTop = Math.round(
+    (document.scrollingElement as HTMLElement | null)?.scrollTop ?? -1,
+  );
+
+  // SHELL-R18: month-nav vs sticky band occlusion probe.
+  // monthNavUnderBand > 0 means the nav is hidden under the band (the bug).
+  // Reports -1 when elements are absent (e.g. not on the spendings tab).
+  let monthNavTop = -1;
+  let bandBottom = -1;
+  let monthNavUnderBand = -1;
+  const monthNavEl = document.querySelector<HTMLElement>(
+    '[data-testid="month-navigator-label"]',
+  );
+  const bandEl = document.querySelector<HTMLElement>("[data-bdp-tabs]");
+  if (monthNavEl && bandEl) {
+    monthNavTop = Math.round(monthNavEl.getBoundingClientRect().top);
+    bandBottom = Math.round(bandEl.getBoundingClientRect().bottom);
+    monthNavUnderBand = bandBottom - monthNavTop; // >0 = occluded
+  }
+
   return {
     innerH: window.innerHeight,
     vvH: Math.round(window.visualViewport?.height ?? -1),
@@ -269,6 +298,11 @@ function readMetrics(): Metrics {
       ? getComputedStyle(shellRootEl).minHeight
       : "n/a",
     ptrBlurClientH: ptrBlurEl?.clientHeight ?? -1,
+    winScrollY,
+    scrollingElTop,
+    monthNavTop,
+    bandBottom,
+    monthNavUnderBand,
     displayMode:
       ["standalone", "browser", "minimal-ui", "fullscreen"].find(
         (m) => window.matchMedia(`(display-mode: ${m})`).matches,
@@ -331,6 +365,14 @@ export function ViewportDebug() {
       <div>
         toEnd {m.mainScrollH - m.mainClientH - m.mainScrollTop} · lastRowGap{" "}
         {m.lastRowGap}
+      </div>
+      <div>
+        winY {m.winScrollY} · seTop {m.scrollingElTop} · mainTop{" "}
+        {m.mainScrollTop}
+      </div>
+      <div>
+        navTop {m.monthNavTop} · bandBot {m.bandBottom} · under{" "}
+        {m.monthNavUnderBand}
       </div>
       <div>
         shellRootClientH {m.shellRootClientH} · shellRootMinH {m.shellRootMinH}

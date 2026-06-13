@@ -95,11 +95,16 @@ Feature: BDP tab frame
     When I open the BDP spendings tab for "My E2E Budget"
     Then the spendings grid box bottom reaches the visual viewport bottom
 
-  # Added issue: tab-switch residual scroll. Wallets is a page-scrolling tab;
-  # spendings is an inner-scroll tab. Client-side nav does not reset scrollTop,
-  # so arriving at Spendings from a scrolled Wallets page hides the month
-  # navigator under the sticky pills band and skews --grid-max-h measurement.
-  # Fix: ScrollResetOnMount resets main[data-shell-scroll].scrollTop on mount.
+  # Tab-switch residual scroll — SHELL-R18 rewrite (round 7).
+  # Root cause: in browser mode the page scroll lives on window (html/body),
+  # NOT main[data-shell-scroll] (overflow-y:visible there). Round 6
+  # (ScrollResetOnMount) reset only main — a no-op in browser mode. The e2e
+  # also tautologically scrolled and asserted the same non-scrolling element.
+  # Fix: ScrollResetOnMount now calls window.scrollTo(0,0) + zeroes
+  # scrollingElement + main, keyed on pathname + rAF-deferred (SHELL-R18).
+  # E2E: scroll step now uses window.scrollTo (the real root); assert reads
+  # window.scrollY across all three roots. WebKit-vs-Chromium scroll-root
+  # divergence is covered by the Vitest unit test (Task 1) + SHELL-R18 overlay.
   @tasks-geometry
   Scenario: switching from scrolled wallets to spendings resets page scroll and shows month nav
     Given the budget has 12 seeded categories with monthly limits
