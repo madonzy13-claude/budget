@@ -211,6 +211,30 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
     expect(preview?.innerHTML).toContain("trading-up");
   });
 
+  it("preview renders NOTHING when required_cents===0 (no cushion requirement configured)", () => {
+    useQueryMock.mockReturnValue({
+      data: {
+        required_cents: "0",
+        actual_cents: "0",
+        shortfall_cents: "0",
+        currency: "USD",
+        enabled: true,
+        target_months: 6,
+      },
+      isLoading: false,
+      isError: false,
+    });
+    renderCushionSection();
+    const preview = document.getElementById("cushion-preview");
+    expect(preview).not.toBeNull();
+    // The previewMet / preview copy keys must be ABSENT — nothing to show.
+    expect(preview?.textContent).not.toMatch(/cushion\.previewMet/);
+    expect(preview?.textContent).not.toMatch(/cushion\.preview/);
+    // No styled span rendered at all (no trading-up/down).
+    expect(preview?.innerHTML).not.toContain("trading-up");
+    expect(preview?.innerHTML).not.toContain("trading-down");
+  });
+
   it("preview shows error fallback when query errors", () => {
     useQueryMock.mockReturnValue({
       data: undefined,
