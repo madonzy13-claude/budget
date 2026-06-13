@@ -82,6 +82,41 @@ outlined quick-entry box, no black gap below.
   - `h-9 w-full rounded-md` (quick-entry box) — PRESENT.
   - OLD marker `h-8 w-8 rounded-full shrink-0` — ABSENT (0 hits).
 
+## Follow-up fix 2 (user feedback: "still no space between columns")
+
+**Root cause:** the skeleton's column row used `gap-[var(--spacing-xs)]`, which
+renders ~0px — so the 3 cards touched. The REAL grid is a TWO-level structure
+(spendings-grid-client.tsx:610/617): an outer scroll container
+(`mt-4 overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6`) wrapping an inner
+columns row (`flex gap-2 w-fit mx-auto`). The skeleton was a single level with
+the wrong gap token, so it neither spaced (gap-2 = 8px) nor centred (`w-fit
+mx-auto`).
+
+**Fix (only `loading.tsx`):** mirror the two-level structure exactly:
+
+- Outer: `mt-4 h-[80vh] overflow-x-hidden px-3 sm:px-6` (keeps the 80vh height
+  fix; `overflow-x-hidden` instead of `overflow-auto` since the skeleton has no
+  real overflow to scroll).
+- Inner (new wrapper around the 3 cards): `flex gap-2 w-fit mx-auto` — `gap-2`
+  = 8px real space between cards, `w-fit mx-auto` centres the row like the
+  loaded grid.
+- The 3 `ColumnCardSkeleton` items now sit inside the inner div; each keeps
+  `h-full` so it fills the 80vh row.
+
+### Follow-up 2 verification (served bundle)
+
+- `docker compose build web` + `make restart-web` — web **Up (healthy)**,
+  fresh restart (StartedAt current).
+- Served inlined Suspense fallback in
+  `/app/apps/web/.next/server/app/[locale]/(app)/budgets/[id]/spendings/page.js`:
+  - Outer `mt-4 h-[80vh] overflow-x-hidden px-3 sm:px-6` — PRESENT (1 hit),
+    `children` = a `div` with `className:"flex gap-2 w-fit mx-auto"`.
+  - Inner `flex gap-2 w-fit mx-auto` (skeleton column row) — PRESENT (1 hit).
+  - Skeleton id `min-w-[140px]` — PRESENT (1 hit, confirms it is the loading
+    fallback not the real grid client).
+  - STALE single-level `flex h-[80vh] gap-[var(--spacing-xs)]` — ABSENT
+    (0 hits).
+
 ## Constraints honored
 
 - Only `loading.tsx` edited.
