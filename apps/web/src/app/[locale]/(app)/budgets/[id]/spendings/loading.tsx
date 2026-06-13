@@ -69,13 +69,19 @@ export default function SpendingsLoading() {
         <Skeleton className="h-5 w-5 shrink-0 rounded" />
       </div>
 
-      {/* Grid container — horizontal column cards. h-[80vh] matches the real
-          grid's `h-[var(--grid-max-h,80vh)]` pre-measure fallback so the cards
-          reach ~80vh (no big black gap below). Plain 80vh — no JS var. */}
-      <div className="mt-4 flex h-[80vh] gap-[var(--spacing-xs)] overflow-x-hidden px-3 sm:px-6">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <ColumnCardSkeleton key={i} />
-        ))}
+      {/* Grid — two-level structure mirroring the real grid
+          (spendings-grid-client.tsx:610/617):
+            outer = scroll container, h-[80vh] matches the real
+              `h-[var(--grid-max-h,80vh)]` pre-measure fallback (no JS var);
+            inner = `flex gap-2 w-fit mx-auto` — the columns row (gap-2 = 8px
+              between cards, centred), so the skeleton spaces + centres exactly
+              like the loaded grid. */}
+      <div className="mt-4 h-[80vh] overflow-x-hidden px-3 sm:px-6">
+        <div className="flex gap-2 w-fit mx-auto">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <ColumnCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     </div>
   );
