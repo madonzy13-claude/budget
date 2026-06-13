@@ -1012,7 +1012,6 @@
         "name": "Name",
         "planned": "Planned monthly",
         "cushion": "Cushion monthly",
-        "icon": "Icon",
         "color": "Color"
       },
       "deleteBlockedTooltip": "Cannot delete category with existing transactions",

@@ -10,17 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Loader2,
-  ShoppingCart,
-  Home,
-  Car,
-  Utensils,
-  Heart,
-  Briefcase,
-  Music,
-  BookOpen,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -53,28 +43,8 @@ import {
 import { AmountInput } from "@/components/budgeting/fields/amount-input";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { cn } from "@/lib/utils";
-
-const PRESET_ICONS = [
-  { key: "shopping-cart", Icon: ShoppingCart },
-  { key: "home", Icon: Home },
-  { key: "car", Icon: Car },
-  { key: "utensils", Icon: Utensils },
-  { key: "heart", Icon: Heart },
-  { key: "briefcase", Icon: Briefcase },
-  { key: "music", Icon: Music },
-  { key: "book-open", Icon: BookOpen },
-] as const;
-
-const PRESET_COLORS = [
-  { key: "yellow", hex: "#F0B90B" },
-  { key: "green", hex: "#26A69A" },
-  { key: "blue", hex: "#4A90D9" },
-  { key: "red", hex: "#EF5350" },
-  { key: "orange", hex: "#FF8F00" },
-  { key: "purple", hex: "#7C4DFF" },
-  { key: "pink", hex: "#EC407A" },
-  { key: "gray", hex: "#78909C" },
-] as const;
+// 260613-v1p: single source of truth for the 8 category palette colors.
+import { CATEGORY_COLORS } from "@/lib/category-colors";
 
 export interface CategorySliderProps {
   open: boolean;
@@ -87,7 +57,6 @@ export interface CategorySliderProps {
     name: string;
     plannedCents: string;
     cushionCents: string;
-    iconKey: string | null;
     colorKey: string | null;
   };
   txnsCount?: number;
@@ -116,7 +85,7 @@ const schema = z.object({
   name: z.string().min(1).max(60),
   plannedCents: amountField,
   cushionCents: amountField,
-  iconKey: z.string().nullable(),
+  // 260613-v1p: iconKey removed (icon picker gone). colorKey persists.
   colorKey: z.string().nullable(),
 });
 
@@ -171,7 +140,6 @@ export function CategorySlider({
       cushionCents: initial?.cushionCents
         ? centsToDecimal(initial.cushionCents)
         : "0",
-      iconKey: initial?.iconKey ?? null,
       colorKey: initial?.colorKey ?? null,
     },
   });
@@ -203,7 +171,6 @@ export function CategorySlider({
         cushionCents: initial?.cushionCents
           ? centsToDecimal(initial.cushionCents)
           : "0",
-        iconKey: initial?.iconKey ?? null,
         colorKey: initial?.colorKey ?? null,
       });
       // Phase 7-09 D-PH7-35: re-initialize linked from new initial values
@@ -241,7 +208,6 @@ export function CategorySlider({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: values.name,
-            iconKey: values.iconKey,
             colorKey: values.colorKey,
           }),
         },
@@ -280,7 +246,6 @@ export function CategorySlider({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: values.name,
-              iconKey: values.iconKey,
               colorKey: values.colorKey,
             }),
           },
@@ -481,41 +446,8 @@ export function CategorySlider({
                 />
               )}
 
-              {/* Icon picker */}
-              <FormField
-                control={form.control}
-                name="iconKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm text-[var(--muted-foreground)]">
-                      {t("catSlider.field.icon")}
-                    </FormLabel>
-                    <div className="flex gap-2 flex-wrap">
-                      {PRESET_ICONS.map(({ key, Icon }) => (
-                        <button
-                          key={key}
-                          type="button"
-                          data-testid={`icon-option-${key}`}
-                          onClick={() =>
-                            field.onChange(field.value === key ? null : key)
-                          }
-                          className={cn(
-                            "flex h-10 w-10 items-center justify-center rounded-lg border transition-colors",
-                            field.value === key
-                              ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--on-primary)]"
-                              : "border-[var(--border)] bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)] hover:border-[var(--primary)]",
-                          )}
-                          aria-pressed={field.value === key}
-                        >
-                          <Icon className="h-5 w-5" aria-hidden="true" />
-                        </button>
-                      ))}
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              {/* Color picker */}
+              {/* Color picker (260613-v1p: icon picker removed; swatches use
+                  the shared CATEGORY_COLORS map). */}
               <FormField
                 control={form.control}
                 name="colorKey"
@@ -525,7 +457,7 @@ export function CategorySlider({
                       {t("catSlider.field.color")}
                     </FormLabel>
                     <div className="flex gap-2 flex-wrap">
-                      {PRESET_COLORS.map(({ key, hex }) => (
+                      {CATEGORY_COLORS.map(({ key, hex }) => (
                         <button
                           key={key}
                           type="button"

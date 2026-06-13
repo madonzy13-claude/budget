@@ -553,7 +553,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       name: cat.name,
       plannedCents: s?.plannedCents ?? "0",
       cushionCents: s?.cushionCents ?? "0",
-      iconKey: cat.iconKey,
+      // 260613-v1p: iconKey dropped from the slider initial (icon picker removed).
       colorKey: cat.colorKey,
     };
   }, [catSlider.categoryId, localCategoryOrder, summaryByCatId]);

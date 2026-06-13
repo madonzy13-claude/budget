@@ -1035,7 +1035,6 @@
         "name": "Nazwa",
         "planned": "Plan miesięczny",
         "cushion": "Poduszka miesięczna",
-        "icon": "Ikona",
         "color": "Kolor"
       },
       "deleteBlockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
