@@ -436,41 +436,90 @@ Then(
   },
 );
 
-// ── Tab-switch scroll reset (SHELL-R18 rewrite) ──────────────────────────────
+// ── Tab-switch scroll reset (SHELL-R18 rewrite, round 8) ─────────────────────
 // Round 6 tautology fix: the old step scrolled main[data-shell-scroll] (always
 // 0 in browser mode — overflow-y:visible) then asserted main.scrollTop. This
-// never reproduced the device bug. The new step scrolls the REAL browser-mode
-// root (window) and asserts ALL three roots are 0 after the tab switch.
+// never reproduced the device bug.
 //
-// Note: if Chromium scrolls a different root than WebKit, this e2e is a smoke
-// check. The authoritative guards are the Vitest unit test (window.scrollTo
-// proven, Task 1) + the SHELL-R18 device overlay (winY / seTop / under fields).
+// Round 7 reproduced the bug on the WALLETS tab — but a fresh user's wallets
+// tab is shorter than the shortest viewport (320x568), so window never scrolled
+// and the honesty guard correctly hard-failed (win=0, main=0). The user's real
+// device repro is the RESERVES tab (one row per category). With 12 seeded
+// categories the reserves tab is genuinely taller than 568px, so window.scrollTo
+// actually moves the page. This step now scrolls the REAL browser-mode root
+// (window/document.scrollingElement — NOT main, overflow:visible) to a target
+// derived from the REAL scrollHeight, then asserts the scroll took.
+//
+// Note: WebKit-vs-Chromium scroll-root divergence stays covered by the Vitest
+// unit test (window.scrollTo proven, Task 1) + the SHELL-R18 device overlay
+// (winY / seTop / under fields). This e2e proves the Chromium browser-mode path.
 
-When("I scroll the page down on wallets tab", async ({ page }) => {
-  // Scroll the REAL browser-mode root: window + scrollingElement + main.
-  // All three writes ensure the scroll registers in whichever mode Chromium
-  // presents. After the timeout, assert the page actually moved so this step
-  // can never silently scroll nothing (tautology guard).
-  await page.evaluate(() => {
-    window.scrollTo(0, 300);
+When(
+  "the reserves tab content is taller than the viewport",
+  async ({ page }) => {
+    // Honesty precondition: prove the seeded content actually overflows the
+    // viewport BEFORE we attempt to scroll. If this fails the scenario is not
+    // reproducing anything — surface that loudly with the exact heights so the
+    // fix (seed more rows / pick a taller tab) is obvious. We wait for the
+    // reserves rows to mount first (RSC → client island hydration).
+    const firstRow = page.locator('[data-testid^="reserves-balance-"]').first();
+    await expect(firstRow).toBeVisible({ timeout: 10000 });
+
+    const metrics = await page.evaluate(() => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      innerHeight: window.innerHeight,
+      rowCount: document.querySelectorAll('[data-testid^="reserves-balance-"]')
+        .length,
+    }));
+
+    logGeometry("reserves-tall-precondition", metrics);
+
+    // Need at least ~80px of real scroll room (> our 60px scroll threshold) so
+    // window.scrollTo can demonstrably move the page on the SHORTEST viewport.
+    const scrollRoom = metrics.scrollHeight - metrics.innerHeight;
+    expect(
+      scrollRoom,
+      `reserves tab is not taller than the viewport — scrollHeight=${metrics.scrollHeight}, innerHeight=${metrics.innerHeight}, room=${scrollRoom}px, rows=${metrics.rowCount}. Seed more categories or the scenario cannot reproduce the device scroll.`,
+    ).toBeGreaterThan(80);
+  },
+);
+
+When("I scroll the page down on the current tab", async ({ page }) => {
+  // Scroll the REAL browser-mode root. In @media(display-mode: browser)
+  // html/body are overflow:visible (global.css) so the WINDOW scrolls;
+  // main[data-shell-scroll] is overflow:visible there and never scrolls (the
+  // round-6 mistake). Target a point well within the real scroll extent so we
+  // never overshoot to clamp(0) on a barely-tall page.
+  const target = await page.evaluate(() => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    // Aim for 60% of the available scroll room, capped at 300px — enough to
+    // clear the 60px assertion threshold while staying inside the extent.
+    const y = Math.max(80, Math.min(300, Math.floor(max * 0.6)));
+    window.scrollTo(0, y);
     if (document.scrollingElement) {
-      (document.scrollingElement as HTMLElement).scrollTop = 300;
+      (document.scrollingElement as HTMLElement).scrollTop = y;
     }
-    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
-    if (main) main.scrollTop = 300;
+    return y;
   });
   await page.waitForTimeout(100);
 
-  const { win, main } = await page.evaluate(() => ({
+  const { win, se, main } = await page.evaluate(() => ({
     win: window.scrollY,
+    se: (document.scrollingElement as HTMLElement | null)?.scrollTop ?? 0,
     main:
       document.querySelector<HTMLElement>("main[data-shell-scroll]")
         ?.scrollTop ?? 0,
   }));
 
+  logGeometry("scroll-current-tab", { target, win, se, main });
+
+  // The window (or its scrollingElement alias) MUST have moved. main staying 0
+  // is EXPECTED in browser mode — it is NOT a valid scroll root here. This is
+  // the anti-tautology guard: a too-short page or a non-scrolling root fails
+  // loud instead of silently passing.
   expect(
-    win > 50 || main > 50,
-    `page did not scroll — win=${win}, main=${main} (both <= 50px); step cannot reproduce the device scenario`,
+    win > 60 || se > 60,
+    `page did not scroll — win=${win}, se=${se}, main=${main} (target was ${target}px); the real browser-mode root (window/scrollingElement) must move > 60px to reproduce the device scenario`,
   ).toBeTruthy();
 });
 

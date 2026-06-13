@@ -95,21 +95,29 @@ Feature: BDP tab frame
     When I open the BDP spendings tab for "My E2E Budget"
     Then the spendings grid box bottom reaches the visual viewport bottom
 
-  # Tab-switch residual scroll — SHELL-R18 rewrite (round 7).
+  # Tab-switch residual scroll — SHELL-R18 rewrite (round 7+8).
   # Root cause: in browser mode the page scroll lives on window (html/body),
   # NOT main[data-shell-scroll] (overflow-y:visible there). Round 6
   # (ScrollResetOnMount) reset only main — a no-op in browser mode. The e2e
   # also tautologically scrolled and asserted the same non-scrolling element.
   # Fix: ScrollResetOnMount now calls window.scrollTo(0,0) + zeroes
   # scrollingElement + main, keyed on pathname + rAF-deferred (SHELL-R18).
-  # E2E: scroll step now uses window.scrollTo (the real root); assert reads
-  # window.scrollY across all three roots. WebKit-vs-Chromium scroll-root
-  # divergence is covered by the Vitest unit test (Task 1) + SHELL-R18 overlay.
+  #
+  # Round 8 honesty fix: the round-7 step scrolled the WALLETS tab, but a
+  # fresh user's wallets tab (only the default Reserve/Cushion sections) is
+  # SHORTER than the shortest viewport (320x568) so window never scrolled —
+  # the precondition failed loud (anti-tautology guard, as designed). The
+  # user's real device repro was the RESERVES tab, which renders one row per
+  # category. Seeding 12 categories gives 12 reserve rows → genuinely taller
+  # than 568px, so window.scrollTo actually moves. We scroll the REAL
+  # browser-mode root (window), assert it took (scrollY > threshold), THEN
+  # switch to spendings and assert all three roots reset + month-nav visible.
   @tasks-geometry
-  Scenario: switching from scrolled wallets to spendings resets page scroll and shows month nav
+  Scenario: switching from a scrolled tab to spendings resets page scroll and shows month nav
     Given the budget has 12 seeded categories with monthly limits
-    When I open the BDP wallets tab for "My E2E Budget"
-    And I scroll the page down on wallets tab
+    When I open the reserves tab for "My E2E Budget"
+    And the reserves tab content is taller than the viewport
+    And I scroll the page down on the current tab
     And I click the "Spendings" tab pill
     Then the page scroll position is at the top
     And the month navigator is fully below the sticky band
