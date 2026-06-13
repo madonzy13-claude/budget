@@ -29,7 +29,7 @@ Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verificat
 Plan: 7 of 7 complete (all SUMMARYs present)
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
 Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
-Last activity: 2026-06-13 - Completed quick task 260613-aw9: SHELL-R18 tab-switch month occlusion (window scroll-root reset) — device checkpoint pending
+Last activity: 2026-06-13 - Completed quick task 260613-dn1: budget home page perf (jit=off 22×, pool max:25, cache dedup, parallel home-summary)
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -210,6 +210,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | 260612-kxd | 2026-06-12 | Round 5: shell-root dvh cap revert (SHELL-R16), keyboard remeasure freeze, atomic CONFIRM_DRAFT closure on archive/delete + read self-heal                                                                                          | complete ✓ (device checkpoint pending)      | [PLAN](quick/260612-kxd-shell-clip-chain-dvh-grid-keyboard-remea/260612-kxd-PLAN.md) | [SUMMARY](quick/260612-kxd-shell-clip-chain-dvh-grid-keyboard-remea/260612-kxd-SUMMARY.md) |
 | 260612-t6s | 2026-06-12 | Round 6: grid box to physical screen bottom on iOS Safari (SHELL-R17, gated screen-anchor + dynamic spacer), BDP tab-switch scroll reset (Safari-only month occlusion)                                                              | complete ✓ (device checkpoint pending)      | [PLAN](quick/260612-t6s-grid-box-to-physical-screen-bottom-on-io/260612-t6s-PLAN.md) | [SUMMARY](quick/260612-t6s-grid-box-to-physical-screen-bottom-on-io/260612-t6s-SUMMARY.md) |
 | 260613-aw9 | 2026-06-13 | Round 7: tab-switch month occlusion real fix (SHELL-R18) — reset window/scrollingElement (not just main, which is overflow:visible in browser) keyed on pathname; de-tautologized e2e scrolls real window root on tall reserves tab | complete ✓ (device checkpoint pending)      | [PLAN](quick/260613-aw9-tab-switch-month-occlusion-persists-rese/260613-aw9-PLAN.md) | [SUMMARY](quick/260613-aw9-tab-switch-month-occlusion-persists-rese/260613-aw9-SUMMARY.md) |
+| 260613-dn1 | 2026-06-13 | Budget home page perf: tx-scoped `SET LOCAL jit=off` on listForUser (live 1589ms→72ms, 22×), appPool max:25, React cache() dedup of /budgets/active (2×→1×), parallelized home-summary meta+FX                                      | complete ✓ (live-verified)                  | [PLAN](quick/260613-dn1-budget-home-page-perf-jit-off-on-listfor/260613-dn1-PLAN.md) | [SUMMARY](quick/260613-dn1-budget-home-page-perf-jit-off-on-listfor/260613-dn1-SUMMARY.md) |
 
 ## Deferred Items
 
