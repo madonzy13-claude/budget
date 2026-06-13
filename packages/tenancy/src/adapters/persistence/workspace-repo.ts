@@ -123,28 +123,43 @@ export class DrizzleBudgetRepo implements BudgetRepo {
                COALESCE(tk.pending, 0)::int AS pending_tasks_count
         FROM tenancy.budgets w
         INNER JOIN tenancy.budget_members m ON m.budget_id = w.id
-        LEFT JOIN (
-          -- 260612-kxd T3 addendum: badge must match the banner — count only
-          -- ACTIONABLE tasks. Same predicate as budgeting task-repo
-          -- listPending (kept in sync by apps/api/test/routes/
-          -- budgets-active.test.ts "banner parity"): a CONFIRM_DRAFT counts
-          -- only while its draft is live (exists, not soft-deleted/dismissed/
-          -- confirmed) and its category is not archived. Tenant-joined on
-          -- el.tenant_id/c.tenant_id — cross-tenant rows can never affect
-          -- this count (RLS via app.tenant_ids backs this up).
-          SELECT t.budget_id, COUNT(*)::bigint AS pending
+        LEFT JOIN LATERAL (
+          -- 260613-hig: LATERAL scoped to this budget (t.budget_id = w.id)
+          -- so the planner aggregates ~15 budgets' tasks instead of ALL
+          -- ~4446 system-wide PENDING tasks. This drops total cost below
+          -- jit_above_cost (100k) BY CONSTRUCTION — independent of the
+          -- SET LOCAL jit=off defense above.
+          --
+          -- 260612-kxd T3 addendum: badge must match the banner — count
+          -- only ACTIONABLE tasks. Predicate kept in sync with
+          -- budgeting task-repo listPending (asserted by
+          -- budgets-active.test.ts "banner parity"):
+          --   CONFIRM_DRAFT counts only while its draft is live AND its
+          --   category is not archived. Tenant-joined on el.tenant_id /
+          --   c.tenant_id — cross-tenant rows can never affect this count.
+          --
+          -- Cast fix (260613-hig): el.id::text = ...->>'draft_id' cast
+          -- defeated the expense_ledger uuid PK index (seq scan over
+          -- 47k rows per CONFIRM_DRAFT task). Replaced with:
+          --   (t.payload_json->>'draft_id') ~ '^[0-9a-fA-F-]{36}$'  -- guard
+          --   (t.payload_json->>'draft_id')::uuid = el.id            -- uuid PK index
+          -- The regex guard short-circuits for malformed/empty draft_id
+          -- values (legacy rows) before the ::uuid cast is evaluated.
+          SELECT COUNT(*)::bigint AS pending
             FROM budgeting.tasks t
-           WHERE t.status = 'PENDING'
+           WHERE t.budget_id = w.id
+             AND t.status = 'PENDING'
              AND (
                t.kind <> 'CONFIRM_DRAFT'
                OR EXISTS (
                  SELECT 1
                    FROM budgeting.expense_ledger el
-                  WHERE el.id::text = t.payload_json->>'draft_id'
-                    AND el.tenant_id = t.tenant_id
-                    AND el.deleted_at IS NULL
+                  WHERE el.deleted_at IS NULL
                     AND el.dismissed_at IS NULL
                     AND el.confirmed_at IS NULL
+                    AND el.tenant_id = t.tenant_id
+                    AND (t.payload_json->>'draft_id') ~ '^[0-9a-fA-F-]{36}$'
+                    AND (t.payload_json->>'draft_id')::uuid = el.id
                     AND NOT EXISTS (
                       SELECT 1
                         FROM budgeting.categories c
@@ -154,8 +169,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
                     )
                )
              )
-           GROUP BY t.budget_id
-        ) tk ON tk.budget_id = w.id
+        ) tk ON true
         WHERE m.user_id = ${userId}
           AND w.archived_at IS NULL
       `);

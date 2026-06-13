@@ -152,11 +152,12 @@ export function createTaskRepo(): TaskRepo {
                  OR EXISTS (
                    SELECT 1
                      FROM budgeting.expense_ledger el
-                    WHERE el.id::text = tasks.payload_json->>'draft_id'
-                      AND el.tenant_id = tasks.tenant_id
-                      AND el.deleted_at IS NULL
+                    WHERE el.deleted_at IS NULL
                       AND el.dismissed_at IS NULL
                       AND el.confirmed_at IS NULL
+                      AND el.tenant_id = tasks.tenant_id
+                      AND (tasks.payload_json->>'draft_id') ~ '^[0-9a-fA-F-]{36}$'
+                      AND (tasks.payload_json->>'draft_id')::uuid = el.id
                       AND NOT EXISTS (
                         SELECT 1
                           FROM budgeting.categories c
@@ -164,6 +165,10 @@ export function createTaskRepo(): TaskRepo {
                            AND c.tenant_id = el.tenant_id
                            AND c.archived_at IS NOT NULL
                       )
+                      -- 260613-hig: uuid-cast fix (kept in sync with workspace-repo.ts
+                      -- listForUser tk LATERAL — asserted by budgets-active.test.ts
+                      -- "banner parity"). Replaced el.id::text = ...->>'draft_id'
+                      -- (defeats uuid PK index) with regex guard + (...)::uuid = el.id.
                  )
                )
              ORDER BY created_at ASC

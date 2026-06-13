@@ -232,6 +232,13 @@
       "when": 1781480000000,
       "tag": "0033_app_role_category_purge_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1749815000000,
+      "tag": "0034_budget_nav_perf_indexes",
+      "breakpoints": true
     }
   ]
 }
