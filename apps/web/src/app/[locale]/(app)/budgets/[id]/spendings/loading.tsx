@@ -24,7 +24,9 @@ function SummaryRow({ valueClass = "w-10" }: { valueClass?: string }) {
 /** One category column card placeholder. */
 function ColumnCardSkeleton() {
   return (
-    <div className="w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip">
+    // h-full: stretch to the grid row's fixed height so the card reaches the
+    // bottom (matches the real column inside h-[var(--grid-max-h,80vh)]).
+    <div className="h-full w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip">
       {/* Header row — grip dots + name line */}
       <div className="flex min-h-[44px] items-center gap-1.5 px-2 py-2 border-b border-[var(--hairline-dark)]">
         <Skeleton className="h-3.5 w-2.5 shrink-0" />
@@ -38,12 +40,17 @@ function ColumnCardSkeleton() {
       <SummaryRow valueClass="w-16" />
       <SummaryRow />
 
-      {/* Expenses section: label + quick-entry box + a few expense lines */}
-      <div className="flex flex-col gap-2 px-2 py-2">
+      {/* Expenses section — flex-1 so the card body fills downward (mirrors the
+          real transaction list `flex-1 w-0 min-w-full`). Label + outlined
+          quick-entry box + expense lines sit at the TOP; the rest is empty
+          card surface, exactly like a real column with few transactions. */}
+      <div className="flex flex-1 flex-col gap-2 px-2 py-2">
         <Skeleton className="h-2.5 w-14" />
-        <Skeleton className="h-9 w-full rounded-md" />
+        {/* Outlined empty quick-entry box (not a filled blob) — mirrors the
+            real bordered, mostly-empty "..." input. */}
+        <div className="h-9 w-full rounded-md border border-[var(--hairline-dark)]" />
         <div className="flex flex-col gap-2 pt-1">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-3.5 w-10" />
           ))}
         </div>
@@ -62,8 +69,10 @@ export default function SpendingsLoading() {
         <Skeleton className="h-5 w-5 shrink-0 rounded" />
       </div>
 
-      {/* Grid container — horizontal column cards (matches real mt-4 px-3/6) */}
-      <div className="mt-4 flex gap-[var(--spacing-xs)] overflow-x-hidden px-3 sm:px-6">
+      {/* Grid container — horizontal column cards. h-[80vh] matches the real
+          grid's `h-[var(--grid-max-h,80vh)]` pre-measure fallback so the cards
+          reach ~80vh (no big black gap below). Plain 80vh — no JS var. */}
+      <div className="mt-4 flex h-[80vh] gap-[var(--spacing-xs)] overflow-x-hidden px-3 sm:px-6">
         {Array.from({ length: 3 }).map((_, i) => (
           <ColumnCardSkeleton key={i} />
         ))}
