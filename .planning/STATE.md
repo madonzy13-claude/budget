@@ -29,7 +29,7 @@ Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verificat
 Plan: 7 of 7 complete (all SUMMARYs present)
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
 Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
-Last activity: 2026-06-13 - Completed quick task 260613-hig: budget nav perf (scoped pending-tasks subquery + uuid cast + index → /budgets/active 1900ms→~60ms, no JIT; loading.tsx; cookieCache)
+Last activity: 2026-06-13 - Completed quick task 260613-jp6: spendings loading skeleton mirrors the column-card grid
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -212,6 +212,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | 260613-aw9 | 2026-06-13 | Round 7: tab-switch month occlusion real fix (SHELL-R18) — reset window/scrollingElement (not just main, which is overflow:visible in browser) keyed on pathname; de-tautologized e2e scrolls real window root on tall reserves tab                        | complete ✓ (device checkpoint pending)           | [PLAN](quick/260613-aw9-tab-switch-month-occlusion-persists-rese/260613-aw9-PLAN.md) | [SUMMARY](quick/260613-aw9-tab-switch-month-occlusion-persists-rese/260613-aw9-SUMMARY.md) |
 | 260613-dn1 | 2026-06-13 | Budget home page perf: tx-scoped `SET LOCAL jit=off` on listForUser (later found INEFFECTIVE live — see hig), appPool max:25, React cache() dedup of /budgets/active (2×→1×), parallelized home-summary meta+FX                                            | complete ✓ (superseded by hig for the JIT issue) | [PLAN](quick/260613-dn1-budget-home-page-perf-jit-off-on-listfor/260613-dn1-PLAN.md) | [SUMMARY](quick/260613-dn1-budget-home-page-perf-jit-off-on-listfor/260613-dn1-SUMMARY.md) |
 | 260613-hig | 2026-06-13 | Budget nav perf: scoped pending-tasks subquery to user's budgets via LATERAL + dropped `::text` cast (uuid PK) + `budget_members(user_id)` index → /budgets/active live 1900ms→~60ms (no JIT, cost 47); loading.tsx skeletons (6); Better Auth cookieCache | complete ✓ (live-verified)                       | [PLAN](quick/260613-hig-budget-nav-perf-scope-pending-tasks-subq/260613-hig-PLAN.md) | [SUMMARY](quick/260613-hig-budget-nav-perf-scope-pending-tasks-subq/260613-hig-SUMMARY.md) |
+| 260613-jp6 | 2026-06-13 | Spendings loading skeleton now mirrors the column-card grid (month nav + 3 column cards w/ planned/overspent/reserves/left rows + expenses input) instead of a generic list                                                                                | complete ✓ (deployed)                            | —                                                                                    | [SUMMARY](quick/260613-jp6-spendings-loading-tsx-skeleton-must-mirr/260613-jp6-SUMMARY.md) |
 
 ## Deferred Items
 
