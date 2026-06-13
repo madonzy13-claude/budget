@@ -16,6 +16,7 @@ import { QuickEntryInput } from "./quick-entry-input";
 import type { TxnDTO } from "@/hooks/use-transactions";
 import type { DraftDTO } from "@/hooks/use-drafts";
 import { cn } from "@/lib/utils";
+import { hexForColorKey } from "@/lib/category-colors";
 
 export interface SpendingsSummaryCategoryDTO {
   categoryId: string;
@@ -126,12 +127,29 @@ export function CategoryColumn({
       // Every other element is w-0 min-w-full (fills but never drives width),
       // so a long name/note can't widen the column — only the reserve value can.
       className={cn(
-        "w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip !cursor-default",
+        // `relative` (260613-v1p): positions the absolute accent bar; safe for
+        // the sticky children below (they resolve against the scroll container).
+        "relative w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip !cursor-default",
         // Archived "keep history": darker #14181D surface (same as excluded
         // reserve rows); the fade comes from the inline `opacity` above.
         archived && "!bg-[#14181D] text-[#7A7C7F]",
       )}
     >
+      {/* 260613-v1p: 4px left accent bar driven by the persisted colorKey.
+          z-0 (below the z-5 backdrop + z-10 sticky band → never breaks the top
+          mask), pointer-events-none + no layout flow → zero impact on drag /
+          horizontal-scroll / sticky / name width. overflow-clip on the card +
+          rounded-l-xl keep it inside the rounded corners. Hidden on archived
+          columns (kept clean/muted) and when there's no color. */}
+      {!archived && hexForColorKey(summary.colorKey) ? (
+        <div
+          aria-hidden="true"
+          data-testid={`category-accent-bar-${category.id}`}
+          className="absolute left-0 top-0 bottom-0 w-1 z-0 rounded-l-xl pointer-events-none"
+          style={{ backgroundColor: hexForColorKey(summary.colorKey)! }}
+        />
+      ) : null}
+
       {/* Top backdrop. Pure-CSS, sticky-pinned at grid.top. Solid canvas-bg
           rectangle covering top 12px of the column (matches the rounded-xl
           radius). Renders ABOVE the column's surface bg + border (the mask

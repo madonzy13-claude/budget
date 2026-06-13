@@ -157,4 +157,26 @@ describe("CategoryColumn", () => {
     // grip has the listener attribute (spread from useSortable.listeners)
     expect(grip?.getAttribute("data-sortable-listener")).toBe("mock");
   });
+
+  // 260613-v1p: 4px left accent bar driven by the persisted colorKey.
+  it("renders a w-1 accent bar with the colorKey hex when colorKey is set", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const bar = screen.getByTestId("category-accent-bar-cat-1");
+    expect(bar).toBeTruthy();
+    // green → #26A69A (happy-dom preserves the hex literal, no rgb() normalize)
+    expect(bar.style.backgroundColor.toUpperCase()).toBe("#26A69A");
+    expect(bar.className).toContain("w-1");
+  });
+
+  it("renders NO accent bar when colorKey is null", () => {
+    renderColumn({ summary: { ...summary, colorKey: null } });
+    expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
+  });
+
+  it("renders NO accent bar on an archived column even with a colorKey", () => {
+    renderColumn({
+      summary: { ...summary, colorKey: "green", archived: true },
+    });
+    expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
+  });
 });

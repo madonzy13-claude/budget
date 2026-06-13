@@ -20,6 +20,8 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 export interface ReservesSummaryRow {
   categoryId: string;
   name: string;
+  /** 260613-v1p: per-category color key (null = no color → no row accent bar). */
+  colorKey: string | null;
   /** R — available reserve for this category (serialized cents). */
   reserveCents: string;
   /** U — reserve consumed by overspend (cumulative / ALL TIME, serialized cents). */
