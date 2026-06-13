@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession, ServerUnavailableError } from "@/lib/server-session";
-import { serverApiFetch } from "@/lib/budget-fetch.server";
+import { serverApiFetch, fetchActiveBudgets } from "@/lib/budget-fetch.server";
 import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
 import {
   NavPendingOverlay,
@@ -124,19 +124,14 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       // onboarding as effectively done and do NOT route them back into the
       // wizard. The wizard is for the FIRST-budget flow; once the user has
       // any budget, the home grid is the right destination.
-      const [progressRes, activeRes] = await Promise.all([
+      // PERF 260613-dn1 #3: use cache()-wrapped fetchActiveBudgets so layout +
+      // page share one /budgets/active call per request render (React cache()
+      // deduplicates within a single render tree; page.tsx call is a cache HIT).
+      const [progressRes, activeBudgets] = await Promise.all([
         serverApiFetch(null, "/onboarding/progress"),
-        serverApiFetch(null, "/budgets/active"),
+        fetchActiveBudgets(),
       ]);
-      let hasAnyBudget = false;
-      if (activeRes.ok) {
-        const body = (await activeRes.json()) as {
-          budgets?: unknown[];
-          workspaces?: unknown[];
-        };
-        const list = body.budgets ?? body.workspaces ?? [];
-        hasAnyBudget = list.length > 0;
-      }
+      const hasAnyBudget = activeBudgets.length > 0;
       if (progressRes.status === 200 && !hasAnyBudget) {
         const progress = (await progressRes.json()) as {
           completedAt?: string | null;

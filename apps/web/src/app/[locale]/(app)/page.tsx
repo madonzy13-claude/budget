@@ -11,7 +11,7 @@
  * the legacy `workspaces` key is removed.
  */
 import { getTranslations } from "next-intl/server";
-import { serverApiFetch } from "@/lib/budget-fetch.server";
+import { fetchActiveBudgets } from "@/lib/budget-fetch.server";
 import { HomeCardsGrid } from "@/components/budgeting/home-cards-grid";
 
 // The home page reads the per-user list of budgets. Without this Next.js
@@ -20,26 +20,18 @@ import { HomeCardsGrid } from "@/components/budgeting/home-cards-grid";
 // onboarding redirect never runs on real authenticated requests either.
 export const dynamic = "force-dynamic";
 import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
-import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
 
 interface HomePageProps {
   params: Promise<{ locale: string }>;
 }
 
-async function fetchBudgets(): Promise<BudgetSummary[]> {
-  const res = await serverApiFetch(null, "/budgets/active");
-  if (!res.ok) return [];
-  const body = (await res.json()) as {
-    budgets?: BudgetSummary[];
-    workspaces?: BudgetSummary[];
-  };
-  return body.budgets ?? body.workspaces ?? [];
-}
-
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "home" });
-  const budgets = await fetchBudgets();
+  // PERF 260613-dn1 #3: fetchActiveBudgets is cache()-wrapped; layout renders
+  // before page in the same request tree → this call is a cache HIT → no
+  // additional /budgets/active round-trip.
+  const budgets = await fetchActiveBudgets();
 
   if (budgets.length === 0) {
     return <HomeEmptyHero locale={locale} />;
