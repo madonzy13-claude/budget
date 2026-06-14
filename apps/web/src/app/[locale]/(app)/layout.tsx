@@ -12,6 +12,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
 import { ViewportDebug } from "@/components/common/viewport-debug";
+import { OfflineDebug } from "@/components/common/offline-debug";
 import { OfflineStatusBadge } from "@/components/common/offline-status-badge";
 import { SyncIssuesList } from "@/components/common/sync-issues-list";
 import { OfflineResilience } from "@/components/common/offline-resilience";
@@ -206,6 +207,8 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           <InstallBanner />
           {/* UAT-08 device diagnostics — renders only with ?vpdbg=1. */}
           <ViewportDebug />
+          {/* 260614-kfw offline diagnostics — renders only with ?offdbg=1. */}
+          <OfflineDebug />
           {/* Global offline/sync indicators (PWAX-02/03) — render app-wide. */}
           <OfflineStatusBadge />
           <SyncIssuesList />
