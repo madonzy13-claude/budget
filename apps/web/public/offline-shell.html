@@ -22,8 +22,12 @@
         color: var(--body-on-dark);
         font-family: Inter, system-ui, -apple-system, sans-serif;
       }
+      /* Header is a real BAR: the safe-area inset is ADDED on top of the 64px
+         row (not folded into a rigid height that the inner row then overflows —
+         that double-counting was what made the brand collide with the heading
+         on iOS). Inner row owns the 64px height; the header only adds the inset
+         padding + hairline. */
       header.shell-header {
-        height: 64px;
         border-bottom: 1px solid var(--hairline-dark);
         padding-top: env(safe-area-inset-top);
         background: var(--canvas-dark);
@@ -35,8 +39,11 @@
         max-width: 1280px;
         align-items: center;
         justify-content: space-between;
+        gap: 12px;
         padding: 0 16px;
       }
+      .shell-wordmark { flex: 0 0 auto; }
+      .shell-offline-pill { flex: 0 0 auto; }
       .shell-wordmark {
         font-weight: 700;
         font-size: 18px;
