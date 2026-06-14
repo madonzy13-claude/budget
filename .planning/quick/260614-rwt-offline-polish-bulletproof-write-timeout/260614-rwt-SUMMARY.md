@@ -168,6 +168,51 @@ RED-first per task (Vitest, NOT E2E — Playwright setOffline cannot reach the S
 
 None.
 
+## Follow-up polish (post-device, 2026-06-14)
+
+Two deterministic layout fixes after on-device screenshots of the new header
+indicator + offline shell.
+
+### F1 — Header offline pill no longer pushes the avatar off-screen
+
+- **Symptom (device):** the offline pill sat between the budget name and the
+  profile avatar (UP) and shoved the avatar past the right edge / clipped it.
+- **`top-nav.tsx`:** flattened the right cluster onto the row as
+  `brand | switcher(flex-1 min-w-0) | right-cluster(shrink-0)`. The switcher
+  wrapper got `min-w-0 flex-1` so it TRUNCATES instead of overflowing; brand +
+  right cluster are `shrink-0` so the avatar is always fully visible at the
+  right edge. Header height unchanged (`h-16`).
+- **`offline-status-badge.tsx`:** OFFLINE state is now a COMPACT pill — a
+  `h-3 w-3` wifi-off SVG (animate-pulse) + a `hidden sm:inline` "Offline"
+  label, `h-6 shrink-0 px-1.5 text-[10px]`. Icon-only on the narrowest widths
+  (label hidden, `aria-label` carries the text); online still `sr-only` so no
+  width is reserved and there is no layout shift toggling online↔offline.
+
+### F2 — offline-shell.html header/heading overlap
+
+- **Symptom (device, IMG_2837):** the BUDGET brand and the "This page wasn't
+  preloaded" heading overlapped; the offline indicator overlapped top-right.
+- **Root cause:** `header.shell-header` had BOTH a rigid `height: 64px` AND
+  `padding-top: env(safe-area-inset-top)` while `.shell-header__inner` also had
+  a rigid `height: 64px`. On iOS the inset was folded INTO the fixed header box,
+  so the 64px inner row overflowed the header's content box and the bar
+  collapsed — brand + heading collided.
+- **Fix:** removed the rigid height from `header.shell-header` (kept only the
+  hairline + inset padding + bg); the `.shell-header__inner` 64px row now owns
+  the bar height and the safe-area inset is ADDED on top. Added `gap: 12px` +
+  `flex: 0 0 auto` on the wordmark/pill so the two-row layout (header bar, then
+  the left-aligned message block below with `padding: 32px 16px`) reads like the
+  real app. Static, dependency-free; pl/uk inline swap + Try-again /
+  online/visibilitychange/focus auto-reload kept.
+
+**Verification:** `tsc --noEmit` + `eslint` clean on top-nav.tsx and
+offline-status-badge.tsx. Rebuilt web + `make restart-web`; web healthy. Served
+`offline-shell.html` confirmed: `header.shell-header` no longer carries the
+rigid 64px (inset added on top of the inner row), inner row has `height: 64px` +
+`gap: 12px`. Built top-nav chunk carries `min-w-0` + `flex-1` + `shrink-0`; the
+badge chunk carries the compact pill markers (`h-6`, `px-1.5`, `text-[10px]`)
+and the wifi-off path (`M2 2l20 20`). Commit: `fix(rwt)` `0c3683f`.
+
 ## Device confirmation (Task 4 — checkpoint, awaiting user)
 
 A one-time Clear-site-data + unregister SW on the installed iOS PWA is required (SW nav
