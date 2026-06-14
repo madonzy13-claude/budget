@@ -5,15 +5,14 @@
  * Reveal model: chips show on hover (hover-capable devices) or on tap (touch).
  * Inline edit: single click on the amount while the row is revealed. On touch
  * the first tap reveals, a second tap on the amount edits.
- * D-PH4-Q1: pending/unsent flags show spinner/retry states.
+ *
+ * Robust-minimal offline (260614-q1v): the offline write queue + per-row
+ * pending/unsent marker were removed. Offline writes roll back with a toast
+ * instead of leaving a hanging row, so there is no in-flight row state here.
  */
 import { useState, useRef, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Pencil, Trash2, Loader2, RotateCcw, Clock } from "lucide-react";
-import {
-  getOfflineQueue,
-  OFFLINE_QUEUE_CHANGED_EVENT,
-} from "@/lib/offline-queue";
+import { Pencil, Trash2 } from "lucide-react";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
@@ -47,15 +46,10 @@ export interface TransactionRowProps {
     fxRate?: string;
     fxAsOf?: string;
     note?: string | null;
-    pending?: boolean;
-    unsent?: boolean;
-    /** Idempotency key used for offline queue lookup (PWAX-03 pending marker) */
-    idempotencyKey?: string;
   };
   budgetId: string;
   month: string;
   onEdit: (txnId: string) => void;
-  onRetry?: (txnId: string) => void;
   /** Round the row's bottom corners — used for the last confirmed row when
    *  drafts follow, so the confirmed group reads as a closed group above
    *  the draft section. */
@@ -70,13 +64,11 @@ export function TransactionRow({
   budgetId,
   month,
   onEdit,
-  onRetry,
   roundedBottom,
   readOnly = false,
 }: TransactionRowProps) {
   const t = useTranslations("grid.txn");
   const tc = useTranslations("grid.confirm.deleteTxn");
-  const tSync = useTranslations("sync.row");
   const locale = useLocale();
   const [revealed, setRevealed] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -88,37 +80,6 @@ export function TransactionRow({
 
   const deleteMutation = useDeleteTransaction(budgetId, month);
   const updateMutation = useUpdateTransaction(budgetId, month);
-
-  // PWAX-03: pending-sync marker — shown when idempotencyKey is in the offline queue
-  const [isOfflinePending, setIsOfflinePending] = useState(false);
-  useEffect(() => {
-    if (!txn.idempotencyKey) return;
-    let cancelled = false;
-    const check = () => {
-      getOfflineQueue()
-        .then((queue) => {
-          if (cancelled) return;
-          setIsOfflinePending(
-            queue.some((q) => q.idempotencyKey === txn.idempotencyKey),
-          );
-        })
-        .catch(() => {
-          // IDB unavailable — no marker shown
-        });
-    };
-    check();
-    // Re-check when the queue changes (the enqueue lands just after mount) and
-    // on connectivity flips, so the marker isn't stuck on its mount-time read.
-    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, check);
-    window.addEventListener("online", check);
-    window.addEventListener("offline", check);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, check);
-      window.removeEventListener("online", check);
-      window.removeEventListener("offline", check);
-    };
-  }, [txn.idempotencyKey]);
 
   const showChips = (hovered || revealed) && !editing && !readOnly;
 
@@ -274,10 +235,6 @@ export function TransactionRow({
   }
 
   function handleClick(e: React.MouseEvent) {
-    if (txn.unsent && onRetry) {
-      onRetry(txn.id);
-      return;
-    }
     if (editing) return;
     const hoverCapable =
       typeof window !== "undefined" &&
@@ -385,8 +342,6 @@ export function TransactionRow({
     <div
       ref={rowRef}
       data-testid={`txn-row-${txn.amountConvertedCents}`}
-      data-pending={txn.pending ? "true" : undefined}
-      data-unsent={txn.unsent ? "true" : undefined}
       onClick={readOnly ? undefined : handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -397,13 +352,9 @@ export function TransactionRow({
         readOnly ? "cursor-default select-none" : "cursor-pointer select-none",
         roundedBottom && "rounded-b-md",
         showChips && "bg-[var(--surface-elevated-dark)]",
-        txn.unsent && "ring-1 ring-[var(--destructive)]",
-        txn.pending && "opacity-70",
       )}
     >
-      {/* Amount cell. The pending/unsent status icon renders inline before the
-          amount — the text shifts right only while the row is in flight, then
-          settles back. */}
+      {/* Amount cell. */}
       <div
         ref={cellRef}
         data-amount-cell
@@ -442,14 +393,7 @@ export function TransactionRow({
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
-                  <span className="shrink-0">
-                    {txn.pending ? (
-                      <Loader2 className="mr-1 inline h-4 w-4 animate-spin text-[var(--muted-foreground)]" />
-                    ) : txn.unsent ? (
-                      <RotateCcw className="mr-1 inline h-4 w-4 text-[var(--destructive)]" />
-                    ) : null}
-                    {formattedAmount}
-                  </span>
+                  <span className="shrink-0">{formattedAmount}</span>
                   {/* Inline note — hidden while chips are revealed to keep the
                       revealed state clean. Tooltip still renders the note on
                       hover/long-press. */}
@@ -475,18 +419,6 @@ export function TransactionRow({
           </TooltipProvider>
         )}
       </div>
-
-      {/* Offline pending-sync marker (PWAX-03) */}
-      {isOfflinePending && (
-        <span
-          data-testid={`txn-pending-${txn.id}`}
-          aria-label="Pending sync"
-          className="flex shrink-0 items-center gap-1 text-xs text-[var(--muted-foreground)]"
-        >
-          <Clock className="h-3 w-3" aria-hidden="true" />
-          {tSync("pending")}
-        </span>
-      )}
 
       {/* Action chips — shown on hover (desktop) or tap-reveal (touch) */}
       {showChips && (

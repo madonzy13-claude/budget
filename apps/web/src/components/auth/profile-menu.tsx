@@ -55,7 +55,6 @@ import {
 import { isIos } from "@/lib/ios-install";
 import { IosInstallDialog } from "@/components/common/ios-install-dialog";
 import { toggleVpdbg } from "@/components/common/viewport-debug";
-import { toggleOffdbg } from "@/components/common/offline-debug";
 
 export interface ProfileMenuProps {
   locale: string;
@@ -312,7 +311,6 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             data-testid="profile-menu-diagnostics"
             onClick={() => {
               toggleVpdbg();
-              toggleOffdbg();
               window.location.reload();
             }}
             className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)]"

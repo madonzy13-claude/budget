@@ -1,13 +1,13 @@
 /**
  * offline-cache.ts — IndexedDB-backed budget cache layer (PWAX-02)
  *
- * DB_VERSION = 1
+ * DB_VERSION = 2 (v2 dropped the offline-queue store — robust-minimal offline
+ * 260614-q1v: offline writes roll back with a toast instead of queueing).
  * Store shapes:
  *   budgets        keyPath: "id"         — { id, name, currency, ... }
  *   wallets        keyPath: "id"         — { id, name, balanceCents, ... }
  *   categories     keyPath: "id"         — { id, name, budgetCents, ... }
  *   transactions   keyPath: "_cacheKey"  — "_cacheKey" = "budgetId:YYYY-MM:id"
- *   offline-queue  keyPath: "idempotencyKey" — OfflineTxn
  *   sync-meta      keyPath: "key"        — { key: budgetId, lastSyncedAt: ISO }
  *
  * Bump DB_VERSION whenever any store's shape changes — co-located here (Pitfall 2).
@@ -17,7 +17,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 
 export const DB_NAME = "budget-cache";
-export const DB_VERSION = 1; // bump when any store shape changes
+export const DB_VERSION = 2; // bump when any store shape changes
 
 export async function openBudgetDB(): Promise<IDBPDatabase> {
   return openDB(DB_NAME, DB_VERSION, {
@@ -35,8 +35,9 @@ export async function openBudgetDB(): Promise<IDBPDatabase> {
         // keyPath "_cacheKey" = "budgetId:YYYY-MM:id"
         db.createObjectStore("transactions", { keyPath: "_cacheKey" });
       }
-      if (!db.objectStoreNames.contains("offline-queue")) {
-        db.createObjectStore("offline-queue", { keyPath: "idempotencyKey" });
+      // v2: drop the legacy offline-queue store if upgrading from v1.
+      if (db.objectStoreNames.contains("offline-queue")) {
+        db.deleteObjectStore("offline-queue");
       }
       if (!db.objectStoreNames.contains("sync-meta")) {
         // { key: budgetId, lastSyncedAt: ISO }

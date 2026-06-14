@@ -12,9 +12,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
 import { ViewportDebug } from "@/components/common/viewport-debug";
-import { OfflineDebug } from "@/components/common/offline-debug";
 import { OfflineStatusBadge } from "@/components/common/offline-status-badge";
-import { SyncIssuesList } from "@/components/common/sync-issues-list";
 import { OfflineResilience } from "@/components/common/offline-resilience";
 
 // The (app) shell is per-user: session lookup, onboarding-progress fetch,
@@ -207,15 +205,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           <InstallBanner />
           {/* UAT-08 device diagnostics — renders only with ?vpdbg=1. */}
           <ViewportDebug />
-          {/* 260614-kfw offline diagnostics — renders only with ?offdbg=1. */}
-          <OfflineDebug />
-          {/* Global offline/sync indicators (PWAX-02/03) — render app-wide. */}
+          {/* Global offline indicator — ambient connectivity pill, app-wide. */}
           <OfflineStatusBadge />
-          <SyncIssuesList />
-          {/* Offline resilience island (260614-ipk): mounts useOnlineSync
-              (reconnect-replay on online/visibility/focus) + SwUpdateReloader
-              (auto-reload installed PWA on SW update). Client leaf inside the
-              app-wide QueryClientProvider. */}
+          {/* Offline resilience island: mounts SwUpdateReloader (auto-reload
+              installed PWA on SW update). Client leaf inside the app-wide
+              QueryClientProvider. */}
           <OfflineResilience />
           {/* pt-[env(safe-area-inset-top)]: with viewport-fit=cover the page
               extends under the status bar in standalone mode — the header

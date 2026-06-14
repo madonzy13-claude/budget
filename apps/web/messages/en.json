@@ -1185,6 +1185,9 @@
     }
   },
   "offline": {
+    "badge": {
+      "ariaLabel": "Offline"
+    },
     "heading": "You're offline",
     "body": "Budget is offline. Check your connection and try again.",
     "reload": "Try again",

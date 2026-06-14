@@ -20,14 +20,15 @@ beforeEach(async () => {
 });
 
 describe("openBudgetDB", () => {
-  it("creates all 6 object stores without error", async () => {
+  it("creates all 5 object stores without error", async () => {
     const db = await openBudgetDB();
     expect(db.objectStoreNames).toContain("budgets");
     expect(db.objectStoreNames).toContain("wallets");
     expect(db.objectStoreNames).toContain("categories");
     expect(db.objectStoreNames).toContain("transactions");
-    expect(db.objectStoreNames).toContain("offline-queue");
     expect(db.objectStoreNames).toContain("sync-meta");
+    // Robust-minimal offline (260614-q1v): offline-queue store dropped in v2.
+    expect(db.objectStoreNames).not.toContain("offline-queue");
     db.close();
   });
 

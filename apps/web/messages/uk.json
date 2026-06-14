@@ -1187,6 +1187,9 @@
   },
   "offline": {
     "_machineTranslated": true,
+    "badge": {
+      "ariaLabel": "Офлайн"
+    },
     "heading": "Ви офлайн",
     "body": "Budget офлайн. Перевірте з'єднання та спробуйте ще раз.",
     "reload": "Спробувати ще раз",

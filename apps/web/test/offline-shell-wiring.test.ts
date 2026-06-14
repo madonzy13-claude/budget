@@ -14,7 +14,7 @@ const layout = readFileSync(
 );
 
 describe("(app) shell wires the global PWA/offline surfaces", () => {
-  it.each([["OfflineStatusBadge"], ["SyncIssuesList"], ["InstallBanner"]])(
+  it.each([["OfflineStatusBadge"], ["OfflineResilience"], ["InstallBanner"]])(
     "renders <%s /> in the app layout",
     (component) => {
       expect(layout).toMatch(new RegExp(`import\\s*{[^}]*\\b${component}\\b`));

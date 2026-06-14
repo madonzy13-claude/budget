@@ -1,68 +1,41 @@
 "use client";
 /**
- * OfflineStatusBadge — global offline/pending-sync indicator (PWAX-02)
+ * OfflineStatusBadge — global offline indicator.
  *
- * State table:
- *   online  && queue === 0 → hidden (aria-hidden)
- *   online  && queue  > 0 → yellow --primary dot (pending sync)
- *   offline              → red --destructive animate-pulse dot
+ * Robust-minimal offline (260614-q1v): there is no offline write queue anymore,
+ * so the badge is a plain connectivity pill:
+ *   online  → hidden (aria-hidden)
+ *   offline → red --destructive animate-pulse dot
  *
- * Mount this once in the top nav, next to the profile button.
+ * Connectivity is read from the browser online/offline events for the AMBIENT
+ * pill only — it never gates writes (those are fetch-result-driven, because
+ * navigator.onLine lies on iOS). Mount this once in the top nav.
  */
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import {
-  getOfflineQueue,
-  OFFLINE_QUEUE_CHANGED_EVENT,
-} from "@/lib/offline-queue";
-
-const POLL_MS = 5_000; // refresh queue count every 5 s while tab is open
 
 export function OfflineStatusBadge() {
-  const t = useTranslations("sync");
+  const t = useTranslations("offline");
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
-  const [queueCount, setQueueCount] = useState(0);
-
-  async function refreshQueue() {
-    try {
-      const items = await getOfflineQueue();
-      setQueueCount(items.length);
-    } catch {
-      // IndexedDB not available (SSR guard)
-    }
-  }
 
   useEffect(() => {
-    refreshQueue();
-
     function handleOnline() {
       setIsOnline(true);
-      refreshQueue();
     }
     function handleOffline() {
       setIsOnline(false);
-      refreshQueue();
     }
-
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
-    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refreshQueue);
-
-    const timer = setInterval(refreshQueue, POLL_MS);
-
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
-      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, refreshQueue);
-      clearInterval(timer);
     };
   }, []);
 
-  const hidden = isOnline && queueCount === 0;
-
-  if (hidden) {
+  if (isOnline) {
     return (
       <span
         data-testid="offline-status-badge"
@@ -72,22 +45,15 @@ export function OfflineStatusBadge() {
     );
   }
 
-  const isOffline = !isOnline;
-
   return (
     <span
       data-testid="offline-status-badge"
-      aria-label={t("badge.ariaLabel", { count: queueCount })}
+      aria-label={t("badge.ariaLabel")}
       className="relative inline-flex items-center"
     >
       <span
         aria-hidden="true"
-        className={[
-          "h-2.5 w-2.5 rounded-full",
-          isOffline
-            ? "animate-pulse bg-[var(--destructive,#ef4444)]"
-            : "bg-[var(--primary,#f0b90b)]",
-        ].join(" ")}
+        className="h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--destructive,#ef4444)]"
       />
     </span>
   );
