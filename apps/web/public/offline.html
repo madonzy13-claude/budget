@@ -244,54 +244,84 @@
           }
         }
 
+        // One /api/health probe with a 5s abort timeout. Resolves true on a 2xx,
+        // false on a non-ok response, REJECTS on network failure/abort.
+        function probeOnce() {
+          return new Promise(function (resolve, reject) {
+            var controller = new AbortController();
+            var timer = setTimeout(function () {
+              controller.abort();
+            }, 5000);
+            fetch("/api/health", {
+              cache: "no-store",
+              signal: controller.signal,
+            })
+              .then(function (res) {
+                clearTimeout(timer);
+                resolve(!!(res && res.ok));
+              })
+              .catch(function (e) {
+                clearTimeout(timer);
+                reject(e);
+              });
+          });
+        }
+
+        // 260614-ipk: mirror decideOfflineRecovery() from sw-offline.ts.
+        // Probe up to 3 times with short backoff (~1s, ~2s); navigate the moment
+        // a probe succeeds AND — critically — navigate ANYWAY if every probe
+        // fails. The real navigation goes network-first through the SW, so it
+        // renders the real page when the origin is back even if /api/health was
+        // flaky/blocked; only if THAT navigation also fails does the SW re-serve
+        // this offline.html (one screen, no loop). The strict res.ok gate was the
+        // bug that stranded users — the probe is now a fast-path hint, not a gate.
+        function recover(attempt) {
+          probeOnce()
+            .then(function (ok) {
+              if (ok) {
+                window.location.assign(safeNext());
+                return;
+              }
+              nextAttempt(attempt);
+            })
+            .catch(function () {
+              nextAttempt(attempt);
+            });
+        }
+
+        function nextAttempt(attempt) {
+          if (attempt < 3) {
+            setTimeout(function () {
+              recover(attempt + 1);
+            }, 1000 * attempt);
+            return;
+          }
+          // All probes exhausted — navigate anyway (network-first via the SW).
+          window.location.assign(safeNext());
+        }
+
         function retry() {
+          // Re-entrancy guard: visibility + focus + online + click can all fire
+          // at once; only one recovery sequence runs at a time.
           if (retrying) return;
           retrying = true;
           still.hidden = true;
           btn.disabled = true;
           btn.classList.add("is-retrying");
           label.textContent = t.retrying;
-
-          var done = false;
-          var controller = new AbortController();
-          var timer = setTimeout(function () {
-            controller.abort();
-          }, 5000);
-
-          // Probe the API health endpoint (proxied to the API container). On a
-          // good response, hard-navigate to the page the user originally wanted
-          // so middleware + RSC run again from a clean state.
-          fetch("/api/health", { cache: "no-store", signal: controller.signal })
-            .then(function (res) {
-              done = true;
-              clearTimeout(timer);
-              if (res && res.ok) {
-                window.location.assign(safeNext());
-                return;
-              }
-              fail();
-            })
-            .catch(function () {
-              if (done) return;
-              clearTimeout(timer);
-              fail();
-            });
-        }
-
-        function fail() {
-          retrying = false;
-          btn.disabled = false;
-          btn.classList.remove("is-retrying");
-          label.textContent = t.retry;
-          still.textContent = t.still;
-          still.hidden = false;
+          recover(1);
         }
 
         btn.addEventListener("click", retry);
 
-        // Auto-recover: the moment the browser reports it is back online, retry
-        // once. Mirrors Serwist's reloadOnOnline for the static fallback doc.
+        // Auto-recover triggers. iOS reports the "online" event UNRELIABLY, so
+        // also re-attempt recovery whenever the user RETURNS to the app — that is
+        // the strongest "the network may be back" signal on iOS.
         window.addEventListener("online", retry);
+        window.addEventListener("focus", retry);
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") retry();
+        });
       })();
     </script>
   </body>

@@ -16,6 +16,81 @@ export const OFFLINE_FALLBACK_URL = "/offline.html";
 export const SUPPORTED_LOCALES = ["en", "pl", "uk"] as const;
 
 /**
+ * sanitizeNext — open-redirect guard for the offline.html Try-again target
+ * (260614-ipk, issue 3). Same-origin ABSOLUTE PATH only. Mirrors the inline
+ * safeNext() in public/offline.html verbatim so the unit test pins the exact
+ * sanitization the static doc relies on:
+ *   - empty / null              → "/<locale>"
+ *   - not starting with "/"     → "/<locale>" (rejects "https://evil")
+ *   - starting with "//"        → "/<locale>" (rejects protocol-relative)
+ *   - any "offline.html"        → "/<locale>" (never bounce back to the fallback)
+ *   - otherwise                 → preserved verbatim
+ */
+export function sanitizeNext(
+  next: string | null | undefined,
+  locale: string,
+): string {
+  const fallback = "/" + locale;
+  if (!next) return fallback;
+  if (next.charAt(0) !== "/" || next.charAt(1) === "/") return fallback;
+  if (/offline\.html/.test(next)) return fallback;
+  return next;
+}
+
+export interface OfflineRecoveryArgs {
+  /** Resolves true when the origin/health probe succeeds; false/throws otherwise. */
+  probeFn: () => Promise<boolean>;
+  /** Performs the real navigation (e.g. location.assign). */
+  navigateFn: (target: string) => void;
+  /** Already-sanitized destination path. */
+  target: string;
+  /** Total probe attempts before navigating anyway (>= 1). */
+  attempts?: number;
+  /** Backoff (ms) before attempt N (1-based). Pure/injectable for tests. */
+  backoffMs?: (attempt: number) => number;
+  /** Sleep impl — injectable so tests run instantly. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * decideOfflineRecovery — the pure Try-again decision the inline offline.html
+ * script mirrors (260614-ipk, issue 3).
+ *
+ * OLD behavior strictly gated recovery on a /api/health 200, so a flaky or
+ * blocked probe stranded the user even when the site was actually reachable.
+ *
+ * NEW behavior: probe up to `attempts` times with short backoff; navigate the
+ * MOMENT a probe succeeds. If every probe fails, navigate ANYWAY — the real
+ * navigation goes network-first through the service worker and renders the real
+ * page if the origin is back; only if THAT navigation also fails does the SW
+ * re-serve offline.html (one screen, no loop). The health probe is a fast-path
+ * hint, never a hard gate.
+ */
+export async function decideOfflineRecovery({
+  probeFn,
+  navigateFn,
+  target,
+  attempts = 3,
+  backoffMs = (n) => Math.min(2000, 1000 * n),
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+}: OfflineRecoveryArgs): Promise<void> {
+  const total = Math.max(1, attempts);
+  for (let attempt = 1; attempt <= total; attempt++) {
+    try {
+      if (await probeFn()) {
+        navigateFn(target);
+        return;
+      }
+    } catch {
+      // probe rejected/aborted — fall through to retry / navigate-anyway
+    }
+    if (attempt < total) await sleep(backoffMs(attempt));
+  }
+  // All probes failed — navigate anyway (network-first through the SW).
+  navigateFn(target);
+}
+
+/**
  * Navigation strategy. Try the network with a timeout; on ANY failure — a
  * rejected fetch (offline / DNS / connect-refused / abort) OR a 5xx response —
  * return the static, non-redirecting offline document. NEVER fall back to a

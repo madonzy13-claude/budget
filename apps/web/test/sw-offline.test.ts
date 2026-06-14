@@ -20,6 +20,8 @@ import {
   OFFLINE_FALLBACK_URL,
   buildOfflineDocument,
   handleNavigationRequest,
+  decideOfflineRecovery,
+  sanitizeNext,
 } from "../sw-offline";
 
 const ORIGIN = "http://localhost:3000";
@@ -172,5 +174,87 @@ describe("buildOfflineDocument", () => {
     const body = await res.text();
     expect(body).toContain("We can't reach the server");
     expect(body).toContain('lang="en"');
+  });
+});
+
+/**
+ * offline.html Try-again recovery (260614-ipk, issue 3).
+ *
+ * The OLD offline.html strictly gated recovery on a /api/health 200 — a
+ * flaky/blocked health probe stranded the user even when the site was actually
+ * reachable. decideOfflineRecovery() is the pure decision the inline offline.html
+ * script mirrors: probe with retries+backoff, but ALWAYS navigate at the end (the
+ * real navigation goes network-first through the SW and renders the real page if
+ * the origin is back; only if THAT also fails does the SW re-serve offline.html).
+ */
+describe("decideOfflineRecovery — Try-again robustness", () => {
+  test("Test 1 — probe OK → navigate to safeNext target", async () => {
+    const probeFn = vi.fn().mockResolvedValue(true);
+    const navigateFn = vi.fn();
+
+    await decideOfflineRecovery({
+      probeFn,
+      navigateFn,
+      target: "/en/budgets/abc",
+      attempts: 3,
+      backoffMs: () => 0,
+    });
+
+    expect(probeFn).toHaveBeenCalledTimes(1);
+    expect(navigateFn).toHaveBeenCalledTimes(1);
+    expect(navigateFn).toHaveBeenCalledWith("/en/budgets/abc");
+  });
+
+  test("Test 2 — probe FAILS/aborts but origin is back → STILL navigates", async () => {
+    // Every probe rejects (health blocked/flaky), but the site is reachable.
+    const probeFn = vi.fn().mockRejectedValue(new Error("aborted"));
+    const navigateFn = vi.fn();
+
+    await decideOfflineRecovery({
+      probeFn,
+      navigateFn,
+      target: "/en/settings",
+      attempts: 3,
+      backoffMs: () => 0,
+    });
+
+    // Core fix: navigation happens anyway, not gated on a health 200.
+    expect(navigateFn).toHaveBeenCalledTimes(1);
+    expect(navigateFn).toHaveBeenCalledWith("/en/settings");
+  });
+
+  test("Test 3 — retries with backoff: fails twice then succeeds → eventually navigates", async () => {
+    const probeFn = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error("x"))
+      .mockResolvedValueOnce(true);
+    const navigateFn = vi.fn();
+    const backoffMs = vi.fn().mockReturnValue(0);
+
+    await decideOfflineRecovery({
+      probeFn,
+      navigateFn,
+      target: "/en",
+      attempts: 3,
+      backoffMs,
+    });
+
+    expect(probeFn.mock.calls.length).toBeGreaterThan(1);
+    expect(backoffMs).toHaveBeenCalled(); // short backoff between attempts
+    expect(navigateFn).toHaveBeenCalledWith("/en");
+  });
+
+  test("Test 4 — sanitizeNext preserves open-redirect protections", () => {
+    // Open-redirect attempts fall back to the locale root.
+    expect(sanitizeNext("//evil.com", "en")).toBe("/en");
+    expect(sanitizeNext("https://evil", "en")).toBe("/en");
+    expect(sanitizeNext("/pl/offline.html", "pl")).toBe("/pl");
+    expect(sanitizeNext("", "uk")).toBe("/uk");
+    expect(sanitizeNext(null, "en")).toBe("/en");
+    // A legitimate same-origin absolute path is preserved verbatim.
+    expect(sanitizeNext("/pl/budgets/abc?tab=reserves", "pl")).toBe(
+      "/pl/budgets/abc?tab=reserves",
+    );
   });
 });
