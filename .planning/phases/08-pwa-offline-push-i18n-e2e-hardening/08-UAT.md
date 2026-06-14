@@ -8,12 +8,11 @@ updated: 2026-06-11T10:30:00Z
 
 ## Current Test
 
-number: 3
-name: PWA Install on Real Mobile Device (PWAX-01 — manual)
+number: 4
+name: Offline Write — Pending Sync Marker (PWAX-03)
 expected: |
-Mobile install from https://budget-dev.madonzy.com works; icon dark+yellow;
-launches standalone. iOS path already captured as gap (test 2) — Android/
-desktop install validates the manifest side.
+Offline quick-entry shows row with Pending marker + red pulsing offline
+badge; reconnect auto-syncs, marker clears.
 awaiting: user response
 
 ## Tests
@@ -34,12 +33,20 @@ claude_verified: "2026-06-11 — Playwright live: banner renders with all 3 acti
 ### 3. PWA Install on Real Mobile Device (PWAX-01 — manual)
 
 expected: From mobile Chrome/Safari at https://budget-dev.madonzy.com, install/Add-to-Home-Screen works. App icon is dark canvas + yellow accent. Launches standalone (no browser chrome), theme color dark.
-result: [pending]
+result: pass
+claude_verified: "2026-06-11 — manifest 200 (standalone, theme #0b0e11), 4 icons 200 image/png; Brave desktop install + iOS A2HS dialog user-confirmed in test 2 rounds."
+note: "User installed on real iOS device via new A2HS instructions; standalone launch + icon confirmed."
 
 ### 4. Offline Write — Pending Sync Marker (PWAX-03)
 
 expected: Go offline (airplane mode/devtools offline). Quick-entry an expense — row appears immediately with Clock + "Pending" marker; offline badge shows red pulsing dot. Go back online — entry syncs automatically, pending marker clears, badge hides.
-result: [pending]
+result: fix-deployed (awaiting device re-verify)
+reported: "On device (iOS), offline quick-entry shows only a perpetual LOADING SPINNER next to the amount (e.g. '17') — NOT the Clock + 'Pending' marker. Stuck loading; no offline pending state."
+severity: major
+root_cause: "Offline fork keyed ONLY on navigator.onLine===false (use-create-transaction.ts:93); iOS reports onLine=true with no network → write took the online path; clientApiFetch had no timeout → POST hung forever → optimistic row pending:true never cleared (spinner). Clock/Pending marker gated on the IndexedDB queue entry that's only written in the skipped fork → never shown. Vitest passed because it force-set navigator.onLine=false + mocked fetch — never exercising the 'looks online but network dead' branch."
+fix: "quick-260614-i5m (commits 5c576b3 RED, b7f74fd GREEN): write POST now uses AbortSignal.timeout(8000) + try/catch fallback — any network throw/timeout/5xx enqueues to the offline queue (same idempotency key → server dedupes, no double-write) and throws OfflineEnqueuedError → onError clears the spinner + the Clock/Pending marker shows. 4xx stays a real error (no replay loop). navigator.onLine kept only as a fast path."
+claude_verified: "2026-06-14 — RED tests reproduced the device hang (navigator.onLine=true + fetch reject/AbortError → previously stuck pending); now GREEN. Suite 30/30 (offline-write-path/offline-queue/offline-status-badge/transaction-row-marker/use-online-sync/offline-shell-wiring); tsc+eslint clean; web rebuilt, served bundle confirmed contains AbortSignal.timeout(8e3) in the spendings route chunk. Real-device offline still the human confirmation (env-fragile to automate)."
+claude_verified: "2026-06-11 — deterministic offline Vitest suite 9 files / 50 tests green (enqueue+idempotencyKey, write fork, pending marker show/clear, badge+sync-issues reactivity, replay 2xx/4xx/5xx, SW fallback, shell wiring); offline fork + txn-pending- testid present in served spendings chunk. 3 real-browser E2E scenarios @skip by design (env-fragile) — this UAT is the real-device validation. RE-VERIFIED 2026-06-14 post category-color migration + layout refactor: offline-write-path/offline-queue/offline-status-badge/offline-shell-wiring/use-online-sync 22/22 green; served live chunks still contain offline machinery."
 
 ### 5. Offline Read — Cached Budget + Staleness Marker (PWAX-02)
 
@@ -84,9 +91,9 @@ result: [pending]
 ## Summary
 
 total: 12
-passed: 2
+passed: 3
 issues: 0
-pending: 10
+pending: 9
 skipped: 0
 blocked: 0
 
@@ -110,6 +117,20 @@ blocked: 0
   - "Listen for appinstalled; track installed state; profile entry should say 'already installed' (or hide) instead of notAvailable"
     debug_session: ""
     resolution: "FIXED bf5796e + 17b777c + afb6c36 — final design per user: banner is install-suggestion only, mobile-only (sm:hidden; desktop uses profile-menu entry). Installed state (appinstalled persisted + Chromium prompt-silence heuristic in install-detect.ts: SW-controlled + no beforeinstallprompt in 2.5s ⇒ session-only flag, late prompt reverses) hides banner AND profile entry. Open-app banner mode removed per UAT feedback. Learn-more dialog restructured (icon rows, bold title + muted detail), 'browser chrome' jargon dropped EN/PL/UK. iOS remains undetectable by platform design — X-dismiss persists there. TDD: 33 tests."
+
+- truth: "Bottom of scrollable pages reachable in iOS Safari browser (no content hidden behind the floating bottom bar)"
+  status: resolved
+  reason: "User reported (before test 4): in iOS Safari browser — not installed PWA — the bottom part of the Wallets page is truncated behind Safari's bottom bar"
+  severity: major
+  test: 4
+  root_cause: "iOS Safari's floating bottom bar overlays the layout viewport; the (app) shell's <main> scroll surface had no env(safe-area-inset-bottom) clearance, so the final rows sat in the obscured zone. Standalone unaffected (no bar)."
+  artifacts:
+  - path: "apps/web/src/app/[locale]/(app)/layout.tsx"
+    issue: "<main> scroll surface lacked bottom safe-area padding"
+    missing:
+  - "pb-[env(safe-area-inset-bottom)] on the shell scroll surface"
+    debug_session: ""
+    resolution: "FIXED 9a2bd51 (final; supersedes 1100fb3/f34ae02/25b8e31/6d25bf2/1b0cab8 partials). Root cause (device-measured via ?vpdbg overlay + user's google.com/home-assistant.io counter-evidence): iOS Safari collapses its bar and extends the viewport edge-to-edge only when the PAGE scrolls; the locked-body + inner-scroll architecture (needed for custom PTR) kept the bar expanded with a dead band beneath. Final design: @media (display-mode: browser) unlocks native page scroll (html/body auto, shell min-height 100lvh, main overflow visible, custom PTR bails — platform provides PTR + bar collapse; header scrolls away, BDP tab band sticky top-0 takes over). Standalone keeps locked body + custom PTR + 100lvh + env()+48px breathing room. Overrides UNLAYERED (Tailwind utility cascade). 7 regression guards in test/shell-safe-area.test.ts."
 
 - truth: "iOS Safari users can install the PWA (PWAX-01 covers real mobile devices)"
   status: resolved
