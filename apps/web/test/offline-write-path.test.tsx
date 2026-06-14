@@ -1,39 +1,37 @@
 /**
  * offline-write-path.test.tsx — deterministic regression guard for the offline
- * write path (PWAX-03), run in Vitest + happy-dom + fake-indexeddb with no real
- * browser / service worker / network. This is the CI-enforced guarantee that
- * offline create-transaction keeps working release-to-release.
- *
- * Guards the bugs found during Phase 8 E2E:
- *   - offline fork must ENQUEUE (not POST) when navigator.onLine is false
- *   - the optimistic row must carry the SAME idempotencyKey that is queued
- *     (so the per-row pending-sync marker can match it)
- *   - the offline mutation must take the onError path (keep the row), NOT
- *     onSuccess(null) which replaced the row via mapTxnRowToDTO(null) and wiped
- *     the key + offline state
+ * write path, run in Vitest + happy-dom with no real browser / service worker /
+ * network. CI-enforced guarantee for the robust-minimal offline contract
+ * (quick task 260614-q1v): there is NO offline queue and NO replay. Offline /
+ * unreachable / 5xx writes ROLL BACK the optimistic row and surface an honest
+ * toast; genuine 4xx errors surface a generic error toast; online is unchanged.
  */
-import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, render, screen, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { wipeBudgetCache } from "../src/lib/offline-cache";
-import { getOfflineQueue, removeFromQueue } from "../src/lib/offline-queue";
 
 // clientApiFetch must be mocked before the hook imports it.
 vi.mock("../src/lib/budget-fetch", () => ({ clientApiFetch: vi.fn() }));
-// next-intl is only needed by TransactionRow (the fallback render assertion).
+// sonner toast — assert the honest offline / generic error messages.
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+// next-intl returns the key path so we can assert which message was toasted.
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => (key: string) => `grid.txn.${key}`,
   useLocale: () => "en",
 }));
 import { clientApiFetch } from "../src/lib/budget-fetch";
+import { toast } from "sonner";
 import { useCreateTransaction } from "../src/hooks/use-create-transaction";
-import { TransactionRow } from "../src/components/budgeting/spendings-grid/transaction-row";
 
 const mockFetch = clientApiFetch as ReturnType<typeof vi.fn>;
+const toastError = toast.error as ReturnType<typeof vi.fn>;
 const budgetId = "11111111-1111-1111-1111-111111111111";
 const month = "2026-06";
+const OFFLINE_MSG = "grid.txn.write.offline";
+const FAILED_MSG = "grid.txn.write.failed";
 
 function setOnline(value: boolean) {
   Object.defineProperty(navigator, "onLine", {
@@ -54,11 +52,27 @@ function newClient() {
   });
 }
 
-beforeEach(async () => {
-  await wipeBudgetCache();
-  for (const item of await getOfflineQueue()) {
-    await removeFromQueue(item.idempotencyKey);
-  }
+const txKey = ["transactions", budgetId, month] as const;
+
+/** Seed a known baseline so rollback is observable (must equal `previous`). */
+function seedBaseline(qc: QueryClient) {
+  const baseline = [{ id: "existing-1", amountConvertedCents: "999" }];
+  qc.setQueryData(txKey, baseline);
+  return baseline;
+}
+
+function getRows(qc: QueryClient) {
+  return (qc.getQueryData(txKey) ?? []) as Array<Record<string, unknown>>;
+}
+
+const input = {
+  categoryId: "cat-1",
+  amountCents: 1200,
+  date: "2026-06-11",
+  currency: "USD",
+};
+
+beforeEach(() => {
   vi.clearAllMocks();
   setOnline(true);
 });
@@ -66,65 +80,7 @@ beforeEach(async () => {
 afterEach(() => setOnline(true));
 
 describe("offline create-transaction write path", () => {
-  it("offline mutate enqueues the txn and does NOT POST", async () => {
-    setOnline(false);
-    const qc = newClient();
-    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
-      wrapper: makeWrapper(qc),
-    });
-
-    result.current.mutate({
-      categoryId: "cat-1",
-      amountCents: 1200,
-      date: "2026-06-11",
-      currency: "USD",
-    });
-
-    await waitFor(async () => {
-      expect(await getOfflineQueue()).toHaveLength(1);
-    });
-    // Offline → no network POST.
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("the optimistic row carries the SAME idempotencyKey that is queued and is not wiped", async () => {
-    setOnline(false);
-    const qc = newClient();
-    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
-      wrapper: makeWrapper(qc),
-    });
-
-    result.current.mutate({
-      categoryId: "cat-1",
-      amountCents: 1200,
-      date: "2026-06-11",
-      currency: "USD",
-    });
-
-    await waitFor(async () => {
-      expect(await getOfflineQueue()).toHaveLength(1);
-    });
-    const queuedKey = (await getOfflineQueue())[0].idempotencyKey;
-
-    // The optimistic row must survive (onError keeps it) AND carry the queued
-    // key — onSuccess(null) wiping it was the production bug.
-    await waitFor(() => {
-      const rows = qc.getQueryData(["transactions", budgetId, month]) as
-        | Array<Record<string, unknown>>
-        | undefined;
-      const row = rows?.find((r) => r.idempotencyKey === queuedKey);
-      expect(row, "optimistic offline row with queued key").toBeTruthy();
-    });
-    const rows = qc.getQueryData(["transactions", budgetId, month]) as Array<
-      Record<string, unknown>
-    >;
-    const row = rows.find((r) => r.idempotencyKey === queuedKey)!;
-    expect(row.idempotencyKey).toBe(queuedKey);
-    // Flagged unsent (queued), not silently dropped.
-    expect(row.unsent).toBe(true);
-  });
-
-  it("online mutate POSTs and does NOT enqueue", async () => {
+  it("online add POSTs and confirms the server row (no toast.error)", async () => {
     setOnline(true);
     mockFetch.mockResolvedValue(
       new Response(JSON.stringify({ transaction: { id: "srv-1" } }), {
@@ -136,172 +92,104 @@ describe("offline create-transaction write path", () => {
       wrapper: makeWrapper(qc),
     });
 
-    result.current.mutate({
-      categoryId: "cat-1",
-      amountCents: 500,
-      date: "2026-06-11",
-      currency: "USD",
-    });
+    result.current.mutate(input);
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
-    expect(await getOfflineQueue()).toHaveLength(0);
-    // The POST carried the same idempotency key as the header.
+    await waitFor(() => {
+      const rows = getRows(qc);
+      expect(rows.some((r) => r.id === "srv-1")).toBe(true);
+    });
+    // The POST carried an idempotency key header.
     const [, init] = mockFetch.mock.calls[0] as [
       string,
       { headers: Record<string, string> },
     ];
     expect(init.headers["Idempotency-Key"]).toBeTruthy();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
-  // ── iOS device branch: navigator.onLine LIES (reports true on a dead link) ──
-  // The existing suite only covered onLine=false. On iOS Safari/PWA the write
-  // falls through to the real POST, which then hangs (no timeout) → perpetual
-  // spinner, no queue insert, no Clock marker. These tests reproduce that branch:
-  // the POST must FAIL (network throw / abort), and the write must fall back to
-  // the queue + clear pending — exactly like the onLine=false fast path.
-
-  it("network reject while online enqueues and clears pending", async () => {
-    setOnline(true); // navigator lies — link is actually dead.
+  it("network reject rolls back the optimistic row + offline toast (no queue)", async () => {
+    setOnline(true); // iOS lies — link is actually dead.
     mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
     const qc = newClient();
+    const baseline = seedBaseline(qc);
     const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
       wrapper: makeWrapper(qc),
     });
 
-    result.current.mutate({
-      categoryId: "cat-1",
-      amountCents: 1200,
-      date: "2026-06-11",
-      currency: "USD",
-    });
+    result.current.mutate(input);
 
-    await waitFor(async () => {
-      expect(await getOfflineQueue()).toHaveLength(1);
-    });
-    // We attempted the real POST first, THEN fell back (not the onLine fast path).
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // We attempted the real POST first (fetch-result-driven, not navigator.onLine).
     expect(mockFetch).toHaveBeenCalledTimes(1);
-
-    const queuedKey = (await getOfflineQueue())[0].idempotencyKey;
-    const rows = qc.getQueryData(["transactions", budgetId, month]) as Array<
-      Record<string, unknown>
-    >;
-    const row = rows.find((r) => r.idempotencyKey === queuedKey)!;
-    expect(row, "optimistic row carrying the queued key").toBeTruthy();
-    // Spinner cleared (pending false) and queued/unsent marker on.
-    expect(row.pending).toBe(false);
-    expect(row.unsent).toBe(true);
+    // Optimistic row GONE — cache restored to `previous` baseline.
+    await waitFor(() => expect(getRows(qc)).toEqual(baseline));
+    expect(toastError).toHaveBeenCalledWith(OFFLINE_MSG);
   });
 
-  it("aborted/timed-out write while online enqueues and clears pending", async () => {
+  it("timeout (AbortError) rolls back + offline toast", async () => {
     setOnline(true);
-    // Simulates AbortSignal.timeout(8000) firing on a hung POST.
-    mockFetch.mockRejectedValue(
-      Object.assign(new DOMException("Aborted", "AbortError")),
-    );
+    mockFetch.mockRejectedValue(new DOMException("Aborted", "AbortError"));
     const qc = newClient();
+    const baseline = seedBaseline(qc);
     const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
       wrapper: makeWrapper(qc),
     });
 
-    result.current.mutate({
-      categoryId: "cat-1",
-      amountCents: 1200,
-      date: "2026-06-11",
-      currency: "USD",
-    });
+    result.current.mutate(input);
 
-    await waitFor(async () => {
-      expect(await getOfflineQueue()).toHaveLength(1);
-    });
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(mockFetch).toHaveBeenCalledTimes(1);
-
-    const queuedKey = (await getOfflineQueue())[0].idempotencyKey;
-    const rows = qc.getQueryData(["transactions", budgetId, month]) as Array<
-      Record<string, unknown>
-    >;
-    const row = rows.find((r) => r.idempotencyKey === queuedKey)!;
-    expect(row.pending).toBe(false);
-    expect(row.unsent).toBe(true);
+    await waitFor(() => expect(getRows(qc)).toEqual(baseline));
+    expect(toastError).toHaveBeenCalledWith(OFFLINE_MSG);
   });
 
-  it("genuine 4xx stays a real error, does NOT enqueue", async () => {
+  it("5xx rolls back + offline toast", async () => {
+    setOnline(true);
+    mockFetch.mockResolvedValue(new Response("oops", { status: 503 }));
+    const qc = newClient();
+    const baseline = seedBaseline(qc);
+    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
+      wrapper: makeWrapper(qc),
+    });
+
+    result.current.mutate(input);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    await waitFor(() => expect(getRows(qc)).toEqual(baseline));
+    expect(toastError).toHaveBeenCalledWith(OFFLINE_MSG);
+  });
+
+  it("genuine 4xx rolls back + GENERIC error toast (not offline)", async () => {
     setOnline(true);
     mockFetch.mockResolvedValue(new Response("bad", { status: 422 }));
     const qc = newClient();
+    const baseline = seedBaseline(qc);
     const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
       wrapper: makeWrapper(qc),
     });
 
-    result.current.mutate({
-      categoryId: "cat-1",
-      amountCents: 1200,
-      date: "2026-06-11",
-      currency: "USD",
-    });
+    result.current.mutate(input);
 
-    // onError still flags the row unsent (kept, with retry), but a 4xx is a
-    // genuine validation error → must NOT go to the offline queue, else
-    // use-online-sync would replay it forever in a loop.
-    await waitFor(() => {
-      const rows = qc.getQueryData(["transactions", budgetId, month]) as
-        | Array<Record<string, unknown>>
-        | undefined;
-      expect(rows?.some((r) => r.unsent === true)).toBe(true);
-    });
-    expect(await getOfflineQueue()).toHaveLength(0);
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    await waitFor(() => expect(getRows(qc)).toEqual(baseline));
+    expect(toastError).toHaveBeenCalledWith(FAILED_MSG);
+    expect(toastError).not.toHaveBeenCalledWith(OFFLINE_MSG);
   });
 
-  it("fallback row renders the Clock pending marker and NO spinner", async () => {
+  it("no offline queue is ever written (row count returns to baseline)", async () => {
     setOnline(true);
     mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
     const qc = newClient();
+    const baseline = seedBaseline(qc);
     const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
       wrapper: makeWrapper(qc),
     });
 
-    result.current.mutate({
-      categoryId: "cat-1",
-      amountCents: 1200,
-      date: "2026-06-11",
-      currency: "USD",
-    });
+    result.current.mutate(input);
 
-    await waitFor(async () => {
-      expect(await getOfflineQueue()).toHaveLength(1);
-    });
-    const queuedKey = (await getOfflineQueue())[0].idempotencyKey;
-    const rows = qc.getQueryData(["transactions", budgetId, month]) as Array<
-      Record<string, unknown>
-    >;
-    const row = rows.find((r) => r.idempotencyKey === queuedKey)!;
-
-    // Render the resulting optimistic row through the real TransactionRow: the
-    // queued key drives the Clock marker and pending:false hides the spinner.
-    const { container } = render(
-      React.createElement(
-        QueryClientProvider,
-        { client: qc },
-        React.createElement(TransactionRow, {
-          txn: {
-            id: row.id,
-            amountConvertedCents: String(row.amountConvertedCents),
-            currencyConverted: String(row.currencyConverted),
-            transactionDate: String(row.transactionDate),
-            idempotencyKey: queuedKey,
-            pending: row.pending as boolean,
-            unsent: row.unsent as boolean,
-          },
-          budgetId,
-          month,
-          onEdit: vi.fn(),
-        }),
-      ),
-    );
-
-    // Clock "pending" marker present (key in queue), spinner absent.
-    await waitFor(() =>
-      expect(screen.getByTestId(`txn-pending-${row.id}`)).toBeInTheDocument(),
-    );
-    expect(container.querySelector(".animate-spin")).toBeNull();
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // Baseline restored — no lingering optimistic / queued row.
+    await waitFor(() => expect(getRows(qc)).toHaveLength(baseline.length));
   });
 });

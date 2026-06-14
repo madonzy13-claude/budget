@@ -1047,6 +1047,10 @@
       "action": {
         "delete": "Delete",
         "retry": "Retry"
+      },
+      "write": {
+        "offline": "You're offline — can't add right now. Try again when you reconnect.",
+        "failed": "Couldn't add the transaction. Please try again."
       }
     },
     "quickEntry": {

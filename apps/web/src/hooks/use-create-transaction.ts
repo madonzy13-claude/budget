@@ -2,32 +2,32 @@
 /**
  * use-create-transaction.ts — Optimistic POST mutation for new transactions.
  *
- * Pattern 2 (RESEARCH §Pattern 2): onMutate prepends optimistic row,
- * onError flags unsent (NOT rollback — D-PH4-Q1 keeps row visible),
- * onSuccess swaps server row in, onSettled invalidates spendings-summary.
+ * Robust-minimal offline (quick task 260614-q1v): there is NO offline queue and
+ * NO replay. onMutate prepends an optimistic row; the mutationFn ALWAYS attempts
+ * the POST (never a navigator.onLine fast path — iOS lies about connectivity).
+ * A dead link / timeout / 5xx is detected from the FETCH RESULT and surfaced via
+ * onError, which ROLLS BACK the optimistic row and shows an honest offline toast.
+ * A genuine 4xx shows a generic error toast. onSuccess swaps the server row in.
  *
  * QueryKey ["transactions", budgetId, month] matches useTransactions exactly.
- * T-04-03-02: optimistic UUID is client-local; server assigns its own id.
- * T-04-03-03: fresh Idempotency-Key per mutation via generateIdempotencyKey().
+ * Optimistic UUID is client-local; the server assigns its own id.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
-import { enqueueOfflineTxn } from "@/lib/offline-queue";
-import { traceOffline } from "@/lib/offline-trace";
 import { mapTxnRowToDTO } from "./use-transactions";
 
-// 260614-kfw diagnostic: fires when THIS chunk loads on-device, proving whether
-// the device runs the current use-create-transaction build (OFFW-3) or a stale
-// cached chunk. If the [trace] overlay stays empty after the spendings page
-// loads, the device is serving an old chunk → stale SW cache, not a logic bug.
-traceOffline("module-load", "OFFW-3");
-
-/** Thrown by the offline fork so React Query routes to onError (keep the row). */
-export class OfflineEnqueuedError extends Error {
+/**
+ * Thrown when the server is unreachable (network throw / timeout / 5xx). Routes
+ * React Query to onError, which rolls back the optimistic row and toasts the
+ * honest "you're offline" message. A genuine 4xx throws a plain Error instead.
+ */
+export class OfflineWriteError extends Error {
   constructor() {
-    super("offline-enqueued");
-    this.name = "OfflineEnqueuedError";
+    super("offline-write");
+    this.name = "OfflineWriteError";
   }
 }
 
@@ -37,13 +37,6 @@ export interface CreateTransactionInput {
   date: string;
   currency: string;
   note?: string | null;
-  /**
-   * Idempotency key shared between onMutate (optimistic row) and mutationFn
-   * (offline enqueue / POST header). onMutate stamps it so the optimistic row
-   * carries the SAME key that lands in the offline queue — that's how the
-   * per-row pending-sync marker (PWAX-03) matches the row to the queue.
-   */
-  idempotencyKey?: string;
 }
 
 /**
@@ -89,15 +82,14 @@ export function recomputeOptimistic(
 
 export function useCreateTransaction(budgetId: string, month: string) {
   const qc = useQueryClient();
+  const t = useTranslations("grid.txn");
 
   return useMutation({
     mutationFn: async (input: CreateTransactionInput) => {
-      traceOffline("write:start", `onLine=${navigator.onLine}`);
-      // onMutate runs first and stamps input.idempotencyKey; reuse it so the
-      // queued key matches the optimistic row's key (PWAX-03 marker).
-      const key = input.idempotencyKey ?? generateIdempotencyKey();
+      // Fresh Idempotency-Key per mutation — the server dedupes if a response is
+      // lost on a flaky link but the write actually landed.
+      const key = generateIdempotencyKey();
 
-      // Build the payload once (shared by the POST and the fallback enqueue).
       const payload = {
         date: input.date,
         category_id: input.categoryId,
@@ -106,38 +98,12 @@ export function useCreateTransaction(budgetId: string, month: string) {
         note: input.note ?? null,
       };
 
-      // Enqueue under the SAME key, then route to onError (keep the row).
-      // Reusing `key` for both the POST header and the fallback enqueue means a
-      // later replay POSTs with the same Idempotency-Key — if the original POST
-      // actually reached the server (response lost on a flaky iOS link) the
-      // server dedupes → no double-write.
-      const fallbackToQueue = async () => {
-        await enqueueOfflineTxn({
-          idempotencyKey: key,
-          budgetId,
-          payload,
-          enqueuedAt: new Date().toISOString(),
-        });
-        // Sentinel → React Query takes the onError path: it KEEPS the optimistic
-        // row (with its idempotencyKey) and flags it unsent, instead of
-        // onSuccess(null) replacing it via mapTxnRowToDTO(null) — which wiped the
-        // key and the offline state, so the pending-sync marker never showed.
-        throw new OfflineEnqueuedError();
-      };
-
-      // Offline fast path: navigator KNOWS it is offline → enqueue immediately.
-      if (!navigator.onLine) {
-        traceOffline("write:fastpath-offline");
-        return await fallbackToQueue();
-      }
-
-      // navigator.onLine can LIE (iOS Safari/PWA reports true on a dead link),
-      // so the real signal is whether the POST itself succeeds. A write-only
-      // timeout rejects a hung request fast (AbortError) instead of leaving the
-      // optimistic row spinning forever.
+      // ALWAYS attempt the POST. navigator.onLine LIES on iOS Safari/PWA (reports
+      // true on a dead link), so the real signal is whether the POST succeeds.
+      // A write-only timeout rejects a hung request fast (AbortError) instead of
+      // leaving the optimistic row spinning forever.
       let res: Response;
       try {
-        traceOffline("write:post-start");
         res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {
           method: "POST",
           headers: {
@@ -145,7 +111,7 @@ export function useCreateTransaction(budgetId: string, month: string) {
             "Idempotency-Key": key,
             // Stamp tenant explicitly: harmless when online (matches pathname),
             // correct if the write fires off-page. clientApiFetch only injects
-            // X-Budget-ID when absent, so this explicit header wins. 260614-nug
+            // X-Budget-ID when absent, so this explicit header wins.
             "X-Budget-ID": budgetId,
           },
           body: JSON.stringify(payload),
@@ -153,25 +119,17 @@ export function useCreateTransaction(budgetId: string, month: string) {
           // are untouched (no global timeout added to budget-fetch.ts).
           signal: AbortSignal.timeout(8000),
         });
-      } catch (e) {
+      } catch {
         // Network throw (TypeError "Failed to fetch") or AbortError (timeout) —
-        // the server was unreachable. Enqueue for later replay.
-        traceOffline("write:post-catch", String((e as Error)?.name || e));
-        return await fallbackToQueue();
+        // the server was unreachable → rollback + honest offline toast.
+        throw new OfflineWriteError();
       }
 
-      if (!res.ok) {
-        // Server-unreachable-class status (5xx) → enqueue + retry later.
-        if (res.status >= 500) {
-          traceOffline("write:post-5xx");
-          return await fallbackToQueue();
-        }
-        // Genuine client error (4xx) → real error, do NOT enqueue (would loop
-        // forever in use-online-sync replay).
-        traceOffline("write:post-4xx");
-        throw new Error(await res.text());
-      }
-      traceOffline("write:post-ok");
+      // Server-unreachable-class status (5xx) → treat as offline.
+      if (res.status >= 500) throw new OfflineWriteError();
+      // Genuine client error (4xx) → real validation error, generic toast.
+      if (!res.ok) throw new Error(await res.text());
+
       return (await res.json()).transaction;
     },
 
@@ -179,19 +137,12 @@ export function useCreateTransaction(budgetId: string, month: string) {
       await qc.cancelQueries({ queryKey: ["transactions", budgetId, month] });
       const previous = qc.getQueryData(["transactions", budgetId, month]);
       const optimisticId = `opt-${generateIdempotencyKey()}`;
-      // Stamp the shared idempotency key onto the variables so mutationFn
-      // enqueues under the same key the optimistic row advertises.
-      const key = input.idempotencyKey ?? generateIdempotencyKey();
-      input.idempotencyKey = key;
 
       qc.setQueryData(["transactions", budgetId, month], (old: unknown) => {
         const arr = Array.isArray(old) ? old : [];
         return [
           {
             id: optimisticId,
-            pending: true,
-            unsent: false,
-            idempotencyKey: key,
             categoryId: input.categoryId,
             amountConvertedCents: input.amountCents.toString(),
             currencyConverted: input.currency,
@@ -210,30 +161,30 @@ export function useCreateTransaction(budgetId: string, month: string) {
       return { previous, optimisticId };
     },
 
-    onError: (_err, _input, ctx) => {
-      if (!ctx) return;
-      // Flag unsent — do NOT roll back (D-PH4-Q1 keeps row visible with retry)
-      qc.setQueryData(["transactions", budgetId, month], (old: unknown) => {
-        const arr = Array.isArray(old) ? old : [];
-        return arr.map((t: Record<string, unknown>) =>
-          t.id === ctx.optimisticId
-            ? { ...t, pending: false, unsent: true }
-            : t,
-        );
-      });
+    onError: (err, _input, ctx) => {
+      // Roll back the optimistic row to the exact prior cache, and re-invalidate
+      // the summary so the optimistic spent bump reverts to the engine value.
+      if (ctx) {
+        qc.setQueryData(["transactions", budgetId, month], ctx.previous);
+      }
+      qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+
+      toast.error(
+        err instanceof OfflineWriteError
+          ? t("write.offline")
+          : t("write.failed"),
+      );
     },
 
     onSuccess: (serverRow, _input, ctx) => {
-      // T-04-uat: serverRow is raw snake_case from serializeRow. Map to camelCase
-      // TxnDTO so transactionsByCatId.get(categoryId) finds the row immediately,
+      // serverRow is raw snake_case from serializeRow. Map to camelCase TxnDTO
+      // so transactionsByCatId.get(categoryId) finds the row immediately,
       // without waiting for the invalidation refetch in onSettled.
       const mapped = mapTxnRowToDTO(serverRow);
       qc.setQueryData(["transactions", budgetId, month], (old: unknown) => {
         const arr = Array.isArray(old) ? old : [];
         return arr.map((t: Record<string, unknown>) =>
-          t.id === ctx?.optimisticId
-            ? { ...mapped, pending: false, unsent: false }
-            : t,
+          t.id === ctx?.optimisticId ? mapped : t,
         );
       });
     },

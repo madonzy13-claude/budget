@@ -1070,6 +1070,10 @@
       "action": {
         "delete": "Usuń",
         "retry": "Ponów"
+      },
+      "write": {
+        "offline": "Jesteś offline — nie można teraz dodać. Spróbuj ponownie po ponownym połączeniu.",
+        "failed": "Nie udało się dodać transakcji. Spróbuj ponownie."
       }
     },
     "quickEntry": {
