@@ -17,6 +17,12 @@ import { enqueueOfflineTxn } from "@/lib/offline-queue";
 import { traceOffline } from "@/lib/offline-trace";
 import { mapTxnRowToDTO } from "./use-transactions";
 
+// 260614-kfw diagnostic: fires when THIS chunk loads on-device, proving whether
+// the device runs the current use-create-transaction build (OFFW-3) or a stale
+// cached chunk. If the [trace] overlay stays empty after the spendings page
+// loads, the device is serving an old chunk → stale SW cache, not a logic bug.
+traceOffline("module-load", "OFFW-3");
+
 /** Thrown by the offline fork so React Query routes to onError (keep the row). */
 export class OfflineEnqueuedError extends Error {
   constructor() {

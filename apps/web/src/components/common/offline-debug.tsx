@@ -29,7 +29,7 @@ import {
 } from "@/lib/offline-trace";
 
 // Bump on EVERY redeploy of this overlay. Proves the device runs the NEW build.
-const BUILD_ID = "OFFDBG-2";
+const BUILD_ID = "OFFDBG-3";
 
 // How many trace lines to surface (newest first). Ring buffer holds ~12.
 const TRACE_SHOWN = 8;
