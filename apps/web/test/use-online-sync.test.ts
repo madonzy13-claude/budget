@@ -9,8 +9,8 @@
  * Uses fake-indexeddb + vi.mock for clientApiFetch.
  */
 import "fake-indexeddb/auto";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { wipeBudgetCache } from "../src/lib/offline-cache";
@@ -88,6 +88,19 @@ beforeEach(async () => {
     await removeFromQueue(item.idempotencyKey);
   }
   vi.clearAllMocks();
+  // Reset visibility so a prior test's "hidden" cannot bleed into the next.
+  Object.defineProperty(document, "visibilityState", {
+    value: "visible",
+    configurable: true,
+  });
+});
+
+// Unmount every rendered hook so its online/visibilitychange/focus listeners are
+// removed before the next test — otherwise a leaked hook (with its OWN in-flight
+// ref) would fire a second concurrent replay and break the exact-count assertion
+// in the double-trigger test. Also prevents cross-FILE listener bleed.
+afterEach(() => {
+  cleanup();
 });
 
 describe("useOnlineSync — 200 branch", () => {
