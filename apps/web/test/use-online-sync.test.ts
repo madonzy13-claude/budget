@@ -59,6 +59,27 @@ async function fireOnline() {
   await new Promise((r) => setTimeout(r, 0));
 }
 
+/** Set document.visibilityState and fire a visibilitychange event. */
+function setVisibility(state: "visible" | "hidden") {
+  Object.defineProperty(document, "visibilityState", {
+    value: state,
+    configurable: true,
+  });
+}
+
+async function fireVisible() {
+  setVisibility("visible");
+  document.dispatchEvent(new Event("visibilitychange"));
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+}
+
+async function fireFocus() {
+  window.dispatchEvent(new Event("focus"));
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 beforeEach(async () => {
   await wipeBudgetCache();
   // fake-indexeddb is shared across test files — drain any queue items left
@@ -160,5 +181,92 @@ describe("useOnlineSync — 503 branch (5xx → leave in queue)", () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
     const queue = await getOfflineQueue();
     expect(queue).toHaveLength(1);
+  });
+});
+
+describe("useOnlineSync — reprobe on visibility/focus (iOS online is unreliable)", () => {
+  it("Test A — replays on visibilitychange→visible (not only 'online')", async () => {
+    const qc = new QueryClient();
+    await enqueueOfflineTxn(makeTxn("key-visible"));
+    mockFetch.mockResolvedValue(new Response("{}", { status: 200 }));
+
+    renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
+
+    await fireVisible();
+
+    await vi.waitFor(async () => {
+      expect(await getOfflineQueue()).toHaveLength(0);
+    });
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it("Test B — replays on window focus", async () => {
+    const qc = new QueryClient();
+    await enqueueOfflineTxn(makeTxn("key-focus"));
+    mockFetch.mockResolvedValue(new Response("{}", { status: 200 }));
+
+    renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
+
+    await fireFocus();
+
+    await vi.waitFor(async () => {
+      expect(await getOfflineQueue()).toHaveLength(0);
+    });
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it("Test C — double-trigger (online + visibilitychange) does NOT double-write", async () => {
+    const qc = new QueryClient();
+    await enqueueOfflineTxn(makeTxn("key-dup"));
+    // Slow-resolving fetch so both triggers race while a pass is in flight.
+    let resolveFetch: (r: Response) => void = () => {};
+    mockFetch.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
+
+    // Fire both triggers back-to-back BEFORE the in-flight POST resolves.
+    window.dispatchEvent(new Event("online"));
+    setVisibility("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Re-entrancy guard must allow only ONE in-flight POST for this item.
+    resolveFetch(new Response("{}", { status: 200 }));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    await vi.waitFor(async () => {
+      expect(await getOfflineQueue()).toHaveLength(0);
+    });
+
+    // Exactly one POST for the single queued item — no concurrent duplicate.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("budget-abc"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "Idempotency-Key": "key-dup" }),
+      }),
+    );
+  });
+
+  it("Test D — visibilitychange while hidden does NOT replay", async () => {
+    const qc = new QueryClient();
+    await enqueueOfflineTxn(makeTxn("key-hidden"));
+    mockFetch.mockResolvedValue(new Response("{}", { status: 200 }));
+
+    renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
+
+    setVisibility("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(await getOfflineQueue()).toHaveLength(1);
   });
 });
