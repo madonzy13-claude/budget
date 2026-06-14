@@ -1190,9 +1190,6 @@
     "badge": {
       "ariaLabel": "Offline"
     },
-    "heading": "Jesteś offline",
-    "body": "Budget jest offline. Sprawdź połączenie i spróbuj ponownie.",
-    "reload": "Spróbuj ponownie",
     "unavailable": {
       "heading": "Niedostępne offline",
       "body": "Te dane nie zostały jeszcze załadowane. Połącz się z internetem i odśwież.",
@@ -1201,26 +1198,7 @@
   },
   "sync": {
     "_machineTranslated": true,
-    "staleness": "Ostatnia synchronizacja {relativeTime}",
-    "badge": {
-      "ariaLabel": "{count, plural, one {# transakcja oczekuje na synchronizację} other {# transakcje oczekują na synchronizację}}"
-    },
-    "row": {
-      "pending": "Oczekuje"
-    },
-    "issues": {
-      "title": "Problemy z synchronizacją",
-      "description": "Tych transakcji nie udało się zsynchronizować. Sprawdź i rozwiąż ręcznie.",
-      "reason": {
-        "VALIDATION_ERROR": "Odrzucono — nieprawidłowe dane",
-        "ARCHIVED_CATEGORY": "Odrzucono — kategoria nie jest już aktywna",
-        "MONTH_ROLLED": "Odrzucono — miesiąc został zamknięty",
-        "UNKNOWN": "Synchronizacja nie powiodła się — spróbuj później"
-      },
-      "enqueuedAt": "W kolejce {relativeTime}",
-      "dismiss": "Odrzuć",
-      "dismissed": "Transakcja odrzucona."
-    }
+    "staleness": "Ostatnia synchronizacja {relativeTime}"
   },
   "serverDown": {
     "_machineTranslated": true,

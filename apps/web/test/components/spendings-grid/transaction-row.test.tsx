@@ -57,7 +57,6 @@ function renderRow(props = {}) {
         budgetId="budget-1"
         month="2026-05"
         onEdit={vi.fn()}
-        onRetry={vi.fn()}
         {...props}
       />
     </TestQueryProvider>,
@@ -203,16 +202,16 @@ describe("TransactionRow", () => {
     expect(mockUpdateMutate).not.toHaveBeenCalled();
   });
 
-  it("pending=true shows loading state", () => {
-    renderRow({ txn: { ...txn, pending: true } });
+  // Robust-minimal offline (260614-q1v): the offline write queue + per-row
+  // pending/unsent marker were removed. A row is always rendered plainly —
+  // there is no in-flight pending UI, spinner, or data-pending/data-unsent attr.
+  it("renders no pending/unsent marker (offline write queue removed)", () => {
+    renderRow();
     const row = screen.getByTestId("txn-row-1500");
-    expect(row.getAttribute("data-pending")).toBe("true");
-  });
-
-  it("unsent=true shows retry state with data-unsent attribute", () => {
-    renderRow({ txn: { ...txn, unsent: true } });
-    const row = screen.getByTestId("txn-row-1500");
-    expect(row.getAttribute("data-unsent")).toBe("true");
+    expect(row.getAttribute("data-pending")).toBeNull();
+    expect(row.getAttribute("data-unsent")).toBeNull();
+    expect(row.querySelector(".animate-spin")).toBeNull();
+    expect(document.querySelector('[data-testid^="txn-pending-"]')).toBeNull();
   });
 
   it("clicking the trash chip opens the AlertDialog and does NOT delete immediately", () => {

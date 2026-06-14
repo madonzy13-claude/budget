@@ -1188,9 +1188,6 @@
     "badge": {
       "ariaLabel": "Offline"
     },
-    "heading": "You're offline",
-    "body": "Budget is offline. Check your connection and try again.",
-    "reload": "Try again",
     "unavailable": {
       "heading": "Not available offline",
       "body": "This data hasn't been loaded yet. Connect to the internet and reload.",
@@ -1198,26 +1195,7 @@
     }
   },
   "sync": {
-    "staleness": "Last synced {relativeTime}",
-    "badge": {
-      "ariaLabel": "{count, plural, one {# transaction pending sync} other {# transactions pending sync}}"
-    },
-    "row": {
-      "pending": "Pending"
-    },
-    "issues": {
-      "title": "Sync issues",
-      "description": "These transactions could not sync. Review and resolve manually.",
-      "reason": {
-        "VALIDATION_ERROR": "Rejected — invalid data",
-        "ARCHIVED_CATEGORY": "Rejected — category no longer active",
-        "MONTH_ROLLED": "Rejected — month has closed",
-        "UNKNOWN": "Sync failed — try again later"
-      },
-      "enqueuedAt": "Queued {relativeTime}",
-      "dismiss": "Dismiss",
-      "dismissed": "Transaction dismissed."
-    }
+    "staleness": "Last synced {relativeTime}"
   },
   "serverDown": {
     "heading": "Service unavailable",
