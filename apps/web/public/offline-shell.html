@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Budget</title>
+    <style>
+      /* App-shell offline document (260614-rwt). NOT a centered full-page hero —
+         it renders the REAL top bar so the device reads it as "the app, this
+         page just wasn't preloaded". Tokens mirror global.css. */
+      :root {
+        --canvas-dark: #0b0e11;
+        --hairline-dark: #2b3139;
+        --primary: #fcd535;
+        --body-on-dark: #eaecef;
+        --muted: #848e9c;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        background: var(--canvas-dark);
+        color: var(--body-on-dark);
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+      }
+      header.shell-header {
+        height: 64px;
+        border-bottom: 1px solid var(--hairline-dark);
+        padding-top: env(safe-area-inset-top);
+        background: var(--canvas-dark);
+      }
+      .shell-header__inner {
+        margin: 0 auto;
+        display: flex;
+        height: 64px;
+        max-width: 1280px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+      }
+      .shell-wordmark {
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary);
+        text-decoration: none;
+      }
+      .shell-offline-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .shell-offline-pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #ef4444;
+      }
+      main.shell-content {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 32px 16px;
+      }
+      .shell-note {
+        max-width: 32rem;
+      }
+      .shell-note h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 8px;
+      }
+      .shell-note p {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 0 0 20px;
+        line-height: 1.5;
+      }
+      .shell-retry {
+        background: var(--primary);
+        color: #0b0e11;
+        border: none;
+        padding: 9px 18px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="shell-header" data-testid="offline-shell-header">
+      <div class="shell-header__inner">
+        <a class="shell-wordmark" href="/">BUDGET</a>
+        <span class="shell-offline-pill" data-i18n="pill">Offline</span>
+      </div>
+    </header>
+    <main class="shell-content">
+      <div class="shell-note" data-testid="offline-shell-note">
+        <h1 data-i18n="heading">This page wasn't preloaded</h1>
+        <p data-i18n="body">
+          It will load automatically when you reconnect.
+        </p>
+        <button class="shell-retry" data-i18n="retry" onclick="location.reload()">
+          Try again
+        </button>
+      </div>
+    </main>
+    <script>
+      (function () {
+        // Tiny pathname-locale swap: static HTML can't read the request locale,
+        // so the EN copy above is the base; if the path starts with /pl or /uk we
+        // swap the visible strings + <html lang>. Visited localized routes are
+        // covered by the per-route CACHED real document, so this is a fallback.
+        var I18N = {
+          pl: {
+            pill: "Offline",
+            heading: "Ta strona nie została wczytana",
+            body: "Załaduje się automatycznie po przywróceniu połączenia.",
+            retry: "Spróbuj ponownie",
+          },
+          uk: {
+            pill: "Офлайн",
+            heading: "Цю сторінку не було завантажено",
+            body: "Вона завантажиться автоматично після відновлення зв'язку.",
+            retry: "Спробувати ще раз",
+          },
+        };
+        try {
+          var seg = location.pathname.split("/")[1];
+          var copy = I18N[seg];
+          if (copy) {
+            document.documentElement.lang = seg;
+            document.querySelectorAll("[data-i18n]").forEach(function (el) {
+              var k = el.getAttribute("data-i18n");
+              if (copy[k]) el.textContent = copy[k];
+            });
+          }
+        } catch (e) {
+          /* keep EN base */
+        }
+        // Self-recovery: reload the moment connectivity returns. The reload is
+        // network-first through the SW, so when the origin is back it renders the
+        // real page. No server health-probe gate.
+        var r = function () {
+          location.reload();
+        };
+        addEventListener('online', r);
+        addEventListener('focus', r);
+        addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') r();
+        });
+      })();
+    </script>
+  </body>
+</html>

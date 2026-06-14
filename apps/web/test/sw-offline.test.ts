@@ -1,20 +1,25 @@
 /**
- * Service-worker navigation strategy (robust-minimal offline, 260614-q1v).
+ * Service-worker navigation strategy (app-shell offline nav, 260614-rwt).
  *
- * NEW contract: network-first, fall back to the CACHED page; only on a cache
- * MISS return a minimal self-recovering inline notice. The OLD strategy fell
- * back to a STATIC /offline.html 503 with a 3-probe /api/health recovery gate
- * (decideOfflineRecovery / sanitizeNext / buildOfflineDocument) — all removed.
+ * NEW contract (replaces the q1v "cached page → bare inline 503"):
+ *   network-first WITH WRITE — a successful real navigation (2xx) is written to
+ *   the nav cache via an injected cachePut, so the route can be replayed offline.
+ *   On unreachable (throw / 5xx):
+ *     - cache HIT  → return the cached REAL document (header + chrome present)
+ *     - cache MISS → return the PRECACHED APP-SHELL document (header chrome + an
+ *       in-app "wasn't preloaded" note), NOT a bare centered full-page takeover.
+ *   3xx redirects + 4xx pass through unchanged and are NOT cached (auth-safe).
+ *
+ * The old `buildInlineOfflineNotice` full-page takeover is removed.
  *
  * These tests drive the pure handler with injected fetch/cache fakes because
  * Playwright's `context.setOffline()` does NOT make the service worker's own
  * fetch reject, so the genuine failure branch is impossible to cover end-to-end.
  */
 import { describe, test, expect, vi } from "vitest";
-import {
-  handleNavigationRequest,
-  buildInlineOfflineNotice,
-} from "../sw-offline";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { handleNavigationRequest } from "../sw-offline";
 
 const ORIGIN = "http://localhost:3000";
 
@@ -33,151 +38,214 @@ function cachedPage(path: string): Response {
   );
 }
 
-const noNotice = vi.fn(() => buildInlineOfflineNotice(navRequest("/en")));
+/** The precached static app-shell document stand-in. */
+function shellDoc(): Response {
+  return new Response(
+    `<!doctype html><html lang="en"><body>` +
+      `<header data-testid="offline-shell-header">BUDGET</header>` +
+      `<div data-testid="offline-shell-note">not preloaded</div>` +
+      `</body></html>`,
+    { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+  );
+}
 
-describe("SW navigation strategy (network-first → cached page → inline notice)", () => {
-  test("network ok → returns the live response", async () => {
+describe("SW navigation strategy (network-first-with-write → cached doc → app-shell)", () => {
+  test("network ok 2xx → returns the live response AND writes it to the nav cache", async () => {
     const ok = new Response("<html>real page</html>", { status: 200 });
     const fetchFn = vi.fn().mockResolvedValue(ok);
     const matchCache = vi.fn();
-    const makeInline = vi.fn();
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+    const matchShell = vi.fn();
 
+    const req = navRequest("/en/settings");
     const res = await handleNavigationRequest(
-      navRequest("/en/settings"),
+      req,
       fetchFn,
       matchCache,
-      makeInline,
+      cachePut,
+      matchShell,
     );
 
     expect(res).toBe(ok);
+    // NetworkFirst WRITE — successful nav cached for offline replay.
+    expect(cachePut).toHaveBeenCalledTimes(1);
+    const [putReq] = cachePut.mock.calls[0] as [Request, Response];
+    expect(putReq).toBe(req);
     expect(matchCache).not.toHaveBeenCalled();
-    expect(makeInline).not.toHaveBeenCalled();
+    expect(matchShell).not.toHaveBeenCalled();
   });
 
-  test("network ok 4xx (<500) returns it unchanged (auth redirect / 404 safe)", async () => {
-    // A 307 server-side redirect AND a 404 must pass through untouched.
+  test("3xx redirect passes through unchanged and is NOT cached (auth-safe)", async () => {
     const redirect = new Response(null, {
       status: 307,
       headers: { location: "/en/sign-in" },
     });
     const fetchFn = vi.fn().mockResolvedValue(redirect);
     const matchCache = vi.fn();
-    const makeInline = vi.fn();
+    const cachePut = vi.fn();
+    const matchShell = vi.fn();
 
     const res = await handleNavigationRequest(
       navRequest("/en/budgets/abc"),
       fetchFn,
       matchCache,
-      makeInline,
+      cachePut,
+      matchShell,
     );
 
     expect(res.status).toBe(307);
+    expect(cachePut).not.toHaveBeenCalled();
     expect(matchCache).not.toHaveBeenCalled();
-    expect(makeInline).not.toHaveBeenCalled();
+    expect(matchShell).not.toHaveBeenCalled();
   });
 
-  test("network throw + CACHED page present → returns the cached navigation doc", async () => {
+  test("4xx passes through unchanged and is NOT cached", async () => {
+    const notFound = new Response("nope", { status: 404 });
+    const fetchFn = vi.fn().mockResolvedValue(notFound);
+    const matchCache = vi.fn();
+    const cachePut = vi.fn();
+    const matchShell = vi.fn();
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/budgets/abc"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      matchShell,
+    );
+
+    expect(res.status).toBe(404);
+    expect(cachePut).not.toHaveBeenCalled();
+  });
+
+  test("offline + VISITED route (cache hit) → returns cached real doc, header present, shell NOT used", async () => {
     const fetchFn = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
     const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/settings"));
-    const makeInline = vi.fn();
+    const cachePut = vi.fn();
+    const matchShell = vi.fn();
 
     const res = await handleNavigationRequest(
       navRequest("/en/settings"),
       fetchFn,
       matchCache,
-      makeInline,
+      cachePut,
+      matchShell,
     );
 
     expect(matchCache).toHaveBeenCalledTimes(1);
-    expect(makeInline).not.toHaveBeenCalled();
+    expect(matchShell).not.toHaveBeenCalled();
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('data-testid="cached-page"');
   });
 
-  test("network throw + cache MISS → returns minimal inline notice (503), no health probe", async () => {
+  test("offline + UNVISITED route (cache miss) → returns the APP-SHELL doc (header chrome + note), NOT a bare full-page takeover", async () => {
     const fetchFn = vi.fn().mockRejectedValue(new TypeError("offline"));
     const matchCache = vi.fn().mockResolvedValue(undefined);
+    const cachePut = vi.fn();
+    const matchShell = vi.fn().mockResolvedValue(shellDoc());
 
     const res = await handleNavigationRequest(
       navRequest("/uk/settings"),
       fetchFn,
       matchCache,
-      (req) => buildInlineOfflineNotice(req),
+      cachePut,
+      matchShell,
     );
 
-    expect(res.status).toBe(503);
-    expect(res.headers.get("location")).toBeNull();
+    expect(matchShell).toHaveBeenCalledTimes(1);
     const body = await res.text();
-    expect(body).toContain("data-testid=offline-inline-notice");
-    // Localized for the request locale.
-    expect(body).toContain('lang="uk"');
-    expect(body).toContain("Ви офлайн");
-    // Self-recovering, NOT a /api/health gate.
-    expect(body).not.toContain("/api/health");
-    expect(body).toContain("location.reload()");
+    // Header chrome + in-app note are present (the "app, page not preloaded" model).
+    expect(body).toContain('data-testid="offline-shell-header"');
+    expect(body).toContain('data-testid="offline-shell-note"');
+    // The OLD bare centered full-page takeover marker is gone.
+    expect(body).not.toContain("offline-inline-notice");
   });
 
-  test("5xx → treated as unreachable → cached page when present", async () => {
+  test("5xx → treated as unreachable → cached doc when present", async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValue(new Response("boom", { status: 502 }));
     const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/abc"));
-    const makeInline = vi.fn();
+    const cachePut = vi.fn();
+    const matchShell = vi.fn();
 
     const res = await handleNavigationRequest(
       navRequest("/en/budgets/abc"),
       fetchFn,
       matchCache,
-      makeInline,
+      cachePut,
+      matchShell,
     );
 
     expect(matchCache).toHaveBeenCalledTimes(1);
-    expect(makeInline).not.toHaveBeenCalled();
+    expect(matchShell).not.toHaveBeenCalled();
+    // 5xx is unreachable → never written to the nav cache.
+    expect(cachePut).not.toHaveBeenCalled();
     const body = await res.text();
     expect(body).toContain('data-testid="cached-page"');
   });
 
-  test("5xx → cache MISS → inline notice", async () => {
+  test("5xx → cache MISS → app-shell doc", async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValue(new Response("boom", { status: 503 }));
     const matchCache = vi.fn().mockResolvedValue(undefined);
+    const cachePut = vi.fn();
+    const matchShell = vi.fn().mockResolvedValue(shellDoc());
 
     const res = await handleNavigationRequest(
       navRequest("/en/settings"),
       fetchFn,
       matchCache,
-      (req) => buildInlineOfflineNotice(req),
+      cachePut,
+      matchShell,
     );
 
+    expect(matchShell).toHaveBeenCalledTimes(1);
+    expect(await res.text()).toContain('data-testid="offline-shell-header"');
+  });
+
+  test("shell MISS too → last-resort minimal 503 (never undefined)", async () => {
+    const fetchFn = vi.fn().mockRejectedValue(new TypeError("offline"));
+    const matchCache = vi.fn().mockResolvedValue(undefined);
+    const cachePut = vi.fn();
+    const matchShell = vi.fn().mockResolvedValue(undefined);
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/settings"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      matchShell,
+    );
+
+    expect(res).toBeInstanceOf(Response);
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain("data-testid=offline-inline-notice");
   });
 });
 
-describe("buildInlineOfflineNotice", () => {
-  test("localized title + self-recovery, no health gate", async () => {
-    const res = buildInlineOfflineNotice(navRequest("/pl/budgets/abc"));
-    expect(res.status).toBe(503);
-    expect(res.headers.get("retry-after")).toBe("5");
-    const body = await res.text();
-    expect(body).toContain('lang="pl"');
-    expect(body).toContain("Jesteś offline");
-    expect(body).toContain("addEventListener('online'");
-    expect(body).not.toContain("/api/health");
+describe("offline-shell.html static document", () => {
+  const shellHtml = readFileSync(
+    resolve(__dirname, "../public/offline-shell.html"),
+    "utf8",
+  );
+
+  test("renders the REAL header chrome (BUDGET wordmark) + in-app note, NOT a bare centered hero", () => {
+    expect(shellHtml).toContain('data-testid="offline-shell-header"');
+    expect(shellHtml).toContain('data-testid="offline-shell-note"');
+    expect(shellHtml).toContain("BUDGET");
+    // Header-on-top layout, not a full-viewport centered takeover.
+    expect(shellHtml).not.toContain("min-height:100vh");
+    expect(shellHtml).not.toContain("offline-inline-notice");
   });
 
-  test("unknown / missing locale defaults to en", async () => {
-    const res = buildInlineOfflineNotice(navRequest("/"));
-    const body = await res.text();
-    expect(body).toContain("You're offline");
-    expect(body).toContain('lang="en"');
-  });
-
-  // noNotice exists only to satisfy importers if referenced; keep it exercised.
-  test("helper builds an en notice by default", async () => {
-    const res = noNotice();
-    expect(await res.text()).toContain('lang="en"');
+  test("carries self-recovery JS (online/focus/visibilitychange) + Try-again reload", () => {
+    expect(shellHtml).toContain("addEventListener('online'");
+    expect(shellHtml).toContain("'focus'");
+    expect(shellHtml).toContain("visibilitychange");
+    expect(shellHtml).toContain("location.reload()");
+    // No /api/health probe gate.
+    expect(shellHtml).not.toContain("/api/health");
   });
 });

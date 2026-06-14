@@ -13,13 +13,15 @@
  * - /api/workspaces/*  (workspace data)
  * - /api/settings/*  (user settings)
  *
- * Offline navigation strategy (robust-minimal offline, 260614-q1v): a
- * navigation is network-first; if the origin is unreachable (throw / 5xx) we
- * return the CACHED navigation document for that route so previously-VISITED
- * routes render offline. Only on a cache MISS do we return a minimal,
- * self-recovering inline 503 notice (reloads on reconnect — no /api/health gate,
- * no stuck full-page screen). 2xx/3xx/4xx pass through unchanged so server-side
- * auth redirects keep working. The pure strategy + inline-notice builder live in
+ * Offline navigation strategy (app-shell offline nav, 260614-rwt): a navigation
+ * is network-first WITH WRITE — a successful 2xx navigation is written to the
+ * NAV_CACHE so the route replays offline. If the origin is unreachable
+ * (throw / 5xx) we return the CACHED navigation document for that route so
+ * previously-VISITED routes render the REAL page (header + chrome). On a cache
+ * MISS we return the PRECACHED static app-shell document
+ * (/offline-shell.html — real header chrome + an in-app "wasn't preloaded" note),
+ * NOT a bare centered full-page takeover. 3xx/4xx pass through UNCACHED so
+ * server-side auth redirects + 404s stay correct. The pure strategy lives in
  * ./sw-offline.ts (unit-tested without a real ServiceWorkerGlobalScope).
  */
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
@@ -29,10 +31,7 @@ import {
   StaleWhileRevalidate,
   Serwist,
 } from "serwist";
-import {
-  handleNavigationRequest,
-  buildInlineOfflineNotice,
-} from "./sw-offline";
+import { handleNavigationRequest } from "./sw-offline";
 
 // Bump this suffix whenever the static-asset caching strategy changes so a new
 // service worker abandons the old runtime cache instead of inheriting a stuck
@@ -41,7 +40,20 @@ import {
 // bundle under a prior strategy.
 const STYLE_CACHE = "static-styles-v2";
 const SCRIPT_IMAGE_CACHE = "static-assets-v2";
-const CURRENT_STATIC_CACHES = new Set([STYLE_CACHE, SCRIPT_IMAGE_CACHE]);
+// NetworkFirst-with-write cache for navigation documents (real pages) so a
+// previously-VISITED route renders offline. Bump the suffix if the nav strategy
+// changes so a new worker abandons the old nav docs. Listed in
+// CURRENT_STATIC_CACHES so the activate purge KEEPS it.
+const NAV_CACHE = "nav-docs-v1";
+// Static app-shell document served on an offline nav cache MISS (real header
+// chrome + in-app "wasn't preloaded" note). Auto-precached by @serwist/next from
+// public/** → retrievable via caches.match / serwist.matchPrecache.
+const OFFLINE_SHELL_URL = "/offline-shell.html";
+const CURRENT_STATIC_CACHES = new Set([
+  STYLE_CACHE,
+  SCRIPT_IMAGE_CACHE,
+  NAV_CACHE,
+]);
 // Legacy/superseded runtime cache names to purge on activate.
 const LEGACY_STATIC_CACHES = ["static-assets", "static-styles"];
 
@@ -53,7 +65,11 @@ declare global {
 
 declare const self: any;
 
-const serwist = new Serwist({
+// Explicit type annotation breaks the self-referential inference cycle: the
+// navigation handler below calls serwist.matchPrecache (the precached app-shell
+// fallback), so without an annotation TS7022 fires (`serwist` referenced in its
+// own initializer). The handler only runs at request time, after assignment.
+const serwist: Serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
@@ -92,15 +108,16 @@ const serwist = new Serwist({
         cacheName: SCRIPT_IMAGE_CACHE,
       }),
     },
-    // Next.js page navigations — network-first → CACHED page → inline notice
-    // (robust-minimal offline, 260614-q1v).
+    // Next.js page navigations — network-first WITH WRITE → CACHED real page →
+    // precached app-shell (app-shell offline nav, 260614-rwt).
     //
-    // Try the network; on throw / 5xx we return the CACHED navigation document
-    // for THIS route (ignoreSearch) so a previously-visited route renders
-    // offline from cache instead of a stuck screen. Only when the cache misses
-    // do we return a minimal self-recovering inline 503 (reloads on reconnect,
-    // no /api/health gate). 2xx/3xx/4xx pass through unchanged so server-side
-    // auth redirects keep working.
+    // Try the network; a successful 2xx is written to NAV_CACHE so the route
+    // replays offline. On throw / 5xx we return the CACHED navigation document
+    // for THIS route (ignoreSearch) so a previously-visited route renders the
+    // REAL page offline. On a cache MISS we serve the precached app-shell
+    // (/offline-shell.html — header chrome + in-app note), NOT a bare full-page
+    // takeover. 3xx/4xx pass through UNCACHED so server-side auth redirects +
+    // 404s stay correct.
     {
       matcher: ({ request }: { request: Request }) =>
         request.mode === "navigate",
@@ -109,7 +126,11 @@ const serwist = new Serwist({
           request,
           (req) => fetch(req),
           (req) => caches.match(req, { ignoreSearch: true }),
-          (req) => buildInlineOfflineNotice(req),
+          (req, res) => caches.open(NAV_CACHE).then((c) => c.put(req, res)),
+          () =>
+            caches
+              .match(OFFLINE_SHELL_URL)
+              .then((hit) => hit ?? serwist.matchPrecache(OFFLINE_SHELL_URL)),
         ),
     },
   ],
