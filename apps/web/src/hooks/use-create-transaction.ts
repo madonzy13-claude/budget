@@ -89,42 +89,69 @@ export function useCreateTransaction(budgetId: string, month: string) {
       // queued key matches the optimistic row's key (PWAX-03 marker).
       const key = input.idempotencyKey ?? generateIdempotencyKey();
 
-      // Offline fork: enqueue to IndexedDB instead of POST (D-03 per-row pending)
-      if (!navigator.onLine) {
+      // Build the payload once (shared by the POST and the fallback enqueue).
+      const payload = {
+        date: input.date,
+        category_id: input.categoryId,
+        amount_original_cents: input.amountCents,
+        currency_original: input.currency,
+        note: input.note ?? null,
+      };
+
+      // Enqueue under the SAME key, then route to onError (keep the row).
+      // Reusing `key` for both the POST header and the fallback enqueue means a
+      // later replay POSTs with the same Idempotency-Key — if the original POST
+      // actually reached the server (response lost on a flaky iOS link) the
+      // server dedupes → no double-write.
+      const fallbackToQueue = async () => {
         await enqueueOfflineTxn({
           idempotencyKey: key,
           budgetId,
-          payload: {
-            date: input.date,
-            category_id: input.categoryId,
-            amount_original_cents: input.amountCents,
-            currency_original: input.currency,
-            note: input.note ?? null,
-          },
+          payload,
           enqueuedAt: new Date().toISOString(),
         });
-        // Throw a sentinel so React Query takes the onError path: it KEEPS the
-        // optimistic row (with its idempotencyKey) and flags it unsent, instead
-        // of onSuccess(null) replacing it via mapTxnRowToDTO(null) — which wiped
-        // the key and the offline state, so the pending-sync marker never showed.
+        // Sentinel → React Query takes the onError path: it KEEPS the optimistic
+        // row (with its idempotencyKey) and flags it unsent, instead of
+        // onSuccess(null) replacing it via mapTxnRowToDTO(null) — which wiped the
+        // key and the offline state, so the pending-sync marker never showed.
         throw new OfflineEnqueuedError();
+      };
+
+      // Offline fast path: navigator KNOWS it is offline → enqueue immediately.
+      if (!navigator.onLine) {
+        return await fallbackToQueue();
       }
 
-      const res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": key,
-        },
-        body: JSON.stringify({
-          date: input.date,
-          category_id: input.categoryId,
-          amount_original_cents: input.amountCents,
-          currency_original: input.currency,
-          note: input.note ?? null,
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      // navigator.onLine can LIE (iOS Safari/PWA reports true on a dead link),
+      // so the real signal is whether the POST itself succeeds. A write-only
+      // timeout rejects a hung request fast (AbortError) instead of leaving the
+      // optimistic row spinning forever.
+      let res: Response;
+      try {
+        res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": key,
+          },
+          body: JSON.stringify(payload),
+          // Write-only timeout — scoped to THIS POST; reads via clientApiFetch
+          // are untouched (no global timeout added to budget-fetch.ts).
+          signal: AbortSignal.timeout(8000),
+        });
+      } catch {
+        // Network throw (TypeError "Failed to fetch") or AbortError (timeout) —
+        // the server was unreachable. Enqueue for later replay.
+        return await fallbackToQueue();
+      }
+
+      if (!res.ok) {
+        // Server-unreachable-class status (5xx) → enqueue + retry later.
+        if (res.status >= 500) return await fallbackToQueue();
+        // Genuine client error (4xx) → real error, do NOT enqueue (would loop
+        // forever in use-online-sync replay).
+        throw new Error(await res.text());
+      }
       return (await res.json()).transaction;
     },
 
