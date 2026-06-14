@@ -143,6 +143,28 @@ describe("useOnlineSync — 200 branch", () => {
       }),
     );
   });
+
+  it("sets X-Budget-ID from the queued item.budgetId so the replay hits the right tenant off-page", async () => {
+    // ROOT CAUSE (260614-nug): reconnect replay fires while the user is NOT on
+    // the budget page, so clientApiFetch cannot derive X-Budget-ID from the
+    // pathname → tenant guard 4xx → false sync-issue. The replay MUST stamp
+    // X-Budget-ID explicitly from the stored item.budgetId.
+    const qc = new QueryClient();
+    await enqueueOfflineTxn(makeTxn("key-tenant"));
+    mockFetch.mockResolvedValue(new Response("{}", { status: 200 }));
+
+    renderHook(() => useOnlineSync(), { wrapper: makeWrapper(qc) });
+    await fireOnline();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("budget-abc"),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "X-Budget-ID": "budget-abc",
+        }),
+      }),
+    );
+  });
 });
 
 describe("useOnlineSync — 422 branch (4xx → sync-issue)", () => {
