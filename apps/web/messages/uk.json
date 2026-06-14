@@ -81,6 +81,9 @@
   "settings": {
     "eyebrow": "Обліковий запис",
     "heading": "Налаштування",
+    "build": {
+      "label": "Збірка"
+    },
     "sessions": {
       "tab": "Сесії",
       "heading": "Активні сесії",
@@ -1188,7 +1191,8 @@
   "offline": {
     "_machineTranslated": true,
     "badge": {
-      "ariaLabel": "Офлайн"
+      "ariaLabel": "Офлайн",
+      "label": "Офлайн"
     },
     "unavailable": {
       "heading": "Недоступно офлайн",

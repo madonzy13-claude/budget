@@ -81,6 +81,9 @@
   "settings": {
     "eyebrow": "Account",
     "heading": "Settings",
+    "build": {
+      "label": "Build"
+    },
     "sessions": {
       "tab": "Sessions",
       "heading": "Active sessions",
@@ -1186,7 +1189,8 @@
   },
   "offline": {
     "badge": {
-      "ariaLabel": "Offline"
+      "ariaLabel": "Offline",
+      "label": "Offline"
     },
     "unavailable": {
       "heading": "Not available offline",

@@ -81,6 +81,9 @@
   "settings": {
     "eyebrow": "Konto",
     "heading": "Ustawienia",
+    "build": {
+      "label": "Kompilacja"
+    },
     "sessions": {
       "tab": "Sesje",
       "heading": "Aktywne sesje",
@@ -1188,7 +1191,8 @@
   "offline": {
     "_machineTranslated": true,
     "badge": {
-      "ariaLabel": "Offline"
+      "ariaLabel": "Offline",
+      "label": "Offline"
     },
     "unavailable": {
       "heading": "Niedostępne offline",

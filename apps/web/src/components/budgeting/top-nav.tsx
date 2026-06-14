@@ -1,6 +1,7 @@
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { BrandMark } from "@/components/common/brand-mark";
 import { ProfileMenu } from "@/components/auth/profile-menu";
+import { OfflineStatusBadge } from "@/components/common/offline-status-badge";
 import { getServerSession } from "@/lib/server-session";
 import {
   BudgetSwitcher,
@@ -53,6 +54,9 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
         />
       </div>
       <div className="flex items-center gap-3">
+        {/* Inline offline pill — zero-height, sits inside the 64px header (no
+            layout shift). Client leaf inside this server component — fine. */}
+        <OfflineStatusBadge />
         {session?.user && (
           <ProfileMenu
             locale={locale}

@@ -131,6 +131,16 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           </p>
         </TabsContent>
       </Tabs>
+
+      {/* Build-freshness stamp (260614-rwt): muted footer so on-device freshness
+          can be confirmed without the removed debug overlay. NEXT_PUBLIC_BUILD_ID
+          is inlined at build time in next.config.mjs. */}
+      <footer className="mt-12 border-t border-[var(--hairline-dark)] pt-4">
+        <p className="text-[11px] text-[var(--muted-foreground)]">
+          {t("build.label", { defaultValue: "Build" })}{" "}
+          {process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}
+        </p>
+      </footer>
     </main>
   );
 }

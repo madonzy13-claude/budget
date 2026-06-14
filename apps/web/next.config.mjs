@@ -13,9 +13,21 @@ const withSerwist = withSerwistInit({
   disable: process.env.NODE_ENV === "development" || process.env["DISABLE_SW"] === "1",
 });
 
+// Build-freshness stamp (260614-rwt): inlined at build time so the Settings
+// footer can confirm on-device which build is running (the q1v debug overlay was
+// removed). Prefers an explicit CI-supplied build id, then a short git SHA, else
+// a build timestamp. Inlined via `env` → readable as NEXT_PUBLIC_BUILD_ID.
+const BUILD_ID =
+  process.env["NEXT_PUBLIC_BUILD_ID"] ??
+  process.env["NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA"]?.slice(0, 7) ??
+  new Date().toISOString().slice(0, 16).replace("T", " ");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  env: {
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+  },
   // Force monorepo tracing root so the standalone bundle nests server.js
   // under `apps/web/server.js` in every environment. Without this, the
   // Docker `builder` stage (which only sees apps/web after install) emits

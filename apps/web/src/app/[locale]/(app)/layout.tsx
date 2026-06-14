@@ -12,7 +12,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
 import { ViewportDebug } from "@/components/common/viewport-debug";
-import { OfflineStatusBadge } from "@/components/common/offline-status-badge";
 import { OfflineResilience } from "@/components/common/offline-resilience";
 
 // The (app) shell is per-user: session lookup, onboarding-progress fetch,
@@ -205,8 +204,9 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           <InstallBanner />
           {/* UAT-08 device diagnostics — renders only with ?vpdbg=1. */}
           <ViewportDebug />
-          {/* Global offline indicator — ambient connectivity pill, app-wide. */}
-          <OfflineStatusBadge />
+          {/* Offline indicator moved INTO the TopNav header (260614-rwt): a
+              zero-height inline pill in the header right cluster, no layout
+              shift. See components/budgeting/top-nav.tsx. */}
           {/* Offline resilience island: mounts SwUpdateReloader (auto-reload
               installed PWA on SW update). Client leaf inside the app-wide
               QueryClientProvider. */}
