@@ -13,21 +13,14 @@
  * - /api/workspaces/*  (workspace data)
  * - /api/settings/*  (user settings)
  *
- * Offline navigation fallback: when a navigation request cannot reach the
- * origin we serve the precached /offline.html document instead of the browser's
- * default offline screen (a blank dark viewport on iOS standalone PWAs — the
- * "black screen") AND instead of a stale, redirect-prone app/sign-in shell.
- *
- * Why a STATIC /offline.html and not the /<locale>/server-down route (05-18):
- * /<locale>/server-down is a DYNAMIC Next.js route. @serwist/next only adds its
- * JS *chunk* to __SW_MANIFEST — never a navigable HTML document — so
- * caches.match("/en/server-down") always MISSED. NetworkFirst then fell back to
- * whatever HTML happened to sit in the runtime "pages" cache (often a previously
- * visited authenticated shell or /sign-in). That stale shell re-runs its
- * client-side auth/locale logic with no live server, bouncing sign-in <-> home
- * — the infinite offline redirect loop users reported. /offline.html lives in
- * public/, so the default globPublicPatterns precaches every public file: a HIT
- * is guaranteed offline, and the static doc never redirects.
+ * Offline navigation strategy (robust-minimal offline, 260614-q1v): a
+ * navigation is network-first; if the origin is unreachable (throw / 5xx) we
+ * return the CACHED navigation document for that route so previously-VISITED
+ * routes render offline. Only on a cache MISS do we return a minimal,
+ * self-recovering inline 503 notice (reloads on reconnect — no /api/health gate,
+ * no stuck full-page screen). 2xx/3xx/4xx pass through unchanged so server-side
+ * auth redirects keep working. The pure strategy + inline-notice builder live in
+ * ./sw-offline.ts (unit-tested without a real ServiceWorkerGlobalScope).
  */
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import {
@@ -36,11 +29,10 @@ import {
   StaleWhileRevalidate,
   Serwist,
 } from "serwist";
-import { buildOfflineDocument, handleNavigationRequest } from "./sw-offline";
-
-// OFFLINE_FALLBACK_URL ("/offline.html") + the offline/navigation strategy live
-// in ./sw-offline.ts (pure, unit-tested). See that module's header for the
-// offline-redirect-loop rationale (05-18).
+import {
+  handleNavigationRequest,
+  buildInlineOfflineNotice,
+} from "./sw-offline";
 
 // Bump this suffix whenever the static-asset caching strategy changes so a new
 // service worker abandons the old runtime cache instead of inheriting a stuck
@@ -60,16 +52,6 @@ declare global {
 }
 
 declare const self: any;
-
-/**
- * Service-worker-bound wrapper: resolves the precached /offline.html via the
- * real Cache Storage and delegates to the pure builder in ./sw-offline.ts.
- */
-async function offlineDocument(request: Request): Promise<Response> {
-  return buildOfflineDocument(request, (url) =>
-    caches.match(url, { ignoreSearch: true }),
-  );
-}
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
@@ -110,31 +92,25 @@ const serwist = new Serwist({
         cacheName: SCRIPT_IMAGE_CACHE,
       }),
     },
-    // Next.js page navigations — network-only-then-OFFLINE-DOC.
+    // Next.js page navigations — network-first → CACHED page → inline notice
+    // (robust-minimal offline, 260614-q1v).
     //
-    // History (why this is no longer plain NetworkFirst):
-    //   - StaleWhileRevalidate served stale authenticated HTML across
-    //     sign-in/sign-out boundaries (T-9-extension) — fixed by NetworkFirst.
-    //   - NetworkFirst then exposed the OFFLINE REDIRECT LOOP (05-18): when the
-    //     network failed it fell back to whatever HTML sat in the "pages"
-    //     runtime cache. For a navigation that had no exact cache entry,
-    //     NetworkFirst returned a *previously cached different page* (commonly an
-    //     authenticated app shell or /sign-in). That shell re-runs its
-    //     client-side auth/locale logic with no live server and bounces
-    //     sign-in <-> home forever.
-    //
-    // Fix: on a navigation we try the network; if it fails for ANY reason
-    // (offline, timeout, 5xx) we serve the STATIC, non-redirecting
-    // /offline.html document — never a stale page shell. A single failed
-    // dependency therefore yields exactly ONE rendered offline screen and zero
-    // redirects. The offline doc carries `?next=<path>&lang=<locale>` so its
-    // Retry button returns the user to the page they wanted once the API is back
-    // (and `online` auto-retries).
+    // Try the network; on throw / 5xx we return the CACHED navigation document
+    // for THIS route (ignoreSearch) so a previously-visited route renders
+    // offline from cache instead of a stuck screen. Only when the cache misses
+    // do we return a minimal self-recovering inline 503 (reloads on reconnect,
+    // no /api/health gate). 2xx/3xx/4xx pass through unchanged so server-side
+    // auth redirects keep working.
     {
       matcher: ({ request }: { request: Request }) =>
         request.mode === "navigate",
       handler: ({ request }: { request: Request }) =>
-        handleNavigationRequest(request, (req) => fetch(req), offlineDocument),
+        handleNavigationRequest(
+          request,
+          (req) => fetch(req),
+          (req) => caches.match(req, { ignoreSearch: true }),
+          (req) => buildInlineOfflineNotice(req),
+        ),
     },
   ],
 });
@@ -157,8 +133,8 @@ self.addEventListener("notificationclick", (event: any) => {
         type: "window",
         includeUncontrolled: true,
       });
-      const match = clients.find((c: { url: string }) =>
-        c.url.endsWith(url) || c.url.includes(url),
+      const match = clients.find(
+        (c: { url: string }) => c.url.endsWith(url) || c.url.includes(url),
       );
       if (match) {
         await (match as { focus: () => Promise<void> }).focus();
