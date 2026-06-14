@@ -137,6 +137,10 @@ export function useCreateTransaction(budgetId: string, month: string) {
           headers: {
             "Content-Type": "application/json",
             "Idempotency-Key": key,
+            // Stamp tenant explicitly: harmless when online (matches pathname),
+            // correct if the write fires off-page. clientApiFetch only injects
+            // X-Budget-ID when absent, so this explicit header wins. 260614-nug
+            "X-Budget-ID": budgetId,
           },
           body: JSON.stringify(payload),
           // Write-only timeout — scoped to THIS POST; reads via clientApiFetch

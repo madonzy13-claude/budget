@@ -65,6 +65,12 @@ export function useOnlineSync() {
                   "Content-Type": "application/json",
                   // SAME key as stored at enqueue time — server returns cached 2xx (T-08-03-02)
                   "Idempotency-Key": item.idempotencyKey,
+                  // Replay usually fires while the user is NOT on this budget's
+                  // page, so clientApiFetch cannot derive X-Budget-ID from the
+                  // pathname → tenant guard 4xx → false sync-issue. Stamp it
+                  // explicitly from the stored budgetId (clientApiFetch only
+                  // injects when absent, so this explicit header wins). 260614-nug
+                  "X-Budget-ID": item.budgetId,
                 },
                 body: JSON.stringify(item.payload),
               },
