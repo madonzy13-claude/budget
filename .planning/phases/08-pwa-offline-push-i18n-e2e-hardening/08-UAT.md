@@ -37,10 +37,12 @@ result: pass
 claude_verified: "2026-06-11 — manifest 200 (standalone, theme #0b0e11), 4 icons 200 image/png; Brave desktop install + iOS A2HS dialog user-confirmed in test 2 rounds."
 note: "User installed on real iOS device via new A2HS instructions; standalone launch + icon confirmed."
 
-### 4. Offline Write — Pending Sync Marker (PWAX-03)
+### 4. Offline Write — REDESIGNED to robust-minimal (PWAX-03 superseded)
 
-expected: Go offline (airplane mode/devtools offline). Quick-entry an expense — row appears immediately with Clock + "Pending" marker; offline badge shows red pulsing dot. Go back online — entry syncs automatically, pending marker clears, badge hides.
-result: fix-deployed (awaiting device re-verify)
+expected (NEW, after design change): Quick-entry an expense while offline → the optimistic row ROLLS BACK and an honest toast shows ("can't add right now / try again when reconnected"). NO queue, NO pending-sync marker, NO auto-replay. Online add unchanged. (Old expectation below is obsolete.)
+design_change: "After ~8 UAT rounds the offline write-queue/sync proved too fragile on iOS (navigator.onLine lies; service-worker stale-cache masked every fix; replay 4xx on wrong tenant header). USER DECISION 2026-06-14: simplify to robust-minimal — offline is READ-only-reliable; offline WRITE is an honest toast + rollback. Implemented in quick-260614-q1v (removed queue/replay/pending-marker/sync-issues/offline.html). Test 6 (Sync Issues List) is therefore REMOVED (feature deleted). The long debug trail (i5m/ipk/kfw/nug) is retained below for history; superseded by q1v."
+old_expected: Go offline (airplane mode/devtools offline). Quick-entry an expense — row appears immediately with Clock + "Pending" marker; offline badge shows red pulsing dot. Go back online — entry syncs automatically, pending marker clears, badge hides.
+result: fix-deployed (awaiting device re-verify of the SIMPLIFIED behavior)
 reported: "On device (iOS), offline quick-entry shows only a perpetual LOADING SPINNER next to the amount (e.g. '17') — NOT the Clock + 'Pending' marker. Stuck loading; no offline pending state."
 severity: major
 root_cause: "Offline fork keyed ONLY on navigator.onLine===false (use-create-transaction.ts:93); iOS reports onLine=true with no network → write took the online path; clientApiFetch had no timeout → POST hung forever → optimistic row pending:true never cleared (spinner). Clock/Pending marker gated on the IndexedDB queue entry that's only written in the skipped fork → never shown. Vitest passed because it force-set navigator.onLine=false + mocked fetch — never exercising the 'looks online but network dead' branch."
@@ -61,7 +63,8 @@ result: [pending]
 ### 6. Sync Issues List
 
 expected: A queued offline entry that fails on replay (4xx) appears in sync-issues list with reason. Dismiss removes it with toast confirmation.
-result: [pending]
+result: removed
+reason: "Feature deleted in quick-260614-q1v (robust-minimal offline). No offline write-queue/replay anymore → no sync-issues to surface. Offline write is now an honest rollback+toast (test 4)."
 
 ### 7. Push Preferences in Settings
 
