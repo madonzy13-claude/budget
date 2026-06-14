@@ -14,7 +14,7 @@
  */
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { wipeBudgetCache } from "../src/lib/offline-cache";
@@ -22,8 +22,14 @@ import { getOfflineQueue, removeFromQueue } from "../src/lib/offline-queue";
 
 // clientApiFetch must be mocked before the hook imports it.
 vi.mock("../src/lib/budget-fetch", () => ({ clientApiFetch: vi.fn() }));
+// next-intl is only needed by TransactionRow (the fallback render assertion).
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
+}));
 import { clientApiFetch } from "../src/lib/budget-fetch";
 import { useCreateTransaction } from "../src/hooks/use-create-transaction";
+import { TransactionRow } from "../src/components/budgeting/spendings-grid/transaction-row";
 
 const mockFetch = clientApiFetch as ReturnType<typeof vi.fn>;
 const budgetId = "11111111-1111-1111-1111-111111111111";
@@ -145,5 +151,157 @@ describe("offline create-transaction write path", () => {
       { headers: Record<string, string> },
     ];
     expect(init.headers["Idempotency-Key"]).toBeTruthy();
+  });
+
+  // ── iOS device branch: navigator.onLine LIES (reports true on a dead link) ──
+  // The existing suite only covered onLine=false. On iOS Safari/PWA the write
+  // falls through to the real POST, which then hangs (no timeout) → perpetual
+  // spinner, no queue insert, no Clock marker. These tests reproduce that branch:
+  // the POST must FAIL (network throw / abort), and the write must fall back to
+  // the queue + clear pending — exactly like the onLine=false fast path.
+
+  it("network reject while online enqueues and clears pending", async () => {
+    setOnline(true); // navigator lies — link is actually dead.
+    mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+    const qc = newClient();
+    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
+      wrapper: makeWrapper(qc),
+    });
+
+    result.current.mutate({
+      categoryId: "cat-1",
+      amountCents: 1200,
+      date: "2026-06-11",
+      currency: "USD",
+    });
+
+    await waitFor(async () => {
+      expect(await getOfflineQueue()).toHaveLength(1);
+    });
+    // We attempted the real POST first, THEN fell back (not the onLine fast path).
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    const queuedKey = (await getOfflineQueue())[0].idempotencyKey;
+    const rows = qc.getQueryData(["transactions", budgetId, month]) as Array<
+      Record<string, unknown>
+    >;
+    const row = rows.find((r) => r.idempotencyKey === queuedKey)!;
+    expect(row, "optimistic row carrying the queued key").toBeTruthy();
+    // Spinner cleared (pending false) and queued/unsent marker on.
+    expect(row.pending).toBe(false);
+    expect(row.unsent).toBe(true);
+  });
+
+  it("aborted/timed-out write while online enqueues and clears pending", async () => {
+    setOnline(true);
+    // Simulates AbortSignal.timeout(8000) firing on a hung POST.
+    mockFetch.mockRejectedValue(
+      Object.assign(new DOMException("Aborted", "AbortError")),
+    );
+    const qc = newClient();
+    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
+      wrapper: makeWrapper(qc),
+    });
+
+    result.current.mutate({
+      categoryId: "cat-1",
+      amountCents: 1200,
+      date: "2026-06-11",
+      currency: "USD",
+    });
+
+    await waitFor(async () => {
+      expect(await getOfflineQueue()).toHaveLength(1);
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    const queuedKey = (await getOfflineQueue())[0].idempotencyKey;
+    const rows = qc.getQueryData(["transactions", budgetId, month]) as Array<
+      Record<string, unknown>
+    >;
+    const row = rows.find((r) => r.idempotencyKey === queuedKey)!;
+    expect(row.pending).toBe(false);
+    expect(row.unsent).toBe(true);
+  });
+
+  it("genuine 4xx stays a real error, does NOT enqueue", async () => {
+    setOnline(true);
+    mockFetch.mockResolvedValue(new Response("bad", { status: 422 }));
+    const qc = newClient();
+    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
+      wrapper: makeWrapper(qc),
+    });
+
+    result.current.mutate({
+      categoryId: "cat-1",
+      amountCents: 1200,
+      date: "2026-06-11",
+      currency: "USD",
+    });
+
+    // onError still flags the row unsent (kept, with retry), but a 4xx is a
+    // genuine validation error → must NOT go to the offline queue, else
+    // use-online-sync would replay it forever in a loop.
+    await waitFor(() => {
+      const rows = qc.getQueryData(["transactions", budgetId, month]) as
+        | Array<Record<string, unknown>>
+        | undefined;
+      expect(rows?.some((r) => r.unsent === true)).toBe(true);
+    });
+    expect(await getOfflineQueue()).toHaveLength(0);
+  });
+
+  it("fallback row renders the Clock pending marker and NO spinner", async () => {
+    setOnline(true);
+    mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+    const qc = newClient();
+    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
+      wrapper: makeWrapper(qc),
+    });
+
+    result.current.mutate({
+      categoryId: "cat-1",
+      amountCents: 1200,
+      date: "2026-06-11",
+      currency: "USD",
+    });
+
+    await waitFor(async () => {
+      expect(await getOfflineQueue()).toHaveLength(1);
+    });
+    const queuedKey = (await getOfflineQueue())[0].idempotencyKey;
+    const rows = qc.getQueryData(["transactions", budgetId, month]) as Array<
+      Record<string, unknown>
+    >;
+    const row = rows.find((r) => r.idempotencyKey === queuedKey)!;
+
+    // Render the resulting optimistic row through the real TransactionRow: the
+    // queued key drives the Clock marker and pending:false hides the spinner.
+    const { container } = render(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(TransactionRow, {
+          txn: {
+            id: row.id,
+            amountConvertedCents: String(row.amountConvertedCents),
+            currencyConverted: String(row.currencyConverted),
+            transactionDate: String(row.transactionDate),
+            idempotencyKey: queuedKey,
+            pending: row.pending as boolean,
+            unsent: row.unsent as boolean,
+          },
+          budgetId,
+          month,
+          onEdit: vi.fn(),
+        }),
+      ),
+    );
+
+    // Clock "pending" marker present (key in queue), spinner absent.
+    await waitFor(() =>
+      expect(screen.getByTestId(`txn-pending-${row.id}`)).toBeInTheDocument(),
+    );
+    expect(container.querySelector(".animate-spin")).toBeNull();
   });
 });
