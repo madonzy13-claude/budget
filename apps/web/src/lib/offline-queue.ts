@@ -7,6 +7,7 @@
  * No "use client" — pure browser API wrapper, no React, no framework imports.
  */
 import { openBudgetDB } from "./offline-cache";
+import { traceOffline } from "./offline-trace";
 
 /**
  * Broadcast so queue-dependent UI (per-row pending marker, offline badge,
@@ -33,10 +34,24 @@ export interface OfflineTxn {
 export async function enqueueOfflineTxn(
   txn: Omit<OfflineTxn, "failReason">,
 ): Promise<void> {
-  const db = await openBudgetDB();
-  await db.put("offline-queue", txn);
-  db.close();
-  notifyQueueChanged();
+  // Instrumentation only (260614-kfw): the try/catch traces an IDB hang
+  // (put-start logged, no put-ok) vs throw (ERROR + name) vs success, then
+  // RE-THROWS to preserve the caller's existing error contract.
+  try {
+    traceOffline("enqueue:openDB");
+    const db = await openBudgetDB();
+    traceOffline("enqueue:put-start");
+    await db.put("offline-queue", txn);
+    traceOffline("enqueue:put-ok");
+    db.close();
+    notifyQueueChanged();
+  } catch (e) {
+    traceOffline(
+      "enqueue:ERROR",
+      `${(e as Error)?.name}: ${(e as Error)?.message}`,
+    );
+    throw e;
+  }
 }
 
 export async function getOfflineQueue(): Promise<OfflineTxn[]> {

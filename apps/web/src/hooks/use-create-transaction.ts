@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { enqueueOfflineTxn } from "@/lib/offline-queue";
+import { traceOffline } from "@/lib/offline-trace";
 import { mapTxnRowToDTO } from "./use-transactions";
 
 /** Thrown by the offline fork so React Query routes to onError (keep the row). */
@@ -85,6 +86,7 @@ export function useCreateTransaction(budgetId: string, month: string) {
 
   return useMutation({
     mutationFn: async (input: CreateTransactionInput) => {
+      traceOffline("write:start", `onLine=${navigator.onLine}`);
       // onMutate runs first and stamps input.idempotencyKey; reuse it so the
       // queued key matches the optimistic row's key (PWAX-03 marker).
       const key = input.idempotencyKey ?? generateIdempotencyKey();
@@ -119,6 +121,7 @@ export function useCreateTransaction(budgetId: string, month: string) {
 
       // Offline fast path: navigator KNOWS it is offline → enqueue immediately.
       if (!navigator.onLine) {
+        traceOffline("write:fastpath-offline");
         return await fallbackToQueue();
       }
 
@@ -128,6 +131,7 @@ export function useCreateTransaction(budgetId: string, month: string) {
       // optimistic row spinning forever.
       let res: Response;
       try {
+        traceOffline("write:post-start");
         res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {
           method: "POST",
           headers: {
@@ -139,19 +143,25 @@ export function useCreateTransaction(budgetId: string, month: string) {
           // are untouched (no global timeout added to budget-fetch.ts).
           signal: AbortSignal.timeout(8000),
         });
-      } catch {
+      } catch (e) {
         // Network throw (TypeError "Failed to fetch") or AbortError (timeout) —
         // the server was unreachable. Enqueue for later replay.
+        traceOffline("write:post-catch", String((e as Error)?.name || e));
         return await fallbackToQueue();
       }
 
       if (!res.ok) {
         // Server-unreachable-class status (5xx) → enqueue + retry later.
-        if (res.status >= 500) return await fallbackToQueue();
+        if (res.status >= 500) {
+          traceOffline("write:post-5xx");
+          return await fallbackToQueue();
+        }
         // Genuine client error (4xx) → real error, do NOT enqueue (would loop
         // forever in use-online-sync replay).
+        traceOffline("write:post-4xx");
         throw new Error(await res.text());
       }
+      traceOffline("write:post-ok");
       return (await res.json()).transaction;
     },
 

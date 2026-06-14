@@ -22,9 +22,17 @@ import {
   getOfflineQueue,
   OFFLINE_QUEUE_CHANGED_EVENT,
 } from "@/lib/offline-queue";
+import {
+  clearOfflineTrace,
+  getOfflineTrace,
+  type OfflineTraceEntry,
+} from "@/lib/offline-trace";
 
 // Bump on EVERY redeploy of this overlay. Proves the device runs the NEW build.
-const BUILD_ID = "OFFDBG-1";
+const BUILD_ID = "OFFDBG-2";
+
+// How many trace lines to surface (newest first). Ring buffer holds ~12.
+const TRACE_SHOWN = 8;
 
 const FLAG_KEY = "offdbg";
 
@@ -75,6 +83,8 @@ interface Snapshot {
   sw: SwInfo | null;
   swSupported: boolean;
   displayMode: string;
+  /** write-path telemetry ring buffer (oldest → newest) */
+  trace: OfflineTraceEntry[];
 }
 
 function readDisplayMode(): string {
@@ -151,8 +161,14 @@ export function OfflineDebug() {
       sw,
       swSupported: supported,
       displayMode: readDisplayMode(),
+      trace: getOfflineTrace(),
     });
   }, []);
+
+  const clearTrace = useCallback(() => {
+    clearOfflineTrace();
+    void refresh();
+  }, [refresh]);
 
   useEffect(() => {
     if (!isOffdbgEnabled()) return;
@@ -285,7 +301,30 @@ export function OfflineDebug() {
       <div>
         visible {c.visible} · focus {c.focus}
       </div>
+      <div className="mt-1 border-t border-emerald-700/40 pt-1 text-emerald-200">
+        [trace]
+      </div>
+      {s.trace.length === 0 && <div className="text-emerald-500">(empty)</div>}
+      {s.trace
+        .slice(-TRACE_SHOWN)
+        .reverse()
+        .map((e, i) => (
+          <div key={`${e.t}-${i}`} className="break-all">
+            <span className="text-emerald-500">{e.t}</span> {e.step}
+            {e.detail ? (
+              <span className="text-emerald-200"> {e.detail}</span>
+            ) : null}
+          </div>
+        ))}
       <div className="mt-2 flex flex-col gap-1">
+        <button
+          type="button"
+          data-testid="offdbg-clear-trace"
+          onClick={clearTrace}
+          className="rounded border border-emerald-500/60 px-1 py-0.5 text-emerald-200 active:bg-emerald-900/40"
+        >
+          Clear trace
+        </button>
         <button
           type="button"
           data-testid="offdbg-force-update"
