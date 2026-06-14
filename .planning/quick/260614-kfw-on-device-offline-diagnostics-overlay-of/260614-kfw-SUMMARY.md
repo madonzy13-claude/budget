@@ -95,3 +95,86 @@ best-effort clause (no cheap sync-state hook exists).
 - FOUND: layout.tsx mount (`<OfflineDebug />`)
 - FOUND: commit faa9883
 - FOUND: OFFDBG-1 in HTTP-served client chunk
+
+---
+
+## Continuation: Write-Path Telemetry (commit 908d70b, BUILD_ID OFFDBG-2)
+
+Pure instrumentation to pinpoint why the offline write queue stays at 0 on the
+iOS PWA. Ground truth going in: device runs new code (OFFDBG-1), `navigator.onLine`
+lies (true while offline; offline event lags), and the queue stays 0 even when
+onLine is false — so `enqueueOfflineTxn` either hangs or throws on iOS WebKit
+IndexedDB. The trace makes the exact failing call visible. NO offline LOGIC change.
+
+### What changed
+
+- **New `apps/web/src/lib/offline-trace.ts`** (no `"use client"`, SSR-safe):
+  `traceOffline(step, detail?)` appends `{t: HH:MM:SS.mmm, step, detail}` to a
+  ~12-entry ring buffer in **localStorage** key `offline-trace` (localStorage,
+  NOT IndexedDB — IDB is the suspect). All ops wrapped in try/catch so tracing
+  never throws or alters control flow. Plus `getOfflineTrace()` / `clearOfflineTrace()`.
+- **Instrumented `use-create-transaction.ts` mutationFn** — trace lines only, no
+  logic change. Named the POST catch param `(e)` to capture the error name.
+- **Instrumented `offline-queue.ts` `enqueueOfflineTxn`** — wrapped body in
+  try/catch that traces openDB → put-start → put-ok on success, traces
+  `enqueue:ERROR` with `name: message` on failure, then **re-throws** (preserves
+  the caller's existing error contract — onError path still keeps the optimistic row).
+- **offline-debug.tsx overlay** — BUILD_ID `OFFDBG-1` → `OFFDBG-2`; new `[trace]`
+  section rendering the last 8 entries (newest first), refreshed on the existing
+  1500ms poll; new `Clear trace` button (`offdbg-clear-trace`).
+
+### Trace steps emitted (the diagnostic vocabulary)
+
+mutationFn (`use-create-transaction.ts`):
+
+- `write:start` detail `onLine=<bool>` — every write begins
+- `write:fastpath-offline` — `navigator.onLine` was false → enqueue path taken
+- `write:post-start` — about to POST (onLine was true)
+- `write:post-catch` detail `<ErrorName>` (e.g. `AbortError`, `TypeError`) — POST threw → enqueue
+- `write:post-5xx` — server 5xx → enqueue
+- `write:post-4xx` — genuine client error → throw (no enqueue)
+- `write:post-ok` — POST succeeded
+
+enqueue (`offline-queue.ts`):
+
+- `enqueue:openDB` — before `openBudgetDB()`
+- `enqueue:put-start` — before `db.put`
+- `enqueue:put-ok` — after `db.put` (before close/notify)
+- `enqueue:ERROR` detail `<name>: <message>` — IDB threw (then re-thrown)
+
+### How to read the device screenshot
+
+- **Hang at IDB put**: `enqueue:put-start` present, NO `enqueue:put-ok` and NO
+  `enqueue:ERROR` (the `db.put` promise never settles on iOS WebKit).
+- **Throw at IDB**: `enqueue:ERROR` with a name like `NotFoundError` /
+  `InvalidStateError` / `QuotaExceededError`.
+- **Hang before enqueue even starts**: `enqueue:openDB` present, no put-start
+  (`openBudgetDB()` itself hangs) — or no enqueue lines at all (onLine lied true
+  and the POST is hanging — look for `write:post-start` with no resolution).
+- **Success (queue should be >0)**: `enqueue:put-ok` present.
+
+### Verification
+
+- `cd apps/web && bunx tsc --noEmit` → exit 0 (full project, 0 errors).
+- `eslint` on all 4 touched files → exit 0, clean.
+- `bunx vitest run offline-write-path offline-queue use-online-sync` → 3 files,
+  23 tests passed (existing offline behavior unchanged).
+- `docker compose build web` + `make restart-web` → `budget-web-1 Up (healthy)`.
+- Served bundle confirmed: `OFFDBG-2` in `static/chunks/app/[locale]/(app)/
+layout-29980dc7ee9c9aa8.js`; trace tokens (`write:post-start`,
+  `enqueue:put-start`, `offline-trace`) in the spendings page chunk where the
+  mutation runs.
+
+### Deviations from Plan
+
+None — pure instrumentation as specified. Only behavior delta is the transparent
+try/catch-rethrow around the enqueue body (re-throw preserves the existing
+contract). Also committed the Serwist-regenerated `apps/web/public/sw.js`
+precache manifest (2-line hash churn) so the SW precache points at the new bundle.
+
+### Continuation Self-Check: PASSED
+
+- FOUND: apps/web/src/lib/offline-trace.ts
+- FOUND: traceOffline calls in use-create-transaction.ts + offline-queue.ts
+- FOUND: OFFDBG-2 in HTTP-served client chunk (layout-29980dc7ee9c9aa8.js)
+- FOUND: commit 908d70b
