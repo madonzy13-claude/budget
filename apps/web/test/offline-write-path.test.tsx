@@ -7,7 +7,7 @@
  * toast; genuine 4xx errors surface a generic error toast; online is unchanged.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 
@@ -175,6 +175,63 @@ describe("offline create-transaction write path", () => {
     await waitFor(() => expect(getRows(qc)).toEqual(baseline));
     expect(toastError).toHaveBeenCalledWith(FAILED_MSG);
     expect(toastError).not.toHaveBeenCalledWith(OFFLINE_MSG);
+  });
+
+  // RWT-1 (the device bug): on iOS WebKit a hung POST never settles AND
+  // AbortSignal.timeout does not abort it, so onError never ran → optimistic row
+  // stayed forever with no toast. The bulletproof Promise.race timer must reject
+  // within the race window (~6s) so rollback + offline toast still fire.
+  it("hung POST (never settles) still rolls back + offline toast within the race window", async () => {
+    vi.useFakeTimers();
+    try {
+      setOnline(true); // iOS reports online on a dead link.
+      // A fetch that NEVER resolves nor rejects — exactly the iOS hang.
+      mockFetch.mockReturnValue(new Promise<Response>(() => {}));
+      const qc = newClient();
+      const baseline = seedBaseline(qc);
+      const { result } = renderHook(
+        () => useCreateTransaction(budgetId, month),
+        { wrapper: makeWrapper(qc) },
+      );
+
+      result.current.mutate(input);
+      // Flush onMutate (async — awaits cancelQueries) so the optimistic row lands.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      // Optimistic row is in place before the race resolves.
+      expect(getRows(qc).length).toBe(baseline.length + 1);
+
+      // Advance past the 6000ms race window — the manual timer must reject.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6500);
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(toastError).toHaveBeenCalledWith(OFFLINE_MSG);
+      expect(getRows(qc)).toEqual(baseline);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // RWT-1 fast-negative: when iOS KNOWS it is offline (navigator.onLine===false is
+  // reliable; only the `true` value lies) the toast must be instant and NO POST is
+  // issued — no waiting on the race window.
+  it("navigator.onLine===false → instant offline toast, POST never issued", async () => {
+    setOnline(false);
+    const qc = newClient();
+    const baseline = seedBaseline(qc);
+    const { result } = renderHook(() => useCreateTransaction(budgetId, month), {
+      wrapper: makeWrapper(qc),
+    });
+
+    result.current.mutate(input);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(OFFLINE_MSG));
+    // Fast-negative short-circuits BEFORE the network call.
+    expect(mockFetch).not.toHaveBeenCalled();
+    await waitFor(() => expect(getRows(qc)).toEqual(baseline));
   });
 
   it("no offline queue is ever written (row count returns to baseline)", async () => {

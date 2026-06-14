@@ -2,12 +2,15 @@
 /**
  * use-create-transaction.ts — Optimistic POST mutation for new transactions.
  *
- * Robust-minimal offline (quick task 260614-q1v): there is NO offline queue and
- * NO replay. onMutate prepends an optimistic row; the mutationFn ALWAYS attempts
- * the POST (never a navigator.onLine fast path — iOS lies about connectivity).
- * A dead link / timeout / 5xx is detected from the FETCH RESULT and surfaced via
- * onError, which ROLLS BACK the optimistic row and shows an honest offline toast.
- * A genuine 4xx shows a generic error toast. onSuccess swaps the server row in.
+ * Robust-minimal offline (quick task 260614-q1v) + bulletproof timeout (260614-rwt):
+ * there is NO offline queue and NO replay. onMutate prepends an optimistic row.
+ * mutationFn FIRST checks navigator.onLine===false (the ONLY reliable signal on
+ * iOS — the `true` value lies) as a fast-negative for an instant offline toast.
+ * Otherwise it POSTs, wrapped in a manual Promise.race timeout (6000ms) because
+ * iOS WebKit does NOT abort a hung POST via AbortSignal — the race GUARANTEES
+ * onError fires. A dead link / timeout / 5xx routes to onError, which ROLLS BACK
+ * the optimistic row and shows an honest offline toast. A genuine 4xx shows a
+ * generic error toast. onSuccess swaps the server row in.
  *
  * QueryKey ["transactions", budgetId, month] matches useTransactions exactly.
  * Optimistic UUID is client-local; the server assigns its own id.
@@ -90,6 +93,13 @@ export function useCreateTransaction(budgetId: string, month: string) {
       // lost on a flaky link but the write actually landed.
       const key = generateIdempotencyKey();
 
+      // FAST-NEGATIVE: navigator.onLine===false is RELIABLE on iOS (only the
+      // `true` value lies — it reports online on a dead link). When the device
+      // KNOWS it is offline, reject instantly so the offline toast is immediate
+      // and we never issue a doomed POST. (Indicator-vs-gate: this is the WRITE
+      // gate; the header pill is a separate, advisory indicator.)
+      if (navigator.onLine === false) throw new OfflineWriteError();
+
       const payload = {
         date: input.date,
         category_id: input.categoryId,
@@ -98,31 +108,47 @@ export function useCreateTransaction(budgetId: string, month: string) {
         note: input.note ?? null,
       };
 
-      // ALWAYS attempt the POST. navigator.onLine LIES on iOS Safari/PWA (reports
+      // ALWAYS attempt the POST when onLine is true (it LIES on iOS — reports
       // true on a dead link), so the real signal is whether the POST succeeds.
-      // A write-only timeout rejects a hung request fast (AbortError) instead of
-      // leaving the optimistic row spinning forever.
+      //
+      // BULLETPROOF TIMEOUT: on iOS WebKit, AbortSignal.timeout(8000) does NOT
+      // abort a hung POST, so the fetch promise can NEVER settle → onError never
+      // fires → the optimistic row spins forever. The GUARANTEE is a manual
+      // Promise.race against a setTimeout that rejects with OfflineWriteError at
+      // 6000ms (< the 8000ms AbortSignal so the race always wins first). The
+      // AbortSignal is kept as a best-effort real cancel.
       let res: Response;
+      let raceTimer: ReturnType<typeof setTimeout> | undefined;
       try {
-        res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": key,
-            // Stamp tenant explicitly: harmless when online (matches pathname),
-            // correct if the write fires off-page. clientApiFetch only injects
-            // X-Budget-ID when absent, so this explicit header wins.
-            "X-Budget-ID": budgetId,
+        const fetchPromise = clientApiFetch(
+          `/budgets/${budgetId}/transactions`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": key,
+              // Stamp tenant explicitly: harmless when online (matches pathname),
+              // correct if the write fires off-page. clientApiFetch only injects
+              // X-Budget-ID when absent, so this explicit header wins.
+              "X-Budget-ID": budgetId,
+            },
+            body: JSON.stringify(payload),
+            // Best-effort cancel — NOT relied on (iOS ignores it on a hang).
+            signal: AbortSignal.timeout(8000),
           },
-          body: JSON.stringify(payload),
-          // Write-only timeout — scoped to THIS POST; reads via clientApiFetch
-          // are untouched (no global timeout added to budget-fetch.ts).
-          signal: AbortSignal.timeout(8000),
+        );
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          raceTimer = setTimeout(() => reject(new OfflineWriteError()), 6000);
         });
+        res = await Promise.race([fetchPromise, timeoutPromise]);
       } catch {
-        // Network throw (TypeError "Failed to fetch") or AbortError (timeout) —
-        // the server was unreachable → rollback + honest offline toast.
+        // Network throw (TypeError "Failed to fetch"), AbortError, OR the
+        // race-timeout OfflineWriteError — all mean the server was unreachable →
+        // rollback + honest offline toast.
         throw new OfflineWriteError();
+      } finally {
+        // Clear the timer so a fast success/failure doesn't leak it.
+        if (raceTimer !== undefined) clearTimeout(raceTimer);
       }
 
       // Server-unreachable-class status (5xx) → treat as offline.
