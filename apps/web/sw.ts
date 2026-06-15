@@ -27,6 +27,7 @@
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import {
   NetworkOnly,
+  NetworkFirst,
   CacheFirst,
   StaleWhileRevalidate,
   Serwist,
@@ -45,6 +46,13 @@ const SCRIPT_IMAGE_CACHE = "static-assets-v2";
 // changes so a new worker abandons the old nav docs. Listed in
 // CURRENT_STATIC_CACHES so the activate purge KEEPS it.
 const NAV_CACHE = "nav-docs-v1";
+// NetworkFirst-with-write cache for Next App Router RSC payloads (the soft-nav
+// flight responses, `RSC: 1` header). Caching these lets client-side navigation
+// to a previously-visited OR prefetched route work offline (Next prefetches
+// in-viewport links — the BDP pills + home budget cards — so they self-populate).
+// NetworkFirst keeps online fresh; offline serves the cached RSC. Bump the suffix
+// to abandon a stale generation; the activate purge deletes non-current rsc-*.
+const RSC_CACHE = "rsc-v1";
 // Static app-shell document served on an offline nav cache MISS (real header
 // chrome + in-app "wasn't preloaded" note). Auto-precached by @serwist/next from
 // public/** → retrievable via caches.match / serwist.matchPrecache.
@@ -53,6 +61,7 @@ const CURRENT_STATIC_CACHES = new Set([
   STYLE_CACHE,
   SCRIPT_IMAGE_CACHE,
   NAV_CACHE,
+  RSC_CACHE,
 ]);
 // Legacy/superseded runtime cache names to purge on activate.
 const LEGACY_STATIC_CACHES = ["static-assets", "static-styles"];
@@ -81,6 +90,34 @@ const serwist: Serwist = new Serwist({
     {
       matcher: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
       handler: new NetworkOnly(),
+    },
+    // Next App Router RSC payloads (soft-nav flight responses, `RSC: 1` header) —
+    // NetworkFirst-with-write so CLIENT-SIDE navigation to a previously-visited
+    // OR prefetched route works offline (Next prefetches in-viewport links — the
+    // BDP pills + home budget cards — so they self-populate). NetworkFirst keeps
+    // online fresh; offline serves the cached RSC. The cache key strips the
+    // `_rsc` cache-buster query so an offline request (different/absent `_rsc`)
+    // still matches the stored payload. Never matches /api (that rule is first).
+    {
+      matcher: ({ request, url }: { request: Request; url: URL }) =>
+        url.origin === self.location.origin &&
+        request.headers.get("RSC") === "1",
+      handler: new NetworkFirst({
+        cacheName: RSC_CACHE,
+        plugins: [
+          {
+            cacheKeyWillBeUsed: async ({
+              request,
+            }: {
+              request: Request;
+            }): Promise<Request> => {
+              const u = new URL(request.url);
+              u.searchParams.delete("_rsc");
+              return new Request(u.toString(), { headers: { RSC: "1" } });
+            },
+          },
+        ],
+      }),
     },
     // Stylesheets — StaleWhileRevalidate. CSS carries the global cursor /
     // affordance rules; recurring UAT reports traced to a service worker
@@ -212,7 +249,8 @@ self.addEventListener("activate", (event: any) => {
             (key: string) =>
               LEGACY_STATIC_CACHES.includes(key) ||
               ((key.startsWith("static-styles") ||
-                key.startsWith("static-assets")) &&
+                key.startsWith("static-assets") ||
+                key.startsWith("rsc-")) &&
                 !CURRENT_STATIC_CACHES.has(key)),
           )
           .map((key: string) => caches.delete(key)),
