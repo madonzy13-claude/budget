@@ -133,7 +133,7 @@ export function useBudgetData(options: UseBudgetDataOptions) {
     }).catch(() => {
       // Cache write failure is non-fatal — do not surface to user
     });
-  }, [allSuccess, budgetId, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allSuccess, budgetId, month]);
 
   return { budgetQuery, walletsQuery, categoriesQuery, transactionsQuery };
 }
