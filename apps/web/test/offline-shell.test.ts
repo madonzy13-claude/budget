@@ -1,22 +1,14 @@
 /**
- * offline-shell.test.ts — regression for the offline-shell.html cached
- * budget-list render (260615-e8s follow-up).
- *
- * offline-shell.html is the static document the SW serves on a nav-cache MISS
- * when offline. Its inline <script> reads the `active-budgets` IndexedDB store
- * and, if present, replaces the "wasn't preloaded" note with the cached budget
- * list. This test executes that REAL inline script (read from the file) against
- * happy-dom + fake-indexeddb so the behaviour can't silently regress.
- *
- * The SW serving the shell on cache-miss is covered by sw-offline.test.ts; the
- * end-to-end "offline reload shows the list" flow is covered by a Playwright
- * route-abort harness (context.route abort intercepts the SW's fetch — unlike
- * context.setOffline, which does not).
+ * offline-shell.test.ts — regression for the offline-shell.html not-cached
+ * fallback (260615-e8s round 3). The shell is shown by the SW only when an
+ * offline navigation misses the nav-doc cache (route never opened online). It
+ * must show the "not available offline" note and, when the cached home document
+ * exists, reveal a "Go to home" shortcut. This executes the REAL inline script
+ * from the file against happy-dom.
  */
-import "fake-indexeddb/auto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const HTML = readFileSync(
   resolve(__dirname, "../public/offline-shell.html"),
@@ -25,51 +17,14 @@ const HTML = readFileSync(
 const BODY_INNER = HTML.match(/<body>([\s\S]*)<\/body>/)![1];
 const SCRIPT = HTML.match(/<script>([\s\S]*?)<\/script>/)![1];
 
-function seedActiveBudgets(
-  rows: Array<Record<string, unknown>>,
-): Promise<void> {
-  return new Promise((res, rej) => {
-    const open = indexedDB.open("budget-cache", 3);
-    open.onupgradeneeded = () => {
-      const db = open.result;
-      if (!db.objectStoreNames.contains("active-budgets")) {
-        db.createObjectStore("active-budgets", { keyPath: "id" });
-      }
-    };
-    open.onsuccess = () => {
-      const db = open.result;
-      const tx = db.transaction("active-budgets", "readwrite");
-      rows.forEach((r) => tx.objectStore("active-budgets").put(r));
-      tx.oncomplete = () => {
-        db.close();
-        res();
-      };
-      tx.onerror = () => rej(tx.error);
-    };
-    open.onerror = () => rej(open.error);
-  });
-}
-
-function deleteDb(): Promise<void> {
-  return new Promise((res) => {
-    const del = indexedDB.deleteDatabase("budget-cache");
-    del.onsuccess = () => res();
-    del.onerror = () => res();
-    del.onblocked = () => res();
-  });
-}
-
-async function runShell(): Promise<void> {
+function runShell(): void {
   document.body.innerHTML = BODY_INNER;
-  // Execute the real inline script (IIFE). It reads location/IndexedDB globals,
-  // which happy-dom + fake-indexeddb provide.
-
   (0, eval)(SCRIPT);
 }
 
 async function waitFor(
   pred: () => boolean,
-  timeoutMs = 1500,
+  timeoutMs = 1000,
 ): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -79,72 +34,45 @@ async function waitFor(
   return pred();
 }
 
-beforeEach(async () => {
-  await deleteDb();
+beforeEach(() => {
   document.body.innerHTML = "";
+  // A non-home route (so the Go-to-home shortcut logic is eligible).
+  window.history.pushState({}, "", "/en/budgets/abc-123/spendings");
+  delete (globalThis as unknown as { caches?: unknown }).caches;
 });
 
-describe("offline-shell cached budget list", () => {
-  it("renders the cached budgets as links when active-budgets is populated", async () => {
-    await seedActiveBudgets([
-      {
-        id: "b-1",
-        name: "Family Budget",
-        kind: "PRIVATE",
-        pendingTasksCount: 0,
-      },
-      {
-        id: "b-2",
-        name: "Optimistic Tapo",
-        kind: "SHARED",
-        pendingTasksCount: 1,
-      },
-    ]);
-    await runShell();
-
-    const ok = await waitFor(
-      () => !!document.querySelector('[data-testid="offline-shell-budgets"]'),
-    );
-    expect(ok).toBe(true);
-
-    const cards = document.querySelectorAll(".shell-budget-card");
-    expect(cards.length).toBe(2);
-    expect(document.body.textContent).toContain("Family Budget");
-    expect(document.body.textContent).toContain("Optimistic Tapo");
-
-    const first = cards[0] as HTMLAnchorElement;
-    expect(first.getAttribute("href")).toBe("/en/budgets/b-1/wallets");
-    // The bare "wasn't preloaded" note is replaced by the list.
-    expect(
-      document.querySelector('[data-testid="offline-shell-note"]'),
-    ).toBeNull();
-  });
-
-  it("keeps the 'wasn't preloaded' note when the cache is empty", async () => {
-    await seedActiveBudgets([]); // store exists but no rows
-    await runShell();
-    // Give the async IDB read a chance to run, then assert the note survived.
-    await new Promise((r) => setTimeout(r, 100));
+describe("offline-shell not-cached fallback", () => {
+  it("shows the 'not available offline' note", async () => {
+    runShell();
+    await new Promise((r) => setTimeout(r, 50));
     expect(
       document.querySelector('[data-testid="offline-shell-note"]'),
     ).not.toBeNull();
-    expect(
-      document.querySelector('[data-testid="offline-shell-budgets"]'),
-    ).toBeNull();
+    expect(document.querySelector("h1")?.textContent ?? "").toContain(
+      "isn't available offline",
+    );
+    // The red offline bar is present.
+    expect(document.querySelector(".shell-stale-bar")).not.toBeNull();
   });
 
-  it("escapes user-controlled budget names (no HTML injection)", async () => {
-    await seedActiveBudgets([
-      { id: "b-x", name: '<img src=x onerror="alert(1)">', kind: "PRIVATE" },
-    ]);
-    await runShell();
+  it("keeps the Go-to-home link hidden when the home document is not cached", async () => {
+    (globalThis as unknown as { caches: unknown }).caches = {
+      match: vi.fn().mockResolvedValue(undefined),
+    };
+    runShell();
+    await new Promise((r) => setTimeout(r, 80));
+    const link = document.getElementById("shell-home-link")!;
+    expect(link.hasAttribute("hidden")).toBe(true);
+  });
 
-    await waitFor(
-      () => !!document.querySelector('[data-testid="offline-shell-budgets"]'),
-    );
-    // No real <img> element was injected — the name is rendered as text.
-    expect(document.querySelector("img")).toBeNull();
-    const name = document.querySelector(".shell-budget-name");
-    expect(name?.textContent).toContain("<img");
+  it("reveals the Go-to-home link when the cached home document exists", async () => {
+    const match = vi.fn().mockResolvedValue({} /* any truthy cache hit */);
+    (globalThis as unknown as { caches: unknown }).caches = { match };
+    runShell();
+    const link = document.getElementById("shell-home-link")!;
+    const revealed = await waitFor(() => !link.hasAttribute("hidden"));
+    expect(revealed).toBe(true);
+    expect(link.getAttribute("href")).toBe("/en");
+    expect(match).toHaveBeenCalledWith("/en", { ignoreSearch: true });
   });
 });

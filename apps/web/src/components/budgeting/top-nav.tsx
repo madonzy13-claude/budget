@@ -1,7 +1,6 @@
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { BrandMark } from "@/components/common/brand-mark";
 import { ProfileMenu } from "@/components/auth/profile-menu";
-import { OfflineStatusBadge } from "@/components/common/offline-status-badge";
 import { getServerSession } from "@/lib/server-session";
 import {
   BudgetSwitcher,
@@ -57,11 +56,10 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
           locale={locale}
         />
       </div>
-      {/* Right cluster — fixed, always fully visible at the right edge. */}
+      {/* Right cluster — fixed, always fully visible at the right edge. The
+          offline indicator is no longer here — it's a full-width red staleness
+          bar mounted below the header in the (app) layout (OfflineStaleBar). */}
       <div className="flex shrink-0 items-center gap-2">
-        {/* Inline offline pill — zero-height, sits inside the 64px header (no
-            layout shift). Client leaf inside this server component — fine. */}
-        <OfflineStatusBadge budgetId={activeBudgetId} />
         {session?.user && (
           <ProfileMenu
             locale={locale}

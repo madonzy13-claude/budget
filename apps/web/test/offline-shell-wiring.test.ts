@@ -32,12 +32,13 @@ describe("(app) shell wires the global PWA/offline surfaces", () => {
     },
   );
 
-  it("offline indicator is mounted in the TopNav header, not the layout body", () => {
-    // Moved into the header chrome (zero-height inline pill).
-    expect(topNav).toMatch(/import\s*{[^}]*\bOfflineStatusBadge\b/);
-    expect(topNav).toMatch(/<OfflineStatusBadge\b/);
-    // No longer rendered in the layout body.
-    expect(layout).not.toMatch(/<OfflineStatusBadge\b/);
+  it("offline staleness bar is mounted below the header in the (app) layout", () => {
+    // 260615-e8s round 3: the in-header icon was replaced by a full-width red
+    // staleness bar mounted in the layout body, just below the header.
+    expect(layout).toMatch(/import\s*{[^}]*\bOfflineStaleBar\b/);
+    expect(layout).toMatch(/<OfflineStaleBar\b/);
+    // The old in-header icon is gone from the TopNav.
+    expect(topNav).not.toMatch(/OfflineStatusBadge/);
   });
 });
 

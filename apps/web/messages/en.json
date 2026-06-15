@@ -1202,6 +1202,10 @@
       "tooltipUnknown": "No internet — cached data age unknown",
       "ariaLabel": "No internet connection"
     },
+    "staleBar": {
+      "message": "You're offline — showing cached data, last synced {relativeTime}",
+      "unknown": "You're offline — showing cached data that may be out of date"
+    },
     "unavailable": {
       "heading": "Not available offline",
       "body": "This data hasn't been loaded yet. Connect to the internet and reload.",

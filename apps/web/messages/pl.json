@@ -1204,6 +1204,10 @@
       "tooltipUnknown": "Brak internetu — nieznany wiek danych z pamięci",
       "ariaLabel": "Brak połączenia z internetem"
     },
+    "staleBar": {
+      "message": "Jesteś offline — dane z pamięci, ostatnia synchronizacja {relativeTime}",
+      "unknown": "Jesteś offline — dane z pamięci, które mogą być nieaktualne"
+    },
     "unavailable": {
       "heading": "Niedostępne offline",
       "body": "Te dane nie zostały jeszcze załadowane. Połącz się z internetem i odśwież.",

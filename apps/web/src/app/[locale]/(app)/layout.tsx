@@ -13,6 +13,7 @@ import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
 import { ViewportDebug } from "@/components/common/viewport-debug";
 import { OfflineResilience } from "@/components/common/offline-resilience";
+import { OfflineStaleBar } from "@/components/common/offline-stale-bar";
 
 // The (app) shell is per-user: session lookup, onboarding-progress fetch,
 // and the budget switcher all depend on the request's cookies. Without this
@@ -221,6 +222,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
           >
             <TopNav locale={locale} activeBudgetId={activeBudgetId} />
           </header>
+          {/* Offline staleness banner (260615-e8s round 3): a narrow full-width
+              red bar JUST BELOW the header. Renders null online (zero height);
+              offline it warns the shown data is cached + how long ago it synced.
+              Replaces the old in-header offline icon. */}
+          <OfflineStaleBar budgetId={activeBudgetId} />
           {/* overscroll-y-none mirrors the global.css rule on html+body.
               <main> is the real scroll surface (body is locked
               overflow:hidden), so without this class iOS rubber-bands

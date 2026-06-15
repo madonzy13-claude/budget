@@ -12,7 +12,7 @@
  * reconnect-replay (useOnlineSync) were removed — offline writes now roll back
  * with an honest toast instead of queueing, so there is nothing to drain.
  *
- * Mounted once next to <OfflineStatusBadge/> in the (app) layout.
+ * Mounted once in the (app) layout, alongside the OfflineStaleBar.
  */
 import { SwUpdateReloader } from "@/components/common/sw-update-reloader";
 
