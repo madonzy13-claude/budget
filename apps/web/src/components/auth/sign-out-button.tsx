@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth-client";
+import { clearQueryCache } from "@/lib/query-persist";
+import { wipeBudgetCache } from "@/lib/offline-cache";
 
 interface SignOutButtonProps {
   locale: string;
@@ -25,6 +27,8 @@ export function SignOutButton({ locale }: SignOutButtonProps) {
     if (isSigningOut) return;
     setIsSigningOut(true);
     try {
+      // Tenant safety: clear per-browser caches before signing out (r8).
+      await Promise.allSettled([clearQueryCache(), wipeBudgetCache()]);
       await signOut();
       router.push(`/${locale}/sign-in`);
       router.refresh();
