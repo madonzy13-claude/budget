@@ -221,3 +221,11 @@ Fixes:
 Verified live (home-only warm, then offline): open budget never manually visited + switch ALL pills (wallets/spendings/reserves/settings) → all real pages, no shell, no sign-in. 80/80 offline Vitest green.
 
 DEVICE: must go online once on the NEW build (clear caches + unregister SW) and open the app (warms from home) → then offline nav works.
+
+## Round 7 — device: tab data skeleton + stale timer + session expiry
+
+1. Session never expires: Better Auth expiresIn 365d + sliding updateAge (10y first attempt 500'd — cookie Max-Age hard-capped at 400d). Verified: sign-in 200, cookie 365d.
+2. Offline tab data was stuck on skeletons. Root: a real offline fetch HANGS (doesn't reject), so Next soft-nav sits on loading.tsx forever AND React Query never reaches its read-back. Fixes: OfflineNavGuard forces hard-nav offline (location.assign → SW doc handler → cached doc + data); read hooks take an offline fast-path (navigator.onLine===false → IDB, else AbortSignal.timeout(7000)); SW RSC NetworkFirst networkTimeoutSeconds:3. Verified live (hanging route): real wallet data renders, 0 skeletons.
+3. Timer "7h ago despite 1-min visit": markSynced is in the queryFn, but global staleTime:30s + initialData skips the mount refetch → never stamped. Fix: refetchOnMount:'always' on read hooks. Verified: seeded 10:00 → online wallets visit → 21:18 (now).
+
+Honest limit: a tab you NEVER opened online (only warmed from home) still shows skeleton data offline — its per-tab API data is only cached when you actually visit it online. Full data offline = browse the budgets/tabs you care about online once.
