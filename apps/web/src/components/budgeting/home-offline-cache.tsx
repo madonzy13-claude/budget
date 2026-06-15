@@ -2,61 +2,46 @@
 /**
  * home-offline-cache.tsx — Home page client island (260615-e8s Task 5).
  *
- * Responsibilities:
- *   1. WRITE: on mount, if budgets.length > 0, cache the active-budgets list
- *      to IDB so a cold offline reload can display it. Also bumps __global__
- *      sync-meta via cacheActiveBudgets so the offline indicator dates itself.
- *   2. READ: if budgets.length === 0 (server fetch failed offline), read
- *      getCachedActiveBudgets() from IDB and render those rows.
+ * Single responsibility: on an online visit (budgets.length > 0), persist the
+ * active-budgets list to IndexedDB via cacheActiveBudgets, which also bumps the
+ * __global__ sync-meta so the offline indicator shows a real cache age after the
+ * home page has been seen. It then renders {children} unchanged.
  *
- * BudgetCard is a server component (no "use client") and cannot be a direct
- * child of this client island when rendering cached rows. HomeCardsGrid is
- * similarly server-first. To avoid making BudgetCard client, this island renders
- * HomeCardsGrid (which is compatible as a client-rendered child since it has no
- * async await at render time — it just calls Suspense+BudgetCard which React
- * hydrates fine in a client tree). If BudgetCard's async nature causes issues,
- * the island falls back to passing the cached list into HomeCardsGrid which
- * will render synchronously from props with no streaming.
+ * Why children (not an imported grid): the real cards are rendered by the SERVER
+ * component HomeCardsGrid → BudgetCard, and BudgetCard pulls in "server-only"
+ * code (budget-fetch.server.ts / next/headers). A "use client" island MUST NOT
+ * import that tree or the client bundle fails to compile. Passing the server grid
+ * in as `children` is the canonical RSC pattern: the server renders it and React
+ * hands it to this client island as an opaque slot — no server import crosses the
+ * boundary.
  *
- * Online path: server props (budgets) pass straight through to HomeCardsGrid,
- * no IDB read needed. Effect runs but result is discarded (getCachedActiveBudgets
- * is only called when budgets is empty).
+ * Offline render path: the SW nav-docs-v1 cache serves the last-online HTML of
+ * `/` (which already contains the server-rendered cards), so there is no separate
+ * client-side cached-list branch to maintain here. The page short-circuits to
+ * HomeEmptyHero when the list is empty, so this island only ever sees a populated
+ * list — its job is purely the write-on-visit side-effect.
  *
- * Robust-minimal: write-on-visit only. No write-queue. No replay.
+ * Robust-minimal: write-on-visit only. Best-effort, non-blocking. No write-queue,
+ * no replay.
  */
-import { useState, useEffect } from "react";
-import {
-  cacheActiveBudgets,
-  getCachedActiveBudgets,
-} from "@/lib/offline-cache";
-import { HomeCardsGrid } from "@/components/budgeting/home-cards-grid";
+import { useEffect } from "react";
+import type { ReactNode } from "react";
+import { cacheActiveBudgets } from "@/lib/offline-cache";
 import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
 
 interface HomeOfflineCacheProps {
   budgets: BudgetSummary[];
-  locale: string;
+  children: ReactNode;
 }
 
-export function HomeOfflineCache({ budgets, locale }: HomeOfflineCacheProps) {
-  // list: starts with server-provided budgets; may be replaced by IDB rows
-  // when the server list is empty (offline cold reload).
-  const [list, setList] = useState<BudgetSummary[]>(budgets);
-
+export function HomeOfflineCache({ budgets, children }: HomeOfflineCacheProps) {
   useEffect(() => {
     if (budgets.length > 0) {
-      // Online visit: persist the list so an offline reload can use it.
+      // Online visit: persist the list (+ bump __global__ sync-meta) so a cold
+      // offline reload dates the indicator. Best-effort; never blocks render.
       void cacheActiveBudgets(budgets).catch(() => {});
-    } else {
-      // Offline (or server fetch failed): try to render last-known list.
-      void getCachedActiveBudgets()
-        .then((cached) => {
-          if (cached.length > 0) {
-            setList(cached as BudgetSummary[]);
-          }
-        })
-        .catch(() => {});
     }
   }, [budgets]);
 
-  return <HomeCardsGrid budgets={list} locale={locale} />;
+  return <>{children}</>;
 }
