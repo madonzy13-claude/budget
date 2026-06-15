@@ -200,3 +200,11 @@ Playwright proof (setOffline + route-abort, fresh SW): cold-open `/` offline →
 - #1 UK copy: staleBar.message → "Офлайн — дані оновлені {relativeTime}" (EN/PL aligned to "data updated").
 - #2 timer reset: sync-meta was stamped on every island/tab MOUNT (BdpTabs bump + cacheBudgetSnapshot-on-success + cacheActiveBudgets-on-home-mount), so any page jump — incl. an OFFLINE cache read — reset "last updated". Fixed: stamping is now owned by markSynced(), called ONLY in the query hooks' network-success branch. Entity caching + home list write are stamp-free; BdpTabs bump removed. Verified live: **global** stayed 13:02:04.291Z across offline nav + offline home reload (unchanged:true). 78/78 offline Vitest green.
 - #3a/#3b (offline client-side navigation): NOT done — it's the hard architectural piece (Next App Router soft-nav fetches RSC payloads that fail offline; the app hard-reloads into the offline-shell; rendering the real header+pills for a never-visited route is impossible without its cached doc). Pending user direction on approach (SPA-offline RSC caching vs force-hard-nav + warming).
+
+### Round 5 #3 — SPA-offline via RSC caching (commit feat RSC)
+
+User picked "SPA-offline". Root cause of offline-nav failing: Next App Router soft-nav fetches RSC flight payloads (`RSC: 1` header); offline they failed → app hard-reloaded into the offline-shell ("tried to load from internet"). Fix: SW NetworkFirst rule caching RSC payloads into versioned `rsc-v1`, key strips `_rsc` buster. Next prefetches in-viewport links so it self-populates; persists across reloads.
+
+Verified live: online nav unchanged (0 console errors); offline pill clicks render the REAL cached pages (real header + pills + stale bar), no hang, no offline-shell. 79/79 offline Vitest green.
+
+Remaining gap (honest): a route NEVER prefetched/visited AND not cached → soft-nav still hard-navs to the offline-shell. With prefetch this is rare. The in-content-message-preserving-pills for that exact case (an OfflineNavGuard click-interceptor) was NOT added — it's risky vs marginal value now that RSC caching covers normal usage; revisit if the user still hits the separate page in real use.
