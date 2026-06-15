@@ -6,7 +6,8 @@
  * badge is a small inline control with ZERO added vertical height so toggling
  * online↔offline causes no layout shift:
  *   online  → sr-only / aria-hidden (zero footprint)
- *   offline → inline-flex h-6 pill: a PULSING lucide Unplug (red --destructive)
+ *   offline → inline-flex h-6 pill: a PULSING crossed antenna (lucide RadioTower
+ *             + diagonal slash, red --destructive)
  *             with a tooltip showing how stale the cached data is, e.g.
  *             "No internet — showing data from 13 minutes ago".
  *
@@ -35,7 +36,7 @@
  */
 import { useState, useEffect } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { Unplug } from "lucide-react";
+import { RadioTower } from "lucide-react";
 import {
   Popover,
   PopoverTrigger,
@@ -118,7 +119,7 @@ export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
         })
       : t("indicator.tooltipUnknown");
 
-  // Compact inline control — pulsing crossed-cloud only. h-6 + shrink-0 so it
+  // Compact inline control — pulsing crossed antenna only. h-6 + shrink-0 so it
   // sits inside the 64px header with NO extra height (no layout shift vs the
   // sr-only online state) and never crowds the avatar.
   return (
@@ -136,11 +137,19 @@ export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
             // race that affected Radix Tooltip (Issue 1).
             className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--destructive,#ef4444)] [-webkit-tap-highlight-color:transparent] focus:outline-none"
           >
-            <Unplug
+            {/* Crossed antenna (offline): lucide RadioTower + a diagonal slash
+                overlay = "no broadcast". The slash uses bg-current so it inherits
+                the --destructive red and scales with the icon. testid kept stable
+                (offline-cloud-off) + animate-pulse on the wrapper so icon + slash
+                pulse together. */}
+            <span
               data-testid="offline-cloud-off"
               aria-hidden="true"
-              className="h-4 w-4 shrink-0 animate-pulse"
-            />
+              className="relative inline-flex h-4 w-4 shrink-0 animate-pulse"
+            >
+              <RadioTower className="h-4 w-4" aria-hidden="true" />
+              <span className="pointer-events-none absolute left-1/2 top-1/2 h-[1.5px] w-[125%] -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-current" />
+            </span>
           </button>
         </PopoverTrigger>
         <PopoverContent side="bottom">{tooltipText}</PopoverContent>

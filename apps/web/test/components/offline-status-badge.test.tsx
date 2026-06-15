@@ -140,17 +140,20 @@ describe("OfflineStatusBadge", () => {
     });
   });
 
-  // Fix 2: icon is lucide Unplug (pulsing). testid kept stable (offline-cloud-off)
-  // to avoid churn in assertions across the test suite.
-  it("offline: renders a pulsing Unplug icon", async () => {
+  // Icon is a crossed antenna (lucide RadioTower + diagonal slash), pulsing.
+  // testid kept stable (offline-cloud-off) on the wrapper to avoid churn.
+  it("offline: renders a pulsing crossed-antenna icon", async () => {
     setOnline(false);
     render(<OfflineStatusBadge budgetId="budget-1" />);
     await waitFor(() => {
       const icon = screen.getByTestId("offline-cloud-off");
       expect(icon).toBeTruthy();
+      // Pulse is on the wrapper so the RadioTower + slash pulse together.
       expect(icon.getAttribute("class") ?? "").toContain("animate-pulse");
-      // lucide Unplug carries the lucide-unplug class (not lucide-cloud-off).
-      expect(icon.getAttribute("class") ?? "").toContain("lucide-unplug");
+      // The crossed antenna = lucide RadioTower (carries lucide-radio-tower)
+      // plus a slash overlay child (no lucide class, just bg-current).
+      expect(icon.querySelector(".lucide-radio-tower")).toBeTruthy();
+      expect(icon.children.length).toBe(2); // icon + slash
     });
     // No Globe anymore.
     expect(screen.queryByTestId("offline-globe")).toBeNull();
