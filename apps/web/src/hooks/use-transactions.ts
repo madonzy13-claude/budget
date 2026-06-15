@@ -53,5 +53,8 @@ export function useTransactions(
       }
     },
     staleTime: 30_000,
+    // Refetch on mount so markSynced stamps the cache age on each online visit
+    // (260615-e8s round 7). initialData renders instantly; background refetch.
+    refetchOnMount: "always",
   });
 }

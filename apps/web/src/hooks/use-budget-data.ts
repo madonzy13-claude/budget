@@ -66,6 +66,7 @@ export function useBudget(budgetId: string, initialData?: BudgetDto) {
       }
     },
     staleTime: 60_000,
+    refetchOnMount: "always", // stamp cache age on each online visit (r7)
   });
 }
 
@@ -99,6 +100,7 @@ export function useCategories(budgetId: string, initialData?: CategoryDto[]) {
       }
     },
     staleTime: 60_000,
+    refetchOnMount: "always", // stamp cache age on each online visit (r7)
   });
 }
 

@@ -63,5 +63,11 @@ export function useWallets(budgetId: string, initialData?: WalletDto[]) {
       }
     },
     initialData,
+    // Always refetch on mount so the cache-age stamp (markSynced, in the queryFn)
+    // fires on every online visit — otherwise initialData + the global 30s
+    // staleTime skips the refetch and "data updated X ago" never moves
+    // (260615-e8s round 7). initialData still renders instantly; this is a
+    // background refetch, and offline it fast-fails to the cache (no stamp).
+    refetchOnMount: "always",
   });
 }
