@@ -52,7 +52,9 @@ const NAV_CACHE = "nav-docs-v1";
 // in-viewport links — the BDP pills + home budget cards — so they self-populate).
 // NetworkFirst keeps online fresh; offline serves the cached RSC. Bump the suffix
 // to abandon a stale generation; the activate purge deletes non-current rsc-*.
-const RSC_CACHE = "rsc-v1";
+// v2: dropped the hand-warmed RSC entries (a bare `RSC: 1` warm fetch produced
+// broken redirect payloads); only genuine prefetch/nav RSC is cached now.
+const RSC_CACHE = "rsc-v2";
 // Static app-shell document served on an offline nav cache MISS (real header
 // chrome + in-app "wasn't preloaded" note). Auto-precached by @serwist/next from
 // public/** → retrievable via caches.match / serwist.matchPrecache.
@@ -189,33 +191,21 @@ self.addEventListener("message", (event: any) => {
   event.waitUntil(
     (async () => {
       const navCache = await caches.open(NAV_CACHE);
-      const rscCache = await caches.open(RSC_CACHE);
       await Promise.all(
         data.urls.map(async (u: string) => {
           if (typeof u !== "string" || !u.startsWith("/")) return;
-          // 1) Document → nav-docs cache (hard-nav / reload fallback).
+          // Warm the DOCUMENT only (hard-nav / reload fallback). We deliberately
+          // do NOT hand-fetch the RSC payload: a bare `RSC: 1` request without
+          // Next's `Next-Router-State-Tree`/`Next-Url` headers returns a DIFFERENT
+          // (often redirect) payload than a real soft-nav, which cached as a
+          // broken "go to sign-in" RSC. Real RSC is cached by the runtime rule
+          // from Next's genuine prefetch/nav requests; an offline soft-nav to a
+          // doc-warmed-but-RSC-uncached route falls back to a hard navigation,
+          // which the SW serves from this warmed document.
           try {
             const res = await fetch(u, { credentials: "include" });
             if (res.ok && !res.redirected) {
               await navCache.put(new Request(u), res.clone());
-            }
-          } catch {
-            /* offline / error — skip */
-          }
-          // 2) RSC payload → rsc cache (client-side SOFT-nav). Keyed to match the
-          // runtime rule's cacheKeyWillBeUsed (path + RSC header, no _rsc). This
-          // pre-populates RSC so offline soft-nav works WITHOUT relying on Next's
-          // in-viewport prefetch (unreliable on iOS).
-          try {
-            const rscRes = await fetch(u, {
-              credentials: "include",
-              headers: { RSC: "1" },
-            });
-            if (rscRes.ok && !rscRes.redirected) {
-              await rscCache.put(
-                new Request(u, { headers: { RSC: "1" } }),
-                rscRes.clone(),
-              );
             }
           } catch {
             /* offline / error — skip */
