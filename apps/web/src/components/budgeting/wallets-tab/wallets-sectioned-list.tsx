@@ -105,7 +105,7 @@ export function WalletsSectionedList({
       transactions: undefined,
       iso: new Date().toISOString(),
     }).catch(() => {});
-  }, [walletsQuery.isSuccess, budgetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [walletsQuery.isSuccess, budgetId]);
 
   // W-4 staged-add state: per-section draft tracker
   // Only one draft per section at a time (idempotent set in handleAdd).

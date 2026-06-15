@@ -66,7 +66,7 @@ export function BdpTabs({
   // Best-effort: .catch(()=>{}) so IDB failures never block the nav render.
   useEffect(() => {
     void bumpGlobalSyncMeta().catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: tasks } = useQuery({
     queryKey: ["tasks", budgetId, "pending"],

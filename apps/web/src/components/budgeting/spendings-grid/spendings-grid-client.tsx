@@ -225,7 +225,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       wallets: undefined,
       iso: new Date().toISOString(),
     }).catch(() => {});
-  }, [summary.isSuccess, txns.isSuccess, budgetId, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [summary.isSuccess, txns.isSuccess, budgetId, month]);
 
   const reorder = useReorderCategories(budgetId);
 
