@@ -241,8 +241,9 @@ describe("offline-shell.html static document", () => {
   });
 
   test("carries self-recovery JS (online/focus/visibilitychange) + Try-again reload", () => {
-    expect(shellHtml).toContain("addEventListener('online'");
-    expect(shellHtml).toContain("'focus'");
+    // Quote-agnostic (prettier may format the inline script with double quotes).
+    expect(shellHtml).toMatch(/addEventListener\(["']online["']/);
+    expect(shellHtml).toMatch(/["']focus["']/);
     expect(shellHtml).toContain("visibilitychange");
     expect(shellHtml).toContain("location.reload()");
     // No /api/health probe gate.
