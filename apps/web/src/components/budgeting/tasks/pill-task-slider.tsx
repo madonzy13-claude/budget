@@ -83,7 +83,7 @@ export function PillTaskSlider({
     if (!focusTaskId) return;
     const inList = (tasks ?? []).some((t) => t.id === focusTaskId);
     if (inList) setExpanded(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally depends only on focusTaskId (deep-link target), not tasks.
   }, [focusTaskId]);
 
   useEffect(() => {
