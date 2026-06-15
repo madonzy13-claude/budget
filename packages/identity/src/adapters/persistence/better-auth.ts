@@ -110,6 +110,18 @@ export function createAuth(opts: CreateAuthOptions) {
     // no DB round-trip. Session DB is still the source of truth for new sessions
     // and token rotation; the cache is a read-time optimisation only.
     session: {
+      // 260615-e8s: effectively never expire. An installed offline PWA must not
+      // bounce the user to /sign-in just because time passed — offline they
+      // cannot sign in, so a lapsed session = a dead app. 10-year base TTL +
+      // sliding updateAge keeps an active session alive indefinitely.
+      //
+      // SECURITY TRADEOFF (accepted for this self-hosted, single-household app):
+      // a stolen session cookie stays valid for ~10 years and there is no
+      // periodic forced re-auth. Revocation is still immediate via logout (clears
+      // the cookie + the DB session row); the cookieCache window below bounds how
+      // long a revoked-but-cached session can linger to 60s.
+      expiresIn: 60 * 60 * 24 * 365 * 10, // ~10 years
+      updateAge: 60 * 60 * 24, // slide the expiry forward at most once/day on use
       cookieCache: {
         enabled: true,
         maxAge: 60, // 60s TTL — revocation effective within one minute
