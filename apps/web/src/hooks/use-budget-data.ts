@@ -17,6 +17,7 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 import { cacheBudgetSnapshot } from "./use-cache-on-fetch";
 import { useWallets, type WalletDto } from "./use-wallets";
 import { useTransactions, type TxnDTO } from "./use-transactions";
+import { getCachedBudget, getCachedEntities } from "@/lib/offline-cache";
 
 export interface BudgetDto {
   id: string;
@@ -40,10 +41,17 @@ export function useBudget(budgetId: string, initialData?: BudgetDto) {
     queryKey: ["budget", budgetId, "detail"] as const,
     initialData,
     queryFn: async (): Promise<BudgetDto> => {
-      const res = await clientApiFetch(`/budgets/${budgetId}`);
-      if (!res.ok) throw new Error("budget_fetch_failed");
-      const json = await res.json();
-      return json.budget ?? json;
+      try {
+        const res = await clientApiFetch(`/budgets/${budgetId}`);
+        if (!res.ok) throw new Error("budget_fetch_failed");
+        const json = await res.json();
+        return json.budget ?? json;
+      } catch (e) {
+        // Offline read-back (260615-e8s): serve the cached budget row.
+        const cached = await getCachedBudget(budgetId);
+        if (cached) return cached as BudgetDto;
+        throw e;
+      }
     },
     staleTime: 60_000,
   });
@@ -58,10 +66,17 @@ export function useCategories(budgetId: string, initialData?: CategoryDto[]) {
     queryKey: ["budget", budgetId, "categories"] as const,
     initialData,
     queryFn: async (): Promise<CategoryDto[]> => {
-      const res = await clientApiFetch(`/budgets/${budgetId}/categories`);
-      if (!res.ok) throw new Error("categories_fetch_failed");
-      const json = await res.json();
-      return json.categories ?? [];
+      try {
+        const res = await clientApiFetch(`/budgets/${budgetId}/categories`);
+        if (!res.ok) throw new Error("categories_fetch_failed");
+        const json = await res.json();
+        return json.categories ?? [];
+      } catch (e) {
+        // Offline read-back (260615-e8s): serve cached category rows.
+        const cached = await getCachedEntities("categories");
+        if (cached.length) return cached as CategoryDto[];
+        throw e;
+      }
     },
     staleTime: 60_000,
   });

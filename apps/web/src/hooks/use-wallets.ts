@@ -7,6 +7,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { getCachedEntities } from "@/lib/offline-cache";
 
 export interface WalletDto {
   id: string;
@@ -33,10 +34,22 @@ export function useWallets(budgetId: string, initialData?: WalletDto[]) {
   return useQuery({
     queryKey: ["budget", budgetId, "wallets"],
     queryFn: async () => {
-      const res = await clientApiFetch(`/wallets`);
-      if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-      return (json.wallets ?? []) as WalletDto[];
+      try {
+        const res = await clientApiFetch(`/wallets`);
+        if (!res.ok) throw new Error(await res.text());
+        const json = await res.json();
+        return (json.wallets ?? []) as WalletDto[];
+      } catch (e) {
+        // Offline read-back (260615-e8s): serve cached rows so a cold offline
+        // reload paints the last-online wallet list instead of a blank shell.
+        // Note: WalletDto has no budgetId field — cached rows are per-browser
+        // per-tenant data (wiped on logout via wipeBudgetCache), so serving
+        // all cached wallets is safe for single-budget users; multi-budget users
+        // see all their wallets combined (acceptable read-only offline fallback).
+        const cached = await getCachedEntities("wallets");
+        if (cached.length) return cached as WalletDto[];
+        throw e;
+      }
     },
     initialData,
   });

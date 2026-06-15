@@ -16,6 +16,7 @@ import {
   type TxnDTO,
   type TxnRowSnake,
 } from "@/lib/txn-mapper";
+import { getCachedTransactions } from "@/lib/offline-cache";
 
 export { mapTxnRowToDTO };
 export type { TxnDTO, TxnRowSnake };
@@ -29,12 +30,21 @@ export function useTransactions(
     queryKey: ["transactions", budgetId, month] as const,
     initialData: options?.initialData,
     queryFn: async (): Promise<TxnDTO[]> => {
-      const res = await clientApiFetch(
-        `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
-      );
-      if (!res.ok) throw new Error("transactions_fetch_failed");
-      const body = (await res.json()) as { transactions?: TxnRowSnake[] };
-      return (body.transactions ?? []).map(mapTxnRowToDTO);
+      try {
+        const res = await clientApiFetch(
+          `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
+        );
+        if (!res.ok) throw new Error("transactions_fetch_failed");
+        const body = (await res.json()) as { transactions?: TxnRowSnake[] };
+        return (body.transactions ?? []).map(mapTxnRowToDTO);
+      } catch (e) {
+        // Offline read-back (260615-e8s): serve cached transactions filtered
+        // by budgetId+month so the spendings grid paints last-online rows.
+        // _cacheKey is kept on cached rows; TxnDTO consumers ignore extra fields.
+        const cached = await getCachedTransactions(budgetId, month);
+        if (cached.length) return cached as TxnDTO[];
+        throw e;
+      }
     },
     staleTime: 30_000,
   });

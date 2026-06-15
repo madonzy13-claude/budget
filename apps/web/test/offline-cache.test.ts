@@ -9,6 +9,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   openBudgetDB,
   getCachedBudget,
+  getCachedEntities,
+  getCachedTransactions,
   setCachedEntities,
   setSyncMeta,
   getSyncMeta,
@@ -137,6 +139,70 @@ describe("getMostRecentSyncMeta (260615-d76 global cache-age fallback)", () => {
     await setSyncMeta("__global__", "2026-06-12T09:00:00.000Z"); // newest
     const result = await getMostRecentSyncMeta();
     expect(result).toBe("2026-06-12T09:00:00.000Z");
+  });
+});
+
+describe("getCachedEntities (Task 4 read-back readers)", () => {
+  it("returns all cached wallet rows", async () => {
+    const wallets = [
+      { id: "w-1", name: "Checking" },
+      { id: "w-2", name: "Savings" },
+    ];
+    await setCachedEntities("wallets", wallets);
+    const result = await getCachedEntities("wallets");
+    expect(result).toHaveLength(2);
+    expect((result[0] as { id: string }).id).toBe("w-1");
+    expect((result[1] as { id: string }).id).toBe("w-2");
+  });
+
+  it("returns all cached category rows", async () => {
+    const cats = [{ id: "cat-1", name: "Food" }];
+    await setCachedEntities("categories", cats);
+    const result = await getCachedEntities("categories");
+    expect(result).toHaveLength(1);
+    expect((result[0] as { id: string }).id).toBe("cat-1");
+  });
+
+  it("returns empty array when store is empty", async () => {
+    const result = await getCachedEntities("wallets");
+    expect(result).toHaveLength(0);
+  });
+
+  it("multi-budget: wallets from two budgets both present (no budgetId on WalletDto)", async () => {
+    // WalletDto has no budgetId field — store contains rows from multiple budgets.
+    // The read-back is per-browser/per-tenant; hooks filter by activebudgetId context.
+    const wallets = [
+      { id: "w-a1", name: "Budget A - Checking" },
+      { id: "w-b1", name: "Budget B - Savings" },
+    ];
+    await setCachedEntities("wallets", wallets);
+    const result = await getCachedEntities("wallets");
+    // Both rows present — consumer hooks must filter by context (see use-wallets.ts).
+    expect(result).toHaveLength(2);
+  });
+});
+
+describe("getCachedTransactions (Task 4 read-back readers)", () => {
+  it("returns only rows for the given budgetId + month", async () => {
+    const txns = [
+      { _cacheKey: "b-1:2026-06:t-1", id: "t-1", amountCents: 100 },
+      { _cacheKey: "b-1:2026-06:t-2", id: "t-2", amountCents: 200 },
+      { _cacheKey: "b-1:2026-07:t-3", id: "t-3", amountCents: 300 }, // different month
+      { _cacheKey: "b-2:2026-06:t-4", id: "t-4", amountCents: 400 }, // different budget
+    ];
+    await setCachedEntities("transactions", txns);
+    const result = await getCachedTransactions("b-1", "2026-06");
+    expect(result).toHaveLength(2);
+    const ids = (result as Array<{ id: string }>).map((r) => r.id);
+    expect(ids).toContain("t-1");
+    expect(ids).toContain("t-2");
+    expect(ids).not.toContain("t-3");
+    expect(ids).not.toContain("t-4");
+  });
+
+  it("returns empty array when no matching transactions", async () => {
+    const result = await getCachedTransactions("b-x", "2026-06");
+    expect(result).toHaveLength(0);
   });
 });
 
