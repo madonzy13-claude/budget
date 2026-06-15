@@ -151,3 +151,18 @@ The executor's run was green on Vitest but **two gates it did not run were red**
 - **Served-bundle verification** (grep of running container `/app/apps/web/.next`): `("unplug",[["path"...` present (Unplug shipped), `lucide-cloud-off` = 0 (CloudOff gone), `active-budgets` ×12, `__global__` ×12, `budget-cache` ×4 — confirms fresh code, not a stale cache-hit image.
 
 **Status:** code-complete + build-verified on `tasks-redesign`. **Device checkpoint pending** — offline behavior on a real iOS PWA is the only true verifier (Vitest can't enforce SW/server-only boundaries; the build break above proves the gap). Device protocol: first confirm the Settings build stamp shows the new build (Clear caches + unregister SW if not), then test the 4 fixes offline.
+
+## Round 2 — device feedback (2026-06-15, screenshot)
+
+User reported on-device: (1) wanted a different icon (crossed antenna); (2)+(3) offline reload STILL showed the bare "This page wasn't preloaded" offline-shell, not the cached budget list. Root cause: Round-1 populated IDB + added read-back hooks, but on a nav-cache MISS the SW serves the STATIC `offline-shell.html` — so the real route's React never boots and the read-back never runs. The offline-render path was never actually closed for the cold-reload-miss case.
+
+Fixes (commits `d43ae5e`, `702a087`, `bdadd6f`):
+
+- **Icon → crossed antenna** (`offline-status-badge.tsx`): `Unplug` → lucide `RadioTower` + a diagonal slash overlay (`bg-current`, scales, pulses with the icon). Matching crossed-antenna SVG in the offline-shell pill.
+- **`offline-shell.html` renders the cached budget list** (the real fix for #2/#3): the static shell now reads the `active-budgets` IndexedDB store and renders the cached budgets as navigable cards (`/{locale}/budgets/{id}/wallets`), with EN/PL/UK copy and `esc()` HTML-escaping of user-controlled names (XSS guard). Falls back to the "wasn't preloaded" note only when the cache is empty. RSC-independent → works on ANY cache-miss route.
+
+**Playwright offline testing (user-requested) — KEY FINDING:** `context.setOffline(true)` does NOT make the SW's own `fetch()` reject (verified: reload still served the real page). But `context.route('**/*', r => r.abort('internetdisconnected'))` DOES intercept the SW fetch → reproduces real-device offline exactly. Proven live end-to-end: reset SW (unregister + clear caches, reload twice for `controller`), IDB = 12 active-budgets, route-abort, navigate to an UNVISITED route → SW served the new offline-shell → `renderedBudgetList: true`, `cardCount: 12`, `firstName "Scroll Test 4"`, `stillShowsBareNote: false`. Screenshot captured. See [[project-offline-test-architecture]].
+
+Tests: `test/offline-shell.test.ts` (NEW — executes the real inline shell script vs happy-dom + fake-indexeddb: renders list, keeps note when empty, escapes XSS); badge test updated for the crossed antenna; `sw-offline.test.ts` self-recovery assertion made quote-agnostic. **67/67 offline Vitest green.** Served bundle: `radio-tower` ×2, `unplug` = 0.
+
+**Still device checkpoint pending** — confirm Settings build stamp is current (Clear caches + unregister SW), then offline-reload should show the budget list with the crossed-antenna pill.
