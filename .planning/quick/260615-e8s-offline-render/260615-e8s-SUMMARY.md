@@ -166,3 +166,17 @@ Fixes (commits `d43ae5e`, `702a087`, `bdadd6f`):
 Tests: `test/offline-shell.test.ts` (NEW — executes the real inline shell script vs happy-dom + fake-indexeddb: renders list, keeps note when empty, escapes XSS); badge test updated for the crossed antenna; `sw-offline.test.ts` self-recovery assertion made quote-agnostic. **67/67 offline Vitest green.** Served bundle: `radio-tower` ×2, `unplug` = 0.
 
 **Still device checkpoint pending** — confirm Settings build stamp is current (Clear caches + unregister SW), then offline-reload should show the budget list with the crossed-antenna pill.
+
+## Round 3 — device feedback (commit `c6aecb0`)
+
+User: (1) the bespoke offline list "isn't a good way to render — it shouldn't differ from the online page at all (header + content), just with cached data"; (2) replace the offline ICON with a narrow full-width RED BAR below the header saying the cache may be stale + reloaded X ago (adaptive cadence); (3) for an uncached route, render that route but show a "not visited / not cached" message in content.
+
+Decisive finding (Playwright): a route VISITED online already renders its **real cached page** offline — the SW serves the cached document (real header + real BudgetCard grid with stats), identical to online. Only the data layer was ever the gap. So the right design is: lean on the real cached page + a staleness bar, and drop the bespoke list.
+
+Shipped:
+
+- **`OfflineStaleBar`** (`offline-stale-bar.tsx`) — narrow full-width red bar mounted below the header in the (app) layout; offline only; "You're offline — showing cached data, last synced {X}". Adaptive `staleTickDelay`: 1s <1min, 60s <1hr, 3600s beyond. Removed the in-header icon (`OfflineStatusBadge` + its 2 tests deleted). i18n `offline.staleBar.*` en/pl/uk.
+- **`offline-shell.html`** rewritten (nav-cache MISS fallback only): real header + red bar + "This page isn't available offline" note + a "Go to home" link revealed when the cached home doc exists.
+- Tests: `offline-stale-bar.test.tsx` (incl. staleTickDelay buckets + cache-age fallback), `offline-shell.test.ts` rewrite (not-cached note + conditional home link), wiring test updated. typecheck + check:i18n + lint clean; full offline Vitest green.
+
+**Playwright live proof (setOffline + route-abort = full device emulation):** cached `/en` offline → real home + `hasSwitcher:true` + bar "synced 2 seconds ago"; uncached route offline → offline-shell note + "Go to home" → `/en` (cache hit). Screenshots captured. See [[project-offline-test-architecture]] for the both-knobs emulation recipe.
