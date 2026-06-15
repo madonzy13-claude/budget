@@ -5,15 +5,19 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <title>Budget</title>
     <style>
-      /* App-shell offline document (260614-rwt). NOT a centered full-page hero —
-         it renders the REAL top bar so the device reads it as "the app, this
-         page just wasn't preloaded". Tokens mirror global.css. */
+      /* App-shell offline document (260614-rwt; 260615 list-render). NOT a
+         centered full-page hero — it renders the REAL top bar so the device
+         reads it as "the app, this page just wasn't preloaded". When the
+         IndexedDB cache holds the budget list it renders that list instead of
+         the bare note. Tokens mirror global.css. */
       :root {
         --canvas-dark: #0b0e11;
         --hairline-dark: #2b3139;
         --primary: #fcd535;
         --body-on-dark: #eaecef;
         --muted: #848e9c;
+        --surface-card-dark: #1e2329;
+        --destructive: #ef4444;
       }
       * { box-sizing: border-box; }
       html, body {
@@ -52,6 +56,8 @@
         color: var(--primary);
         text-decoration: none;
       }
+      /* Offline pill: a pulsing crossed antenna (matches the in-app indicator —
+         lucide RadioTower + diagonal slash) + label. */
       .shell-offline-pill {
         display: inline-flex;
         align-items: center;
@@ -60,13 +66,11 @@
         font-weight: 600;
         color: var(--muted);
       }
-      .shell-offline-pill::before {
-        content: "";
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #ef4444;
+      .shell-offline-pill svg {
+        color: var(--destructive);
+        animation: shell-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
       }
+      @keyframes shell-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
       main.shell-content {
         max-width: 1280px;
         margin: 0 auto;
@@ -96,13 +100,66 @@
         font-weight: 600;
         cursor: pointer;
       }
+      /* Cached budget list (rendered from IndexedDB when present). Mirrors the
+         home BudgetCard grid breakpoints (UI-SPEC §4: 1 / 2 / 3 columns). */
+      .shell-budgets-head { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+      .shell-budgets-sub { font-size: 13px; color: var(--muted); margin: 0 0 24px; line-height: 1.5; }
+      .shell-budget-grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 640px) { .shell-budget-grid { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 1024px) { .shell-budget-grid { grid-template-columns: repeat(3, 1fr); } }
+      .shell-budget-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 18px;
+        border-radius: 12px;
+        background: var(--surface-card-dark);
+        border: 1px solid transparent;
+        color: var(--body-on-dark);
+        text-decoration: none;
+        transition: border-color 0.15s ease;
+      }
+      .shell-budget-card:hover { border-color: var(--primary); }
+      .shell-budget-name {
+        flex: 1;
+        min-width: 0;
+        font-size: 15px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .shell-budget-kind {
+        flex: 0 0 auto;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        border: 1px solid var(--hairline-dark);
+        border-radius: 999px;
+        padding: 2px 8px;
+      }
     </style>
   </head>
   <body>
     <header class="shell-header" data-testid="offline-shell-header">
       <div class="shell-header__inner">
         <a class="shell-wordmark" href="/">BUDGET</a>
-        <span class="shell-offline-pill" data-i18n="pill">Offline</span>
+        <span class="shell-offline-pill">
+          <!-- crossed antenna: mast + signal waves + diagonal slash -->
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 22V9" />
+            <path d="M9 22h6" />
+            <path d="M7.5 9.5a6 6 0 0 1 0-5" />
+            <path d="M16.5 4.5a6 6 0 0 1 0 5" />
+            <line x1="3" y1="3" x2="21" y2="21" />
+          </svg>
+          <span data-i18n="pill">Offline</span>
+        </span>
       </div>
     </header>
     <main class="shell-content">
@@ -122,25 +179,34 @@
         // so the EN copy above is the base; if the path starts with /pl or /uk we
         // swap the visible strings + <html lang>. Visited localized routes are
         // covered by the per-route CACHED real document, so this is a fallback.
+        var SEG = location.pathname.split("/")[1];
+        var LOCALE = ["en", "pl", "uk"].indexOf(SEG) !== -1 ? SEG : "en";
         var I18N = {
           pl: {
             pill: "Offline",
             heading: "Ta strona nie została wczytana",
             body: "Załaduje się automatycznie po przywróceniu połączenia.",
             retry: "Spróbuj ponownie",
+            budgetsHead: "Moje budżety",
+            budgetsSub: "Jesteś offline — pokazujemy ostatnio zapisane budżety.",
           },
           uk: {
             pill: "Офлайн",
             heading: "Цю сторінку не було завантажено",
             body: "Вона завантажиться автоматично після відновлення зв'язку.",
             retry: "Спробувати ще раз",
+            budgetsHead: "Мої бюджети",
+            budgetsSub: "Ви офлайн — показуємо останні збережені бюджети.",
           },
         };
+        var EN = {
+          budgetsHead: "My budgets",
+          budgetsSub: "You're offline — showing your last saved budgets.",
+        };
         try {
-          var seg = location.pathname.split("/")[1];
-          var copy = I18N[seg];
+          var copy = I18N[LOCALE];
           if (copy) {
-            document.documentElement.lang = seg;
+            document.documentElement.lang = LOCALE;
             document.querySelectorAll("[data-i18n]").forEach(function (el) {
               var k = el.getAttribute("data-i18n");
               if (copy[k]) el.textContent = copy[k];
@@ -149,16 +215,100 @@
         } catch (e) {
           /* keep EN base */
         }
+
+        // Cached budget list (read-only offline): the offline data layer stores
+        // the active-budgets list in IndexedDB on every online home visit
+        // (home-offline-cache.tsx). If present, render it here so an offline
+        // reload of ANY cache-miss route shows the user's budgets instead of the
+        // bare "wasn't preloaded" note. Budget names are user data → escape
+        // before innerHTML to prevent HTML injection.
+        function esc(s) {
+          return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+            return {
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            }[c];
+          });
+        }
+        function copyFor(key) {
+          var loc = I18N[LOCALE];
+          return (loc && loc[key]) || EN[key];
+        }
+        function renderBudgetList(list) {
+          var main = document.querySelector("main.shell-content");
+          if (!main) return;
+          var cards = list
+            .map(function (b) {
+              if (!b || !b.id) return "";
+              var href =
+                "/" + LOCALE + "/budgets/" + esc(b.id) + "/wallets";
+              var kind = b.kind
+                ? '<span class="shell-budget-kind">' + esc(b.kind) + "</span>"
+                : "";
+              return (
+                '<a class="shell-budget-card" href="' +
+                href +
+                '">' +
+                '<span class="shell-budget-name">' +
+                esc(b.name || "Budget") +
+                "</span>" +
+                kind +
+                "</a>"
+              );
+            })
+            .join("");
+          main.innerHTML =
+            '<h1 class="shell-budgets-head">' +
+            esc(copyFor("budgetsHead")) +
+            "</h1>" +
+            '<p class="shell-budgets-sub">' +
+            esc(copyFor("budgetsSub")) +
+            "</p>" +
+            '<div class="shell-budget-grid" data-testid="offline-shell-budgets">' +
+            cards +
+            "</div>";
+        }
+        try {
+          var req = indexedDB.open("budget-cache");
+          req.onsuccess = function () {
+            var db = req.result;
+            if (!db.objectStoreNames.contains("active-budgets")) {
+              db.close();
+              return;
+            }
+            var all = db
+              .transaction("active-budgets", "readonly")
+              .objectStore("active-budgets")
+              .getAll();
+            all.onsuccess = function () {
+              var list = all.result || [];
+              db.close();
+              if (list.length) renderBudgetList(list);
+            };
+            all.onerror = function () {
+              db.close();
+            };
+          };
+          req.onerror = function () {
+            /* no cache yet — keep the note */
+          };
+        } catch (e) {
+          /* IndexedDB unavailable — keep the note */
+        }
+
         // Self-recovery: reload the moment connectivity returns. The reload is
         // network-first through the SW, so when the origin is back it renders the
         // real page. No server health-probe gate.
         var r = function () {
           location.reload();
         };
-        addEventListener('online', r);
-        addEventListener('focus', r);
-        addEventListener('visibilitychange', function () {
-          if (document.visibilityState === 'visible') r();
+        addEventListener("online", r);
+        addEventListener("focus", r);
+        addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") r();
         });
       })();
     </script>
