@@ -10,10 +10,7 @@
  * Guard: a null/empty payload is a no-op — a fetch error must NOT overwrite a
  * previously valid cache entry (stale-but-present beats blank).
  */
-import {
-  setCachedEntities,
-  setSyncMeta,
-} from "@/lib/offline-cache";
+import { setCachedEntities, setSyncMeta } from "@/lib/offline-cache";
 
 export interface BudgetSnapshot {
   budgetId: string;
@@ -29,7 +26,9 @@ export interface BudgetSnapshot {
  * Each populated field is written independently — a missing/null field is skipped.
  * setSyncMeta is only called when iso is provided AND at least one entity was written.
  */
-export async function cacheBudgetSnapshot(snapshot: BudgetSnapshot): Promise<void> {
+export async function cacheBudgetSnapshot(
+  snapshot: BudgetSnapshot,
+): Promise<void> {
   const { budgetId, budget, wallets, categories, transactions, iso } = snapshot;
 
   let wrote = false;
@@ -53,5 +52,9 @@ export async function cacheBudgetSnapshot(snapshot: BudgetSnapshot): Promise<voi
 
   if (wrote && iso) {
     await setSyncMeta(budgetId, iso);
+    // 260615-d76: also bump a global last-sync key so the budget-list/home
+    // route (budgetId null) can surface a real cache age via the
+    // getMostRecentSyncMeta / "__global__" fallback chain.
+    await setSyncMeta("__global__", iso);
   }
 }

@@ -12,6 +12,7 @@ import {
   setCachedEntities,
   setSyncMeta,
   getSyncMeta,
+  getMostRecentSyncMeta,
   wipeBudgetCache,
 } from "../src/lib/offline-cache";
 
@@ -114,6 +115,28 @@ describe("setSyncMeta / getSyncMeta", () => {
     await setSyncMeta("budget-abc", newIso);
     const result = await getSyncMeta("budget-abc");
     expect(result).toBe(newIso);
+  });
+});
+
+describe("getMostRecentSyncMeta (260615-d76 global cache-age fallback)", () => {
+  it("returns null when no sync-meta rows exist", async () => {
+    const result = await getMostRecentSyncMeta();
+    expect(result).toBeNull();
+  });
+
+  it("returns the newest lastSyncedAt across ALL budget rows", async () => {
+    await setSyncMeta("budget-a", "2026-06-01T00:00:00.000Z");
+    await setSyncMeta("budget-b", "2026-06-10T18:00:00.000Z"); // newest
+    await setSyncMeta("budget-c", "2026-06-05T12:00:00.000Z");
+    const result = await getMostRecentSyncMeta();
+    expect(result).toBe("2026-06-10T18:00:00.000Z");
+  });
+
+  it("includes the __global__ key in the max scan", async () => {
+    await setSyncMeta("budget-a", "2026-06-01T00:00:00.000Z");
+    await setSyncMeta("__global__", "2026-06-12T09:00:00.000Z"); // newest
+    const result = await getMostRecentSyncMeta();
+    expect(result).toBe("2026-06-12T09:00:00.000Z");
   });
 });
 

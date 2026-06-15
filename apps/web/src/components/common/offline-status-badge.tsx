@@ -6,18 +6,28 @@
  * badge is a small inline control with ZERO added vertical height so toggling
  * online↔offline causes no layout shift:
  *   online  → sr-only / aria-hidden (zero footprint)
- *   offline → inline-flex h-6 pill: a PULSING lucide Globe (red --destructive)
+ *   offline → inline-flex h-6 pill: a PULSING lucide CloudOff (red --destructive)
  *             with a tooltip showing how stale the cached data is, e.g.
  *             "No internet — showing data from 13 minutes ago".
  *
+ * No false flash (260615-d76): isOnline INITS true (SSR/first-paint renders
+ * nothing). On reload navigator.onLine is briefly false during load, so we read
+ * the REAL value only in a post-mount effect — the indicator appears only after
+ * a confirmed post-mount navigator.onLine===false OR an 'offline' event, never
+ * a hydration flash when actually online.
+ *
  * Cache age: reuses staleness-marker.tsx's pattern — useFormatter().relativeTime
- * over getSyncMeta(budgetId).lastSyncedAt, ticked every 30s while offline. A
- * null budgetId or missing sync-meta falls back to indicator.tooltipUnknown.
+ * over the cache-age fallback chain, ticked every 30s while offline. When
+ * budgetId is null OR getSyncMeta(budgetId) is null we fall back to
+ * getSyncMeta("__global__") (any cache write bumps it) and then
+ * getMostRecentSyncMeta() — only indicator.tooltipUnknown if nothing ever synced.
  *
  * CONTROLLED tooltip — WHY: Radix Tooltip opens on hover/focus ONLY; it has NO
  * native tap-to-open, so on touch devices the tooltip would be unreachable.
  * We drive an explicit `open` state: Radix still toggles it on hover/focus via
- * onOpenChange (desktop), and an onClick on the trigger toggles it (mobile tap).
+ * onOpenChange (desktop), and an onClick on the trigger TOGGLES it (mobile tap →
+ * tap-to-close). The controlled `open` is the source of truth so a second tap
+ * reliably closes with no reopen flicker. Tooltip renders side=bottom.
  *
  * Connectivity is read from the browser online/offline events + navigator.onLine
  * seed for the AMBIENT indicator only — it NEVER gates writes (those are
@@ -26,26 +36,30 @@
  */
 import { useState, useEffect } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { Globe } from "lucide-react";
+import { CloudOff } from "lucide-react";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
-import { getSyncMeta } from "@/lib/offline-cache";
+import { getSyncMeta, getMostRecentSyncMeta } from "@/lib/offline-cache";
 
 export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
   const t = useTranslations("offline");
   const fmt = useFormatter();
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== "undefined" ? navigator.onLine : true,
-  );
+  // Fix 1: init TRUE (assume online). On reload navigator.onLine is briefly
+  // false during load — reading it synchronously here flashes the indicator
+  // even when online. We read the REAL value only post-mount (below).
+  const [isOnline, setIsOnline] = useState(true);
   const [open, setOpen] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
+    // Post-mount: NOW read the real connectivity. By this point the page has
+    // loaded so navigator.onLine is trustworthy — no hydration flash.
+    setIsOnline(navigator.onLine);
     function handleOnline() {
       setIsOnline(true);
     }
@@ -60,20 +74,26 @@ export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
     };
   }, []);
 
-  // Load the last-synced timestamp from IndexedDB (cache-age source). Guard a
-  // null budgetId → no lookup → tooltipUnknown branch.
+  // Load the last-synced timestamp from IndexedDB (cache-age source). Fix 3:
+  // fallback chain so the budget-list/home route (budgetId null) still shows a
+  // real age: per-budget → "__global__" (any cache write bumps it) →
+  // most-recent across all rows. tooltipUnknown only if nothing ever synced.
   useEffect(() => {
-    if (!budgetId) {
-      setLastSyncedAt(null);
-      return;
-    }
-    getSyncMeta(budgetId)
-      .then((iso) => {
-        if (iso) setLastSyncedAt(new Date(iso));
-      })
-      .catch(() => {
+    let cancelled = false;
+    async function resolveAge() {
+      try {
+        let iso: string | null = budgetId ? await getSyncMeta(budgetId) : null;
+        if (!iso) iso = await getSyncMeta("__global__");
+        if (!iso) iso = await getMostRecentSyncMeta();
+        if (!cancelled) setLastSyncedAt(iso ? new Date(iso) : null);
+      } catch {
         // IndexedDB unavailable (e.g. private browsing) — silently ignore.
-      });
+      }
+    }
+    void resolveAge();
+    return () => {
+      cancelled = true;
+    };
   }, [budgetId, isOnline]);
 
   // Tick every 30s to keep the relative cache age fresh while offline.
@@ -100,8 +120,8 @@ export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
         })
       : t("indicator.tooltipUnknown");
 
-  // Compact inline control — pulsing globe only. h-6 + shrink-0 so it sits
-  // inside the 64px header with NO extra height (no layout shift vs the
+  // Compact inline control — pulsing crossed-cloud only. h-6 + shrink-0 so it
+  // sits inside the 64px header with NO extra height (no layout shift vs the
   // sr-only online state) and never crowds the avatar.
   return (
     <span
@@ -114,20 +134,20 @@ export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
             <button
               type="button"
               aria-label={t("indicator.ariaLabel")}
-              // Mobile tap: Radix has no native tap-to-open, so toggle the
-              // controlled state explicitly. Desktop hover/focus is still
-              // driven by Radix via onOpenChange.
+              // Mobile tap-to-close: Radix has no native tap toggle, so toggle
+              // the controlled state explicitly — a second tap reliably closes.
+              // Desktop hover/focus is still driven by Radix via onOpenChange.
               onClick={() => setOpen((o) => !o)}
               className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--destructive,#ef4444)] [-webkit-tap-highlight-color:transparent] focus:outline-none"
             >
-              <Globe
-                data-testid="offline-globe"
+              <CloudOff
+                data-testid="offline-cloud-off"
                 aria-hidden="true"
                 className="h-4 w-4 shrink-0 animate-pulse"
               />
             </button>
           </TooltipTrigger>
-          <TooltipContent>{tooltipText}</TooltipContent>
+          <TooltipContent side="bottom">{tooltipText}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </span>

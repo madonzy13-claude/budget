@@ -103,6 +103,21 @@ describe("cacheBudgetSnapshot — full payload", () => {
     const meta = await getSyncMeta("b-001");
     expect(meta).toBe(ISO);
   });
+
+  // 260615-d76: every cache write ALSO bumps a global "__global__" key so the
+  // budget-list/home route (budgetId null) can show a real cache age.
+  it("also writes the global __global__ sync-meta key", async () => {
+    await cacheBudgetSnapshot({
+      budgetId: "b-001",
+      budget,
+      wallets,
+      categories,
+      transactions,
+      iso: ISO,
+    });
+    const global = await getSyncMeta("__global__");
+    expect(global).toBe(ISO);
+  });
 });
 
 describe("cacheBudgetSnapshot — no-data / partial payload", () => {

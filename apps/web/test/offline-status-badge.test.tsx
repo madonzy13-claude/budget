@@ -1,11 +1,11 @@
 /**
  * offline-status-badge.test.tsx — OfflineStatusBadge layout-invariant tests.
  *
- * 260615-bse redesign: the offline pill is now an ICON-ONLY pulsing lucide Globe
- * (no "Offline" text label) with a cache-age tooltip. These tests pin the
- * layout invariants only (zero-height inline / sr-only online / no banner / no
- * layout shift). Behavior (globe icon, tooltip copy, tap-to-open, cache age) is
- * covered in test/components/offline-status-badge.test.tsx.
+ * 260615-bse redesign: the offline pill is now an ICON-ONLY pulsing lucide
+ * CloudOff (no "Offline" text label) with a cache-age tooltip. These tests pin
+ * the layout invariants only (zero-height inline / sr-only online / no banner /
+ * no layout shift). Behavior (cloud-off icon, tooltip copy, tap-to-toggle,
+ * cache age) is covered in test/components/offline-status-badge.test.tsx.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -21,6 +21,8 @@ vi.mock("next-intl", () => ({
 
 vi.mock("@/lib/offline-cache", () => ({
   getSyncMeta: () =>
+    Promise.resolve(new Date(Date.now() - 13 * 60 * 1000).toISOString()),
+  getMostRecentSyncMeta: () =>
     Promise.resolve(new Date(Date.now() - 13 * 60 * 1000).toISOString()),
 }));
 
@@ -56,7 +58,7 @@ describe("OfflineStatusBadge", () => {
     });
   });
 
-  it("shows a pulsing globe when offline", async () => {
+  it("shows a pulsing cloud-off when offline", async () => {
     render(React.createElement(OfflineStatusBadge, { budgetId: "b1" }));
     Object.defineProperty(navigator, "onLine", {
       value: false,
@@ -66,8 +68,8 @@ describe("OfflineStatusBadge", () => {
     await waitFor(() => {
       const badge = screen.getByTestId("offline-status-badge");
       expect(badge).not.toHaveAttribute("aria-hidden", "true");
-      const globe = screen.getByTestId("offline-globe");
-      expect(globe.getAttribute("class") ?? "").toContain("animate-pulse");
+      const icon = screen.getByTestId("offline-cloud-off");
+      expect(icon.getAttribute("class") ?? "").toContain("animate-pulse");
     });
   });
 
@@ -87,7 +89,7 @@ describe("OfflineStatusBadge", () => {
       expect(cls).toContain("inline-flex");
       expect(cls).not.toMatch(/\bw-full\b/);
       expect(cls).not.toMatch(/\bh-(?:8|10|12|14|16)\b/);
-      expect(screen.getByTestId("offline-globe")).toBeTruthy();
+      expect(screen.getByTestId("offline-cloud-off")).toBeTruthy();
     });
   });
 

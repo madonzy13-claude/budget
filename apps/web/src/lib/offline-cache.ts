@@ -82,6 +82,29 @@ export async function getSyncMeta(budgetId: string): Promise<string | null> {
   return (row as { key: string; lastSyncedAt: string }).lastSyncedAt ?? null;
 }
 
+/**
+ * getMostRecentSyncMeta — newest lastSyncedAt across ALL sync-meta rows
+ * (260615-d76). Used as the final cache-age fallback so the budget-list/home
+ * route (budgetId null) shows a real "data from N ago" instead of "unknown"
+ * after any online visit has populated the cache. Includes the "__global__"
+ * row in the max scan. Returns null only when nothing has ever synced.
+ */
+export async function getMostRecentSyncMeta(): Promise<string | null> {
+  const db = await openBudgetDB();
+  const rows = (await db.getAll("sync-meta")) as Array<{
+    key: string;
+    lastSyncedAt?: string;
+  }>;
+  db.close();
+  let newest: string | null = null;
+  for (const row of rows) {
+    const iso = row.lastSyncedAt;
+    if (!iso) continue;
+    if (newest === null || iso > newest) newest = iso;
+  }
+  return newest;
+}
+
 export async function wipeBudgetCache(): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.deleteDatabase(DB_NAME);
