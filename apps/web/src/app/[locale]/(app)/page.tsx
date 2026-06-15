@@ -12,7 +12,7 @@
  */
 import { getTranslations } from "next-intl/server";
 import { fetchActiveBudgets } from "@/lib/budget-fetch.server";
-import { HomeCardsGrid } from "@/components/budgeting/home-cards-grid";
+import { HomeOfflineCache } from "@/components/budgeting/home-offline-cache";
 
 // The home page reads the per-user list of budgets. Without this Next.js
 // statically pre-renders the page at build time (when there is no session)
@@ -50,7 +50,11 @@ export default async function HomePage({ params }: HomePageProps) {
           the "Insights coming soon" placeholder block sat at the page
           bottom and read as a footer once SiteFooter was dropped. The
           real chart lands in Phase 8 — re-mount it then. */}
-      <HomeCardsGrid budgets={budgets} locale={locale} />
+      {/* HomeOfflineCache writes the budget list to IDB on online visits and
+          renders cached rows when the server list is empty (offline reload).
+          Online path: budgets flow straight through to HomeCardsGrid unchanged.
+          See sw.ts note: nav-docs-v1 cache captures the HTML doc on first visit. */}
+      <HomeOfflineCache budgets={budgets} locale={locale} />
     </main>
   );
 }

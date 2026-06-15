@@ -206,6 +206,71 @@ describe("getCachedTransactions (Task 4 read-back readers)", () => {
   });
 });
 
+describe("active-budgets store (Task 5, DB_VERSION=3)", () => {
+  it("openBudgetDB creates 6 stores including active-budgets", async () => {
+    const db = await openBudgetDB();
+    expect(db.objectStoreNames).toContain("budgets");
+    expect(db.objectStoreNames).toContain("wallets");
+    expect(db.objectStoreNames).toContain("categories");
+    expect(db.objectStoreNames).toContain("transactions");
+    expect(db.objectStoreNames).toContain("sync-meta");
+    expect(db.objectStoreNames).toContain("active-budgets");
+    db.close();
+  });
+
+  it("cacheActiveBudgets + getCachedActiveBudgets round-trips the list", async () => {
+    const { cacheActiveBudgets, getCachedActiveBudgets } =
+      await import("../src/lib/offline-cache");
+    const list = [
+      {
+        id: "b-1",
+        name: "Family Budget",
+        kind: "PRIVATE",
+        default_currency: "USD",
+        pendingTasksCount: 0,
+      },
+      {
+        id: "b-2",
+        name: "Shared Budget",
+        kind: "SHARED",
+        default_currency: "EUR",
+        pendingTasksCount: 2,
+      },
+    ];
+    await cacheActiveBudgets(list);
+    const result = await getCachedActiveBudgets();
+    expect(result).toHaveLength(2);
+    expect((result[0] as { id: string }).id).toBe("b-1");
+    expect((result[1] as { id: string }).id).toBe("b-2");
+  });
+
+  it("cacheActiveBudgets bumps __global__ sync-meta", async () => {
+    const { cacheActiveBudgets } = await import("../src/lib/offline-cache");
+    const before = new Date().toISOString();
+    await cacheActiveBudgets([
+      {
+        id: "b-1",
+        name: "Budget",
+        kind: "PRIVATE",
+        default_currency: "USD",
+        pendingTasksCount: 0,
+      },
+    ]);
+    const after = new Date().toISOString();
+    const global = await getSyncMeta("__global__");
+    expect(global).not.toBeNull();
+    expect(global! >= before).toBe(true);
+    expect(global! <= after).toBe(true);
+  });
+
+  it("cacheActiveBudgets is a no-op (no __global__ bump) for empty list", async () => {
+    const { cacheActiveBudgets } = await import("../src/lib/offline-cache");
+    await cacheActiveBudgets([]);
+    const global = await getSyncMeta("__global__");
+    expect(global).toBeNull();
+  });
+});
+
 describe("wipeBudgetCache", () => {
   it("deletes the DB so a subsequent getCachedBudget returns null (tenant isolation)", async () => {
     const budget = { id: "budget-xyz", name: "Before Wipe" };
