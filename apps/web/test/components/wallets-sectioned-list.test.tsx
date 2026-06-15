@@ -137,12 +137,14 @@ function renderWithQuery(
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  // Client-data (round 8): the list now comes from useWallets, not an `initial`
+  // prop. Seed the query cache so useWallets is isSuccess with the rows.
+  qc.setQueryData(["budget", "budget-1", "wallets"], initial);
   return render(
     <QueryClientProvider client={qc}>
       <WalletsSectionedList
         budgetId="budget-1"
         budgetCurrency="EUR"
-        initial={initial}
         {...(opts.reservesEnabled !== undefined && {
           reservesEnabled: opts.reservesEnabled,
         })}

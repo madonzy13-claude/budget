@@ -9,7 +9,6 @@
  */
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets-sectioned-list";
-import type { WalletDto } from "@/hooks/use-wallets";
 
 // quick-260612-a0c R2: PillTaskSlider no longer renders here — the BDP layout
 // renders the active pill's slider INSIDE the [data-bdp-tabs] sticky band so
@@ -22,14 +21,12 @@ interface PageProps {
 export default async function WalletsPage({ params }: PageProps) {
   const { id: budgetId } = await params;
 
-  const [walletsRes, budgetRes] = await Promise.all([
-    serverApiFetch(budgetId, "/wallets"),
-    serverApiFetch(budgetId, `/budgets/${budgetId}`),
-  ]);
-
-  const wallets: WalletDto[] = walletsRes.ok
-    ? (((await walletsRes.json()) as { wallets?: WalletDto[] }).wallets ?? [])
-    : [];
+  // Client-data (260615-e8s round 8): the wallet LIST is no longer fetched here
+  // — the WalletsSectionedList island fetches it client-side (online → API +
+  // IDB cache; offline → IDB), so this document stays light and the data lives
+  // as cached JSON. Only the tiny budget meta (currency + section flags) is read
+  // here for the section layout.
+  const budgetRes = await serverApiFetch(budgetId, `/budgets/${budgetId}`);
 
   const budget = budgetRes.ok
     ? await (budgetRes.json() as Promise<{
@@ -66,7 +63,6 @@ export default async function WalletsPage({ params }: PageProps) {
       <WalletsSectionedList
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
-        initial={wallets}
         reservesEnabled={reservesEnabled}
         cushionEnabled={cushionEnabled}
       />

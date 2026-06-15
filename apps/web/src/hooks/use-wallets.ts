@@ -7,7 +7,11 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
-import { getCachedEntities, markSynced } from "@/lib/offline-cache";
+import {
+  getCachedEntities,
+  setCachedEntities,
+  markSynced,
+} from "@/lib/offline-cache";
 
 export interface WalletDto {
   id: string;
@@ -30,6 +34,15 @@ export interface WalletDto {
   sortOrder?: number;
 }
 
+/** Read cached wallets scoped to ONE budget (the store is shared across budgets;
+ * rows are tagged with `_budgetId` on write). */
+async function readCachedWallets(budgetId: string): Promise<WalletDto[]> {
+  const rows = (await getCachedEntities("wallets")) as Array<
+    WalletDto & { _budgetId?: string }
+  >;
+  return rows.filter((w) => w._budgetId === budgetId) as WalletDto[];
+}
+
 export function useWallets(budgetId: string, initialData?: WalletDto[]) {
   return useQuery({
     queryKey: ["budget", budgetId, "wallets"],
@@ -39,8 +52,8 @@ export function useWallets(budgetId: string, initialData?: WalletDto[]) {
       // (does not reject) on the device, which left the query stuck on a
       // skeleton forever. Serve cache, or fail fast if there is none.
       if (typeof navigator !== "undefined" && navigator.onLine === false) {
-        const cached = await getCachedEntities("wallets");
-        if (cached.length) return cached as WalletDto[];
+        const cached = await readCachedWallets(budgetId);
+        if (cached.length) return cached;
         throw new Error("offline_no_cache");
       }
       try {
@@ -51,14 +64,20 @@ export function useWallets(budgetId: string, initialData?: WalletDto[]) {
         });
         if (!res.ok) throw new Error(await res.text());
         const json = await res.json();
+        const wallets = (json.wallets ?? []) as WalletDto[];
+        // Client-data (260615-e8s round 8): cache the fetched JSON to IDB so the
+        // offline read-back has it WITHOUT baking the list into the page HTML.
+        // Tag each row with its budget so the offline read can scope to it.
+        void setCachedEntities(
+          "wallets",
+          wallets.map((w) => ({ ...w, _budgetId: budgetId })),
+        ).catch(() => {});
         void markSynced(budgetId).catch(() => {});
-        return (json.wallets ?? []) as WalletDto[];
+        return wallets;
       } catch (e) {
-        // Offline read-back: serve cached rows. WalletDto has no budgetId field —
-        // cached rows are per-browser per-tenant data (wiped on logout), so
-        // serving all cached wallets is acceptable read-only offline fallback.
-        const cached = await getCachedEntities("wallets");
-        if (cached.length) return cached as WalletDto[];
+        // Offline read-back: serve cached rows scoped to this budget.
+        const cached = await readCachedWallets(budgetId);
+        if (cached.length) return cached;
         throw e;
       }
     },

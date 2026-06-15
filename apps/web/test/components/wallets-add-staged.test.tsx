@@ -139,11 +139,7 @@ function renderWithQuery(initial: WalletDto[] = INITIAL_WALLETS) {
     qc,
     ...render(
       <QueryClientProvider client={qc}>
-        <WalletsSectionedList
-          budgetId="budget-1"
-          budgetCurrency="EUR"
-          initial={initial}
-        />
+        <WalletsSectionedList budgetId="budget-1" budgetCurrency="EUR" />
       </QueryClientProvider>,
     ),
   };
