@@ -112,15 +112,20 @@ export function createAuth(opts: CreateAuthOptions) {
     session: {
       // 260615-e8s: effectively never expire. An installed offline PWA must not
       // bounce the user to /sign-in just because time passed — offline they
-      // cannot sign in, so a lapsed session = a dead app. 10-year base TTL +
-      // sliding updateAge keeps an active session alive indefinitely.
+      // cannot sign in, so a lapsed session = a dead app. Browsers AND Better
+      // Auth (better-call) HARD-CAP a cookie Max-Age at 400 days (34560000s) —
+      // anything larger throws "Cookies Max-Age SHOULD NOT be greater than 400
+      // days". So 400 days is the hard ceiling; we use 365 days (safely under it)
+      // + a sliding updateAge so EVERY use slides the expiry forward to a full
+      // year out. An active session therefore never expires; only ~365 days of
+      // zero use would lapse it.
       //
       // SECURITY TRADEOFF (accepted for this self-hosted, single-household app):
-      // a stolen session cookie stays valid for ~10 years and there is no
-      // periodic forced re-auth. Revocation is still immediate via logout (clears
-      // the cookie + the DB session row); the cookieCache window below bounds how
-      // long a revoked-but-cached session can linger to 60s.
-      expiresIn: 60 * 60 * 24 * 365 * 10, // ~10 years
+      // a stolen session cookie stays valid up to a year with no periodic forced
+      // re-auth. Revocation is still immediate via logout (clears the cookie +
+      // the DB session row); the cookieCache window below bounds how long a
+      // revoked-but-cached session can linger to 60s.
+      expiresIn: 60 * 60 * 24 * 365, // 365 days — under the 400-day cookie cap
       updateAge: 60 * 60 * 24, // slide the expiry forward at most once/day on use
       cookieCache: {
         enabled: true,
