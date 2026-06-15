@@ -180,3 +180,17 @@ Shipped:
 - Tests: `offline-stale-bar.test.tsx` (incl. staleTickDelay buckets + cache-age fallback), `offline-shell.test.ts` rewrite (not-cached note + conditional home link), wiring test updated. typecheck + check:i18n + lint clean; full offline Vitest green.
 
 **Playwright live proof (setOffline + route-abort = full device emulation):** cached `/en` offline → real home + `hasSwitcher:true` + bar "synced 2 seconds ago"; uncached route offline → offline-shell note + "Go to home" → `/en` (cache hit). Screenshots captured. See [[project-offline-test-architecture]] for the both-knobs emulation recipe.
+
+## Round 4 — device feedback (commit after `c6aecb0`)
+
+User: (1) full app reload offline still showed the bare not-cached shell; (2) the red bar must be one line in all languages.
+
+Root cause of (1): **PWA start_url is `/`** (public/manifest.json) — a 307→/<locale> redirect the SW can't cache (a redirected response can't satisfy a navigation). So a cold open always requests `/`, always misses → offline-shell, even when `/en` was cached; and the shell skipped its home link at `/`.
+
+Shipped:
+
+- **offline-shell cold-open recovery**: at a ROOT entry (no locale segment) it resolves the locale from the `budget-locale` cookie and `location.replace('/<locale>')` to the cached real home; localized uncached routes keep the note + "Go to home".
+- **Nav-cache warming**: SW `message` handler (`WARM_ROUTES`) + `NavCacheWarmer` client (in the layout) proactively fetch+cache the home + current route (non-redirected 2xx) while online, so visited/soft-nav routes + home are reliably cached. Never caches `/` (redirect).
+- **One-line bar**: shortened copy (en "Offline — cached data from {relativeTime}", pl/uk equivalents) + `whitespace-nowrap`/ellipsis on the OfflineStaleBar and the shell bar.
+
+Playwright proof (setOffline + route-abort, fresh SW): cold-open `/` offline → redirects to `/en` → real home (`isRealHome:true`, `isOfflineShell:false`) + bar "Offline — cached data from 4 seconds ago", height 22px, `barOneLine:true`, `barTruncated:false`. Full offline Vitest **77/77 green**. Screenshot captured.
