@@ -308,4 +308,19 @@ describe("SpendingsGridClient", () => {
     // draft-1 belongs to cat-2; it should render without waiting for fetch
     expect(screen.getByTestId("draft-row-monthly rent")).toBeTruthy();
   });
+
+  // 260615-bse: the shared offline AlertDialog is hosted ONCE in the grid and
+  // is CLOSED initially (Radix AlertDialog content is not mounted until open).
+  it("offline add dialog is hosted in the grid and closed initially", () => {
+    render(
+      <TestQueryProvider>
+        <SpendingsGridClient {...defaultProps} />
+      </TestQueryProvider>,
+    );
+    // Closed → content (with its testid + title) is not rendered yet.
+    expect(
+      document.querySelector("[data-testid='offline-add-dialog']"),
+    ).toBeNull();
+    expect(screen.queryByText("offlineDialog.title")).toBeNull();
+  });
 });

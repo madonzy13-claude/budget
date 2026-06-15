@@ -128,6 +128,11 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
   const qc = useQueryClient();
   const router = useRouter();
   const tDel = useTranslations("grid.deleteCategory");
+  const tGrid = useTranslations("grid");
+  // 260615-bse: one shared offline dialog for the whole grid. Both the
+  // device-knows-offline pre-insert short-circuit (quick-entry) and the
+  // lying-true rollback (useCreateTransaction.onOfflineError) open it.
+  const [offlineDialogOpen, setOfflineDialogOpen] = useState(false);
   // Permanent-delete confirm for an archived column's trash.
   const [deleteCat, setDeleteCat] = useState<{
     id: string;
@@ -648,6 +653,7 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
                     setDeleteCat({ id: c.id, name: c.name })
                   }
                   onUnarchive={() => void unarchiveCategory(c.id)}
+                  onOfflineAttempt={() => setOfflineDialogOpen(true)}
                 />
               ))}
             </SortableContext>
@@ -740,6 +746,29 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {tDel("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 260615-bse: shared offline-add dialog. Opened by any column's
+          quick-entry when an add is attempted offline — the popup-BEFORE-insert
+          path (no optimistic row) and the rare lying-true rollback both route
+          here. Single AlertDialogAction (OK) just closes it. */}
+      <AlertDialog open={offlineDialogOpen} onOpenChange={setOfflineDialogOpen}>
+        <AlertDialogContent data-testid="offline-add-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tGrid("offlineDialog.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tGrid("offlineDialog.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              data-testid="offline-add-dialog-ok"
+              onClick={() => setOfflineDialogOpen(false)}
+            >
+              {tGrid("offlineDialog.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,7 +1,7 @@
 /**
  * quick-entry-input.test.tsx — Vitest+RTL tests for QuickEntryInput component.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QuickEntryInput } from "../../../src/components/budgeting/spendings-grid/quick-entry-input";
@@ -13,7 +13,9 @@ vi.mock("../../../src/hooks/use-create-transaction", () => ({
 }));
 
 const mockToast = vi.fn();
-vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => mockToast(...args) } }));
+vi.mock("sonner", () => ({
+  toast: { error: (...args: unknown[]) => mockToast(...args) },
+}));
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) => {
@@ -23,6 +25,8 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 
+const mockOnOfflineAttempt = vi.fn();
+
 const defaultProps = {
   categoryId: "cat-1",
   categoryName: "Groceries",
@@ -30,7 +34,15 @@ const defaultProps = {
   month: "2026-05",
   budgetCurrency: "USD",
   resolvedDate: "2026-05-13",
+  onOfflineAttempt: mockOnOfflineAttempt,
 };
+
+function setOnline(value: boolean) {
+  Object.defineProperty(navigator, "onLine", {
+    configurable: true,
+    value,
+  });
+}
 
 function renderInput(props = {}) {
   return render(
@@ -44,6 +56,12 @@ describe("QuickEntryInput", () => {
   beforeEach(() => {
     mockMutate.mockClear();
     mockToast.mockClear();
+    mockOnOfflineAttempt.mockClear();
+    setOnline(true);
+  });
+
+  afterEach(() => {
+    setOnline(true);
   });
 
   it("has data-testid=quick-entry-groceries (lowercase categoryName)", () => {
@@ -54,7 +72,9 @@ describe("QuickEntryInput", () => {
   it("has inputMode=decimal for mobile (D-PH4-Q2)", () => {
     renderInput();
     const input = screen.getByTestId("quick-entry-groceries");
-    expect(input.getAttribute("inputMode") ?? input.getAttribute("inputmode")).toBe("decimal");
+    expect(
+      input.getAttribute("inputMode") ?? input.getAttribute("inputmode"),
+    ).toBe("decimal");
   });
 
   it("accepts '5.96' and calls mutate with 596 cents on Enter", async () => {
@@ -96,7 +116,9 @@ describe("QuickEntryInput", () => {
 
   it("Escape clears input", async () => {
     renderInput();
-    const input = screen.getByTestId("quick-entry-groceries") as HTMLInputElement;
+    const input = screen.getByTestId(
+      "quick-entry-groceries",
+    ) as HTMLInputElement;
     await userEvent.type(input, "5.96");
     fireEvent.keyDown(input, { key: "Escape" });
     expect(input.value).toBe("");
@@ -136,5 +158,42 @@ describe("QuickEntryInput", () => {
     const input = screen.getByTestId("quick-entry-groceries");
     fireEvent.blur(input);
     expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  // 260615-bse: device-knows-offline path — pop the dialog BEFORE any insert
+  // (no mutate → no optimistic row → no add-then-remove flicker).
+  it("offline Enter: calls onOfflineAttempt, does NOT mutate, clears input", async () => {
+    setOnline(false);
+    renderInput();
+    const input = screen.getByTestId(
+      "quick-entry-groceries",
+    ) as HTMLInputElement;
+    await userEvent.type(input, "5.96");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockOnOfflineAttempt).toHaveBeenCalledTimes(1);
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(input.value).toBe("");
+  });
+
+  it("offline blur: calls onOfflineAttempt and does NOT mutate", async () => {
+    setOnline(false);
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "12.50");
+    fireEvent.blur(input);
+    expect(mockOnOfflineAttempt).toHaveBeenCalledTimes(1);
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  it("online Enter: mutates as before and does NOT call onOfflineAttempt", async () => {
+    setOnline(true);
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "5.96");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 596 }),
+    );
+    expect(mockOnOfflineAttempt).not.toHaveBeenCalled();
   });
 });

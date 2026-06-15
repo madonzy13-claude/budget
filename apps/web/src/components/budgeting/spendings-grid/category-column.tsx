@@ -63,6 +63,12 @@ export interface CategoryColumnProps {
   onPermanentDelete?: (categoryId: string) => void;
   /** Revert (unarchive) an archived category — no confirm (260611-vuo). */
   onUnarchive?: (categoryId: string) => void;
+  /**
+   * 260615-bse: forwarded to QuickEntryInput — opens the grid's shared offline
+   * dialog when an add is attempted offline (pre-insert short-circuit + the
+   * lying-true rollback path both route here).
+   */
+  onOfflineAttempt: () => void;
 }
 
 export function CategoryColumn({
@@ -82,6 +88,7 @@ export function CategoryColumn({
   onEditCategory,
   onPermanentDelete,
   onUnarchive,
+  onOfflineAttempt,
 }: CategoryColumnProps) {
   const tDraft = useTranslations("grid.draft");
   const tGrid = useTranslations("grid");
@@ -217,6 +224,7 @@ export function CategoryColumn({
               month={month}
               budgetCurrency={budgetCurrency}
               resolvedDate={resolvedQuickEntryDate}
+              onOfflineAttempt={onOfflineAttempt}
             />
           </div>
         )}

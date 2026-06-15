@@ -83,7 +83,23 @@ export function recomputeOptimistic(
   };
 }
 
-export function useCreateTransaction(budgetId: string, month: string) {
+/**
+ * 260615-bse: optional callbacks. `onOfflineError` is invoked (instead of the
+ * offline toast) when the write fails with OfflineWriteError — the rare iOS
+ * "lying-true" case (onLine reports true on a dead link). The caller surfaces
+ * the SAME offline dialog used by the device-knows-offline pre-insert path, so
+ * both paths converge on one dialog instead of a toast. When `onOfflineError`
+ * is absent, the prior offline toast is kept for back-compat.
+ */
+export interface UseCreateTransactionOptions {
+  onOfflineError?: () => void;
+}
+
+export function useCreateTransaction(
+  budgetId: string,
+  month: string,
+  opts?: UseCreateTransactionOptions,
+) {
   const qc = useQueryClient();
   const t = useTranslations("grid.txn");
 
@@ -195,11 +211,20 @@ export function useCreateTransaction(budgetId: string, month: string) {
       }
       qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
 
-      toast.error(
-        err instanceof OfflineWriteError
-          ? t("write.offline")
-          : t("write.failed"),
-      );
+      // 260615-bse: lying-true case (onLine===true on a dead link) — the
+      // optimistic row was inserted in onMutate and just rolled back above.
+      // Surface the SAME offline dialog as the device-knows-offline path
+      // (instead of a toast) when the caller wired onOfflineError. Genuine
+      // 4xx errors always keep the generic write.failed toast.
+      if (err instanceof OfflineWriteError) {
+        if (opts?.onOfflineError) {
+          opts.onOfflineError();
+        } else {
+          toast.error(t("write.offline"));
+        }
+        return;
+      }
+      toast.error(t("write.failed"));
     },
 
     onSuccess: (serverRow, _input, ctx) => {

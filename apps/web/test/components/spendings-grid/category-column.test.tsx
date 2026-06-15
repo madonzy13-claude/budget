@@ -107,6 +107,7 @@ function renderColumn(overrides = {}) {
         onEditTxn={vi.fn()}
         onEditDraft={vi.fn()}
         onEditCategory={vi.fn()}
+        onOfflineAttempt={vi.fn()}
         {...overrides}
       />
     </TestQueryProvider>,
