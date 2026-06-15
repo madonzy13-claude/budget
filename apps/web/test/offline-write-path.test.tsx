@@ -250,3 +250,83 @@ describe("offline create-transaction write path", () => {
     await waitFor(() => expect(getRows(qc)).toHaveLength(baseline.length));
   });
 });
+
+// ── Task 3 (260615-e8s): cacheBudgetSnapshot contract + bumpGlobalSyncMeta ──
+// These tests lock the IDB write contract that the budget islands rely on.
+// Uses fake-indexeddb so real IDB calls execute deterministically.
+import "fake-indexeddb/auto";
+import {
+  cacheBudgetSnapshot,
+} from "../src/hooks/use-cache-on-fetch";
+import {
+  getCachedEntities,
+  getSyncMeta,
+  bumpGlobalSyncMeta,
+  wipeBudgetCache,
+} from "../src/lib/offline-cache";
+
+// Reset IDB between each test in this describe block
+const afterEachClear = async () => { await wipeBudgetCache(); };
+
+describe("cacheBudgetSnapshot (IDB write contract)", () => {
+  beforeEach(async () => { await wipeBudgetCache(); });
+  afterEach(afterEachClear);
+
+  it("stores wallets and sets per-budget + __global__ sync-meta", async () => {
+    const iso = new Date().toISOString();
+    await cacheBudgetSnapshot({
+      budgetId: "b-1",
+      budget: undefined,
+      wallets: [{ id: "w-1", name: "Checking" }],
+      categories: undefined,
+      transactions: undefined,
+      iso,
+    });
+    const wallets = await getCachedEntities("wallets");
+    expect(wallets.length).toBe(1);
+    expect((wallets[0] as { id: string }).id).toBe("w-1");
+    const perBudget = await getSyncMeta("b-1");
+    expect(perBudget).toBe(iso);
+    const global = await getSyncMeta("__global__");
+    expect(global).toBe(iso);
+  });
+
+  it("stores categories and bumps sync-meta", async () => {
+    const iso = new Date().toISOString();
+    await cacheBudgetSnapshot({
+      budgetId: "b-2",
+      budget: undefined,
+      wallets: undefined,
+      categories: [{ id: "cat-1", name: "Food" }],
+      transactions: undefined,
+      iso,
+    });
+    const cats = await getCachedEntities("categories");
+    expect(cats.length).toBe(1);
+    expect((cats[0] as { id: string }).id).toBe("cat-1");
+    expect(await getSyncMeta("b-2")).toBe(iso);
+    expect(await getSyncMeta("__global__")).toBe(iso);
+  });
+});
+
+describe("bumpGlobalSyncMeta (new helper)", () => {
+  beforeEach(async () => { await wipeBudgetCache(); });
+  afterEach(afterEachClear);
+
+  it("writes __global__ sync-meta with the provided ISO", async () => {
+    const iso = "2026-06-15T10:00:00.000Z";
+    await bumpGlobalSyncMeta(iso);
+    expect(await getSyncMeta("__global__")).toBe(iso);
+  });
+
+  it("defaults to current time when called with no argument", async () => {
+    const before = new Date().toISOString();
+    await bumpGlobalSyncMeta();
+    const after = new Date().toISOString();
+    const stored = await getSyncMeta("__global__");
+    expect(stored).not.toBeNull();
+    // stored timestamp should be between before and after
+    expect(stored! >= before).toBe(true);
+    expect(stored! <= after).toBe(true);
+  });
+});

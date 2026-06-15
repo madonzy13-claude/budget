@@ -105,6 +105,49 @@ export async function getMostRecentSyncMeta(): Promise<string | null> {
   return newest;
 }
 
+/**
+ * getCachedEntities — read all rows from a given entity store (read-only).
+ * Returns an empty array when the store is empty or IDB is unavailable.
+ */
+export async function getCachedEntities(
+  store: "budgets" | "wallets" | "categories",
+): Promise<unknown[]> {
+  const db = await openBudgetDB();
+  const rows = await db.getAll(store);
+  db.close();
+  return rows;
+}
+
+/**
+ * getCachedTransactions — read cached transactions for a specific budget+month.
+ * Filters by _cacheKey prefix "budgetId:YYYY-MM:" and returns the matching rows.
+ * The _cacheKey field is retained on returned rows (consumers may ignore it).
+ */
+export async function getCachedTransactions(
+  budgetId: string,
+  month: string,
+): Promise<unknown[]> {
+  const db = await openBudgetDB();
+  const all = (await db.getAll("transactions")) as Array<{
+    _cacheKey: string;
+    [key: string]: unknown;
+  }>;
+  db.close();
+  const prefix = `${budgetId}:${month}:`;
+  return all.filter((row) => row._cacheKey?.startsWith(prefix));
+}
+
+/**
+ * bumpGlobalSyncMeta — write the "__global__" sync-meta key so any visited
+ * budget tab dates the offline indicator even before a full snapshot lands.
+ * Called from BdpTabs on mount (every budget tab) via Task 3.
+ */
+export async function bumpGlobalSyncMeta(
+  iso: string = new Date().toISOString(),
+): Promise<void> {
+  await setSyncMeta("__global__", iso);
+}
+
 export async function wipeBudgetCache(): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.deleteDatabase(DB_NAME);

@@ -10,7 +10,9 @@
  * Guard: a null/empty payload is a no-op — a fetch error must NOT overwrite a
  * previously valid cache entry (stale-but-present beats blank).
  */
-import { setCachedEntities, setSyncMeta } from "@/lib/offline-cache";
+import { setCachedEntities, setSyncMeta, bumpGlobalSyncMeta } from "@/lib/offline-cache";
+// Re-export so island components can import from a single hooks path.
+export { bumpGlobalSyncMeta };
 
 export interface BudgetSnapshot {
   budgetId: string;

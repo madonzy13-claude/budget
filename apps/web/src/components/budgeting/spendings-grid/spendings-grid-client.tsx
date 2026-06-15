@@ -51,6 +51,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { useReorderCategories } from "@/hooks/use-reorder-categories";
+import { cacheBudgetSnapshot } from "@/hooks/use-cache-on-fetch";
 import { useMonthParam } from "@/hooks/use-month-param";
 import {
   useSpendingsSummary,
@@ -207,6 +208,25 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     budgetId,
     month,
   ]);
+  // 260615-e8s Task 3: populate IDB cache on every successful online fetch so
+  // the offline read-back path has data to serve on a cold reload.
+  // Best-effort: wrapped in .catch(()=>{}) so a write failure never blocks render.
+  useEffect(() => {
+    if (!(summary.isSuccess && txns.isSuccess)) return;
+    const transactions = (txns.data ?? []).map((t) => ({
+      ...t,
+      _cacheKey: `${budgetId}:${month}:${t.id}`,
+    }));
+    cacheBudgetSnapshot({
+      budgetId,
+      budget: undefined,
+      categories: localCategoryOrder,
+      transactions,
+      wallets: undefined,
+      iso: new Date().toISOString(),
+    }).catch(() => {});
+  }, [summary.isSuccess, txns.isSuccess, budgetId, month]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const reorder = useReorderCategories(budgetId);
 
   // Track whether the grid is scrolled FAR ENOUGH that at least HALF a

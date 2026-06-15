@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { NavLink } from "@/components/common/nav-link";
 import { useTranslations } from "next-intl";
@@ -16,6 +17,7 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
 import { pillFor, type Pill } from "@/components/budgeting/tasks/kind-pill-map";
+import { bumpGlobalSyncMeta } from "@/hooks/use-cache-on-fetch";
 
 /**
  * BdpTabs — route-as-tab pill navigation for the Budget Detail Page.
@@ -58,6 +60,13 @@ export function BdpTabs({
 }: BdpTabsProps) {
   const pathname = usePathname() ?? "";
   const t = useTranslations("bdp.tab");
+
+  // 260615-e8s Task 3: bump __global__ sync-meta on every budget tab visit so
+  // the offline indicator shows a real cache age even before a full snapshot.
+  // Best-effort: .catch(()=>{}) so IDB failures never block the nav render.
+  useEffect(() => {
+    void bumpGlobalSyncMeta().catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: tasks } = useQuery({
     queryKey: ["tasks", budgetId, "pending"],

@@ -27,10 +27,11 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
+import { cacheBudgetSnapshot } from "@/hooks/use-cache-on-fetch";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
 import { useArchiveWallet } from "@/hooks/use-archive-wallet";
@@ -85,11 +86,26 @@ export function WalletsSectionedList({
           ? "cushion"
           : "reserve",
     );
-  const { data: wallets = initial } = useWallets(budgetId, initial);
+  const walletsQuery = useWallets(budgetId, initial);
+  const wallets = walletsQuery.data ?? initial;
   const updateMut = useUpdateWallet(budgetId);
   const createMut = useCreateWallet(budgetId);
   const archiveMut = useArchiveWallet(budgetId);
   const reorderMut = useReorderWallets(budgetId);
+
+  // 260615-e8s Task 3: populate IDB wallets cache on every successful fetch.
+  // Best-effort: .catch(()=>{}) so write failures never block render.
+  useEffect(() => {
+    if (!walletsQuery.isSuccess) return;
+    cacheBudgetSnapshot({
+      budgetId,
+      budget: undefined,
+      wallets: walletsQuery.data,
+      categories: undefined,
+      transactions: undefined,
+      iso: new Date().toISOString(),
+    }).catch(() => {});
+  }, [walletsQuery.isSuccess, budgetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // W-4 staged-add state: per-section draft tracker
   // Only one draft per section at a time (idempotent set in handleAdd).
