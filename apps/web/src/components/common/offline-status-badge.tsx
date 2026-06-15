@@ -22,12 +22,11 @@
  * getSyncMeta("__global__") (any cache write bumps it) and then
  * getMostRecentSyncMeta() — only indicator.tooltipUnknown if nothing ever synced.
  *
- * CONTROLLED tooltip — WHY: Radix Tooltip opens on hover/focus ONLY; it has NO
- * native tap-to-open, so on touch devices the tooltip would be unreachable.
- * We drive an explicit `open` state: Radix still toggles it on hover/focus via
- * onOpenChange (desktop), and an onClick on the trigger TOGGLES it (mobile tap →
- * tap-to-close). The controlled `open` is the source of truth so a second tap
- * reliably closes with no reopen flicker. Tooltip renders side=bottom.
+ * POPOVER (260615-e8s Task 2): Radix Tooltip has no native tap-to-open on touch
+ * devices; its controlled-open + manual onClick toggle caused a reopen race on
+ * the second tap (Radix calling onOpenChange(true) after the click closed it).
+ * Replaced with Popover which has native tap-to-open/close — no onClick toggle
+ * needed. Popover renders side=bottom. Content style matches old tooltip.
  *
  * Connectivity is read from the browser online/offline events + navigator.onLine
  * seed for the AMBIENT indicator only — it NEVER gates writes (those are
@@ -38,11 +37,10 @@ import { useState, useEffect } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { Unplug } from "lucide-react";
 import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 import { getSyncMeta, getMostRecentSyncMeta } from "@/lib/offline-cache";
 
 export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
@@ -128,28 +126,25 @@ export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
       data-testid="offline-status-badge"
       className="inline-flex h-6 shrink-0 items-center"
     >
-      <TooltipProvider>
-        <Tooltip open={open} onOpenChange={setOpen}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={t("indicator.ariaLabel")}
-              // Mobile tap-to-close: Radix has no native tap toggle, so toggle
-              // the controlled state explicitly — a second tap reliably closes.
-              // Desktop hover/focus is still driven by Radix via onOpenChange.
-              onClick={() => setOpen((o) => !o)}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--destructive,#ef4444)] [-webkit-tap-highlight-color:transparent] focus:outline-none"
-            >
-              <Unplug
-                data-testid="offline-cloud-off"
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0 animate-pulse"
-              />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{tooltipText}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={t("indicator.ariaLabel")}
+            // Popover owns tap-to-open/close natively — no manual onClick
+            // toggle needed. This kills the controlled-open + onClick reopen
+            // race that affected Radix Tooltip (Issue 1).
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--destructive,#ef4444)] [-webkit-tap-highlight-color:transparent] focus:outline-none"
+          >
+            <Unplug
+              data-testid="offline-cloud-off"
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 animate-pulse"
+            />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent side="bottom">{tooltipText}</PopoverContent>
+      </Popover>
     </span>
   );
 }

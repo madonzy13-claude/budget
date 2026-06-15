@@ -9,10 +9,10 @@
  * 260615-d76 fixes covered here:
  *   1. No false flash on reload — isOnline inits true; offline only after a
  *      confirmed post-mount navigator.onLine===false or an 'offline' event.
- *   2. Icon is lucide CloudOff (crossed cloud), not Globe.
+ *   2. Icon is lucide Unplug (pulsing), not Globe.
  *   3. budgetId null / per-budget miss → global "__global__" → most-recent
  *      fallback before tooltipUnknown.
- *   4. Tooltip side=bottom; tap toggles open→closed.
+ *   4. Popover side=bottom; tap opens, second tap closes (no reopen race).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -36,12 +36,13 @@ vi.mock("next-intl", () => ({
   useFormatter: () => ({ relativeTime: () => "13 minutes ago" }),
 }));
 
-// Radix Tooltip portals to document.body; render the content inline so the
-// asserted text + side prop are queryable. Keep controlled open/onOpenChange.
-vi.mock("@radix-ui/react-tooltip", () => {
+// Radix Popover portals to document.body; render the content inline so the
+// asserted text + side prop are queryable. Mirror open/onOpenChange on Root.
+// Popover's native tap-to-close: onOpenChange toggles state, trigger does NOT
+// need a manual onClick toggle.
+vi.mock("@radix-ui/react-popover", () => {
   const React = require("react");
   return {
-    Provider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     Root: ({
       children,
       open,
@@ -54,8 +55,12 @@ vi.mock("@radix-ui/react-tooltip", () => {
       React.createElement(
         "div",
         {
-          "data-tooltip-open": open ? "true" : "false",
+          "data-popover-open": open ? "true" : "false",
           "data-on-change": onOpenChange ? "1" : "0",
+          // Simulate Popover native toggle: clicking any child bubbles up and
+          // onOpenChange is called by Radix internally. We wire it here so RTL
+          // fireEvent.click on the trigger toggles the controlled state.
+          onClick: () => onOpenChange?.(!open),
         },
         children,
       ),
@@ -76,6 +81,7 @@ vi.mock("@radix-ui/react-tooltip", () => {
     Content: ({ children, ...props }: { children: React.ReactNode }) => (
       <div {...props}>{children}</div>
     ),
+    Anchor: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
 
@@ -158,8 +164,8 @@ describe("OfflineStatusBadge", () => {
     });
   });
 
-  // Fix 4: tooltip renders BELOW the icon (side=bottom).
-  it("offline: tooltip content renders with side=bottom", async () => {
+  // Fix 4: popover content renders BELOW the icon (side=bottom).
+  it("offline: popover content renders with side=bottom", async () => {
     setOnline(false);
     render(<OfflineStatusBadge budgetId="budget-1" />);
     await waitFor(() => {
@@ -215,8 +221,9 @@ describe("OfflineStatusBadge", () => {
     expect(mockGetMostRecentSyncMeta).toHaveBeenCalled();
   });
 
-  // Fix 4: tap toggles open → a second tap CLOSES (no reopen flicker).
-  it("tap-to-close: clicking the trigger toggles controlled tooltip open then closed", async () => {
+  // Fix 4: tap opens popover, second tap closes it (no reopen flicker).
+  // Popover owns the toggle natively — no manual onClick needed.
+  it("tap-to-close: clicking the trigger toggles Popover open then closed", async () => {
     setOnline(false);
     render(<OfflineStatusBadge budgetId="budget-1" />);
     let icon: HTMLElement;
@@ -225,14 +232,14 @@ describe("OfflineStatusBadge", () => {
     });
     const trigger = icon!.closest("button");
     expect(trigger).toBeTruthy();
-    const root = trigger!.closest("[data-tooltip-open]");
+    const root = trigger!.closest("[data-popover-open]");
     // Initially closed.
-    expect(root?.getAttribute("data-tooltip-open")).toBe("false");
+    expect(root?.getAttribute("data-popover-open")).toBe("false");
     // First tap opens.
     fireEvent.click(trigger!);
-    expect(root?.getAttribute("data-tooltip-open")).toBe("true");
-    // Second tap closes (reliably, no reopen).
+    expect(root?.getAttribute("data-popover-open")).toBe("true");
+    // Second tap closes (reliably, no reopen — Popover native toggle).
     fireEvent.click(trigger!);
-    expect(root?.getAttribute("data-tooltip-open")).toBe("false");
+    expect(root?.getAttribute("data-popover-open")).toBe("false");
   });
 });
