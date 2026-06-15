@@ -1,37 +1,63 @@
 "use client";
 /**
- * NavCacheWarmer — proactively warms the service worker's nav-doc cache while
- * online so an offline reload (or a cold PWA open) serves the REAL cached page
- * instead of the offline-shell (260615-e8s round 4).
+ * NavCacheWarmer — proactively warms the SW caches (document + RSC) for every
+ * route reachable from the current page while online, so an offline reload OR
+ * client-side soft-nav serves the REAL cached page (260615-e8s rounds 4-5).
  *
- * Why it's needed: the SW only caches a route on a hard navigation it controls.
- * But the PWA start_url is "/" — a 307 → /<locale> redirect that can't be cached
- * — and routes reached by client-side soft-nav never produce a cacheable
- * navigation. So the nav cache is frequently empty and a cold offline open falls
- * to the bare offline-shell. On every navigation (while online + controlled) we
- * post the home route + the current path to the SW, which fetches and caches the
- * real documents (see sw.ts `WARM_ROUTES`).
+ * Why aggressive: the SW only caches a route on a hard navigation it controls,
+ * and Next's in-viewport prefetch is unreliable on iOS — so neither the budget
+ * detail routes (home → budget) nor the BDP tabs were cached, and offline nav to
+ * them failed. We collect home + the current path + every same-origin app link
+ * on the page (home budget cards, BDP pills) and post them to the SW, which
+ * fetches + caches BOTH the document (hard-nav/reload) and the RSC payload
+ * (soft-nav). A session-scoped Set avoids re-warming. A delayed re-scan catches
+ * links that stream in after first paint (the home BudgetCards are Suspense'd).
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+
+const SUPPORTED = ["en", "pl", "uk"];
+
+function collectAppLinks(): string[] {
+  const out = new Set<string>();
+  document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]').forEach((a) => {
+    const href = (a.getAttribute("href") || "").split("?")[0].split("#")[0];
+    if (SUPPORTED.includes(href.split("/")[1])) out.add(href);
+  });
+  return [...out];
+}
 
 export function NavCacheWarmer({ locale }: { locale: string }) {
   const pathname = usePathname();
+  const warmed = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
       return;
     }
-    if (!navigator.onLine) return;
-    const home = `/${locale}`;
-    const urls = Array.from(new Set([home, pathname].filter(Boolean)));
-    navigator.serviceWorker.ready
-      .then((reg) => {
-        const sw = navigator.serviceWorker.controller ?? reg.active;
-        sw?.postMessage({ type: "WARM_ROUTES", urls });
-      })
-      .catch(() => {
-        // SW not ready / unsupported — non-fatal.
-      });
+
+    function postFresh(candidates: string[]) {
+      if (!navigator.onLine) return;
+      const fresh = candidates
+        .filter((u) => u && u.startsWith("/") && !warmed.current.has(u))
+        .slice(0, 25);
+      if (!fresh.length) return;
+      fresh.forEach((u) => warmed.current.add(u));
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          const sw = navigator.serviceWorker.controller ?? reg.active;
+          sw?.postMessage({ type: "WARM_ROUTES", urls: fresh });
+        })
+        .catch(() => {
+          // SW not ready / unsupported — non-fatal.
+        });
+    }
+
+    // Immediate: home + current path + links already in the DOM.
+    postFresh([`/${locale}`, pathname, ...collectAppLinks()]);
+    // Delayed: catch streamed-in links (home BudgetCards are Suspense'd).
+    const t = setTimeout(() => postFresh(collectAppLinks()), 1500);
+    return () => clearTimeout(t);
   }, [pathname, locale]);
 
   return null;

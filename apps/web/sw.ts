@@ -188,17 +188,37 @@ self.addEventListener("message", (event: any) => {
   if (!data || data.type !== "WARM_ROUTES" || !Array.isArray(data.urls)) return;
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(NAV_CACHE);
+      const navCache = await caches.open(NAV_CACHE);
+      const rscCache = await caches.open(RSC_CACHE);
       await Promise.all(
         data.urls.map(async (u: string) => {
           if (typeof u !== "string" || !u.startsWith("/")) return;
+          // 1) Document → nav-docs cache (hard-nav / reload fallback).
           try {
             const res = await fetch(u, { credentials: "include" });
             if (res.ok && !res.redirected) {
-              await cache.put(new Request(u), res.clone());
+              await navCache.put(new Request(u), res.clone());
             }
           } catch {
-            /* offline / fetch error — skip */
+            /* offline / error — skip */
+          }
+          // 2) RSC payload → rsc cache (client-side SOFT-nav). Keyed to match the
+          // runtime rule's cacheKeyWillBeUsed (path + RSC header, no _rsc). This
+          // pre-populates RSC so offline soft-nav works WITHOUT relying on Next's
+          // in-viewport prefetch (unreliable on iOS).
+          try {
+            const rscRes = await fetch(u, {
+              credentials: "include",
+              headers: { RSC: "1" },
+            });
+            if (rscRes.ok && !rscRes.redirected) {
+              await rscCache.put(
+                new Request(u, { headers: { RSC: "1" } }),
+                rscRes.clone(),
+              );
+            }
+          } catch {
+            /* offline / error — skip */
           }
         }),
       );
