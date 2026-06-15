@@ -144,9 +144,12 @@ export async function getCachedTransactions(
 
 /**
  * cacheActiveBudgets — persist the home-page budget list for offline render.
- * Bulk-puts into the "active-budgets" store and bumps __global__ sync-meta
- * (so the offline indicator shows a real cache age after a home-page visit).
- * No-op on empty list (stale-but-present beats blank).
+ * Bulk-puts into the "active-budgets" store. No-op on empty list (stale-but-
+ * present beats blank).
+ *
+ * Does NOT stamp sync-meta: the cache age is owned by markSynced, called only on
+ * a real network fetch, so the "last updated" time is not reset just by mounting
+ * the home island (which happens on every visit, online or offline).
  */
 export async function cacheActiveBudgets(
   list: ReadonlyArray<{ id: string }>,
@@ -156,7 +159,18 @@ export async function cacheActiveBudgets(
   const tx = db.transaction("active-budgets", "readwrite");
   await Promise.all([...list.map((item) => tx.store.put(item)), tx.done]);
   db.close();
-  await setSyncMeta("__global__", new Date().toISOString());
+}
+
+/**
+ * markSynced — stamp the cache age as NOW for a budget + the global key. Call
+ * ONLY after a real successful NETWORK fetch — never on a cache read / mount /
+ * offline navigation — so the "last updated" indicator reflects when data was
+ * actually fetched, not when the user navigated. (260615-e8s round 5.)
+ */
+export async function markSynced(budgetId: string): Promise<void> {
+  const iso = new Date().toISOString();
+  await setSyncMeta(budgetId, iso);
+  await setSyncMeta("__global__", iso);
 }
 
 /**

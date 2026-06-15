@@ -1205,7 +1205,7 @@
       "ariaLabel": "Brak połączenia z internetem"
     },
     "staleBar": {
-      "message": "Offline — dane z {relativeTime}",
+      "message": "Offline — dane zaktualizowano {relativeTime}",
       "unknown": "Offline — dane z pamięci"
     },
     "unavailable": {

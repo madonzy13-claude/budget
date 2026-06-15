@@ -1205,7 +1205,7 @@
       "ariaLabel": "Немає підключення до інтернету"
     },
     "staleBar": {
-      "message": "Офлайн — дані від {relativeTime}",
+      "message": "Офлайн — дані оновлені {relativeTime}",
       "unknown": "Офлайн — кешовані дані"
     },
     "unavailable": {

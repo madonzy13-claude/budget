@@ -10,9 +10,7 @@
  * Guard: a null/empty payload is a no-op — a fetch error must NOT overwrite a
  * previously valid cache entry (stale-but-present beats blank).
  */
-import { setCachedEntities, setSyncMeta, bumpGlobalSyncMeta } from "@/lib/offline-cache";
-// Re-export so island components can import from a single hooks path.
-export { bumpGlobalSyncMeta };
+import { setCachedEntities } from "@/lib/offline-cache";
 
 export interface BudgetSnapshot {
   budgetId: string;
@@ -31,32 +29,22 @@ export interface BudgetSnapshot {
 export async function cacheBudgetSnapshot(
   snapshot: BudgetSnapshot,
 ): Promise<void> {
-  const { budgetId, budget, wallets, categories, transactions, iso } = snapshot;
+  const { budget, wallets, categories, transactions } = snapshot;
 
-  let wrote = false;
-
+  // Entity caching only — NO sync-meta stamp. The cache age is owned by
+  // markSynced (called only on a real network fetch), so caching a snapshot on
+  // mount/success (which includes offline cache-sourced success) never resets
+  // the "last updated" indicator. (260615-e8s round 5.)
   if (budget) {
     await setCachedEntities("budgets", [budget]);
-    wrote = true;
   }
   if (wallets && wallets.length > 0) {
     await setCachedEntities("wallets", wallets);
-    wrote = true;
   }
   if (categories && categories.length > 0) {
     await setCachedEntities("categories", categories);
-    wrote = true;
   }
   if (transactions && transactions.length > 0) {
     await setCachedEntities("transactions", transactions);
-    wrote = true;
-  }
-
-  if (wrote && iso) {
-    await setSyncMeta(budgetId, iso);
-    // 260615-d76: also bump a global last-sync key so the budget-list/home
-    // route (budgetId null) can surface a real cache age via the
-    // getMostRecentSyncMeta / "__global__" fallback chain.
-    await setSyncMeta("__global__", iso);
   }
 }

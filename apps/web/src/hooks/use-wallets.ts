@@ -7,7 +7,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
-import { getCachedEntities } from "@/lib/offline-cache";
+import { getCachedEntities, markSynced } from "@/lib/offline-cache";
 
 export interface WalletDto {
   id: string;
@@ -38,6 +38,8 @@ export function useWallets(budgetId: string, initialData?: WalletDto[]) {
         const res = await clientApiFetch(`/wallets`);
         if (!res.ok) throw new Error(await res.text());
         const json = await res.json();
+        // Real network success → stamp the cache age (260615-e8s round 5).
+        void markSynced(budgetId).catch(() => {});
         return (json.wallets ?? []) as WalletDto[];
       } catch (e) {
         // Offline read-back (260615-e8s): serve cached rows so a cold offline

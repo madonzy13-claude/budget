@@ -17,7 +17,11 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 import { cacheBudgetSnapshot } from "./use-cache-on-fetch";
 import { useWallets, type WalletDto } from "./use-wallets";
 import { useTransactions, type TxnDTO } from "./use-transactions";
-import { getCachedBudget, getCachedEntities } from "@/lib/offline-cache";
+import {
+  getCachedBudget,
+  getCachedEntities,
+  markSynced,
+} from "@/lib/offline-cache";
 
 export interface BudgetDto {
   id: string;
@@ -45,6 +49,7 @@ export function useBudget(budgetId: string, initialData?: BudgetDto) {
         const res = await clientApiFetch(`/budgets/${budgetId}`);
         if (!res.ok) throw new Error("budget_fetch_failed");
         const json = await res.json();
+        void markSynced(budgetId).catch(() => {});
         return json.budget ?? json;
       } catch (e) {
         // Offline read-back (260615-e8s): serve the cached budget row.
@@ -70,6 +75,7 @@ export function useCategories(budgetId: string, initialData?: CategoryDto[]) {
         const res = await clientApiFetch(`/budgets/${budgetId}/categories`);
         if (!res.ok) throw new Error("categories_fetch_failed");
         const json = await res.json();
+        void markSynced(budgetId).catch(() => {});
         return json.categories ?? [];
       } catch (e) {
         // Offline read-back (260615-e8s): serve cached category rows.

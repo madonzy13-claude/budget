@@ -1203,7 +1203,7 @@
       "ariaLabel": "No internet connection"
     },
     "staleBar": {
-      "message": "Offline — cached data from {relativeTime}",
+      "message": "Offline — data updated {relativeTime}",
       "unknown": "Offline — showing cached data"
     },
     "unavailable": {

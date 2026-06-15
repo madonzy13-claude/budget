@@ -255,62 +255,84 @@ describe("offline create-transaction write path", () => {
 // These tests lock the IDB write contract that the budget islands rely on.
 // Uses fake-indexeddb so real IDB calls execute deterministically.
 import "fake-indexeddb/auto";
-import {
-  cacheBudgetSnapshot,
-} from "../src/hooks/use-cache-on-fetch";
+import { cacheBudgetSnapshot } from "../src/hooks/use-cache-on-fetch";
 import {
   getCachedEntities,
   getSyncMeta,
   bumpGlobalSyncMeta,
+  markSynced,
   wipeBudgetCache,
 } from "../src/lib/offline-cache";
 
 // Reset IDB between each test in this describe block
-const afterEachClear = async () => { await wipeBudgetCache(); };
+const afterEachClear = async () => {
+  await wipeBudgetCache();
+};
 
 describe("cacheBudgetSnapshot (IDB write contract)", () => {
-  beforeEach(async () => { await wipeBudgetCache(); });
+  beforeEach(async () => {
+    await wipeBudgetCache();
+  });
   afterEach(afterEachClear);
 
-  it("stores wallets and sets per-budget + __global__ sync-meta", async () => {
-    const iso = new Date().toISOString();
+  // 260615-e8s round 5: caching entities must NOT stamp sync-meta — the cache
+  // age is owned by markSynced (network-only), so caching on mount/cache-read
+  // never resets the "last updated" indicator.
+  it("stores wallets WITHOUT stamping sync-meta", async () => {
     await cacheBudgetSnapshot({
       budgetId: "b-1",
       budget: undefined,
       wallets: [{ id: "w-1", name: "Checking" }],
       categories: undefined,
       transactions: undefined,
-      iso,
+      iso: new Date().toISOString(),
     });
     const wallets = await getCachedEntities("wallets");
     expect(wallets.length).toBe(1);
     expect((wallets[0] as { id: string }).id).toBe("w-1");
-    const perBudget = await getSyncMeta("b-1");
-    expect(perBudget).toBe(iso);
-    const global = await getSyncMeta("__global__");
-    expect(global).toBe(iso);
+    // No stamp.
+    expect(await getSyncMeta("b-1")).toBeNull();
+    expect(await getSyncMeta("__global__")).toBeNull();
   });
 
-  it("stores categories and bumps sync-meta", async () => {
-    const iso = new Date().toISOString();
+  it("stores categories WITHOUT stamping sync-meta", async () => {
     await cacheBudgetSnapshot({
       budgetId: "b-2",
       budget: undefined,
       wallets: undefined,
       categories: [{ id: "cat-1", name: "Food" }],
       transactions: undefined,
-      iso,
+      iso: new Date().toISOString(),
     });
-    const cats = await getCachedEntities("categories");
-    expect(cats.length).toBe(1);
-    expect((cats[0] as { id: string }).id).toBe("cat-1");
-    expect(await getSyncMeta("b-2")).toBe(iso);
-    expect(await getSyncMeta("__global__")).toBe(iso);
+    expect((await getCachedEntities("categories")).length).toBe(1);
+    expect(await getSyncMeta("b-2")).toBeNull();
+    expect(await getSyncMeta("__global__")).toBeNull();
+  });
+});
+
+describe("markSynced (network-only cache-age stamp)", () => {
+  beforeEach(async () => {
+    await wipeBudgetCache();
+  });
+  afterEach(afterEachClear);
+
+  it("stamps per-budget + __global__ with the current time", async () => {
+    const before = new Date().toISOString();
+    await markSynced("b-7");
+    const after = new Date().toISOString();
+    const perBudget = await getSyncMeta("b-7");
+    const global = await getSyncMeta("__global__");
+    expect(perBudget).not.toBeNull();
+    expect(global).not.toBeNull();
+    expect(perBudget! >= before && perBudget! <= after).toBe(true);
+    expect(global).toBe(perBudget);
   });
 });
 
 describe("bumpGlobalSyncMeta (new helper)", () => {
-  beforeEach(async () => { await wipeBudgetCache(); });
+  beforeEach(async () => {
+    await wipeBudgetCache();
+  });
   afterEach(afterEachClear);
 
   it("writes __global__ sync-meta with the provided ISO", async () => {

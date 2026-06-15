@@ -2,10 +2,11 @@
 /**
  * home-offline-cache.tsx — Home page client island (260615-e8s Task 5).
  *
- * Single responsibility: on an online visit (budgets.length > 0), persist the
- * active-budgets list to IndexedDB via cacheActiveBudgets, which also bumps the
- * __global__ sync-meta so the offline indicator shows a real cache age after the
- * home page has been seen. It then renders {children} unchanged.
+ * Single responsibility: persist the active-budgets list to IndexedDB via
+ * cacheActiveBudgets (so a cold offline open can render the home list). It does
+ * NOT stamp sync-meta — the cache age is owned by markSynced, called only on a
+ * real network fetch, so mounting the home island never resets the "last
+ * updated" indicator. It then renders {children} unchanged.
  *
  * Why children (not an imported grid): the real cards are rendered by the SERVER
  * component HomeCardsGrid → BudgetCard, and BudgetCard pulls in "server-only"

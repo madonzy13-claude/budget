@@ -244,9 +244,12 @@ describe("active-budgets store (Task 5, DB_VERSION=3)", () => {
     expect((result[1] as { id: string }).id).toBe("b-2");
   });
 
-  it("cacheActiveBudgets bumps __global__ sync-meta", async () => {
-    const { cacheActiveBudgets } = await import("../src/lib/offline-cache");
-    const before = new Date().toISOString();
+  // 260615-e8s round 5: cacheActiveBudgets stores the list but must NOT stamp
+  // sync-meta — mounting the home island (every visit, online or offline) would
+  // otherwise reset the "last updated" indicator.
+  it("cacheActiveBudgets does NOT stamp __global__ sync-meta", async () => {
+    const { cacheActiveBudgets, getCachedActiveBudgets } =
+      await import("../src/lib/offline-cache");
     await cacheActiveBudgets([
       {
         id: "b-1",
@@ -256,18 +259,17 @@ describe("active-budgets store (Task 5, DB_VERSION=3)", () => {
         pendingTasksCount: 0,
       },
     ]);
-    const after = new Date().toISOString();
-    const global = await getSyncMeta("__global__");
-    expect(global).not.toBeNull();
-    expect(global! >= before).toBe(true);
-    expect(global! <= after).toBe(true);
+    expect(await getSyncMeta("__global__")).toBeNull();
+    // ...but the list IS persisted.
+    expect(await getCachedActiveBudgets()).toHaveLength(1);
   });
 
-  it("cacheActiveBudgets is a no-op (no __global__ bump) for empty list", async () => {
-    const { cacheActiveBudgets } = await import("../src/lib/offline-cache");
+  it("cacheActiveBudgets is a no-op for an empty list", async () => {
+    const { cacheActiveBudgets, getCachedActiveBudgets } =
+      await import("../src/lib/offline-cache");
     await cacheActiveBudgets([]);
-    const global = await getSyncMeta("__global__");
-    expect(global).toBeNull();
+    expect(await getSyncMeta("__global__")).toBeNull();
+    expect(await getCachedActiveBudgets()).toHaveLength(0);
   });
 });
 

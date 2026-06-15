@@ -16,7 +16,7 @@ import {
   type TxnDTO,
   type TxnRowSnake,
 } from "@/lib/txn-mapper";
-import { getCachedTransactions } from "@/lib/offline-cache";
+import { getCachedTransactions, markSynced } from "@/lib/offline-cache";
 
 export { mapTxnRowToDTO };
 export type { TxnDTO, TxnRowSnake };
@@ -36,6 +36,8 @@ export function useTransactions(
         );
         if (!res.ok) throw new Error("transactions_fetch_failed");
         const body = (await res.json()) as { transactions?: TxnRowSnake[] };
+        // Real network success → stamp the cache age (260615-e8s round 5).
+        void markSynced(budgetId).catch(() => {});
         return (body.transactions ?? []).map(mapTxnRowToDTO);
       } catch (e) {
         // Offline read-back (260615-e8s): serve cached transactions filtered
