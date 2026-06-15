@@ -1050,6 +1050,11 @@
       }
     },
     "expensesTitle": "Wydatki",
+    "offlineDialog": {
+      "title": "Nie można dodać w trybie offline",
+      "body": "Jesteś offline, więc tego wydatku nie można teraz zapisać. Połącz się z internetem i spróbuj ponownie.",
+      "ok": "Rozumiem"
+    },
     "deleteCategory": {
       "title": "Usunąć kategorię na stałe?",
       "body": "Spowoduje to trwałe usunięcie kategorii {name} oraz wszystkich jej transakcji, limitów i historii. Tej operacji nie można cofnąć.",
@@ -1193,6 +1198,11 @@
     "badge": {
       "ariaLabel": "Offline",
       "label": "Offline"
+    },
+    "indicator": {
+      "tooltip": "Brak internetu — wyświetlane dane z {relativeTime}",
+      "tooltipUnknown": "Brak internetu — nieznany wiek danych z pamięci",
+      "ariaLabel": "Brak połączenia z internetem"
     },
     "unavailable": {
       "heading": "Niedostępne offline",

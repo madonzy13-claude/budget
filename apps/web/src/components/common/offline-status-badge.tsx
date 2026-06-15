@@ -1,26 +1,49 @@
 "use client";
 /**
- * OfflineStatusBadge — header offline indicator.
+ * OfflineStatusBadge — header offline indicator (260615-bse redesign).
  *
- * App-shell offline nav (260614-rwt): mounted INSIDE the TopNav header (right
- * cluster), the badge is a small inline pill with ZERO added vertical height so
- * toggling online↔offline causes no layout shift:
+ * App-shell offline nav: mounted INSIDE the TopNav header (right cluster), the
+ * badge is a small inline control with ZERO added vertical height so toggling
+ * online↔offline causes no layout shift:
  *   online  → sr-only / aria-hidden (zero footprint)
- *   offline → inline-flex pill: red --destructive animate-pulse dot + "Offline"
+ *   offline → inline-flex h-6 pill: a PULSING lucide Globe (red --destructive)
+ *             with a tooltip showing how stale the cached data is, e.g.
+ *             "No internet — showing data from 13 minutes ago".
+ *
+ * Cache age: reuses staleness-marker.tsx's pattern — useFormatter().relativeTime
+ * over getSyncMeta(budgetId).lastSyncedAt, ticked every 30s while offline. A
+ * null budgetId or missing sync-meta falls back to indicator.tooltipUnknown.
+ *
+ * CONTROLLED tooltip — WHY: Radix Tooltip opens on hover/focus ONLY; it has NO
+ * native tap-to-open, so on touch devices the tooltip would be unreachable.
+ * We drive an explicit `open` state: Radix still toggles it on hover/focus via
+ * onOpenChange (desktop), and an onClick on the trigger toggles it (mobile tap).
  *
  * Connectivity is read from the browser online/offline events + navigator.onLine
- * seed for the AMBIENT pill only — it NEVER gates writes (those are
+ * seed for the AMBIENT indicator only — it NEVER gates writes (those are
  * fetch-result/Promise.race-driven, because navigator.onLine lies on iOS). The
  * write fast-negative in use-create-transaction.ts is a separate concern.
  */
 import { useState, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
+import { Globe } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { getSyncMeta } from "@/lib/offline-cache";
 
-export function OfflineStatusBadge() {
+export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
   const t = useTranslations("offline");
+  const fmt = useFormatter();
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true,
   );
+  const [open, setOpen] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     function handleOnline() {
@@ -37,6 +60,29 @@ export function OfflineStatusBadge() {
     };
   }, []);
 
+  // Load the last-synced timestamp from IndexedDB (cache-age source). Guard a
+  // null budgetId → no lookup → tooltipUnknown branch.
+  useEffect(() => {
+    if (!budgetId) {
+      setLastSyncedAt(null);
+      return;
+    }
+    getSyncMeta(budgetId)
+      .then((iso) => {
+        if (iso) setLastSyncedAt(new Date(iso));
+      })
+      .catch(() => {
+        // IndexedDB unavailable (e.g. private browsing) — silently ignore.
+      });
+  }, [budgetId, isOnline]);
+
+  // Tick every 30s to keep the relative cache age fresh while offline.
+  useEffect(() => {
+    if (isOnline) return;
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, [isOnline]);
+
   if (isOnline) {
     return (
       <span
@@ -47,36 +93,43 @@ export function OfflineStatusBadge() {
     );
   }
 
-  // Compact inline pill — wifi-off icon + short label. shrink-0 so it never
-  // collapses, h-6/tiny text so it sits inside the 64px header with no extra
-  // height. Tight px so it never crowds the avatar; the switcher truncates to
-  // make room. No w-full banner, no fixed h-* row → no layout shift toggling
-  // from the sr-only online state.
+  const tooltipText =
+    lastSyncedAt !== null
+      ? t("indicator.tooltip", {
+          relativeTime: fmt.relativeTime(lastSyncedAt, now),
+        })
+      : t("indicator.tooltipUnknown");
+
+  // Compact inline control — pulsing globe only. h-6 + shrink-0 so it sits
+  // inside the 64px header with NO extra height (no layout shift vs the
+  // sr-only online state) and never crowds the avatar.
   return (
     <span
       data-testid="offline-status-badge"
-      aria-label={t("badge.ariaLabel")}
-      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-[var(--destructive,#ef4444)]/40 bg-[var(--destructive,#ef4444)]/10 px-1.5 text-[10px] font-semibold leading-none text-[var(--destructive,#ef4444)]"
+      className="inline-flex h-6 shrink-0 items-center"
     >
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-3 w-3 shrink-0 animate-pulse"
-      >
-        <path d="M2 2l20 20" />
-        <path d="M8.5 16.5a5 5 0 0 1 7 0" />
-        <path d="M2 8.82a15 15 0 0 1 4.17-2.65" />
-        <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76" />
-        <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68" />
-        <path d="M5 13a10 10 0 0 1 5.24-2.76" />
-        <line x1="12" y1="20" x2="12.01" y2="20" />
-      </svg>
-      <span className="hidden sm:inline">{t("badge.label")}</span>
+      <TooltipProvider>
+        <Tooltip open={open} onOpenChange={setOpen}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("indicator.ariaLabel")}
+              // Mobile tap: Radix has no native tap-to-open, so toggle the
+              // controlled state explicitly. Desktop hover/focus is still
+              // driven by Radix via onOpenChange.
+              onClick={() => setOpen((o) => !o)}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--destructive,#ef4444)] [-webkit-tap-highlight-color:transparent] focus:outline-none"
+            >
+              <Globe
+                data-testid="offline-globe"
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 animate-pulse"
+              />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{tooltipText}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </span>
   );
 }

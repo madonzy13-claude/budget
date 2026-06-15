@@ -1027,6 +1027,11 @@
       }
     },
     "expensesTitle": "Expenses",
+    "offlineDialog": {
+      "title": "Can't add while offline",
+      "body": "You're offline, so this expense can't be saved right now. Reconnect to the internet and try again.",
+      "ok": "Got it"
+    },
     "deleteCategory": {
       "title": "Delete category permanently?",
       "body": "This permanently deletes {name} and all of its transactions, limits and history. This cannot be undone.",
@@ -1191,6 +1196,11 @@
     "badge": {
       "ariaLabel": "Offline",
       "label": "Offline"
+    },
+    "indicator": {
+      "tooltip": "No internet — showing data from {relativeTime}",
+      "tooltipUnknown": "No internet — cached data age unknown",
+      "ariaLabel": "No internet connection"
     },
     "unavailable": {
       "heading": "Not available offline",

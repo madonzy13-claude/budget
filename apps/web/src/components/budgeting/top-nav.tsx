@@ -61,7 +61,7 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
       <div className="flex shrink-0 items-center gap-2">
         {/* Inline offline pill — zero-height, sits inside the 64px header (no
             layout shift). Client leaf inside this server component — fine. */}
-        <OfflineStatusBadge />
+        <OfflineStatusBadge budgetId={activeBudgetId} />
         {session?.user && (
           <ProfileMenu
             locale={locale}
