@@ -4,7 +4,8 @@
  * After cacheBudgetSnapshot:
  *   - getCachedBudget(id) is non-null
  *   - wallets/categories rows are readable from IndexedDB
- *   - getSyncMeta(id) returns the iso timestamp
+ *   - sync-meta is NOT stamped — the cache age is owned by markSynced, called
+ *     only on a real network fetch (260615-e8s round 5).
  *
  * A no-data / partial call writes nothing and is a no-op (error path isolation).
  */
@@ -14,6 +15,7 @@ import { wipeBudgetCache } from "../src/lib/offline-cache";
 import {
   getCachedBudget,
   getSyncMeta,
+  markSynced,
   openBudgetDB,
 } from "../src/lib/offline-cache";
 import { cacheBudgetSnapshot } from "../src/hooks/use-cache-on-fetch";
@@ -91,7 +93,11 @@ describe("cacheBudgetSnapshot — full payload", () => {
     db.close();
   });
 
-  it("getSyncMeta returns the iso after snapshot", async () => {
+  // 260615-e8s round 5: the snapshot is STAMP-FREE. Caching happens on every
+  // mount/success (including offline cache-sourced success), so stamping here
+  // would reset the "last updated" age on navigation. The age is owned by
+  // markSynced (network-only) instead.
+  it("does NOT stamp the per-budget sync-meta (owned by markSynced)", async () => {
     await cacheBudgetSnapshot({
       budgetId: "b-001",
       budget,
@@ -101,12 +107,10 @@ describe("cacheBudgetSnapshot — full payload", () => {
       iso: ISO,
     });
     const meta = await getSyncMeta("b-001");
-    expect(meta).toBe(ISO);
+    expect(meta).toBeNull();
   });
 
-  // 260615-d76: every cache write ALSO bumps a global "__global__" key so the
-  // budget-list/home route (budgetId null) can show a real cache age.
-  it("also writes the global __global__ sync-meta key", async () => {
+  it("does NOT stamp the global __global__ sync-meta (owned by markSynced)", async () => {
     await cacheBudgetSnapshot({
       budgetId: "b-001",
       budget,
@@ -116,7 +120,19 @@ describe("cacheBudgetSnapshot — full payload", () => {
       iso: ISO,
     });
     const global = await getSyncMeta("__global__");
-    expect(global).toBe(ISO);
+    expect(global).toBeNull();
+  });
+});
+
+describe("markSynced — network-fetch cache-age stamp", () => {
+  it("stamps BOTH the per-budget and the global __global__ keys with NOW", async () => {
+    await markSynced("b-001");
+    const perBudget = await getSyncMeta("b-001");
+    const global = await getSyncMeta("__global__");
+    expect(perBudget).not.toBeNull();
+    expect(global).not.toBeNull();
+    // Same call → both keys carry the same instant.
+    expect(perBudget).toBe(global);
   });
 });
 

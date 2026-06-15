@@ -31,12 +31,14 @@ describe("useTransactions", () => {
     });
 
     await waitFor(() => expect(result.current.data).toBeDefined());
+    // queryFn aborts a slow fetch (AbortSignal.timeout) so the call carries a signal.
     expect(mockFetch).toHaveBeenCalledWith(
       `/budgets/${BUDGET_ID}/transactions?month=${MONTH}&confirmed=true`,
+      expect.objectContaining({ signal: expect.anything() }),
     );
   });
 
-  it("initialData hydrates immediately without fetch", () => {
+  it("initialData renders instantly, then background-refetches (refetchOnMount: always)", async () => {
     const initialData = [
       {
         id: "txn-1",
@@ -47,15 +49,21 @@ describe("useTransactions", () => {
         confirmedAt: "2026-05-01T00:00:00Z",
       },
     ];
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ transactions: [] }),
+    });
 
     const { result } = renderHook(
       () => useTransactions(BUDGET_ID, MONTH, { initialData }),
       { wrapper },
     );
 
-    // Should have data immediately (no fetch needed)
+    // Instant paint: initialData is available synchronously on the first render
+    // (stale-while-revalidate — zero waiting where cache exists).
     expect(result.current.data).toEqual(initialData);
-    expect(mockFetch).not.toHaveBeenCalled();
+    // ...but a background refetch still fires to stamp the cache age + refresh.
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled());
   });
 
   it("queryKey is exactly ['transactions', budgetId, month]", async () => {
@@ -122,6 +130,8 @@ describe("useTransactions", () => {
     expect(row.transactionDate).toBe("2026-05-01");
     // snake_case keys must NOT appear
     expect((row as Record<string, unknown>).category_id).toBeUndefined();
-    expect((row as Record<string, unknown>).amount_converted_cents).toBeUndefined();
+    expect(
+      (row as Record<string, unknown>).amount_converted_cents,
+    ).toBeUndefined();
   });
 });

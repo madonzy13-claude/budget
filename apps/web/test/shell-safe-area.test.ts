@@ -86,11 +86,16 @@ describe("(app) shell clears iOS bottom UI", () => {
       /data-bdp-tabs[^}]*top:\s*calc\(4rem \+ 1px\)/,
     );
     expect(layout).toMatch(/<header[^>]*data-shell-header/);
-    const bdpLayout = readFileSync(
-      resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+    // quick-260613-pdb moved the sticky band into <BudgetShellData> so layout.tsx
+    // commits synchronously; the data-bdp-tabs band lives there now.
+    const shellData = readFileSync(
+      resolve(
+        __dirname,
+        "../src/app/[locale]/(app)/budgets/[id]/budget-shell-data.tsx",
+      ),
       "utf8",
     );
-    expect(bdpLayout).toMatch(/data-bdp-tabs/);
+    expect(shellData).toMatch(/data-bdp-tabs/);
   });
 
   it("right-side Sheet variant is decoupled from .pb-shell-safe page padding (quick-260612-a0c R1)", () => {
@@ -512,10 +517,6 @@ describe("Round 5 — browser box extends UNDER the bar (SHELL-R15)", () => {
 });
 
 describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issues #2-5)", () => {
-  const bdpLayout = readFileSync(
-    resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
-    "utf8",
-  );
   const spendingsGrid = readFileSync(
     resolve(
       __dirname,
@@ -523,25 +524,41 @@ describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issue
     ),
     "utf8",
   );
+  // quick-260613-pdb: the sticky band + ActivePillTaskSlider moved out of
+  // layout.tsx into <BudgetShellData>. The banner-placement assertions read it.
+  // Strip comments first — the JSDoc names both data-bdp-tabs and
+  // ActivePillTaskSlider, which would pollute structural string matching.
+  const shellCode = readFileSync(
+    resolve(
+      __dirname,
+      "../src/app/[locale]/(app)/budgets/[id]/budget-shell-data.tsx",
+    ),
+    "utf8",
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
 
   // ── Issue #2: Banner below band ──────────────────────────────────────────
   it("#2: ActivePillTaskSlider is NOT inside [data-bdp-tabs] wrapper", () => {
     // User wants the banner as normal page content BELOW the sticky band,
-    // not occluded inside it. Extract the data-bdp-tabs block and assert
-    // ActivePillTaskSlider does not appear in it.
+    // not occluded inside it. Extract the data-bdp-tabs band element (anchored
+    // on the attribute → `>` so the comment can't match) and assert the
+    // slider JSX does not appear in it.
     const dataBdpTabsBlock =
-      bdpLayout.match(/data-bdp-tabs[\s\S]*?<\/div>/)?.[0] ?? "";
-    expect(dataBdpTabsBlock).not.toMatch(/ActivePillTaskSlider/);
+      shellCode.match(/data-bdp-tabs\s*>[\s\S]*?<\/div>/)?.[0] ?? "";
+    expect(dataBdpTabsBlock).not.toMatch(/<ActivePillTaskSlider/);
   });
 
-  it("#2: ActivePillTaskSlider IS inside the pb-shell-safe content wrapper", () => {
-    // After the move it renders as the first child of the content wrapper
-    // so it scrolls with the page content, fully visible at rest under the band.
-    // Match from the JSX opening tag of the pb-shell-safe div.
-    const pbShellBlock =
-      bdpLayout.match(/<div className="pb-shell-safe">[\s\S]*?<\/div>/)?.[0] ??
-      "";
-    expect(pbShellBlock).toMatch(/ActivePillTaskSlider/);
+  it("#2: ActivePillTaskSlider renders below the sticky band as page content", () => {
+    // quick-260613-pdb: the slider lives in <BudgetShellData>, rendered AFTER
+    // the data-bdp-tabs band (a sibling above layout.tsx's pb-shell-safe
+    // children) so it sits below the band and scrolls with page content,
+    // fully visible at rest rather than occluded inside the sticky band.
+    expect(shellCode).toMatch(/<ActivePillTaskSlider/);
+    expect(shellCode.indexOf("<ActivePillTaskSlider")).toBeGreaterThan(
+      shellCode.indexOf("data-bdp-tabs"),
+    );
   });
 
   // ── Issue #3: Grid tail spacer ───────────────────────────────────────────
