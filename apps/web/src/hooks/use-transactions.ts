@@ -30,19 +30,23 @@ export function useTransactions(
     queryKey: ["transactions", budgetId, month] as const,
     initialData: options?.initialData,
     queryFn: async (): Promise<TxnDTO[]> => {
+      // OFFLINE FAST-PATH (260615-e8s round 7): see use-wallets — avoid the
+      // hanging-fetch skeleton by serving cache directly when offline.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        const cached = await getCachedTransactions(budgetId, month);
+        if (cached.length) return cached as TxnDTO[];
+        throw new Error("offline_no_cache");
+      }
       try {
         const res = await clientApiFetch(
           `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
+          { signal: AbortSignal.timeout(7000) },
         );
         if (!res.ok) throw new Error("transactions_fetch_failed");
         const body = (await res.json()) as { transactions?: TxnRowSnake[] };
-        // Real network success → stamp the cache age (260615-e8s round 5).
         void markSynced(budgetId).catch(() => {});
         return (body.transactions ?? []).map(mapTxnRowToDTO);
       } catch (e) {
-        // Offline read-back (260615-e8s): serve cached transactions filtered
-        // by budgetId+month so the spendings grid paints last-online rows.
-        // _cacheKey is kept on cached rows; TxnDTO consumers ignore extra fields.
         const cached = await getCachedTransactions(budgetId, month);
         if (cached.length) return cached as TxnDTO[];
         throw e;

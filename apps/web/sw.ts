@@ -106,6 +106,11 @@ const serwist: Serwist = new Serwist({
         request.headers.get("RSC") === "1",
       handler: new NetworkFirst({
         cacheName: RSC_CACHE,
+        // Offline, a real fetch HANGS rather than rejecting — without a timeout a
+        // soft-nav to an uncached route leaves Next stuck on loading.tsx forever.
+        // After 3s, fall back to the cached RSC (if any) or fail so Next does its
+        // hard-navigation fallback (served from the warmed document). (r7)
+        networkTimeoutSeconds: 3,
         plugins: [
           {
             cacheKeyWillBeUsed: async ({

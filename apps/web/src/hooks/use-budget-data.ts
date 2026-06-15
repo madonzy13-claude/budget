@@ -45,14 +45,21 @@ export function useBudget(budgetId: string, initialData?: BudgetDto) {
     queryKey: ["budget", budgetId, "detail"] as const,
     initialData,
     queryFn: async (): Promise<BudgetDto> => {
+      // OFFLINE FAST-PATH (260615-e8s round 7): see use-wallets.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        const cached = await getCachedBudget(budgetId);
+        if (cached) return cached as BudgetDto;
+        throw new Error("offline_no_cache");
+      }
       try {
-        const res = await clientApiFetch(`/budgets/${budgetId}`);
+        const res = await clientApiFetch(`/budgets/${budgetId}`, {
+          signal: AbortSignal.timeout(7000),
+        });
         if (!res.ok) throw new Error("budget_fetch_failed");
         const json = await res.json();
         void markSynced(budgetId).catch(() => {});
         return json.budget ?? json;
       } catch (e) {
-        // Offline read-back (260615-e8s): serve the cached budget row.
         const cached = await getCachedBudget(budgetId);
         if (cached) return cached as BudgetDto;
         throw e;
@@ -71,14 +78,21 @@ export function useCategories(budgetId: string, initialData?: CategoryDto[]) {
     queryKey: ["budget", budgetId, "categories"] as const,
     initialData,
     queryFn: async (): Promise<CategoryDto[]> => {
+      // OFFLINE FAST-PATH (260615-e8s round 7): see use-wallets.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        const cached = await getCachedEntities("categories");
+        if (cached.length) return cached as CategoryDto[];
+        throw new Error("offline_no_cache");
+      }
       try {
-        const res = await clientApiFetch(`/budgets/${budgetId}/categories`);
+        const res = await clientApiFetch(`/budgets/${budgetId}/categories`, {
+          signal: AbortSignal.timeout(7000),
+        });
         if (!res.ok) throw new Error("categories_fetch_failed");
         const json = await res.json();
         void markSynced(budgetId).catch(() => {});
         return json.categories ?? [];
       } catch (e) {
-        // Offline read-back (260615-e8s): serve cached category rows.
         const cached = await getCachedEntities("categories");
         if (cached.length) return cached as CategoryDto[];
         throw e;
