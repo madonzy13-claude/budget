@@ -208,3 +208,16 @@ User picked "SPA-offline". Root cause of offline-nav failing: Next App Router so
 Verified live: online nav unchanged (0 console errors); offline pill clicks render the REAL cached pages (real header + pills + stale bar), no hang, no offline-shell. 79/79 offline Vitest green.
 
 Remaining gap (honest): a route NEVER prefetched/visited AND not cached → soft-nav still hard-navs to the offline-shell. With prefetch this is rare. The in-content-message-preserving-pills for that exact case (an OfflineNavGuard click-interceptor) was NOT added — it's risky vs marginal value now that RSC caching covers normal usage; revisit if the user still hits the separate page in real use.
+
+## Round 6 — device: offline nav still failed → aggressive doc warming
+
+Device: "data updated 5h ago" + can't open budgets / switch pills even on reload. Root cause: the device's SW was from BEFORE RSC caching (offline since), AND warming only covered home + the current route's doc — budget routes + tabs were never cached (Next prefetch unreliable on iOS).
+
+Fixes:
+
+- NavCacheWarmer now collects home + current + every same-origin app link + DERIVES the 4 BDP sibling tabs from each budget link (home cards only link to /wallets). The SW warms the DOCUMENT of each into nav-docs-v1. From home alone, every budget's 4 tabs cache (verified: 46 routes).
+- Removed hand-warmed RSC: a bare RSC:1 fetch (no Next-Router-State-Tree) returned a redirect-to-sign-in payload → offline soft-nav bounced to /sign-in. Bumped rsc-v1→rsc-v2 to drop the bad entries. Real RSC is cached by the runtime rule from genuine prefetch/nav; offline soft-nav to a doc-warmed route falls back to hard-nav → warmed doc → real page.
+
+Verified live (home-only warm, then offline): open budget never manually visited + switch ALL pills (wallets/spendings/reserves/settings) → all real pages, no shell, no sign-in. 80/80 offline Vitest green.
+
+DEVICE: must go online once on the NEW build (clear caches + unregister SW) and open the app (warms from home) → then offline nav works.
