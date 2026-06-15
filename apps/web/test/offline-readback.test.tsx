@@ -53,8 +53,16 @@ beforeEach(async () => {
 describe("use-wallets offline read-back", () => {
   it("returns cached wallets from IDB when fetch throws", async () => {
     const cachedWallets = [
-      { id: "w-1", name: "Checking", walletType: "SPENDINGS", currency: "USD",
-        currentBalanceCents: "100000", archivedAt: null },
+      // round 8: cached wallets are tagged with _budgetId for the scoped read.
+      {
+        id: "w-1",
+        name: "Checking",
+        walletType: "SPENDINGS",
+        currency: "USD",
+        currentBalanceCents: "100000",
+        archivedAt: null,
+        _budgetId: "b-1",
+      },
     ];
     await setCachedEntities("wallets", cachedWallets);
 
@@ -69,11 +77,19 @@ describe("use-wallets offline read-back", () => {
 
   it("returns network data when fetch succeeds (online path unchanged)", async () => {
     const networkWallets = [
-      { id: "w-net", name: "Network Wallet", walletType: "SPENDINGS",
-        currency: "USD", currentBalanceCents: "0", archivedAt: null },
+      {
+        id: "w-net",
+        name: "Network Wallet",
+        walletType: "SPENDINGS",
+        currency: "USD",
+        currentBalanceCents: "0",
+        archivedAt: null,
+      },
     ];
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ wallets: networkWallets }), { status: 200 }),
+      new Response(JSON.stringify({ wallets: networkWallets }), {
+        status: 200,
+      }),
     );
 
     const { useWallets } = await import("../src/hooks/use-wallets");
@@ -81,7 +97,9 @@ describe("use-wallets offline read-back", () => {
     const { result } = renderHook(() => useWallets("b-1"), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect((result.current.data as Array<{ id: string }>)?.[0]?.id).toBe("w-net");
+    expect((result.current.data as Array<{ id: string }>)?.[0]?.id).toBe(
+      "w-net",
+    );
   });
 });
 
@@ -104,10 +122,9 @@ describe("use-transactions offline read-back", () => {
 
     const { useTransactions } = await import("../src/hooks/use-transactions");
     const { wrapper } = makeWrapper();
-    const { result } = renderHook(
-      () => useTransactions("b-1", "2026-06"),
-      { wrapper },
-    );
+    const { result } = renderHook(() => useTransactions("b-1", "2026-06"), {
+      wrapper,
+    });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toHaveLength(1);
@@ -126,7 +143,9 @@ describe("use-budget-data useCategories offline read-back", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toHaveLength(1);
-    expect((result.current.data as Array<{ id: string }>)?.[0]?.id).toBe("cat-1");
+    expect((result.current.data as Array<{ id: string }>)?.[0]?.id).toBe(
+      "cat-1",
+    );
   });
 });
 
