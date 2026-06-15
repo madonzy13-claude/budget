@@ -14,6 +14,7 @@ import { InstallBanner } from "@/components/common/install-banner";
 import { ViewportDebug } from "@/components/common/viewport-debug";
 import { OfflineResilience } from "@/components/common/offline-resilience";
 import { OfflineStaleBar } from "@/components/common/offline-stale-bar";
+import { NavCacheWarmer } from "@/components/common/nav-cache-warmer";
 
 // The (app) shell is per-user: session lookup, onboarding-progress fetch,
 // and the budget switcher all depend on the request's cookies. Without this
@@ -212,6 +213,9 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               installed PWA on SW update). Client leaf inside the app-wide
               QueryClientProvider. */}
           <OfflineResilience />
+          {/* Warms the SW nav-doc cache (home + current route) while online so a
+              cold offline open / reload serves the real cached page. */}
+          <NavCacheWarmer locale={locale} />
           {/* pt-[env(safe-area-inset-top)]: with viewport-fit=cover the page
               extends under the status bar in standalone mode — the header
               absorbs the inset so the nav stays below the clock/notch.

@@ -1203,8 +1203,8 @@
       "ariaLabel": "No internet connection"
     },
     "staleBar": {
-      "message": "You're offline — showing cached data, last synced {relativeTime}",
-      "unknown": "You're offline — showing cached data that may be out of date"
+      "message": "Offline — cached data from {relativeTime}",
+      "unknown": "Offline — showing cached data"
     },
     "unavailable": {
       "heading": "Not available offline",

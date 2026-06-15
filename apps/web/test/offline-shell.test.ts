@@ -1,10 +1,12 @@
 /**
- * offline-shell.test.ts — regression for the offline-shell.html not-cached
- * fallback (260615-e8s round 3). The shell is shown by the SW only when an
- * offline navigation misses the nav-doc cache (route never opened online). It
- * must show the "not available offline" note and, when the cached home document
- * exists, reveal a "Go to home" shortcut. This executes the REAL inline script
- * from the file against happy-dom.
+ * offline-shell.test.ts — regression for offline-shell.html (260615-e8s r3/r4).
+ * The shell is shown by the SW only when an offline navigation misses the
+ * nav-doc cache. Behaviour:
+ *   - ROOT entry ("/", the PWA start_url): redirect to the cached localized home
+ *     when it exists (cold-open recovery); otherwise reveal the note.
+ *   - localized uncached route: show the "not available offline" note + a
+ *     "Go to home" shortcut when the cached home exists.
+ * Executes the REAL inline script from the file against happy-dom.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -34,15 +36,25 @@ async function waitFor(
   return pred();
 }
 
+let replaceSpy: ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
   document.body.innerHTML = "";
-  // A non-home route (so the Go-to-home shortcut logic is eligible).
-  window.history.pushState({}, "", "/en/budgets/abc-123/spendings");
+  document.cookie = "budget-locale=en; path=/";
+  replaceSpy = vi.fn();
+  Object.defineProperty(window.location, "replace", {
+    configurable: true,
+    value: replaceSpy,
+  });
   delete (globalThis as unknown as { caches?: unknown }).caches;
 });
 
-describe("offline-shell not-cached fallback", () => {
-  it("shows the 'not available offline' note", async () => {
+describe("offline-shell — localized uncached route", () => {
+  beforeEach(() => {
+    window.history.pushState({}, "", "/en/budgets/abc-123/spendings");
+  });
+
+  it("shows the 'not available offline' note + red bar", async () => {
     runShell();
     await new Promise((r) => setTimeout(r, 50));
     expect(
@@ -51,28 +63,57 @@ describe("offline-shell not-cached fallback", () => {
     expect(document.querySelector("h1")?.textContent ?? "").toContain(
       "isn't available offline",
     );
-    // The red offline bar is present.
     expect(document.querySelector(".shell-stale-bar")).not.toBeNull();
+    expect(replaceSpy).not.toHaveBeenCalled();
   });
 
-  it("keeps the Go-to-home link hidden when the home document is not cached", async () => {
+  it("reveals 'Go to home' when the cached home document exists", async () => {
+    const match = vi.fn().mockResolvedValue({});
+    (globalThis as unknown as { caches: unknown }).caches = { match };
+    runShell();
+    const link = document.getElementById("shell-home-link")!;
+    expect(await waitFor(() => !link.hasAttribute("hidden"))).toBe(true);
+    expect(link.getAttribute("href")).toBe("/en");
+    expect(match).toHaveBeenCalledWith("/en", { ignoreSearch: true });
+  });
+
+  it("keeps 'Go to home' hidden when home is not cached", async () => {
     (globalThis as unknown as { caches: unknown }).caches = {
       match: vi.fn().mockResolvedValue(undefined),
     };
     runShell();
     await new Promise((r) => setTimeout(r, 80));
-    const link = document.getElementById("shell-home-link")!;
-    expect(link.hasAttribute("hidden")).toBe(true);
+    expect(
+      document.getElementById("shell-home-link")!.hasAttribute("hidden"),
+    ).toBe(true);
+  });
+});
+
+describe("offline-shell — cold open at the start_url '/'", () => {
+  beforeEach(() => {
+    window.history.pushState({}, "", "/");
   });
 
-  it("reveals the Go-to-home link when the cached home document exists", async () => {
-    const match = vi.fn().mockResolvedValue({} /* any truthy cache hit */);
+  it("redirects to the cached localized home (from the budget-locale cookie)", async () => {
+    const match = vi.fn().mockResolvedValue({});
     (globalThis as unknown as { caches: unknown }).caches = { match };
     runShell();
-    const link = document.getElementById("shell-home-link")!;
-    const revealed = await waitFor(() => !link.hasAttribute("hidden"));
-    expect(revealed).toBe(true);
-    expect(link.getAttribute("href")).toBe("/en");
+    expect(await waitFor(() => replaceSpy.mock.calls.length > 0)).toBe(true);
+    expect(replaceSpy).toHaveBeenCalledWith("/en");
     expect(match).toHaveBeenCalledWith("/en", { ignoreSearch: true });
+    // The bare note stayed hidden (we recovered instead of stranding).
+    expect(document.querySelector(".shell-note")!.hasAttribute("hidden")).toBe(
+      true,
+    );
+  });
+
+  it("reveals the note when no cached home exists (nothing to recover to)", async () => {
+    (globalThis as unknown as { caches: unknown }).caches = {
+      match: vi.fn().mockResolvedValue(undefined),
+    };
+    runShell();
+    const note = document.querySelector(".shell-note")!;
+    expect(await waitFor(() => !note.hasAttribute("hidden"))).toBe(true);
+    expect(replaceSpy).not.toHaveBeenCalled();
   });
 });

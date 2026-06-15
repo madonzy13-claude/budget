@@ -40,6 +40,13 @@ describe("(app) shell wires the global PWA/offline surfaces", () => {
     // The old in-header icon is gone from the TopNav.
     expect(topNav).not.toMatch(/OfflineStatusBadge/);
   });
+
+  it("nav-cache warmer is mounted in the (app) layout", () => {
+    // 260615-e8s round 4: warms the SW nav-doc cache (home + current route)
+    // while online so a cold offline open serves the real cached page.
+    expect(layout).toMatch(/import\s*{[^}]*\bNavCacheWarmer\b/);
+    expect(layout).toMatch(/<NavCacheWarmer\b/);
+  });
 });
 
 describe("service worker wires the app-shell offline nav", () => {
@@ -58,5 +65,10 @@ describe("service worker wires the app-shell offline nav", () => {
 
   it("no longer references the removed bare full-page takeover builder", () => {
     expect(sw).not.toContain("buildInlineOfflineNotice");
+  });
+
+  it("handles WARM_ROUTES messages to proactively cache nav docs", () => {
+    expect(sw).toContain("WARM_ROUTES");
+    expect(sw).toMatch(/addEventListener\(["']message["']/);
   });
 });

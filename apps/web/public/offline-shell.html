@@ -62,7 +62,11 @@
         font-weight: 600;
         line-height: 1.3;
         padding: 5px 16px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
+      .shell-note[hidden] { visibility: hidden; }
       main.shell-content {
         max-width: 1280px;
         margin: 0 auto;
@@ -129,8 +133,22 @@
     </main>
     <script>
       (function () {
-        var SEG = location.pathname.split("/")[1];
-        var LOCALE = ["en", "pl", "uk"].indexOf(SEG) !== -1 ? SEG : "en";
+        var SUPPORTED = ["en", "pl", "uk"];
+        var firstSeg = location.pathname.split("/")[1];
+        var pathLocale = SUPPORTED.indexOf(firstSeg) !== -1 ? firstSeg : null;
+        function cookieLocale() {
+          try {
+            var m = document.cookie.match(/(?:^|; )budget-locale=([^;]+)/);
+            if (m && SUPPORTED.indexOf(m[1]) !== -1) return m[1];
+          } catch (e) {}
+          return null;
+        }
+        var LOCALE = pathLocale || cookieLocale() || "en";
+        // Root entry = the PWA start_url "/" (or any path with no locale
+        // segment). A cold offline open hits "/" — a 307 → /<locale> redirect
+        // online that the SW cannot cache — so recover by redirecting to the
+        // cached localized home instead of stranding on the not-cached note.
+        var isRootEntry = !pathLocale;
         var I18N = {
           pl: {
             bar: "Jesteś offline",
@@ -160,24 +178,47 @@
           /* keep EN base */
         }
 
-        // If the real cached home document exists, offer a shortcut to it (the
-        // SW will serve the cached home, which renders the real app + data).
-        try {
-          var homeHref = "/" + LOCALE;
-          var link = document.getElementById("shell-home-link");
-          if (link && location.pathname !== homeHref && location.pathname !== "/") {
+        // Recover to the real cached home (the SW serves the cached home doc,
+        // which renders the real app + data).
+        var note = document.querySelector(".shell-note");
+        function revealNote() {
+          if (note) note.removeAttribute("hidden");
+        }
+        function ifHomeCached(cb) {
+          try {
+            if (typeof caches === "undefined") return cb(false);
             caches
-              .match(homeHref, { ignoreSearch: true })
+              .match("/" + LOCALE, { ignoreSearch: true })
               .then(function (hit) {
-                if (hit) {
-                  link.setAttribute("href", homeHref);
-                  link.removeAttribute("hidden");
-                }
+                cb(!!hit);
               })
-              .catch(function () {});
+              .catch(function () {
+                cb(false);
+              });
+          } catch (e) {
+            cb(false);
           }
-        } catch (e) {
-          /* CacheStorage unavailable — leave the link hidden */
+        }
+        if (isRootEntry) {
+          // Cold open at "/": hide the note until we know whether the cached
+          // home exists, then either redirect to it or reveal the note.
+          if (note) note.setAttribute("hidden", "");
+          ifHomeCached(function (hit) {
+            if (hit) location.replace("/" + LOCALE);
+            else revealNote();
+          });
+        } else {
+          // Localized uncached route: keep the note + offer a "Go to home"
+          // shortcut when the cached home document exists.
+          var link = document.getElementById("shell-home-link");
+          if (link && location.pathname !== "/" + LOCALE) {
+            ifHomeCached(function (hit) {
+              if (hit) {
+                link.setAttribute("href", "/" + LOCALE);
+                link.removeAttribute("hidden");
+              }
+            });
+          }
         }
 
         // Self-recovery: reload the moment connectivity returns. The reload is

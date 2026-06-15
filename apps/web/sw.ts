@@ -138,6 +138,37 @@ const serwist: Serwist = new Serwist({
 
 serwist.addEventListeners();
 
+// Proactive nav-cache warming (260615-e8s round 4). The SW only caches a route
+// on a hard navigation it controls — but the PWA start_url "/" is a 307 redirect
+// (uncacheable), and client-side soft-nav never produces a cacheable navigation,
+// so the nav cache is often empty and a cold offline open falls to the
+// offline-shell. The client posts the routes it wants available offline (home +
+// current path, see nav-cache-warmer.tsx); we fetch the REAL 2xx documents and
+// store them in NAV_CACHE so an offline reload serves the real page. A redirected
+// response is skipped — it can never satisfy a navigation.
+self.addEventListener("message", (event: any) => {
+  const data = event.data;
+  if (!data || data.type !== "WARM_ROUTES" || !Array.isArray(data.urls)) return;
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(NAV_CACHE);
+      await Promise.all(
+        data.urls.map(async (u: string) => {
+          if (typeof u !== "string" || !u.startsWith("/")) return;
+          try {
+            const res = await fetch(u, { credentials: "include" });
+            if (res.ok && !res.redirected) {
+              await cache.put(new Request(u), res.clone());
+            }
+          } catch {
+            /* offline / fetch error — skip */
+          }
+        }),
+      );
+    })(),
+  );
+});
+
 // notificationclick — deep-link handler (D-13 / PWAX-06)
 // When the user taps a push notification, focus an existing window that matches
 // the notification url, or open a new one. The url is set server-side by the

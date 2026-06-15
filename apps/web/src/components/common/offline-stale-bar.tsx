@@ -107,7 +107,7 @@ export function OfflineStaleBar({ budgetId }: { budgetId: string | null }) {
       role="status"
       aria-live="polite"
       data-testid="offline-stale-bar"
-      className="w-full bg-[var(--destructive,#ef4444)] px-4 py-1 text-center text-[11px] font-medium leading-tight text-white"
+      className="w-full overflow-hidden text-ellipsis whitespace-nowrap bg-[var(--destructive,#ef4444)] px-4 py-1 text-center text-[11px] font-medium leading-tight text-white"
     >
       {message}
     </div>
