@@ -63,6 +63,12 @@ describe("NavCacheWarmer", () => {
       expect(urls).toContain("/en/budgets/abc/wallets");
       expect(urls).toContain("/en/budgets/def/spendings"); // query stripped
       expect(urls).not.toContain("/signup");
+      // Sibling BDP tabs are derived from any budget link so an offline
+      // tab-switch works even though home only links to /wallets.
+      expect(urls).toContain("/en/budgets/abc/spendings");
+      expect(urls).toContain("/en/budgets/abc/reserves");
+      expect(urls).toContain("/en/budgets/abc/settings");
+      expect(urls).toContain("/en/budgets/def/wallets");
     } finally {
       document.body.removeChild(wrap);
     }

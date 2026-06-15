@@ -17,6 +17,9 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 const SUPPORTED = ["en", "pl", "uk"];
+const BDP_TABS = ["wallets", "spendings", "reserves", "settings"];
+const BUDGET_TAB_RE =
+  /^(\/(?:en|pl|uk)\/budgets\/[^/]+)\/(?:wallets|spendings|reserves|settings)$/;
 
 function collectAppLinks(): string[] {
   const out = new Set<string>();
@@ -24,6 +27,13 @@ function collectAppLinks(): string[] {
     const href = (a.getAttribute("href") || "").split("?")[0].split("#")[0];
     if (SUPPORTED.includes(href.split("/")[1])) out.add(href);
   });
+  // Derive the sibling BDP tabs from any budget link. The home budget cards link
+  // only to /wallets, so without this the other tabs (spendings/reserves/
+  // settings) are never warmed and an offline tab-switch falls to the shell.
+  for (const u of [...out]) {
+    const m = u.match(BUDGET_TAB_RE);
+    if (m) BDP_TABS.forEach((t) => out.add(`${m[1]}/${t}`));
+  }
   return [...out];
 }
 
@@ -40,7 +50,7 @@ export function NavCacheWarmer({ locale }: { locale: string }) {
       if (!navigator.onLine) return;
       const fresh = candidates
         .filter((u) => u && u.startsWith("/") && !warmed.current.has(u))
-        .slice(0, 25);
+        .slice(0, 48);
       if (!fresh.length) return;
       fresh.forEach((u) => warmed.current.add(u));
       navigator.serviceWorker.ready
