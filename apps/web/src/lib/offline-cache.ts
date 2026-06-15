@@ -149,7 +149,7 @@ export async function getCachedTransactions(
  * No-op on empty list (stale-but-present beats blank).
  */
 export async function cacheActiveBudgets(
-  list: Array<{ id: string; [key: string]: unknown }>,
+  list: ReadonlyArray<{ id: string }>,
 ): Promise<void> {
   if (!list.length) return;
   const db = await openBudgetDB();
