@@ -6,7 +6,7 @@
  * badge is a small inline control with ZERO added vertical height so toggling
  * online↔offline causes no layout shift:
  *   online  → sr-only / aria-hidden (zero footprint)
- *   offline → inline-flex h-6 pill: a PULSING lucide CloudOff (red --destructive)
+ *   offline → inline-flex h-6 pill: a PULSING lucide Unplug (red --destructive)
  *             with a tooltip showing how stale the cached data is, e.g.
  *             "No internet — showing data from 13 minutes ago".
  *
@@ -36,7 +36,7 @@
  */
 import { useState, useEffect } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { CloudOff } from "lucide-react";
+import { Unplug } from "lucide-react";
 import {
   Tooltip,
   TooltipTrigger,
@@ -140,7 +140,7 @@ export function OfflineStatusBadge({ budgetId }: { budgetId: string | null }) {
               onClick={() => setOpen((o) => !o)}
               className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[var(--destructive,#ef4444)] [-webkit-tap-highlight-color:transparent] focus:outline-none"
             >
-              <CloudOff
+              <Unplug
                 data-testid="offline-cloud-off"
                 aria-hidden="true"
                 className="h-4 w-4 shrink-0 animate-pulse"

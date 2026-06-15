@@ -134,16 +134,17 @@ describe("OfflineStatusBadge", () => {
     });
   });
 
-  // Fix 2: icon is lucide CloudOff (crossed cloud), pulsing.
-  it("offline: renders a pulsing CloudOff icon", async () => {
+  // Fix 2: icon is lucide Unplug (pulsing). testid kept stable (offline-cloud-off)
+  // to avoid churn in assertions across the test suite.
+  it("offline: renders a pulsing Unplug icon", async () => {
     setOnline(false);
     render(<OfflineStatusBadge budgetId="budget-1" />);
     await waitFor(() => {
       const icon = screen.getByTestId("offline-cloud-off");
       expect(icon).toBeTruthy();
       expect(icon.getAttribute("class") ?? "").toContain("animate-pulse");
-      // lucide CloudOff carries the lucide-cloud-off class.
-      expect(icon.getAttribute("class") ?? "").toContain("lucide-cloud-off");
+      // lucide Unplug carries the lucide-unplug class (not lucide-cloud-off).
+      expect(icon.getAttribute("class") ?? "").toContain("lucide-unplug");
     });
     // No Globe anymore.
     expect(screen.queryByTestId("offline-globe")).toBeNull();
