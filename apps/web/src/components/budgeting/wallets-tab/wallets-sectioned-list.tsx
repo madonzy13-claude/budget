@@ -31,6 +31,7 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
+import { useBudget } from "@/hooks/use-budget-data";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
@@ -48,28 +49,31 @@ type WalletType = WalletDto["walletType"];
 
 interface WalletsSectionedListProps {
   budgetId: string;
-  budgetCurrency: string;
-  /**
-   * D-PH5-R11 cascading-hide surface 4: when false, the Reserve wallet
-   * section is omitted from the Wallets tab (mirrors the Reserves pill
-   * + Spendings column-header row hide). Defaults to true so existing
-   * callers keep their behaviour.
-   */
-  reservesEnabled?: boolean;
-  /**
-   * Phase 6 onboarding rewrite parallel: when false, the Cushion wallet
-   * section is omitted entirely. Same cascading-hide pattern as
-   * reservesEnabled. Defaults true to preserve existing UX.
-   */
-  cushionEnabled?: boolean;
 }
 
-export function WalletsSectionedList({
-  budgetId,
-  budgetCurrency,
-  reservesEnabled = true,
-  cushionEnabled = true,
-}: WalletsSectionedListProps) {
+export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
+  // SPA refactor (260616): budget meta (currency + section flags) is now read
+  // client-side via useBudget instead of baked into the page by the server, so
+  // the route stays a static prefetchable shell (no per-soft-nav loading.tsx
+  // flash). Served instantly from the warm React Query cache; defaults apply
+  // only during a cold fetch.
+  // - D-PH5-R11 cascading-hide surface 4: reservesEnabled=false hides the
+  //   Reserve wallet section (mirrors Reserves pill + Spendings header hide).
+  // - Phase 6 onboarding: cushionEnabled=false hides the Cushion section.
+  // Defaults true/EUR preserve existing UX while the budget meta loads.
+  const budgetQuery = useBudget(budgetId);
+  const budgetMeta = budgetQuery.data as
+    | {
+        defaultCurrency?: string;
+        default_currency?: string;
+        reservesEnabled?: boolean;
+        cushionEnabled?: boolean;
+      }
+    | undefined;
+  const budgetCurrency =
+    budgetMeta?.defaultCurrency ?? budgetMeta?.default_currency ?? "EUR";
+  const reservesEnabled = budgetMeta?.reservesEnabled ?? true;
+  const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
   const t = useTranslations("bdp.tab.wallets.toast");
   // UAT-PH5-T3-33: separate translator for the full section labels
   // ("Spendings wallets", "Cushion wallets", "Reserve wallets") so the
