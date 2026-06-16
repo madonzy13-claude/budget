@@ -139,6 +139,53 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
     expect(body).toContain('data-testid="cached-page"');
   });
 
+  test("isOffline flag + cache hit → serves cached doc IMMEDIATELY without touching the network (no 5s wait)", async () => {
+    // quick-260616-spa: when navigator.onLine===false the SW must not wait out
+    // the network timeout (offline fetch only hangs) — it returns the cached
+    // real document right away. fetchFn must NOT be called.
+    const fetchFn = vi.fn();
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/settings"));
+    const cachePut = vi.fn();
+    const matchShell = vi.fn();
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/settings"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      matchShell,
+      3_000,
+      true, // isOffline
+    );
+
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(matchShell).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('data-testid="cached-page"');
+  });
+
+  test("isOffline flag + cache MISS → falls through to the network/shell path", async () => {
+    const fetchFn = vi.fn().mockRejectedValue(new TypeError("offline"));
+    const matchCache = vi.fn().mockResolvedValue(undefined);
+    const cachePut = vi.fn();
+    const matchShell = vi.fn().mockResolvedValue(shellDoc());
+
+    const res = await handleNavigationRequest(
+      navRequest("/uk/settings"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      matchShell,
+      3_000,
+      true, // isOffline
+    );
+
+    // Cache miss → still attempts the (dead) network, then the app-shell.
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(matchShell).toHaveBeenCalledTimes(1);
+    expect(await res.text()).toContain('data-testid="offline-shell-header"');
+  });
+
   test("offline + UNVISITED route (cache miss) → returns the APP-SHELL doc (header chrome + note), NOT a bare full-page takeover", async () => {
     const fetchFn = vi.fn().mockRejectedValue(new TypeError("offline"));
     const matchCache = vi.fn().mockResolvedValue(undefined);

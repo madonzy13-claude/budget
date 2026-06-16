@@ -45,8 +45,23 @@ export async function handleNavigationRequest(
   matchCache: (req: Request) => Promise<Response | undefined>,
   cachePut: (req: Request, res: Response) => Promise<void> | void,
   matchShell: () => Promise<Response | undefined>,
-  timeoutMs = 5_000,
+  timeoutMs = 3_000,
+  isOffline = false,
 ): Promise<Response> {
+  // Offline fast-path (quick-260616-spa). When the device reports offline the
+  // network fetch only HANGS until the abort timeout fires — so every cached-
+  // page navigation waited the full timeout (the user-reported ~5-6s lag)
+  // BEFORE checking the cache, even though the real document was sitting there.
+  // Serve the cached document immediately instead — that is the entire point of
+  // the nav cache. navigator.onLine can lie TRUE on iOS (then isOffline is
+  // false and we take the timeout-bounded network path below), but it never
+  // lies FALSE, so reading the cache first when it reports offline is a strict
+  // win with no freshness cost (offline = nothing fresher to fetch anyway). On
+  // a cache MISS we fall through to the network/shell path below.
+  if (isOffline) {
+    const cached = await matchCache(request);
+    if (cached) return cached;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let unreachable = false;

@@ -175,6 +175,9 @@ const serwist: Serwist = new Serwist({
             caches
               .match(OFFLINE_SHELL_URL)
               .then((hit) => hit ?? serwist.matchPrecache(OFFLINE_SHELL_URL)),
+          3_000,
+          // Offline fast-path: skip the dead-network timeout, serve cache now.
+          typeof navigator !== "undefined" && navigator.onLine === false,
         ),
     },
   ],

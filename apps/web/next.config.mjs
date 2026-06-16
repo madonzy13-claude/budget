@@ -25,6 +25,20 @@ const BUILD_ID =
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  experimental: {
+    // SPA/SWR router cache (quick-260616-spa). The BDP tab page shells
+    // (wallets/reserves/spendings/settings) + home are now DATA-FREE static
+    // shells — every dataset is client-fetched via React Query. Next 15 defaults
+    // `staleTimes.dynamic` to 0, so a dynamic page (these are dynamic under the
+    // force-dynamic (app) layout) is NEVER reused from the client Router Cache:
+    // every pill/tab soft-nav did a fresh server RSC roundtrip (~100-300ms over
+    // the tunnel — the "something is waiting" lag, and the hang the offline
+    // nav-guard works around). Letting the Router Cache reuse a visited shell
+    // makes warm soft-nav instant; React Query/SWR still owns data freshness
+    // (refetchOnMount:"always" revalidates in the background after the reused
+    // shell paints), so a reused shell is always correct, never stale data.
+    staleTimes: { dynamic: 120, static: 300 },
+  },
   env: {
     NEXT_PUBLIC_BUILD_ID: BUILD_ID,
   },
