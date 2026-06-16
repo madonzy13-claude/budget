@@ -1,20 +1,20 @@
 /**
- * offline-stale-bar.test.tsx — Vitest+RTL tests for the OfflineStaleBar
- * (260615-e8s round 3). Verifies:
+ * offline-stale-bar.test.tsx — Vitest+RTL tests for the OfflineStaleBar.
+ *
+ * SPA/SWR refactor (260616): the cache age now comes from useCacheAge() — the
+ * freshest successful budget-scoped React Query query's dataUpdatedAt — instead
+ * of the removed offline-cache sync-meta store. Tests seed the query cache to
+ * control whether an age exists.
+ *
+ * Verifies:
  *   - online renders nothing (null, zero footprint),
- *   - offline renders a full-width red bar with the cache-age message,
- *   - the cache-age fallback chain (per-budget → __global__ → most-recent),
+ *   - offline + a cached budget query → full-width red bar with the age message,
+ *   - offline + empty cache → the "unknown" message,
  *   - the adaptive tick cadence (staleTickDelay) buckets.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-
-const getSyncMeta = vi.fn();
-const getMostRecentSyncMeta = vi.fn();
-vi.mock("@/lib/offline-cache", () => ({
-  getSyncMeta: (...a: unknown[]) => getSyncMeta(...a),
-  getMostRecentSyncMeta: (...a: unknown[]) => getMostRecentSyncMeta(...a),
-}));
+import { TestQueryProvider, makeTestQueryClient } from "../setup/query-client";
 
 // next-intl: echo key + interpolated values so we can assert the relative time
 // reaches the rendered string.
@@ -33,11 +33,28 @@ function setOnline(value: boolean) {
   Object.defineProperty(navigator, "onLine", { configurable: true, value });
 }
 
+/** Render the bar with offline state + an optionally-seeded budget query. */
+function renderBar({
+  offline,
+  seedAge,
+}: {
+  offline: boolean;
+  seedAge: boolean;
+}) {
+  setOnline(!offline);
+  const qc = makeTestQueryClient();
+  if (seedAge) {
+    // A successful budget-scoped query → useCacheAge reports a non-null age.
+    qc.setQueryData(["budget", "b-1", "detail"], { id: "b-1", name: "X" });
+  }
+  return render(
+    <TestQueryProvider client={qc}>
+      <OfflineStaleBar budgetId="b-1" />
+    </TestQueryProvider>,
+  );
+}
+
 beforeEach(() => {
-  getSyncMeta.mockReset();
-  getMostRecentSyncMeta.mockReset();
-  getSyncMeta.mockResolvedValue(null);
-  getMostRecentSyncMeta.mockResolvedValue(null);
   setOnline(true);
 });
 
@@ -58,16 +75,13 @@ describe("staleTickDelay (adaptive cadence)", () => {
 
 describe("OfflineStaleBar", () => {
   it("renders nothing while online", async () => {
-    setOnline(true);
-    render(<OfflineStaleBar budgetId="b-1" />);
+    renderBar({ offline: false, seedAge: true });
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByTestId("offline-stale-bar")).toBeNull();
   });
 
   it("renders a full-width red bar with the cache-age message when offline", async () => {
-    setOnline(false);
-    getSyncMeta.mockResolvedValue("2026-06-15T11:00:00.000Z");
-    render(<OfflineStaleBar budgetId="b-1" />);
+    renderBar({ offline: true, seedAge: true });
     await waitFor(() => {
       const bar = screen.getByTestId("offline-stale-bar");
       expect(bar).toBeTruthy();
@@ -78,32 +92,11 @@ describe("OfflineStaleBar", () => {
     });
   });
 
-  it("shows the unknown message when nothing has ever synced", async () => {
-    setOnline(false);
-    getSyncMeta.mockResolvedValue(null);
-    getMostRecentSyncMeta.mockResolvedValue(null);
-    render(<OfflineStaleBar budgetId={null} />);
+  it("shows the unknown message when the cache is empty (nothing synced)", async () => {
+    renderBar({ offline: true, seedAge: false });
     await waitFor(() => {
       const bar = screen.getByTestId("offline-stale-bar");
       expect(bar.textContent ?? "").toContain("staleBar.unknown");
     });
-  });
-
-  it("falls back per-budget → __global__ → most-recent for cache age", async () => {
-    setOnline(false);
-    // per-budget null, __global__ has a value → message (not unknown).
-    getSyncMeta.mockImplementation((key: string) =>
-      key === "__global__"
-        ? Promise.resolve("2026-06-15T11:00:00.000Z")
-        : Promise.resolve(null),
-    );
-    render(<OfflineStaleBar budgetId="b-1" />);
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("offline-stale-bar").textContent ?? "",
-      ).toContain("staleBar.message");
-    });
-    expect(getSyncMeta).toHaveBeenCalledWith("b-1");
-    expect(getSyncMeta).toHaveBeenCalledWith("__global__");
   });
 });

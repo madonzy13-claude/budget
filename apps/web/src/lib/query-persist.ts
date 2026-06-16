@@ -7,12 +7,17 @@
  * extra deps, no react-query-persist-client package).
  *
  * Tenant safety: the cache is per-browser. It is cleared on logout via
- * clearQueryCache() (called alongside wipeBudgetCache).
+ * clearQueryCache() (called alongside dropLegacyBudgetCache).
  */
 import { dehydrate, hydrate, type QueryClient } from "@tanstack/react-query";
-import { openDB, type IDBPDatabase } from "idb";
+import { openDB, deleteDB, type IDBPDatabase } from "idb";
 
 const DB_NAME = "budget-rqcache";
+// The old bespoke offline-cache IDB (lib/offline-cache.ts, REMOVED in the SPA
+// refactor 260616). Dropped on startup + logout so its stale per-tenant rows
+// never linger on a shared device — the persisted React Query cache (this file)
+// is now the single offline data source.
+const LEGACY_DB_NAME = "budget-cache";
 const STORE = "cache";
 const KEY = "dehydrated";
 // Bump to invalidate persisted shape across deploys that change query data.
@@ -27,11 +32,21 @@ function shouldPersist(queryKey: readonly unknown[]): boolean {
     k0 === "budget" ||
     k0 === "transactions" ||
     k0 === "spendings-summary" ||
+    k0 === "drafts" ||
     k0 === "reserves" ||
     k0 === "tasks" ||
     k0 === "active-budgets" ||
     k0 === "home-summary"
   );
+}
+
+/** Delete the removed legacy offline-cache IDB (tenant safety + cleanup). */
+export async function dropLegacyBudgetCache(): Promise<void> {
+  try {
+    await deleteDB(LEGACY_DB_NAME);
+  } catch {
+    // IDB unavailable / already gone — ignore.
+  }
 }
 
 async function openCacheDb(): Promise<IDBPDatabase> {
@@ -44,6 +59,8 @@ async function openCacheDb(): Promise<IDBPDatabase> {
 
 /** Restore the persisted query cache into the client (call once, on mount). */
 export async function restoreQueryCache(client: QueryClient): Promise<void> {
+  // Best-effort cleanup of the removed legacy offline-cache IDB on startup.
+  void dropLegacyBudgetCache();
   try {
     const db = await openCacheDb();
     const saved = (await db.get(STORE, KEY)) as

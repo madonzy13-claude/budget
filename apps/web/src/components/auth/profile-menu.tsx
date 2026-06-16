@@ -46,8 +46,7 @@ import { useTranslations } from "next-intl";
 import { LogOut, User, Settings as SettingsIcon, Download } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOut } from "@/lib/auth-client";
-import { clearQueryCache } from "@/lib/query-persist";
-import { wipeBudgetCache } from "@/lib/offline-cache";
+import { clearQueryCache, dropLegacyBudgetCache } from "@/lib/query-persist";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -193,8 +192,9 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
     setIsSigningOut(true);
     try {
       // Tenant safety: clear the per-browser caches so the next user on this
-      // device never sees this user's cached budget data (260615-e8s round 8).
-      await Promise.allSettled([clearQueryCache(), wipeBudgetCache()]);
+      // device never sees this user's cached budget data — the persisted React
+      // Query cache + the removed legacy offline-cache IDB.
+      await Promise.allSettled([clearQueryCache(), dropLegacyBudgetCache()]);
       await signOut();
       router.push(`/${locale}/sign-in`);
       router.refresh();

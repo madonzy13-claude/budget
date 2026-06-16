@@ -10,8 +10,10 @@
  *   offline → narrow full-width red bar:
  *             "You're offline — showing cached data, last synced {X}".
  *
- * Cache age uses the same fallback chain as the old badge: per-budget sync-meta
- * → "__global__" (any cache write bumps it) → most-recent across all rows.
+ * Cache age comes from useCacheAge() — the freshest successful budget-scoped
+ * React Query query's dataUpdatedAt (SPA/SWR 260616). budgetId is no longer used
+ * for the lookup (the cache age is browser-wide, not per-budget) but is kept on
+ * the prop for the call sites + future per-budget scoping.
  *
  * Adaptive refresh (staleTickDelay): the relative time re-renders at a cadence
  * matched to its magnitude — every second under a minute, every minute under an
@@ -26,7 +28,7 @@
  */
 import { useState, useEffect } from "react";
 import { useTranslations, useFormatter } from "next-intl";
-import { getSyncMeta, getMostRecentSyncMeta } from "@/lib/offline-cache";
+import { useCacheAge } from "@/hooks/use-cache-age";
 
 /**
  * Refresh cadence for the relative cache age, by current age:
@@ -40,11 +42,15 @@ export function staleTickDelay(ageMs: number): number {
   return 3_600_000;
 }
 
-export function OfflineStaleBar({ budgetId }: { budgetId: string | null }) {
+export function OfflineStaleBar({
+  budgetId: _budgetId,
+}: {
+  budgetId: string | null;
+}) {
   const t = useTranslations("offline");
   const fmt = useFormatter();
   const [isOnline, setIsOnline] = useState(true);
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const lastSyncedAt = useCacheAge();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -58,24 +64,6 @@ export function OfflineStaleBar({ budgetId }: { budgetId: string | null }) {
       window.removeEventListener("offline", off);
     };
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function resolveAge() {
-      try {
-        let iso: string | null = budgetId ? await getSyncMeta(budgetId) : null;
-        if (!iso) iso = await getSyncMeta("__global__");
-        if (!iso) iso = await getMostRecentSyncMeta();
-        if (!cancelled) setLastSyncedAt(iso ? new Date(iso) : null);
-      } catch {
-        // IndexedDB unavailable (private browsing) — silently ignore.
-      }
-    }
-    void resolveAge();
-    return () => {
-      cancelled = true;
-    };
-  }, [budgetId, isOnline]);
 
   // Adaptive self-scheduling tick: recompute the delay each fire as age grows.
   useEffect(() => {
