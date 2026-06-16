@@ -55,7 +55,7 @@ describe("service worker wires the app-shell offline nav", () => {
   });
 
   it("uses a named nav-docs cache for NetworkFirst-with-write", () => {
-    expect(sw).toContain("nav-docs-v1");
+    expect(sw).toContain("nav-docs-v2");
   });
 
   it("keeps /api NetworkOnly (tenant isolation denylist intact)", () => {
@@ -75,7 +75,7 @@ describe("service worker wires the app-shell offline nav", () => {
   it("caches Next RSC payloads (NetworkFirst) for offline soft-navigation", () => {
     // 260615-e8s round 5: client-side nav fetches RSC flight payloads; caching
     // them lets soft-nav to visited/prefetched routes work offline.
-    expect(sw).toContain("rsc-v2");
+    expect(sw).toContain("rsc-v3");
     expect(sw).toMatch(/headers\.get\(["']RSC["']\)/);
     expect(sw).toContain("NetworkFirst");
     // The _rsc cache-buster is stripped from the key so offline requests match.

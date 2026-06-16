@@ -45,7 +45,12 @@ const SCRIPT_IMAGE_CACHE = "static-assets-v2";
 // previously-VISITED route renders offline. Bump the suffix if the nav strategy
 // changes so a new worker abandons the old nav docs. Listed in
 // CURRENT_STATIC_CACHES so the activate purge KEEPS it.
-const NAV_CACHE = "nav-docs-v1";
+// v2 (SPA/SWR refactor 260616): the spendings/wallets/reserves/settings tab
+// DOCS changed shape (SSR-with-baked-data → data-free client shells). A device
+// holding pre-refactor v1 docs would serve a stale document offline that
+// mismatches the new client chunks → blank/black tab pages. Bumping the suffix
+// makes the new worker's activate-purge drop the v1 docs and re-warm fresh ones.
+const NAV_CACHE = "nav-docs-v2";
 // NetworkFirst-with-write cache for Next App Router RSC payloads (the soft-nav
 // flight responses, `RSC: 1` header). Caching these lets client-side navigation
 // to a previously-visited OR prefetched route work offline (Next prefetches
@@ -54,7 +59,9 @@ const NAV_CACHE = "nav-docs-v1";
 // to abandon a stale generation; the activate purge deletes non-current rsc-*.
 // v2: dropped the hand-warmed RSC entries (a bare `RSC: 1` warm fetch produced
 // broken redirect payloads); only genuine prefetch/nav RSC is cached now.
-const RSC_CACHE = "rsc-v2";
+// v3 (SPA/SWR refactor 260616): the tab pages became data-free client shells, so
+// a pre-refactor RSC payload renders stale offline — bump to purge + re-warm.
+const RSC_CACHE = "rsc-v3";
 // Static app-shell document served on an offline nav cache MISS (real header
 // chrome + in-app "wasn't preloaded" note). Auto-precached by @serwist/next from
 // public/** → retrievable via caches.match / serwist.matchPrecache.
@@ -268,7 +275,12 @@ self.addEventListener("activate", (event: any) => {
               LEGACY_STATIC_CACHES.includes(key) ||
               ((key.startsWith("static-styles") ||
                 key.startsWith("static-assets") ||
-                key.startsWith("rsc-")) &&
+                key.startsWith("rsc-") ||
+                // nav-docs-* MUST be purged when superseded: the nav handler's
+                // caches.match(ignoreSearch) searches ALL caches, so a leftover
+                // stale generation (e.g. pre-SPA-refactor nav-docs-v1) would be
+                // served offline → blank/black tab pages (260616 bug).
+                key.startsWith("nav-docs-")) &&
                 !CURRENT_STATIC_CACHES.has(key)),
           )
           .map((key: string) => caches.delete(key)),
