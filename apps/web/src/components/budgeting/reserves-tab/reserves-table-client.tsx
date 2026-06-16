@@ -51,6 +51,45 @@ import { animateCountTriple, type CountTriple } from "@/lib/animate-count";
 import { centsToBare } from "@/lib/cents-format";
 import { ReservesTableRow } from "./reserves-table-row";
 import { ReservesTotalsFooter } from "./reserves-totals-footer";
+import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * Cold-load skeleton (260616 SPA refactor) — mirrors the Included section + the
+ * totals card geometry so the loaded table streams in without a jump. Shown only
+ * when useReservesSummary has no cached data; a warm re-nav renders the table
+ * directly with zero skeleton.
+ */
+function ReservesSkeleton({ label }: { label: string }) {
+  return (
+    <div className="mx-auto w-full max-w-[1280px]">
+      <div className="flex flex-col gap-4 p-4 pb-20 sm:p-6">
+        <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] py-2 sm:p-2">
+          <h3 className="px-2 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+            {label}
+          </h3>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex min-h-[56px] items-center gap-3 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]"
+            >
+              <Skeleton className="h-4 w-2 shrink-0" />
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="ml-auto h-3.5 w-12" />
+            </div>
+          ))}
+        </section>
+        <div className="ml-auto sm:mr-2 w-full sm:w-[340px] max-w-full rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] flex flex-col gap-2 px-4 py-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between gap-4">
+              <Skeleton className="h-2.5 w-24" />
+              <Skeleton className="h-3.5 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** Captured state for the cover reveal (popup + count-down). */
 interface CoverReveal {
@@ -117,19 +156,18 @@ function ExcludedSection({ children }: { children: React.ReactNode }) {
 
 export interface ReservesTableClientProps {
   budgetId: string;
-  initial: ReservesSummaryDto;
 }
 
-export function ReservesTableClient({
-  budgetId,
-  initial,
-}: ReservesTableClientProps) {
+export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
   const t = useTranslations("bdp.tab.reserves");
+  const tUnavailable = useTranslations("offline.unavailable");
   const locale = useLocale();
   const qc = useQueryClient();
 
-  // Single query — W-3 single source of truth for Active + Excluded
-  const summary = useReservesSummary(budgetId, initial);
+  // Single query — W-3 single source of truth for Active + Excluded.
+  // SPA/SWR (260616): client-fetched, no SSR `initial` seed. Renders instantly
+  // from the warm/persisted React Query cache; skeleton only on a cold load.
+  const summary = useReservesSummary(budgetId);
 
   // ── Cover reveal: an adjust whose added reserve covered this month's
   // overspend lands BELOW the typed target. Instead of snapping, notify the
@@ -263,7 +301,19 @@ export function ReservesTableClient({
     );
   }
 
-  if (!summary.data) return null;
+  // Cold load (no cached data yet) → skeleton; offline with no cache → notice.
+  if (summary.isPending) {
+    return <ReservesSkeleton label={t("section.included")} />;
+  }
+  if (!summary.data) {
+    return (
+      <div className="mx-auto w-full max-w-[1280px] p-6">
+        <p className="text-sm text-[var(--muted-foreground)]">
+          {tUnavailable("body")}
+        </p>
+      </div>
+    );
+  }
 
   const activeRows = summary.data.rows;
   // W-3: Excluded rows come directly from API — frozen REAL balances, NOT synthesized
