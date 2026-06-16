@@ -89,6 +89,9 @@ vi.mock("temporal-polyfill", () => ({
         toPlainDate: ({ day }: { day: number }) => ({
           toString: () => `2026-05-${String(day).padStart(2, "0")}`,
         }),
+        // Month-preload (Task 2) walks back via .subtract({months}); the grid
+        // only calls .toString() on the result, so a fixed past month suffices.
+        subtract: (_d: { months: number }) => ({ toString: () => "2026-04" }),
         daysInMonth: 31,
       }),
       compare: (_a: unknown, _b: unknown) => 0,

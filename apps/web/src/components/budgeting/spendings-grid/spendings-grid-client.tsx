@@ -53,7 +53,10 @@ import { useReorderCategories } from "@/hooks/use-reorder-categories";
 import { useBudget, useCategories } from "@/hooks/use-budget-data";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSpendingsSummary } from "@/hooks/use-spendings-summary";
+import {
+  useSpendingsSummary,
+  fetchSpendingsSummary,
+} from "@/hooks/use-spendings-summary";
 import { useTransactions, type TxnDTO } from "@/hooks/use-transactions";
 import { useDrafts, type DraftDTO } from "@/hooks/use-drafts";
 import type { SpendingsSummaryCategoryDTO } from "./category-column";
@@ -249,6 +252,41 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       .sort((a, b) => a.sortIndex - b.sortIndex);
     setLocalCategoryOrder(next);
   }, [categoriesQuery.data, reorder.isPending]);
+
+  // Month preload (Task 2, user spec 260616). Once the viewed month's summary is
+  // in hand, background-prefetch the PAST months' spendings-summary (the grid
+  // driver) so navigating back is instant. We prefetch ONLY the summary, not
+  // transactions+drafts: the columns + planned/spent render from the warm
+  // summary immediately, and a real visit fills txns/drafts via the hooks'
+  // refetchOnMount:"always" (a visited past month also SWR-refetches the summary
+  // and replaces the UI if it changed). Already-cached months are SKIPPED so
+  // unchanged months aren't refetched. Bound: GET /budgets/:id carries no
+  // createdAt/first-month, so we cap at a 12-month lookback (anchored at the
+  // viewed month, so deeper back-navigation progressively extends the window)
+  // and log the cap once.
+  const preloadCapLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!summary.isSuccess) return;
+    const LOOKBACK_MONTHS = 12;
+    const anchor = Temporal.PlainYearMonth.from(month);
+    for (let i = 1; i <= LOOKBACK_MONTHS; i++) {
+      const m = anchor.subtract({ months: i }).toString();
+      const key = ["spendings-summary", budgetId, m] as const;
+      if (qc.getQueryData(key)) continue; // already cached — leave it untouched.
+      void qc.prefetchQuery({
+        queryKey: key,
+        queryFn: () => fetchSpendingsSummary(budgetId, m),
+        staleTime: 30_000,
+      });
+    }
+    if (!preloadCapLoggedRef.current) {
+      preloadCapLoggedRef.current = true;
+      console.info(
+        `[spendings] month preload bounded to a ${LOOKBACK_MONTHS}-month lookback ` +
+          `(no budget first-month/createdAt source on GET /budgets/:id)`,
+      );
+    }
+  }, [summary.isSuccess, budgetId, month, qc]);
 
   // Track whether the grid is scrolled FAR ENOUGH that at least HALF a
   // transaction row is hidden behind the sticky header band. A txn row is
