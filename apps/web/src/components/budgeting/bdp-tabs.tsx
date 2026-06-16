@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { usePrefetchBudgetTabs } from "@/hooks/use-prefetch-budget-tabs";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
 import { pillFor, type Pill } from "@/components/budgeting/tasks/kind-pill-map";
@@ -58,6 +59,10 @@ export function BdpTabs({
 }: BdpTabsProps) {
   const pathname = usePathname() ?? "";
   const t = useTranslations("bdp.tab");
+
+  // Warm every tab's primary data on budget open so all four tabs render
+  // offline after a reopen — not just the one the user happened to land on.
+  usePrefetchBudgetTabs(budgetId);
 
   const { data: tasks } = useQuery({
     queryKey: ["tasks", budgetId, "pending"],

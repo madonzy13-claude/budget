@@ -22,8 +22,12 @@ const STORE = "cache";
 const KEY = "dehydrated";
 // Bump to invalidate persisted shape across deploys that change query data.
 const VERSION = "v1";
-// Drop persisted snapshots older than this (defensive staleness bound).
-const MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+// Drop persisted snapshots older than this. Long-lived on purpose (260616): the
+// offline cache must survive days/weeks without a reconnect — the user explicitly
+// wants cached pages to keep rendering offline "forever". 1 year is the practical
+// cap (well beyond any real offline stretch); the data still self-refreshes via
+// SWR the moment the device is back online.
+const MAX_AGE_MS = 1000 * 60 * 60 * 24 * 365; // 1 year
 
 /** Persist only budget-scoped queries — never auth/settings or unrelated keys. */
 function shouldPersist(queryKey: readonly unknown[]): boolean {
@@ -87,8 +91,16 @@ export function startPersisting(client: QueryClient): () => void {
   const write = async () => {
     try {
       const state = dehydrate(client, {
+        // Persist any budget-scoped query that HAS DATA — not only status ===
+        // "success" (260616). CRITICAL: on iOS navigator.onLine lies true while
+        // offline, so refetchOnMount fires, the fetch hangs, AbortSignal.timeout
+        // flips the query to status "error" (its data still in memory). The old
+        // success-only filter then DROPPED that query on the next persist →
+        // poisoned the cache → the next reload restored nothing → blank pages.
+        // Keeping any data-bearing query means a transient offline error never
+        // wipes the last-good cached data.
         shouldDehydrateQuery: (q) =>
-          q.state.status === "success" && shouldPersist(q.queryKey),
+          q.state.data !== undefined && shouldPersist(q.queryKey),
       });
       const db = await openCacheDb();
       await db.put(STORE, { v: VERSION, at: Date.now(), state }, KEY);

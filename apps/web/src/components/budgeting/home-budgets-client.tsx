@@ -24,13 +24,19 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
     return <HomeEmptyHero locale={locale} />;
   }
 
+  // No data yet (cold load OR a transient offline error before the persisted
+  // cache hydrated) → skeletons, NEVER a bare empty grid (260616: the offline
+  // refetch could error and leave budgets=[] with isPending false, which used to
+  // render an empty page). A confirmed success-empty is the empty-hero above.
+  const showSkeleton = budgets.length === 0;
+
   return (
     <main className="pb-shell-safe mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12">
       <h1 className="text-title-lg text-[var(--body-on-dark)] mb-6">
         {t("heading")}
       </h1>
       <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {q.isPending
+        {showSkeleton
           ? Array.from({ length: 3 }).map((_, i) => (
               <BudgetCardSkeleton key={i} />
             ))
