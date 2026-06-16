@@ -37,7 +37,7 @@ describe("useDrafts", () => {
     );
   });
 
-  it("initialData hydrates immediately without fetch", () => {
+  it("initialData hydrates immediately, then SWR-refetches in the background", async () => {
     const initialData = [
       {
         id: "draft-1",
@@ -49,14 +49,25 @@ describe("useDrafts", () => {
         ruleName: "Rent",
       },
     ];
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ transactions: [] }),
+    });
 
     const { result } = renderHook(
       () => useDrafts(BUDGET_ID, MONTH, { initialData }),
       { wrapper },
     );
 
+    // initialData paints instantly (synchronous first render).
     expect(result.current.data).toEqual(initialData);
-    expect(mockFetch).not.toHaveBeenCalled();
+    // refetchOnMount:"always" (SPA/SWR 260616) fires a background revalidation —
+    // the cached data still renders without waiting for it.
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        `/budgets/${BUDGET_ID}/transactions?month=${MONTH}&confirmed=false`,
+      ),
+    );
   });
 
   it("queryKey is exactly ['drafts', budgetId, month]", async () => {

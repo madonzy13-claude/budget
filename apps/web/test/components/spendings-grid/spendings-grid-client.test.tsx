@@ -5,7 +5,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { TestQueryProvider } from "../../setup/query-client";
+import {
+  TestQueryProvider,
+  makeTestQueryClient,
+} from "../../setup/query-client";
 
 // Mock dnd-kit per RESEARCH §Pattern 5
 vi.mock("@dnd-kit/sortable", () => ({
@@ -105,6 +108,14 @@ vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
 
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
 
+// SPA refactor (260616): SpendingsGridClient is fully client-data — it takes
+// only { budgetId } and reads everything from React Query. Tests seed the cache
+// via qc.setQueryData (same pattern as reserves/wallets) so the grid renders
+// synchronously from the warm cache instead of from SSR `initial*` props. The
+// query keys MUST match the hooks: ["budget",id,"categories"],
+// ["spendings-summary",id,month], ["transactions",id,month], ["drafts",id,month],
+// ["budget",id,"detail"]. The mocked month (temporal mock below) is "2026-05".
+
 const categories = [
   {
     id: "cat-1",
@@ -122,7 +133,8 @@ const categories = [
   },
 ];
 
-const transactions = [
+// camelCase DTOs — the shape the cache holds (post-mapTxnRowToDTO).
+const txnDTOs = [
   {
     id: "tx-1",
     categoryId: "cat-1",
@@ -132,8 +144,7 @@ const transactions = [
     confirmedAt: "2026-05-10T10:00:00Z",
   },
 ];
-
-const drafts = [
+const draftDTOs = [
   {
     id: "draft-1",
     categoryId: "cat-2",
@@ -142,6 +153,31 @@ const drafts = [
     transactionDate: "2026-05-01",
     confirmedAt: null,
     ruleName: "Monthly rent",
+  },
+];
+
+// snake rows the (mocked) network refetch returns — refetchOnMount:"always"
+// fires a background refetch; returning the same rows keeps the seeded UI stable
+// (an empty response would wipe the seeded cache mid-test).
+const txnRows = [
+  {
+    id: "tx-1",
+    category_id: "cat-1",
+    amount_converted_cents: "1500",
+    currency_converted: "USD",
+    transaction_date: "2026-05-10",
+    confirmed_at: "2026-05-10T10:00:00Z",
+  },
+];
+const draftRows = [
+  {
+    id: "draft-1",
+    category_id: "cat-2",
+    amount_converted_cents: "3000",
+    currency_converted: "USD",
+    transaction_date: "2026-05-01",
+    confirmed_at: null,
+    rule_name: "Monthly rent",
   },
 ];
 
@@ -183,71 +219,87 @@ const summary = {
   ],
 };
 
-const defaultProps = {
-  budgetId: "budget-1",
-  budgetCurrency: "USD",
-  month: "2026-05",
-  budgetTz: "UTC",
-  initialCategories: categories,
-  initialTransactions: transactions,
-  initialDrafts: drafts,
-  initialSummary: summary,
-};
+/** Seed the React Query cache + render with budgetId only (client-data). */
+function renderGrid() {
+  const qc = makeTestQueryClient();
+  qc.setQueryData(["budget", "budget-1", "categories"], categories);
+  qc.setQueryData(["spendings-summary", "budget-1", "2026-05"], summary);
+  qc.setQueryData(["transactions", "budget-1", "2026-05"], txnDTOs);
+  qc.setQueryData(["drafts", "budget-1", "2026-05"], draftDTOs);
+  qc.setQueryData(["budget", "budget-1", "detail"], {
+    defaultCurrency: "USD",
+    reservesEnabled: true,
+    cushionEnabled: true,
+  });
+  return render(
+    <TestQueryProvider client={qc}>
+      <SpendingsGridClient budgetId="budget-1" />
+    </TestQueryProvider>,
+  );
+}
 
 describe("SpendingsGridClient", () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ transactions: [], categories: [] }),
+    // URL-aware mock — the background refetch (refetchOnMount:"always") + the
+    // month-preload prefetch all hit this; return the matching fixture so the
+    // seeded UI stays stable.
+    fetchMock.mockImplementation((url: unknown) => {
+      const u = String(url);
+      if (u.includes("/spendings-summary"))
+        return Promise.resolve({ ok: true, json: async () => summary });
+      if (u.includes("/transactions") && u.includes("confirmed=true"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ transactions: txnRows }),
+        });
+      if (u.includes("/transactions") && u.includes("confirmed=false"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ transactions: draftRows }),
+        });
+      if (u.includes("/categories"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ categories }),
+        });
+      // budget detail + fallback
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          defaultCurrency: "USD",
+          reservesEnabled: true,
+          cushionEnabled: true,
+        }),
+      });
     });
   });
 
   it("has data-testid=spendings-grid on the root scroll container", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+    renderGrid();
     expect(screen.getByTestId("spendings-grid")).toBeTruthy();
   });
 
   it("renders MonthNavigator at top", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+    renderGrid();
     expect(screen.getByTestId("month-navigator-label")).toBeTruthy();
   });
 
-  it("renders one CategoryColumn per category in initialCategories", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+  it("renders one CategoryColumn per cached category", () => {
+    renderGrid();
     expect(screen.getByTestId("category-column-cat-1")).toBeTruthy();
     expect(screen.getByTestId("category-column-cat-2")).toBeTruthy();
   });
 
   it("renders AddCategoryColumn at far right", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+    renderGrid();
     expect(screen.getByTestId("add-category-column")).toBeTruthy();
   });
 
   it("AddCategoryColumn does NOT call useSortable (outside SortableContext items)", () => {
     // AddCategoryColumn component does not import or call useSortable
     // This is a structural test — verify it renders without useSortable being needed
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+    renderGrid();
     const addCol = screen.getByTestId("add-category-column");
     // It has no data-sortable-id (useSortable mock sets this attribute on sortable items)
     // CategoryColumns have the mock attributes, AddCategoryColumn should not
@@ -255,11 +307,7 @@ describe("SpendingsGridClient", () => {
   });
 
   it("click pen on column header opens CategorySlider with that category preloaded", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+    renderGrid();
     // Click on column header name cell to reveal pen
     const nameCells = document.querySelectorAll(
       "[data-testid='column-header-name-cell']",
@@ -278,45 +326,29 @@ describe("SpendingsGridClient", () => {
   });
 
   it("click AddCategoryColumn opens CategorySlider in create mode", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+    renderGrid();
     fireEvent.click(screen.getByTestId("add-category-column"));
     expect(
       document.querySelector("[data-testid='cat-slider-content']"),
     ).toBeTruthy();
   });
 
-  it("initialTransactions prop is forwarded as useTransactions initialData — hydration check", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
-    // tx-1 belongs to cat-1; it should render without waiting for fetch
+  it("seeded transactions render from the cache — cat-1's tx-1", () => {
+    renderGrid();
+    // tx-1 belongs to cat-1; it renders from the warm cache without a fetch wait
     expect(screen.getByTestId("txn-row-1500")).toBeTruthy();
   });
 
-  it("initialDrafts prop is forwarded as useDrafts initialData — hydration check", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
-    // draft-1 belongs to cat-2; it should render without waiting for fetch
+  it("seeded drafts render from the cache — cat-2's draft-1", () => {
+    renderGrid();
+    // draft-1 belongs to cat-2; it renders from the warm cache
     expect(screen.getByTestId("draft-row-monthly rent")).toBeTruthy();
   });
 
   // 260615-bse: the shared offline AlertDialog is hosted ONCE in the grid and
   // is CLOSED initially (Radix AlertDialog content is not mounted until open).
   it("offline add dialog is hosted in the grid and closed initially", () => {
-    render(
-      <TestQueryProvider>
-        <SpendingsGridClient {...defaultProps} />
-      </TestQueryProvider>,
-    );
+    renderGrid();
     // Closed → content (with its testid + title) is not rendered yet.
     expect(
       document.querySelector("[data-testid='offline-add-dialog']"),

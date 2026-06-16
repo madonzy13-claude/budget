@@ -12,7 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -122,7 +122,21 @@ export function CategorySlider({
   cushionEnabled = true,
 }: CategorySliderProps) {
   const t = useTranslations("grid");
-  const router = useRouter();
+  const qc = useQueryClient();
+  // SPA refactor (260616): the grid is client-data — no RSC to router.refresh().
+  // Surface a created/edited/deleted category by invalidating the exact query
+  // keys the grid reads. `includeTxns` covers archive/unarchive which change a
+  // column's transaction/draft visibility too; create/edit only touch the
+  // category list + its planned/cushion limits (spendings-summary).
+  function invalidateGrid(includeTxns: boolean) {
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
+    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+    if (includeTxns) {
+      qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
+      qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
+    }
+  }
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteOpenRef = useRef(false);
@@ -272,8 +286,8 @@ export function CategorySlider({
     }
 
     onOpenChange(false);
-    // Re-run the RSC fetch so the grid reflects the new/edited category.
-    router.refresh();
+    // Surface the new/edited category + its limits in the client-data grid.
+    invalidateGrid(false);
   }
 
   async function handleDelete(mode: "current_future" | "all") {
@@ -294,7 +308,8 @@ export function CategorySlider({
       if (res.ok) {
         setDeleteOpen(false);
         onOpenChange(false);
-        router.refresh();
+        // Archive changes column + its txn/draft visibility in the grid.
+        invalidateGrid(true);
       } else {
         toast.error(t("error.sliderSave"));
       }

@@ -2,9 +2,13 @@
 /**
  * use-reorder-categories.ts — Optimistic drag-reorder mutation.
  *
- * queryKey: ["categories", budgetId]
+ * queryKey: ["budget", budgetId, "categories"] — the SAME key useCategories
+ * (use-budget-data.ts) reads. The grid seeds its localCategoryOrder from that
+ * query, so onSettled MUST invalidate this exact key or the SPA grid never
+ * re-fetches the persisted order (SPA refactor 260616). The old standalone
+ * ["categories", budgetId] key was dead — nothing read it.
  * On error: revert local reorder + show toast (grid.error.reorderSave).
- * On success: invalidate ["categories", budgetId].
+ * On success: invalidate ["budget", budgetId, "categories"].
  *
  * D-PH4-D2: persists via PUT /budgets/:id/categories/sort-order
  */
@@ -37,11 +41,11 @@ export function useReorderCategories(budgetId: string) {
     },
 
     onMutate: async (input) => {
-      await qc.cancelQueries({ queryKey: ["categories", budgetId] });
-      const previous = qc.getQueryData(["categories", budgetId]);
+      await qc.cancelQueries({ queryKey: ["budget", budgetId, "categories"] });
+      const previous = qc.getQueryData(["budget", budgetId, "categories"]);
 
       // Optimistically reorder
-      qc.setQueryData(["categories", budgetId], (old: unknown) => {
+      qc.setQueryData(["budget", budgetId, "categories"], (old: unknown) => {
         if (!Array.isArray(old)) return old;
         const idxMap = new Map(input.orderedIds.map((id, i) => [id, i]));
         return [...old].sort(
@@ -58,13 +62,13 @@ export function useReorderCategories(budgetId: string) {
 
     onError: (_err, _input, ctx) => {
       if (ctx?.previous !== undefined) {
-        qc.setQueryData(["categories", budgetId], ctx.previous);
+        qc.setQueryData(["budget", budgetId, "categories"], ctx.previous);
       }
       toast.error("grid.error.reorderSave");
     },
 
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["categories", budgetId] });
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
     },
   });
 }

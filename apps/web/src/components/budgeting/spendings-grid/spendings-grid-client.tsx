@@ -37,7 +37,6 @@ import { AddCategoryColumn } from "./add-category-column";
 import { MonthNavigator } from "./month-navigator";
 import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import {
@@ -51,12 +50,10 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { useReorderCategories } from "@/hooks/use-reorder-categories";
-import { cacheBudgetSnapshot } from "@/hooks/use-cache-on-fetch";
+import { useBudget, useCategories } from "@/hooks/use-budget-data";
 import { useMonthParam } from "@/hooks/use-month-param";
-import {
-  useSpendingsSummary,
-  type SpendingsSummaryDTO,
-} from "@/hooks/use-spendings-summary";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useSpendingsSummary } from "@/hooks/use-spendings-summary";
 import { useTransactions, type TxnDTO } from "@/hooks/use-transactions";
 import { useDrafts, type DraftDTO } from "@/hooks/use-drafts";
 import type { SpendingsSummaryCategoryDTO } from "./category-column";
@@ -70,20 +67,46 @@ export interface CategoryDTO {
 }
 
 export interface SpendingsGridClientProps {
+  // SPA refactor (260616): static-shell prop only. Currency, tz, the
+  // reserves/cushion feature flags and all per-month datasets are fetched
+  // client-side via React Query (useBudget / useSpendingsSummary / …).
   budgetId: string;
-  budgetCurrency: string;
-  month: string;
-  budgetTz: string;
-  initialCategories: CategoryDTO[];
-  initialTransactions: TxnDTO[];
-  initialDrafts: DraftDTO[];
-  initialSummary: SpendingsSummaryDTO;
-  // D-PH5-R11 cascading-hide surface 2: when false, Reserves used row is hidden in column headers.
-  reservesEnabled?: boolean;
-  // Phase 6 onboarding rewrite parallel: when false, the Cushion field
-  // in the CategorySlider edit/create UI is hidden. Default true keeps
-  // the field visible for budgets created before this flag existed.
-  cushionEnabled?: boolean;
+}
+
+/**
+ * Cold-load skeleton column (SPA refactor 260616) — mirrors the deleted
+ * spendings/loading.tsx ColumnCardSkeleton so a genuine cold load streams in
+ * without a layout jump. Rendered INSIDE the always-mounted grid scroller so
+ * the geometry effects (scroll anchor / ResizeObserver / touch) still attach on
+ * mount; a warm re-nav renders real columns with zero skeleton.
+ */
+function ColumnSkeleton() {
+  return (
+    <div className="h-full w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip">
+      <div className="flex min-h-[44px] items-center gap-1.5 px-2 py-2 border-b border-[var(--hairline-dark)]">
+        <Skeleton className="h-3.5 w-2.5 shrink-0" />
+        <Skeleton className="h-3.5 w-2/3" />
+      </div>
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex flex-col gap-1 px-2 py-1.5 border-b border-[var(--hairline-dark)]"
+        >
+          <Skeleton className="h-2.5 w-12" />
+          <Skeleton className={`h-3.5 ${i === 2 ? "w-16" : "w-10"}`} />
+        </div>
+      ))}
+      <div className="flex flex-1 flex-col gap-2 px-2 py-2">
+        <Skeleton className="h-2.5 w-14" />
+        <div className="h-9 w-full rounded-md border border-[var(--hairline-dark)]" />
+        <div className="flex flex-col gap-2 pt-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-3.5 w-10" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
@@ -104,30 +127,47 @@ function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
   };
 }
 
-export function SpendingsGridClient(props: SpendingsGridClientProps) {
-  const {
-    budgetId,
-    budgetCurrency,
-    budgetTz,
-    reservesEnabled = true,
-    cushionEnabled = true,
-  } = props;
-
-  const { monthStr, isCurrentMonth } = useMonthParam(budgetTz);
+export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
+  // SPA refactor (260616): fully client-data. The month comes from the URL
+  // (?month) via useMonthParam; budget meta + every per-month dataset come from
+  // React Query, served instantly from the warm/persisted cache (skeleton only
+  // on a genuine cold load).
+  //
+  // budgetTz circular-dependency: the month feeds the spendings-summary query
+  // KEY, but budgetTz lives ON that summary (which is keyed BY month) and GET
+  // /budgets/:id carries no timezone. So we never feed a tz back into the month
+  // calc — the URL month is computed in UTC (stable), and the real budgetTz
+  // (read from summary.data once loaded) is used only for display + the
+  // quick-entry "today" resolution.
+  const { monthStr, isCurrentMonth } = useMonthParam("UTC");
   const month = monthStr;
 
-  // Query hooks: hydrate from RSC initialData; live data after first refetch.
-  // queryKey contract: must match mutation hooks' invalidate keys (Plan 04-03 hooks).
-  const summary = useSpendingsSummary(budgetId, month, props.initialSummary);
-  const txns = useTransactions(budgetId, month, {
-    initialData: props.initialTransactions,
-  });
-  const drafts = useDrafts(budgetId, month, {
-    initialData: props.initialDrafts,
-  });
+  // queryKey contract: must match mutation hooks' invalidate keys (Plan 04-03).
+  const summary = useSpendingsSummary(budgetId, month);
+  const txns = useTransactions(budgetId, month);
+  const drafts = useDrafts(budgetId, month);
+  // localCategoryOrder seeds from this (replaces the old props.initialCategories
+  // re-sync). Same key the mutation hooks invalidate: ["budget",id,"categories"].
+  const categoriesQuery = useCategories(budgetId);
+  const budgetQuery = useBudget(budgetId);
+
+  // Budget meta — currency + feature flags. Defaults preserve UX while loading.
+  // budgetCurrency/budgetTz prefer the summary (authoritative for the grid);
+  // reservesEnabled/cushionEnabled only exist on GET /budgets/:id.
+  const budgetMeta = budgetQuery.data as
+    | {
+        defaultCurrency?: string;
+        reservesEnabled?: boolean;
+        cushionEnabled?: boolean;
+      }
+    | undefined;
+  const budgetCurrency =
+    summary.data?.budgetCurrency ?? budgetMeta?.defaultCurrency ?? "USD";
+  const budgetTz = summary.data?.budgetTz ?? "UTC";
+  const reservesEnabled = budgetMeta?.reservesEnabled ?? true;
+  const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
 
   const qc = useQueryClient();
-  const router = useRouter();
   const tDel = useTranslations("grid.deleteCategory");
   const tGrid = useTranslations("grid");
   // 260615-bse: one shared offline dialog for the whole grid. Both the
@@ -154,11 +194,11 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
         setLocalCategoryOrder((prev) =>
           prev.filter((c) => c.id !== deleteCat.id),
         );
+        qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
         qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
         qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
         qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
         qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
-        router.refresh();
       }
     } finally {
       setDeleting(false);
@@ -174,60 +214,41 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
       { method: "POST" },
     );
     if (res.ok) {
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
       qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
       qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
       qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
-      router.refresh();
     }
   }
 
-  const [localCategoryOrder, setLocalCategoryOrder] = useState<CategoryDTO[]>(
-    props.initialCategories,
-  );
-  // Re-sync when the RSC re-fetches (e.g. after CategorySlider create/edit
-  // calls router.refresh()). useState + React Query initialData both hydrate
-  // only once, so without this the grid keeps the stale list/summary.
-  useEffect(() => {
-    setLocalCategoryOrder(props.initialCategories);
-    qc.setQueryData(
-      ["spendings-summary", budgetId, month],
-      props.initialSummary,
-    );
-    qc.setQueryData(
-      ["transactions", budgetId, month],
-      props.initialTransactions,
-    );
-    qc.setQueryData(["drafts", budgetId, month], props.initialDrafts);
-  }, [
-    props.initialCategories,
-    props.initialSummary,
-    props.initialTransactions,
-    props.initialDrafts,
-    qc,
-    budgetId,
-    month,
-  ]);
-  // 260615-e8s Task 3: populate IDB cache on every successful online fetch so
-  // the offline read-back path has data to serve on a cold reload.
-  // Best-effort: wrapped in .catch(()=>{}) so a write failure never blocks render.
-  useEffect(() => {
-    if (!(summary.isSuccess && txns.isSuccess)) return;
-    const transactions = (txns.data ?? []).map((t) => ({
-      ...t,
-      _cacheKey: `${budgetId}:${month}:${t.id}`,
-    }));
-    cacheBudgetSnapshot({
-      budgetId,
-      budget: undefined,
-      categories: localCategoryOrder,
-      transactions,
-      wallets: undefined,
-      iso: new Date().toISOString(),
-    }).catch(() => {});
-  }, [summary.isSuccess, txns.isSuccess, budgetId, month]);
-
   const reorder = useReorderCategories(budgetId);
+
+  const [localCategoryOrder, setLocalCategoryOrder] = useState<CategoryDTO[]>(
+    [],
+  );
+  // Seed/refresh the drag order from the categories query — the SPA replacement
+  // for the old props re-sync (router.refresh() is gone; create/edit/delete and
+  // reorder now invalidate ["budget",id,"categories"]). Skipped while a reorder
+  // is in flight so an in-progress optimistic drag isn't clobbered by a stale
+  // background refetch; reorder's onSettled invalidates this query so the
+  // authoritative new order re-seeds here once the PUT resolves. Sorted by
+  // sortIndex (the server's order of record).
+  useEffect(() => {
+    if (reorder.isPending) return;
+    const data = categoriesQuery.data;
+    if (!data) return;
+    const next = (data as Array<Record<string, unknown>>)
+      .map((c) => ({
+        id: String(c.id),
+        name: String(c.name ?? ""),
+        iconKey: (c.iconKey as string | null) ?? null,
+        colorKey: (c.colorKey as string | null) ?? null,
+        sortIndex: (c.sortIndex as number | undefined) ?? 0,
+      }))
+      .sort((a, b) => a.sortIndex - b.sortIndex);
+    setLocalCategoryOrder(next);
+  }, [categoriesQuery.data, reorder.isPending]);
 
   // Track whether the grid is scrolled FAR ENOUGH that at least HALF a
   // transaction row is hidden behind the sticky header band. A txn row is
@@ -594,9 +615,17 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
     [localCategoryOrder, summaryByCatId, transactionsByCatId],
   );
 
+  // Cold load = no cached summary/categories yet. A warm re-nav has both from
+  // the persisted React Query cache → real columns render immediately (zero
+  // skeleton); the cold skeleton lives INSIDE the mounted grid scroller below.
+  const isColdLoading = summary.isPending || categoriesQuery.isPending;
+
   return (
     <>
-      <MonthNavigator month={month} budgetTz={budgetTz} />
+      {/* MonthNavigator uses the same UTC month basis as the grid (useMonthParam
+          above) so its default month + isCurrentMonth never disagree with the
+          summary query key — see the budgetTz circular-dependency note. */}
+      <MonthNavigator month={month} />
       <div
         ref={gridRef}
         onScroll={handleGridScroll}
@@ -640,59 +669,69 @@ export function SpendingsGridClient(props: SpendingsGridClientProps) {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-2 w-fit mx-auto">
-            <SortableContext
-              items={visibleCategories.map((c) => c.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {visibleCategories.map((c) => (
-                <CategoryColumn
-                  key={c.id}
-                  category={c}
-                  summary={
-                    summaryByCatId.get(c.id) ?? defaultEmptySummary(c.id)
-                  }
-                  cushionModeEnabled={summary.data?.cushionModeEnabled ?? false}
-                  budgetCurrency={budgetCurrency}
-                  transactions={transactionsByCatId.get(c.id) ?? []}
-                  drafts={draftsByCatId.get(c.id) ?? []}
-                  gridScrolled={gridScrolled}
-                  budgetId={budgetId}
-                  month={month}
-                  resolvedQuickEntryDate={resolvedQuickEntryDate}
-                  reservesEnabled={reservesEnabled}
-                  onEditTxn={(txId) =>
-                    setTxSlider({ open: true, mode: "edit", txId })
-                  }
-                  onEditDraft={(draftId) =>
-                    setTxSlider({ open: true, mode: "edit", txId: draftId })
-                  }
-                  onEditCategory={(categoryId) =>
-                    setCatSlider({ open: true, mode: "edit", categoryId })
-                  }
-                  onPermanentDelete={() =>
-                    setDeleteCat({ id: c.id, name: c.name })
-                  }
-                  onUnarchive={() => void unarchiveCategory(c.id)}
-                  onOfflineAttempt={() => setOfflineDialogOpen(true)}
-                />
-              ))}
-            </SortableContext>
-            {/*
-             * AddCategoryColumn is a sibling of SortableContext children,
-             * NOT registered as a sortable item (D-PH4-D4).
-             * It does NOT call useSortable — it is outside the items list.
-             *
-             * sticky top-0 pins it to the top of the scroll viewport on
-             * vertical scroll, so it stays visible as transactions
-             * scroll up. self-start prevents flex stretch from inflating
-             * it to row height. On horizontal scroll it still moves with
-             * the row (sticky only applies on the axis with offset set).
-             */}
-            <div className="sticky top-0 self-start z-10">
-              <AddCategoryColumn
-                onClick={() => setCatSlider({ open: true, mode: "create" })}
-              />
-            </div>
+            {isColdLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <ColumnSkeleton key={i} />
+              ))
+            ) : (
+              <>
+                <SortableContext
+                  items={visibleCategories.map((c) => c.id)}
+                  strategy={horizontalListSortingStrategy}
+                >
+                  {visibleCategories.map((c) => (
+                    <CategoryColumn
+                      key={c.id}
+                      category={c}
+                      summary={
+                        summaryByCatId.get(c.id) ?? defaultEmptySummary(c.id)
+                      }
+                      cushionModeEnabled={
+                        summary.data?.cushionModeEnabled ?? false
+                      }
+                      budgetCurrency={budgetCurrency}
+                      transactions={transactionsByCatId.get(c.id) ?? []}
+                      drafts={draftsByCatId.get(c.id) ?? []}
+                      gridScrolled={gridScrolled}
+                      budgetId={budgetId}
+                      month={month}
+                      resolvedQuickEntryDate={resolvedQuickEntryDate}
+                      reservesEnabled={reservesEnabled}
+                      onEditTxn={(txId) =>
+                        setTxSlider({ open: true, mode: "edit", txId })
+                      }
+                      onEditDraft={(draftId) =>
+                        setTxSlider({ open: true, mode: "edit", txId: draftId })
+                      }
+                      onEditCategory={(categoryId) =>
+                        setCatSlider({ open: true, mode: "edit", categoryId })
+                      }
+                      onPermanentDelete={() =>
+                        setDeleteCat({ id: c.id, name: c.name })
+                      }
+                      onUnarchive={() => void unarchiveCategory(c.id)}
+                      onOfflineAttempt={() => setOfflineDialogOpen(true)}
+                    />
+                  ))}
+                </SortableContext>
+                {/*
+                 * AddCategoryColumn is a sibling of SortableContext children,
+                 * NOT registered as a sortable item (D-PH4-D4).
+                 * It does NOT call useSortable — it is outside the items list.
+                 *
+                 * sticky top-0 pins it to the top of the scroll viewport on
+                 * vertical scroll, so it stays visible as transactions
+                 * scroll up. self-start prevents flex stretch from inflating
+                 * it to row height. On horizontal scroll it still moves with
+                 * the row (sticky only applies on the axis with offset set).
+                 */}
+                <div className="sticky top-0 self-start z-10">
+                  <AddCategoryColumn
+                    onClick={() => setCatSlider({ open: true, mode: "create" })}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </DndContext>
         {/* iOS WebKit end-of-scroll spacer (SHELL-R8..R10): padding-bottom on
