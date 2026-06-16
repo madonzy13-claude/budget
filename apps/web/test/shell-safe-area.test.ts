@@ -52,8 +52,10 @@ describe("(app) shell clears iOS bottom UI", () => {
       "utf8",
     );
     expect(bdpLayout).toMatch(/pb-shell-safe/);
+    // SPA refactor (260616): the home <main> + pb-shell-safe moved out of the
+    // static page.tsx into the HomeBudgetsClient island.
     const homePage = readFileSync(
-      resolve(__dirname, "../src/app/[locale]/(app)/page.tsx"),
+      resolve(__dirname, "../src/components/budgeting/home-budgets-client.tsx"),
       "utf8",
     );
     expect(homePage).toMatch(/pb-shell-safe/);
@@ -341,7 +343,7 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
     "utf8",
   );
   const homePageR4 = readFileSync(
-    resolve(__dirname, "../src/app/[locale]/(app)/page.tsx"),
+    resolve(__dirname, "../src/components/budgeting/home-budgets-client.tsx"),
     "utf8",
   );
   const spendingsPageR4 = readFileSync(

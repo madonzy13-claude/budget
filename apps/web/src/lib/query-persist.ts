@@ -28,7 +28,9 @@ function shouldPersist(queryKey: readonly unknown[]): boolean {
     k0 === "transactions" ||
     k0 === "spendings-summary" ||
     k0 === "reserves" ||
-    k0 === "tasks"
+    k0 === "tasks" ||
+    k0 === "active-budgets" ||
+    k0 === "home-summary"
   );
 }
 

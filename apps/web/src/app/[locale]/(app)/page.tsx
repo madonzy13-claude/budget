@@ -1,26 +1,18 @@
 /**
- * /[locale]/(app)/page.tsx — authenticated home (`/`) route.
+ * /[locale]/(app)/page.tsx — authenticated home (`/`) route (SPA refactor 260616).
  *
- * Fetches the user's accessible budgets via `/budgets/active` (RLS-scoped on
- * the API side), then either:
- *   - zero budgets → renders `HomeEmptyHero` with a CTA to /budgets/new.
- *   - one or more   → renders `HomeCardsGrid` (per-card Suspense streaming)
- *                     plus a `PlaceholderChart` below.
+ * Thin shell: renders the client-data HomeBudgetsClient, which fetches the
+ * budget list (useActiveBudgets) + per-card summaries (useHomeSummary) and
+ * renders the empty hero / cards / skeleton entirely client-side. Returning home
+ * paints instantly from the warm React Query cache instead of re-streaming the
+ * per-card server Suspense.
  *
- * 03-02 dual-emit fallback: read `body.budgets ?? body.workspaces ?? []` until
- * the legacy `workspaces` key is removed.
+ * `force-dynamic` is kept so the route renders per-request and the (app) layout's
+ * auth/onboarding redirect always runs (the page itself no longer fetches data).
  */
-import { getTranslations } from "next-intl/server";
-import { fetchActiveBudgets } from "@/lib/budget-fetch.server";
-import { HomeOfflineCache } from "@/components/budgeting/home-offline-cache";
-import { HomeCardsGrid } from "@/components/budgeting/home-cards-grid";
+import { HomeBudgetsClient } from "@/components/budgeting/home-budgets-client";
 
-// The home page reads the per-user list of budgets. Without this Next.js
-// statically pre-renders the page at build time (when there is no session)
-// and bakes in the empty-hero HTML, which means the (app) layout's
-// onboarding redirect never runs on real authenticated requests either.
 export const dynamic = "force-dynamic";
-import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
 
 interface HomePageProps {
   params: Promise<{ locale: string }>;
@@ -28,38 +20,5 @@ interface HomePageProps {
 
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "home" });
-  // PERF 260613-dn1 #3: fetchActiveBudgets is cache()-wrapped; layout renders
-  // before page in the same request tree → this call is a cache HIT → no
-  // additional /budgets/active round-trip.
-  const budgets = await fetchActiveBudgets();
-
-  if (budgets.length === 0) {
-    return <HomeEmptyHero locale={locale} />;
-  }
-
-  // `w-full` forces main to span the parent (NavPendingOverlay is
-  // now a flex-col, which let main shrink to intrinsic content width
-  // and made budget cards visibly narrower on mobile). max-w-[1280px]
-  // still caps it on desktop; mx-auto centers below the cap.
-  return (
-    <main className="pb-shell-safe mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12">
-      <h1 className="text-title-lg text-[var(--body-on-dark)] mb-6">
-        {t("heading")}
-      </h1>
-      {/* PlaceholderChart removed (UAT-Phase6-Test7 retest follow-up):
-          the "Insights coming soon" placeholder block sat at the page
-          bottom and read as a footer once SiteFooter was dropped. The
-          real chart lands in Phase 8 — re-mount it then. */}
-      {/* HomeOfflineCache (client island) writes the budget list to IDB on
-          online visits (+ bumps __global__ sync-meta for the offline indicator).
-          The real cards are the SERVER HomeCardsGrid, passed as children so no
-          server-only code (BudgetCard → budget-fetch.server) enters the client
-          bundle. Offline: the SW nav-docs-v1 cache serves the last-online HTML
-          of `/`, which already contains these rendered cards. */}
-      <HomeOfflineCache budgets={budgets}>
-        <HomeCardsGrid budgets={budgets} locale={locale} />
-      </HomeOfflineCache>
-    </main>
-  );
+  return <HomeBudgetsClient locale={locale} />;
 }

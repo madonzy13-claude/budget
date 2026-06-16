@@ -1,69 +1,39 @@
+"use client";
 /**
- * budget-card.tsx — Home page BudgetCard (HOME-01..03).
+ * budget-card-client.tsx — Home BudgetCard (client-data, SPA refactor 260616).
  *
- * Async RSC that fetches `/budgets/{id}/home-summary` (Plan 03-02) and renders:
- *   Header: kind icon (Lock | Users) + budget name + type badge.
- *   Stat row: spent_current_month + wallets_value_display_ccy (FX-converted server-side).
- *   Overspent strip: top 1–2 overspent categories with leading "–" prefix, OR
- *                    "All categories on budget" when none.
- *   Error state: static "Couldn't load summary. Tap to open." copy; Link wrapper
- *                still renders so user can dive into the BDP.
- *
- * Pitfall 4: per-budget path → `serverApiFetch(budget.id, ...)`, never null.
- * Pitfall 5: one Next.js Link wraps the whole card — no nested anchors inside.
- *
- * Hover/focus styling follows UI-SPEC §4 (border lift on hover, focus-visible ring).
+ * Replaces the async server BudgetCard. The header (name + kind + pending-task
+ * badge) is known from the BudgetSummary list, so it paints immediately; the
+ * stat body is fed by useHomeSummary — skeleton while it loads (cold), error
+ * copy on failure, data once available. On re-nav the summary is warm in the
+ * React Query cache, so the full card renders instantly.
  */
 import { NavLink } from "@/components/common/nav-link";
 import { Lock, Users } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
-import { serverApiFetch } from "@/lib/budget-fetch.server";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
 import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
 import { centsToDisplayCompact } from "@/lib/cents-format";
+import { useHomeSummary } from "@/hooks/use-home-summary";
 
-interface HomeSummary {
-  budgetId: string;
-  name: string;
-  kind: "PRIVATE" | "SHARED";
-  default_currency: string;
-  display_currency: string;
-  spent_current_month: { amount_cents: string; currency: string };
-  wallets_value_display_ccy: {
-    amount_cents: string;
-    currency: string;
-    converted_at: string;
-  };
-  top_overspent: Array<{
-    category_id: string;
-    category_name: string;
-    over_amount_cents: string;
-  }>;
-}
-
-interface BudgetCardProps {
+interface BudgetCardClientProps {
   budget: BudgetSummary;
   locale: string;
 }
 
 function fmtCurrency(locale: string, cents: string, currency: string): string {
-  // Compact rule (drop whole-unit .00, pad non-zero fraction to 2 digits) so
-  // the home dashboard matches every other money surface. centsToDisplayCompact
-  // is BigInt-safe and falls back to 0 on a malformed value internally.
   return centsToDisplayCompact(cents, currency, locale);
 }
 
-export async function BudgetCard({ budget, locale }: BudgetCardProps) {
-  const t = await getTranslations({ locale, namespace: "home" });
+export function BudgetCardClient({ budget, locale }: BudgetCardClientProps) {
+  const t = useTranslations("home");
   const Icon = budget.kind === "PRIVATE" ? Lock : Users;
 
-  const res = await serverApiFetch(
-    budget.id,
-    `/budgets/${budget.id}/home-summary`,
-  );
-  const isError = !res.ok;
-  const summary = isError ? null : ((await res.json()) as HomeSummary);
+  const q = useHomeSummary(budget.id);
+  const summary = q.data ?? null;
+  const showError = q.isError && !summary;
 
   return (
     <NavLink
@@ -80,7 +50,7 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
           })}
         />
       </span>
-      {/* Header */}
+      {/* Header — known from the budget list, paints immediately. */}
       <div className="p-6 flex items-center gap-2">
         <Icon
           className="h-4 w-4 text-[var(--body-on-dark)]"
@@ -95,13 +65,7 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
       </div>
       <div className="h-px bg-[var(--hairline-dark)]" />
 
-      {isError || !summary ? (
-        <div className="p-6">
-          <p className="text-sm text-[var(--muted-foreground)]">
-            {t("card.error")}
-          </p>
-        </div>
-      ) : (
+      {summary ? (
         <>
           {/* Stat row */}
           <div className="p-6 grid grid-cols-2 gap-4">
@@ -165,6 +129,30 @@ export async function BudgetCard({ budget, locale }: BudgetCardProps) {
                 ))}
               </ul>
             )}
+          </div>
+        </>
+      ) : showError ? (
+        <div className="p-6">
+          <p className="text-sm text-[var(--muted-foreground)]">
+            {t("card.error")}
+          </p>
+        </div>
+      ) : (
+        /* Cold load — stat body skeleton. */
+        <>
+          <div className="p-6 grid grid-cols-2 gap-4" aria-hidden="true">
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </div>
+          <div className="h-px bg-[var(--hairline-dark)]" />
+          <div className="p-6 space-y-2" aria-hidden="true">
+            <Skeleton className="h-4 w-40" />
           </div>
         </>
       )}
