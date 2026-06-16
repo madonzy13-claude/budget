@@ -33,7 +33,10 @@ export function useHomeSummary(budgetId: string) {
   return useQuery({
     queryKey: ["home-summary", budgetId],
     queryFn: async (): Promise<HomeSummary> => {
+      // The home route is `/[locale]` (no budget in the path), so clientApiFetch
+      // can't infer X-Budget-ID — set it explicitly per card or RLS 404s.
       const res = await clientApiFetch(`/budgets/${budgetId}/home-summary`, {
+        headers: { "X-Budget-ID": budgetId },
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) throw new Error("home_summary_fetch_failed");
