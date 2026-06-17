@@ -287,7 +287,7 @@ describe("offline-shell.html static document", () => {
     expect(shellHtml).not.toContain("offline-inline-notice");
   });
 
-  test("carries self-recovery JS (online/focus/visibilitychange) + Try-again reload", () => {
+  test("carries self-recovery JS (online/focus/visibilitychange) → reload", () => {
     // Quote-agnostic (prettier may format the inline script with double quotes).
     expect(shellHtml).toMatch(/addEventListener\(["']online["']/);
     expect(shellHtml).toMatch(/["']focus["']/);
@@ -295,5 +295,15 @@ describe("offline-shell.html static document", () => {
     expect(shellHtml).toContain("location.reload()");
     // No /api/health probe gate.
     expect(shellHtml).not.toContain("/api/health");
+  });
+
+  test("primary action is BACK (history.back → previous already-cached page), not Try-again", () => {
+    // 260617 user request: the no-cache offline screen offers a Back button
+    // returning to the previous (cached) page, instead of reloading the current
+    // uncached route.
+    expect(shellHtml).toContain('data-i18n="back"');
+    expect(shellHtml).toMatch(/history\.back\(\)/);
+    // The old "Try again" (retry) primary button is gone.
+    expect(shellHtml).not.toContain('data-i18n="retry"');
   });
 });

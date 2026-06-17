@@ -122,8 +122,12 @@
           yet. Reconnect, or open a page you've already visited.
         </p>
         <div class="shell-actions">
-          <button class="shell-retry" data-i18n="retry" onclick="location.reload()">
-            Try again
+          <button
+            class="shell-retry"
+            data-i18n="back"
+            onclick="history.length > 1 ? history.back() : location.assign('/' + (window.__LOCALE || 'en'))"
+          >
+            Back
           </button>
           <a class="shell-home" id="shell-home-link" data-i18n="home" href="/" hidden>
             Go to home
@@ -144,6 +148,9 @@
           return null;
         }
         var LOCALE = pathLocale || cookieLocale() || "en";
+        // Exposed for the Back button's no-history fallback (onclick runs in
+        // global scope, outside this IIFE).
+        window.__LOCALE = LOCALE;
         // Root entry = the PWA start_url "/" (or any path with no locale
         // segment). A cold offline open hits "/" — a 307 → /<locale> redirect
         // online that the SW cannot cache — so recover by redirecting to the
@@ -154,14 +161,14 @@
             bar: "Jesteś offline",
             heading: "Ta strona jest niedostępna offline",
             body: "Nie otworzyłeś tej strony online, więc nie ma jeszcze zapisanej kopii. Połącz się ponownie lub otwórz wcześniej odwiedzoną stronę.",
-            retry: "Spróbuj ponownie",
+            back: "Wstecz",
             home: "Przejdź do strony głównej",
           },
           uk: {
             bar: "Ви офлайн",
             heading: "Ця сторінка недоступна офлайн",
             body: "Ви не відкривали цю сторінку онлайн, тому збереженої копії ще немає. Підключіться знову або відкрийте раніше відвідану сторінку.",
-            retry: "Спробувати ще раз",
+            back: "Назад",
             home: "На головну",
           },
         };
