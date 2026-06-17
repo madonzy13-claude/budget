@@ -1,34 +1,38 @@
 "use client";
 /**
  * OfflineStaleBar — full-width staleness banner mounted JUST BELOW the app
- * header (260615-e8s round 3). Replaces the in-header offline icon: when the
- * device is offline the real cached page is being shown, so a narrow full-width
- * red bar warns that the data may be stale and states how long ago it was last
- * synced.
+ * header. Offline, the real cached page is shown, so a narrow red bar states how
+ * fresh THAT page's data is — or that it isn't cached.
  *
- *   online  → renders nothing (null) — zero footprint, no layout shift.
- *   offline → narrow full-width red bar:
- *             "You're offline — showing cached data, last synced {X}".
+ *   online  → null.
+ *   offline →
+ *     - synced  → "Offline — data updated {relativeTime}"
+ *     - never   → "Offline — data never cached"  (this page's primary data was
+ *                  never fetched online; 260617 — don't show a misleading global
+ *                  "updated Xs ago" on an uncached page)
+ *     - unknown → "Offline — showing cached data"
  *
- * Cache age comes from useCacheAge() — the freshest successful budget-scoped
- * React Query query's dataUpdatedAt (SPA/SWR 260616). budgetId is no longer used
- * for the lookup (the cache age is browser-wide, not per-budget) but is kept on
- * the prop for the call sites + future per-budget scoping.
+ * Per-page scope (260617): we derive the CURRENT route's PRIMARY query key (the
+ * data on screen) and ask useCacheAge about just that — not "any cached query",
+ * which previously let a cached budget-detail mask an uncached wallets list.
  *
- * Adaptive refresh (staleTickDelay): the relative time re-renders at a cadence
- * matched to its magnitude — every second under a minute, every minute under an
- * hour, every hour beyond that. A self-scheduling setTimeout recomputes the
- * bucket each tick because the age grows while offline.
- *
- * Connectivity: navigator.onLine + online/offline events. isOnline INITS true so
- * SSR / first paint renders nothing (navigator.onLine is briefly false during a
- * reload); the real value is read in a post-mount effect — no hydration flash.
- * navigator.onLine===false is reliable on iOS; ===true is not, but the bar only
- * shows on false, so that asymmetry is safe.
+ * JUMP FIX (260617): offline in-app navigation is a hard document reload
+ * (OfflineNavGuard), so this bar re-mounts on every offline tab switch. Reading
+ * navigator.onLine in a post-PAINT useEffect made the bar appear one frame late,
+ * pushing the pills down (visible jump). We read it in an isomorphic LAYOUT
+ * effect: on the client it runs before paint, so the bar is in the first painted
+ * frame offline — no reflow. (Server → useEffect, so no SSR warning.) isOnline
+ * still INITS true so SSR/hydration render nothing (no mismatch); the layout
+ * effect flips it pre-paint when offline.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo } from "react";
 import { useTranslations, useFormatter } from "next-intl";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Temporal } from "temporal-polyfill";
 import { useCacheAge } from "@/hooks/use-cache-age";
+
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
  * Refresh cadence for the relative cache age, by current age:
@@ -42,18 +46,44 @@ export function staleTickDelay(ageMs: number): number {
   return 3_600_000;
 }
 
-export function OfflineStaleBar({
-  budgetId: _budgetId,
-}: {
-  budgetId: string | null;
-}) {
+/** The query key(s) whose freshness defines the current route's on-screen data. */
+function usePrimaryKeys(budgetId: string | null): (readonly unknown[])[] {
+  const pathname = usePathname() ?? "";
+  const sp = useSearchParams();
+  const monthRaw = sp?.get("month") ?? null;
+  return useMemo(() => {
+    const inBudget = /\/budgets\/[0-9a-fA-F-]{8,}/.test(pathname);
+    if (inBudget && budgetId) {
+      if (pathname.endsWith("/spendings")) {
+        const month =
+          monthRaw && /^\d{4}-\d{2}$/.test(monthRaw)
+            ? monthRaw
+            : Temporal.Now.plainDateISO("UTC").toPlainYearMonth().toString();
+        return [["spendings-summary", budgetId, month]];
+      }
+      if (pathname.endsWith("/wallets"))
+        return [["budget", budgetId, "wallets"]];
+      if (pathname.endsWith("/reserves"))
+        return [["budget", budgetId, "reserves"]];
+      if (pathname.endsWith("/settings"))
+        return [["budget", budgetId, "detail"]];
+      return [];
+    }
+    // Home / non-budget routes → the budget list is the on-screen data.
+    if (!inBudget) return [["active-budgets"]];
+    return [];
+  }, [pathname, budgetId, monthRaw]);
+}
+
+export function OfflineStaleBar({ budgetId }: { budgetId: string | null }) {
   const t = useTranslations("offline");
   const fmt = useFormatter();
   const [isOnline, setIsOnline] = useState(true);
-  const lastSyncedAt = useCacheAge();
+  const age = useCacheAge(usePrimaryKeys(budgetId));
   const [now, setNow] = useState(() => new Date());
 
-  useEffect(() => {
+  // Pre-paint connectivity read (jump fix) + online/offline listeners.
+  useIsoLayoutEffect(() => {
     setIsOnline(navigator.onLine);
     const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
@@ -67,10 +97,10 @@ export function OfflineStaleBar({
 
   // Adaptive self-scheduling tick: recompute the delay each fire as age grows.
   useEffect(() => {
-    if (isOnline) return;
+    if (isOnline || age.kind !== "synced") return;
     let timer: ReturnType<typeof setTimeout>;
     function schedule() {
-      const base = lastSyncedAt ? lastSyncedAt.getTime() : Date.now();
+      const base = age.kind === "synced" ? age.at.getTime() : Date.now();
       const delay = staleTickDelay(Date.now() - base);
       timer = setTimeout(() => {
         setNow(new Date());
@@ -79,16 +109,16 @@ export function OfflineStaleBar({
     }
     schedule();
     return () => clearTimeout(timer);
-  }, [isOnline, lastSyncedAt]);
+  }, [isOnline, age]);
 
   if (isOnline) return null;
 
   const message =
-    lastSyncedAt !== null
-      ? t("staleBar.message", {
-          relativeTime: fmt.relativeTime(lastSyncedAt, now),
-        })
-      : t("staleBar.unknown");
+    age.kind === "synced"
+      ? t("staleBar.message", { relativeTime: fmt.relativeTime(age.at, now) })
+      : age.kind === "never"
+        ? t("staleBar.never")
+        : t("staleBar.unknown");
 
   return (
     <div

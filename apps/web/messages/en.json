@@ -1204,6 +1204,7 @@
     },
     "staleBar": {
       "message": "Offline — data updated {relativeTime}",
+      "never": "Offline — data never cached",
       "unknown": "Offline — showing cached data"
     },
     "unavailable": {

@@ -1,23 +1,38 @@
 /**
- * offline-stale-bar.test.tsx — Vitest+RTL tests for the OfflineStaleBar.
+ * offline-stale-bar.test.tsx — OfflineStaleBar (SPA/SWR 260616/17).
  *
- * SPA/SWR refactor (260616): the cache age now comes from useCacheAge() — the
- * freshest successful budget-scoped React Query query's dataUpdatedAt — instead
- * of the removed offline-cache sync-meta store. Tests seed the query cache to
- * control whether an age exists.
- *
- * Verifies:
- *   - online renders nothing (null, zero footprint),
- *   - offline + a cached budget query → full-width red bar with the age message,
- *   - offline + empty cache → the "unknown" message,
- *   - the adaptive tick cadence (staleTickDelay) buckets.
+ * The bar derives the CURRENT route's PRIMARY query key (usePrimaryKeys) and asks
+ * useCacheAge about just that data:
+ *   - online                         → renders nothing,
+ *   - offline + primary key cached   → "data updated {relativeTime}",
+ *   - offline + primary key NOT cached (even if OTHER data is cached) → "never cached"
+ *     (260617 bug: an uncached wallets list must not show a global "updated 2s ago"),
+ *   - staleTickDelay cadence buckets.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { TestQueryProvider, makeTestQueryClient } from "../setup/query-client";
+import { QueryClient } from "@tanstack/react-query";
+import { TestQueryProvider } from "../setup/query-client";
 
-// next-intl: echo key + interpolated values so we can assert the relative time
-// reaches the rendered string.
+// gcTime: Infinity so a setQueryData-seeded query with NO observer isn't garbage
+// collected before useCacheAge reads it (the bar reads the cache via qc.find, it
+// doesn't observe the query — in the real app the page's hook observes it, so it
+// persists; only this test needs the explicit gcTime).
+const makeClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity, staleTime: 0 },
+    },
+  });
+
+// Route mock — drives usePrimaryKeys. Default: the Wallets tab of budget b-1.
+let mockPathname = "/en/budgets/11111111-2222-3333-4444-555555555555/wallets";
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname,
+  useSearchParams: () => new URLSearchParams(""),
+}));
+
+// next-intl: echo key + interpolated values so we can assert the rendered copy.
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, vals?: Record<string, unknown>) =>
     vals ? `${key} ${Object.values(vals).join(" ")}` : key,
@@ -33,29 +48,9 @@ function setOnline(value: boolean) {
   Object.defineProperty(navigator, "onLine", { configurable: true, value });
 }
 
-/** Render the bar with offline state + an optionally-seeded budget query. */
-function renderBar({
-  offline,
-  seedAge,
-}: {
-  offline: boolean;
-  seedAge: boolean;
-}) {
-  setOnline(!offline);
-  const qc = makeTestQueryClient();
-  if (seedAge) {
-    // A successful budget-scoped query → useCacheAge reports a non-null age.
-    qc.setQueryData(["budget", "b-1", "detail"], { id: "b-1", name: "X" });
-  }
-  return render(
-    <TestQueryProvider client={qc}>
-      <OfflineStaleBar budgetId="b-1" />
-    </TestQueryProvider>,
-  );
-}
-
 beforeEach(() => {
   setOnline(true);
+  mockPathname = "/en/budgets/11111111-2222-3333-4444-555555555555/wallets";
 });
 
 describe("staleTickDelay (adaptive cadence)", () => {
@@ -75,28 +70,76 @@ describe("staleTickDelay (adaptive cadence)", () => {
 
 describe("OfflineStaleBar", () => {
   it("renders nothing while online", async () => {
-    renderBar({ offline: false, seedAge: true });
+    const qc = makeClient();
+    qc.setQueryData(
+      ["budget", "11111111-2222-3333-4444-555555555555", "wallets"],
+      [{ id: "w" }],
+    );
+    render(
+      <TestQueryProvider client={qc}>
+        <OfflineStaleBar budgetId="11111111-2222-3333-4444-555555555555" />
+      </TestQueryProvider>,
+    );
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByTestId("offline-stale-bar")).toBeNull();
   });
 
-  it("renders a full-width red bar with the cache-age message when offline", async () => {
-    renderBar({ offline: true, seedAge: true });
+  it("offline + the page's primary data IS cached → 'data updated' message", async () => {
+    setOnline(false);
+    const qc = makeClient();
+    qc.setQueryData(
+      ["budget", "11111111-2222-3333-4444-555555555555", "wallets"],
+      [{ id: "w" }],
+    );
+    render(
+      <TestQueryProvider client={qc}>
+        <OfflineStaleBar budgetId="11111111-2222-3333-4444-555555555555" />
+      </TestQueryProvider>,
+    );
     await waitFor(() => {
       const bar = screen.getByTestId("offline-stale-bar");
-      expect(bar).toBeTruthy();
       expect(bar.className).toContain("w-full");
-      // message key + interpolated relative time.
       expect(bar.textContent ?? "").toContain("staleBar.message");
       expect(bar.textContent ?? "").toContain("5 minutes ago");
     });
   });
 
-  it("shows the unknown message when the cache is empty (nothing synced)", async () => {
-    renderBar({ offline: true, seedAge: false });
+  it("offline + page's primary data UNCACHED → 'never cached', NOT a global age (260617 bug)", async () => {
+    setOnline(false);
+    const qc = makeClient();
+    // A DIFFERENT page's data is cached (home synced seconds ago) — must NOT leak
+    // into the Wallets banner. The wallets key itself is absent.
+    qc.setQueryData(["active-budgets"], [{ id: "x" }]);
+    qc.setQueryData(
+      ["budget", "11111111-2222-3333-4444-555555555555", "detail"],
+      { id: "11111111-2222-3333-4444-555555555555" },
+    ); // detail cached, wallets not
+    render(
+      <TestQueryProvider client={qc}>
+        <OfflineStaleBar budgetId="11111111-2222-3333-4444-555555555555" />
+      </TestQueryProvider>,
+    );
     await waitFor(() => {
       const bar = screen.getByTestId("offline-stale-bar");
-      expect(bar.textContent ?? "").toContain("staleBar.unknown");
+      expect(bar.textContent ?? "").toContain("staleBar.never");
+      expect(bar.textContent ?? "").not.toContain("staleBar.message");
+    });
+  });
+
+  it("offline + home route + budget list cached → 'data updated'", async () => {
+    setOnline(false);
+    mockPathname = "/en";
+    const qc = makeClient();
+    qc.setQueryData(["active-budgets"], [{ id: "x" }]);
+    render(
+      <TestQueryProvider client={qc}>
+        <OfflineStaleBar budgetId={null} />
+      </TestQueryProvider>,
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("offline-stale-bar").textContent ?? "",
+      ).toContain("staleBar.message");
     });
   });
 });

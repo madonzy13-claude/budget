@@ -1206,6 +1206,7 @@
     },
     "staleBar": {
       "message": "Офлайн — дані оновлені {relativeTime}",
+      "never": "Офлайн — дані не кешовані",
       "unknown": "Офлайн — кешовані дані"
     },
     "unavailable": {

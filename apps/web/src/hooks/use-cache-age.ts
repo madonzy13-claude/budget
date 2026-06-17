@@ -1,71 +1,79 @@
 "use client";
 /**
- * use-cache-age.ts — "last synced" timestamp for the offline staleness bar,
- * derived from the React Query cache (SPA/SWR refactor 260616).
+ * use-cache-age.ts — cache-age state for the offline staleness bar (260616/17).
  *
- * Replaces the old offline-cache sync-meta store (getSyncMeta / __global__ /
- * most-recent fallback chain). Now that every budget-scoped read is a persisted
- * React Query query, the freshest successful query's `dataUpdatedAt` IS the last
- * successful network sync: it's stamped only on a real fetch resolution, and
- * offline the queries don't resolve (networkMode pauses / they fail), so it
- * holds steady at the last online fetch — exactly the "data updated X ago" the
- * stale bar wants. No IndexedDB, no separate sync-meta bookkeeping.
+ * Returns a 3-state result for a SPECIFIC set of "primary" query keys — the data
+ * that defines the CURRENT page (the caller derives them from the route):
+ *   - { kind: "synced", at }  the page's primary data IS cached → "updated {at}"
+ *   - { kind: "never" }       the page's primary data is NOT cached (never fetched
+ *                             online) → "data never cached"
+ *   - { kind: "unknown" }     no primary keys for this route (transient) → generic
+ *
+ * Why keyed, not "any observed query": on the Wallets tab the budget DETAIL query
+ * is often cached (from the switcher / home) while the WALLETS list — the data
+ * actually on screen — is not. Keying off the page's primary data avoids a
+ * misleading "updated 2s ago" when the visible content is uncached (260617 bug).
+ *
+ * `dataUpdatedAt` is stamped only on a real network resolution (offline it holds
+ * at the last online sync); initialData-only queries have dataUpdatedAt===0 and
+ * are treated as "not cached".
  */
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-// Budget-scoped query roots — mirror query-persist.ts shouldPersist so the age
-// reflects the same data we persist/restore.
-const BUDGET_QUERY_ROOTS = new Set([
-  "budget",
-  "transactions",
-  "spendings-summary",
-  "drafts",
-  "reserves",
-  "tasks",
-  "active-budgets",
-  "home-summary",
-]);
+export type CacheAge =
+  | { kind: "synced"; at: Date }
+  | { kind: "never" }
+  | { kind: "unknown" };
+
+function sameCacheAge(a: CacheAge, b: CacheAge): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "synced" && b.kind === "synced")
+    return a.at.getTime() === b.at.getTime();
+  return true;
+}
 
 /**
- * The "last synced" Date for the CURRENT page (260616, user request: the banner
- * should reflect the freshness of the data actually on screen — different pages
- * may hold older cache than others).
- *
- * We scope to the queries the current page is ACTIVELY observing (observer count
- * > 0) — when the user is on Spendings, only the spendings queries are mounted,
- * on Wallets only the wallet query, etc. Among those we take the OLDEST
- * `dataUpdatedAt` (min), so the banner shows the worst-case staleness of what the
- * user is looking at. If no budget-scoped query is currently observed (e.g. a
- * route between mounts), fall back to the most recent across all cached budget
- * queries so the bar still shows a sensible time instead of "unknown".
+ * @param primaryKeys the query keys whose freshness defines the current page.
+ *   Empty array → { kind: "unknown" } (no page-specific data to report).
  */
-export function useCacheAge(): Date | null {
+export function useCacheAge(
+  primaryKeys: readonly (readonly unknown[])[],
+): CacheAge {
   const qc = useQueryClient();
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  // Stable dependency for the effect — the caller may rebuild the array each
+  // render; its serialized form only changes on a real route/key change.
+  const keyJson = JSON.stringify(primaryKeys);
+  const [state, setState] = useState<CacheAge>({ kind: "unknown" });
 
   useEffect(() => {
+    const keys = JSON.parse(keyJson) as (readonly unknown[])[];
     const compute = () => {
-      let oldestActive = Infinity; // min dataUpdatedAt among observed queries
-      let newestAny = 0; // fallback: max across all cached budget queries
-      for (const q of qc.getQueryCache().getAll()) {
-        if (!BUDGET_QUERY_ROOTS.has(q.queryKey[0] as string)) continue;
-        if (q.state.data === undefined || !q.state.dataUpdatedAt) continue;
-        const at = q.state.dataUpdatedAt;
-        if (at > newestAny) newestAny = at;
-        if (q.getObserversCount() > 0 && at < oldestActive) oldestActive = at;
+      if (keys.length === 0) {
+        setState((prev) =>
+          prev.kind === "unknown" ? prev : { kind: "unknown" },
+        );
+        return;
       }
-      const ms = oldestActive !== Infinity ? oldestActive : newestAny || 0;
-      setLastSyncedAt((prev) => {
-        const next = ms ? new Date(ms) : null;
-        // Avoid a re-render when the timestamp is unchanged.
-        if (prev?.getTime() === next?.getTime()) return prev;
-        return next;
-      });
+      let oldest = Infinity;
+      for (const key of keys) {
+        // Exact-key lookups (canonical QueryClient APIs) — no prefix/filter
+        // ambiguity. getQueryData returns the cached data for THIS exact key;
+        // getQueryState carries dataUpdatedAt.
+        const data = qc.getQueryData(key);
+        const at = qc.getQueryState(key)?.dataUpdatedAt ?? 0;
+        // Real cached data only: present data + a non-zero (real network) stamp.
+        if (data !== undefined && at && at < oldest) oldest = at;
+      }
+      const next: CacheAge =
+        oldest !== Infinity
+          ? { kind: "synced", at: new Date(oldest) }
+          : { kind: "never" };
+      setState((prev) => (sameCacheAge(prev, next) ? prev : next));
     };
     compute();
     return qc.getQueryCache().subscribe(compute);
-  }, [qc]);
+  }, [qc, keyJson]);
 
-  return lastSyncedAt;
+  return state;
 }
