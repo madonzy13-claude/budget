@@ -217,7 +217,15 @@ export function createAuth(opts: CreateAuthOptions) {
     },
     plugins: opts.additionalPlugins ?? [],
     rateLimit: {
-      enabled: true,
+      // Disabled ONLY when AUTH_RATE_LIMIT_DISABLED=true (set in the CI e2e
+      // compose env — see .github/workflows/ci.yml). The Playwright suite creates
+      // a fresh verified user PER SCENARIO across all six viewport projects, so it
+      // fires hundreds of sign-up/sign-in calls from the single web-container IP.
+      // The global 100/60s bucket throttles those into a multi-hour run (the
+      // fixture retries through the 429s, so it still passes — just absurdly slow).
+      // The limiter is a production anti-brute-force control and stays ON in
+      // dev/prod (flag unset → enabled).
+      enabled: process.env["AUTH_RATE_LIMIT_DISABLED"] !== "true",
       // 260619 SPURIOUS-LOGOUT ROOT CAUSE: the web (app) layout validates the
       // session on EVERY navigation via a server-side `fetch` to
       // /auth/get-session. Better Auth treats that as a client-initiated request
