@@ -454,7 +454,9 @@
         "reserves_label": "Rezerwy",
         "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączone ukrywa zakładkę Rezerwy.",
         "targetMonthsLabel": "Docelowe miesiące",
-        "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60."
+        "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
+        "push_label": "Włącz powiadomienia push",
+        "push_help": "Otrzymuj alerty, gdy zadania wymagają Twojej uwagi — nawet gdy aplikacja jest zamknięta. Możesz to zmienić później w Ustawieniach."
       },
       "review": {
         "heading": "Gotowy?",
@@ -1195,6 +1197,8 @@
   },
   "offline": {
     "_machineTranslated": true,
+    "readOnly": "Budżet jest tylko do odczytu, gdy jesteś offline.",
+    "writeBlocked": "Jesteś offline — zmian nie można teraz zapisać. Spróbuj ponownie po ponownym połączeniu.",
     "badge": {
       "ariaLabel": "Offline",
       "label": "Offline"
@@ -1207,7 +1211,8 @@
     "staleBar": {
       "message": "Offline — dane zaktualizowano {relativeTime}",
       "never": "Offline — dane nigdy nie zapisane",
-      "unknown": "Offline — dane z pamięci"
+      "unknown": "Offline — dane z pamięci",
+      "lessThanMinute": "mniej niż minutę temu"
     },
     "unavailable": {
       "heading": "Niedostępne offline",
@@ -1228,6 +1233,12 @@
       "heading": "Zostałeś wylogowany",
       "body": "Nie można teraz zalogować się z powodu problemu z serwerem. Twoje dane są bezpieczne.",
       "reload": "Odśwież"
+    },
+    "banner": {
+      "message": "Serwer niedostępny — dane zaktualizowano {relativeTime}",
+      "never": "Serwer niedostępny — brak danych w pamięci podręcznej",
+      "unknown": "Serwer niedostępny — wyświetlanie danych z pamięci podręcznej",
+      "readOnly": "Budżet jest tylko do odczytu, gdy serwer jest niedostępny."
     }
   }
 }

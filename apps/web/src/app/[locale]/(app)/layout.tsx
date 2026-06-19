@@ -196,7 +196,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     <NavPendingProvider>
       <div
         data-shell-root
-        className={`flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]${degradedServerDown ? " is-server-down" : ""}`}
+        className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]"
       >
         <LocaleCookieSync accountLocale={accountLocale} />
         {/* PullToRefresh is mounted once at the shell level so every

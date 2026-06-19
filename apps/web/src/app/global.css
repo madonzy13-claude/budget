@@ -581,3 +581,159 @@ input:disabled,
 textarea:disabled {
   cursor: not-allowed;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Offline read-only (260617 round 4). The pre-paint inline marker in
+   app/layout.tsx toggles `html.is-offline` BEFORE first paint; these rules are
+   unlayered (like the cursor rules above) so they win the cascade.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Reserve the staleness-bar slot height so the bar — a client leaf that SSRs
+   null — fills pre-reserved space on an offline hard reload (no content jump).
+   Matches OfflineStaleBar's fixed h-6 (1.5rem). Online: slot collapses to 0. */
+[data-offline-bar-slot] {
+  height: 0;
+}
+/* Reserve height AND paint the red band pre-paint (the inline marker sets
+   html.is-offline before first paint). On a residual hard reload offline the
+   red bar is then visible in frame 1 — the OfflineStaleBar fills its text on
+   top of the same red, so the banner never flashes in/out (260617 round 5). */
+html.is-offline [data-offline-bar-slot] {
+  height: 1.5rem;
+  background: var(--destructive, #ef4444);
+}
+
+/* Read-only dimming of write controls while offline. Visual only — pointer
+   events stay ON so OfflineReadOnly's capture listener still fires the bottom
+   toast. Navigation/view controls (links, plain buttons) are untouched.
+   [data-offline-ok] (e.g. spendings quick-entry, which owns its own dialog) is
+   excluded. */
+html.is-offline
+  :is(
+    input,
+    textarea,
+    select,
+    [contenteditable="true"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="slider"],
+    [role="spinbutton"],
+    [role="combobox"],
+    [role="option"],
+    [type="submit"],
+    [data-offline-block]
+  ):not([data-offline-ok]) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Server-down mirrors offline. ConnectivityProvider toggles `html.is-server-down`
+   when the API is unreachable (network up). Same red bar slot + control dimming
+   as offline; the provider removes the class on recovery so nothing stays stale.
+   The offline path keeps its own pre-paint marker — these are additive. */
+html.is-server-down [data-offline-bar-slot] {
+  height: 1.5rem;
+  background: var(--destructive, #ef4444);
+}
+html.is-server-down
+  :is(
+    input,
+    textarea,
+    select,
+    [contenteditable="true"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="slider"],
+    [role="spinbutton"],
+    [role="combobox"],
+    [role="option"],
+    [type="submit"],
+    [data-offline-block]
+  ):not([data-offline-ok]) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Delayed skeleton (260617). A warm cache restore (persisted React Query → IDB)
+   or a fast SWR refetch fills data within ~one frame, so a skeleton that paints
+   immediately FLICKERS (skeleton → data) on every nav / app restart. Hold every
+   <Skeleton> INVISIBLE (but space-reserved via visibility:hidden — no layout
+   shift) for its first 200ms; if data replaces it first, it is never seen. Only
+   a genuinely slow load (>200ms) ever shows the pulsing skeleton.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes skeleton-reveal {
+  to {
+    visibility: visible;
+  }
+}
+.skeleton-delayed {
+  visibility: hidden;
+  animation:
+    skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite,
+    skeleton-reveal 1ms linear 200ms forwards;
+}
+
+/* Same 200ms invisibility for a WHOLE skeleton BLOCK (a loading-state container
+   with its own non-Skeleton scaffold — cards, dividers, input outlines). Hiding
+   only the inner <Skeleton> bars left the scaffold showing → a half-rendered
+   "weird layout" for a few ms on warm/offline nav (260617 device shot). Wrap the
+   entire skeleton block in `reveal-delayed` so the scaffold AND bars stay hidden
+   (space reserved) until 200ms; a cache restore replaces it first → nothing
+   shows. No pulse here (the inner Skeletons pulse once revealed). */
+.reveal-delayed {
+  visibility: hidden;
+  animation: skeleton-reveal 1ms linear 200ms forwards;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Month-nav directional slide (260618 UX). The spendings columns slide in the
+   direction of travel on prev/next — driven by SlideOnChange, which re-triggers
+   the keyframe per month change (no remount). BDP TAB switches use framer-motion
+   (PageTransition) + the layoutId pill, not these classes.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes slide-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(56px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes slide-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-56px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.slide-in-forward {
+  animation: slide-in-forward 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.slide-in-back {
+  animation: slide-in-back 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-in-forward,
+  .slide-in-back {
+    animation: none;
+  }
+}
+

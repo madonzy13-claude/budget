@@ -454,7 +454,9 @@
         "reserves_label": "Reserves",
         "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
         "targetMonthsLabel": "Target months",
-        "targetMonthsError": "Months must be a whole number between 1 and 60."
+        "targetMonthsError": "Months must be a whole number between 1 and 60.",
+        "push_label": "Enable push notifications",
+        "push_help": "Get alerted when tasks need your attention — works even when the app is closed. You can change this later in Settings."
       },
       "review": {
         "heading": "Ready to go?",
@@ -1193,6 +1195,8 @@
     }
   },
   "offline": {
+    "readOnly": "Budget is read-only while you're offline.",
+    "writeBlocked": "You're offline — changes can't be saved right now. Try again when you reconnect.",
     "badge": {
       "ariaLabel": "Offline",
       "label": "Offline"
@@ -1204,6 +1208,7 @@
     },
     "staleBar": {
       "message": "Offline — data updated {relativeTime}",
+      "lessThanMinute": "less than a minute ago",
       "never": "Offline — data never cached",
       "unknown": "Offline — showing cached data"
     },
@@ -1224,6 +1229,12 @@
       "heading": "You're signed out",
       "body": "Can't sign in right now due to a server problem. Your data is safe.",
       "reload": "Reload"
+    },
+    "banner": {
+      "message": "Server unavailable — data updated {relativeTime}",
+      "never": "Server unavailable — data not cached",
+      "unknown": "Server unavailable — showing cached data",
+      "readOnly": "Budget is read-only while the server is unavailable."
     }
   }
 }
