@@ -38,12 +38,15 @@
  * Coverage:
  *   - Touch only; mouse drags are not pull-to-refresh on the web.
  *   - Listener is attached to `[data-ptr-blur-target]` (the wrapper that
- *     spans header + main). Earlier this hooked `<main>` only, but iOS
- *     touches that start on the `<header>` element never bubbled into
- *     main's touchstart, so pulling from the top nav did nothing — UAT
- *     round 14. The main element is still consulted for `scrollTop` (it's
- *     the real scroll surface; body is locked overflow:hidden) so PTR
+ *     spans header + main) so iOS touches that start on the `<header>`
+ *     element still register (they never bubble into main's touchstart —
+ *     UAT round 14). The main element is still consulted for `scrollTop`
+ *     (it's the real scroll surface; body is locked overflow:hidden) so PTR
  *     still bails when the user has scrolled into the page.
+ *   - HEADER-ONLY engagement (user 260619): the gesture only triggers when
+ *     the pull STARTS on the header (`[data-shell-header]`). Pulling anywhere
+ *     below the header (page content / lists) scrolls or does nothing — it
+ *     never reloads. (Guard in onTouchStart.)
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -134,6 +137,12 @@ export function PullToRefresh() {
       const startTarget =
         e.target instanceof Element ? (e.target as Element) : null;
       if (startTarget?.closest("[data-no-pull-refresh]")) return;
+      // Header-only engagement (user 260619): PTR triggers ONLY when the pull
+      // STARTS on the header ([data-shell-header]). A pull that starts below the
+      // header (in page content) must never reload — it just scrolls. The
+      // listener stays on the header+main wrapper so iOS header touches still
+      // register; this guard scopes the gesture to the header.
+      if (!startTarget?.closest("[data-shell-header]")) return;
       // Both the outer main AND any inner scroll container must be at
       // the top — otherwise the user's gesture is "scroll within that
       // list", not "pull to refresh".
