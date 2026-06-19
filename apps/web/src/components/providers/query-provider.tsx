@@ -1,7 +1,12 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect, type ReactNode } from "react";
-import { restoreQueryCache, startPersisting } from "@/lib/query-persist";
+import {
+  restoreQueryCache,
+  startPersisting,
+  requestPersistentStorage,
+} from "@/lib/query-persist";
+import { ConnectivityProvider } from "@/components/common/connectivity-provider";
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -24,6 +29,9 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let stop = () => {};
     let cancelled = false;
+    // Make storage durable BEFORE we start writing to it so WebKit doesn't evict
+    // the IDB cache + SW caches under pressure (260619 "cache vanished" fix).
+    void requestPersistentStorage();
     void restoreQueryCache(client).finally(() => {
       if (!cancelled) stop = startPersisting(client);
     });
@@ -32,5 +40,9 @@ export function QueryProvider({ children }: { children: ReactNode }) {
       stop();
     };
   }, [client]);
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <ConnectivityProvider>{children}</ConnectivityProvider>
+    </QueryClientProvider>
+  );
 }
