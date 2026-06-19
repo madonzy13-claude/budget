@@ -4,6 +4,15 @@
 **Domain:** PWA (Serwist), IndexedDB, VAPID web-push, next-intl i18n, playwright-bdd E2E
 **Confidence:** HIGH (codebase directly probed; all major claims verified against source)
 
+> **⚠️ Offline research superseded (2026-06-16/17).** The IndexedDB cache / offline
+> write-queue / sync-replay design researched here was **not the final approach** —
+> it was built (08-03) then removed as too fragile on iOS. Shipped offline = persisted
+> React Query cache (read) + honest POST + rollback-toast (write) + `OfflineStaleBar`/
+> `useCacheAge` + SW nav layer (nav-docs cache-first offline, `OfflineNavGuard`,
+> `offline-shell.html` Back button, `usePrefetchBudgetTabs`). See **08-CONTEXT.md**
+> banner + memories `project_offline_architecture`, `project_spa_swr_refactor`,
+> `project_nav_cache_lag`. PWA-install / web-push / i18n / E2E research unaffected.
+
 ---
 
 <user_constraints>

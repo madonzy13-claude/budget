@@ -253,6 +253,13 @@
       "when": 1781735400000,
       "tag": "0036_category_color_key",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781821800000,
+      "tag": "0037_push_subscription_per_budget",
+      "breakpoints": true
     }
   ]
 }

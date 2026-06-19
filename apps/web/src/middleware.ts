@@ -1,7 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 import { routing } from "../i18n/routing";
-import { negotiateLocale } from "./lib/negotiate-locale";
+import { decideSignedOutLocaleRedirect } from "./lib/negotiate-locale";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -68,28 +68,34 @@ export default function middleware(request: NextRequest) {
     return res;
   }
 
-  // First-visit Accept-Language negotiation (D-20, T-08-04-01).
-  // Fires ONLY when:
-  //   1. No budget-locale cookie (not a returning user / not signed in)
-  //   2. No session (not authenticated)
-  //   3. The path has no locale prefix (bare "/" or "/some-path" without /en|pl|uk/)
-  // In that case, instead of letting next-intl fall back to the hardcoded
-  // defaultLocale ("en"), we read Accept-Language and redirect to the negotiated
-  // locale. The Accept-Language value is validated against the supported-locale
-  // allowlist inside negotiateLocale() — any unsupported tag falls back to "en".
+  // Signed-out, no-URL-prefix locale resolution (D-20, T-08-04-01).
+  // Precedence (decideSignedOutLocaleRedirect):
+  //   budget-locale cookie > NEXT_LOCALE cookie > Accept-Language > "en"
+  // A SAVED locale cookie must beat the browser's Accept-Language header. The
+  // app's own account cookie (budget-locale) and next-intl's own cookie
+  // (NEXT_LOCALE, written by next-intl on every localized visit) both count as
+  // "saved" — previously this block keyed ONLY on budget-locale, so a stale
+  // NEXT_LOCALE choice was silently overridden by the header (UAT Test 10,
+  // cases B/E). All cookie values are validated against the supported-locale
+  // allowlist; the Accept-Language value is likewise validated inside
+  // decideSignedOutLocaleRedirect() — any unsupported tag falls back to "en".
+  // Fires ONLY for unauthenticated requests whose path has no locale prefix.
   const accountLocaleCookie = request.cookies.get(ACCOUNT_LOCALE_COOKIE)?.value;
-  const hasLocaleCookie =
-    !!accountLocaleCookie && LOCALES.includes(accountLocaleCookie);
   const urlHasLocale = LOCALES.includes(pathname.split("/")[1] ?? "");
 
-  if (!isAuthenticated && !hasLocaleCookie && !urlHasLocale) {
-    const negotiated = negotiateLocale(request.headers.get("accept-language"));
-    // Only redirect when the negotiated locale differs from the default ("en")
-    // to avoid a redirect loop on "en" first visits (next-intl already defaults to en).
-    if (negotiated !== "en") {
+  if (!isAuthenticated && !urlHasLocale) {
+    const target = decideSignedOutLocaleRedirect({
+      budgetLocaleCookie: accountLocaleCookie,
+      nextLocaleCookie: request.cookies.get("NEXT_LOCALE")?.value,
+      acceptLanguage: request.headers.get("accept-language"),
+    });
+    // null ⇒ no saved cookie and header negotiates "en" ⇒ fall through and let
+    // next-intl emit the canonical bare "/" → /en (avoids a redundant redirect
+    // and any loop).
+    if (target) {
       const url = request.nextUrl.clone();
       const barePath = pathname || "/";
-      url.pathname = `/${negotiated}${barePath === "/" ? "" : barePath}`;
+      url.pathname = `/${target}${barePath === "/" ? "" : barePath}`;
       return NextResponse.redirect(url);
     }
   }

@@ -50,6 +50,8 @@ import { CurrencyPicker } from "@/components/common/currency-picker";
 import { DateInput } from "@/components/budgeting/fields/date-input";
 import { formatAmountForList } from "@/components/budgeting/recurring-rules-list";
 import { uuidv4 } from "@/lib/uuid";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 export type RuleMode = "create" | "edit";
 
@@ -130,6 +132,7 @@ export function RecurringRuleForm({
 }: RecurringRuleFormProps) {
   const t = useTranslations("budgeting.recurring");
   const queryClient = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
 
   // Normalize the prefilled amount so the input value matches the
   // shape the spendings grid uses ("1500", "123.50") instead of the
@@ -187,7 +190,15 @@ export function RecurringRuleForm({
   const applyToFuture = true;
   const [saving, setSaving] = useState(false);
 
-  const doFetch = fetchImpl ?? fetch;
+  // Honest-offline write path. A test-supplied `fetchImpl` still wins (it
+  // receives the full /api/... URL + init exactly as before); otherwise the
+  // call routes through clientApiWrite, which prefixes /api, attaches
+  // X-Budget-ID, and throws OfflineWriteError on offline / unreachable / hung /
+  // 5xx so the catch below shows the shared offline toast.
+  const doFetch = fetchImpl
+    ? fetchImpl
+    : (url: string, init?: RequestInit) =>
+        clientApiWrite(url.replace(/^\/api/, ""), init ?? {});
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -289,6 +300,16 @@ export function RecurringRuleForm({
       }
       onSaved?.();
       onOpenChange(false);
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets `saving` so the spinner never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      // Non-offline throw → mirror the per-mode generic error already used on
+      // a non-ok response.
+      toast.error(t(mode === "create" ? "errors.create" : "errors.update"));
     } finally {
       setSaving(false);
     }

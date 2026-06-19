@@ -2,6 +2,10 @@
 
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
+>
+> **⚠️ The offline decisions discussed here (write-replay/sync-issues, pending+badge
+> indicator, staleness marker) were superseded 2026-06-16/17** — see the 08-CONTEXT.md
+> banner. Current offline = persisted React Query cache + rollback-toast + OfflineStaleBar.
 
 **Date:** 2026-06-10
 **Phase:** 8-PWA, Offline, Push, i18n & E2E Hardening

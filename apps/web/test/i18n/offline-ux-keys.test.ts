@@ -4,6 +4,8 @@ import pl from "../../messages/pl.json";
 import uk from "../../messages/uk.json";
 
 const KEYS = [
+  "offline.readOnly",
+  "offline.writeBlocked",
   "offline.indicator.tooltip",
   "offline.indicator.tooltipUnknown",
   "offline.indicator.ariaLabel",

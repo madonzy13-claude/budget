@@ -56,6 +56,23 @@ export default function RootLayout({
 }>) {
   return (
     <html suppressHydrationWarning>
+      <head>
+        {/* PRE-PAINT offline marker. On an offline HARD reload (OfflineNavGuard
+            forces document navigations offline), the offline staleness bar — a
+            client leaf that SSRs null — used to pop in after hydration and shove
+            content down. This blocking <head> script runs BEFORE first paint and
+            sets `html.is-offline` from navigator.onLine, so global.css can
+            reserve the bar's slot height in the very first frame (no jump). It
+            also keeps the class in sync with online/offline events. Inline +
+            static string (no user data) — `suppressHydrationWarning` on <html>
+            covers the class it toggles. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var d=document.documentElement;function s(){d.classList.toggle('is-offline',navigator.onLine===false);}s();addEventListener('online',s);addEventListener('offline',s);}catch(e){}})();",
+          }}
+        />
+      </head>
       <body
         className={`${inter.variable} ${plex.variable} font-sans antialiased`}
       >

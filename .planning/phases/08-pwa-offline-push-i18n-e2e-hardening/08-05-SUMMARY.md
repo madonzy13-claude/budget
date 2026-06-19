@@ -63,6 +63,14 @@ metrics:
 
 # Phase 08 Plan 05: Push Delivery End-to-End + Install UX Summary
 
+> **⚠️ PARTIAL SUPERSEDE (2026-06-16/17).** Push delivery, NOTIFICATION_TYPES
+> registry, SW deep-link, Settings/onboarding push controls, and the PWA install
+> banner are **still current**. But the **per-row offline pending marker** (Task 4,
+> added to `transaction-row.tsx`) was **removed** — offline WRITE is now an honest
+> POST + rollback-toast (no queue, so no pending state to mark). The `provides:
+pending-marker` and the marker mentions in Task 4 are stale. See **08-CONTEXT.md**
+> banner + memory `project_offline_architecture`.
+
 **One-liner:** Push worker handler with extensible NOTIFICATION_TYPES registry + SW deep-link + Settings/onboarding push controls + PWA install banner with deferred-prompt sharing + per-row offline pending marker.
 
 ## Tasks Completed

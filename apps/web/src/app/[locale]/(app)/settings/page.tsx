@@ -29,7 +29,11 @@ const STT_PROVIDERS = [
 export default async function SettingsPage({ params }: SettingsPageProps) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "settings" });
-  const session = await getServerSession();
+  // Read fresh (bypass the 60s Better Auth cookie cache): the display-currency
+  // PUT updates the DB directly, so the cached session would otherwise serve a
+  // stale currency for up to 60s after a change and the picker would render the
+  // old value on reload.
+  const session = await getServerSession({ disableCookieCache: true });
   const initialDisplayCurrency = session?.user?.displayCurrency ?? undefined;
 
   return (

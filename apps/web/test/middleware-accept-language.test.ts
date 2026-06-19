@@ -79,24 +79,8 @@ describe("negotiateLocale", () => {
   });
 });
 
-describe("middleware Accept-Language integration behavior", () => {
-  // These tests describe the expected precedence rules:
-  // cookie > session > Accept-Language > "en" default
-  // They document the contract rather than directly testing middleware
-  // (which is a Next.js edge function).
-
-  test("documents: budget-locale cookie wins over Accept-Language", () => {
-    // When budget-locale=pl cookie is set, Accept-Language should be ignored
-    // even if Accept-Language says 'uk'. The cookie was set by Settings/sign-in.
-    // This is tested via the middleware code structure (cookie check before negotiation).
-    expect(true).toBe(true); // contract documented above
-  });
-
-  test("documents: negotiation only fires when no cookie and no session locale", () => {
-    // negotiateLocale() is called ONLY when both:
-    //   - budget-locale cookie is absent
-    //   - session locale is absent
-    // This prevents the negotiation from overriding a signed-in user's preference.
-    expect(true).toBe(true); // contract documented above
-  });
-});
+// The signed-out precedence contract (cookie > Accept-Language) is now REALLY
+// exercised — see middleware-locale-precedence.test.ts (decideSignedOutLocaleRedirect).
+// The previous `expect(true).toBe(true)` placebos here were removed: they passed
+// without ever running middleware, which is exactly how UAT Test 10's cases B/E
+// (a saved cookie NOT beating the header) slipped through.

@@ -552,15 +552,25 @@ describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issue
     expect(dataBdpTabsBlock).not.toMatch(/<ActivePillTaskSlider/);
   });
 
-  it("#2: ActivePillTaskSlider renders below the sticky band as page content", () => {
-    // quick-260613-pdb: the slider lives in <BudgetShellData>, rendered AFTER
-    // the data-bdp-tabs band (a sibling above layout.tsx's pb-shell-safe
-    // children) so it sits below the band and scrolls with page content,
-    // fully visible at rest rather than occluded inside the sticky band.
-    expect(shellCode).toMatch(/<ActivePillTaskSlider/);
-    expect(shellCode.indexOf("<ActivePillTaskSlider")).toBeGreaterThan(
-      shellCode.indexOf("data-bdp-tabs"),
+  it("#2: ActivePillTaskSlider renders inside the sliding content region, below the band (260618)", () => {
+    // 260618: the slider moved OUT of <BudgetShellData> into the BDP layout's
+    // sliding region (TabSlide / .bdp-content) so it slides as ONE unit with the
+    // page on a tab switch (was frozen chrome → vertical jump). It is still below
+    // the sticky band (BudgetShellData, which holds data-bdp-tabs, renders before
+    // the pb-shell-safe content) and still scrolls with page content.
+    const bdpLayout = readFileSync(
+      resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+      "utf8",
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(bdpLayout).toMatch(/<ActivePillTaskSlider/);
+    // …rendered inside the TabSlide (sliding) region.
+    expect(bdpLayout.indexOf("<ActivePillTaskSlider")).toBeGreaterThan(
+      bdpLayout.indexOf("<TabSlide"),
     );
+    // …and no longer in the sticky-band shell file.
+    expect(shellCode).not.toMatch(/<ActivePillTaskSlider/);
   });
 
   // ── Issue #3: Grid tail spacer ───────────────────────────────────────────

@@ -20,7 +20,8 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type {
@@ -72,6 +73,7 @@ export function useUpdateReserveAdjustment(
 ) {
   const qc = useQueryClient();
   const t = useTranslations("bdp.tab.reserves.toast");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: {
@@ -84,7 +86,7 @@ export function useUpdateReserveAdjustment(
       };
       if (input.note !== undefined) body.note = input.note;
 
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/reserves/${input.categoryId}/adjust`,
         {
           method: "POST",
@@ -129,9 +131,14 @@ export function useUpdateReserveAdjustment(
       return { previous };
     },
 
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       if (ctx?.previous !== undefined) {
         qc.setQueryData(["budget", budgetId, "reserves"], ctx.previous);
+      }
+      // Honest-offline: an offline/unreachable/hung write shows the shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
       }
       toast.error(t("saveFailed"));
     },

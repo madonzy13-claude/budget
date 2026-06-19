@@ -64,6 +64,20 @@ metrics:
 
 # Phase 08 Plan 06: E2E Authoring (D-21 Audit & Fill) Summary
 
+> **⚠️ OFFLINE SCENARIOS SUPERSEDED (2026-06-16/17, `tasks-redesign` SPA/SWR refactor).**
+> The offline E2E scenarios below assert features that **no longer exist** — the
+> offline write-**queue**, the per-row **pending-sync marker**, the **offline status
+> badge**, and the **sync-issues list** (`anyPendingSyncMarker()`, `txn-pending-{id}`,
+> the `budget:sync-failure` injection). That whole machinery was removed; offline
+> WRITE is now an honest POST + rollback-toast (no queue/replay/markers). The
+> `@skip` block in `spendings.feature` also cites deleted unit tests
+> (`offline-status-badge.test.tsx`, `sync-issues-list.test.tsx`). Current offline
+> guarantees live in Vitest (`offline-write-path.test.tsx`, `offline-stale-bar.test.tsx`,
+> `offline-nav-guard.test.ts`, `sw-offline.test.ts`) — see memory
+> `project_offline_test_architecture`. Non-offline scenarios (auto-deduct,
+> recurring-draft, cushion, share-link, onboarding) remain valid.
+> See **08-CONTEXT.md** banner + memory `project_offline_architecture`.
+
 **One-liner:** Playwright-bdd @phase8 suite covering quick-entry + offline replay, reserve auto-deduct, recurring-draft confirm, cushion toggle, share-link join, and onboarding wizard end-to-end — all bound to completed Page Objects.
 
 ## What Was Built

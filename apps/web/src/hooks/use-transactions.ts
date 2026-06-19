@@ -12,9 +12,11 @@
  * networkMode (paused offline → keeps cached data) + the persisted query cache
  * (query-persist.ts). The old bespoke IndexedDB read-back + markSynced sync-meta
  * were removed; AbortSignal.timeout still fails fast on an iOS lying-online dead
- * link, and refetchOnMount:"always" keeps a warm cache revalidating.
+ * link. staleTime:30s gives stale-while-revalidate WITHOUT a refetch on every
+ * mount/tab-switch (refetchOnMount:"always" was removed — it was the nav-lag
+ * cause); a warm cache revalidates only once the 30s window lapses.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import {
   mapTxnRowToDTO,
@@ -43,6 +45,9 @@ export function useTransactions(
       return (body.transactions ?? []).map(mapTxnRowToDTO);
     },
     staleTime: 30_000,
-    refetchOnMount: "always",
+    // 260618: keep previous month's transactions visible during a month change
+    // so the grid columns persist (no skeleton flash) and the month-slide
+    // animation plays on the real columns. See use-spendings-summary.
+    placeholderData: keepPreviousData,
   });
 }

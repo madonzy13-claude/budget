@@ -6,7 +6,7 @@
  * Hydrated from RSC initialData (Plan 04-04 spendings/page.tsx).
  * Pattern: task-banner.tsx useQuery + initialData.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
 export interface SpendingsSummaryDTO {
@@ -64,6 +64,11 @@ export function useSpendingsSummary(
     staleTime: 30_000,
     // SPA/SWR (260616): warm cache renders instantly; this background refetch
     // replaces it if the month's data changed (matches use-transactions).
-    refetchOnMount: "always",
+    // 260618: keep the PREVIOUS month's summary on screen while the new month's
+    // loads. Without it, a month change flipped the key → isPending → the grid
+    // swapped to skeletons mid-slide, so the directional month-slide played on
+    // the skeletons and the real columns just popped in ("no animation"). With
+    // keepPreviousData the columns persist and the SLIDE plays on them.
+    placeholderData: keepPreviousData,
   });
 }

@@ -13,6 +13,12 @@ vi.mock("sonner", () => ({
   toast: { error: (...a: unknown[]) => mockToastError(...a) },
 }));
 
+// The hook now pulls the shared honest-offline toast (useOfflineWriteToast →
+// useTranslations("offline")); echo keys so it renders without a real provider.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (k: string) => k,
+}));
+
 function wrapper({ children }: { children: React.ReactNode }) {
   return <TestQueryProvider>{children}</TestQueryProvider>;
 }

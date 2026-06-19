@@ -43,6 +43,5 @@ export function useHomeSummary(budgetId: string) {
       return (await res.json()) as HomeSummary;
     },
     staleTime: 30_000,
-    refetchOnMount: "always",
   });
 }

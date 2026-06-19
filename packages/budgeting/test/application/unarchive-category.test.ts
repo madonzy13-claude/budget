@@ -2,7 +2,7 @@
  * unarchive-category.test.ts — TDD RED: failing tests for unarchiveCategory use-case.
  * bun:test with fake repos.
  */
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect } from "bun:test";
 import type { CategoryRepo } from "../../src/ports/category-repo";
 import type { CategoryLimitRepo } from "../../src/ports/category-limit-repo";
 
@@ -88,9 +88,8 @@ function makeRepos(
 
 describe("unarchiveCategory", () => {
   it("returns err when category not found", async () => {
-    const { unarchiveCategory } = await import(
-      "../../src/application/unarchive-category"
-    );
+    const { unarchiveCategory } =
+      await import("../../src/application/unarchive-category");
     const { repo, limitRepo } = makeRepos(null);
     const useCase = unarchiveCategory({ repo, limitRepo });
     const result = await useCase({
@@ -103,9 +102,8 @@ describe("unarchiveCategory", () => {
   });
 
   it("returns err when category is NOT archived (both flags null)", async () => {
-    const { unarchiveCategory } = await import(
-      "../../src/application/unarchive-category"
-    );
+    const { unarchiveCategory } =
+      await import("../../src/application/unarchive-category");
     // archivedFrom=null + archivedAt=null = not archived
     const cat = makeCategory("cat-1", null, null);
     const { repo, limitRepo } = makeRepos(cat);
@@ -120,9 +118,8 @@ describe("unarchiveCategory", () => {
   });
 
   it("SAME-MONTH revert: calls repo.unarchive once, does NOT call setLimitForMonth", async () => {
-    const { unarchiveCategory } = await import(
-      "../../src/application/unarchive-category"
-    );
+    const { unarchiveCategory } =
+      await import("../../src/application/unarchive-category");
     // archived_from = current month (2026-06-01); today is also 2026-06
     const now = new Date();
     const currentMonthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
@@ -141,9 +138,8 @@ describe("unarchiveCategory", () => {
   });
 
   it("MONTHS-LATER revert: zeroes strictly-between months, sets current month to archive-month limits, calls unarchive once", async () => {
-    const { unarchiveCategory } = await import(
-      "../../src/application/unarchive-category"
-    );
+    const { unarchiveCategory } =
+      await import("../../src/application/unarchive-category");
     // archived 2026-03-01; current month assumed to be 2026-06-01
     // strictly between: 2026-04-01, 2026-05-01 → zero
     // current (2026-06-01) → archive-month limits
@@ -213,19 +209,25 @@ describe("unarchiveCategory", () => {
   });
 
   it("MONTHS-LATER: total setLimitForMonth calls = (months strictly between) + 1 current", async () => {
-    const { unarchiveCategory } = await import(
-      "../../src/application/unarchive-category"
-    );
+    const { unarchiveCategory } =
+      await import("../../src/application/unarchive-category");
     // archived 2026-03-01; current 2026-06-01 → strictly between: 2026-04, 2026-05 = 2 months
     const archiveMonth = "2026-03-01";
     const cat = makeCategory("cat-1", archiveMonth, null);
     const limitRow = makeFakeLimitRow("50000", "EUR", "10000", "EUR");
     const { repo, limitRepo } = makeRepos(cat, limitRow);
-    (limitRepo as any).getEffectiveLimit = async (_t: string, _c: string, d: string) =>
-      d === archiveMonth ? limitRow : null;
+    (limitRepo as any).getEffectiveLimit = async (
+      _t: string,
+      _c: string,
+      d: string,
+    ) => (d === archiveMonth ? limitRow : null);
 
     const useCase = unarchiveCategory({ repo, limitRepo });
-    await useCase({ tenantId: "tenant-1", categoryId: "cat-1", actorUserId: "user-1" });
+    await useCase({
+      tenantId: "tenant-1",
+      categoryId: "cat-1",
+      actorUserId: "user-1",
+    });
 
     // 2 strictly-between + 1 current = 3 calls total
     expect(limitRepo.setLimitCalls.length).toBe(3);

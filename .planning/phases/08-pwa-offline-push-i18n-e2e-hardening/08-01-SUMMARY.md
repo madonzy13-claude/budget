@@ -111,8 +111,8 @@ metrics:
 
 **Nyquist scaffolds (each fails with `expect("SCAFFOLD").toBe("IMPLEMENTED")`):**
 
-- `apps/web/test/offline-cache.test.ts` — PWAX-02, implemented in 08-03
-- `apps/web/test/offline-queue.test.ts` — PWAX-03, implemented in 08-03
+- `apps/web/test/offline-cache.test.ts` — PWAX-02, implemented in 08-03 ⚠️ later DELETED (2026-06-16/17 SPA/SWR refactor; offline cache replaced by persisted React Query — see 08-CONTEXT.md banner)
+- `apps/web/test/offline-queue.test.ts` — PWAX-03, implemented in 08-03 ⚠️ later DELETED (offline write-queue removed; now rollback-toast)
 - `apps/api/test/routes/push.test.ts` — PWAX-04, implemented in 08-02
 - `apps/worker/test/push-notification-handler.test.ts` — PWAX-05, implemented in 08-05
 

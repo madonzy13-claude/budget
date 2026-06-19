@@ -17,7 +17,11 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 describe("useTransactions", () => {
   beforeEach(() => {
-    mockFetch.mockClear();
+    // mockReset (not mockClear) — mockClear leaves any unconsumed
+    // mockResolvedValueOnce in the queue, which then leaks into the next test
+    // (e.g. the no-refetch initialData test below never consumes its response,
+    // desyncing the isError / snake_case tests that follow).
+    mockFetch.mockReset();
   });
 
   it("queryFn calls clientApiFetch with correct URL (confirmed=true)", async () => {
@@ -38,7 +42,7 @@ describe("useTransactions", () => {
     );
   });
 
-  it("initialData renders instantly, then background-refetches (refetchOnMount: always)", async () => {
+  it("initialData paints instantly and does NOT refetch while still fresh (staleTime)", async () => {
     const initialData = [
       {
         id: "txn-1",
@@ -49,7 +53,8 @@ describe("useTransactions", () => {
         confirmedAt: "2026-05-01T00:00:00Z",
       },
     ];
-    mockFetch.mockResolvedValueOnce({
+    // A response is queued in case a refetch fires — we assert it does NOT.
+    mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ transactions: [] }),
     });
@@ -62,8 +67,12 @@ describe("useTransactions", () => {
     // Instant paint: initialData is available synchronously on the first render
     // (stale-while-revalidate — zero waiting where cache exists).
     expect(result.current.data).toEqual(initialData);
-    // ...but a background refetch still fires to stamp the cache age + refresh.
-    await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    // The hook sets staleTime: 30s and NO LONGER uses refetchOnMount:"always"
+    // (removed for nav perf — a refetch on every tab switch was the cache-lag
+    // cause; SPA/SWR revalidates only once the 30s window lapses). So fresh
+    // initialData must NOT trigger a background network call on mount.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("queryKey is exactly ['transactions', budgetId, month]", async () => {

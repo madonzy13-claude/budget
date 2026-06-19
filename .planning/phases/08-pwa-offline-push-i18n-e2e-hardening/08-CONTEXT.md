@@ -3,6 +3,49 @@
 **Gathered:** 2026-06-10
 **Status:** Ready for planning
 
+> ## ⚠️ OFFLINE ARCHITECTURE SUPERSEDED (2026-06-16/17, `tasks-redesign` SPA/SWR refactor)
+>
+> The offline decisions below (**D-01..D-03, D-05**) describe a bespoke IndexedDB
+> cache + offline write-queue + auto-replay + per-row pending markers + sync-issues
+> list + offline status badge. **That entire approach was removed** — too fragile on
+> iOS, net-negative UX. The current shipped approach:
+>
+> - **Offline READ = persisted React Query cache.** `apps/web/src/lib/query-persist.ts`
+>   persists the RQ cache to IDB `budget-rqcache` (MAX_AGE 365d); RQ `networkMode:'online'`
+>   pauses fetches offline and keeps cached data. **DELETED:** `lib/offline-cache.ts`,
+>   `lib/offline-queue.ts`, `hooks/use-online-sync.ts`, `hooks/use-cache-on-fetch.ts`,
+>   `components/common/offline-status-badge.tsx`, `components/common/sync-issues-list.tsx`,
+>   `components/common/staleness-marker.tsx`, plus `getSyncMeta`/`markSynced`/
+>   `cacheBudgetSnapshot` and the `useBudgetData` snapshot aggregator. Logout drops the
+>   legacy `budget-cache` IDB via `dropLegacyBudgetCache()`.
+> - **Offline WRITE = honest POST + rollback-toast** (`use-create-transaction.ts`):
+>   always attempts the POST under `AbortSignal.timeout`; network/timeout/5xx →
+>   roll back the optimistic row + error toast. **No queue, no replay, no
+>   Idempotency-Key replay path, no per-row pending marker, no sync-issues list,
+>   no offline badge.**
+> - **Cache-age indicator = `OfflineStaleBar` + `useCacheAge`** (per-page primary key,
+>   3-state: synced "data updated X ago" / never "data never cached" / unknown). Reads
+>   RQ `dataUpdatedAt`, not a sync-meta store.
+> - **Offline navigation (KEPT + hardened):** SW nav layer — `sw.ts`/`sw-offline.ts`
+>   (nav-docs cache, **cache-first when offline**), RSC cache, `NavCacheWarmer`,
+>   `OfflineNavGuard` (immediate hard-nav offline; online keeps router-cache soft-nav),
+>   `offline-shell.html` (**Back** button on a true cache miss). `usePrefetchBudgetTabs`
+>   prefetches all 4 tab drivers on budget open so a cold reopen-offline renders every
+>   tab. Month nav uses `history.pushState` (works offline). Pages are client-data static
+>   shells (per-tab `loading.tsx` deleted; instant re-nav via `next.config` `staleTimes`).
+>
+> **Decision deltas:** D-01 (IDB cache scope) → persisted RQ cache · D-02 (write-replay
+> queue) → rollback-toast, no queue · D-03 (per-row marker + global badge) → **removed** ·
+> D-05 (staleness marker) → `OfflineStaleBar`/`useCacheAge`. **Still valid:** D-04
+> (cold-cache → explicit unavailable; now the offline-shell **Back** button) · D-06
+> (refresh-on-reconnect, no hard cap; now the 365d RQ cache) · D-07/D-08 (server-down /
+> auth-failed fallback screens — `server-down-card.tsx` kept). Push (D-09..D-16) and
+> i18n (D-17..D-20) decisions are **unchanged**.
+>
+> Source of truth: memories `project_offline_architecture`, `project_spa_swr_refactor`,
+> `project_nav_cache_lag`. The 08-03 PLAN/SUMMARY and 08-04/08-06 SUMMARY offline sections
+> are likewise flagged superseded. _Original decisions retained below as the audit trail._
+
 <domain>
 ## Phase Boundary
 

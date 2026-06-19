@@ -33,6 +33,19 @@ source_of_truth:
 
 # Phase 8 — UI Design Contract: PWA, Offline, Push, i18n & E2E Hardening
 
+> **⚠️ OFFLINE COMPONENTS SUPERSEDED (2026-06-16/17, `tasks-redesign` SPA/SWR refactor).**
+> Two of the "5 new components" below were **deleted** and one extension reverted:
+> the **offline-status-badge** and **sync-issues-list** are gone (no more offline
+> write-queue/replay), and the spendings-row **pending-sync marker** is gone (offline
+> WRITE is now an honest POST + rollback-toast). The offline-read cache-age UI is no
+> longer a per-view "last synced X ago" staleness marker — it's a single full-width
+> **`OfflineStaleBar`** below the header (`useCacheAge`, 3-state: "data updated X ago"
+> / **"data never cached"** / generic), plus `offline-shell.html` with a **Back**
+> button for nav cache-misses. **Still valid in this spec:** install-banner,
+> push-prefs-section, fallback screens (offline/server-down), i18n namespaces, the
+> spacing/type/color tokens. See **08-CONTEXT.md** banner + memory
+> `project_offline_architecture`.
+
 > Visual and interaction contract for the four new UI surfaces introduced in Phase 8:
 > (1) PWA install banner + profile-menu Install entry, (2) push notification opt-in +
 > per-budget/per-kind preference controls, (3) offline + server-down fallback screens,

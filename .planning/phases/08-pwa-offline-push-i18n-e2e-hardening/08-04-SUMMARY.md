@@ -60,6 +60,18 @@ metrics:
 
 # Phase 08 Plan 04: i18n Finalization + PWA Resilience Summary
 
+> **⚠️ PARTIAL SUPERSEDE (2026-06-16/17, `tasks-redesign` SPA/SWR refactor).**
+> i18n negotiation (Task 1), `ServerDownSignedOut` (D-07/D-08), and the manifest
+> audit (Task 3) are **still current**. But the **`StalenessMarker`** built in Task 2
+> was **deleted** — `staleness-marker.tsx` and its `getSyncMeta(budgetId)` IndexedDB
+> source no longer exist; the offline cache-age indicator is now `OfflineStaleBar`
+>
+> - `useCacheAge` (reads React Query `dataUpdatedAt`, 3-state synced/never/unknown).
+>   `OfflineFallback` (D-04 inline empty-state) still exists, but the primary
+>   cold-cache / nav-miss UX is now `offline-shell.html` with a **Back** button
+>   served by the SW. Self-check line "staleness-marker.tsx: EXISTS" is stale.
+>   See **08-CONTEXT.md** banner + memory `project_offline_architecture`.
+
 i18n Accept-Language first-visit negotiation, offline/server-down/auth-failed fallback screens, staleness marker, and PWA manifest installability audit with real maskable icons on disk.
 
 ## Tasks Completed

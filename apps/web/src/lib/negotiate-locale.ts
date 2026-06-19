@@ -47,3 +47,61 @@ export function negotiateLocale(
   }
   return "en";
 }
+
+function asSupported(value: string | null | undefined): SupportedLocale | null {
+  return value && (SUPPORTED_LOCALES as readonly string[]).includes(value)
+    ? (value as SupportedLocale)
+    : null;
+}
+
+/**
+ * Resolve the SAVED locale for a signed-out visitor from the two locale cookies,
+ * applying precedence. The app's own account cookie (budget-locale, set on
+ * sign-in / Settings) outranks next-intl's own cookie (NEXT_LOCALE, which
+ * next-intl writes on every localized visit). Unsupported values are ignored.
+ *
+ * Returns the saved locale, or null when neither cookie holds a supported value.
+ */
+export function resolveSavedLocale(
+  budgetLocaleCookie: string | null | undefined,
+  nextLocaleCookie: string | null | undefined,
+): SupportedLocale | null {
+  return asSupported(budgetLocaleCookie) ?? asSupported(nextLocaleCookie);
+}
+
+/**
+ * Decide where a SIGNED-OUT request with NO URL locale prefix should be
+ * redirected, enforcing the precedence:
+ *
+ *   budget-locale cookie  >  NEXT_LOCALE cookie  >  Accept-Language  >  "en"
+ *
+ * A saved locale cookie always beats the browser's Accept-Language header
+ * (the standard i18n contract — Test 10). Returns:
+ *   - "pl" | "uk" | "en" → redirect to that locale prefix, OR
+ *   - null               → fall through to next-intl (which emits the canonical
+ *                          bare "/" → /en for a header-default first visit, so we
+ *                          avoid a redundant extra redirect in that one case).
+ *
+ * Caller (middleware.ts) must only invoke this when the user is unauthenticated
+ * AND the path carries no locale prefix.
+ */
+export function decideSignedOutLocaleRedirect(args: {
+  budgetLocaleCookie?: string | null;
+  nextLocaleCookie?: string | null;
+  acceptLanguage?: string | null;
+}): SupportedLocale | null {
+  const saved = resolveSavedLocale(
+    args.budgetLocaleCookie,
+    args.nextLocaleCookie,
+  );
+  const target = saved ?? negotiateLocale(args.acceptLanguage);
+  // pl/uk always need an explicit redirect (next-intl would otherwise honor a
+  // stale/absent cookie or default to en). An explicit saved "en" must also
+  // redirect so it beats a non-en Accept-Language header (Case B). Only when
+  // there is NO saved cookie and the header negotiates to "en" do we fall
+  // through and let next-intl emit the canonical /en (no redundant redirect,
+  // no loop).
+  if (target !== "en") return target;
+  if (saved === "en") return "en";
+  return null;
+}

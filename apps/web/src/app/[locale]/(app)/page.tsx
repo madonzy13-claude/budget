@@ -7,12 +7,18 @@
  * paints instantly from the warm React Query cache instead of re-streaming the
  * per-card server Suspense.
  *
- * `force-dynamic` is kept so the route renders per-request and the (app) layout's
- * auth/onboarding redirect always runs (the page itself no longer fetches data).
+ * 260619 (bug 2 — "BDP→listing loads from server, but it was cached"): this page
+ * USED to `export const dynamic = "force-dynamic"`, which opts the route OUT of
+ * the client Router Cache entirely → every return to home re-fetched `/en?_rsc`
+ * from the server (~2s + skeleton flash) instead of reusing the cached shell.
+ * Removed: the page does NO data fetch (its data is client-side React Query), and
+ * the auth/onboarding gate lives in the force-dynamic (app) LAYOUT — which still
+ * runs per-request on every navigation regardless of this page's caching. The
+ * `await params` already makes the page request-dynamic (no build-time prerender
+ * of no-session HTML), so dropping force-dynamic lets `staleTimes.dynamic=120`
+ * reuse the home shell from the Router Cache — instant return, same as the tabs.
  */
 import { HomeBudgetsClient } from "@/components/budgeting/home-budgets-client";
-
-export const dynamic = "force-dynamic";
 
 interface HomePageProps {
   params: Promise<{ locale: string }>;

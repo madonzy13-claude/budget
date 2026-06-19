@@ -13,7 +13,8 @@
  * D-PH4-D2: persists via PUT /budgets/:id/categories/sort-order
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { toast } from "sonner";
 
 export interface ReorderInput {
@@ -22,10 +23,11 @@ export interface ReorderInput {
 
 export function useReorderCategories(budgetId: string) {
   const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: ReorderInput) => {
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/categories/sort-order`,
         {
           method: "PUT",
@@ -60,9 +62,14 @@ export function useReorderCategories(budgetId: string) {
       return { previous };
     },
 
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       if (ctx?.previous !== undefined) {
         qc.setQueryData(["budget", budgetId, "categories"], ctx.previous);
+      }
+      // Honest-offline: refused write shows the shared offline toast, not generic.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
       }
       toast.error("grid.error.reorderSave");
     },

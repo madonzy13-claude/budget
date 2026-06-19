@@ -35,10 +35,12 @@ import { Temporal } from "temporal-polyfill";
 import { CategoryColumn } from "./category-column";
 import { AddCategoryColumn } from "./add-category-column";
 import { MonthNavigator } from "./month-navigator";
+import { SlideOnChange } from "@/components/common/slide-on-change";
 import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
 import { useTranslations } from "next-intl";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -85,7 +87,10 @@ export interface SpendingsGridClientProps {
  */
 function ColumnSkeleton() {
   return (
-    <div className="h-full w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip">
+    // reveal-delayed (global.css): the WHOLE column scaffold (card + dividers +
+    // input outline) stays invisible for 200ms so a cache restore replaces it
+    // first — no half-skeleton "weird layout" flash on warm/offline nav.
+    <div className="reveal-delayed h-full w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip">
       <div className="flex min-h-[44px] items-center gap-1.5 px-2 py-2 border-b border-[var(--hairline-dark)]">
         <Skeleton className="h-3.5 w-2.5 shrink-0" />
         <Skeleton className="h-3.5 w-2/3" />
@@ -110,6 +115,23 @@ function ColumnSkeleton() {
       </div>
     </div>
   );
+}
+
+/** Map+sort the raw categories query data into the drag-order shape. Shared by
+ *  the seeding effect AND the synchronous fallback (below) so a freshly-arrived
+ *  (or restored) categories cache renders columns in the SAME render — never a
+ *  one-frame empty "Add category" flash while the effect catches up (260617). */
+function seedCategoryOrder(data: unknown): CategoryDTO[] {
+  if (!Array.isArray(data)) return [];
+  return (data as Array<Record<string, unknown>>)
+    .map((c) => ({
+      id: String(c.id),
+      name: String(c.name ?? ""),
+      iconKey: (c.iconKey as string | null) ?? null,
+      colorKey: (c.colorKey as string | null) ?? null,
+      sortIndex: (c.sortIndex as number | undefined) ?? 0,
+    }))
+    .sort((a, b) => a.sortIndex - b.sortIndex);
 }
 
 function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
@@ -173,6 +195,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   const qc = useQueryClient();
   const tDel = useTranslations("grid.deleteCategory");
   const tGrid = useTranslations("grid");
+  const offlineToast = useOfflineWriteToast();
   // 260615-bse: one shared offline dialog for the whole grid. Both the
   // device-knows-offline pre-insert short-circuit (quick-entry) and the
   // lying-true rollback (useCreateTransaction.onOfflineError) open it.
@@ -188,7 +211,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     if (!deleteCat) return;
     setDeleting(true);
     try {
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/categories/${deleteCat.id}`,
         { method: "DELETE" },
       );
@@ -203,6 +226,13 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
         qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
       }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets `deleting` so the dialog button never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
     } finally {
       setDeleting(false);
     }
@@ -212,16 +242,25 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // On success the category becomes a normal editable column again; the
   // backend replays limits for the months it was absent.
   async function unarchiveCategory(catId: string) {
-    const res = await clientApiFetch(
-      `/budgets/${budgetId}/categories/${catId}/unarchive`,
-      { method: "POST" },
-    );
-    if (res.ok) {
-      qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
-      qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
-      qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
-      qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
-      qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+    try {
+      const res = await clientApiWrite(
+        `/budgets/${budgetId}/categories/${catId}/unarchive`,
+        { method: "POST" },
+      );
+      if (res.ok) {
+        qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
+        qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+        qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
+        qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
+        qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+      }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // No spinner state for unarchive, so just refuse honestly.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
     }
   }
 
@@ -239,19 +278,19 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // sortIndex (the server's order of record).
   useEffect(() => {
     if (reorder.isPending) return;
-    const data = categoriesQuery.data;
-    if (!data) return;
-    const next = (data as Array<Record<string, unknown>>)
-      .map((c) => ({
-        id: String(c.id),
-        name: String(c.name ?? ""),
-        iconKey: (c.iconKey as string | null) ?? null,
-        colorKey: (c.colorKey as string | null) ?? null,
-        sortIndex: (c.sortIndex as number | undefined) ?? 0,
-      }))
-      .sort((a, b) => a.sortIndex - b.sortIndex);
-    setLocalCategoryOrder(next);
+    if (!categoriesQuery.data) return;
+    setLocalCategoryOrder(seedCategoryOrder(categoriesQuery.data));
   }, [categoriesQuery.data, reorder.isPending]);
+
+  // Render order: the drag-managed localCategoryOrder once seeded, else a
+  // SYNCHRONOUS fallback derived from the categories cache. This closes the
+  // one-frame gap where data is present (isColdLoading false) but the seeding
+  // effect hasn't run yet — which flashed the empty "Add category" state on a
+  // warm/offline tab switch (260617 device shot).
+  const effectiveCategoryOrder =
+    localCategoryOrder.length > 0
+      ? localCategoryOrder
+      : seedCategoryOrder(categoriesQuery.data);
 
   // Month preload (Task 2, user spec 260616). Once the viewed month's summary is
   // in hand, background-prefetch the PAST months' spendings-summary (the grid
@@ -646,17 +685,24 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // at least one transaction; otherwise it's dropped from the grid (this month).
   const visibleCategories = useMemo(
     () =>
-      localCategoryOrder.filter((c) => {
+      effectiveCategoryOrder.filter((c) => {
         if (!summaryByCatId.get(c.id)?.archived) return true;
         return (transactionsByCatId.get(c.id) ?? []).length > 0;
       }),
-    [localCategoryOrder, summaryByCatId, transactionsByCatId],
+    [effectiveCategoryOrder, summaryByCatId, transactionsByCatId],
   );
 
   // Cold load = no cached summary/categories yet. A warm re-nav has both from
   // the persisted React Query cache → real columns render immediately (zero
   // skeleton); the cold skeleton lives INSIDE the mounted grid scroller below.
   const isColdLoading = summary.isPending || categoriesQuery.isPending;
+
+  // Month ordinal drives the directional slide on month nav (prev = back,
+  // next = forward) — see SlideOnChange around the columns container below.
+  const monthSlideToken = (() => {
+    const [y, m] = month.split("-").map((n) => Number(n));
+    return (y ?? 0) * 12 + (m ?? 0);
+  })();
 
   return (
     <>
@@ -706,7 +752,10 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-2 w-fit mx-auto">
+          <SlideOnChange
+            token={monthSlideToken}
+            className="flex gap-2 w-fit mx-auto"
+          >
             {isColdLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <ColumnSkeleton key={i} />
@@ -770,7 +819,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
                 </div>
               </>
             )}
-          </div>
+          </SlideOnChange>
         </DndContext>
         {/* iOS WebKit end-of-scroll spacer (SHELL-R8..R10): padding-bottom on
             a scroll container is ignored at the scroll tail on iOS Safari.

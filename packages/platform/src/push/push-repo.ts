@@ -83,7 +83,10 @@ export async function upsertSubscription(
           locale: input.locale ?? "en",
         })
         .onConflictDoUpdate({
-          target: pushSubscriptions.endpoint,
+          // 260618: per-budget subscriptions — conflict is (endpoint, tenant_id),
+          // so re-subscribing the same device for a DIFFERENT budget inserts a
+          // new row instead of overwriting the first budget's row.
+          target: [pushSubscriptions.endpoint, pushSubscriptions.tenantId],
           set: {
             p256dh: input.p256dh,
             auth: input.auth,
@@ -119,6 +122,38 @@ export async function deleteSubscription(
     },
   );
   if (result.isErr()) throw result.error;
+}
+
+/**
+ * Whether THIS device endpoint is subscribed for a specific budget (tenant).
+ * Backs the per-budget Settings master switch (260618): the master is ON iff a
+ * push_subscriptions row exists for (endpoint, budgetId) for this user. RLS
+ * scopes the read to the budget's tenant, so we filter only on endpoint+userId.
+ */
+export async function isSubscribedForBudget(
+  budgetTenantId: string,
+  userId: string,
+  endpoint: string,
+): Promise<boolean> {
+  const result = await withTenantTxRead(
+    [TenantId(budgetTenantId)],
+    UserId(userId),
+    async (tx) => {
+      const rows = await tx
+        .select({ id: pushSubscriptions.id })
+        .from(pushSubscriptions)
+        .where(
+          and(
+            eq(pushSubscriptions.endpoint, endpoint),
+            eq(pushSubscriptions.userId, userId),
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
+    },
+  );
+  if (result.isErr()) throw result.error;
+  return result.value;
 }
 
 /**

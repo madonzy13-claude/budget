@@ -9,15 +9,20 @@
  * On success: invalidates ["drafts", ...] + ["spendings-summary", ...]
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 
 export function useDismissDraft(budgetId: string, month: string) {
   const qc = useQueryClient();
+  const t = useTranslations("grid.txn.write");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (draftId: string) => {
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/recurring-rules/drafts/${draftId}/dismiss`,
         {
           method: "POST",
@@ -33,6 +38,15 @@ export function useDismissDraft(budgetId: string, month: string) {
       // empty body throws SyntaxError, which silently fails the mutation
       // and rolls the row back. Return null instead.
       return null;
+    },
+
+    onError: (err: unknown) => {
+      // Honest-offline: refused write shows the shared offline toast, not generic.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(t("failed"));
     },
 
     onSettled: () => {

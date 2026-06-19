@@ -53,6 +53,13 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+// Push subscribe helper — onboarding acts on the Features push toggle at commit.
+const mockSubscribeToPush = vi.fn().mockResolvedValue("subscribed");
+vi.mock("@/lib/push-subscribe", () => ({
+  subscribeToPushForBudget: (...args: unknown[]) =>
+    mockSubscribeToPush(...args),
+}));
+
 describe("WizardPage — deferred-create step machine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -120,10 +127,9 @@ describe("WizardPage — deferred-create step machine", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument(),
     );
+    // Step 3 → Features (now incl. push) → 4 Review.
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 4 → Push (skippable): advance to Review.
-    fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 5 → Review: "Create budget" fires the deferred POST.
+    // Step 4 → Review: "Create budget" fires the deferred POST.
     fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
     await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
     const [callArg] = mockBudgetsPost.mock.calls[0] as [
@@ -156,6 +162,92 @@ describe("WizardPage — deferred-create step machine", () => {
     expect(input.value).toBe("6");
   });
 
+  // Test 9 (Onboarding Push Step) — 260618 UAT redesign: push is FOLDED INTO
+  // the Features step (no standalone Push step), and there is NO Skip button
+  // anywhere. Completing the wizard lands on /budgets/:id/spendings.
+  async function advanceToFeaturesStep() {
+    render(<WizardPage locale="en" skipWelcome />);
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 1 Type → 2
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "My Budget" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 2 Basics → 3 Features
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-push-switch")).toBeInTheDocument(),
+    );
+  }
+
+  it("features step (3) carries the push switch alongside cushion + reserves", async () => {
+    await advanceToFeaturesStep();
+    expect(screen.getByTestId("onboarding-push-switch")).toBeInTheDocument();
+    expect(screen.getByTestId("wizard-feature-cushion")).toBeInTheDocument();
+    expect(screen.getByTestId("wizard-feature-reserves")).toBeInTheDocument();
+  });
+
+  it("renders no Skip button on any step (skip removed)", async () => {
+    await advanceToFeaturesStep();
+    expect(screen.queryByRole("button", { name: /^skip$/i })).toBeNull();
+  });
+
+  it("enabling push on Features subscribes the new budget at commit", async () => {
+    const assignSpy = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => {});
+    await advanceToFeaturesStep();
+    // Turn the push toggle ON.
+    fireEvent.click(screen.getByTestId("onboarding-push-switch"));
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /create_budget/i }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
+    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
+    // Push opt-in is HONORED: the new budget id is subscribed.
+    await waitFor(() =>
+      expect(mockSubscribeToPush).toHaveBeenCalledWith("budget-123"),
+    );
+    assignSpy.mockRestore();
+  });
+
+  it("NOT enabling push → no subscribe call at commit", async () => {
+    const assignSpy = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => {});
+    await advanceToFeaturesStep();
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
+    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
+    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
+    expect(mockSubscribeToPush).not.toHaveBeenCalled();
+    assignSpy.mockRestore();
+  });
+
+  it("completing from the features step lands on /budgets/:id/spendings", async () => {
+    const assignSpy = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => {});
+    await advanceToFeaturesStep();
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 Features → 4 Review
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /create_budget/i }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
+    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockProgressPut).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(assignSpy).toHaveBeenCalledWith(
+        "/en/budgets/budget-123/spendings",
+      ),
+    );
+    assignSpy.mockRestore();
+  });
+
   it("commit: cushion_target_months included in PATCH when cushion enabled (default 6)", async () => {
     render(<WizardPage locale="en" skipWelcome />);
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // 1→2
@@ -176,8 +268,7 @@ describe("WizardPage — deferred-create step machine", () => {
       "onboarding-cushion-target-months",
     ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "12" } });
-    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3→4 Features→Push
-    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 4→5 Push→Review
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 Features→4 Review
     fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
     await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockBudgetsPatch).toHaveBeenCalled());

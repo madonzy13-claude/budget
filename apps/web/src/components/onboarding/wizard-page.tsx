@@ -10,7 +10,7 @@
  *   0. Welcome   → "Get started" advances to step 1; no API call.
  *   1. Type      → collect kind (PRIVATE / SHARED); no API call.
  *   2. Basics    → collect name + currency; no API call.
- *   3. Features  → collect cushion + reserves toggles; no API call.
+ *   3. Features  → collect cushion + reserves + push toggles; no API call.
  *   4. Review    → "Create budget" performs:
  *                    - POST   /budgets       (name, kind, default_currency)
  *                    - PATCH  /budgets/:id   (cushion_mode_enabled if true,
@@ -36,11 +36,11 @@ import { StepWelcome } from "./steps/step-welcome";
 import { StepBasics } from "./steps/step-basics";
 import { StepType } from "./steps/step-type";
 import { StepFeatures } from "./steps/step-features";
-import { StepPush } from "./steps/step-push";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
+import { subscribeToPushForBudget } from "@/lib/push-subscribe";
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2 | 3 | 4;
 
 interface WizardForm {
   name: string;
@@ -178,6 +178,14 @@ export function WizardPage({
       );
     }
 
+    // Act on the push opt-in (Features step). The toggle was previously captured
+    // but never honored, so enabling it in the wizard left Settings showing OFF
+    // (260618 UAT). Subscribe THIS device for the new budget — best-effort, so a
+    // permission denial / unsupported browser never blocks budget creation.
+    if (form.pushEnabled) {
+      await subscribeToPushForBudget(budgetId);
+    }
+
     // Mark onboarding complete.
     const completedAt = new Date().toISOString();
     try {
@@ -217,8 +225,6 @@ export function WizardPage({
       } else if (step === 3) {
         setStep(4);
       } else if (step === 4) {
-        setStep(5);
-      } else if (step === 5) {
         await commitWizard();
         return; // avoid setIsLoading(false) on redirect
       }
@@ -227,13 +233,6 @@ export function WizardPage({
     }
 
     setIsLoading(false);
-  }
-
-  /** Handle "Skip" (steps 2 + 3 + 4) — advance without persisting. */
-  function onSkip() {
-    if (step === 2 || step === 3 || step === 4) {
-      setStep((s) => (s + 1) as Step);
-    }
   }
 
   /** Handle "Back" — decrement step. Step 0 has no back. */
@@ -250,7 +249,7 @@ export function WizardPage({
    * out-of-bound jump call cannot push the user forward without going
    * through onNext (which enforces validation per step).
    */
-  function onStepJump(target: 1 | 2 | 3 | 4 | 5) {
+  function onStepJump(target: 1 | 2 | 3 | 4) {
     if (target < step) {
       setNameError(null);
       setStep(target);
@@ -286,17 +285,11 @@ export function WizardPage({
             onChangeCushionTargetMonths={(v) =>
               updateForm("cushionTargetMonths", v)
             }
+            pushEnabled={form.pushEnabled}
+            onChangePush={(v) => updateForm("pushEnabled", v)}
           />
         );
       case 4:
-        return (
-          <StepPush
-            pushEnabled={form.pushEnabled}
-            onChangePush={(v) => updateForm("pushEnabled", v)}
-            onSkip={onSkip}
-          />
-        );
-      case 5:
         return (
           <StepReview
             name={form.name}
@@ -313,14 +306,13 @@ export function WizardPage({
     <WizardLayout
       currentStep={step}
       onBack={onBack}
-      onSkip={onSkip}
       onNext={onNext}
       onStepJump={onStepJump}
       isLoading={isLoading}
       nextLabel={
         step === 0
           ? tActions("get_started")
-          : step === 5
+          : step === 4
             ? tActions("create_budget")
             : tActions("next")
       }

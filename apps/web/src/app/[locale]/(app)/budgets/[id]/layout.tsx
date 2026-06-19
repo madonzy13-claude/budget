@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { BudgetShellData } from "./budget-shell-data";
+import { PageTransition } from "@/components/common/page-transition";
+import { ActivePillTaskSlider } from "@/components/budgeting/tasks/active-pill-task-slider";
 
 /**
  * BDP layout (Plan 03-06 BDP-01) — single sticky wrapper at top:64px holding
@@ -34,6 +36,22 @@ interface BdpLayoutProps {
   params: Promise<{ locale: string; id: string }>;
 }
 
+/**
+ * Empty sticky band that occupies the EXACT footprint BudgetShellData's real
+ * band will (same sticky wrapper + the BdpTabs nav's h-12 height) so the pills
+ * fade into place with no layout shift while the band's server fetches resolve.
+ */
+function BdpBandFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
+    >
+      <div className="h-12" />
+    </div>
+  );
+}
+
 export default async function BdpLayout({ children, params }: BdpLayoutProps) {
   // params await is cheap and does NOT gate on the network — the layout still
   // commits synchronously w.r.t. data fetches (those live in BudgetShellData).
@@ -41,10 +59,34 @@ export default async function BdpLayout({ children, params }: BdpLayoutProps) {
 
   return (
     <>
-      <Suspense fallback={null}>
+      {/* Height-reserving fallback (260618 bug 3): BudgetShellData (the sticky
+          pills band) suspends on its server fetches (membership gate +
+          reservesEnabled + initialTasks). With fallback={null} the band was
+          ABSENT while the page content rendered, then popped in and shoved the
+          whole page down ~one band-height — a visible jump on first nav to an
+          un-warmed tab. The fallback renders an identical-height empty sticky
+          band so the pills fade into reserved space with zero layout shift. */}
+      <Suspense fallback={<BdpBandFallback />}>
         <BudgetShellData locale={locale} id={id} />
       </Suspense>
-      <div className="pb-shell-safe">{children}</div>
+      <div className="pb-shell-safe">
+        {/* PageTransition slides the whole tab page (tasks strip + content) as
+            ONE unit on a tab switch — old out, new in — all live DOM (motion).
+            The tasks strip is the first child so it slides WITH the page (no
+            jump). initialTasks=[] → reads the shared ["tasks", budgetId,
+            "pending"] query BdpTabs seeds; warm on soft-nav. Its own Suspense
+            keeps the useSearchParams CSR bailout local to the strip. */}
+        <PageTransition>
+          <Suspense fallback={null}>
+            <ActivePillTaskSlider
+              budgetId={id}
+              locale={locale}
+              initialTasks={[]}
+            />
+          </Suspense>
+          {children}
+        </PageTransition>
+      </div>
     </>
   );
 }

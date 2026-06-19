@@ -12,10 +12,7 @@
  * T-08-05-03: 410/404 responses delete the stale subscription record.
  */
 import { eventBus, sendPushNotification } from "@budget/platform";
-import type {
-  PushSubscriptionRow,
-  NotificationKind,
-} from "@budget/platform";
+import type { PushSubscriptionRow, NotificationKind } from "@budget/platform";
 
 // ---------------------------------------------------------------------------
 // Deps interface
@@ -89,13 +86,17 @@ export const NOTIFICATION_TYPES: Record<
   }
 > = {
   RESERVE_TOPUP: {
-    title: (l) => TITLES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? TITLES.RESERVE_TOPUP.en,
-    body: (l) => BODIES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? BODIES.RESERVE_TOPUP.en,
+    title: (l) =>
+      TITLES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? TITLES.RESERVE_TOPUP.en,
+    body: (l) =>
+      BODIES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? BODIES.RESERVE_TOPUP.en,
     tab: "reserves",
   },
   CONFIRM_DRAFT: {
-    title: (l) => TITLES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? TITLES.CONFIRM_DRAFT.en,
-    body: (l) => BODIES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? BODIES.CONFIRM_DRAFT.en,
+    title: (l) =>
+      TITLES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? TITLES.CONFIRM_DRAFT.en,
+    body: (l) =>
+      BODIES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? BODIES.CONFIRM_DRAFT.en,
     tab: "spendings",
   },
   CUSHION_BELOW_TARGET: {
@@ -143,15 +144,22 @@ export function registerPushNotificationHandler(deps: PushHandlerDeps): void {
       return;
     }
 
-    const url = `/budgets/${budgetId}/${notifType.tab}?task=${taskId}`;
-
     for (const sub of subs) {
-      const title = notifType.title(sub.locale ?? "en");
-      const body = notifType.body(sub.locale ?? "en");
+      const locale = sub.locale ?? "en";
+      const title = notifType.title(locale);
+      const body = notifType.body(locale);
+      // 260618: the deep-link MUST carry the locale prefix — every app route is
+      // `/<locale>/budgets/...`. A locale-less `/budgets/...` is rewritten by the
+      // next-intl middleware to the home/budgets-list page, so tapping the push
+      // landed on the budget list instead of the target tab. Per-sub locale.
+      const url = `/${locale}/budgets/${budgetId}/${notifType.tab}?task=${taskId}`;
 
       try {
         await sendPushNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          },
           JSON.stringify({ title, body, url }),
         );
       } catch (e: unknown) {
@@ -165,7 +173,10 @@ export function registerPushNotificationHandler(deps: PushHandlerDeps): void {
               sub.userId,
             );
           } catch (deleteErr) {
-            console.error("[push-handler] failed to delete stale subscription", deleteErr);
+            console.error(
+              "[push-handler] failed to delete stale subscription",
+              deleteErr,
+            );
           }
         } else {
           // Other errors: log + continue (don't block remaining subs)

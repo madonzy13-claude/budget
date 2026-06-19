@@ -56,6 +56,5 @@ export function useDrafts(
     staleTime: 30_000,
     // SPA/SWR (260616): warm cache renders instantly; background refetch
     // replaces drafts if the month's pending list changed.
-    refetchOnMount: "always",
   });
 }

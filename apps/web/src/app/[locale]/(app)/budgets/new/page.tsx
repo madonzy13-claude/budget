@@ -58,7 +58,12 @@ export default async function NewBudgetPage({ params }: NewBudgetPageProps) {
   const { WizardPage } = await import("@/components/onboarding/wizard-page");
 
   return (
-    <main className="flex min-h-screen items-start justify-center bg-[var(--canvas-dark)] px-4 py-12">
+    // No min-h-screen: this <main> nests inside the (app) shell's own scroll
+    // surface, so forcing 100vh here overshot by the header height and produced
+    // a permanent vertical scrollbar even when the short wizard card fit the
+    // viewport. Content-height + the shell's matching canvas bg means the page
+    // scrolls ONLY when the wizard actually overflows (260618 UAT).
+    <main className="flex items-start justify-center bg-[var(--canvas-dark)] px-4 py-12">
       <WizardPage locale={locale} skipWelcome={hasAnyBudget} />
     </main>
   );

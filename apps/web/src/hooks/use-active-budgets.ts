@@ -27,6 +27,5 @@ export function useActiveBudgets() {
       return body.budgets ?? body.workspaces ?? [];
     },
     staleTime: 30_000,
-    refetchOnMount: "always",
   });
 }

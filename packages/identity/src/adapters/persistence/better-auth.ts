@@ -218,6 +218,19 @@ export function createAuth(opts: CreateAuthOptions) {
     plugins: opts.additionalPlugins ?? [],
     rateLimit: {
       enabled: true,
+      // 260619 SPURIOUS-LOGOUT ROOT CAUSE: the web (app) layout validates the
+      // session on EVERY navigation via a server-side `fetch` to
+      // /auth/get-session. Better Auth treats that as a client-initiated request
+      // and rate-limits it by IP — but ALL server-side calls share the web
+      // container's single IP, so the global 100/60s bucket was exhausted under
+      // normal browsing (160 `get-session: 429` in 10 min observed) → the layout
+      // read null → bounced the user to /sign-in mid-session ("randomly logged
+      // out"). get-session only validates an EXISTING session cookie (no
+      // credential guessing), so it is not a brute-force vector — exempt it.
+      // Sensitive endpoints (sign-in/up, reset-password) keep the global limit.
+      customRules: {
+        "/get-session": false,
+      },
     },
   });
 }

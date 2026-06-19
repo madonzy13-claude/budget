@@ -61,7 +61,9 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 function ReservesSkeleton({ label }: { label: string }) {
   return (
-    <div className="mx-auto w-full max-w-[1280px]">
+    // reveal-delayed: whole skeleton invisible 200ms so a cache restore replaces
+    // it first — no skeleton-scaffold flash on warm/offline nav (260617).
+    <div className="reveal-delayed mx-auto w-full max-w-[1280px]">
       <div className="flex flex-col gap-4 p-4 pb-20 sm:p-6">
         <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] py-2 sm:p-2">
           <h3 className="px-2 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
@@ -192,28 +194,39 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
         budgetId,
         "reserves",
       ]);
-      // No optimistic baseline to animate from → just commit the summary.
+      const fromRow = cache?.rows.find((r) => r.categoryId === e.categoryId);
+      const toRow = e.summary.rows.find((r) => r.categoryId === e.categoryId);
+      const settled = {
+        available: Number(BigInt(toRow?.reserveCents ?? "0")),
+        totalAvailable: Number(BigInt(e.summary.totals.internalCents)),
+        totalUsed: Number(BigInt(e.summary.totals.usedCents)),
+      };
+      // The cache is the optimistic baseline the count-down animates FROM. When
+      // it is cold (evicted / mid-refetch during a long session — intermittent),
+      // fall back to the settled values so the count-down is a no-op, and commit
+      // the authoritative summary up front so the table is correct behind the
+      // popup. The acknowledge popup MUST still open regardless of the cache:
+      // it is the only signal that the reserve covered an overspend (and the
+      // golden-timeline E2E asserts it). Previously a cold cache early-returned
+      // here without opening the popup, silently dropping the cover notice and
+      // making that E2E flaky.
+      const from = cache
+        ? {
+            available: Number(BigInt(fromRow?.reserveCents ?? "0")),
+            totalAvailable: Number(BigInt(cache.totals.internalCents)),
+            totalUsed: Number(BigInt(cache.totals.usedCents)),
+          }
+        : settled;
       if (!cache) {
         qc.setQueryData(["budget", budgetId, "reserves"], e.summary);
-        return;
       }
-      const fromRow = cache.rows.find((r) => r.categoryId === e.categoryId);
-      const toRow = e.summary.rows.find((r) => r.categoryId === e.categoryId);
       setReveal({
         categoryId: e.categoryId,
         categoryName: fromRow?.name ?? toRow?.name ?? "",
         coverCents: e.coverCents,
         availableAfterCents: BigInt(toRow?.reserveCents ?? "0"),
-        from: {
-          available: Number(BigInt(fromRow?.reserveCents ?? "0")),
-          totalAvailable: Number(BigInt(cache.totals.internalCents)),
-          totalUsed: Number(BigInt(cache.totals.usedCents)),
-        },
-        to: {
-          available: Number(BigInt(toRow?.reserveCents ?? "0")),
-          totalAvailable: Number(BigInt(e.summary.totals.internalCents)),
-          totalUsed: Number(BigInt(e.summary.totals.usedCents)),
-        },
+        from,
+        to: settled,
         summary: e.summary,
       });
       setPopupOpen(true);

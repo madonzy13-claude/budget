@@ -17,9 +17,11 @@ import { describe, test, expect, mock, beforeEach } from "bun:test";
 const subscribedHandlers: Map<string, (evt: unknown) => Promise<void>> =
   new Map();
 const mockEventBus = {
-  subscribe: mock((eventType: string, handler: (evt: unknown) => Promise<void>) => {
-    subscribedHandlers.set(eventType, handler);
-  }),
+  subscribe: mock(
+    (eventType: string, handler: (evt: unknown) => Promise<void>) => {
+      subscribedHandlers.set(eventType, handler);
+    },
+  ),
 };
 const mockSendPush = mock(
   async (_sub: unknown, _payload: string): Promise<void> => {},
@@ -33,15 +35,17 @@ mock.module("@budget/platform", () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeSub(overrides: Partial<{
-  id: string;
-  tenantId: string;
-  userId: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  locale: string;
-}> = {}) {
+function makeSub(
+  overrides: Partial<{
+    id: string;
+    tenantId: string;
+    userId: string;
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    locale: string;
+  }> = {},
+) {
   return {
     id: "sub-1",
     tenantId: "tenant-1",
@@ -86,9 +90,8 @@ describe("push-notification-handler (PWAX-05)", () => {
   });
 
   test("registers a task.created subscriber on init", async () => {
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
-    );
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
     expect(mockEventBus.subscribe).toHaveBeenCalledWith(
       "task.created",
@@ -97,9 +100,8 @@ describe("push-notification-handler (PWAX-05)", () => {
   });
 
   test("RESERVE_TOPUP — sends push to /budgets/<id>/reserves?task=<id>", async () => {
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
-    );
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
 
     const handler = subscribedHandlers.get("task.created")!;
@@ -108,7 +110,7 @@ describe("push-notification-handler (PWAX-05)", () => {
     expect(mockSendPush).toHaveBeenCalledTimes(1);
     const [, payloadStr] = mockSendPush.mock.calls[0] as [unknown, string];
     const payload = JSON.parse(payloadStr);
-    expect(payload.url).toBe("/budgets/budget-42/reserves?task=task-99");
+    expect(payload.url).toBe("/en/budgets/budget-42/reserves?task=task-99");
     expect(payload.title).toBeTruthy();
     expect(payload.body).toBeTruthy();
     // D-15: body must not contain financial amounts (no digits)
@@ -116,9 +118,8 @@ describe("push-notification-handler (PWAX-05)", () => {
   });
 
   test("CONFIRM_DRAFT — sends push to /budgets/<id>/spendings?task=<id>", async () => {
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
-    );
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
 
     const handler = subscribedHandlers.get("task.created")!;
@@ -126,14 +127,13 @@ describe("push-notification-handler (PWAX-05)", () => {
 
     const [, payloadStr] = mockSendPush.mock.calls[0] as [unknown, string];
     const payload = JSON.parse(payloadStr);
-    expect(payload.url).toBe("/budgets/budget-42/spendings?task=task-99");
+    expect(payload.url).toBe("/en/budgets/budget-42/spendings?task=task-99");
     expect(/\d/.test(payload.body)).toBe(false);
   });
 
   test("CUSHION_BELOW_TARGET — sends push to /budgets/<id>/wallets?task=<id>", async () => {
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
-    );
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
 
     const handler = subscribedHandlers.get("task.created")!;
@@ -141,14 +141,13 @@ describe("push-notification-handler (PWAX-05)", () => {
 
     const [, payloadStr] = mockSendPush.mock.calls[0] as [unknown, string];
     const payload = JSON.parse(payloadStr);
-    expect(payload.url).toBe("/budgets/budget-42/wallets?task=task-99");
+    expect(payload.url).toBe("/en/budgets/budget-42/wallets?task=task-99");
     expect(/\d/.test(payload.body)).toBe(false);
   });
 
   test("unknown kind — no-op, no push sent, no throw", async () => {
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
-    );
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
 
     const handler = subscribedHandlers.get("task.created")!;
@@ -164,9 +163,8 @@ describe("push-notification-handler (PWAX-05)", () => {
       throw staleError;
     });
 
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
-    );
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
 
     const handler = subscribedHandlers.get("task.created")!;
@@ -180,14 +178,15 @@ describe("push-notification-handler (PWAX-05)", () => {
   });
 
   test("404 response — deletes stale subscription", async () => {
-    const staleError = Object.assign(new Error("Not Found"), { statusCode: 404 });
+    const staleError = Object.assign(new Error("Not Found"), {
+      statusCode: 404,
+    });
     mockSendPush.mockImplementationOnce(async () => {
       throw staleError;
     });
 
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
-    );
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
 
     const handler = subscribedHandlers.get("task.created")!;
@@ -197,11 +196,12 @@ describe("push-notification-handler (PWAX-05)", () => {
   });
 
   test("no subscriptions — zero sends", async () => {
-    mockPushRepo.getSubscriptionsForBudget.mockImplementationOnce(async () => []);
-
-    const { registerPushNotificationHandler } = await import(
-      "../src/handlers/push-notification-handler"
+    mockPushRepo.getSubscriptionsForBudget.mockImplementationOnce(
+      async () => [],
     );
+
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
     registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
 
     const handler = subscribedHandlers.get("task.created")!;

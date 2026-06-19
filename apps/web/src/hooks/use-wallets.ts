@@ -47,6 +47,5 @@ export function useWallets(budgetId: string, initialData?: WalletDto[]) {
       return (json.wallets ?? []) as WalletDto[];
     },
     initialData,
-    refetchOnMount: "always",
   });
 }

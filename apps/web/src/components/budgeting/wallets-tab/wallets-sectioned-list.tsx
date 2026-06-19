@@ -518,7 +518,9 @@ function WalletDragGhost({
  */
 function WalletsSkeleton({ label }: { label: string }) {
   return (
-    <div className="mx-auto w-full max-w-[1280px]">
+    // reveal-delayed: whole skeleton invisible 200ms so a cache restore replaces
+    // it first — no skeleton-scaffold flash on warm/offline nav (260617).
+    <div className="reveal-delayed mx-auto w-full max-w-[1280px]">
       <div className="flex flex-col gap-4 p-4 sm:p-6">
         <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-2">
           <h3 className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">

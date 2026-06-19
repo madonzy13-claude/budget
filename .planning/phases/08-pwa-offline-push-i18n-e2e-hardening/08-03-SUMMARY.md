@@ -60,6 +60,18 @@ requirements_satisfied: [PWAX-02, PWAX-03]
 
 # Phase 08 Plan 03: Offline Cache & Write-Replay Summary
 
+> **⚠️ SUPERSEDED (2026-06-16/17, `tasks-redesign` SPA/SWR refactor).** Everything
+> recorded below was built as described, then **removed** — the IndexedDB offline
+> cache + write-queue + auto-replay + cache-on-fetch + offline badge + sync-issues
+> list proved too fragile on iOS. Current shipped offline: **READ** = persisted
+> React Query cache (`lib/query-persist.ts` → IDB `budget-rqcache`, 365d; RQ
+> `networkMode` pauses offline); **WRITE** = honest POST + rollback-toast (no queue,
+> no replay); **cache-age** = `OfflineStaleBar`/`useCacheAge` (RQ `dataUpdatedAt`).
+> Deleted: `offline-cache.ts`, `offline-queue.ts`, `use-online-sync.ts`,
+> `use-cache-on-fetch.ts`, `offline-status-badge.tsx`, `sync-issues-list.tsx`
+> (+ tests); `useBudgetData` aggregator. See **08-CONTEXT.md** banner + memories
+> `project_offline_architecture`, `project_spa_swr_refactor`. _Retained as audit trail._
+
 IndexedDB cache layer + offline write queue + same-key reconnect replay + cache-on-fetch write-path + offline badge + sync-issues list — all implemented and unit/component-tested.
 
 ## Tasks Completed

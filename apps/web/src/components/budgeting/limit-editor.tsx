@@ -24,6 +24,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { CurrencyPicker } from "@/components/common/currency-picker";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 interface LimitDto {
   id: string;
@@ -42,7 +44,9 @@ interface LimitEditorProps {
   existingLimit?: LimitDto | null;
   onSuccess?: (limit: LimitDto) => void;
   onCancel?: () => void;
-  apiBase?: string;
+  // clientApiWrite prefixes /api itself, so this prop is no longer consumed;
+  // kept (underscore-prefixed) for call-site/test compatibility.
+  _apiBase?: string;
 }
 
 function firstOfCurrentMonth(): string {
@@ -66,9 +70,10 @@ export function LimitEditor({
   existingLimit,
   onSuccess,
   onCancel,
-  apiBase = "/api",
+  _apiBase = "/api",
 }: LimitEditorProps) {
   const t = useTranslations("budgeting_categories.limits");
+  const offlineToast = useOfflineWriteToast();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
@@ -86,7 +91,7 @@ export function LimitEditor({
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-      const res = await fetch(`${apiBase}/categories/${categoryId}/limits`, {
+      const res = await clientApiWrite(`/categories/${categoryId}/limits`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -108,7 +113,12 @@ export function LimitEditor({
       const saved: LimitDto = await res.json();
       toast.success(t("toast.saved"));
       onSuccess?.(saved);
-    } catch {
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
       setServerError(t("errors.network"));
     }
   }

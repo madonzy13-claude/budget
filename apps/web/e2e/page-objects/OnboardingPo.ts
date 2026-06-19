@@ -1,21 +1,20 @@
 import { type Page, type Locator } from "@playwright/test";
 
 /**
- * Page Object for the onboarding wizard (Phase 06/08 push opt-in step).
+ * Page Object for the onboarding wizard.
  *
- * Wraps the wizard step navigation, the push notification opt-in toggle,
- * and the skip button. The push step is introduced in Phase 8 (plan 08-05);
- * prior to that plan the `pushStepSwitch` locator will not be found.
+ * Wraps the wizard step navigation + the push notification opt-in toggle.
+ * 260618: push was folded INTO the Features step (no standalone Push step) and
+ * the Skip button was removed — every step advances via Next.
  *
  * Testids from wizard components:
  *   data-testid="onboarding-step-title"   — wizard-page.tsx / step heading
  *   data-testid="wizard-stepper"          — wizard-stepper.tsx
- *   data-testid="onboarding-push-switch"  — step-push.tsx
+ *   data-testid="onboarding-push-switch"  — step-features.tsx (push FeatureRow)
  *
  * Navigation buttons (wizard-layout.tsx) have no testids; located by role/text:
- *   "Next" / "Create budget" / "Finish" — yellow filled button (onNext)
- *   "Skip"                              — ghost button (onSkip), steps 2-4 only
- *   "Back"                              — ghost button (onBack), step > 1
+ *   "Next" / "Create budget" — yellow filled button (onNext)
+ *   "Back"                   — ghost button (onBack), step > 1
  */
 export class OnboardingPo {
   constructor(private page: Page) {}
@@ -30,29 +29,19 @@ export class OnboardingPo {
     return this.page.getByTestId("wizard-stepper");
   }
 
-  /** The push-notifications enable/disable switch on the push opt-in step. */
+  /** The push-notifications enable/disable switch (on the Features step). */
   pushStepSwitch(): Locator {
     return this.page.getByTestId("onboarding-push-switch");
   }
 
   /**
-   * The "Skip for now" tertiary button on the push opt-in step (steps 2-4).
-   * Located by text since wizard-layout.tsx has no testid on the Skip button.
-   */
-  skipButton(): Locator {
-    // The Push step shows both a footer "Skip" and the step's own "Skip for
-    // now" — either advances. .first() avoids a strict-mode ambiguity error.
-    return this.page.getByRole("button", { name: /skip/i }).first();
-  }
-
-  /**
-   * The primary "Next" / "Create budget" / "Finish" button.
+   * The primary "Next" / "Create budget" button.
    * Located by role; the label changes per step so we match broadly.
    */
   nextButton(): Locator {
-    // Step 0 = "Get started", steps 1-4 = "Next", step 5 = "Create budget".
+    // Step 0 = "Get started", steps 1-3 = "Next", step 4 (Review) = "Create budget".
     return this.page.getByRole("button", {
-      name: /get started|next|create budget|finish/i,
+      name: /get started|next|create budget/i,
     });
   }
 
@@ -79,12 +68,5 @@ export class OnboardingPo {
    */
   async clickNext(): Promise<void> {
     await this.nextButton().click();
-  }
-
-  /**
-   * Skip the current optional step.
-   */
-  async clickSkip(): Promise<void> {
-    await this.skipButton().click();
   }
 }

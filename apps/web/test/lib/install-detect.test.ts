@@ -6,7 +6,7 @@
  * service-worker-controlled page, silence within the probe window means the
  * app is already installed.
  */
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect } from "vitest";
 import { shouldAssumeInstalled, isChromium } from "@/lib/install-detect";
 
 function navWith(ua: string, brands?: { brand: string; version: string }[]) {

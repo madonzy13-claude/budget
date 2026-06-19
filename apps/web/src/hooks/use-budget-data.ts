@@ -40,7 +40,6 @@ export function useBudget(budgetId: string, initialData?: BudgetDto) {
       return json.budget ?? json;
     },
     staleTime: 60_000,
-    refetchOnMount: "always",
   });
 }
 
@@ -63,6 +62,5 @@ export function useCategories(budgetId: string, initialData?: CategoryDto[]) {
       return json.categories ?? [];
     },
     staleTime: 60_000,
-    refetchOnMount: "always",
   });
 }

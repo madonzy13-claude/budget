@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Temporal } from "temporal-polyfill";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { fetchSpendingsSummary } from "@/hooks/use-spendings-summary";
+import { mapTxnRowToDTO } from "@/hooks/use-transactions";
 
 export function usePrefetchBudgetTabs(budgetId: string) {
   const qc = useQueryClient();
@@ -70,6 +71,102 @@ export function usePrefetchBudgetTabs(budgetId: string) {
         {
           key: ["spendings-summary", budgetId, month],
           fn: () => fetchSpendingsSummary(budgetId, month),
+        },
+        // SPENDINGS rows (260617) — the grid's transactions + drafts. Without
+        // these the grid renders (summary/categories cached) but the per-category
+        // rows fetch on first visit and are empty offline. Shapes match
+        // useTransactions/useDrafts verbatim (same endpoint + mapTxnRowToDTO).
+        {
+          key: ["transactions", budgetId, month],
+          fn: () =>
+            get(
+              `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
+              (j) =>
+                ((j as { transactions?: unknown[] }).transactions ?? []).map(
+                  (r) =>
+                    mapTxnRowToDTO(r as Parameters<typeof mapTxnRowToDTO>[0]),
+                ),
+            ),
+        },
+        {
+          key: ["drafts", budgetId, month],
+          fn: () =>
+            get(
+              `/budgets/${budgetId}/transactions?month=${month}&confirmed=false`,
+              (j) =>
+                ((j as { transactions?: unknown[] }).transactions ?? []).map(
+                  (r) => {
+                    const row = r as Parameters<typeof mapTxnRowToDTO>[0] & {
+                      rule_name?: string;
+                    };
+                    return {
+                      ...mapTxnRowToDTO(row),
+                      ruleName: row.rule_name ?? "",
+                    };
+                  },
+                ),
+            ),
+        },
+        // SETTINGS-tab drivers (260617) — so the Settings tab is fully populated
+        // offline (members were missing → empty in a shared budget). These keys
+        // are now persisted too (query-persist.shouldPersist) so they survive a
+        // reload offline. Shapes match each section's queryFn verbatim.
+        {
+          // members-section reads data.members → cache the WHOLE object.
+          key: ["budget-members", budgetId],
+          fn: () => get(`/budgets/${budgetId}/members`, (j) => j),
+        },
+        {
+          key: ["cushion-summary", budgetId],
+          fn: () => get(`/budgets/${budgetId}/cushion-summary`, (j) => j),
+        },
+        {
+          key: ["recurring-rules", budgetId],
+          fn: () =>
+            get(
+              `/budgets/${budgetId}/recurring-rules`,
+              (j) => (j as { rules?: unknown[] }).rules ?? [],
+            ),
+        },
+        {
+          key: ["categories-lite", budgetId],
+          fn: () =>
+            get(
+              `/budgets/${budgetId}/categories`,
+              (j) => (j as { categories?: unknown[] }).categories ?? [],
+            ),
+        },
+        // Notification settings (260618) — so the Settings → Notifications
+        // section hydrates from cache like members. push-prefs caches the whole
+        // {preferences:[...]} object (matches push-prefs-section's queryFn).
+        {
+          key: ["push-prefs", budgetId],
+          fn: () => get(`/push/preferences?budgetId=${budgetId}`, (j) => j),
+        },
+        // push-subscription-status needs THIS device's push endpoint, so it
+        // can't use the generic `get`. Mirrors push-prefs-section's queryFn.
+        {
+          key: ["push-subscription-status", budgetId],
+          fn: async () => {
+            try {
+              const reg = await navigator.serviceWorker?.ready;
+              const sub = await reg?.pushManager?.getSubscription?.();
+              if (!sub) return { subscribed: false };
+              const res = await clientApiFetch(
+                `/push/subscription-status?budgetId=${budgetId}&endpoint=${encodeURIComponent(
+                  sub.endpoint,
+                )}`,
+                {
+                  signal: AbortSignal.timeout(8000),
+                  headers: { "X-Budget-ID": budgetId },
+                },
+              );
+              if (!res.ok) return { subscribed: false };
+              return res.json();
+            } catch {
+              return { subscribed: false };
+            }
+          },
         },
       ];
 

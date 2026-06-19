@@ -29,7 +29,14 @@ const VERSION = "v1";
 // SWR the moment the device is back online.
 const MAX_AGE_MS = 1000 * 60 * 60 * 24 * 365; // 1 year
 
-/** Persist only budget-scoped queries — never auth/settings or unrelated keys. */
+/** Persist only budget-scoped queries — never auth or unrelated keys.
+ *
+ * 260617: the SETTINGS-tab drivers (budget-members, cushion-summary,
+ * recurring-rules, categories-lite) were MISSING here, so they were never
+ * written to IndexedDB → after ANY reload offline they vanished and the Settings
+ * tab rendered empty / black ("cache disappears after reload" device report).
+ * They are per-budget read data (tenant-scoped server-side by RLS), safe to
+ * persist alongside the other budget keys. */
 function shouldPersist(queryKey: readonly unknown[]): boolean {
   const k0 = queryKey[0];
   return (
@@ -40,8 +47,43 @@ function shouldPersist(queryKey: readonly unknown[]): boolean {
     k0 === "reserves" ||
     k0 === "tasks" ||
     k0 === "active-budgets" ||
-    k0 === "home-summary"
+    k0 === "home-summary" ||
+    // Settings-tab drivers (offline-complete Settings).
+    k0 === "budget-members" ||
+    k0 === "cushion-summary" ||
+    k0 === "recurring-rules" ||
+    k0 === "categories-lite" ||
+    // Notification settings — cache the master (per-budget subscription) + the
+    // per-kind toggles so the Notifications section hydrates from cache like the
+    // rest of Settings (260618).
+    k0 === "push-prefs" ||
+    k0 === "push-subscription-status"
   );
+}
+
+/**
+ * Ask the browser to make this origin's storage PERSISTENT so the OS/engine
+ * won't evict our IndexedDB cache + the SW Cache Storage under pressure or after
+ * inactivity. WebKit (iOS Safari / installed PWAs) caps non-persistent storage
+ * and evicts it well before our 1-year MAX_AGE — the "cache vanished even though
+ * it should last a year" device report (260619). `persist()` flips the bucket to
+ * best-effort durable; for an installed PWA iOS usually grants it silently.
+ * Idempotent + best-effort: never throws, safe to call on every startup.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.storage?.persist ||
+      !navigator.storage.persisted
+    ) {
+      return false;
+    }
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
 }
 
 /** Delete the removed legacy offline-cache IDB (tenant safety + cleanup). */

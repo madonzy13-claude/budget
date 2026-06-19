@@ -16,7 +16,9 @@ export const pushSubscriptions = sharedKernel.table(
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: uuid("tenant_id").notNull(),
     userId: uuid("user_id").notNull(),
-    endpoint: text("endpoint").notNull().unique(),
+    // NOT globally unique (260618): a device endpoint may hold one row per
+    // budget the user opted into — uniqueness is (endpoint, tenant_id).
+    endpoint: text("endpoint").notNull(),
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
     locale: text("locale").notNull().default("en"),
@@ -32,6 +34,10 @@ export const pushSubscriptions = sharedKernel.table(
       using: sql`${t.tenantId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
       withCheck: sql`${t.tenantId} = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[])`,
     }),
+    uniqueIndex("push_subscriptions_endpoint_tenant_uq").on(
+      t.endpoint,
+      t.tenantId,
+    ),
   ],
 );
 

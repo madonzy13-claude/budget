@@ -9,7 +9,8 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { WalletDto } from "./use-wallets";
@@ -23,10 +24,11 @@ export function useReorderWallets(budgetId: string) {
   const qc = useQueryClient();
   // UAT-PH5-T3-35: translate toast strings.
   const t = useTranslations("bdp.tab.wallets.toast");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: ReorderWalletsInput) => {
-      const res = await clientApiFetch(`/wallets/reorder`, {
+      const res = await clientApiWrite(`/wallets/reorder`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,9 +75,14 @@ export function useReorderWallets(budgetId: string) {
       return { previous };
     },
 
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       if (ctx?.previous) {
         qc.setQueryData(["budget", budgetId, "wallets"], ctx.previous);
+      }
+      // Honest-offline: an offline/unreachable/hung write shows the shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
       }
       toast.error(t("reorderFailed"));
     },

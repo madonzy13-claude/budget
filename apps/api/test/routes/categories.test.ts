@@ -411,7 +411,6 @@ describe("POST /categories/:id/unarchive", () => {
 
     // Build an app with a DIFFERENT tenantId to simulate cross-tenant request
     const other = await createTestUser();
-    const otherApp = await buildApp(other.userId, other.tenantId);
 
     // Mount with budgetId param mismatch by routing under /budgets/:budgetId
     const mismatchApp = new (await import("hono")).Hono();
@@ -422,46 +421,34 @@ describe("POST /categories/:id/unarchive", () => {
       c.set("userId", other.userId);
       await next();
     });
-    const { createCategoriesRoute } = await import("../../src/routes/categories");
-    const { DrizzleCategoryRepo } = await import(
-      "@budget/budgeting/src/adapters/persistence/category-repo"
-    );
-    const { DrizzleCategoryLimitRepo } = await import(
-      "@budget/budgeting/src/adapters/persistence/category-limit-repo"
-    );
-    const { unarchiveCategory } = await import(
-      "@budget/budgeting/src/application/unarchive-category"
-    );
-    const { permanentlyDeleteCategory } = await import(
-      "@budget/budgeting/src/application/permanently-delete-category"
-    );
-    const { archiveCategory } = await import(
-      "@budget/budgeting/src/application/archive-category"
-    );
-    const { createCategory } = await import(
-      "@budget/budgeting/src/application/create-category"
-    );
-    const { listCategories } = await import(
-      "@budget/budgeting/src/application/list-categories"
-    );
-    const { findCategoryById } = await import(
-      "@budget/budgeting/src/application/find-category-by-id"
-    );
-    const { renameCategory } = await import(
-      "@budget/budgeting/src/application/rename-category"
-    );
-    const { setCategoryLimit } = await import(
-      "@budget/budgeting/src/application/set-category-limit"
-    );
-    const { getEffectiveLimit } = await import(
-      "@budget/budgeting/src/application/get-effective-limit"
-    );
-    const { setShareOverrides } = await import(
-      "@budget/budgeting/src/application/set-share-overrides"
-    );
-    const { listShareOverrides } = await import(
-      "@budget/budgeting/src/application/list-share-overrides"
-    );
+    const { createCategoriesRoute } =
+      await import("../../src/routes/categories");
+    const { DrizzleCategoryRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/category-repo");
+    const { DrizzleCategoryLimitRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+    const { unarchiveCategory } =
+      await import("@budget/budgeting/src/application/unarchive-category");
+    const { permanentlyDeleteCategory } =
+      await import("@budget/budgeting/src/application/permanently-delete-category");
+    const { archiveCategory } =
+      await import("@budget/budgeting/src/application/archive-category");
+    const { createCategory } =
+      await import("@budget/budgeting/src/application/create-category");
+    const { listCategories } =
+      await import("@budget/budgeting/src/application/list-categories");
+    const { findCategoryById } =
+      await import("@budget/budgeting/src/application/find-category-by-id");
+    const { renameCategory } =
+      await import("@budget/budgeting/src/application/rename-category");
+    const { setCategoryLimit } =
+      await import("@budget/budgeting/src/application/set-category-limit");
+    const { getEffectiveLimit } =
+      await import("@budget/budgeting/src/application/get-effective-limit");
+    const { setShareOverrides } =
+      await import("@budget/budgeting/src/application/set-share-overrides");
+    const { listShareOverrides } =
+      await import("@budget/budgeting/src/application/list-share-overrides");
     const r2 = new DrizzleCategoryRepo();
     const l2 = new DrizzleCategoryLimitRepo();
     const mismatchDeps = {
@@ -476,10 +463,14 @@ describe("POST /categories/:id/unarchive", () => {
         setCategoryLimit: setCategoryLimit({ limitRepo: l2 }),
         getEffectiveLimit: getEffectiveLimit({ limitRepo: l2 }),
         setShareOverrides: setShareOverrides({
-          shareRepo: new (await import("@budget/budgeting/src/adapters/persistence/share-override-repo")).DrizzleShareOverrideRepo(),
+          shareRepo: new (
+            await import("@budget/budgeting/src/adapters/persistence/share-override-repo")
+          ).DrizzleShareOverrideRepo(),
         }),
         listShareOverrides: listShareOverrides({
-          shareRepo: new (await import("@budget/budgeting/src/adapters/persistence/share-override-repo")).DrizzleShareOverrideRepo(),
+          shareRepo: new (
+            await import("@budget/budgeting/src/adapters/persistence/share-override-repo")
+          ).DrizzleShareOverrideRepo(),
         }),
       },
     } as unknown as import("../../src/boot").BootedDeps;
@@ -515,25 +506,21 @@ describe("POST /categories/:id/unarchive", () => {
 
 describe("DELETE /categories/:id — CONFIRM_DRAFT orphan prevention (260612-kxd T3-D)", () => {
   it("hard-delete of a category with an open draft+task leaves no PENDING CONFIRM_DRAFT in the banner read", async () => {
-    const { seedDraftWithTask } = await import(
-      "../../../../packages/budgeting/test/draft-task-fixtures"
-    );
+    const { seedDraftWithTask } =
+      await import("../../../../packages/budgeting/test/draft-task-fixtures");
     const fx = await seedDraftWithTask({ archivedCategory: true });
 
-    const { createCategoriesRoute } = await import("../../src/routes/categories");
+    const { createCategoriesRoute } =
+      await import("../../src/routes/categories");
     const { createTasksRoute } = await import("../../src/routes/tasks");
-    const { DrizzleCategoryRepo } = await import(
-      "@budget/budgeting/src/adapters/persistence/category-repo"
-    );
-    const { createTaskRepo } = await import(
-      "@budget/budgeting/src/adapters/persistence/task-repo"
-    );
-    const { permanentlyDeleteCategory } = await import(
-      "@budget/budgeting/src/application/permanently-delete-category"
-    );
-    const { listPendingTasks } = await import(
-      "@budget/budgeting/src/application/list-pending-tasks"
-    );
+    const { DrizzleCategoryRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/category-repo");
+    const { createTaskRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/task-repo");
+    const { permanentlyDeleteCategory } =
+      await import("@budget/budgeting/src/application/permanently-delete-category");
+    const { listPendingTasks } =
+      await import("@budget/budgeting/src/application/list-pending-tasks");
 
     const deps = {
       budgeting: {
@@ -576,9 +563,8 @@ describe("DELETE /categories/:id — CONFIRM_DRAFT orphan prevention (260612-kxd
 
     // The delete must also flip the row to RESOLVED in the same tx (write
     // path stays correct even though the read already hid the task).
-    const { readTaskStatus } = await import(
-      "../../../../packages/budgeting/test/draft-task-fixtures"
-    );
+    const { readTaskStatus } =
+      await import("../../../../packages/budgeting/test/draft-task-fixtures");
     const task = await readTaskStatus(fx.budgetId, fx.taskId);
     expect(task).not.toBeNull();
     expect(task?.status).toBe("RESOLVED");

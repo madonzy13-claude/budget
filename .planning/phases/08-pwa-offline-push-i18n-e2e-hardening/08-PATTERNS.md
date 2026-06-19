@@ -4,6 +4,14 @@
 **Files analyzed:** 28 new/modified files
 **Analogs found:** 26 / 28
 
+> **⚠️ Offline patterns superseded (2026-06-16/17).** Any pattern below for the
+> IndexedDB offline cache, offline write-queue/replay, offline-status-badge,
+> sync-issues-list, or per-row pending markers is **obsolete** — that machinery was
+> removed. Current offline = persisted React Query cache (read) + rollback-toast
+> (write) + `OfflineStaleBar`/`useCacheAge` + SW nav layer. Before reusing any offline
+> analog here, read the **08-CONTEXT.md** banner and memory `project_offline_architecture`.
+> Push / i18n / E2E patterns are unaffected.
+
 ---
 
 ## File Classification

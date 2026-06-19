@@ -4,8 +4,14 @@
  * Covers: owner/non-owner controls + typed-name gate for archive/delete.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
+
+const { mockPush, mockRefresh, mockArchive } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockRefresh: vi.fn(),
+  mockArchive: vi.fn().mockResolvedValue({ ok: true }),
+}));
 
 // next-intl mock
 vi.mock("next-intl", () => ({
@@ -15,9 +21,13 @@ vi.mock("next-intl", () => ({
   },
 }));
 
-// next/navigation mock
+// next/navigation mock — useNavRouter wraps useRouter, so expose push + refresh.
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({
+    push: mockPush,
+    refresh: mockRefresh,
+    prefetch: vi.fn(),
+  }),
 }));
 
 // sonner mock
@@ -30,7 +40,7 @@ vi.mock("@/lib/api-client", () => ({
   api: {
     budgets: {
       ":id": {
-        archive: { $post: vi.fn().mockResolvedValue({ ok: true }) },
+        archive: { $post: mockArchive },
         delete: { $post: vi.fn().mockResolvedValue({ ok: true }) },
         leave: { $post: vi.fn().mockResolvedValue({ ok: true }) },
       },
@@ -111,5 +121,26 @@ describe("DangerZoneSection — owner/non-owner controls + typed-name gate (SETT
 
     const confirmBtn = screen.getByText("danger.delete_confirm");
     expect(confirmBtn).toBeDisabled();
+  });
+
+  it("confirmed delete archives the budget AND refreshes the SSR budget list (260618)", async () => {
+    mockPush.mockClear();
+    mockRefresh.mockClear();
+    mockArchive.mockClear();
+
+    render(<DangerZoneSection {...ownerProps} />);
+    fireEvent.click(screen.getByText("danger.delete_button"));
+    fireEvent.change(screen.getByTestId("delete-confirm-input"), {
+      target: { value: "Family Budget" },
+    });
+    fireEvent.click(screen.getByText("danger.delete_confirm"));
+
+    await waitFor(() =>
+      expect(mockArchive).toHaveBeenCalledWith({ param: { id: "budget-1" } }),
+    );
+    // router.refresh() invalidates the cached (app) layout so the header
+    // switcher drops the archived budget instead of showing it stale.
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+    expect(mockPush.mock.calls[0]?.[0]).toBe("/");
   });
 });

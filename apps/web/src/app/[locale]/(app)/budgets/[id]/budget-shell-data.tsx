@@ -1,8 +1,6 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { serverApiFetch } from "@/lib/budget-fetch.server";
 import { BdpTabs } from "@/components/budgeting/bdp-tabs";
-import { ActivePillTaskSlider } from "@/components/budgeting/tasks/active-pill-task-slider";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 
 /**
@@ -86,15 +84,10 @@ export async function BudgetShellData({ locale, id }: BudgetShellDataProps) {
           initialTasks={initialTasks}
         />
       </div>
-      {/* Suspense: ActivePillTaskSlider reads useSearchParams (deep-link
-          ?task=) — boundary keeps any CSR bailout local to the strip. */}
-      <Suspense fallback={null}>
-        <ActivePillTaskSlider
-          budgetId={id}
-          locale={locale}
-          initialTasks={initialTasks}
-        />
-      </Suspense>
+      {/* The tasks strip used to render here (chrome). 260618: it moved INTO the
+          sliding page region (BDP layout → TabSlide) so it slides as ONE unit
+          with the page on a tab switch instead of jumping. Pills stay here as the
+          sticky chrome. */}
     </>
   );
 }

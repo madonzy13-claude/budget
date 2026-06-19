@@ -27,7 +27,6 @@
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import {
   NetworkOnly,
-  NetworkFirst,
   CacheFirst,
   StaleWhileRevalidate,
   Serwist,
@@ -111,13 +110,24 @@ const serwist: Serwist = new Serwist({
       matcher: ({ request, url }: { request: Request; url: URL }) =>
         url.origin === self.location.origin &&
         request.headers.get("RSC") === "1",
-      handler: new NetworkFirst({
+      handler: new StaleWhileRevalidate({
         cacheName: RSC_CACHE,
-        // Offline, a real fetch HANGS rather than rejecting — without a timeout a
-        // soft-nav to an uncached route leaves Next stuck on loading.tsx forever.
-        // After 3s, fall back to the cached RSC (if any) or fail so Next does its
-        // hard-navigation fallback (served from the warmed document). (r7)
-        networkTimeoutSeconds: 3,
+        // StaleWhileRevalidate (cache-first) so a soft-nav commits INSTANTLY from
+        // cache (offline AND online) and revalidates in the background — that is
+        // why offline navigation is blazing fast.
+        //
+        // 260619 CRITICAL: a Next App Router RSC response VARIES by the
+        // `next-router-state-tree` (+ `next-url`) request header — it is the flight
+        // payload for "render route Y given the router is currently at tree X". The
+        // OLD cache key was URL-only (just stripped `_rsc`), so when the SW was
+        // controlling the page the first soft-nav got back the RSC for a DIFFERENT
+        // tree → Next could not reconcile it and BAILED TO A FULL HARD NAVIGATION
+        // (the slow ~700ms "first pill online, later fast" — offline was fast only
+        // because that path warmed the matching tree). Folding the tree + next-url
+        // into the cache key means a wrong-tree entry simply MISSES (→ background
+        // network fetch returns the correct payload → clean soft-nav) instead of
+        // being served and forcing a hard reload. Same-source prefetch + nav share
+        // a tree → hit → instant. rsc-v3 + activate-purge still version the cache.
         plugins: [
           {
             cacheKeyWillBeUsed: async ({
@@ -127,6 +137,10 @@ const serwist: Serwist = new Serwist({
             }): Promise<Request> => {
               const u = new URL(request.url);
               u.searchParams.delete("_rsc");
+              const tree = request.headers.get("next-router-state-tree");
+              const nextUrl = request.headers.get("next-url");
+              if (tree) u.searchParams.set("__rsctree", tree);
+              if (nextUrl) u.searchParams.set("__rscnurl", nextUrl);
               return new Request(u.toString(), { headers: { RSC: "1" } });
             },
           },
@@ -231,30 +245,89 @@ self.addEventListener("message", (event: any) => {
   );
 });
 
+// push — display the incoming notification (PWAX-04/05). WITHOUT this handler the
+// browser receives the push but shows NOTHING (Test 8 "no notification arrived",
+// 260618). The payload is JSON.stringify({ title, body, url }) from the worker
+// (push-notification-handler.ts). We surface title+body (D-15: no amounts) and
+// stash `url` in notification.data so the notificationclick handler below can
+// deep-link. `userVisibleOnly` subscriptions REQUIRE a visible notification per
+// push — failing to show one is penalised by the browser.
+self.addEventListener("push", (event: any) => {
+  let payload: { title?: string; body?: string; url?: string } = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : "" };
+  }
+  const title = payload.title ?? "Budget";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body ?? "",
+      icon: "/icons/icon-192-any.png",
+      badge: "/icons/icon-192-any.png",
+      data: { url: payload.url ?? "/" },
+      tag: payload.url ?? "budget-task",
+    }),
+  );
+});
+
 // notificationclick — deep-link handler (D-13 / PWAX-06)
-// When the user taps a push notification, focus an existing window that matches
-// the notification url, or open a new one. The url is set server-side by the
-// push-notification-handler to /budgets/<id>/<tab>?task=<taskId> (T-08-05-02:
-// url is constructed from a fixed template + registry tab, not from arbitrary
-// notification payload data).
+// The url is set server-side by the push-notification-handler to
+// /<locale>/budgets/<id>/<tab>?task=<taskId> (T-08-05-02: constructed from a
+// fixed template + registry tab, never from arbitrary notification payload).
+//
+// 260618 (round 3): on a standalone iOS PWA, NONE of the SW navigation APIs
+// route the open window — `clients.matchAll()` is frequently EMPTY (the PWA
+// window isn't a reported client), and `WindowClient.navigate()` /
+// `clients.openWindow()` only REFOCUS the existing window without changing the
+// route. navigate() AND postMessage both fell through to openWindow → the user
+// stayed on the budget list. The reliable channel is to PERSIST the target URL
+// to a Cache; the page (SwDeepLinkNav) reads + clears it on the next foreground
+// transition — which always fires when the tap brings the PWA forward. We still
+// fire the best-effort focus/postMessage/openWindow paths for Android/desktop
+// and cold start.
+const DEEPLINK_CACHE = "budget-deeplink";
+const DEEPLINK_KEY = "/__pending_deeplink__";
+
 self.addEventListener("notificationclick", (event: any) => {
   event.notification.close();
   const url: string = event.notification.data?.url ?? "/";
   event.waitUntil(
     (async () => {
-      // Match any window controlled by this SW whose URL ends with our path
+      // Primary channel (works on iOS): persist the pending deep-link so the
+      // foregrounded page can consume it. Write BEFORE focusing so it is present
+      // by the time visibilitychange/focus fires in the page.
+      try {
+        const cache = await caches.open(DEEPLINK_CACHE);
+        await cache.put(DEEPLINK_KEY, new Response(url));
+      } catch {
+        // cache unavailable — fall back to the live paths below
+      }
+
       const clients = await self.clients.matchAll({
         type: "window",
         includeUncontrolled: true,
       });
-      const match = clients.find(
-        (c: { url: string }) => c.url.endsWith(url) || c.url.includes(url),
-      );
-      if (match) {
-        await (match as { focus: () => Promise<void> }).focus();
-      } else {
-        await self.clients.openWindow(url);
+      // Best-effort live paths (Android/desktop): focus the window + ping it so
+      // SwDeepLinkNav consumes the pending URL immediately, without waiting for a
+      // visibility change. iOS typically has no client here → openWindow.
+      for (const client of clients) {
+        const c = client as {
+          url: string;
+          focus?: () => Promise<unknown>;
+          postMessage?: (msg: unknown) => void;
+        };
+        try {
+          if (typeof c.postMessage === "function") {
+            c.postMessage({ type: "DEEP_LINK", url });
+          }
+          if (typeof c.focus === "function") await c.focus();
+          return;
+        } catch {
+          // try the next client, else openWindow
+        }
       }
+      await self.clients.openWindow(url);
     })(),
   );
 });

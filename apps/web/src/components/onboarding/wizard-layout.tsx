@@ -3,7 +3,9 @@
  *
  * Centers the wizard card (max-width 480px), renders the stepper above,
  * step content in the middle, and the action row at the bottom.
- * Action row: Back (ghost/neutral, hidden step 1) | Skip (ghost/neutral, steps 2-4) | Next/Create Budget (yellow)
+ * Action row: Back (ghost/neutral, hidden step 1) | Next/Create Budget (yellow).
+ * No Skip — every step advances via Next (Type/Features have defaults; Basics
+ * requires a name).
  */
 "use client";
 
@@ -14,18 +16,17 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface WizardLayoutProps {
-  // Step 0 = welcome screen (no stepper progress); 1..5 = real wizard steps.
-  currentStep: 0 | 1 | 2 | 3 | 4 | 5;
+  // Step 0 = welcome screen (no stepper progress); 1..4 = real wizard steps.
+  currentStep: 0 | 1 | 2 | 3 | 4;
   children: React.ReactNode;
   onBack?: () => void;
-  onSkip?: () => void;
   onNext: () => void;
   /**
    * Optional handler for jumping back via the stepper pill itself. Wired
    * to the same setStep used by Back. The stepper only fires it for
    * completed segments, so we don't need extra guards in the parent.
    */
-  onStepJump?: (step: 1 | 2 | 3 | 4 | 5) => void;
+  onStepJump?: (step: 1 | 2 | 3 | 4) => void;
   isLoading?: boolean;
   nextLabel?: string;
   className?: string;
@@ -35,7 +36,6 @@ export function WizardLayout({
   currentStep,
   children,
   onBack,
-  onSkip,
   onNext,
   onStepJump,
   isLoading = false,
@@ -43,11 +43,8 @@ export function WizardLayout({
   className,
 }: WizardLayoutProps) {
   const t = useTranslations("onboarding.wizard.actions");
-  const isLastStep = currentStep === 5;
+  const isLastStep = currentStep === 4;
   const showBack = currentStep > 1;
-  // Steps 2, 3, and 4 are optional — user can Skip past Type, Features, and Push.
-  // Step 5 (Review) is the terminal action, not a skippable step.
-  const showSkip = currentStep === 2 || currentStep === 3 || currentStep === 4;
 
   const primaryLabel =
     nextLabel ?? (isLastStep ? t("create_budget") : t("next"));
@@ -91,23 +88,10 @@ export function WizardLayout({
             <div className="flex-1" />
           )}
 
-          {/* Skip — center, steps 2-4 only */}
-          {showSkip && (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onSkip}
-              disabled={isLoading}
-              className="flex-1 text-[var(--muted)]"
-            >
-              {t("skip")}
-            </Button>
-          )}
+          {/* Spacer to push Next to the right */}
+          <div className="flex-1" />
 
-          {/* Spacer to push Next to right when no Skip */}
-          {!showSkip && <div className="flex-1" />}
-
-          {/* Next / Create budget — yellow filled, NEVER for Back/Skip */}
+          {/* Next / Create budget — yellow filled, NEVER for Back */}
           <Button
             type="button"
             onClick={onNext}

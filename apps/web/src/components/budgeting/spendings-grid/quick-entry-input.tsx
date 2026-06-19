@@ -104,6 +104,9 @@ export function QuickEntryInput({
       <input
         ref={inputRef}
         data-testid={testId}
+        // Opt OUT of the global offline read-only block: quick-entry owns its
+        // own richer "Can't add while offline" dialog (see submit()).
+        data-offline-ok
         type="text"
         inputMode="decimal"
         value={value}

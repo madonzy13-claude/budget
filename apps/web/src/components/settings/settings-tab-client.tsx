@@ -52,7 +52,9 @@ function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
 
 function SettingsSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]">
+    // reveal-delayed: whole skeleton invisible 200ms so a cache restore replaces
+    // it first — no skeleton-scaffold flash on warm/offline nav (260617).
+    <div className="reveal-delayed overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]">
       {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}

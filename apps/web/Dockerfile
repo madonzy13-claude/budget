@@ -28,14 +28,24 @@ WORKDIR /app
 
 COPY apps/web/ ./apps/web/
 
-# Build Next.js app (uses Webpack — turbopack: false in next.config.mjs)
+# Build Next.js app with Webpack. Next 16 defaults `next build` to Turbopack,
+# but Serwist (stable 9.x) only hooks the Webpack build to emit public/sw.js —
+# the SW is required for offline + push. `--webpack` opts back into Webpack.
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_API_URL=http://localhost:3001
 
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=$GIT_COMMIT
 
-RUN cd apps/web && bunx next build
+# Web push: NEXT_PUBLIC_VAPID_PUBLIC_KEY is INLINED into the client bundle at
+# build time so pushManager.subscribe gets a non-empty applicationServerKey
+# (without it, push subscription silently fails with an empty key). Empty when
+# unset → push simply stays unavailable. Pass via docker-compose build.args
+# (sourced from infisical), e.g. NEXT_PUBLIC_VAPID_PUBLIC_KEY=<vapid public key>.
+ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
+
+RUN cd apps/web && bunx next build --webpack
 
 # Stage 3: Runtime
 FROM oven/bun:1.3.12-slim AS runtime

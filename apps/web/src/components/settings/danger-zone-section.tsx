@@ -73,7 +73,12 @@ export function DangerZoneSection({
       });
       if (!res.ok) throw new Error("Failed to archive budget");
       toast.success(t("danger.deleted_toast"));
+      // 260618: the header BudgetSwitcher list is an SSR prop from the (app)
+      // layout (GET /budgets/active). A soft push alone reuses the cached layout
+      // RSC, so the just-archived budget lingered in the dropdown. refresh()
+      // invalidates the router cache → the layout refetches the budget list.
       router.push("/");
+      router.refresh();
     } catch {
       if (!deleteError) {
         toast.error(t("danger.delete_error"));
@@ -93,7 +98,10 @@ export function DangerZoneSection({
       }
       if (!res.ok) throw new Error("Failed to leave budget");
       toast.success(t("danger.left_toast"));
+      // Same SSR-staleness fix as delete: refetch the (app) layout's budget list
+      // so the left budget drops out of the header switcher immediately.
       router.push("/");
+      router.refresh();
     } catch {
       toast.error(t("danger.leave_error"));
     }

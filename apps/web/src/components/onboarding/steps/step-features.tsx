@@ -21,6 +21,10 @@ interface StepFeaturesProps {
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
   onChangeCushionTargetMonths: (v: number) => void;
+  /** Push opt-in, folded into Features (260618 UAT). Captured-intent only —
+   *  the real subscribe happens in Settings → Notifications. */
+  pushEnabled: boolean;
+  onChangePush: (v: boolean) => void;
 }
 
 interface FeatureRowProps {
@@ -70,6 +74,8 @@ export function StepFeatures({
   onChangeReserves,
   cushionTargetMonths,
   onChangeCushionTargetMonths,
+  pushEnabled,
+  onChangePush,
 }: StepFeaturesProps) {
   const t = useTranslations("onboarding.wizard.features");
   const monthsInvalid =
@@ -132,6 +138,14 @@ export function StepFeatures({
           help={t("reserves_help")}
           checked={reservesEnabled}
           onChange={onChangeReserves}
+        />
+        <FeatureRow
+          id="wizard-feat-push"
+          testId="onboarding-push-switch"
+          label={t("push_label")}
+          help={t("push_help")}
+          checked={pushEnabled}
+          onChange={onChangePush}
         />
       </div>
     </div>

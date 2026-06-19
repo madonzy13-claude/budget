@@ -21,7 +21,8 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { ReservesSummaryDto } from "./use-reserves-summary";
@@ -31,6 +32,7 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
   const qc = useQueryClient();
   // UAT-PH5-T3-35: translate toast strings.
   const t = useTranslations("bdp.tab.reserves.toast");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: {
@@ -38,7 +40,7 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
       excluded: boolean;
       categoryName: string;
     }) => {
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/categories/${input.categoryId}/reserve-excluded`,
         {
           method: "PATCH",
@@ -108,9 +110,14 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
       return { previous };
     },
 
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       if (ctx?.previous !== undefined) {
         qc.setQueryData(["budget", budgetId, "reserves"], ctx.previous);
+      }
+      // Honest-offline: refused write shows the shared offline toast, not generic.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
       }
       toast.error(t("toggleFailed"));
     },

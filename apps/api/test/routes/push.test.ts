@@ -105,6 +105,7 @@ describe("POST /push/subscribe", () => {
         endpoint,
         p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp",
         auth: "tBHItJI5svbpez7KI4CCXg",
+        budgetId: fix.budgetId,
       }),
     });
     expect(res.status).toBe(200);
@@ -119,6 +120,7 @@ describe("POST /push/subscribe", () => {
       endpoint,
       p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp",
       auth: "tBHItJI5svbpez7KI4CCXg",
+      budgetId: fix.budgetId,
     };
     // First call
     await app.request("/push/subscribe", {
@@ -137,6 +139,21 @@ describe("POST /push/subscribe", () => {
     expect(body.ok).toBe(true);
   });
 
+  it("returns 403 when budgetId is not one of the caller's tenants", async () => {
+    const app = await buildApp({ userId: fix.userId, tenantId: fix.budgetId });
+    const res = await app.request("/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        endpoint: `https://fcm.example.com/sub/${crypto.randomUUID()}`,
+        p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp",
+        auth: "tBHItJI5svbpez7KI4CCXg",
+        budgetId: crypto.randomUUID(), // not in tenantIds
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
+
   it("returns 401 when no session", async () => {
     const app = await buildApp({
       userId: fix.userId,
@@ -150,6 +167,7 @@ describe("POST /push/subscribe", () => {
         endpoint: "https://fcm.example.com/sub/nope",
         p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp",
         auth: "tBHItJI5svbpez7KI4CCXg",
+        budgetId: fix.budgetId,
       }),
     });
     expect(res.status).toBe(401);
@@ -177,6 +195,7 @@ describe("DELETE /push/subscribe", () => {
         endpoint,
         p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp",
         auth: "tBHItJI5svbpez7KI4CCXg",
+        budgetId: fix.budgetId,
       }),
     });
 
@@ -184,7 +203,7 @@ describe("DELETE /push/subscribe", () => {
     const res = await app.request("/push/subscribe", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ endpoint }),
+      body: JSON.stringify({ endpoint, budgetId: fix.budgetId }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean };
@@ -200,8 +219,104 @@ describe("DELETE /push/subscribe", () => {
     const res = await app.request("/push/subscribe", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ endpoint: "https://fcm.example.com/sub/nope" }),
+      body: JSON.stringify({
+        endpoint: "https://fcm.example.com/sub/nope",
+        budgetId: fix.budgetId,
+      }),
     });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /push/subscription-status (per-budget master)", () => {
+  let fix: Fixture;
+
+  beforeAll(async () => {
+    fix = await createFixture();
+  });
+
+  it("reflects per-budget subscription state — true only for the subscribed budget", async () => {
+    const app = await buildApp({ userId: fix.userId, tenantId: fix.budgetId });
+    const endpoint = `https://fcm.example.com/sub/${crypto.randomUUID()}`;
+
+    // Before subscribing: status false.
+    const before = await app.request(
+      `/push/subscription-status?budgetId=${fix.budgetId}&endpoint=${encodeURIComponent(endpoint)}`,
+    );
+    expect(before.status).toBe(200);
+    expect(((await before.json()) as { subscribed: boolean }).subscribed).toBe(
+      false,
+    );
+
+    // Subscribe this device for this budget.
+    await app.request("/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        endpoint,
+        p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp",
+        auth: "tBHItJI5svbpez7KI4CCXg",
+        budgetId: fix.budgetId,
+      }),
+    });
+
+    // After subscribing: status true for THIS budget.
+    const after = await app.request(
+      `/push/subscription-status?budgetId=${fix.budgetId}&endpoint=${encodeURIComponent(endpoint)}`,
+    );
+    expect(((await after.json()) as { subscribed: boolean }).subscribed).toBe(
+      true,
+    );
+
+    // A DIFFERENT budget (other tenant) the same device never enabled → false.
+    const other = await createFixture();
+    const otherApp = await buildApp({
+      userId: other.userId,
+      tenantId: other.budgetId,
+    });
+    const otherStatus = await otherApp.request(
+      `/push/subscription-status?budgetId=${other.budgetId}&endpoint=${encodeURIComponent(endpoint)}`,
+    );
+    expect(
+      ((await otherStatus.json()) as { subscribed: boolean }).subscribed,
+    ).toBe(false);
+  });
+
+  it("returns false after the per-budget subscription is deleted", async () => {
+    const app = await buildApp({ userId: fix.userId, tenantId: fix.budgetId });
+    const endpoint = `https://fcm.example.com/sub/${crypto.randomUUID()}`;
+    await app.request("/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        endpoint,
+        p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp",
+        auth: "tBHItJI5svbpez7KI4CCXg",
+        budgetId: fix.budgetId,
+      }),
+    });
+    await app.request("/push/subscribe", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint, budgetId: fix.budgetId }),
+    });
+    const res = await app.request(
+      `/push/subscription-status?budgetId=${fix.budgetId}&endpoint=${encodeURIComponent(endpoint)}`,
+    );
+    expect(((await res.json()) as { subscribed: boolean }).subscribed).toBe(
+      false,
+    );
+  });
+
+  it("returns 401 when no session", async () => {
+    const app = await buildApp({
+      userId: fix.userId,
+      tenantId: fix.budgetId,
+      unauthenticated: true,
+    });
+    const res = await app.request(
+      `/push/subscription-status?budgetId=${fix.budgetId}&endpoint=https%3A%2F%2Fx`,
+    );
     expect(res.status).toBe(401);
   });
 });

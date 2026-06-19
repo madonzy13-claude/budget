@@ -9,7 +9,10 @@
  * D-PH4-INT5: double-click amount + Enter calls this with optional amountOverride.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 
 export interface ConfirmDraftInput {
@@ -19,10 +22,12 @@ export interface ConfirmDraftInput {
 
 export function useConfirmDraft(budgetId: string, month: string) {
   const qc = useQueryClient();
+  const t = useTranslations("grid.txn.write");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: ConfirmDraftInput) => {
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/recurring-rules/drafts/${input.draftId}/confirm`,
         {
           method: "POST",
@@ -41,6 +46,15 @@ export function useConfirmDraft(budgetId: string, month: string) {
       // Server returns 204 No Content — calling res.json() on empty body
       // throws SyntaxError. Return null instead.
       return null;
+    },
+
+    onError: (err: unknown) => {
+      // Honest-offline: refused write shows the shared offline toast, not generic.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(t("failed"));
     },
 
     onSettled: () => {

@@ -41,7 +41,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { AmountInput } from "@/components/budgeting/fields/amount-input";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { cn } from "@/lib/utils";
 // 260613-v1p: single source of truth for the 8 category palette colors.
 import { CATEGORY_COLORS } from "@/lib/category-colors";
@@ -123,6 +124,7 @@ export function CategorySlider({
 }: CategorySliderProps) {
   const t = useTranslations("grid");
   const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
   // SPA refactor (260616): the grid is client-data — no RSC to router.refresh().
   // Surface a created/edited/deleted category by invalidating the exact query
   // keys the grid reads. `includeTxns` covers archive/unarchive which change a
@@ -213,59 +215,33 @@ export function CategorySlider({
     const normalAmount = decimalToCents(values.plannedCents);
     const cushionAmount = decimalToCents(values.cushionCents);
 
-    if (mode === "create") {
-      // Step 1: POST /categories
-      const createRes = await clientApiFetch(
-        `/budgets/${budgetId}/categories`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: values.name,
-            colorKey: values.colorKey,
-          }),
-        },
-      );
-
-      if (!createRes.ok) {
-        toast.error(t("error.sliderSave"));
-        return;
-      }
-
-      const { category } = (await createRes.json()) as {
-        category: { id: string };
-      };
-
-      // Step 2: POST /categories/:id/limits
-      const limitsRes = await clientApiFetch(
-        `/budgets/${budgetId}/categories/${category.id}/limits`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ normalAmount, cushionAmount, effectiveFrom }),
-        },
-      );
-
-      if (!limitsRes.ok) {
-        toast.error(t("error.sliderSave"));
-        return;
-      }
-    } else {
-      // Edit flow: PATCH + POST limits (SCD-2)
-      const [patchRes, limitsRes] = await Promise.all([
-        clientApiFetch(
-          `/budgets/${budgetId}/categories/${initial!.categoryId}`,
+    try {
+      if (mode === "create") {
+        // Step 1: POST /categories
+        const createRes = await clientApiWrite(
+          `/budgets/${budgetId}/categories`,
           {
-            method: "PATCH",
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: values.name,
               colorKey: values.colorKey,
             }),
           },
-        ),
-        clientApiFetch(
-          `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
+        );
+
+        if (!createRes.ok) {
+          toast.error(t("error.sliderSave"));
+          return;
+        }
+
+        const { category } = (await createRes.json()) as {
+          category: { id: string };
+        };
+
+        // Step 2: POST /categories/:id/limits
+        const limitsRes = await clientApiWrite(
+          `/budgets/${budgetId}/categories/${category.id}/limits`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -273,16 +249,58 @@ export function CategorySlider({
               normalAmount,
               cushionAmount,
               effectiveFrom,
-              singleMonth,
             }),
           },
-        ),
-      ]);
+        );
 
-      if (!patchRes.ok || !limitsRes.ok) {
-        toast.error(t("error.sliderSave"));
+        if (!limitsRes.ok) {
+          toast.error(t("error.sliderSave"));
+          return;
+        }
+      } else {
+        // Edit flow: PATCH + POST limits (SCD-2)
+        const [patchRes, limitsRes] = await Promise.all([
+          clientApiWrite(
+            `/budgets/${budgetId}/categories/${initial!.categoryId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: values.name,
+                colorKey: values.colorKey,
+              }),
+            },
+          ),
+          clientApiWrite(
+            `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                normalAmount,
+                cushionAmount,
+                effectiveFrom,
+                singleMonth,
+              }),
+            },
+          ),
+        ]);
+
+        if (!patchRes.ok || !limitsRes.ok) {
+          toast.error(t("error.sliderSave"));
+          return;
+        }
+      }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // RHF resets isSubmitting when onSubmit settles, so no manual reset needed.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
         return;
       }
+      // Non-offline throw → keep the existing generic save error.
+      toast.error(t("error.sliderSave"));
+      return;
     }
 
     onOpenChange(false);
@@ -297,7 +315,7 @@ export function CategorySlider({
       // POST /:id/archive soft-removes the category. mode "current_future" keeps
       // history (visible in past months it had activity, gone from now on); mode
       // "all" hides it everywhere. Either way transactions are kept in the DB.
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/categories/${initial.categoryId}/archive`,
         {
           method: "POST",
@@ -313,6 +331,14 @@ export function CategorySlider({
       } else {
         toast.error(t("error.sliderSave"));
       }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets isDeleting so the spinner never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(t("error.sliderSave"));
     } finally {
       setIsDeleting(false);
     }

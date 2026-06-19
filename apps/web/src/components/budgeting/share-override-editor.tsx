@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 interface ShareEntry {
   userId: string;
@@ -28,7 +30,9 @@ interface ShareOverrideEditorProps {
   /** Existing overrides from server. */
   existingOverrides?: ShareEntry[];
   onSuccess?: (overrides: ShareEntry[]) => void;
-  apiBase?: string;
+  // clientApiWrite prefixes /api itself, so this prop is no longer consumed;
+  // kept (underscore-prefixed) for call-site/test compatibility.
+  _apiBase?: string;
 }
 
 const EPSILON = 0.005;
@@ -38,9 +42,10 @@ export function ShareOverrideEditor({
   members = [],
   existingOverrides = [],
   onSuccess,
-  apiBase = "/api",
+  _apiBase = "/api",
 }: ShareOverrideEditorProps) {
   const t = useTranslations("budgeting_categories.shares");
+  const offlineToast = useOfflineWriteToast();
   const [entries, setEntries] = useState<ShareEntry[]>(
     existingOverrides.length > 0
       ? existingOverrides
@@ -83,8 +88,8 @@ export function ShareOverrideEditor({
     setSaving(true);
     setServerError(null);
     try {
-      const res = await fetch(
-        `${apiBase}/categories/${categoryId}/share-overrides`,
+      const res = await clientApiWrite(
+        `/categories/${categoryId}/share-overrides`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -99,7 +104,13 @@ export function ShareOverrideEditor({
       }
       toast.success(t("toast.saved"));
       onSuccess?.(entries);
-    } catch {
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets `saving` so the spinner never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
       setServerError(t("errors.network"));
     } finally {
       setSaving(false);

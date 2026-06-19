@@ -29,6 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 interface TemplateDto {
   id: string;
@@ -38,7 +40,9 @@ interface TemplateDto {
 interface BudgetTemplateFormProps {
   templates: TemplateDto[];
   onSuccess?: () => void;
-  apiBase?: string;
+  // clientApiWrite prefixes /api itself, so this prop is no longer consumed;
+  // kept (underscore-prefixed) for call-site/test compatibility.
+  _apiBase?: string;
 }
 
 function currentMonthDate(): string {
@@ -58,9 +62,10 @@ type FormValues = z.infer<typeof formSchema>;
 export function BudgetTemplateForm({
   templates,
   onSuccess,
-  apiBase = "/api",
+  _apiBase = "/api",
 }: BudgetTemplateFormProps) {
   const t = useTranslations("budgeting_categories.templates");
+  const offlineToast = useOfflineWriteToast();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
@@ -76,8 +81,8 @@ export function BudgetTemplateForm({
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-      const res = await fetch(
-        `${apiBase}/budget-templates/${values.templateId}/apply`,
+      const res = await clientApiWrite(
+        `/budget-templates/${values.templateId}/apply`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -92,7 +97,12 @@ export function BudgetTemplateForm({
       }
       toast.success(t("toast.applied"));
       onSuccess?.();
-    } catch {
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
       setServerError(t("errors.network"));
     }
   }

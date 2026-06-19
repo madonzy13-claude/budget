@@ -66,7 +66,8 @@ When(
   /^I advance through the wizard basics step with name "(.+?)"$/,
   async ({ page }, budgetName: string) => {
     const onboarding = new OnboardingPo(page);
-    // Real step order: 0 Welcome, 1 Type, 2 Basics, 3 Features, 4 Push, 5 Review.
+    // Step order (260618): 0 Welcome, 1 Type, 2 Basics, 3 Features (incl. the
+    // push opt-in), 4 Review. No standalone Push step, no Skip button.
     await onboarding.clickNext(); // 0 Welcome ("Get started") → 1 Type
     await onboarding.clickNext(); // 1 Type (default PRIVATE) → 2 Basics
     const nameInput = page.getByTestId("wizard-step1-name");
@@ -76,37 +77,39 @@ When(
   },
 );
 
-When("I advance past the optional wizard steps", async ({ page }) => {
-  const onboarding = new OnboardingPo(page);
-  // Now on Features (step 3); skip it to land on Push (step 4).
-  // Do NOT skip Push — the caller asserts the push switch.
-  await onboarding.clickSkip(); // skip Features (3) → 4 Push
-});
-
-When(
-  "I advance past the optional wizard steps to the push step",
+Then(
+  "the push opt-in switch is present on the features step",
   async ({ page }) => {
     const onboarding = new OnboardingPo(page);
-    // On Features (step 3); skip it to land on Push (step 4).
-    await onboarding.clickSkip(); // skip Features (3) → 4 Push
+    await expect(onboarding.pushStepSwitch()).toBeVisible({ timeout: 8000 });
   },
 );
 
-Then("the push opt-in switch is present on the push step", async ({ page }) => {
+When("I enable push on the features step", async ({ page }) => {
   const onboarding = new OnboardingPo(page);
-  await expect(onboarding.pushStepSwitch()).toBeVisible({ timeout: 8000 });
+  await onboarding.pushStepSwitch().click();
 });
 
-When("I skip the push step", async ({ page }) => {
-  const onboarding = new OnboardingPo(page);
-  await onboarding.clickSkip();
-});
+Then(
+  "the wizard page does not overflow the mobile viewport",
+  async ({ page }) => {
+    // 260618 UAT fix: the wizard <main> dropped min-h-screen so a short step
+    // (Welcome) no longer overshoots the (app) shell by the header height and
+    // forces a permanent scrollbar. Measure at an iPhone-sized viewport.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(200); // let layout settle after resize
+    const m = await page.evaluate(() => ({
+      scrollH: document.documentElement.scrollHeight,
+      innerH: window.innerHeight,
+    }));
+    // Allow a couple of sub-pixel rounding px; the short Welcome step must fit.
+    expect(m.scrollH).toBeLessThanOrEqual(m.innerH + 2);
+  },
+);
 
 When("I complete the wizard", async ({ page }) => {
   const onboarding = new OnboardingPo(page);
-  // Called from either the Push step (needs Push→Review then Create) or the
-  // Review step (after skipping Push). Advance until "Create budget" shows,
-  // then click it.
+  // From Features (step 3): Next → Review (step 4) → "Create budget".
   const createBtn = page.getByRole("button", { name: /create budget/i });
   for (let i = 0; i < 3; i++) {
     if (await createBtn.isVisible().catch(() => false)) break;
