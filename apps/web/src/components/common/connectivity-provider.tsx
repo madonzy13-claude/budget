@@ -24,7 +24,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, onlineManager } from "@tanstack/react-query";
 import { subscribeApiReachability } from "@/lib/api-unreachable-bus";
 
 export type ConnectivityStatus = "online" | "offline" | "server-down";
@@ -127,6 +127,15 @@ export function ConnectivityProvider({ children }: { children: ReactNode }) {
     : serverDown
       ? "server-down"
       : "online";
+
+  // Pause React Query while server-down so queries KEEP their cached data and
+  // don't fire failing fetches that would flip tabs into an error/empty state —
+  // exactly how offline behaves (offline pauses because navigator.onLine is
+  // false; server-down has onLine true, so we pause the onlineManager manually).
+  // Leaving server-down → resume, which refetches the paused queries.
+  useEffect(() => {
+    onlineManager.setOnline(status === "server-down" ? false : networkOnline);
+  }, [status, networkOnline]);
 
   return (
     <ConnectivityContext.Provider

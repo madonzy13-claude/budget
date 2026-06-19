@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  onlineManager,
+} from "@tanstack/react-query";
 import {
   ConnectivityProvider,
   useConnectivity,
@@ -35,6 +39,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+  onlineManager.setOnline(true); // reset global between tests
 });
 
 describe("ConnectivityProvider", () => {
@@ -77,6 +82,26 @@ describe("ConnectivityProvider", () => {
       await Promise.resolve();
     });
     expect(screen.getByTestId("s").textContent).toBe("online:false");
+  });
+
+  it("pauses React Query (onlineManager offline) while server-down, resumes on recovery", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("", { status: 503 })),
+    );
+    renderProbe();
+    await act(async () => {
+      reportApiUnreachable();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("s").textContent).toBe("server-down:true"),
+    );
+    expect(onlineManager.isOnline()).toBe(false);
+    await act(async () => {
+      reportApiOk();
+    });
+    expect(screen.getByTestId("s").textContent).toBe("online:false");
+    expect(onlineManager.isOnline()).toBe(true);
   });
 
   it("reportApiOk clears server-down immediately", async () => {
