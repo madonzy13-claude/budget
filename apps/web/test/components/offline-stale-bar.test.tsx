@@ -39,6 +39,17 @@ vi.mock("next-intl", () => ({
   useFormatter: () => ({ relativeTime: () => "5 minutes ago" }),
 }));
 
+// The bar now reads connectivity from the provider, not navigator.onLine
+// directly. Mirror the old behaviour by deriving status from navigator.onLine so
+// the existing setOnline(false) calls still drive the offline branch.
+vi.mock("../../src/components/common/connectivity-provider", () => ({
+  useConnectivity: () => {
+    const online = navigator.onLine !== false;
+    const status = online ? "online" : "offline";
+    return { status, degraded: !online, reason: status };
+  },
+}));
+
 import {
   OfflineStaleBar,
   staleTickDelay,
@@ -100,7 +111,9 @@ describe("OfflineStaleBar", () => {
       const bar = screen.getByTestId("offline-stale-bar");
       expect(bar.className).toContain("w-full");
       expect(bar.textContent ?? "").toContain("staleBar.message");
-      expect(bar.textContent ?? "").toContain("5 minutes ago");
+      // Freshly-seeded query (age < 1 min) reads "less than a minute ago"
+      // (260617) instead of a jittery seconds count — not the relativeTime.
+      expect(bar.textContent ?? "").toContain("staleBar.lessThanMinute");
     });
   });
 

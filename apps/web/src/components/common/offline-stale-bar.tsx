@@ -25,14 +25,12 @@
  * still INITS true so SSR/hydration render nothing (no mismatch); the layout
  * effect flips it pre-paint when offline.
  */
-import { useState, useEffect, useLayoutEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslations, useFormatter } from "next-intl";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 import { useCacheAge } from "@/hooks/use-cache-age";
-
-const useIsoLayoutEffect =
-  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+import { useConnectivity } from "@/components/common/connectivity-provider";
 
 /**
  * Refresh cadence for the relative cache age, by current age:
@@ -76,24 +74,12 @@ function usePrimaryKeys(budgetId: string | null): (readonly unknown[])[] {
 }
 
 export function OfflineStaleBar({ budgetId }: { budgetId: string | null }) {
-  const t = useTranslations("offline");
+  const t = useTranslations();
   const fmt = useFormatter();
-  const [isOnline, setIsOnline] = useState(true);
+  const { status } = useConnectivity();
+  const isOnline = status === "online";
   const age = useCacheAge(usePrimaryKeys(budgetId));
   const [now, setNow] = useState(() => new Date());
-
-  // Pre-paint connectivity read (jump fix) + online/offline listeners.
-  useIsoLayoutEffect(() => {
-    setIsOnline(navigator.onLine);
-    const on = () => setIsOnline(true);
-    const off = () => setIsOnline(false);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
 
   // Adaptive self-scheduling tick: recompute the delay each fire as age grows.
   useEffect(() => {
@@ -113,19 +99,34 @@ export function OfflineStaleBar({ budgetId }: { budgetId: string | null }) {
 
   if (isOnline) return null;
 
+  // offline → offline.staleBar.*; server-down → serverDown.banner.* (same red bar).
+  const ns =
+    status === "server-down" ? "serverDown.banner" : "offline.staleBar";
+
+  // < 1 min reads "less than a minute ago" instead of a jittery "12 seconds ago"
+  // (user request 260617). ≥ 1 min uses next-intl relativeTime ("1 minute ago").
+  const syncedPhrase =
+    age.kind === "synced"
+      ? now.getTime() - age.at.getTime() < 60_000
+        ? t("offline.staleBar.lessThanMinute")
+        : fmt.relativeTime(age.at, now)
+      : "";
+
   const message =
     age.kind === "synced"
-      ? t("staleBar.message", { relativeTime: fmt.relativeTime(age.at, now) })
+      ? t(`${ns}.message`, { relativeTime: syncedPhrase })
       : age.kind === "never"
-        ? t("staleBar.never")
-        : t("staleBar.unknown");
+        ? t(`${ns}.never`)
+        : t(`${ns}.unknown`);
 
   return (
     <div
       role="status"
       aria-live="polite"
       data-testid="offline-stale-bar"
-      className="w-full overflow-hidden text-ellipsis whitespace-nowrap bg-[var(--destructive,#ef4444)] px-4 py-1 text-center text-[11px] font-medium leading-tight text-white"
+      // Fixed h-6 (1.5rem) — matches the slot height global.css reserves on
+      // html.is-offline so the bar fills pre-reserved space (no layout jump).
+      className="flex h-6 w-full items-center justify-center overflow-hidden text-ellipsis whitespace-nowrap bg-[var(--destructive,#ef4444)] px-4 text-center text-[11px] font-medium leading-none text-white"
     >
       {message}
     </div>
