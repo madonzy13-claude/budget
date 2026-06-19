@@ -77,6 +77,11 @@ services:
       # move the server clock May→June. Prod images/compose never set this, so the
       # endpoint 404s and serverNow() is always the real clock there.
       ALLOW_TEST_CLOCK: "1"
+      # CI E2E ONLY: forwarded from .env so the e2e job can disable Better Auth's
+      # rate limiter (the suite's ~800 fresh-user sign-ups across 6 viewport
+      # projects otherwise get throttled by the 100/60s bucket). Defaults to empty
+      # (limiter stays ENABLED) in dev/prod, where the var is unset.
+      AUTH_RATE_LIMIT_DISABLED: ${AUTH_RATE_LIMIT_DISABLED:-}
     depends_on:
       migrator:
         condition: service_completed_successfully
