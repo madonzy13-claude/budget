@@ -70,15 +70,33 @@ describe("BDP loading.tsx", () => {
       container.querySelector(".bg-\\[var\\(--surface-card-dark\\)\\]"),
     ).not.toBeNull();
     expect(container.querySelector(".border-dashed")).not.toBeNull();
+  });
+
+  it("shows the pane skeleton + bars IMMEDIATELY (no 200ms empty window)", async () => {
+    const { container } = await renderLoading();
+    // the gate is always ~330ms, so neither the block (reveal-delayed) nor the
+    // inner bars (skeleton-delayed) may hide — both would leave the cards EMPTY
+    // for 200ms under the band before the bars appear.
+    expect(container.querySelector(".reveal-delayed")).toBeNull();
+    expect(container.querySelector(".skeleton-delayed")).toBeNull();
+    // bars are present and visible-from-frame-0 (skeleton-immediate).
     expect(
-      container.querySelectorAll(".skeleton-delayed").length,
+      container.querySelectorAll(".skeleton-immediate").length,
     ).toBeGreaterThan(4);
   });
 
-  it("shows the pane skeleton IMMEDIATELY (no 200ms reveal-delay empty window)", async () => {
+  it("mirrors the real pill's badge slot so the band does not jump width", async () => {
     const { container } = await renderLoading();
-    // the gate is always ~330ms, so the skeleton must paint at once — a
-    // reveal-delayed wrapper would blank the pane under the band first.
-    expect(container.querySelector(".reveal-delayed")).toBeNull();
+    const band = container.querySelector(".sticky.top-0.z-40")!;
+    // each pill carries an empty badge-wrapper span (reserves the gap-2 the live
+    // BdpTabs pill has) → 4 pills.
+    const pills = band.querySelectorAll("nav > span");
+    expect(pills.length).toBe(4);
+    for (const pill of pills) {
+      // label span + empty badge slot = at least 2 z-10 children.
+      expect(
+        pill.querySelectorAll(":scope > .z-10").length,
+      ).toBeGreaterThanOrEqual(2);
+    }
   });
 });

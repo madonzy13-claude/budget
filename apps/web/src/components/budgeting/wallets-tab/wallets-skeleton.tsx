@@ -45,14 +45,17 @@ export function WalletsSkeleton({
               key={i}
               className="flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]"
             >
-              <Skeleton className="h-4 w-2 shrink-0" />
-              <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+              <Skeleton delayed={delayed} className="h-4 w-2 shrink-0" />
+              <Skeleton
+                delayed={delayed}
+                className="h-7 w-7 shrink-0 rounded-full"
+              />
               <div className="min-w-0 flex-1">
-                <Skeleton className="h-3.5 w-24" />
+                <Skeleton delayed={delayed} className="h-3.5 w-24" />
               </div>
               <div className="flex items-center gap-3">
-                <Skeleton className="h-3.5 w-10" />
-                <Skeleton className="h-3.5 w-12" />
+                <Skeleton delayed={delayed} className="h-3.5 w-10" />
+                <Skeleton delayed={delayed} className="h-3.5 w-12" />
               </div>
             </div>
           ))}

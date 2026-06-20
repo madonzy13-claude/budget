@@ -89,6 +89,11 @@ export default async function BdpLoading() {
                 >
                   {t(`${slug}.label`)}
                 </span>
+                {/* Empty badge-slot — the real BdpTabs pill always renders a
+                    <span> badge wrapper, so the pill's gap-2 reserves 8px after
+                    the label. Mirror it here or every real pill mounts 8px wider
+                    and the band visibly jumps. */}
+                <span className="relative z-10" aria-hidden="true" />
               </span>
             );
           })}

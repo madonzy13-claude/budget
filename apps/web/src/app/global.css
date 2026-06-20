@@ -697,6 +697,15 @@ html.is-server-down
   animation: skeleton-reveal 1ms linear 200ms forwards;
 }
 
+/* Immediate variant of skeleton-delayed: pulses but is VISIBLE from frame 0 (no
+   200ms hide). Used when we already know the data is NOT arriving sub-200ms —
+   the BDP loading.tsx skeleton + post-restore cold tab skeletons — so the
+   skeleton bars show at once instead of leaving the cards empty for 200ms
+   (260620). */
+.skeleton-immediate {
+  animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 /* ───────────────────────────────────────────────────────────────────────────
    Month-nav directional slide (260618 UX). The spendings columns slide in the
    direction of travel on prev/next — driven by SlideOnChange, which re-triggers
