@@ -1,14 +1,17 @@
-import { Suspense } from "react";
-
 /**
- * BDP layout — provides the no-layout-shift Suspense boundary for the catch-all
- * `[[...tab]]/page.tsx`, which suspends on its server membership gate. The
- * fallback reserves the EXACT sticky-band footprint (sticky wrapper + the BdpTabs
- * nav's h-12) so the real pills band (rendered by <BudgetDetail> once the gate
- * resolves) fades into reserved space with zero shift.
+ * BDP layout — pass-through for the catch-all `[[...tab]]/page.tsx`.
  *
- * Everything else — the pills band, the carousel, the tasks slider — now lives in
- * the single client <BudgetDetail> tree (see budget-detail.tsx). The old
+ * The no-layout-shift fallback for the server membership gate now lives in the
+ * sibling `loading.tsx`. That matters: a manual <Suspense> here would stream the
+ * gate on a HARD load but would NOT make a client soft-navigation commit
+ * instantly (App Router only commits the nav immediately when a `loading.tsx`
+ * file exists for the segment). So the fallback moved to loading.tsx, which fixes
+ * the home→BDP "waiting on the listing page" lag and still reserves the exact
+ * sticky-band footprint. This layout keeps no Suspense of its own to avoid a
+ * redundant second boundary above the loading.tsx one.
+ *
+ * Everything else — the pills band, the carousel, the tasks slider — lives in the
+ * single client <BudgetDetail> tree (see budget-detail.tsx). The old
  * BudgetShellData / PageTransition / per-tab routes are gone: tab switching is
  * pure client state with no per-tab RSC round-trip.
  *
@@ -20,17 +23,6 @@ interface BdpLayoutProps {
   children: React.ReactNode;
 }
 
-function BdpBandFallback() {
-  return (
-    <div
-      aria-hidden="true"
-      className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
-    >
-      <div className="h-12" />
-    </div>
-  );
-}
-
 export default function BdpLayout({ children }: BdpLayoutProps) {
-  return <Suspense fallback={<BdpBandFallback />}>{children}</Suspense>;
+  return children;
 }
