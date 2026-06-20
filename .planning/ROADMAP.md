@@ -25,6 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow (completed 2026-05-22)
 - [x] **Phase 7: Tasks Queue** — Banner-with-expand UI, three deterministic generators (RESERVE*TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET), kind-specific resolution actions, auto-resolve on state change. CUSHION_BELOW_TARGET surfaces actual cushion-vs-target shortfall (the two legacy 4-kind generators have been dropped from v1.1 scope and deferred to v1.2 Insights). *(All 10 plans + summaries; CI green on ccca754. Non-CI test-debt tracked in STATE.md: reserve-topup.test.ts:610 it.skip.)\_
 - [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
+- [ ] **Phase 9: Investments Wallet** _(v1.2 track)_ — Feature-flagged `INVESTMENTS` wallet section (last on the wallets page, hidden when off): per-instrument holdings (name/type/group/buy-price/buy-currency/quantity/current-price) edited in a side `Sheet`; debounced instrument search over a unified universe (equities/ETF/FX/crypto/metals) preselecting type + live price; greenfield `PriceProvider` port + free-API adapters with an hourly cron fetching only held instruments + rate-limited instant fetch; values converted to budget currency for weights; daily price + FX snapshot persisted for future charts (charts NOT built here)
 
 ## Phase Details
 
@@ -230,6 +231,22 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **UI hint**: yes
 
+### Phase 9: Investments Wallet _(v1.2 track)_
+
+**Goal**: Add a feature-flagged `INVESTMENTS` wallet section to the wallets page that lets a household track investment holdings (name, type, group, buy price/currency, quantity, current price), auto-fetches current prices for held instruments via free-API price providers, and shows per-holding value / profit-loss / weight — laying the price + FX daily-snapshot groundwork for future capitalization charts (charts themselves are out of scope).
+**Depends on**: Phase 5 (Wallets tab + sectioned list + dnd reorder), Phase 6 (Settings + Onboarding wizard features step). Greenfield on prices; reuses the existing `budgeting.fx_rates` daily-FX persistence and `Money`/`FxProvider` conversion.
+**Requirements**: INV-01..INV-16 (see 09-SPEC.md — locked via spec-phase)
+**Success Criteria** (what must be TRUE):
+
+1. A budget with `investments_enabled = true` shows an Investments section as the LAST section on the wallets page; with the flag off the section is absent. The flag is toggleable in Settings and in the onboarding wizard features step, mirroring `reserves_enabled` / `cushion_enabled`.
+2. A holding is created/edited only through a right-side `Sheet` (no inline edit) capturing name, type (locked 9-value enum), group (free text), buy price, buy currency, quantity, and current price. Typing an instrument name/code and idling 2s (or blurring) lists suggestions across equities/ETF/FX/crypto/precious-metals; selecting one preselects type and prefills a live current price; "custom" leaves all fields manual.
+3. Current price is auto-converted to the holding's buy currency for profit/loss; each holding renders name, currency, total value (qty × current price), profit/loss %, and weight % (within its group when grouped, else across the whole portfolio). Grouped holdings render under group headers showing the group's % of total investments; the portfolio denominator is computed in the budget's default currency.
+4. Holdings drag-reorder within the section; dragging a holding into/out of a group reassigns its group; whole groups reorder. Holdings cannot be dragged in from other wallet sections (cross-section drop rejected, mirroring the existing `wallet_id_not_in_section` guard).
+5. A `PriceProvider` port + free-API adapter(s) back an hourly cron that fetches current prices ONLY for instruments at least one budget holds; an instrument with no cached price is fetched instantly on add, rate-limited to 10/user/min with overflow deferred to the next hourly run. A daily job snapshots each held instrument's last price AND the day's FX rates (extending the existing daily-FX job to investment currency pairs) — one row per instrument/pair per day — for future charts. Reads flow through the existing React-Query client cache (`["budget", id, "investments"]`) with optimistic writes.
+
+**Plans**: TBD (run /gsd-plan-phase 9 after discuss-phase)
+**UI hint**: yes
+
 ## Risk Register
 
 | Risk                                                                       | Probability         | Impact | Owning Phase | Mitigation                                                                                                              |
@@ -288,6 +305,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
 | 7. Tasks Queue                              | 0/10           | Planned     | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 6/7            | In Progress |            |
+| 9. Investments Wallet _(v1.2)_              | 0/TBD          | Spec'd      | -          |
 
 ---
 
