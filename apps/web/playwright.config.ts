@@ -63,6 +63,11 @@ export default defineConfig({
     // standalone or real env() insets; those invariants stay Vitest-guarded.
     {
       name: "geom-320",
+      // These projects exist ONLY to prove the @tasks-geometry shell invariants
+      // across widths. Without this grep they would re-run the ENTIRE suite at
+      // every width — ~4×135 needless runs that ballooned CI E2E past 2.5h and
+      // failed non-responsive flows at 320px. Scope them to their purpose.
+      grep: /@tasks-geometry/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 320, height: 568 },
@@ -70,6 +75,7 @@ export default defineConfig({
     },
     {
       name: "geom-390",
+      grep: /@tasks-geometry/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },
@@ -77,6 +83,7 @@ export default defineConfig({
     },
     {
       name: "geom-430",
+      grep: /@tasks-geometry/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 430, height: 932 },
@@ -84,6 +91,7 @@ export default defineConfig({
     },
     {
       name: "geom-1280",
+      grep: /@tasks-geometry/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },
