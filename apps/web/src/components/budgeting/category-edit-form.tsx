@@ -32,7 +32,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 interface LimitDto {
   id: string;
@@ -87,6 +88,7 @@ export function CategoryEditForm({
 }: CategoryEditFormProps) {
   const tCat = useTranslations("budgeting_categories.categories");
   const tLim = useTranslations("budgeting_categories.limits");
+  const offlineToast = useOfflineWriteToast();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const isEdit = mode.kind === "edit";
@@ -131,7 +133,7 @@ export function CategoryEditForm({
 
       if (mode.kind === "create") {
         // 1. Create the category.
-        const res = await clientApiFetch(`/categories`, {
+        const res = await clientApiWrite(`/categories`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -155,7 +157,7 @@ export function CategoryEditForm({
         // 2. EDIT: rename only if name changed, then write the limit.
         categoryId = mode.category.id;
         if (values.name !== mode.category.name) {
-          const ren = await clientApiFetch(`/categories/${categoryId}`, {
+          const ren = await clientApiWrite(`/categories/${categoryId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
@@ -188,7 +190,7 @@ export function CategoryEditForm({
             values as { effectiveFrom: string }
           ).effectiveFrom;
         }
-        const lim = await clientApiFetch(`/categories/${categoryId}/limits`, {
+        const lim = await clientApiWrite(`/categories/${categoryId}/limits`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -201,7 +203,12 @@ export function CategoryEditForm({
       }
 
       onSuccess?.();
-    } catch {
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
       setServerError(tCat("form.errors.network"));
     }
   }

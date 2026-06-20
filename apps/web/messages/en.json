@@ -81,6 +81,9 @@
   "settings": {
     "eyebrow": "Account",
     "heading": "Settings",
+    "build": {
+      "label": "Build"
+    },
     "sessions": {
       "tab": "Sessions",
       "heading": "Active sessions",
@@ -181,6 +184,28 @@
       "revoke_cancel": "Cancel",
       "revoked_toast": "Member removed.",
       "revoke_error": "Failed to remove member. Try again."
+    },
+    "push": {
+      "sectionTitle": "Notifications",
+      "enableLabel": "Push notifications",
+      "enableDescription": "Receive alerts for tasks needing your attention",
+      "kindsLabel": "Notify me for",
+      "kind": {
+        "RESERVE_TOPUP": {
+          "label": "Reserve top-up needed",
+          "description": "When a reserve needs topping up"
+        },
+        "CONFIRM_DRAFT": {
+          "label": "Draft needs confirming",
+          "description": "When a recurring draft awaits confirmation"
+        },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Cushion below target",
+          "description": "When the cushion balance falls short of the goal"
+        }
+      },
+      "permissionDenied": "Notification permission denied. Enable it in your browser settings.",
+      "saved": "Notification preferences saved."
     },
     "danger": {
       "section_title": "Danger Zone",
@@ -400,7 +425,8 @@
         "progress_aria": "Wizard progress",
         "step_completed_aria": "{label} step completed",
         "step_active_aria": "{label} step active",
-        "step_aria": "{label} step"
+        "step_aria": "{label} step",
+        "push": "Push"
       },
       "basics": {
         "heading": "Set up the basics",
@@ -428,7 +454,9 @@
         "reserves_label": "Reserves",
         "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
         "targetMonthsLabel": "Target months",
-        "targetMonthsError": "Months must be a whole number between 1 and 60."
+        "targetMonthsError": "Months must be a whole number between 1 and 60.",
+        "push_label": "Enable push notifications",
+        "push_help": "Get alerted when tasks need your attention — works even when the app is closed. You can change this later in Settings."
       },
       "review": {
         "heading": "Ready to go?",
@@ -454,11 +482,17 @@
       "errors": {
         "network": "Something went wrong — try again"
       }
+    },
+    "push": {
+      "stepTitle": "Enable push notifications",
+      "enableLabel": "Enable push notifications",
+      "enableDescription": "Get alerted when tasks need your attention — works even when the app is closed.",
+      "skip": "Skip for now"
     }
   },
   "dashboard": {
     "heading": "Dashboard",
-    "no_workspaces": "No active budgets selected. Use the budget switcher to pick at least one.",
+    "no_budgets_selected": "No active budgets selected. Use the budget switcher to pick at least one.",
     "totals_in": "Totals shown in {currency}"
   },
   "budgeting": {
@@ -788,7 +822,9 @@
           "active": "Active",
           "included": "Included",
           "excluded": "Excluded",
-          "excludedEmpty": "No excluded categories — drag a category here to exclude"
+          "excludedEmpty": "No excluded categories — drag a category here to exclude",
+          "noCategories": "No categories yet — add one in Spendings",
+          "includedEmpty": "No included categories — drag a category here to include"
         },
         "column": {
           "category": "Category",
@@ -981,7 +1017,6 @@
         "name": "Name",
         "planned": "Planned monthly",
         "cushion": "Cushion monthly",
-        "icon": "Icon",
         "color": "Color"
       },
       "deleteBlockedTooltip": "Cannot delete category with existing transactions",
@@ -994,6 +1029,11 @@
       }
     },
     "expensesTitle": "Expenses",
+    "offlineDialog": {
+      "title": "Can't add while offline",
+      "body": "You're offline, so this expense can't be saved right now. Reconnect to the internet and try again.",
+      "ok": "Got it"
+    },
     "deleteCategory": {
       "title": "Delete category permanently?",
       "body": "This permanently deletes {name} and all of its transactions, limits and history. This cannot be undone.",
@@ -1017,6 +1057,10 @@
       "action": {
         "delete": "Delete",
         "retry": "Retry"
+      },
+      "write": {
+        "offline": "You're offline — can't add right now. Try again when you reconnect.",
+        "failed": "Couldn't add the transaction. Please try again."
       }
     },
     "quickEntry": {
@@ -1122,5 +1166,75 @@
     "body": "That page doesn't exist — it may have moved, been renamed, or you might have followed a stale link.",
     "go_home": "Take me home",
     "go_back": "Go back"
+  },
+  "pwa": {
+    "install": {
+      "banner": {
+        "ariaLabel": "Install Budget app",
+        "body": "Install Budget for faster access and offline use",
+        "learnMore": "Learn more",
+        "cta": "Install app",
+        "dismiss": "Dismiss install banner"
+      },
+      "dialog": {
+        "title": "Why install Budget?",
+        "benefit1": "Works offline — access your budget without internet",
+        "benefit2": "Faster access — launches straight from your home screen",
+        "benefit3": "Push notifications — get task alerts without opening a browser",
+        "close": "Close"
+      },
+      "menuItem": "Install app",
+      "notAvailable": "Install not available in this browser",
+      "ios": {
+        "title": "Install on iPhone or iPad",
+        "step1": "Tap the Share button in your browser toolbar",
+        "step2": "Scroll down and tap “Add to Home Screen”",
+        "step3": "Tap “Add” — Budget appears on your home screen",
+        "close": "Got it"
+      }
+    }
+  },
+  "offline": {
+    "readOnly": "Budget is read-only while you're offline.",
+    "writeBlocked": "You're offline — changes can't be saved right now. Try again when you reconnect.",
+    "badge": {
+      "ariaLabel": "Offline",
+      "label": "Offline"
+    },
+    "indicator": {
+      "tooltip": "No internet — showing data from {relativeTime}",
+      "tooltipUnknown": "No internet — cached data age unknown",
+      "ariaLabel": "No internet connection"
+    },
+    "staleBar": {
+      "message": "Offline — data updated {relativeTime}",
+      "lessThanMinute": "less than a minute ago",
+      "never": "Offline — data never cached",
+      "unknown": "Offline — showing cached data"
+    },
+    "unavailable": {
+      "heading": "Not available offline",
+      "body": "This data hasn't been loaded yet. Connect to the internet and reload.",
+      "retry": "Retry when online"
+    }
+  },
+  "sync": {
+    "staleness": "Last synced {relativeTime}"
+  },
+  "serverDown": {
+    "heading": "Service unavailable",
+    "body": "Budget can't reach the server right now. Your data is safe.",
+    "reload": "Reload",
+    "signedOut": {
+      "heading": "You're signed out",
+      "body": "Can't sign in right now due to a server problem. Your data is safe.",
+      "reload": "Reload"
+    },
+    "banner": {
+      "message": "Server unavailable — data updated {relativeTime}",
+      "never": "Server unavailable — data not cached",
+      "unknown": "Server unavailable — showing cached data",
+      "readOnly": "Budget is read-only while the server is unavailable."
+    }
   }
 }

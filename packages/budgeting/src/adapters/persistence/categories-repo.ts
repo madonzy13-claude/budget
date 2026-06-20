@@ -89,10 +89,12 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         reserve_excluded: boolean;
         archived_at: Date | null;
         sort_index: number;
+        color_key: string | null;
       }>(
         // 05-12: the stored-actual column was dropped in
         // 0030_phase05_reserve_model_reset — reserve is engine-derived now.
-        sql`SELECT id, name, reserve_excluded, archived_at, sort_index
+        // 260613-v1p: color_key added so the reserves row can render the accent bar.
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, color_key
             FROM budgeting.categories
             WHERE id = ${categoryId}::uuid
               AND tenant_id = ${tenantId}::uuid
@@ -110,6 +112,7 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
       reserveExcluded: row.reserve_excluded,
       archivedAt: row.archived_at ? new Date(row.archived_at) : null,
       sortIndex: Number(row.sort_index ?? 0),
+      colorKey: row.color_key ?? null,
     };
   }
 
@@ -128,12 +131,14 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         reserve_excluded: boolean;
         archived_at: Date | null;
         sort_index: number;
+        color_key: string | null;
       }>(
         // Current-state read (reserves): hide fully-removed (archived_at) and
         // month-removed-as-of-this-month (archived_from <= current month).
         // Archived categories never appear on the Reserves tab.
         // 05-12: the stored-actual column was dropped (0030 reset) — engine-derived.
-        sql`SELECT id, name, reserve_excluded, archived_at, sort_index
+        // 260613-v1p: color_key added so the reserves row can render the accent bar.
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, color_key
             FROM budgeting.categories
             WHERE tenant_id = ${tenantId}::uuid
               AND archived_at IS NULL
@@ -151,12 +156,14 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         reserve_excluded: boolean;
         archived_at: Date | null;
         sort_index: number;
+        color_key: string | null;
       }) => ({
         id: row.id,
         name: row.name,
         reserveExcluded: row.reserve_excluded,
         archivedAt: row.archived_at ? new Date(row.archived_at) : null,
         sortIndex: Number(row.sort_index ?? 0),
+        colorKey: row.color_key ?? null,
       }),
     );
   }

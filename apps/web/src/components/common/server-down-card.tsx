@@ -2,6 +2,12 @@
 
 /**
  * <ServerDownCard> — client island for /[locale]/server-down.
+ * <ServerDownSignedOut> — auth-failed / session-unavailable variant (D-07/D-08).
+ *
+ * D-07 invariant: NEITHER component must contain an <a href="/login"> or any
+ * automatic redirect. The ONLY interactive element is a manual Reload/Retry
+ * button. This breaks any potential redirect loop when the server is unreachable
+ * and auth cannot be verified (T-08-04-02).
  *
  * Renders the localized "we can't reach the server" message + a Retry button.
  * Retry probes GET /api/health (proxied to the API container by next.config
@@ -23,7 +29,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { RefreshCw, ServerCrash } from "lucide-react";
+import { RefreshCw, ServerCrash, LogOut } from "lucide-react";
 
 interface ServerDownCardProps {
   /**
@@ -131,6 +137,58 @@ export function ServerDownCard({ locale }: ServerDownCardProps) {
             {t("still_unreachable")}
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ServerDownSignedOut — auth-failed / session-unavailable variant (D-07/D-08).
+ *
+ * Shown when the app cannot verify the user's session because the API is
+ * unreachable. The ONLY action available is a manual page reload.
+ *
+ * D-07 invariant: NO <a> link to /login and NO automatic redirect.
+ * window.location.reload() is the only navigation (user-initiated, not automatic).
+ * `data-testid="server-down-card"` matches the same selector as ServerDownCard
+ * so E2E tests can find either variant with the same selector.
+ */
+export function ServerDownSignedOut() {
+  const t = useTranslations("serverDown");
+
+  function handleReload() {
+    window.location.reload();
+  }
+
+  return (
+    <div className="max-w-md space-y-6" data-testid="server-down-card">
+      <div className="flex justify-center">
+        <span
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary)]/10"
+          aria-hidden="true"
+        >
+          <LogOut className="h-8 w-8 text-[var(--primary)]" />
+        </span>
+      </div>
+      <div className="space-y-3">
+        <h1 className="text-2xl font-semibold text-[var(--body-on-dark)]">
+          {t("signedOut.heading")}
+        </h1>
+        <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
+          {t("signedOut.body")}
+        </p>
+      </div>
+      <div className="pt-2">
+        {/* D-07: only a manual Reload button — no /login link, no auto-redirect */}
+        <button
+          type="button"
+          onClick={handleReload}
+          data-testid="server-down-reload-button"
+          className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--primary)] px-5 py-2.5 text-sm font-semibold text-[#181a20] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          {t("signedOut.reload")}
+        </button>
       </div>
     </div>
   );

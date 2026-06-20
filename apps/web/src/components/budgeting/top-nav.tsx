@@ -43,16 +43,23 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
     getServerSession(),
   ]);
   return (
-    <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 sm:px-8">
-      <div className="flex items-center gap-3">
-        <BrandMark href={`/${locale}`} />
+    <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-2 px-4 sm:px-8">
+      {/* Brand — fixed width, never shrinks. */}
+      <BrandMark href={`/${locale}`} />
+      {/* Switcher takes the slack and TRUNCATES so the offline pill + avatar on
+          the right are never pushed off-screen (min-w-0 lets the flex child
+          shrink below its content width). */}
+      <div className="min-w-0 flex-1">
         <BudgetSwitcher
           budgets={budgets}
           activeBudgetId={activeBudgetId}
           locale={locale}
         />
       </div>
-      <div className="flex items-center gap-3">
+      {/* Right cluster — fixed, always fully visible at the right edge. The
+          offline indicator is no longer here — it's a full-width red staleness
+          bar mounted below the header in the (app) layout (OfflineStaleBar). */}
+      <div className="flex shrink-0 items-center gap-2">
         {session?.user && (
           <ProfileMenu
             locale={locale}

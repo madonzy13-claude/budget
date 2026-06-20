@@ -137,7 +137,12 @@ export function BudgetSwitcher({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="z-[60] min-w-[256px] p-0"
+        // 260618: cap height so a long budget list (many budgets) doesn't
+        // overflow past the viewport. The LIST scrolls; the "Create budget" row
+        // is pinned outside the scroll region so it's never hidden below the fold.
+        // --radix-popover-content-available-height is the space between the
+        // trigger and the viewport edge; min() keeps a sensible ceiling.
+        className="z-[60] flex max-h-[min(70dvh,var(--radix-popover-content-available-height,70dvh))] min-w-[256px] flex-col p-0"
         // UAT-PH5-T3-31: skip auto-focus on open. Radix's default focused
         // the first row, which surfaced a blue focus ring on the first
         // budget item that read as "first item is selected". The
@@ -145,33 +150,37 @@ export function BudgetSwitcher({
         // not preselect any row.
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        {/* UAT-PH5-T3-05: suppress section heading when only one kind exists.
-            The heading is only useful when both Personal AND Shared groups are
-            visible so the user can disambiguate. With one kind, the label is
-            noise. */}
-        {privateB.length > 0 && (
-          <BudgetGroup
-            rows={privateB}
-            heading={sharedB.length > 0 ? t("nav.switcher.personal") : null}
-            onPick={onPick}
-            activeId={activeBudgetId}
-          />
-        )}
-        {privateB.length > 0 && sharedB.length > 0 && (
-          <div className="h-px bg-[var(--hairline-dark)]" />
-        )}
-        {sharedB.length > 0 && (
-          <BudgetGroup
-            rows={sharedB}
-            heading={privateB.length > 0 ? t("nav.switcher.shared") : null}
-            onPick={onPick}
-            activeId={activeBudgetId}
-          />
-        )}
+        {/* Scrollable budget list — flex-1 + min-h-0 so it takes the remaining
+            height and scrolls, leaving the Create row pinned below. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {/* UAT-PH5-T3-05: suppress section heading when only one kind exists.
+              The heading is only useful when both Personal AND Shared groups are
+              visible so the user can disambiguate. With one kind, the label is
+              noise. */}
+          {privateB.length > 0 && (
+            <BudgetGroup
+              rows={privateB}
+              heading={sharedB.length > 0 ? t("nav.switcher.personal") : null}
+              onPick={onPick}
+              activeId={activeBudgetId}
+            />
+          )}
+          {privateB.length > 0 && sharedB.length > 0 && (
+            <div className="h-px bg-[var(--hairline-dark)]" />
+          )}
+          {sharedB.length > 0 && (
+            <BudgetGroup
+              rows={sharedB}
+              heading={privateB.length > 0 ? t("nav.switcher.shared") : null}
+              onPick={onPick}
+              activeId={activeBudgetId}
+            />
+          )}
+        </div>
         {/* UAT-PH5-T2-03: trailing "Create budget" item replaces the removed
-            header "+" button. Styled like an empty-state CTA: muted icon, full-
-            width row inside the popover. */}
-        <div className="h-px bg-[var(--hairline-dark)]" />
+            header "+" button. PINNED to the bottom (outside the scroll region,
+            shrink-0) so it is always reachable no matter how long the list is. */}
+        <div className="h-px shrink-0 bg-[var(--hairline-dark)]" />
         <button
           type="button"
           role="menuitem"
@@ -180,7 +189,7 @@ export function BudgetSwitcher({
             router.push(`/${locale}/budgets/new`);
           }}
           className={cn(
-            "flex h-10 w-full items-center gap-2 px-4 text-left",
+            "flex h-10 w-full shrink-0 items-center gap-2 px-4 text-left",
             "text-body-md text-[var(--primary)]",
             "hover:bg-[var(--surface-elevated-dark)]",
             // UAT-PH5-T3-19: clickable affordance.

@@ -6,6 +6,11 @@ import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { registerRecurringEngine } from "./handlers/recurring-engine";
 import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
 import type { BudgetingReconciliationSweepDeps } from "./handlers/budgeting-reconciliation";
+import { registerPushNotificationHandler } from "./handlers/push-notification-handler";
+import {
+  getSubscriptionsForBudget,
+  deleteSubscription,
+} from "@budget/platform";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
@@ -106,6 +111,11 @@ async function main() {
     boss as unknown as Parameters<typeof registerBudgetingReconciliation>[0],
     reconciliationSweepDeps,
   );
+
+  // Push notifications — eventBus subscriber on task.created (no boss queue).
+  registerPushNotificationHandler({
+    pushRepo: { getSubscriptionsForBudget, deleteSubscription },
+  });
 
   console.log(
     "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC",

@@ -3,7 +3,9 @@
  *
  * Centers the wizard card (max-width 480px), renders the stepper above,
  * step content in the middle, and the action row at the bottom.
- * Action row: Back (ghost/neutral, hidden step 1) | Skip (ghost/neutral, steps 2-4) | Next/Create Budget (yellow)
+ * Action row: Back (ghost/neutral, hidden step 1) | Next/Create Budget (yellow).
+ * No Skip — every step advances via Next (Type/Features have defaults; Basics
+ * requires a name).
  */
 "use client";
 
@@ -18,7 +20,6 @@ interface WizardLayoutProps {
   currentStep: 0 | 1 | 2 | 3 | 4;
   children: React.ReactNode;
   onBack?: () => void;
-  onSkip?: () => void;
   onNext: () => void;
   /**
    * Optional handler for jumping back via the stepper pill itself. Wired
@@ -35,7 +36,6 @@ export function WizardLayout({
   currentStep,
   children,
   onBack,
-  onSkip,
   onNext,
   onStepJump,
   isLoading = false,
@@ -45,9 +45,6 @@ export function WizardLayout({
   const t = useTranslations("onboarding.wizard.actions");
   const isLastStep = currentStep === 4;
   const showBack = currentStep > 1;
-  // Steps 2 and 3 are optional — user can Skip past Type and Features.
-  // Step 4 (Review) is the terminal action, not a skippable step.
-  const showSkip = currentStep === 2 || currentStep === 3;
 
   const primaryLabel =
     nextLabel ?? (isLastStep ? t("create_budget") : t("next"));
@@ -91,23 +88,10 @@ export function WizardLayout({
             <div className="flex-1" />
           )}
 
-          {/* Skip — center, steps 2-4 only */}
-          {showSkip && (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onSkip}
-              disabled={isLoading}
-              className="flex-1 text-[var(--muted)]"
-            >
-              {t("skip")}
-            </Button>
-          )}
+          {/* Spacer to push Next to the right */}
+          <div className="flex-1" />
 
-          {/* Spacer to push Next to right when no Skip */}
-          {!showSkip && <div className="flex-1" />}
-
-          {/* Next / Create budget — yellow filled, NEVER for Back/Skip */}
+          {/* Next / Create budget — yellow filled, NEVER for Back */}
           <Button
             type="button"
             onClick={onNext}

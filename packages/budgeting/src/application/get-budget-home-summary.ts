@@ -95,15 +95,17 @@ export function getBudgetHomeSummary(deps: GetBudgetHomeSummaryDeps) {
     input: GetBudgetHomeSummaryInput,
   ): Promise<Result<HomeSummaryDTO, Error>> => {
     try {
-      const meta = await deps.summaryRepo.getBudgetMeta(input.budgetId);
+      // PERF 260613-dn1 #4: getBudgetMeta and getDisplayCurrency have no data
+      // dependency on each other — run in parallel. meta uses withTenantTx;
+      // displayCurrency uses withUserContext (cross-tenant, different GUC context).
+      // Do NOT collapse into one tx — that would break RLS isolation.
+      // Keep the budget_not_found guard AFTER the await.
+      const [meta, userDisplay] = await Promise.all([
+        deps.summaryRepo.getBudgetMeta(input.budgetId),
+        deps.displayCurrencyReader.getDisplayCurrency(input.userId),
+      ]);
       if (!meta) return err(new Error("budget_not_found"));
 
-      // Identity is cross-tenant. The reader port internally uses
-      // withUserContext (NOT withTenantTx) — that's adapted in apps/api/boot.ts
-      // from deps.identity.userRepo.findById.
-      const userDisplay = await deps.displayCurrencyReader.getDisplayCurrency(
-        input.userId,
-      );
       const displayCurrency = isValidCurrency(userDisplay)
         ? userDisplay
         : meta.default_currency;
@@ -133,20 +135,42 @@ export function getBudgetHomeSummary(deps: GetBudgetHomeSummaryDeps) {
         ),
       ]);
 
-      // Convert each wallet to display_currency via FxProvider.rateAsOf
-      // (Phase 2 port shape). Sum in display_currency.
+      // Convert each wallet to display_currency via FxProvider.rateAsOf.
+      // PERF 260613-dn1 #5: batch DISTINCT (from→to) currency pairs, resolve
+      // via Promise.all into a Map, then sum synchronously — avoids serial
+      // for-await and deduplicates cache hits when wallets share a currency.
       const convertedAt = new Date();
+
+      // Collect distinct cross-currency pairs (skip same-currency wallets).
+      const distinctPairs = new Set<string>();
+      for (const w of wallets) {
+        if (w.currency !== displayCurrency) {
+          distinctPairs.add(`${w.currency}->${displayCurrency}`);
+        }
+      }
+
+      // Resolve all rates in parallel.
+      const rateEntries = await Promise.all(
+        Array.from(distinctPairs).map(async (pair) => {
+          const [from, to] = pair.split("->") as [string, string];
+          const { rate } = await deps.fxProvider.rateAsOf(
+            from as Currency,
+            to as Currency,
+            convertedAt,
+          );
+          return [pair, rate] as [string, string];
+        }),
+      );
+      const rateMap = new Map<string, string>(rateEntries);
+
+      // Sum synchronously using the pre-fetched rate map.
       let walletsSumCents = 0n;
       for (const w of wallets) {
         if (w.currency === displayCurrency) {
           walletsSumCents += w.amount_cents;
           continue;
         }
-        const { rate } = await deps.fxProvider.rateAsOf(
-          w.currency as Currency,
-          displayCurrency as Currency,
-          convertedAt,
-        );
+        const rate = rateMap.get(`${w.currency}->${displayCurrency}`)!;
         // Convert via Money to preserve precision (cents → decimal → × rate → cents).
         const sourceMoney = centsToMoney(w.amount_cents, w.currency);
         const converted = sourceMoney.mul(rate);

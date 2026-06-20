@@ -10,7 +10,8 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { WalletDto } from "./use-wallets";
@@ -26,10 +27,11 @@ export function useCreateWallet(budgetId: string) {
   const qc = useQueryClient();
   // UAT-PH5-T3-35: translate toast strings.
   const t = useTranslations("bdp.tab.wallets.toast");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: CreateWalletInput) => {
-      const res = await clientApiFetch(`/wallets`, {
+      const res = await clientApiWrite(`/wallets`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -51,7 +53,14 @@ export function useCreateWallet(budgetId: string) {
       return (json.wallet ?? json) as WalletDto;
     },
 
-    onError: () => toast.error(t("createFailed")),
+    onError: (err) => {
+      // Honest-offline: an offline/unreachable/hung write shows the shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(t("createFailed"));
+    },
     onSuccess: (created) => {
       // Insert the persisted wallet into the cache BEFORE the draft is
       // cleared upstream so the user never sees a frame without their row.

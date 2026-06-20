@@ -1,6 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 import { routing } from "../i18n/routing";
+import { decideSignedOutLocaleRedirect } from "./lib/negotiate-locale";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -17,7 +18,18 @@ const PUBLIC_BUDGET_PATHS = ["/budgets/join/"];
 // protected route (no auth required) and not an auth route (we never want
 // to bounce authenticated users away from it). The default fall-through
 // (intl-only handling) is exactly the behaviour we want.
+// Better Auth names the session cookie `better-auth.session_token` over HTTP but
+// prefixes it `__Secure-better-auth.session_token` over HTTPS (secure context).
+// The middleware must recognise BOTH or every authenticated route bounces to
+// /sign-in once the app is served over HTTPS (e.g. behind the Cloudflare tunnel).
 const SESSION_COOKIE = "better-auth.session_token";
+const SECURE_SESSION_COOKIE = "__Secure-better-auth.session_token";
+function sessionCookieValue(request: NextRequest): string | undefined {
+  return (
+    request.cookies.get(SECURE_SESSION_COOKIE)?.value ??
+    request.cookies.get(SESSION_COOKIE)?.value
+  );
+}
 // Holds the signed-in user's account locale (set on sign-in + by Settings,
 // kept in sync by LocaleCookieSync). Logged-in users are redirected so the
 // URL locale always matches this. Logged-out users keep whatever locale the
@@ -39,7 +51,7 @@ function stripLocale(pathname: string): string {
 
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAuthenticated = !!request.cookies.get(SESSION_COOKIE)?.value;
+  const isAuthenticated = !!sessionCookieValue(request);
   const bare = stripLocale(pathname);
   const locale = extractLocale(pathname);
   const reason = request.nextUrl.searchParams.get("reason");
@@ -52,7 +64,40 @@ export default function middleware(request: NextRequest) {
   if (sessionExpired && AUTH_ROUTES.some((r) => bare.startsWith(r))) {
     const res = intlMiddleware(request);
     res.cookies.delete(SESSION_COOKIE);
+    res.cookies.delete(SECURE_SESSION_COOKIE);
     return res;
+  }
+
+  // Signed-out, no-URL-prefix locale resolution (D-20, T-08-04-01).
+  // Precedence (decideSignedOutLocaleRedirect):
+  //   budget-locale cookie > NEXT_LOCALE cookie > Accept-Language > "en"
+  // A SAVED locale cookie must beat the browser's Accept-Language header. The
+  // app's own account cookie (budget-locale) and next-intl's own cookie
+  // (NEXT_LOCALE, written by next-intl on every localized visit) both count as
+  // "saved" — previously this block keyed ONLY on budget-locale, so a stale
+  // NEXT_LOCALE choice was silently overridden by the header (UAT Test 10,
+  // cases B/E). All cookie values are validated against the supported-locale
+  // allowlist; the Accept-Language value is likewise validated inside
+  // decideSignedOutLocaleRedirect() — any unsupported tag falls back to "en".
+  // Fires ONLY for unauthenticated requests whose path has no locale prefix.
+  const accountLocaleCookie = request.cookies.get(ACCOUNT_LOCALE_COOKIE)?.value;
+  const urlHasLocale = LOCALES.includes(pathname.split("/")[1] ?? "");
+
+  if (!isAuthenticated && !urlHasLocale) {
+    const target = decideSignedOutLocaleRedirect({
+      budgetLocaleCookie: accountLocaleCookie,
+      nextLocaleCookie: request.cookies.get("NEXT_LOCALE")?.value,
+      acceptLanguage: request.headers.get("accept-language"),
+    });
+    // null ⇒ no saved cookie and header negotiates "en" ⇒ fall through and let
+    // next-intl emit the canonical bare "/" → /en (avoids a redundant redirect
+    // and any loop).
+    if (target) {
+      const url = request.nextUrl.clone();
+      const barePath = pathname || "/";
+      url.pathname = `/${target}${barePath === "/" ? "" : barePath}`;
+      return NextResponse.redirect(url);
+    }
   }
 
   // Logged-in users: the account locale is authoritative. If the URL carries a

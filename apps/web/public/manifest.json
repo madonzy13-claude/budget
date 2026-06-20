@@ -4,21 +4,36 @@
   "description": "Family budgeting and wealth tracker",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0f172a",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "background_color": "#181a20",
+  "theme_color": "#0b0e11",
+  "categories": ["finance", "productivity"],
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/icons/icon-192-any.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icons/icon-512-any.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ],
-  "categories": ["finance", "productivity"]
+  ]
 }

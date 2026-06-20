@@ -81,6 +81,9 @@
   "settings": {
     "eyebrow": "Konto",
     "heading": "Ustawienia",
+    "build": {
+      "label": "Kompilacja"
+    },
     "sessions": {
       "tab": "Sesje",
       "heading": "Aktywne sesje",
@@ -208,6 +211,28 @@
       "left_toast": "Opuściłeś budżet.",
       "leave_error": "Nie udało się opuścić budżetu. Spróbuj ponownie.",
       "last_owner_tooltip": "Jesteś ostatnim właścicielem. Zamiast tego usuń budżet."
+    },
+    "push": {
+      "sectionTitle": "Powiadomienia",
+      "enableLabel": "Powiadomienia push",
+      "enableDescription": "Otrzymuj alerty o zadaniach wymagających Twojej uwagi",
+      "kindsLabel": "Powiadamiaj mnie o",
+      "kind": {
+        "RESERVE_TOPUP": {
+          "label": "Wymagane uzupełnienie rezerwy",
+          "description": "Gdy rezerwa wymaga uzupełnienia"
+        },
+        "CONFIRM_DRAFT": {
+          "label": "Szkic wymaga potwierdzenia",
+          "description": "Gdy cykliczny szkic oczekuje na potwierdzenie"
+        },
+        "CUSHION_BELOW_TARGET": {
+          "label": "Poduszka poniżej celu",
+          "description": "Gdy saldo poduszki jest poniżej wyznaczonego celu"
+        }
+      },
+      "permissionDenied": "Uprawnienie do powiadomień zostało odrzucone. Włącz je w ustawieniach przeglądarki.",
+      "saved": "Preferencje powiadomień zapisane."
     }
   },
   "budgets": {
@@ -400,7 +425,8 @@
         "progress_aria": "Postęp kreatora",
         "step_completed_aria": "Krok {label} ukończony",
         "step_active_aria": "Krok {label} aktywny",
-        "step_aria": "Krok {label}"
+        "step_aria": "Krok {label}",
+        "push": "Powiadomienia"
       },
       "basics": {
         "heading": "Ustaw podstawy",
@@ -428,7 +454,9 @@
         "reserves_label": "Rezerwy",
         "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączone ukrywa zakładkę Rezerwy.",
         "targetMonthsLabel": "Docelowe miesiące",
-        "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60."
+        "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
+        "push_label": "Włącz powiadomienia push",
+        "push_help": "Otrzymuj alerty, gdy zadania wymagają Twojej uwagi — nawet gdy aplikacja jest zamknięta. Możesz to zmienić później w Ustawieniach."
       },
       "review": {
         "heading": "Gotowy?",
@@ -454,6 +482,12 @@
       "errors": {
         "network": "Coś poszło nie tak — spróbuj ponownie"
       }
+    },
+    "push": {
+      "stepTitle": "Włącz powiadomienia push",
+      "enableLabel": "Włącz powiadomienia push",
+      "enableDescription": "Otrzymuj alerty, gdy zadania wymagają Twojej uwagi — nawet gdy aplikacja jest zamknięta.",
+      "skip": "Pomiń na razie"
     }
   },
   "share": {
@@ -481,7 +515,7 @@
   },
   "dashboard": {
     "heading": "Pulpit",
-    "no_workspaces": "Nie wybrano żadnych aktywnych budżetów. Użyj przełącznika budżetów, aby wybrać co najmniej jeden.",
+    "no_budgets_selected": "Nie wybrano żadnych aktywnych budżetów. Użyj przełącznika budżetów, aby wybrać co najmniej jeden.",
     "totals_in": "Sumy w {currency}"
   },
   "budgeting": {
@@ -811,7 +845,9 @@
           "active": "Aktywne",
           "included": "Dołączone",
           "excluded": "Wykluczone",
-          "excludedEmpty": "Brak wykluczonych kategorii — przeciągnij tutaj kategorię, aby ją wykluczyć"
+          "excludedEmpty": "Brak wykluczonych kategorii — przeciągnij tutaj kategorię, aby ją wykluczyć",
+          "noCategories": "Brak kategorii — dodaj w Wydatkach",
+          "includedEmpty": "Brak dołączonych kategorii — przeciągnij tutaj kategorię, aby ją dołączyć"
         },
         "column": {
           "category": "Kategoria",
@@ -1004,7 +1040,6 @@
         "name": "Nazwa",
         "planned": "Plan miesięczny",
         "cushion": "Poduszka miesięczna",
-        "icon": "Ikona",
         "color": "Kolor"
       },
       "deleteBlockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
@@ -1017,6 +1052,11 @@
       }
     },
     "expensesTitle": "Wydatki",
+    "offlineDialog": {
+      "title": "Nie można dodać w trybie offline",
+      "body": "Jesteś offline, więc tego wydatku nie można teraz zapisać. Połącz się z internetem i spróbuj ponownie.",
+      "ok": "Rozumiem"
+    },
     "deleteCategory": {
       "title": "Usunąć kategorię na stałe?",
       "body": "Spowoduje to trwałe usunięcie kategorii {name} oraz wszystkich jej transakcji, limitów i historii. Tej operacji nie można cofnąć.",
@@ -1040,6 +1080,10 @@
       "action": {
         "delete": "Usuń",
         "retry": "Ponów"
+      },
+      "write": {
+        "offline": "Jesteś offline — nie można teraz dodać. Spróbuj ponownie po ponownym połączeniu.",
+        "failed": "Nie udało się dodać transakcji. Spróbuj ponownie."
       }
     },
     "quickEntry": {
@@ -1122,5 +1166,79 @@
     "body": "Ta strona nie istnieje — mogła zostać przeniesiona, zmieniona albo trafiłeś tu ze starego linku.",
     "go_home": "Wróć do strony głównej",
     "go_back": "Wstecz"
+  },
+  "pwa": {
+    "_machineTranslated": true,
+    "install": {
+      "banner": {
+        "ariaLabel": "Zainstaluj aplikację Budget",
+        "body": "Zainstaluj Budget dla szybszego dostępu i korzystania offline",
+        "learnMore": "Dowiedz się więcej",
+        "cta": "Zainstaluj aplikację",
+        "dismiss": "Odrzuć baner instalacji"
+      },
+      "dialog": {
+        "title": "Dlaczego warto zainstalować Budget?",
+        "benefit1": "Działa offline — dostęp do budżetu bez internetu",
+        "benefit2": "Szybszy dostęp — uruchamia się prosto z ekranu początkowego",
+        "benefit3": "Powiadomienia push — otrzymuj alerty o zadaniach bez otwierania przeglądarki",
+        "close": "Zamknij"
+      },
+      "menuItem": "Zainstaluj aplikację",
+      "notAvailable": "Instalacja niedostępna w tej przeglądarce",
+      "ios": {
+        "title": "Zainstaluj na iPhonie lub iPadzie",
+        "step1": "Stuknij przycisk Udostępnij na pasku przeglądarki",
+        "step2": "Przewiń w dół i stuknij „Do ekranu początkowego”",
+        "step3": "Stuknij „Dodaj” — Budget pojawi się na ekranie początkowym",
+        "close": "Rozumiem"
+      }
+    }
+  },
+  "offline": {
+    "_machineTranslated": true,
+    "readOnly": "Budżet jest tylko do odczytu, gdy jesteś offline.",
+    "writeBlocked": "Jesteś offline — zmian nie można teraz zapisać. Spróbuj ponownie po ponownym połączeniu.",
+    "badge": {
+      "ariaLabel": "Offline",
+      "label": "Offline"
+    },
+    "indicator": {
+      "tooltip": "Brak internetu — wyświetlane dane z {relativeTime}",
+      "tooltipUnknown": "Brak internetu — nieznany wiek danych z pamięci",
+      "ariaLabel": "Brak połączenia z internetem"
+    },
+    "staleBar": {
+      "message": "Offline — dane zaktualizowano {relativeTime}",
+      "never": "Offline — dane nigdy nie zapisane",
+      "unknown": "Offline — dane z pamięci",
+      "lessThanMinute": "mniej niż minutę temu"
+    },
+    "unavailable": {
+      "heading": "Niedostępne offline",
+      "body": "Te dane nie zostały jeszcze załadowane. Połącz się z internetem i odśwież.",
+      "retry": "Spróbuj ponownie po połączeniu"
+    }
+  },
+  "sync": {
+    "_machineTranslated": true,
+    "staleness": "Ostatnia synchronizacja {relativeTime}"
+  },
+  "serverDown": {
+    "_machineTranslated": true,
+    "heading": "Usługa niedostępna",
+    "body": "Budget nie może teraz połączyć się z serwerem. Twoje dane są bezpieczne.",
+    "reload": "Odśwież",
+    "signedOut": {
+      "heading": "Zostałeś wylogowany",
+      "body": "Nie można teraz zalogować się z powodu problemu z serwerem. Twoje dane są bezpieczne.",
+      "reload": "Odśwież"
+    },
+    "banner": {
+      "message": "Serwer niedostępny — dane zaktualizowano {relativeTime}",
+      "never": "Serwer niedostępny — brak danych w pamięci podręcznej",
+      "unknown": "Serwer niedostępny — wyświetlanie danych z pamięci podręcznej",
+      "readOnly": "Budżet jest tylko do odczytu, gdy serwer jest niedostępny."
+    }
   }
 }

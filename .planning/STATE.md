@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
-last_updated: "2026-06-06T14:52:00.000Z"
-last_activity: 2026-06-06
+stopped_at: Phase 08 UI-SPEC approved
+last_updated: "2026-06-10T22:09:20.266Z"
+last_activity: 2026-06-10
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 56
-  completed_plans: 59
+  total_plans: 63
+  completed_plans: 67
   percent: 100
 ---
 
@@ -21,14 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 07 — tasks-queue
+**Current focus:** Phase 08 — pwa-offline-push-i18n-e2e-hardening
 
 ## Current Position
 
-Phase: 07 (tasks-queue) — EXECUTING
-Plan: 2 of 10
-Status: Ready to execute
-Last activity: 2026-06-05
+Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verification
+Plan: 7 of 7 complete (all SUMMARYs present)
+Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
+Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
+Last activity: 2026-06-13 - Completed quick task 260613-v1p: category color persisted (migration 0036) + 4px accent bar on spendings/reserves, icon picker removed
+
+### Known test-debt (non-CI, non-blocking)
+
+CI does NOT run `packages/budgeting/test/**` or `apps/api/test/routes/**` integration suites. Two phase-07 verification gaps live there, so they do not gate merge:
+
+- `packages/budgeting/test/tasks/reserve-topup.test.ts:610` — `it.skip("hourly sweep …")` still skipped (Plan 07-06 promised a real assertion).
+- `resolve-idempotency.test.ts` / `cushion-summary` assertions flagged in 07-VERIFICATION.md (2026-05-31) — re-verify if those suites are ever wired into CI.
+
+Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc comments remain; route removed.
 
 ## Phase 3 Plans
 
@@ -89,6 +99,7 @@ _Updated after each plan completion_
 | Phase 05 P13 | 23min | 3 tasks | 16 files |
 | Phase 05 P14 | 25m | 2 tasks | 5 files |
 | Phase 05 P19 | 25m | 3 tasks | 16 files |
+| Phase 08 P08-05 | 18 | 4 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -188,9 +199,24 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Quick Tasks Completed
 
-| ID         | Date       | Task                                                                             | Status     | Plan                                                                     | Summary                                                                        |
-| ---------- | ---------- | -------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| 260507-m3x | 2026-05-07 | Migrate E2E tests to Gherkin (playwright-bdd) + Page Objects + freshUser fixture | complete ✓ | [PLAN](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-PLAN.md) | [SUMMARY](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-SUMMARY.md) |
+| ID         | Date       | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Status                                           | Plan                                                                                 | Summary                                                                                    |
+| ---------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 260507-m3x | 2026-05-07 | Migrate E2E tests to Gherkin (playwright-bdd) + Page Objects + freshUser fixture                                                                                                                                                                                                                                                                                                                                                                                                          | complete ✓                                       | [PLAN](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-PLAN.md)             | [SUMMARY](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-SUMMARY.md)             |
+| 260611-vuo | 2026-06-11 | BDP archived-category fixes: full-width names, dead trash (42501 grants), column-wide reveal, unarchive lifecycle                                                                                                                                                                                                                                                                                                                                                                         | complete ✓                                       | [PLAN](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-PLAN.md) | [SUMMARY](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-SUMMARY.md) |
+| 260612-a0c | 2026-06-12 | Shell safe-area regressions: standalone sheet bottom gap (in-sheet spacer), tasks banner under pinned header (moved into sticky band)                                                                                                                                                                                                                                                                                                                                                     | complete ✓                                       | [PLAN](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-PLAN.md) | [SUMMARY](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-SUMMARY.md) |
+| 260612-cdu | 2026-06-12 | iOS shell round 2: sheet autofocus pan + top inset, banner below band, grid tail clearance, browser-mode clearance floor, black band (100dvh)                                                                                                                                                                                                                                                                                                                                             | complete ✓ (device T4 pending)                   | [PLAN](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-PLAN.md) | [SUMMARY](quick/260612-cdu-ios-shell-round-2-pwa-sheet-displacement/260612-cdu-SUMMARY.md) |
+| 260612-e82 | 2026-06-12 | iOS shell round 3: sheet X aligned to title, ResizeObserver-measured grid scroller (SHELL-R13), banner gutter trim                                                                                                                                                                                                                                                                                                                                                                        | complete ✓ (device pending)                      | [PLAN](quick/260612-e82-ios-shell-round-3-sheet-x-button-alignme/260612-e82-PLAN.md) | [SUMMARY](quick/260612-e82-ios-shell-round-3-sheet-x-button-alignme/260612-e82-SUMMARY.md) |
+| 260612-g7v | 2026-06-12 | Spendings dead band: removed stacked clearances (SHELL-R14), lvh under-bar anchor + 96px browser spacer (SHELL-R15); PWA device-approved                                                                                                                                                                                                                                                                                                                                                  | complete ✓ (Safari device re-check pending)      | [PLAN](quick/260612-g7v-spendings-dead-band-remove-stacked-botto/260612-g7v-PLAN.md) | [SUMMARY](quick/260612-g7v-spendings-dead-band-remove-stacked-botto/260612-g7v-SUMMARY.md) |
+| 260612-kxd | 2026-06-12 | Round 5: shell-root dvh cap revert (SHELL-R16), keyboard remeasure freeze, atomic CONFIRM_DRAFT closure on archive/delete + read self-heal                                                                                                                                                                                                                                                                                                                                                | complete ✓ (device checkpoint pending)           | [PLAN](quick/260612-kxd-shell-clip-chain-dvh-grid-keyboard-remea/260612-kxd-PLAN.md) | [SUMMARY](quick/260612-kxd-shell-clip-chain-dvh-grid-keyboard-remea/260612-kxd-SUMMARY.md) |
+| 260612-t6s | 2026-06-12 | Round 6: grid box to physical screen bottom on iOS Safari (SHELL-R17, gated screen-anchor + dynamic spacer), BDP tab-switch scroll reset (Safari-only month occlusion)                                                                                                                                                                                                                                                                                                                    | complete ✓ (device checkpoint pending)           | [PLAN](quick/260612-t6s-grid-box-to-physical-screen-bottom-on-io/260612-t6s-PLAN.md) | [SUMMARY](quick/260612-t6s-grid-box-to-physical-screen-bottom-on-io/260612-t6s-SUMMARY.md) |
+| 260613-aw9 | 2026-06-13 | Round 7: tab-switch month occlusion real fix (SHELL-R18) — reset window/scrollingElement (not just main, which is overflow:visible in browser) keyed on pathname; de-tautologized e2e scrolls real window root on tall reserves tab                                                                                                                                                                                                                                                       | complete ✓ (device checkpoint pending)           | [PLAN](quick/260613-aw9-tab-switch-month-occlusion-persists-rese/260613-aw9-PLAN.md) | [SUMMARY](quick/260613-aw9-tab-switch-month-occlusion-persists-rese/260613-aw9-SUMMARY.md) |
+| 260613-dn1 | 2026-06-13 | Budget home page perf: tx-scoped `SET LOCAL jit=off` on listForUser (later found INEFFECTIVE live — see hig), appPool max:25, React cache() dedup of /budgets/active (2×→1×), parallelized home-summary meta+FX                                                                                                                                                                                                                                                                           | complete ✓ (superseded by hig for the JIT issue) | [PLAN](quick/260613-dn1-budget-home-page-perf-jit-off-on-listfor/260613-dn1-PLAN.md) | [SUMMARY](quick/260613-dn1-budget-home-page-perf-jit-off-on-listfor/260613-dn1-SUMMARY.md) |
+| 260613-hig | 2026-06-13 | Budget nav perf: scoped pending-tasks subquery to user's budgets via LATERAL + dropped `::text` cast (uuid PK) + `budget_members(user_id)` index → /budgets/active live 1900ms→~60ms (no JIT, cost 47); loading.tsx skeletons (6); Better Auth cookieCache                                                                                                                                                                                                                                | complete ✓ (live-verified)                       | [PLAN](quick/260613-hig-budget-nav-perf-scope-pending-tasks-subq/260613-hig-PLAN.md) | [SUMMARY](quick/260613-hig-budget-nav-perf-scope-pending-tasks-subq/260613-hig-SUMMARY.md) |
+| 260613-jp6 | 2026-06-13 | Spendings loading skeleton now mirrors the column-card grid (month nav + 3 column cards w/ planned/overspent/reserves/left rows + expenses input) instead of a generic list                                                                                                                                                                                                                                                                                                               | complete ✓ (deployed)                            | —                                                                                    | [SUMMARY](quick/260613-jp6-spendings-loading-tsx-skeleton-must-mirr/260613-jp6-SUMMARY.md) |
+| 260613-nkb | 2026-06-13 | Fix currency change blocked on zero-transaction budgets: dropped stale `budgets_currency_immutable` DB trigger (migration 0035 + post-migration.sql), relaxed Better Auth hook to transaction-aware rule; app guard preserves lock-after-first-transaction. Live: zero-tx EUR→USD 200, with-tx 409                                                                                                                                                                                        | complete ✓ (live-verified)                       | [PLAN](quick/260613-nkb-fix-currency-change-blocked-on-zero-tran/260613-nkb-PLAN.md) | [SUMMARY](quick/260613-nkb-fix-currency-change-blocked-on-zero-tran/260613-nkb-SUMMARY.md) |
+| 260613-pdb | 2026-06-13 | Reserves noCategories shortened to one row (en/pl/uk); cushion preview hidden when required=0 (no "Have 0 of 0 — target met"); BDP double-skeleton collapsed to one via non-suspending layout + Suspense data child (membership gate preserved), deleted generic loading.tsx                                                                                                                                                                                                              | complete ✓ (live e2e 5/5)                        | [PLAN](quick/260613-pdb-reserves-nocategories-one-row-text-hide-/260613-pdb-PLAN.md) | [SUMMARY](quick/260613-pdb-reserves-nocategories-one-row-text-hide-/260613-pdb-SUMMARY.md) |
+| 260613-v1p | 2026-06-13 | Category color: persisted end-to-end (migration 0036 color_key — was never stored before; zod silently dropped it), rendered as 4px left accent bar on spendings columns + reserves rows (shared category-colors map); removed dead icon picker (no icon_key column ever existed)                                                                                                                                                                                                         | complete ✓ (live-verified)                       | [PLAN](quick/260613-v1p-remove-category-icon-picker-render-categ/260613-v1p-PLAN.md) | [SUMMARY](quick/260613-v1p-remove-category-icon-picker-render-categ/260613-v1p-SUMMARY.md) |
+| 260615-e8s | 2026-06-15 | Offline UX 4 fixes: CloudOff→Unplug icon; Tooltip→Popover (tap-to-close, no reopen race); wired the DEAD offline data layer (cacheBudgetSnapshot writer mounted in spendings+wallets islands + per-tab **global** sync-meta bump; IDB read-back fallback in per-entity hooks; new active-budgets store + home write-island via RSC-children). Caught+fixed an RSC boundary build break (client island must not import server-only HomeCardsGrid). 64 Vitest green, served bundle verified | complete ✓ (device checkpoint pending)           | [PLAN](quick/260615-e8s-offline-render/260615-e8s-PLAN.md)                           | [SUMMARY](quick/260615-e8s-offline-render/260615-e8s-SUMMARY.md)                           |
 
 ## Deferred Items
 
@@ -207,8 +233,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-06T14:52:00.000Z
-Stopped at: Phase 05 plan 05-20 executed (recurring-engine backfill migration 0031 + dead-copy consolidation) on tasks-redesign branch
+Last session: 2026-06-10T22:09:20.221Z
+Stopped at: Phase 08 UI-SPEC approved
 Resume file: None
 
 ## v1.0 History (archived)

@@ -182,7 +182,9 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             categoryId: c.id,
             name: c.name,
             iconKey: (c as any).iconKey ?? null,
-            colorKey: (c as any).colorKey ?? null,
+            // 260613-v1p: colorKey is now a REAL persisted field on the domain
+            // Category (was a dead `(c as any)` cast that was always null).
+            colorKey: c.colorKey ?? null,
             sortIndex: (c as any).sortIndex ?? 0,
             plannedCents: planned.toString(),
             cushionCents: cushion.toString(),

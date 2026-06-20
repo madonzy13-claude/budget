@@ -31,3 +31,17 @@ services:
     depends_on:
       mailpit:
         condition: service_started
+
+  # Cloudflared tunnel — exposes the web container over HTTPS so a real mobile
+  # device can run the Phase-8 PWA/push/install UAT (service worker + Push API
+  # require a secure context, which plain-HTTP Tailscale is not). Dev-only:
+  # this override is excluded from CI and prod. Token is injected from Infisical
+  # (CLOUDFLARE_TUNNEL_TOKEN); the public-hostname -> http://web:3000 route is
+  # configured in the Cloudflare Zero Trust dashboard (the token encodes it).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      web:
+        condition: service_healthy

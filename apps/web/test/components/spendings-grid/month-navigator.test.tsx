@@ -77,9 +77,16 @@ vi.mock("temporal-polyfill", () => {
 });
 
 describe("MonthNavigator", () => {
+  // useMonthParam.setMonth now uses window.history.pushState (no RSC fetch —
+  // works offline), not router.push (260616).
+  let pushStateSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     mockPush.mockClear();
     mockSearchParamsValue = "month=2026-05";
+    pushStateSpy = vi
+      .spyOn(window.history, "pushState")
+      .mockImplementation(() => {});
+    pushStateSpy.mockClear();
   });
 
   it("renders data-testid=month-navigator-label", () => {
@@ -97,20 +104,24 @@ describe("MonthNavigator", () => {
     expect(screen.getByTestId("month-navigator-next")).toBeTruthy();
   });
 
-  it("clicking prev button calls router.push with decremented month", () => {
+  it("clicking prev button navigates to the decremented month", () => {
     render(<MonthNavigator month="2026-05" />);
     fireEvent.click(screen.getByTestId("month-navigator-prev"));
-    expect(mockPush).toHaveBeenCalledWith(
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      "",
       expect.stringContaining("month=2026-04"),
     );
   });
 
-  it("clicking next button calls router.push with incremented month", () => {
+  it("clicking next button navigates to the incremented month", () => {
     // next() is blocked on the current month (no future nav), so start in the past.
     mockSearchParamsValue = "month=2026-04";
     render(<MonthNavigator month="2026-04" />);
     fireEvent.click(screen.getByTestId("month-navigator-next"));
-    expect(mockPush).toHaveBeenCalledWith(
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      "",
       expect.stringContaining("month=2026-05"),
     );
   });
@@ -118,7 +129,7 @@ describe("MonthNavigator", () => {
   it("clicking next button is a no-op on the current month (no future nav)", () => {
     render(<MonthNavigator month="2026-05" />);
     fireEvent.click(screen.getByTestId("month-navigator-next"));
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(pushStateSpy).not.toHaveBeenCalled();
   });
 
   it("plain ArrowLeft does NOTHING (D-PH4-Q3)", () => {
@@ -128,7 +139,7 @@ describe("MonthNavigator", () => {
         new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }),
       );
     });
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(pushStateSpy).not.toHaveBeenCalled();
   });
 
   it("Cmd+ArrowLeft navigates prev (D-PH4-Q3)", () => {
@@ -142,7 +153,9 @@ describe("MonthNavigator", () => {
         }),
       );
     });
-    expect(mockPush).toHaveBeenCalledWith(
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      "",
       expect.stringContaining("month=2026-04"),
     );
   });
@@ -160,7 +173,9 @@ describe("MonthNavigator", () => {
         }),
       );
     });
-    expect(mockPush).toHaveBeenCalledWith(
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      "",
       expect.stringContaining("month=2026-05"),
     );
   });

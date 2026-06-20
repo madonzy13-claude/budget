@@ -22,6 +22,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 interface CategoryDto {
   id: string;
@@ -34,7 +36,9 @@ interface CategoryDto {
 interface CategoryFormProps {
   onSuccess?: (category: CategoryDto) => void;
   onCancel?: () => void;
-  apiBase?: string;
+  // clientApiWrite prefixes /api itself, so this prop is no longer consumed;
+  // kept (underscore-prefixed) for call-site/test compatibility.
+  _apiBase?: string;
 }
 
 const formSchema = z.object({
@@ -46,9 +50,10 @@ type FormValues = z.infer<typeof formSchema>;
 export function CategoryForm({
   onSuccess,
   onCancel,
-  apiBase = "/api",
+  _apiBase = "/api",
 }: CategoryFormProps) {
   const t = useTranslations("budgeting_categories.categories");
+  const offlineToast = useOfflineWriteToast();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
@@ -63,7 +68,7 @@ export function CategoryForm({
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-      const res = await fetch(`${apiBase}/categories`, {
+      const res = await clientApiWrite(`/categories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -86,7 +91,12 @@ export function CategoryForm({
       toast.success(t("toast.created", { name: created.name }));
       form.reset();
       onSuccess?.(created);
-    } catch {
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
       setServerError(t("form.errors.network"));
     }
   }

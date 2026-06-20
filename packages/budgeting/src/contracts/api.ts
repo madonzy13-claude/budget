@@ -90,12 +90,29 @@ export type SetBalanceInput = z.infer<typeof setBalanceSchema>;
 // Category schemas (BDGT-01..06) — scope dropped in Plan 01-02 (D-13)
 // ---------------------------------------------------------------------------
 
+// 260613-v1p: the 8 deliberate per-category palette keys (DESIGN.md categorization
+// exception). Constrains colorKey at the API boundary; .nullable().optional() so an
+// omitted field stores null (no color → no accent bar).
+export const categoryColorKeySchema = z
+  .enum(["yellow", "green", "blue", "red", "orange", "purple", "pink", "gray"])
+  .nullable()
+  .optional();
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(120),
   parentId: z.string().uuid().optional(),
+  colorKey: categoryColorKeySchema,
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
+
+// 260613-v1p: PATCH /categories/:id accepts a rename and/or a recolor.
+export const updateCategorySchema = z.object({
+  name: z.string().min(1).max(120),
+  colorKey: categoryColorKeySchema,
+});
+
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 
 export interface CategoryDto {
   id: string;
@@ -103,6 +120,8 @@ export interface CategoryDto {
   parentId: string | null;
   archivedAt: string | null;
   createdAt: string;
+  // 260613-v1p: persisted color key (null = no color).
+  colorKey: string | null;
 }
 
 // ---------------------------------------------------------------------------

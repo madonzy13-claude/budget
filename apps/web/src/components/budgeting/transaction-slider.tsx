@@ -56,6 +56,8 @@ import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { FxFreshnessBadge } from "@/components/budgeting/fx-freshness-badge";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 
 interface FxQuote {
@@ -145,6 +147,7 @@ export function TransactionSlider({
   const t = useTranslations("grid");
   const locale = useLocale();
   const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
   const [idempotencyKey] = useState(() => generateIdempotencyKey());
 
   function invalidateGrid() {
@@ -269,27 +272,38 @@ export function TransactionSlider({
     };
 
     let res: Response;
-    if (mode === "create") {
-      res = await clientApiFetch(`/budgets/${budgetId}/transactions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": idempotencyKey,
-        },
-        body: JSON.stringify(body),
-      });
-    } else {
-      res = await clientApiFetch(
-        `/budgets/${budgetId}/transactions/${initial!.txId}`,
-        {
-          method: "PATCH",
+    try {
+      if (mode === "create") {
+        res = await clientApiWrite(`/budgets/${budgetId}/transactions`, {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Idempotency-Key": generateIdempotencyKey(),
+            "Idempotency-Key": idempotencyKey,
           },
           body: JSON.stringify(body),
-        },
-      );
+        });
+      } else {
+        res = await clientApiWrite(
+          `/budgets/${budgetId}/transactions/${initial!.txId}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": generateIdempotencyKey(),
+            },
+            body: JSON.stringify(body),
+          },
+        );
+      }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // RHF resets isSubmitting when onSubmit settles, so no manual reset needed.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(t("error.sliderSave"));
+      return;
     }
 
     if (res.status === 409) {
@@ -312,7 +326,7 @@ export function TransactionSlider({
     if (!initial?.txId) return;
     setIsDeleting(true);
     try {
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/transactions/${initial.txId}`,
         { method: "DELETE" },
       );
@@ -323,6 +337,14 @@ export function TransactionSlider({
       } else {
         toast.error(t("error.sliderSave"));
       }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets isDeleting so the spinner never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(t("error.sliderSave"));
     } finally {
       setIsDeleting(false);
     }
@@ -340,6 +362,14 @@ export function TransactionSlider({
           side="right"
           className="w-screen sm:w-[480px] sm:max-w-[480px] bg-[var(--surface-card-dark)] p-0 flex flex-col overflow-y-auto"
           data-testid="txn-slider-content"
+          // iOS standalone PWA: Radix auto-focuses the first field on open →
+          // the soft keyboard pans the layout viewport up (no browser chrome to
+          // absorb it), shifting the whole sheet up and hiding the title/X.
+          // Prevent autofocus; the user taps to focus, and transaction-row.tsx
+          // already scrolls focused inputs into view.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+          }}
           // The delete-confirmation AlertDialog renders in its own portal, so
           // Radix's outside-detection treats clicks/escape inside it as
           // "outside" the Sheet and would close both. Keep the Sheet open

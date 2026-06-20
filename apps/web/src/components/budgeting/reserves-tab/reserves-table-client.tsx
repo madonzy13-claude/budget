@@ -51,6 +51,47 @@ import { animateCountTriple, type CountTriple } from "@/lib/animate-count";
 import { centsToBare } from "@/lib/cents-format";
 import { ReservesTableRow } from "./reserves-table-row";
 import { ReservesTotalsFooter } from "./reserves-totals-footer";
+import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * Cold-load skeleton (260616 SPA refactor) — mirrors the Included section + the
+ * totals card geometry so the loaded table streams in without a jump. Shown only
+ * when useReservesSummary has no cached data; a warm re-nav renders the table
+ * directly with zero skeleton.
+ */
+function ReservesSkeleton({ label }: { label: string }) {
+  return (
+    // reveal-delayed: whole skeleton invisible 200ms so a cache restore replaces
+    // it first — no skeleton-scaffold flash on warm/offline nav (260617).
+    <div className="reveal-delayed mx-auto w-full max-w-[1280px]">
+      <div className="flex flex-col gap-4 p-4 pb-20 sm:p-6">
+        <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] py-2 sm:p-2">
+          <h3 className="px-2 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+            {label}
+          </h3>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex min-h-[56px] items-center gap-3 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]"
+            >
+              <Skeleton className="h-4 w-2 shrink-0" />
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="ml-auto h-3.5 w-12" />
+            </div>
+          ))}
+        </section>
+        <div className="ml-auto sm:mr-2 w-full sm:w-[340px] max-w-full rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] flex flex-col gap-2 px-4 py-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between gap-4">
+              <Skeleton className="h-2.5 w-24" />
+              <Skeleton className="h-3.5 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** Captured state for the cover reveal (popup + count-down). */
 interface CoverReveal {
@@ -117,19 +158,18 @@ function ExcludedSection({ children }: { children: React.ReactNode }) {
 
 export interface ReservesTableClientProps {
   budgetId: string;
-  initial: ReservesSummaryDto;
 }
 
-export function ReservesTableClient({
-  budgetId,
-  initial,
-}: ReservesTableClientProps) {
+export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
   const t = useTranslations("bdp.tab.reserves");
+  const tUnavailable = useTranslations("offline.unavailable");
   const locale = useLocale();
   const qc = useQueryClient();
 
-  // Single query — W-3 single source of truth for Active + Excluded
-  const summary = useReservesSummary(budgetId, initial);
+  // Single query — W-3 single source of truth for Active + Excluded.
+  // SPA/SWR (260616): client-fetched, no SSR `initial` seed. Renders instantly
+  // from the warm/persisted React Query cache; skeleton only on a cold load.
+  const summary = useReservesSummary(budgetId);
 
   // ── Cover reveal: an adjust whose added reserve covered this month's
   // overspend lands BELOW the typed target. Instead of snapping, notify the
@@ -154,28 +194,39 @@ export function ReservesTableClient({
         budgetId,
         "reserves",
       ]);
-      // No optimistic baseline to animate from → just commit the summary.
+      const fromRow = cache?.rows.find((r) => r.categoryId === e.categoryId);
+      const toRow = e.summary.rows.find((r) => r.categoryId === e.categoryId);
+      const settled = {
+        available: Number(BigInt(toRow?.reserveCents ?? "0")),
+        totalAvailable: Number(BigInt(e.summary.totals.internalCents)),
+        totalUsed: Number(BigInt(e.summary.totals.usedCents)),
+      };
+      // The cache is the optimistic baseline the count-down animates FROM. When
+      // it is cold (evicted / mid-refetch during a long session — intermittent),
+      // fall back to the settled values so the count-down is a no-op, and commit
+      // the authoritative summary up front so the table is correct behind the
+      // popup. The acknowledge popup MUST still open regardless of the cache:
+      // it is the only signal that the reserve covered an overspend (and the
+      // golden-timeline E2E asserts it). Previously a cold cache early-returned
+      // here without opening the popup, silently dropping the cover notice and
+      // making that E2E flaky.
+      const from = cache
+        ? {
+            available: Number(BigInt(fromRow?.reserveCents ?? "0")),
+            totalAvailable: Number(BigInt(cache.totals.internalCents)),
+            totalUsed: Number(BigInt(cache.totals.usedCents)),
+          }
+        : settled;
       if (!cache) {
         qc.setQueryData(["budget", budgetId, "reserves"], e.summary);
-        return;
       }
-      const fromRow = cache.rows.find((r) => r.categoryId === e.categoryId);
-      const toRow = e.summary.rows.find((r) => r.categoryId === e.categoryId);
       setReveal({
         categoryId: e.categoryId,
         categoryName: fromRow?.name ?? toRow?.name ?? "",
         coverCents: e.coverCents,
         availableAfterCents: BigInt(toRow?.reserveCents ?? "0"),
-        from: {
-          available: Number(BigInt(fromRow?.reserveCents ?? "0")),
-          totalAvailable: Number(BigInt(cache.totals.internalCents)),
-          totalUsed: Number(BigInt(cache.totals.usedCents)),
-        },
-        to: {
-          available: Number(BigInt(toRow?.reserveCents ?? "0")),
-          totalAvailable: Number(BigInt(e.summary.totals.internalCents)),
-          totalUsed: Number(BigInt(e.summary.totals.usedCents)),
-        },
+        from,
+        to: settled,
         summary: e.summary,
       });
       setPopupOpen(true);
@@ -263,7 +314,19 @@ export function ReservesTableClient({
     );
   }
 
-  if (!summary.data) return null;
+  // Cold load (no cached data yet) → skeleton; offline with no cache → notice.
+  if (summary.isPending) {
+    return <ReservesSkeleton label={t("section.included")} />;
+  }
+  if (!summary.data) {
+    return (
+      <div className="mx-auto w-full max-w-[1280px] p-6">
+        <p className="text-sm text-[var(--muted-foreground)]">
+          {tUnavailable("body")}
+        </p>
+      </div>
+    );
+  }
 
   const activeRows = summary.data.rows;
   // W-3: Excluded rows come directly from API — frozen REAL balances, NOT synthesized
@@ -347,7 +410,11 @@ export function ReservesTableClient({
             />
           ))}
           {activeRows.length === 0 && (
-            <div className="px-3 py-2 text-caption text-[var(--muted-foreground)]" />
+            <div className="px-3 py-2 text-caption text-[var(--muted-foreground)]">
+              {excludedRows.length === 0
+                ? t("section.noCategories")
+                : t("section.includedEmpty")}
+            </div>
           )}
         </ActiveSection>
 

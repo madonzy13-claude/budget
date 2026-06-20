@@ -49,6 +49,7 @@ vi.mock("@dnd-kit/core", () => ({
 const noUsedRow: ReservesSummaryRow = {
   categoryId: "cat-1",
   name: "Housing",
+  colorKey: null,
   reserveCents: "30000",
   usedCents: "0",
   overspentCents: "0",
@@ -57,6 +58,7 @@ const noUsedRow: ReservesSummaryRow = {
 const usedRow: ReservesSummaryRow = {
   categoryId: "cat-2",
   name: "Transport",
+  colorKey: null,
   reserveCents: "20000",
   usedCents: "5000",
   overspentCents: "0",
@@ -65,6 +67,7 @@ const usedRow: ReservesSummaryRow = {
 const excludedRow: ReservesSummaryRow = {
   categoryId: "cat-3",
   name: "Hobbies",
+  colorKey: null,
   reserveCents: "50000",
   usedCents: "0",
   overspentCents: "0",
@@ -169,6 +172,39 @@ describe("ReservesTableRow", () => {
     });
   });
 
+  // 260613-v1p: 4px left accent bar driven by the persisted colorKey.
+  describe("category color accent bar (260613-v1p)", () => {
+    it("renders a w-1 bar with the colorKey hex when colorKey is set", () => {
+      const coloredRow: ReservesSummaryRow = { ...noUsedRow, colorKey: "red" };
+      renderRow(coloredRow);
+      const bar = screen.getByTestId(
+        `category-accent-bar-${coloredRow.categoryId}`,
+      );
+      expect(bar).toBeInTheDocument();
+      // red → #EF5350 (happy-dom preserves the hex literal, no rgb() normalize)
+      expect(bar.style.backgroundColor.toUpperCase()).toBe("#EF5350");
+      expect(bar.className).toContain("w-1");
+    });
+
+    it("renders NO bar when colorKey is null", () => {
+      renderRow(noUsedRow);
+      expect(
+        screen.queryByTestId(`category-accent-bar-${noUsedRow.categoryId}`),
+      ).toBeNull();
+    });
+
+    it("renders the bar on excluded rows too when colored", () => {
+      const coloredExcluded: ReservesSummaryRow = {
+        ...excludedRow,
+        colorKey: "blue",
+      };
+      renderRow(coloredExcluded, true);
+      expect(
+        screen.getByTestId(`category-accent-bar-${coloredExcluded.categoryId}`),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("W-5 data-category-id attribute", () => {
     it("emits data-category-id on the row element", () => {
       renderRow(noUsedRow);
@@ -184,6 +220,7 @@ describe("ReservesTableRow", () => {
       const eightEurRow: ReservesSummaryRow = {
         categoryId: "cat-collision",
         name: "Collision",
+        colorKey: null,
         reserveCents: "800",
         usedCents: "0",
         overspentCents: "0",

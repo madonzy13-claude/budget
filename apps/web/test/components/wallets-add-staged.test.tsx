@@ -134,16 +134,21 @@ function renderWithQuery(initial: WalletDto[] = INITIAL_WALLETS) {
   });
   // Pre-populate the wallets cache for the initial render
   qc.setQueryData(["budget", "budget-1", "wallets"], initial);
+  // SPA refactor (260616): budget meta comes from useBudget — seed it warm.
+  qc.setQueryData(["budget", "budget-1", "detail"], {
+    id: "budget-1",
+    name: "Test Budget",
+    currency: "EUR",
+    defaultCurrency: "EUR",
+    reservesEnabled: true,
+    cushionEnabled: true,
+  });
 
   return {
     qc,
     ...render(
       <QueryClientProvider client={qc}>
-        <WalletsSectionedList
-          budgetId="budget-1"
-          budgetCurrency="EUR"
-          initial={initial}
-        />
+        <WalletsSectionedList budgetId="budget-1" />
       </QueryClientProvider>,
     ),
   };

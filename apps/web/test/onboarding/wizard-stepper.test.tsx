@@ -48,7 +48,7 @@ describe("WizardStepper — 4 word-labeled stepper states", () => {
   it("upcoming steps carry data-upcoming", () => {
     const { container } = render(<WizardStepper currentStep={2} />);
     const upcoming = container.querySelectorAll('[data-upcoming="true"]');
-    expect(upcoming.length).toBe(2); // steps 3, 4
+    expect(upcoming.length).toBe(2); // steps 3 (features), 4 (review)
   });
 
   it("welcome (step 0) renders all four segments as upcoming", () => {
@@ -57,5 +57,10 @@ describe("WizardStepper — 4 word-labeled stepper states", () => {
     expect(upcoming.length).toBe(4);
     expect(container.querySelector('[data-current="true"]')).toBeNull();
     expect(container.querySelector('[data-completed="true"]')).toBeNull();
+  });
+
+  it("does not render a 'push' segment (push folded into Features)", () => {
+    render(<WizardStepper currentStep={1} />);
+    expect(screen.queryByText("push")).toBeNull();
   });
 });

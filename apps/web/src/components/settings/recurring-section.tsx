@@ -44,6 +44,8 @@ import {
   type RecurringRuleListItem,
 } from "@/components/budgeting/recurring-rules-list";
 import { RecurringRuleForm } from "@/components/budgeting/recurring-rule-form";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 export interface RecurringSectionProps {
   budgetId?: string;
@@ -64,6 +66,7 @@ export function RecurringSection({
   const t = useTranslations("settings");
   const tRec = useTranslations("budgeting.recurring");
   const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editRuleId, setEditRuleId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -87,7 +90,6 @@ export function RecurringSection({
     // RQ skips the queryFn when initialData is present and the list looks
     // perma-empty after a hard reload.
     initialData: initialRules,
-    refetchOnMount: "always",
     staleTime: 0,
   });
 
@@ -135,8 +137,8 @@ export function RecurringSection({
     if (!pendingDeleteId || !budgetId) return;
     setDeleting(true);
     try {
-      const res = await fetch(
-        `/api/budgets/${budgetId}/recurring-rules/${pendingDeleteId}`,
+      const res = await clientApiWrite(
+        `/budgets/${budgetId}/recurring-rules/${pendingDeleteId}`,
         {
           method: "DELETE",
           credentials: "include",
@@ -149,6 +151,14 @@ export function RecurringSection({
       }
       qc.invalidateQueries({ queryKey: ["recurring-rules", budgetId] });
       setPendingDeleteId(null);
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets `deleting` so the dialog button never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(tRec("errors.delete"));
     } finally {
       setDeleting(false);
     }

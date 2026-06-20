@@ -155,20 +155,20 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 ### PWA / Offline / Push (PWAX)
 
-- [ ] **PWAX-01**: Serwist install retained; manifest + service worker register on every page
-- [ ] **PWAX-02**: Offline shell: last-synced budgets, wallets, categories, current-month transactions readable offline (IndexedDB cache)
-- [ ] **PWAX-03**: Quick-entry on Spendings grid queues offline-created txns; sync on reconnect with `Idempotency-Key`
+- [x] **PWAX-01**: Serwist install retained; manifest + service worker register on every page
+- [x] **PWAX-02**: Offline shell: last-synced budgets, wallets, categories, current-month transactions readable offline (IndexedDB cache)
+- [x] **PWAX-03**: Quick-entry on Spendings grid queues offline-created txns; sync on reconnect with `Idempotency-Key`
 - [ ] **PWAX-04**: VAPID web-push registered per user; user can enable/disable per-budget
-- [ ] **PWAX-05**: Push fires on task create (RESERVE_TOPUP · CONFIRM_DRAFT · STALE_WALLET · MONTH_END_REVIEW) respecting user prefs
-- [ ] **PWAX-06**: Push payload deep-links to `/budgets/[id]/[tab]` with task expanded
+- [x] **PWAX-05**: Push fires on task create (RESERVE_TOPUP · CONFIRM_DRAFT · STALE_WALLET · MONTH_END_REVIEW) respecting user prefs
+- [x] **PWAX-06**: Push payload deep-links to `/budgets/[id]/[tab]` with task expanded
 
 ### Internationalization (I18N)
 
 - [ ] **I18N-01**: All v1.1 message keys delivered in EN, PL, UK simultaneously
-- [ ] **I18N-02**: New IA replaces `workspaces.*` and `accounts.*` namespaces with `budgets.*` and `wallets.*`
-- [ ] **I18N-03**: Number/currency formatting uses `Intl.NumberFormat` with budget currency
-- [ ] **I18N-04**: Date formatting uses Temporal API + `Intl.DateTimeFormat` per user locale
-- [ ] **I18N-05**: Locale persisted on `users.locale`; switchable from settings menu
+- [x] **I18N-02**: New IA replaces `workspaces.*` and `accounts.*` namespaces with `budgets.*` and `wallets.*`
+- [x] **I18N-03**: Number/currency formatting uses `Intl.NumberFormat` with budget currency
+- [x] **I18N-04**: Date formatting uses Temporal API + `Intl.DateTimeFormat` per user locale
+- [x] **I18N-05**: Locale persisted on `users.locale`; switchable from settings menu
 
 ### Sharing (SHRD)
 
@@ -180,10 +180,10 @@ All scoped to current milestone. Each maps to exactly one roadmap phase via trac
 
 ### E2E (E2EX)
 
-- [ ] **E2EX-01**: Existing playwright-bdd `.feature` files migrated to new IA (budgets/wallets, spendings grid, reserves, settings)
-- [ ] **E2EX-02**: Page Objects refactored for renamed entities
-- [ ] **E2EX-03**: New scenarios for: quick-entry txn, recurring draft confirm, reserve auto-deduct, cushion mode toggle, share link join, onboarding wizard
-- [ ] **E2EX-04**: Fresh-user-per-scenario fixture retained
+- [x] **E2EX-01**: Existing playwright-bdd `.feature` files migrated to new IA (budgets/wallets, spendings grid, reserves, settings)
+- [x] **E2EX-02**: Page Objects refactored for renamed entities
+- [x] **E2EX-03**: New scenarios for: quick-entry txn, recurring draft confirm, reserve auto-deduct, cushion mode toggle, share link join, onboarding wizard
+- [x] **E2EX-04**: Fresh-user-per-scenario fixture retained
 - [ ] **E2EX-05**: E2E green against `PLAYWRIGHT_BASE_URL` from `.env.local`
 
 ### Engineering Discipline (ENGR)

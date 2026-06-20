@@ -26,7 +26,7 @@
  * via the per-kind Payload interfaces in the port).
  */
 import { sql } from "drizzle-orm";
-import { withTenantTx } from "@budget/platform";
+import { withTenantTx, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type {
   TaskRepo,
@@ -74,14 +74,46 @@ async function emitTaskInTx(
 ): Promise<void> {
   const drizzleTx = tx as DrizzleTx;
   const payloadJson = JSON.stringify(payload);
-  await drizzleTx.execute(sql`
+  const res = await drizzleTx.execute(sql`
     INSERT INTO budgeting.tasks
       (id, tenant_id, budget_id, kind, payload_json, status, created_at)
     VALUES
       (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid,
        ${kind}, ${payloadJson}::jsonb, 'PENDING', now())
     ON CONFLICT DO NOTHING
+    RETURNING id, (xmax = 0) AS inserted
   `);
+  await emitTaskCreatedIfInserted(tx, res, tenantId, budgetId, kind);
+}
+
+/**
+ * Phase 8 (08-02): emit exactly one `task.created` outbox event per *real*
+ * task INSERT so the push worker has something to consume (RESEARCH Pitfall 1).
+ *
+ * Gated on a genuine insert — never on the ON CONFLICT idempotent path:
+ *   - DO NOTHING conflict → RETURNING yields 0 rows → no emit.
+ *   - DO UPDATE conflict  → the row's xmax is set, so `(xmax = 0)` is false → no emit.
+ * Only a fresh row (xmax = 0, freshly inserted) fires the event. This keeps
+ * payload-refresh upserts (RESERVE_TOPUP / CUSHION_BELOW_TARGET) from
+ * re-notifying for a task the user already has.
+ */
+async function emitTaskCreatedIfInserted(
+  tx: TenantTx,
+  res: { rows: Record<string, unknown>[] },
+  tenantId: string,
+  budgetId: string,
+  kind: TaskKind,
+): Promise<void> {
+  const row = res.rows[0];
+  if (!row || row.inserted !== true) return;
+  const taskId = row.id as string;
+  await writeOutbox(tx as unknown as Parameters<typeof writeOutbox>[0], {
+    tenantId: TenantId(tenantId),
+    aggregateType: "task",
+    aggregateId: taskId,
+    eventType: "task.created",
+    payload: { kind, budgetId, taskId },
+  });
 }
 
 export function createTaskRepo(): TaskRepo {
@@ -96,12 +128,49 @@ export function createTaskRepo(): TaskRepo {
         UserId(SYSTEM_USER_ID),
         async (tx) => {
           const drizzleTx = tx as DrizzleTx;
+          // 260612-kxd T3: self-heal orphan CONFIRM_DRAFT rows at read time.
+          // A CONFIRM_DRAFT task is only actionable while its draft is live
+          // (exists, not soft-deleted, not dismissed, not yet confirmed) AND
+          // its category is not archived (archived_at set → the draft is
+          // invisible in the UI, nothing to confirm — the legacy "Maczfit"
+          // shape, where an archive's draft purge silently failed
+          // pre-grants-fix). Any delete path that misses the in-tx resolve
+          // (or pre-existing stale rows) is hidden here on the next banner
+          // read — no manual SQL. The EXISTS subquery joins el.tenant_id to
+          // tasks.tenant_id (T-kxd-02: another tenant's draft state can never
+          // hide/heal this tenant's task); the category probe joins both
+          // el.category_id and el.tenant_id for the same reason. A draft with
+          // NULL category_id stays visible (NOT EXISTS over zero rows).
           const res = await drizzleTx.execute(sql`
             SELECT id, budget_id, kind, status, payload_json, created_at
               FROM budgeting.tasks
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${tenantId}::uuid
                AND status = 'PENDING'
+               AND (
+                 kind <> 'CONFIRM_DRAFT'
+                 OR EXISTS (
+                   SELECT 1
+                     FROM budgeting.expense_ledger el
+                    WHERE el.deleted_at IS NULL
+                      AND el.dismissed_at IS NULL
+                      AND el.confirmed_at IS NULL
+                      AND el.tenant_id = tasks.tenant_id
+                      AND (tasks.payload_json->>'draft_id') ~ '^[0-9a-fA-F-]{36}$'
+                      AND (tasks.payload_json->>'draft_id')::uuid = el.id
+                      AND NOT EXISTS (
+                        SELECT 1
+                          FROM budgeting.categories c
+                         WHERE c.id = el.category_id
+                           AND c.tenant_id = el.tenant_id
+                           AND c.archived_at IS NOT NULL
+                      )
+                      -- 260613-hig: uuid-cast fix (kept in sync with workspace-repo.ts
+                      -- listForUser tk LATERAL — asserted by budgets-active.test.ts
+                      -- "banner parity"). Replaced el.id::text = ...->>'draft_id'
+                      -- (defeats uuid PK index) with regex guard + (...)::uuid = el.id.
+                 )
+               )
              ORDER BY created_at ASC
           `);
           return res.rows.map((row): TaskSummary => {
@@ -165,7 +234,7 @@ export function createTaskRepo(): TaskRepo {
       // index tasks_reserve_topup_dedup_idx (budget_id WHERE kind+status pending).
       const drizzleTx = tx as DrizzleTx;
       const payloadJson = JSON.stringify(payload);
-      await drizzleTx.execute(sql`
+      const res = await drizzleTx.execute(sql`
         INSERT INTO budgeting.tasks
           (id, tenant_id, budget_id, kind, payload_json, status, created_at)
         VALUES
@@ -173,7 +242,15 @@ export function createTaskRepo(): TaskRepo {
            'RESERVE_TOPUP', ${payloadJson}::jsonb, 'PENDING', now())
         ON CONFLICT (budget_id) WHERE (kind = 'RESERVE_TOPUP' AND status = 'PENDING')
         DO UPDATE SET payload_json = EXCLUDED.payload_json
+        RETURNING id, (xmax = 0) AS inserted
       `);
+      await emitTaskCreatedIfInserted(
+        tx,
+        res,
+        tenantId,
+        budgetId,
+        "RESERVE_TOPUP",
+      );
     },
 
     async emitConfirmDraft(
@@ -206,7 +283,7 @@ export function createTaskRepo(): TaskRepo {
       // (budget_id WHERE kind='CUSHION_BELOW_TARGET' AND status='PENDING').
       const drizzleTx = tx as DrizzleTx;
       const payloadJson = JSON.stringify(payload);
-      await drizzleTx.execute(sql`
+      const res = await drizzleTx.execute(sql`
         INSERT INTO budgeting.tasks
           (id, tenant_id, budget_id, kind, payload_json, status, created_at)
         VALUES
@@ -214,7 +291,15 @@ export function createTaskRepo(): TaskRepo {
            'CUSHION_BELOW_TARGET', ${payloadJson}::jsonb, 'PENDING', now())
         ON CONFLICT (budget_id) WHERE (kind = 'CUSHION_BELOW_TARGET' AND status = 'PENDING')
         DO UPDATE SET payload_json = EXCLUDED.payload_json
+        RETURNING id, (xmax = 0) AS inserted
       `);
+      await emitTaskCreatedIfInserted(
+        tx,
+        res,
+        tenantId,
+        budgetId,
+        "CUSHION_BELOW_TARGET",
+      );
     },
 
     async resolveByKindAndBudget(tenantId, budgetId, kind, tx) {

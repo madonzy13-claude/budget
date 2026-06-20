@@ -14,6 +14,8 @@ let mockPathname = "/en/budgets/abc/spendings";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
+  // BdpTabs now router.prefetch()es every tab's RSC on mount (instant online nav).
+  useRouter: () => ({ prefetch: () => {} }),
 }));
 
 vi.mock("next-intl", () => ({
@@ -78,13 +80,20 @@ describe("BdpTabs", () => {
     expect(settings.getAttribute("aria-current")).toBeNull();
   });
 
-  it("pathname /en/budgets/abc/wallets → Wallets has aria-current AND yellow primary bg class", () => {
+  it("pathname /en/budgets/abc/wallets → Wallets is active: on-primary text + a yellow indicator child (framer layoutId)", () => {
     mockPathname = "/en/budgets/abc/wallets";
     renderTabs({ locale: "en", budgetId: "abc" });
     const wallets = screen.getByRole("link", { name: "Wallets" });
     expect(wallets.getAttribute("aria-current")).toBe("page");
-    expect(wallets.className).toMatch(/bg-\[var\(--primary\)\]/);
     expect(wallets.className).toMatch(/text-\[var\(--on-primary\)\]/);
+    // The yellow background is a single shared-layout indicator (motion.span,
+    // layoutId="bdp-pill") that glides between pills — rendered ONLY in the
+    // active pill, behind the icon/label.
+    const indicator = wallets.querySelector(".bg-\\[var\\(--primary\\)\\]");
+    expect(indicator).not.toBeNull();
+    // Inactive pills have no indicator child.
+    const settings = screen.getByRole("link", { name: "Settings" });
+    expect(settings.querySelector(".bg-\\[var\\(--primary\\)\\]")).toBeNull();
   });
 
   it("each pill is an <a> anchor element (route-as-tab — BDP-05 / D-PH3-04), not <button>", () => {
@@ -148,20 +157,17 @@ describe("BdpTabs", () => {
     });
   });
 
-  it("inactive pills' label span carries 'hidden sm:inline' classes (mobile-collapse)", () => {
+  it("inactive pills' label collapses on mobile (hidden sm:inline); active pill's label always shows", () => {
     mockPathname = "/en/budgets/abc/spendings";
     renderTabs({ locale: "en", budgetId: "abc" });
     const reserves = screen.getByRole("link", { name: "Reserves" });
-    // Find the label <span> child (the visible-on-sm text node).
     const labelSpan = reserves.querySelector("span");
     expect(labelSpan).toBeTruthy();
     expect(labelSpan!.className).toMatch(/hidden/);
     expect(labelSpan!.className).toMatch(/sm:inline/);
 
-    // Active tab's label span is always inline (no `hidden`). Re-render with spendings active.
     const spendings = screen.getByRole("link", { name: "Spendings" });
     const activeSpan = spendings.querySelector("span");
-    expect(activeSpan).toBeTruthy();
     expect(activeSpan!.className).not.toMatch(/\bhidden\b/);
   });
 });

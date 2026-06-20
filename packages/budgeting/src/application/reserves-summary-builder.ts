@@ -26,6 +26,8 @@ export interface ReservesSummaryCategory {
   id: string;
   name: string;
   reserveExcluded: boolean;
+  /** 260613-v1p: per-category color key, threaded onto the row for the accent bar. */
+  colorKey: string | null;
 }
 
 export function buildReservesSummaryDto(args: {
@@ -42,6 +44,7 @@ export function buildReservesSummaryDto(args: {
     return {
       categoryId: c.id,
       name: c.name,
+      colorKey: c.colorKey ?? null,
       reserveCents: (p?.reserveCents ?? 0n).toString(),
       // usedCents is cumulative across all months (ALL TIME); usedThisMonthCents
       // is just the open month's draw (THIS MONTH).
@@ -64,6 +67,7 @@ export function buildReservesSummaryDto(args: {
     .map((c) => ({
       categoryId: c.id,
       name: c.name,
+      colorKey: c.colorKey ?? null,
       reserveCents: "0",
       usedCents: "0",
       usedThisMonthCents: "0",

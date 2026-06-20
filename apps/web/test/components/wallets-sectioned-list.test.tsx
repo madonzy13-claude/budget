@@ -137,16 +137,22 @@ function renderWithQuery(
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  // Client-data: the list comes from useWallets, not an `initial` prop. Seed the
+  // query cache so useWallets is isSuccess with the rows.
+  qc.setQueryData(["budget", "budget-1", "wallets"], initial);
+  // SPA refactor (260616): budget meta (currency + section flags) now comes from
+  // useBudget instead of props. Seed the detail query so it is warm.
+  qc.setQueryData(["budget", "budget-1", "detail"], {
+    id: "budget-1",
+    name: "Test Budget",
+    currency: "EUR",
+    defaultCurrency: "EUR",
+    reservesEnabled: opts.reservesEnabled ?? true,
+    cushionEnabled: true,
+  });
   return render(
     <QueryClientProvider client={qc}>
-      <WalletsSectionedList
-        budgetId="budget-1"
-        budgetCurrency="EUR"
-        initial={initial}
-        {...(opts.reservesEnabled !== undefined && {
-          reservesEnabled: opts.reservesEnabled,
-        })}
-      />
+      <WalletsSectionedList budgetId="budget-1" />
     </QueryClientProvider>,
   );
 }

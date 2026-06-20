@@ -1,4 +1,5 @@
 import { test as base } from "playwright-bdd";
+import { fetchWith429Retry } from "./fetch-with-429-retry";
 
 interface FreshUser {
   email: string;
@@ -180,11 +181,13 @@ export async function signUpViaHttp(
   password: string,
   name: string,
 ): Promise<{ userId: string; setCookieHeaders: string[] }> {
-  const res = await fetch(`${baseUrl}/auth/sign-up/email`, {
-    method: "POST",
-    headers: { "content-type": "application/json", Origin: baseUrl },
-    body: JSON.stringify({ email, password, name }),
-  });
+  const res = await fetchWith429Retry(() =>
+    fetch(`${baseUrl}/auth/sign-up/email`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Origin: baseUrl },
+      body: JSON.stringify({ email, password, name }),
+    }),
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
     throw new Error(`signUpEmail failed (${res.status}): ${body}`);
@@ -214,11 +217,80 @@ export async function signUpViaHttp(
   return { userId, setCookieHeaders };
 }
 
+/** Create a recurring rule via the API — materialises a pending draft for the current month. */
+export async function createRecurringRuleViaHttp(
+  baseUrl: string,
+  cookieHeader: string,
+  budgetId: string,
+  opts: {
+    note: string;
+    amount: string; // decimal string e.g. "1000.00"
+    currency: string;
+    firstDueDate: string; // YYYY-MM-DD
+    cadenceAnchor: number; // 1-31
+    categoryId: string; // draft must have a real category or the grid drops it
+  },
+): Promise<string> {
+  const res = await fetch(
+    `${baseUrl}/api/budgets/${budgetId}/recurring-rules`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: cookieHeader,
+        Origin: baseUrl,
+        "X-Budget-ID": budgetId,
+      },
+      body: JSON.stringify({
+        category_id: opts.categoryId,
+        amount: opts.amount,
+        currency: opts.currency,
+        note: opts.note,
+        first_due_date: opts.firstDueDate,
+        cadence: "MONTHLY",
+        cadence_anchor: opts.cadenceAnchor,
+      }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "<unreadable>");
+    throw new Error(`createRecurringRule failed (${res.status}): ${body}`);
+  }
+  const body = (await res.json()) as { id: string };
+  return body.id;
+}
+
+/** Create a category via the API; returns the new category id. */
+export async function createCategoryViaHttp(
+  baseUrl: string,
+  cookieHeader: string,
+  budgetId: string,
+  name: string,
+): Promise<string> {
+  const res = await fetch(`${baseUrl}/api/budgets/${budgetId}/categories`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: cookieHeader,
+      Origin: baseUrl,
+      "X-Budget-ID": budgetId,
+    },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "<unreadable>");
+    throw new Error(`createCategory failed (${res.status}): ${body}`);
+  }
+  const body = (await res.json()) as { id?: string; category?: { id: string } };
+  return body.id ?? body.category?.id ?? "";
+}
+
 /** Create a budget via the API using the freshly-acquired session cookies. */
 export async function createBudgetViaHttp(
   baseUrl: string,
   cookieHeader: string,
   name: string,
+  kind: "PRIVATE" | "SHARED" = "PRIVATE",
 ): Promise<string> {
   const res = await fetch(`${baseUrl}/api/budgets`, {
     method: "POST",
@@ -227,7 +299,7 @@ export async function createBudgetViaHttp(
       cookie: cookieHeader,
       Origin: baseUrl,
     },
-    body: JSON.stringify({ name, kind: "PRIVATE", default_currency: "USD" }),
+    body: JSON.stringify({ name, kind, default_currency: "USD" }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
@@ -303,6 +375,52 @@ export const testEmpty = base.extend<{
       .filter((c): c is ParsedCookie => c !== null);
     await context.addCookies(cookies);
     await use({ email, password, userId });
+  },
+});
+
+/** Variant fixture: signed-in user with a SHARED budget — for share-link scenarios. */
+export const testSharedUser = base.extend<{ sharedUser: FreshUser }>({
+  sharedUser: async ({ context, baseURL }, use) => {
+    const baseUrl =
+      baseURL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+    const email = `phase8-e2e-shared-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}@test.local`;
+    const password = "Test1234!Phase8";
+    const name = "Phase 8 Shared User";
+
+    // 1. Sign up + verify via mailpit so a session cookie exists.
+    const { userId, setCookieHeaders } = await signUpViaHttp(
+      baseUrl,
+      email,
+      password,
+      name,
+    );
+
+    // 2. Copy session cookies into the Playwright browser context.
+    const cookies = setCookieHeaders
+      .map((line) => parseSetCookieToPlaywright(line, baseUrl))
+      .filter((c): c is ParsedCookie => c !== null);
+    if (cookies.length === 0) {
+      throw new Error(
+        "signup response had no Set-Cookie headers — Better Auth session cookie cannot be replayed",
+      );
+    }
+    await context.addCookies(cookies);
+
+    // 3. Build a Cookie header for subsequent API calls.
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+    // 4. Create a SHARED budget via the API (Members section requires SHARED kind).
+    const budgetName = "My E2E Budget";
+    const budgetId = await createBudgetViaHttp(
+      baseUrl,
+      cookieHeader,
+      budgetName,
+      "SHARED",
+    );
+
+    await use({ email, password, userId, budgetId, budgetName });
   },
 });
 

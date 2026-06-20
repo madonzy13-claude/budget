@@ -13,9 +13,35 @@ const withSerwist = withSerwistInit({
   disable: process.env.NODE_ENV === "development" || process.env["DISABLE_SW"] === "1",
 });
 
+// Build-freshness stamp (260614-rwt): inlined at build time so the Settings
+// footer can confirm on-device which build is running (the q1v debug overlay was
+// removed). Prefers an explicit CI-supplied build id, then a short git SHA, else
+// a build timestamp. Inlined via `env` → readable as NEXT_PUBLIC_BUILD_ID.
+const BUILD_ID =
+  process.env["NEXT_PUBLIC_BUILD_ID"] ??
+  process.env["NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA"]?.slice(0, 7) ??
+  new Date().toISOString().slice(0, 16).replace("T", " ");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  experimental: {
+    // SPA/SWR router cache (quick-260616-spa). The BDP tab page shells
+    // (wallets/reserves/spendings/settings) + home are now DATA-FREE static
+    // shells — every dataset is client-fetched via React Query. Next 15 defaults
+    // `staleTimes.dynamic` to 0, so a dynamic page (these are dynamic under the
+    // force-dynamic (app) layout) is NEVER reused from the client Router Cache:
+    // every pill/tab soft-nav did a fresh server RSC roundtrip (~100-300ms over
+    // the tunnel — the "something is waiting" lag, and the hang the offline
+    // nav-guard works around). Letting the Router Cache reuse a visited shell
+    // makes warm soft-nav instant; React Query/SWR still owns data freshness
+    // (refetchOnMount:"always" revalidates in the background after the reused
+    // shell paints), so a reused shell is always correct, never stale data.
+    staleTimes: { dynamic: 120, static: 300 },
+  },
+  env: {
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+  },
   // Force monorepo tracing root so the standalone bundle nests server.js
   // under `apps/web/server.js` in every environment. Without this, the
   // Docker `builder` stage (which only sees apps/web after install) emits

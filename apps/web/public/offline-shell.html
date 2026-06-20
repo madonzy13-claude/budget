@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Budget</title>
+    <style>
+      /* App-shell offline document (260614-rwt; 260615-e8s round 3). Shown by
+         the SW ONLY when an offline navigation misses the nav-doc cache (the
+         route was never opened online). It renders the real header chrome + a
+         full-width red "offline" bar + an in-content "this page isn't cached"
+         note, plus a shortcut to the cached home when one exists. Routes that
+         WERE visited online render their real cached page instead (the SW
+         serves the cached document, and the real OfflineStaleBar shows there).
+         Tokens mirror global.css. */
+      :root {
+        --canvas-dark: #0b0e11;
+        --hairline-dark: #2b3139;
+        --primary: #fcd535;
+        --body-on-dark: #eaecef;
+        --muted: #848e9c;
+        --destructive: #ef4444;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        background: var(--canvas-dark);
+        color: var(--body-on-dark);
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+      }
+      header.shell-header {
+        border-bottom: 1px solid var(--hairline-dark);
+        padding-top: env(safe-area-inset-top);
+        background: var(--canvas-dark);
+      }
+      .shell-header__inner {
+        margin: 0 auto;
+        display: flex;
+        height: 64px;
+        max-width: 1280px;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px;
+      }
+      .shell-wordmark {
+        flex: 0 0 auto;
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary);
+        text-decoration: none;
+      }
+      /* Full-width red staleness/offline bar — mirrors the in-app OfflineStaleBar
+         (narrow, red, just below the header). */
+      .shell-stale-bar {
+        width: 100%;
+        background: var(--destructive);
+        color: #fff;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.3;
+        padding: 5px 16px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .shell-note[hidden] { visibility: hidden; }
+      main.shell-content {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 32px 16px;
+      }
+      .shell-note { max-width: 32rem; }
+      .shell-note h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 8px;
+      }
+      .shell-note p {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 0 0 20px;
+        line-height: 1.5;
+      }
+      .shell-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .shell-retry {
+        background: var(--primary);
+        color: #0b0e11;
+        border: none;
+        padding: 9px 18px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .shell-home {
+        color: var(--body-on-dark);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 9px 18px;
+        border: 1px solid var(--hairline-dark);
+        border-radius: 6px;
+      }
+      .shell-home[hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <header class="shell-header" data-testid="offline-shell-header">
+      <div class="shell-header__inner">
+        <a class="shell-wordmark" href="/">BUDGET</a>
+      </div>
+    </header>
+    <div class="shell-stale-bar" data-i18n="bar">You're offline</div>
+    <main class="shell-content">
+      <div class="shell-note" data-testid="offline-shell-note">
+        <h1 data-i18n="heading">This page isn't available offline</h1>
+        <p data-i18n="body">
+          You haven't opened this page while online, so there's no saved copy
+          yet. Reconnect, or open a page you've already visited.
+        </p>
+        <div class="shell-actions">
+          <button
+            class="shell-retry"
+            data-i18n="back"
+            onclick="history.length > 1 ? history.back() : location.assign('/' + (window.__LOCALE || 'en'))"
+          >
+            Back
+          </button>
+          <a class="shell-home" id="shell-home-link" data-i18n="home" href="/" hidden>
+            Go to home
+          </a>
+        </div>
+      </div>
+    </main>
+    <script>
+      (function () {
+        var SUPPORTED = ["en", "pl", "uk"];
+        var firstSeg = location.pathname.split("/")[1];
+        var pathLocale = SUPPORTED.indexOf(firstSeg) !== -1 ? firstSeg : null;
+        function cookieLocale() {
+          try {
+            var m = document.cookie.match(/(?:^|; )budget-locale=([^;]+)/);
+            if (m && SUPPORTED.indexOf(m[1]) !== -1) return m[1];
+          } catch (e) {}
+          return null;
+        }
+        var LOCALE = pathLocale || cookieLocale() || "en";
+        // Exposed for the Back button's no-history fallback (onclick runs in
+        // global scope, outside this IIFE).
+        window.__LOCALE = LOCALE;
+        // Root entry = the PWA start_url "/" (or any path with no locale
+        // segment). A cold offline open hits "/" — a 307 → /<locale> redirect
+        // online that the SW cannot cache — so recover by redirecting to the
+        // cached localized home instead of stranding on the not-cached note.
+        var isRootEntry = !pathLocale;
+        var I18N = {
+          pl: {
+            bar: "Jesteś offline",
+            heading: "Ta strona jest niedostępna offline",
+            body: "Nie otworzyłeś tej strony online, więc nie ma jeszcze zapisanej kopii. Połącz się ponownie lub otwórz wcześniej odwiedzoną stronę.",
+            back: "Wstecz",
+            home: "Przejdź do strony głównej",
+          },
+          uk: {
+            bar: "Ви офлайн",
+            heading: "Ця сторінка недоступна офлайн",
+            body: "Ви не відкривали цю сторінку онлайн, тому збереженої копії ще немає. Підключіться знову або відкрийте раніше відвідану сторінку.",
+            back: "Назад",
+            home: "На головну",
+          },
+        };
+        try {
+          var copy = I18N[LOCALE];
+          if (copy) {
+            document.documentElement.lang = LOCALE;
+            document.querySelectorAll("[data-i18n]").forEach(function (el) {
+              var k = el.getAttribute("data-i18n");
+              if (copy[k]) el.textContent = copy[k];
+            });
+          }
+        } catch (e) {
+          /* keep EN base */
+        }
+
+        // Recover to the real cached home (the SW serves the cached home doc,
+        // which renders the real app + data).
+        var note = document.querySelector(".shell-note");
+        function revealNote() {
+          if (note) note.removeAttribute("hidden");
+        }
+        function ifHomeCached(cb) {
+          try {
+            if (typeof caches === "undefined") return cb(false);
+            caches
+              .match("/" + LOCALE, { ignoreSearch: true })
+              .then(function (hit) {
+                cb(!!hit);
+              })
+              .catch(function () {
+                cb(false);
+              });
+          } catch (e) {
+            cb(false);
+          }
+        }
+        if (isRootEntry) {
+          // Cold open at "/": hide the note until we know whether the cached
+          // home exists, then either redirect to it or reveal the note.
+          if (note) note.setAttribute("hidden", "");
+          ifHomeCached(function (hit) {
+            if (hit) location.replace("/" + LOCALE);
+            else revealNote();
+          });
+        } else {
+          // Localized uncached route: keep the note + offer a "Go to home"
+          // shortcut when the cached home document exists.
+          var link = document.getElementById("shell-home-link");
+          if (link && location.pathname !== "/" + LOCALE) {
+            ifHomeCached(function (hit) {
+              if (hit) {
+                link.setAttribute("href", "/" + LOCALE);
+                link.removeAttribute("hidden");
+              }
+            });
+          }
+        }
+
+        // Self-recovery: reload the moment connectivity returns. The reload is
+        // network-first through the SW, so when the origin is back it renders the
+        // real page. No server health-probe gate.
+        var r = function () {
+          location.reload();
+        };
+        addEventListener("online", r);
+        addEventListener("focus", r);
+        addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") r();
+        });
+      })();
+    </script>
+  </body>
+</html>

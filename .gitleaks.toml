@@ -14,6 +14,10 @@ regexes = [
   '''ci-test-secret-must-be-at-least-32-characters-long''',
   # All-A base64 placeholder used as BUDGET_KEK in CI
   '''A{30,}=''',
+  # Web Push test fixtures — canonical example keys from the web-push library
+  # docs (apps/api/test/routes/push.test.ts). Not real subscription secrets.
+  '''tBHItJI5svbpez7KI4CCXg''',
+  '''BNcRdreALRFXTkOOUHK1EtK2wtBgBvnWUfPcRH41u7Wp''',
 ]
 paths = [
   # Lockfiles often hash entropy that triggers false positives

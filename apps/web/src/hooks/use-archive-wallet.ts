@@ -7,7 +7,8 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { toast } from "sonner";
 import type { WalletDto } from "./use-wallets";
 
@@ -16,10 +17,11 @@ export function useArchiveWallet(budgetId: string) {
   // UAT-PH5-T3-35: translate toast strings instead of leaking the raw
   // i18n key into the UI. Same pattern as other wallet hooks.
   const t = useTranslations("bdp.tab.wallets.toast");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (walletId: string) => {
-      const res = await clientApiFetch(`/wallets/${walletId}/archive`, {
+      const res = await clientApiWrite(`/wallets/${walletId}/archive`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -42,9 +44,14 @@ export function useArchiveWallet(budgetId: string) {
       return { previous, walletId };
     },
 
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       if (ctx?.previous) {
         qc.setQueryData(["budget", budgetId, "wallets"], ctx.previous);
+      }
+      // Honest-offline: an offline/unreachable/hung write shows the shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
       }
       toast.error(t("archiveFailed"));
     },

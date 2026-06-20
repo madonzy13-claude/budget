@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ReservesTableClient } from "../../src/components/budgeting/reserves-tab/reserves-table-client";
-import { TestQueryProvider } from "../setup/query-client";
+import { TestQueryProvider, makeTestQueryClient } from "../setup/query-client";
 import type { ReservesSummaryDto } from "../../src/hooks/use-reserves-summary";
 
 // ─── mocks ───────────────────────────────────────────────────────────────────
@@ -104,9 +104,13 @@ const initial: ReservesSummaryDto = {
 
 function renderClient(overrideInitial?: Partial<ReservesSummaryDto>) {
   const data = { ...initial, ...overrideInitial };
+  // SPA refactor (260616): data comes from useReservesSummary, not an `initial`
+  // prop. Seed the query cache so the hook is isSuccess with the rows.
+  const qc = makeTestQueryClient();
+  qc.setQueryData(["budget", "budget-1", "reserves"], data);
   return render(
-    <TestQueryProvider>
-      <ReservesTableClient budgetId="budget-1" initial={data} />
+    <TestQueryProvider client={qc}>
+      <ReservesTableClient budgetId="budget-1" />
     </TestQueryProvider>,
   );
 }

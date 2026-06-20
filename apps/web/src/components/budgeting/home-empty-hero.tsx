@@ -1,15 +1,21 @@
+"use client";
 /**
  * home-empty-hero.tsx — empty state for the home page (zero accessible budgets).
  *
- * Async RSC. Heading + body + primary CTA Link → `/{locale}/budgets/new`.
- * Renders inside <main> so the empty branch composes as its own page region.
+ * Client component: it is rendered by HomeBudgetsClient ("use client"), so it
+ * must read translations via the client `useTranslations` hook. It previously
+ * used the async server `getTranslations`, which made it an async component
+ * inside the client module graph — React cannot render an async client
+ * component, so the empty hero (and its "Create your first budget" CTA) never
+ * appeared and the home page hung on a blank/skeleton state for budget-less
+ * users. Heading + body + primary CTA Link → `/{locale}/budgets/new`.
  */
 import { NavLink } from "@/components/common/nav-link";
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
-export async function HomeEmptyHero({ locale }: { locale: string }) {
-  const t = await getTranslations({ locale, namespace: "home.empty" });
+export function HomeEmptyHero({ locale }: { locale: string }) {
+  const t = useTranslations("home.empty");
   return (
     <main className="mx-auto flex max-w-2xl flex-col items-start gap-10 px-4 py-16 sm:px-6">
       <div className="space-y-3">

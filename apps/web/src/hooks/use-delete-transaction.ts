@@ -6,14 +6,16 @@
  * On success: invalidates ["transactions", ...] + ["spendings-summary", ...]
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 export function useDeleteTransaction(budgetId: string, month: string) {
   const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (txId: string) => {
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/transactions/${txId}`,
         { method: "DELETE" },
       );
@@ -33,9 +35,14 @@ export function useDeleteTransaction(budgetId: string, month: string) {
       return { previous };
     },
 
-    onError: (_err, _txId, ctx) => {
+    onError: (err, _txId, ctx) => {
       if (ctx?.previous !== undefined) {
         qc.setQueryData(["transactions", budgetId, month], ctx.previous);
+      }
+      // Honest-offline: refused write shows the shared offline toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
       }
     },
 

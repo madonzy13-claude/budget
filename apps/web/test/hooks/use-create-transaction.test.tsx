@@ -144,6 +144,16 @@ vi.mock("../../src/lib/idempotency", () => ({
   generateIdempotencyKey: () => "test-idem-key",
 }));
 
+// The hook now reads grid.txn.write.* and toasts on error (robust-minimal
+// offline 260614-q1v) — stub next-intl + sonner so renderHook has the context.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
+}));
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 // The raw snake_case response the API sends back
 const snakeCaseServerRow = {
   id: "server-txn-id",

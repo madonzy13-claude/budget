@@ -239,4 +239,94 @@ describe("getBudgetHomeSummary", () => {
     const m = Money.of("100.00", "USD");
     expect(m.toDb().currency).toBe("USD");
   });
+
+  // -------------------------------------------------------------------------
+  // 260613-dn1 #4 + #5: parallelization correctness gates
+  // -------------------------------------------------------------------------
+
+  it("Test 8 (260613-dn1 #4): meta+displayCurrency resolve via single Promise.all — full DTO identical for mixed-currency + 2-overspent fixture", async () => {
+    // Correctness gate: parallelizing getBudgetMeta and getDisplayCurrency must
+    // NOT change any output value. Assert full DTO equality vs a captured snapshot.
+    const repoRows = [
+      { category_id: "c1", category_name: "Rent", over_amount_cents: 50000n },
+      { category_id: "c2", category_name: "Food", over_amount_cents: 20000n },
+    ];
+    const svc = getBudgetHomeSummary({
+      summaryRepo: makeRepo({
+        getBudgetMeta: async () => ({
+          name: "Parallel Test",
+          kind: "SHARED" as const,
+          default_currency: "USD",
+          cushion_mode_enabled: false,
+        }),
+        listWalletsForBudget: async () => [
+          { amount_cents: 10000n, currency: "USD" }, // $100 same-ccy → no FX
+          { amount_cents: 20000n, currency: "EUR" }, // €200 → PLN
+        ],
+        topOverspentCategories: async () => repoRows,
+        sumCurrentMonthSpend: async () => 5000n,
+      }),
+      fxProvider: makeFx({ "EUR->PLN": 4.4 }),
+      displayCurrencyReader: makeDisplayReader("PLN"),
+    });
+    const r = await svc({ budgetId: BUDGET_ID, userId: USER_ID, now: NOW });
+    expect(r.isOk()).toBe(true);
+    if (!r.isOk()) return;
+    const dto = r.value;
+    // Structural identity — all fields must match expected values
+    expect(dto.budgetId).toBe(BUDGET_ID);
+    expect(dto.name).toBe("Parallel Test");
+    expect(dto.kind).toBe("SHARED");
+    expect(dto.default_currency).toBe("USD");
+    expect(dto.display_currency).toBe("PLN");
+    expect(dto.spent_current_month.amount_cents).toBe("5000");
+    expect(dto.spent_current_month.currency).toBe("USD");
+    // USD wallet (same-ccy, no FX): 10000 cents stays as-is but is PLN display.
+    // EUR wallet: 20000 cents EUR @ 4.4 = 88000 PLN cents.
+    // Total: 10000 + 88000 = 98000 PLN cents.
+    expect(dto.wallets_value_display_ccy.amount_cents).toBe("98000");
+    expect(dto.wallets_value_display_ccy.currency).toBe("PLN");
+    expect(dto.top_overspent).toHaveLength(2);
+    expect(dto.top_overspent[0]!.category_id).toBe("c1");
+    expect(dto.top_overspent[1]!.category_id).toBe("c2");
+  });
+
+  it("Test 9 (260613-dn1 #5): FX lookups for distinct pairs run in parallel — each distinct pair looked up once", async () => {
+    // Dedup + parallel gate: 3 wallets, 2 distinct currency pairs.
+    // rateAsOf must be called exactly twice (once per distinct from→to pair),
+    // not once per wallet (which would be 3 times).
+    let rateAsOfCalls: string[] = [];
+    const fxSpy: FxProvider = {
+      rateAsOf: async (from, to) => {
+        rateAsOfCalls.push(`${from}->${to}`);
+        if (from === to) return { rate: "1", provider: "spy", isStale: false };
+        if (from === "EUR" && to === "PLN")
+          return { rate: "4.4", provider: "spy", isStale: false };
+        if (from === "GBP" && to === "PLN")
+          return { rate: "5.0", provider: "spy", isStale: false };
+        return { rate: "1", provider: "spy", isStale: false };
+      },
+    };
+    const svc = getBudgetHomeSummary({
+      summaryRepo: makeRepo({
+        listWalletsForBudget: async () => [
+          { amount_cents: 10000n, currency: "EUR" }, // €100
+          { amount_cents: 5000n, currency: "EUR" }, // €50 — SAME pair as above
+          { amount_cents: 8000n, currency: "GBP" }, // £80
+        ],
+      }),
+      fxProvider: fxSpy,
+      displayCurrencyReader: makeDisplayReader("PLN"),
+    });
+    const r = await svc({ budgetId: BUDGET_ID, userId: USER_ID, now: NOW });
+    expect(r.isOk()).toBe(true);
+    // Exactly 2 rateAsOf calls (EUR->PLN once, GBP->PLN once) — not 3.
+    expect(rateAsOfCalls.filter((k) => k === "EUR->PLN")).toHaveLength(1);
+    expect(rateAsOfCalls.filter((k) => k === "GBP->PLN")).toHaveLength(1);
+    expect(rateAsOfCalls.length).toBe(2);
+    // Value correctness: (10000+5000)*4.4/1 = 66000 + 8000*5.0 = 66000+40000=106000
+    if (r.isOk()) {
+      expect(r.value.wallets_value_display_ccy.amount_cents).toBe("106000");
+    }
+  });
 });

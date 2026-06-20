@@ -17,7 +17,11 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 describe("useTransactions", () => {
   beforeEach(() => {
-    mockFetch.mockClear();
+    // mockReset (not mockClear) — mockClear leaves any unconsumed
+    // mockResolvedValueOnce in the queue, which then leaks into the next test
+    // (e.g. the no-refetch initialData test below never consumes its response,
+    // desyncing the isError / snake_case tests that follow).
+    mockFetch.mockReset();
   });
 
   it("queryFn calls clientApiFetch with correct URL (confirmed=true)", async () => {
@@ -31,12 +35,14 @@ describe("useTransactions", () => {
     });
 
     await waitFor(() => expect(result.current.data).toBeDefined());
+    // queryFn aborts a slow fetch (AbortSignal.timeout) so the call carries a signal.
     expect(mockFetch).toHaveBeenCalledWith(
       `/budgets/${BUDGET_ID}/transactions?month=${MONTH}&confirmed=true`,
+      expect.objectContaining({ signal: expect.anything() }),
     );
   });
 
-  it("initialData hydrates immediately without fetch", () => {
+  it("initialData paints instantly and does NOT refetch while still fresh (staleTime)", async () => {
     const initialData = [
       {
         id: "txn-1",
@@ -47,14 +53,25 @@ describe("useTransactions", () => {
         confirmedAt: "2026-05-01T00:00:00Z",
       },
     ];
+    // A response is queued in case a refetch fires — we assert it does NOT.
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ transactions: [] }),
+    });
 
     const { result } = renderHook(
       () => useTransactions(BUDGET_ID, MONTH, { initialData }),
       { wrapper },
     );
 
-    // Should have data immediately (no fetch needed)
+    // Instant paint: initialData is available synchronously on the first render
+    // (stale-while-revalidate — zero waiting where cache exists).
     expect(result.current.data).toEqual(initialData);
+    // The hook sets staleTime: 30s and NO LONGER uses refetchOnMount:"always"
+    // (removed for nav perf — a refetch on every tab switch was the cache-lag
+    // cause; SPA/SWR revalidates only once the 30s window lapses). So fresh
+    // initialData must NOT trigger a background network call on mount.
+    await new Promise((r) => setTimeout(r, 50));
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -122,6 +139,8 @@ describe("useTransactions", () => {
     expect(row.transactionDate).toBe("2026-05-01");
     // snake_case keys must NOT appear
     expect((row as Record<string, unknown>).category_id).toBeUndefined();
-    expect((row as Record<string, unknown>).amount_converted_cents).toBeUndefined();
+    expect(
+      (row as Record<string, unknown>).amount_converted_cents,
+    ).toBeUndefined();
   });
 });

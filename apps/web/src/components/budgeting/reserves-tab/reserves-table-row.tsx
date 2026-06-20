@@ -32,6 +32,7 @@ import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
+import { hexForColorKey } from "@/lib/category-colors";
 import type { ReservesSummaryRow } from "@/hooks/use-reserves-summary";
 
 export interface ReservesTableRowProps {
@@ -188,6 +189,10 @@ export function ReservesTableRow({
   }, []);
 
   const rowClass = [
+    // 260613-v1p: relative + overflow-hidden host the absolute accent bar and
+    // clip it to the row's rounded-md corners. overflow-hidden is safe — the
+    // inline-edit cell + input render inside, no overflowing content.
+    "relative overflow-hidden",
     "flex min-h-[48px] items-center gap-3 rounded-[var(--radius-md)]",
     "px-3 sm:min-h-[48px] min-h-[56px]",
     // UAT round 10/11: excluded rows use a darker surface (#14181D) plus a
@@ -272,6 +277,20 @@ export function ReservesTableRow({
         }}
         className={rowClass}
       >
+        {/* 260613-v1p: 4px left accent bar driven by the persisted colorKey.
+            First child of the draggable row so it travels with the swipe/drag
+            transform; pointer-events-none keeps the gesture + drag handle
+            unaffected. Rendered on active AND excluded rows when colored (the
+            bar reads as a category cue independent of exclusion). */}
+        {hexForColorKey(row.colorKey) ? (
+          <div
+            aria-hidden="true"
+            data-testid={`category-accent-bar-${row.categoryId}`}
+            className="absolute left-0 top-0 bottom-0 w-1 z-0 rounded-l-[var(--radius-md)] pointer-events-none"
+            style={{ backgroundColor: hexForColorKey(row.colorKey)! }}
+          />
+        ) : null}
+
         <RowDragHandle
           name={row.name}
           listeners={listeners}

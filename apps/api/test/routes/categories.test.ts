@@ -73,6 +73,10 @@ async function buildApp(userId: string, tenantId: string) {
     await import("@budget/budgeting/src/application/set-share-overrides");
   const { listShareOverrides } =
     await import("@budget/budgeting/src/application/list-share-overrides");
+  const { permanentlyDeleteCategory } =
+    await import("@budget/budgeting/src/application/permanently-delete-category");
+  const { unarchiveCategory } =
+    await import("@budget/budgeting/src/application/unarchive-category");
 
   const repo = new DrizzleCategoryRepo();
   const limitRepo = new DrizzleCategoryLimitRepo();
@@ -82,6 +86,8 @@ async function buildApp(userId: string, tenantId: string) {
     budgeting: {
       createCategory: createCategory({ repo }),
       archiveCategory: archiveCategory({ repo }),
+      unarchiveCategory: unarchiveCategory({ repo, limitRepo }),
+      permanentlyDeleteCategory: permanentlyDeleteCategory({ repo }),
       listCategories: listCategories({ repo }),
       findCategoryById: findCategoryById({ repo }),
       renameCategory: renameCategory({ repo }),
@@ -136,6 +142,102 @@ describe("POST /categories", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scope: "SHARED" }), // missing required name
+    });
+    expect(res.status).toBe(422);
+  });
+});
+
+// 260613-v1p: per-category color must PERSIST end-to-end (survives reload).
+// Verified gap: colorKey was dropped by createCategorySchema, never SELECTed,
+// and read as a dead `(c as any).colorKey` that was always null. Migration 0036
+// adds budgeting.categories.color_key; these assert the full round-trip.
+describe("category color persistence (260613-v1p)", () => {
+  beforeAll(async () => {
+    const t = await createTestUser();
+    testUserId = t.userId;
+    testTenantId = t.tenantId;
+  });
+
+  it("POST {name, colorKey:'blue'} → GET /:id returns colorKey 'blue'", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Groceries v1p", colorKey: "blue" }),
+      })
+    ).json();
+    expect(created.category.colorKey).toBe("blue");
+
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBe("blue");
+  });
+
+  it("POST with no colorKey → colorKey null", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Colorless v1p" }),
+      })
+    ).json();
+    expect(created.category.colorKey).toBeNull();
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBeNull();
+  });
+
+  it("PATCH {name, colorKey:'red'} → GET /:id returns colorKey 'red'", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Recolor v1p", colorKey: "green" }),
+      })
+    ).json();
+    const patched = await app.request(`/categories/${created.category.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Recolor v1p", colorKey: "red" }),
+    });
+    expect(patched.status).toBe(200);
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBe("red");
+  });
+
+  it("PATCH {name, colorKey:null} clears the color", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Clear v1p", colorKey: "purple" }),
+      })
+    ).json();
+    await app.request(`/categories/${created.category.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Clear v1p", colorKey: null }),
+    });
+    const got = await (
+      await app.request(`/categories/${created.category.id}`)
+    ).json();
+    expect(got.colorKey).toBeNull();
+  });
+
+  it("POST with unknown colorKey 'mauve' → 422 (zod enum)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Bad color v1p", colorKey: "mauve" }),
     });
     expect(res.status).toBe(422);
   });
@@ -253,6 +355,229 @@ describe("POST /categories/:id/limits", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.normalAmount).toBe("30000");
+  });
+});
+
+describe("POST /categories/:id/unarchive", () => {
+  let localUserId: string;
+  let localTenantId: string;
+
+  beforeAll(async () => {
+    const t = await createTestUser();
+    localUserId = t.userId;
+    localTenantId = t.tenantId;
+  });
+
+  it("unarchives a kept-history archived category → 200 + archivedAt null", async () => {
+    const app = await buildApp(localUserId, localTenantId);
+    // Create a category
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Unarchive Me", scope: "SHARED" }),
+      })
+    ).json();
+    const catId = created.category.id;
+
+    // Archive as "keep history" (current_future mode)
+    const archiveRes = await app.request(`/categories/${catId}/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "current_future" }),
+    });
+    expect(archiveRes.status).toBe(200);
+
+    // Unarchive
+    const res = await app.request(`/categories/${catId}/unarchive`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.archivedAt).toBeNull();
+    expect(body.id).toBe(catId);
+  });
+
+  it("tenant-mismatch budgetId → 403", async () => {
+    const app = await buildApp(localUserId, localTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Another Cat", scope: "SHARED" }),
+      })
+    ).json();
+    const catId = created.category.id;
+
+    // Build an app with a DIFFERENT tenantId to simulate cross-tenant request
+    const other = await createTestUser();
+
+    // Mount with budgetId param mismatch by routing under /budgets/:budgetId
+    const mismatchApp = new (await import("hono")).Hono();
+    mismatchApp.use(async (c, next) => {
+      c.set("session", { user: { id: other.userId } });
+      c.set("tenantId", other.tenantId);
+      c.set("tenantIds", [other.tenantId]);
+      c.set("userId", other.userId);
+      await next();
+    });
+    const { createCategoriesRoute } =
+      await import("../../src/routes/categories");
+    const { DrizzleCategoryRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/category-repo");
+    const { DrizzleCategoryLimitRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+    const { unarchiveCategory } =
+      await import("@budget/budgeting/src/application/unarchive-category");
+    const { permanentlyDeleteCategory } =
+      await import("@budget/budgeting/src/application/permanently-delete-category");
+    const { archiveCategory } =
+      await import("@budget/budgeting/src/application/archive-category");
+    const { createCategory } =
+      await import("@budget/budgeting/src/application/create-category");
+    const { listCategories } =
+      await import("@budget/budgeting/src/application/list-categories");
+    const { findCategoryById } =
+      await import("@budget/budgeting/src/application/find-category-by-id");
+    const { renameCategory } =
+      await import("@budget/budgeting/src/application/rename-category");
+    const { setCategoryLimit } =
+      await import("@budget/budgeting/src/application/set-category-limit");
+    const { getEffectiveLimit } =
+      await import("@budget/budgeting/src/application/get-effective-limit");
+    const { setShareOverrides } =
+      await import("@budget/budgeting/src/application/set-share-overrides");
+    const { listShareOverrides } =
+      await import("@budget/budgeting/src/application/list-share-overrides");
+    const r2 = new DrizzleCategoryRepo();
+    const l2 = new DrizzleCategoryLimitRepo();
+    const mismatchDeps = {
+      budgeting: {
+        createCategory: createCategory({ repo: r2 }),
+        archiveCategory: archiveCategory({ repo: r2 }),
+        unarchiveCategory: unarchiveCategory({ repo: r2, limitRepo: l2 }),
+        permanentlyDeleteCategory: permanentlyDeleteCategory({ repo: r2 }),
+        listCategories: listCategories({ repo: r2 }),
+        findCategoryById: findCategoryById({ repo: r2 }),
+        renameCategory: renameCategory({ repo: r2 }),
+        setCategoryLimit: setCategoryLimit({ limitRepo: l2 }),
+        getEffectiveLimit: getEffectiveLimit({ limitRepo: l2 }),
+        setShareOverrides: setShareOverrides({
+          shareRepo: new (
+            await import("@budget/budgeting/src/adapters/persistence/share-override-repo")
+          ).DrizzleShareOverrideRepo(),
+        }),
+        listShareOverrides: listShareOverrides({
+          shareRepo: new (
+            await import("@budget/budgeting/src/adapters/persistence/share-override-repo")
+          ).DrizzleShareOverrideRepo(),
+        }),
+      },
+    } as unknown as import("../../src/boot").BootedDeps;
+    // Production mount pattern — :budgetId param so the route guard can read it.
+    mismatchApp.route(
+      "/budgets/:budgetId/categories",
+      createCategoriesRoute(mismatchDeps),
+    );
+
+    const res = await mismatchApp.request(
+      `/budgets/${localTenantId}/categories/${catId}/unarchive`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 422 when category is not archived", async () => {
+    const app = await buildApp(localUserId, localTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Not Archived", scope: "SHARED" }),
+      })
+    ).json();
+    const res = await app.request(
+      `/categories/${created.category.id}/unarchive`,
+      { method: "POST" },
+    );
+    expect(res.status).toBe(422);
+  });
+});
+
+describe("DELETE /categories/:id — CONFIRM_DRAFT orphan prevention (260612-kxd T3-D)", () => {
+  it("hard-delete of a category with an open draft+task leaves no PENDING CONFIRM_DRAFT in the banner read", async () => {
+    const { seedDraftWithTask } =
+      await import("../../../../packages/budgeting/test/draft-task-fixtures");
+    const fx = await seedDraftWithTask({ archivedCategory: true });
+
+    const { createCategoriesRoute } =
+      await import("../../src/routes/categories");
+    const { createTasksRoute } = await import("../../src/routes/tasks");
+    const { DrizzleCategoryRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/category-repo");
+    const { createTaskRepo } =
+      await import("@budget/budgeting/src/adapters/persistence/task-repo");
+    const { permanentlyDeleteCategory } =
+      await import("@budget/budgeting/src/application/permanently-delete-category");
+    const { listPendingTasks } =
+      await import("@budget/budgeting/src/application/list-pending-tasks");
+
+    const deps = {
+      budgeting: {
+        permanentlyDeleteCategory: permanentlyDeleteCategory({
+          repo: new DrizzleCategoryRepo(),
+        }),
+        listPendingTasks: listPendingTasks({ taskRepo: createTaskRepo() }),
+      },
+    } as unknown as import("../../src/boot").BootedDeps;
+
+    const app = new Hono();
+    app.use(async (c, next) => {
+      c.set("session", { user: { id: fx.userId } });
+      c.set("tenantId", fx.budgetId);
+      c.set("tenantIds", [fx.budgetId]);
+      c.set("userId", fx.userId);
+      await next();
+    });
+    app.route("/categories", createCategoriesRoute(deps));
+    app.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
+
+    // 260612-kxd addendum: the category is ARCHIVED, so its CONFIRM_DRAFT
+    // task is non-actionable and must ALREADY be hidden from the banner
+    // BEFORE the permanent delete (read-time self-heal of the legacy
+    // Maczfit shape — archived pre-grants-fix, draft purge silently failed).
+    const before = await app.request(
+      `/budgets/${fx.budgetId}/tasks?status=pending`,
+    );
+    expect(before.status).toBe(200);
+    const beforeBody = await before.json();
+    expect(
+      beforeBody.tasks.some((t: { id: string }) => t.id === fx.taskId),
+    ).toBe(false);
+
+    // Hard-delete the archived category (purges its drafts).
+    const del = await app.request(`/categories/${fx.categoryId}`, {
+      method: "DELETE",
+    });
+    expect(del.status).toBe(204);
+
+    // The delete must also flip the row to RESOLVED in the same tx (write
+    // path stays correct even though the read already hid the task).
+    const { readTaskStatus } =
+      await import("../../../../packages/budgeting/test/draft-task-fixtures");
+    const task = await readTaskStatus(fx.budgetId, fx.taskId);
+    expect(task).not.toBeNull();
+    expect(task?.status).toBe("RESOLVED");
+
+    // Banner read AFTER: the task must be gone — no Maczfit-style orphan.
+    const after = await app.request(
+      `/budgets/${fx.budgetId}/tasks?status=pending`,
+    );
+    expect(after.status).toBe(200);
+    const afterBody = await after.json();
+    expect(
+      afterBody.tasks.some((t: { id: string }) => t.id === fx.taskId),
+    ).toBe(false);
   });
 });
 

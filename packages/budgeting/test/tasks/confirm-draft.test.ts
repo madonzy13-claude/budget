@@ -434,9 +434,10 @@ describe("CONFIRM_DRAFT generator", () => {
 
     expect(await countPendingConfirmDraftTasks(seeded.budgetId)).toBe(1);
 
-    const taskRepo = createTaskRepo();
+    // 260612-kxd T3: dismiss resolves the task inside the adapter's own tx —
+    // dismissDraft no longer takes a taskRepo dep.
     const repo = new DrizzleExpenseLedgerDraftPortRepo();
-    const dismiss = dismissDraft({ repo, taskRepo });
+    const dismiss = dismissDraft({ repo });
     const r = await dismiss({
       tenantId: seeded.budgetId,
       draftId,

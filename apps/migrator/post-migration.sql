@@ -8,8 +8,13 @@ GRANT USAGE ON SCHEMA identity, tenancy, shared_kernel, budgeting TO app_role, w
 -- comparison schema: app_role + worker_role have NO USAGE (Phase 5 introduces comparison_role).
 
 -- D-23 / ENGR-06: append-only ledger.
+-- Quick 260611-vuo amendment: DELETE granted to app_role ONLY — category archive
+-- purges unconfirmed drafts and DELETE /categories/:id (permanent delete, behind a
+-- confirm dialog, audit_history records it) purges all the category's ledger rows.
+-- worker_role stays strictly append-only. RLS tenant-scopes every DELETE.
 REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role;
 GRANT SELECT, INSERT ON budgeting.expense_ledger TO app_role, worker_role;
+GRANT DELETE ON budgeting.expense_ledger TO app_role;
 
 -- Pitfall 6: FORCE RLS on every user-data table. Add new tables here as later plans introduce them.
 ALTER TABLE budgeting.expense_ledger FORCE ROW LEVEL SECURITY;
@@ -390,18 +395,7 @@ CREATE POLICY wallets_worker_cron_scan ON budgeting.wallets
   AS PERMISSIVE FOR SELECT TO worker_role
   USING (true);
 
--- D-04 / TENT-11: default_currency immutable post-create.
-CREATE OR REPLACE FUNCTION tenancy.budgets_block_currency_change() RETURNS trigger AS $$
-BEGIN
-  IF NEW.default_currency IS DISTINCT FROM OLD.default_currency THEN
-    RAISE EXCEPTION 'default_currency is immutable post-create (TENT-11, D-04)';
-  END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS budgets_currency_immutable ON tenancy.budgets;
-CREATE TRIGGER budgets_currency_immutable
-  BEFORE UPDATE ON tenancy.budgets
-  FOR EACH ROW EXECUTE FUNCTION tenancy.budgets_block_currency_change();
+-- D-04/TENT-11 currency lock is enforced in the app layer (budget-identity route + workspaceRepo.hasTransactions); the old DB trigger was over-broad (blocked zero-tx) and was removed in migration 0035.
 
 -- PC-11 (TENT-10, D-02): TOCTOU race-free PRIVATE-cap guard. Postgres unique partial indexes
 -- cannot reference subqueries, so we use a BEFORE INSERT trigger that runs in the same tx
@@ -609,8 +603,10 @@ CREATE INDEX IF NOT EXISTS expense_ledger_tenant_category_date_idx
 -- expense_ledger_tenant_account_date_idx: account_id dropped in v1.1 (MIG-03); index not created.
 
 -- Re-assert REVOKE (safe after Drizzle push which may GRANT more broadly)
+-- Quick 260611-vuo: app_role keeps DELETE (category archive/permanent-delete purge).
 REVOKE UPDATE, DELETE ON budgeting.expense_ledger FROM app_role, worker_role;
 GRANT SELECT, INSERT ON budgeting.expense_ledger TO app_role, worker_role;
+GRANT DELETE ON budgeting.expense_ledger TO app_role;
 
 -- spending_by_category_month table (ENGR-14 projection) — Drizzle push creates it
 ALTER TABLE budgeting.spending_by_category_month FORCE ROW LEVEL SECURITY;
@@ -707,10 +703,14 @@ GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, curren
 
 -- Phase 5 plan 05-01: category_reserve_adjustments (append-only ledger, D-PH5-R8)
 -- FORCE RLS was applied by migration 0020 via ALTER TABLE ... FORCE ROW LEVEL SECURITY.
--- GRANTs: INSERT only for app_role (append-only); SELECT for both roles; no UPDATE/DELETE.
+-- GRANTs: INSERT only for app_role (append-only); SELECT for both roles; no UPDATE.
+-- Quick 260611-vuo: DELETE granted to app_role ONLY — DELETE /categories/:id
+-- (permanent category delete) purges the category's adjustment rows. worker_role
+-- stays append-only. RLS tenant-scopes every DELETE.
 ALTER TABLE budgeting.category_reserve_adjustments FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON budgeting.category_reserve_adjustments TO app_role, worker_role;
 REVOKE UPDATE, DELETE ON budgeting.category_reserve_adjustments FROM app_role, worker_role;
+GRANT DELETE ON budgeting.category_reserve_adjustments TO app_role;
 
 -- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
 GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;
@@ -723,4 +723,24 @@ DROP POLICY IF EXISTS budget_share_links_tenant_isolation ON tenancy.budget_shar
 CREATE POLICY budget_share_links_tenant_isolation ON tenancy.budget_share_links
   AS PERMISSIVE FOR ALL TO app_role
   USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+-- ===== Plan 08-01: push_subscriptions + notification_prefs =====
+-- FORCE RLS + GRANTs (migration 0032 creates the tables + policies).
+-- Idempotent: IF NOT EXISTS + DROP IF EXISTS guards.
+GRANT SELECT, INSERT, UPDATE, DELETE ON shared_kernel.push_subscriptions  TO app_role, worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON shared_kernel.notification_prefs TO app_role, worker_role;
+ALTER TABLE shared_kernel.push_subscriptions  FORCE ROW LEVEL SECURITY;
+ALTER TABLE shared_kernel.notification_prefs FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS push_subscriptions_tenant_isolation  ON shared_kernel.push_subscriptions;
+CREATE POLICY push_subscriptions_tenant_isolation ON shared_kernel.push_subscriptions
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING   (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
+  WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+DROP POLICY IF EXISTS notification_prefs_tenant_isolation ON shared_kernel.notification_prefs;
+CREATE POLICY notification_prefs_tenant_isolation ON shared_kernel.notification_prefs
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING   (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));

@@ -115,3 +115,92 @@ describe("listPendingTasks", () => {
     expect(listPending.mock.calls[0]?.[1]).toBe(tenantId);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* 260612-kxd T3-C — integration (real Postgres, CLAUDE.md rule 3):           */
+/* the banner read must SELF-HEAL orphan CONFIRM_DRAFT tasks — a PENDING      */
+/* task whose draft no longer exists (or is soft-deleted/confirmed/dismissed) */
+/* must NOT be returned. This makes the live "Maczfit" orphan vanish on the   */
+/* next read with zero manual SQL. RED until listPending gains the EXISTS     */
+/* guard. Over-filter guards: live drafts + non-CONFIRM_DRAFT kinds stay.     */
+/* -------------------------------------------------------------------------- */
+const DB_URL_RAW = process.env.DATABASE_URL_APP;
+if (DB_URL_RAW) {
+  // Docker hostname → localhost so the host-side test runner reaches the DB.
+  process.env.DATABASE_URL_APP = DB_URL_RAW.replace("@db:", "@localhost:");
+}
+
+describe.skipIf(!DB_URL_RAW)(
+  "listPendingTasks — orphan CONFIRM_DRAFT self-heal (real Postgres)",
+  () => {
+    async function setup() {
+      const { resetPools } = await import("@budget/platform");
+      resetPools();
+      const { createTaskRepo } = await import(
+        "../../src/adapters/persistence/task-repo"
+      );
+      const fixtures = await import("../draft-task-fixtures");
+      const svc = listPendingTasks({ taskRepo: createTaskRepo() });
+      return { svc, ...fixtures };
+    }
+
+    it("hides a CONFIRM_DRAFT task whose draft row never existed (Maczfit orphan)", async () => {
+      const { svc, seedDraftWithTask } = await setup();
+      const fx = await seedDraftWithTask({ orphan: true });
+      const r = await svc({ tenantId: fx.budgetId, budgetId: fx.budgetId });
+      expect(r.isOk()).toBe(true);
+      if (r.isOk()) {
+        expect(r.value.some((t) => t.id === fx.taskId)).toBe(false);
+      }
+    });
+
+    it("hides a CONFIRM_DRAFT task whose draft was soft-deleted", async () => {
+      const { svc, seedDraftWithTask, markDraft } = await setup();
+      const fx = await seedDraftWithTask();
+      await markDraft(fx, "deleted_at");
+      const r = await svc({ tenantId: fx.budgetId, budgetId: fx.budgetId });
+      expect(r.isOk()).toBe(true);
+      if (r.isOk()) {
+        expect(r.value.some((t) => t.id === fx.taskId)).toBe(false);
+      }
+    });
+
+    it("hides a CONFIRM_DRAFT task whose category is archived (legacy Maczfit shape), keeps RESERVE_TOPUP", async () => {
+      // The live Maczfit row: draft EXISTS and is live (the archive-time purge
+      // silently failed pre-42501-grants-fix), but the category has
+      // archived_at set → the draft is invisible in the UI, the task is not
+      // actionable. The read must heal this legacy shape with no manual SQL.
+      const { svc, seedDraftWithTask, seedReserveTopupTask } = await setup();
+      const fx = await seedDraftWithTask({ archivedCategory: true });
+      const topup = await seedReserveTopupTask(fx);
+      const r = await svc({ tenantId: fx.budgetId, budgetId: fx.budgetId });
+      expect(r.isOk()).toBe(true);
+      if (r.isOk()) {
+        expect(r.value.some((t) => t.id === fx.taskId)).toBe(false);
+        expect(r.value.some((t) => t.id === topup.taskId)).toBe(true);
+      }
+    });
+
+    it("keeps a CONFIRM_DRAFT task whose draft is live and unconfirmed (no over-filter)", async () => {
+      const { svc, seedDraftWithTask } = await setup();
+      const fx = await seedDraftWithTask();
+      const r = await svc({ tenantId: fx.budgetId, budgetId: fx.budgetId });
+      expect(r.isOk()).toBe(true);
+      if (r.isOk()) {
+        expect(r.value.some((t) => t.id === fx.taskId)).toBe(true);
+      }
+    });
+
+    it("keeps non-CONFIRM_DRAFT kinds regardless of payload (RESERVE_TOPUP guard)", async () => {
+      const { svc, seedDraftWithTask, seedReserveTopupTask } = await setup();
+      const fx = await seedDraftWithTask({ orphan: true });
+      const topup = await seedReserveTopupTask(fx);
+      const r = await svc({ tenantId: fx.budgetId, budgetId: fx.budgetId });
+      expect(r.isOk()).toBe(true);
+      if (r.isOk()) {
+        expect(r.value.some((t) => t.id === topup.taskId)).toBe(true);
+        expect(r.value.some((t) => t.id === fx.taskId)).toBe(false);
+      }
+    });
+  },
+);

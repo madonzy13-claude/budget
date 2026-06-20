@@ -10,19 +10,9 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  Loader2,
-  ShoppingCart,
-  Home,
-  Car,
-  Utensils,
-  Heart,
-  Briefcase,
-  Music,
-  BookOpen,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -51,30 +41,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { AmountInput } from "@/components/budgeting/fields/amount-input";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { cn } from "@/lib/utils";
-
-const PRESET_ICONS = [
-  { key: "shopping-cart", Icon: ShoppingCart },
-  { key: "home", Icon: Home },
-  { key: "car", Icon: Car },
-  { key: "utensils", Icon: Utensils },
-  { key: "heart", Icon: Heart },
-  { key: "briefcase", Icon: Briefcase },
-  { key: "music", Icon: Music },
-  { key: "book-open", Icon: BookOpen },
-] as const;
-
-const PRESET_COLORS = [
-  { key: "yellow", hex: "#F0B90B" },
-  { key: "green", hex: "#26A69A" },
-  { key: "blue", hex: "#4A90D9" },
-  { key: "red", hex: "#EF5350" },
-  { key: "orange", hex: "#FF8F00" },
-  { key: "purple", hex: "#7C4DFF" },
-  { key: "pink", hex: "#EC407A" },
-  { key: "gray", hex: "#78909C" },
-] as const;
+// 260613-v1p: single source of truth for the 8 category palette colors.
+import { CATEGORY_COLORS } from "@/lib/category-colors";
 
 export interface CategorySliderProps {
   open: boolean;
@@ -87,7 +58,6 @@ export interface CategorySliderProps {
     name: string;
     plannedCents: string;
     cushionCents: string;
-    iconKey: string | null;
     colorKey: string | null;
   };
   txnsCount?: number;
@@ -116,7 +86,7 @@ const schema = z.object({
   name: z.string().min(1).max(60),
   plannedCents: amountField,
   cushionCents: amountField,
-  iconKey: z.string().nullable(),
+  // 260613-v1p: iconKey removed (icon picker gone). colorKey persists.
   colorKey: z.string().nullable(),
 });
 
@@ -153,7 +123,22 @@ export function CategorySlider({
   cushionEnabled = true,
 }: CategorySliderProps) {
   const t = useTranslations("grid");
-  const router = useRouter();
+  const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
+  // SPA refactor (260616): the grid is client-data — no RSC to router.refresh().
+  // Surface a created/edited/deleted category by invalidating the exact query
+  // keys the grid reads. `includeTxns` covers archive/unarchive which change a
+  // column's transaction/draft visibility too; create/edit only touch the
+  // category list + its planned/cushion limits (spendings-summary).
+  function invalidateGrid(includeTxns: boolean) {
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
+    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+    if (includeTxns) {
+      qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
+      qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
+    }
+  }
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteOpenRef = useRef(false);
@@ -171,7 +156,6 @@ export function CategorySlider({
       cushionCents: initial?.cushionCents
         ? centsToDecimal(initial.cushionCents)
         : "0",
-      iconKey: initial?.iconKey ?? null,
       colorKey: initial?.colorKey ?? null,
     },
   });
@@ -203,7 +187,6 @@ export function CategorySlider({
         cushionCents: initial?.cushionCents
           ? centsToDecimal(initial.cushionCents)
           : "0",
-        iconKey: initial?.iconKey ?? null,
         colorKey: initial?.colorKey ?? null,
       });
       // Phase 7-09 D-PH7-35: re-initialize linked from new initial values
@@ -232,61 +215,33 @@ export function CategorySlider({
     const normalAmount = decimalToCents(values.plannedCents);
     const cushionAmount = decimalToCents(values.cushionCents);
 
-    if (mode === "create") {
-      // Step 1: POST /categories
-      const createRes = await clientApiFetch(
-        `/budgets/${budgetId}/categories`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: values.name,
-            iconKey: values.iconKey,
-            colorKey: values.colorKey,
-          }),
-        },
-      );
-
-      if (!createRes.ok) {
-        toast.error(t("error.sliderSave"));
-        return;
-      }
-
-      const { category } = (await createRes.json()) as {
-        category: { id: string };
-      };
-
-      // Step 2: POST /categories/:id/limits
-      const limitsRes = await clientApiFetch(
-        `/budgets/${budgetId}/categories/${category.id}/limits`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ normalAmount, cushionAmount, effectiveFrom }),
-        },
-      );
-
-      if (!limitsRes.ok) {
-        toast.error(t("error.sliderSave"));
-        return;
-      }
-    } else {
-      // Edit flow: PATCH + POST limits (SCD-2)
-      const [patchRes, limitsRes] = await Promise.all([
-        clientApiFetch(
-          `/budgets/${budgetId}/categories/${initial!.categoryId}`,
+    try {
+      if (mode === "create") {
+        // Step 1: POST /categories
+        const createRes = await clientApiWrite(
+          `/budgets/${budgetId}/categories`,
           {
-            method: "PATCH",
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: values.name,
-              iconKey: values.iconKey,
               colorKey: values.colorKey,
             }),
           },
-        ),
-        clientApiFetch(
-          `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
+        );
+
+        if (!createRes.ok) {
+          toast.error(t("error.sliderSave"));
+          return;
+        }
+
+        const { category } = (await createRes.json()) as {
+          category: { id: string };
+        };
+
+        // Step 2: POST /categories/:id/limits
+        const limitsRes = await clientApiWrite(
+          `/budgets/${budgetId}/categories/${category.id}/limits`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -294,21 +249,63 @@ export function CategorySlider({
               normalAmount,
               cushionAmount,
               effectiveFrom,
-              singleMonth,
             }),
           },
-        ),
-      ]);
+        );
 
-      if (!patchRes.ok || !limitsRes.ok) {
-        toast.error(t("error.sliderSave"));
+        if (!limitsRes.ok) {
+          toast.error(t("error.sliderSave"));
+          return;
+        }
+      } else {
+        // Edit flow: PATCH + POST limits (SCD-2)
+        const [patchRes, limitsRes] = await Promise.all([
+          clientApiWrite(
+            `/budgets/${budgetId}/categories/${initial!.categoryId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: values.name,
+                colorKey: values.colorKey,
+              }),
+            },
+          ),
+          clientApiWrite(
+            `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                normalAmount,
+                cushionAmount,
+                effectiveFrom,
+                singleMonth,
+              }),
+            },
+          ),
+        ]);
+
+        if (!patchRes.ok || !limitsRes.ok) {
+          toast.error(t("error.sliderSave"));
+          return;
+        }
+      }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // RHF resets isSubmitting when onSubmit settles, so no manual reset needed.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
         return;
       }
+      // Non-offline throw → keep the existing generic save error.
+      toast.error(t("error.sliderSave"));
+      return;
     }
 
     onOpenChange(false);
-    // Re-run the RSC fetch so the grid reflects the new/edited category.
-    router.refresh();
+    // Surface the new/edited category + its limits in the client-data grid.
+    invalidateGrid(false);
   }
 
   async function handleDelete(mode: "current_future" | "all") {
@@ -318,7 +315,7 @@ export function CategorySlider({
       // POST /:id/archive soft-removes the category. mode "current_future" keeps
       // history (visible in past months it had activity, gone from now on); mode
       // "all" hides it everywhere. Either way transactions are kept in the DB.
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/categories/${initial.categoryId}/archive`,
         {
           method: "POST",
@@ -329,10 +326,19 @@ export function CategorySlider({
       if (res.ok) {
         setDeleteOpen(false);
         onOpenChange(false);
-        router.refresh();
+        // Archive changes column + its txn/draft visibility in the grid.
+        invalidateGrid(true);
       } else {
         toast.error(t("error.sliderSave"));
       }
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets isDeleting so the spinner never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      toast.error(t("error.sliderSave"));
     } finally {
       setIsDeleting(false);
     }
@@ -353,6 +359,13 @@ export function CategorySlider({
           side="right"
           className="w-screen sm:w-[480px] sm:max-w-[480px] bg-[var(--surface-card-dark)] p-0 flex flex-col overflow-y-auto"
           data-testid="cat-slider-content"
+          // iOS standalone PWA: Radix auto-focuses the first field on open →
+          // the soft keyboard pans the layout viewport up (no browser chrome to
+          // absorb it), shifting the whole sheet up and hiding the title/X.
+          // Prevent autofocus; the user taps to focus.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+          }}
           onPointerDownOutside={(e) => {
             if (deleteOpenRef.current) e.preventDefault();
           }}
@@ -474,41 +487,8 @@ export function CategorySlider({
                 />
               )}
 
-              {/* Icon picker */}
-              <FormField
-                control={form.control}
-                name="iconKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm text-[var(--muted-foreground)]">
-                      {t("catSlider.field.icon")}
-                    </FormLabel>
-                    <div className="flex gap-2 flex-wrap">
-                      {PRESET_ICONS.map(({ key, Icon }) => (
-                        <button
-                          key={key}
-                          type="button"
-                          data-testid={`icon-option-${key}`}
-                          onClick={() =>
-                            field.onChange(field.value === key ? null : key)
-                          }
-                          className={cn(
-                            "flex h-10 w-10 items-center justify-center rounded-lg border transition-colors",
-                            field.value === key
-                              ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--on-primary)]"
-                              : "border-[var(--border)] bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)] hover:border-[var(--primary)]",
-                          )}
-                          aria-pressed={field.value === key}
-                        >
-                          <Icon className="h-5 w-5" aria-hidden="true" />
-                        </button>
-                      ))}
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              {/* Color picker */}
+              {/* Color picker (260613-v1p: icon picker removed; swatches use
+                  the shared CATEGORY_COLORS map). */}
               <FormField
                 control={form.control}
                 name="colorKey"
@@ -518,7 +498,7 @@ export function CategorySlider({
                       {t("catSlider.field.color")}
                     </FormLabel>
                     <div className="flex gap-2 flex-wrap">
-                      {PRESET_COLORS.map(({ key, hex }) => (
+                      {CATEGORY_COLORS.map(({ key, hex }) => (
                         <button
                           key={key}
                           type="button"

@@ -3,7 +3,13 @@
  * use-wallets.ts — Query hook for the wallet list.
  *
  * Query key: ["budget", budgetId, "wallets"]
- * Supports initialData from the RSC page for instant render.
+ * Supports initialData for instant render.
+ *
+ * SPA/SWR (260616): plain client fetch — offline is handled by React Query
+ * networkMode + the persisted query cache (query-persist.ts). The old bespoke
+ * IndexedDB read-back + setCachedEntities/markSynced sync-meta were removed;
+ * AbortSignal.timeout still fails fast on an iOS lying-online dead link, and
+ * refetchOnMount:"always" keeps a warm cache revalidating.
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
@@ -33,7 +39,9 @@ export function useWallets(budgetId: string, initialData?: WalletDto[]) {
   return useQuery({
     queryKey: ["budget", budgetId, "wallets"],
     queryFn: async () => {
-      const res = await clientApiFetch(`/wallets`);
+      const res = await clientApiFetch(`/wallets`, {
+        signal: AbortSignal.timeout(7000),
+      });
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
       return (json.wallets ?? []) as WalletDto[];

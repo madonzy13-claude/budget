@@ -1,25 +1,34 @@
-import { redirect } from "next/navigation";
-import { serverApiFetch } from "@/lib/budget-fetch.server";
-import { BdpTabs } from "@/components/budgeting/bdp-tabs";
-import type { TaskSummary } from "@/components/budgeting/task-banner-row";
+import { Suspense } from "react";
+import { BudgetShellData } from "./budget-shell-data";
+import { PageTransition } from "@/components/common/page-transition";
+import { ActivePillTaskSlider } from "@/components/budgeting/tasks/active-pill-task-slider";
 
 /**
  * BDP layout (Plan 03-06 BDP-01) — single sticky wrapper at top:64px holding
- * the optional task banner + pill tabs row, then `{children}` (tab content).
+ * the pill tabs row, then `{children}` (tab content).
  *
  * Z-stack (locked across phases):
  *   - top-nav header z-50 (Plan 03-04)
- *   - BDP sticky wrapper z-40 (this layout)
+ *   - BDP sticky wrapper z-40 (rendered by BudgetShellData)
  *   - BudgetSwitcher PopoverContent z-[60] (Plan 03-04 — must sit above both)
  *
- * Membership gate (T-03-06-01): fetch /budgets/active and verify `id` is in
- * the list; on miss redirect to `/${locale}` (home) — NOT /workspaces (gone).
+ * quick-260613-pdb (Issue 3, Option A): NON-SUSPENDING refactor. The layout
+ * no longer top-level-awaits any serverApiFetch — all awaited data (membership
+ * gate, reservesEnabled, initialTasks) moved into <BudgetShellData> behind a
+ * <Suspense fallback={null}>. WHY: when the layout itself suspended it tripped
+ * the generic budgets/[id]/loading.tsx skeleton, then the page suspended and
+ * tripped the tab's loading.tsx → TWO skeletons. With the layout committing
+ * synchronously and budgets/[id]/loading.tsx deleted, only the child tab's
+ * own loading.tsx shows = single skeleton. The membership gate, reservesEnabled
+ * cascading-hide, tasks banner/badges, and ?task= deep-link all live unchanged
+ * inside BudgetShellData (redirect() throws before any return → gate still runs
+ * before BdpTabs commits).
  *
- * Tasks-Redesign: initialTasks passed to BdpTabs (and from there to each pill's
- * PillTaskSlider). TaskBanner removed from layout — per-pill sliders replace it.
- *
- * Pitfall 4 guard: every /budgets/{id}/... fetch passes `id` as the
- * serverApiFetch first arg so X-Budget-ID is set (T-03-06-08).
+ * quick-260612-cdu R2: ActivePillTaskSlider lives inside BudgetShellData as
+ * normal page content below the band. pb-shell-safe (standalone-only bottom
+ * clearance INSIDE page content — the only placement iOS WebKit honors, see
+ * global.css) wraps `{children}` so the page slot's own loading.tsx renders
+ * inside the correct bottom-clearance wrapper.
  */
 
 interface BdpLayoutProps {
@@ -27,57 +36,57 @@ interface BdpLayoutProps {
   params: Promise<{ locale: string; id: string }>;
 }
 
-async function fetchInitialTasks(budgetId: string): Promise<TaskSummary[]> {
-  const res = await serverApiFetch(
-    budgetId,
-    `/budgets/${budgetId}/tasks?status=pending`,
+/**
+ * Empty sticky band that occupies the EXACT footprint BudgetShellData's real
+ * band will (same sticky wrapper + the BdpTabs nav's h-12 height) so the pills
+ * fade into place with no layout shift while the band's server fetches resolve.
+ */
+function BdpBandFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
+    >
+      <div className="h-12" />
+    </div>
   );
-  if (!res.ok) return [];
-  const body = (await res.json()) as { tasks?: TaskSummary[] };
-  return body.tasks ?? [];
 }
 
 export default async function BdpLayout({ children, params }: BdpLayoutProps) {
+  // params await is cheap and does NOT gate on the network — the layout still
+  // commits synchronously w.r.t. data fetches (those live in BudgetShellData).
   const { locale, id } = await params;
-
-  // Membership check — fetch active budgets and confirm `id` is among them.
-  // Also fetch budget meta to read reservesEnabled (D-PH5-R11 cascading-hide surface 1).
-  // Next.js dedupes identical fetch URLs within the same render pass.
-  const [activeRes, budgetRes, initialTasks] = await Promise.all([
-    serverApiFetch(null, "/budgets/active"),
-    serverApiFetch(id, `/budgets/${id}`),
-    fetchInitialTasks(id),
-  ]);
-
-  if (activeRes.ok) {
-    const body = (await activeRes.json()) as {
-      budgets?: Array<{ id: string }>;
-      workspaces?: Array<{ id: string }>;
-    };
-    const list = body.budgets ?? body.workspaces ?? [];
-    if (!list.some((b) => b.id === id)) redirect(`/${locale}`);
-  }
-
-  // D-PH5-R11: read reservesEnabled; default true preserves existing UX.
-  const reservesEnabled = budgetRes.ok
-    ? (((await budgetRes.json()) as { reservesEnabled?: boolean })
-        .reservesEnabled ?? true)
-    : true;
 
   return (
     <>
-      <div
-        className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
-        data-testid="bdp-sticky-wrapper"
-      >
-        <BdpTabs
-          locale={locale}
-          budgetId={id}
-          reservesEnabled={reservesEnabled}
-          initialTasks={initialTasks}
-        />
+      {/* Height-reserving fallback (260618 bug 3): BudgetShellData (the sticky
+          pills band) suspends on its server fetches (membership gate +
+          reservesEnabled + initialTasks). With fallback={null} the band was
+          ABSENT while the page content rendered, then popped in and shoved the
+          whole page down ~one band-height — a visible jump on first nav to an
+          un-warmed tab. The fallback renders an identical-height empty sticky
+          band so the pills fade into reserved space with zero layout shift. */}
+      <Suspense fallback={<BdpBandFallback />}>
+        <BudgetShellData locale={locale} id={id} />
+      </Suspense>
+      <div className="pb-shell-safe">
+        {/* PageTransition slides the whole tab page (tasks strip + content) as
+            ONE unit on a tab switch — old out, new in — all live DOM (motion).
+            The tasks strip is the first child so it slides WITH the page (no
+            jump). initialTasks=[] → reads the shared ["tasks", budgetId,
+            "pending"] query BdpTabs seeds; warm on soft-nav. Its own Suspense
+            keeps the useSearchParams CSR bailout local to the strip. */}
+        <PageTransition>
+          <Suspense fallback={null}>
+            <ActivePillTaskSlider
+              budgetId={id}
+              locale={locale}
+              initialTasks={[]}
+            />
+          </Suspense>
+          {children}
+        </PageTransition>
       </div>
-      {children}
     </>
   );
 }

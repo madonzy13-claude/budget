@@ -9,7 +9,8 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { WalletDto } from "./use-wallets";
@@ -46,11 +47,12 @@ export function useUpdateWallet(budgetId: string) {
   const qc = useQueryClient();
   // UAT-PH5-T3-35: translate toast strings.
   const t = useTranslations("bdp.tab.wallets.toast");
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: UpdateWalletInput) => {
       const { walletId, ...rest } = input;
-      const res = await clientApiFetch(`/wallets/${walletId}`, {
+      const res = await clientApiWrite(`/wallets/${walletId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -125,13 +127,22 @@ export function useUpdateWallet(budgetId: string) {
       return { previous };
     },
 
-    onError: (err: Error & { code?: string | null }, _input, ctx) => {
+    onError: (err: unknown, _input, ctx) => {
       if (ctx?.previous) {
         qc.setQueryData(["budget", budgetId, "wallets"], ctx.previous);
       }
+      // Honest-offline: an offline/unreachable/hung write shows the shared toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
       // reserve_currency_mismatch: the component (wallets-sectioned-list) shows a
       // translated toast with budget currency context. Skip generic toast here.
-      if (err?.code !== "reserve_currency_mismatch") {
+      // (err typed unknown so the OfflineWriteError guard above doesn't narrow the
+      // structural `Error & {code}` intersection down to `never` — cast for code.)
+      if (
+        (err as { code?: string | null })?.code !== "reserve_currency_mismatch"
+      ) {
         toast.error(t("saveFailed"));
       }
     },

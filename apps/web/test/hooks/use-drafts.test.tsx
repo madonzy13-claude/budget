@@ -18,7 +18,9 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 describe("useDrafts", () => {
   beforeEach(() => {
-    mockFetch.mockClear();
+    // mockReset (not mockClear) so no queued/persistent response leaks between
+    // tests — each test sets its own.
+    mockFetch.mockReset();
   });
 
   it("queryFn calls clientApiFetch with confirmed=false", async () => {
@@ -37,7 +39,7 @@ describe("useDrafts", () => {
     );
   });
 
-  it("initialData hydrates immediately without fetch", () => {
+  it("initialData hydrates immediately and does NOT refetch while still fresh (staleTime)", async () => {
     const initialData = [
       {
         id: "draft-1",
@@ -49,13 +51,22 @@ describe("useDrafts", () => {
         ruleName: "Rent",
       },
     ];
+    // A response is queued in case a refetch fires — we assert it does NOT.
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ transactions: [] }),
+    });
 
     const { result } = renderHook(
       () => useDrafts(BUDGET_ID, MONTH, { initialData }),
       { wrapper },
     );
 
+    // initialData paints instantly (synchronous first render).
     expect(result.current.data).toEqual(initialData);
+    // staleTime: 30s and no refetchOnMount:"always" (nav-perf fix, SPA/SWR):
+    // fresh initialData must NOT trigger a background network call on mount.
+    await new Promise((r) => setTimeout(r, 50));
     expect(mockFetch).not.toHaveBeenCalled();
   });
 

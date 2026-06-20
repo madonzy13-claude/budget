@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession, ServerUnavailableError } from "@/lib/server-session";
-import { serverApiFetch } from "@/lib/budget-fetch.server";
+import { serverApiFetch, fetchActiveBudgets } from "@/lib/budget-fetch.server";
 import { LocaleCookieSync } from "@/components/common/locale-cookie-sync";
 import {
   NavPendingOverlay,
@@ -10,13 +10,29 @@ import {
 import { TopNav } from "@/components/budgeting/top-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { PullToRefresh } from "@/components/common/pull-to-refresh";
+import { InstallBanner } from "@/components/common/install-banner";
+import { ViewportDebug } from "@/components/common/viewport-debug";
+import { OfflineResilience } from "@/components/common/offline-resilience";
+import { OfflineStaleBar } from "@/components/common/offline-stale-bar";
+import { NavCacheWarmer } from "@/components/common/nav-cache-warmer";
+import { OfflineNavGuard } from "@/components/common/offline-nav-guard";
+import { OfflineReadOnly } from "@/components/common/offline-read-only";
+import { ServerDownSeed } from "@/components/common/connectivity-provider";
 
-// The (app) shell is per-user: session lookup, onboarding-progress fetch,
-// and the budget switcher all depend on the request's cookies. Without this
-// Next.js statically prerenders /en at build time, baking in the
-// no-session empty-hero HTML and skipping the layout's onboarding redirect
-// (the fetch never reaches the api on real requests).
-export const dynamic = "force-dynamic";
+// The (app) shell is per-user: getServerSession + the onboarding guard read
+// `cookies()`/`headers()`, which ALREADY forces this layout to render per-request
+// (Next opts any cookies()/headers() route into dynamic rendering — it can never
+// be static-prerendered with no-session HTML). So `export const dynamic =
+// "force-dynamic"` was REDUNDANT for correctness — but it ALSO opted every route
+// under this layout (home + all BDP tabs) OUT of the client Router Cache, so
+// EVERY navigation re-fetched the RSC from the server → the NavPending blur on
+// every home↔budget and pill switch ("waiting / not from cache" device report,
+// 260619). Removed: the route is still dynamic (cookies), but now eligible for
+// `staleTimes.dynamic=120` Router-Cache reuse → revisiting a route within 120s
+// is instant from cache (cache-first), with the dynamic render refreshing it.
+// The auth gate still runs on the first load + after 120s; the middleware checks
+// the session cookie on EVERY request (edge) and all data is RLS-protected, so a
+// cached shell never leaks another tenant's data.
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -64,28 +80,41 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       throw e;
     }
   }
+  // Server-down (API unreachable). If the user has a session cookie, render the
+  // cached shell in DEGRADED mode (ConnectivityProvider shows the red "server
+  // unavailable — showing cached data" banner + read-only) instead of bouncing
+  // to the /server-down card. We can't verify the session (the API is down) — we
+  // trust cookie presence (edge middleware already checks it) + RLS, exactly as
+  // offline does. No cookie → keep the /server-down redirect.
+  let degradedServerDown = false;
   if (serverDown) {
-    // Preserve the originally-requested pathname (read from the
-    // middleware-injected x-pathname header — same source the active-budget
-    // detection uses). The /server-down card hard-reloads to this URL once
-    // the health probe succeeds, so the user lands on the page they were
-    // trying to reach instead of being stranded on /server-down after the
-    // API comes back. Without the hint we would reload /server-down itself
-    // — which the layout doesn't re-run for, leaving the user stuck.
-    const hdrs = await headers();
-    const intendedPath =
-      hdrs.get("x-middleware-request-x-pathname") ?? hdrs.get("x-pathname");
-    const params = new URLSearchParams();
-    if (intendedPath && !intendedPath.endsWith("/server-down")) {
-      params.set("next", intendedPath);
-    }
-    const qs = params.toString();
-    redirect(`/${locale}/server-down${qs ? `?${qs}` : ""}`);
-  }
-  if (!session) {
     const cookieStore = await cookies();
-    const hasStaleCookie = !!cookieStore.get("better-auth.session_token")
-      ?.value;
+    const hasSessionCookie =
+      !!cookieStore.get("__Secure-better-auth.session_token")?.value ||
+      !!cookieStore.get("better-auth.session_token")?.value;
+    if (hasSessionCookie) {
+      degradedServerDown = true;
+    } else {
+      // Preserve the originally-requested pathname (read from the
+      // middleware-injected x-pathname header). The /server-down card
+      // hard-reloads to this URL once the health probe succeeds.
+      const hdrs = await headers();
+      const intendedPath =
+        hdrs.get("x-middleware-request-x-pathname") ?? hdrs.get("x-pathname");
+      const params = new URLSearchParams();
+      if (intendedPath && !intendedPath.endsWith("/server-down")) {
+        params.set("next", intendedPath);
+      }
+      const qs = params.toString();
+      redirect(`/${locale}/server-down${qs ? `?${qs}` : ""}`);
+    }
+  }
+  if (!degradedServerDown && !session) {
+    const cookieStore = await cookies();
+    // Better Auth prefixes the cookie `__Secure-` over HTTPS — check both.
+    const hasStaleCookie =
+      !!cookieStore.get("__Secure-better-auth.session_token")?.value ||
+      !!cookieStore.get("better-auth.session_token")?.value;
     const reason = hasStaleCookie ? "session_expired" : "required";
     redirect(`/${locale}/sign-in?reason=${reason}`);
   }
@@ -103,7 +132,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
   //   1. No row (404) → EXIT EARLY — existing pre-feature users must NOT be trapped.
   //   2. Row exists with completed_at !== null → already finished, no redirect.
   //   3. Row exists with completed_at === null AND not already on /budgets/new → redirect.
-  if (pathname && !pathname.includes("/budgets/new")) {
+  if (!degradedServerDown && pathname && !pathname.includes("/budgets/new")) {
     // IMPORTANT: do not call redirect() inside try/catch. Next.js implements
     // redirect() by throwing a NEXT_REDIRECT sentinel error that the router
     // catches at the framework boundary; wrapping it in a local catch
@@ -118,19 +147,14 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
       // onboarding as effectively done and do NOT route them back into the
       // wizard. The wizard is for the FIRST-budget flow; once the user has
       // any budget, the home grid is the right destination.
-      const [progressRes, activeRes] = await Promise.all([
+      // PERF 260613-dn1 #3: use cache()-wrapped fetchActiveBudgets so layout +
+      // page share one /budgets/active call per request render (React cache()
+      // deduplicates within a single render tree; page.tsx call is a cache HIT).
+      const [progressRes, activeBudgets] = await Promise.all([
         serverApiFetch(null, "/onboarding/progress"),
-        serverApiFetch(null, "/budgets/active"),
+        fetchActiveBudgets(),
       ]);
-      let hasAnyBudget = false;
-      if (activeRes.ok) {
-        const body = (await activeRes.json()) as {
-          budgets?: unknown[];
-          workspaces?: unknown[];
-        };
-        const list = body.budgets ?? body.workspaces ?? [];
-        hasAnyBudget = list.length > 0;
-      }
+      const hasAnyBudget = activeBudgets.length > 0;
       if (progressRes.status === 200 && !hasAnyBudget) {
         const progress = (await progressRes.json()) as {
           completedAt?: string | null;
@@ -151,10 +175,17 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     if (redirectTo) redirect(redirectTo);
   }
 
+  // Degraded-safe: on the server-down path `session` is undefined (the API
+  // couldn't verify it), so fall back to the budget-locale cookie.
+  const accountLocale =
+    session?.user.locale ??
+    (await cookies()).get("budget-locale")?.value ??
+    "en";
+
   return (
     /* global.css locks html + body to height:100% + overflow:hidden (anti
        rubber-band guard for iOS). The (app) shell must therefore own the
-       scroll, which is why the root is `h-dvh flex-col` and the main slot
+       scroll, which is why the root is `h-lvh flex-col` and the main slot
        gets `flex-1 min-h-0 overflow-y-auto` — without min-h-0 the flex
        child grows past its parent and clips on mobile (regression seen
        after the D-08 onboarding-guard refactor). */
@@ -163,8 +194,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
        click and the new RSC commit. The header sits OUTSIDE the overlay so
        the user can re-orient (and re-navigate) while the swap settles. */
     <NavPendingProvider>
-      <div className="flex h-dvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
-        <LocaleCookieSync accountLocale={session.user.locale ?? "en"} />
+      <div
+        data-shell-root
+        className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]"
+      >
+        <LocaleCookieSync accountLocale={accountLocale} />
         {/* PullToRefresh is mounted once at the shell level so every
             authenticated route inherits the gesture automatically.
             It lives OUTSIDE the blurred subtree below so the indicator
@@ -198,9 +232,55 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
             transition: "filter 150ms ease-out",
           }}
         >
-          <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
+          <InstallBanner />
+          {/* UAT-08 device diagnostics — renders only with ?vpdbg=1. */}
+          <ViewportDebug />
+          {/* Offline indicator moved INTO the TopNav header (260614-rwt): a
+              zero-height inline pill in the header right cluster, no layout
+              shift. See components/budgeting/top-nav.tsx. */}
+          {/* Offline resilience island: mounts SwUpdateReloader (auto-reload
+              installed PWA on SW update). Client leaf inside the app-wide
+              QueryClientProvider. */}
+          <OfflineResilience />
+          {/* Warms the SW nav-doc cache (home + current route) while online so a
+              cold offline open / reload serves the real cached page. */}
+          <NavCacheWarmer locale={locale} />
+          {/* Offline, forces hard navigation for in-app links — Next's soft-nav
+              hangs forever on a hanging RSC fetch offline. */}
+          <OfflineNavGuard />
+          {/* Global read-only enforcement while offline: blocks every write
+              control (fields/toggles/selects/submit/delete) + bottom toast;
+              navigation + viewing stay live. The per-mutation clientApiWrite
+              guard remains the backstop for the iOS lying-true case. */}
+          <OfflineReadOnly />
+          {/* Cold-reload server-down seed: tells ConnectivityProvider the API
+              is down so the banner + read-only show immediately (instead of
+              waiting for the first client query to fail). */}
+          {degradedServerDown && <ServerDownSeed />}
+          {/* pt-[env(safe-area-inset-top)]: with viewport-fit=cover the page
+              extends under the status bar in standalone mode — the header
+              absorbs the inset so the nav stays below the clock/notch.
+              Resolves to 0 in browser tabs. */}
+          <header
+            data-shell-header
+            className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 pt-[env(safe-area-inset-top)] backdrop-blur"
+          >
             <TopNav locale={locale} activeBudgetId={activeBudgetId} />
           </header>
+          {/* Offline staleness banner (260615-e8s round 3): a narrow full-width
+              red bar JUST BELOW the header. Renders null online (zero height);
+              offline it warns the shown data is cached + how long ago it synced.
+              Replaces the old in-header offline icon.
+              JUMP FIX (260617 round 2): the bar is a CLIENT leaf that renders
+              null on the server, so on an offline HARD reload (OfflineNavGuard)
+              the content painted first and the bar popped in post-hydration,
+              shoving the pills down. The slot below reserves the bar's height
+              from frame 1 via `html.is-offline [data-offline-bar-slot]` (the
+              inline marker in the root layout sets `is-offline` PRE-paint), so
+              the bar fills already-reserved space — no reflow, no jump. */}
+          <div data-offline-bar-slot>
+            <OfflineStaleBar budgetId={activeBudgetId} />
+          </div>
           {/* overscroll-y-none mirrors the global.css rule on html+body.
               <main> is the real scroll surface (body is locked
               overflow:hidden), so without this class iOS rubber-bands
@@ -214,7 +294,15 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               SiteFooter removed (UAT-Phase6-Test7 retest #2): the
               in-app shell no longer carries the marketing-style
               footer — the page is the product. */}
-          <main className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none">
+          {/* data-shell-scroll: global.css pads this surface with
+              env(safe-area-inset-bottom) so the last rows clear iOS
+              Safari's floating bottom bar — and zeroes the padding in
+              display-mode standalone, where the same inset rendered as a
+              dead band above the home indicator (UAT-08 regression). */}
+          <main
+            data-shell-scroll
+            className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none"
+          >
             <NavPendingOverlay className="flex-1">{children}</NavPendingOverlay>
           </main>
         </div>

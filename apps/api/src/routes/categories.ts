@@ -24,9 +24,9 @@ export function createCategoriesRoute(deps: BootedDeps) {
   }
 
   async function getSchemas() {
-    const { createCategorySchema } =
+    const { createCategorySchema, updateCategorySchema } =
       await import("@budget/budgeting/src/contracts/api");
-    return { createCategorySchema };
+    return { createCategorySchema, updateCategorySchema };
   }
 
   // POST /categories — create
@@ -127,6 +127,30 @@ export function createCategoriesRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // POST /categories/:id/unarchive — revert an archived "keep history" category.
+  // No request body. Same-month: limits unchanged. Months-later: zeroes
+  // strictly-between months, sets current month to archive-month limits.
+  app.post("/:id/unarchive", async (c) => {
+    const session = c.get("session");
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const { id: categoryId } = c.req.param();
+    const budgetId = c.req.param("budgetId");
+
+    if (budgetId && budgetId !== tenantId) {
+      return c.json({ error: "tenant_mismatch" }, 403);
+    }
+
+    const r = await deps.budgeting.unarchiveCategory({
+      tenantId,
+      categoryId,
+      actorUserId: userId,
+    });
+
+    if (r.isErr()) return c.json({ error: r.error.message }, 422);
+    return c.json(r.value);
+  });
+
   // DELETE /categories/:id — PERMANENT hard delete (category + all its data).
   // Only surfaced in the UI for already-archived categories, behind a confirm.
   app.delete("/:id", async (c) => {
@@ -193,8 +217,9 @@ export function createCategoriesRoute(deps: BootedDeps) {
     return c.body(null, 204);
   });
 
-  // PATCH /categories/:id — rename
+  // PATCH /categories/:id — rename and/or recolor (260613-v1p).
   app.patch("/:id", async (c) => {
+    const { updateCategorySchema } = await getSchemas();
     const session = c.get("session");
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
@@ -204,12 +229,23 @@ export function createCategoriesRoute(deps: BootedDeps) {
     if (!body || typeof body.name !== "string") {
       return c.json({ error: "name is required" }, 422);
     }
+    // Validate colorKey against the 8-key enum (rejects e.g. "mauve" → 422).
+    const parsed = updateCategorySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        422,
+      );
+    }
 
     const r = await deps.budgeting.renameCategory({
       tenantId,
       categoryId,
-      name: body.name,
+      name: parsed.data.name,
       actorUserId: userId,
+      // Presence-aware: only pass colorKey when the client sent the key (incl.
+      // explicit null), so a rename-only PATCH leaves the stored color intact.
+      ...("colorKey" in body ? { colorKey: parsed.data.colorKey ?? null } : {}),
     });
 
     if (r.isErr()) return c.json({ error: r.error.message }, 422);

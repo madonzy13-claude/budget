@@ -22,6 +22,15 @@ export interface QuickEntryInputProps {
   month: string; // YYYY-MM viewed
   budgetCurrency: string;
   resolvedDate: string; // ISO YYYY-MM-DD — passed in, computed by parent
+  /**
+   * 260615-bse: invoked when an add is attempted while offline — the grid hosts
+   * a single shared dialog and opens it here. Two paths converge on this:
+   *  1. device-knows-offline (navigator.onLine===false) → short-circuit BEFORE
+   *     mutate so NO optimistic row is inserted (no add-then-remove flicker);
+   *  2. lying-true (onLine reports true on a dead link) → wired as the hook's
+   *     onOfflineError so the same dialog opens after the optimistic rollback.
+   */
+  onOfflineAttempt: () => void;
 }
 
 export function QuickEntryInput({
@@ -31,12 +40,17 @@ export function QuickEntryInput({
   month,
   budgetCurrency,
   resolvedDate,
+  onOfflineAttempt,
 }: QuickEntryInputProps) {
   const t = useTranslations("grid.quickEntry");
   const tError = useTranslations("grid.error");
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { mutate } = useCreateTransaction(budgetId, month);
+  // Lying-true case: an OfflineWriteError (timeout / dead link with onLine===true)
+  // opens the SAME dialog as the pre-insert path after rolling back.
+  const { mutate } = useCreateTransaction(budgetId, month, {
+    onOfflineError: onOfflineAttempt,
+  });
 
   // silent = blur path: don't toast on an invalid value, just leave it.
   function submit(silent = false) {
@@ -48,6 +62,14 @@ export function QuickEntryInput({
     }
     // D-PH4-Q1: clear input first, then optimistic insert
     setValue("");
+    // 260615-bse: device-knows-offline → pop the dialog and DO NOT mutate, so
+    // onMutate never runs → no optimistic row → no add-then-remove flicker.
+    // (navigator.onLine===false is the only reliable signal on iOS; the `true`
+    // value lies on a dead link — that case is caught by onOfflineError above.)
+    if (navigator.onLine === false) {
+      onOfflineAttempt();
+      return;
+    }
     mutate({
       categoryId,
       amountCents: cents,
@@ -82,6 +104,9 @@ export function QuickEntryInput({
       <input
         ref={inputRef}
         data-testid={testId}
+        // Opt OUT of the global offline read-only block: quick-entry owns its
+        // own richer "Can't add while offline" dialog (see submit()).
+        data-offline-ok
         type="text"
         inputMode="decimal"
         value={value}

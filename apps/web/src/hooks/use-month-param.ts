@@ -6,12 +6,11 @@
  * Default = current month in budgetTz (Temporal API).
  * D-PH4-Q4: month state in URL search param.
  */
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
 export function useMonthParam(budgetTz: string = "UTC") {
   const params = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
   const raw = params.get("month");
   const month =
@@ -29,7 +28,14 @@ export function useMonthParam(budgetTz: string = "UTC") {
     const nextStr = next.toString();
     const sp = new URLSearchParams(params.toString());
     sp.set("month", nextStr);
-    router.push(`${pathname}?${sp.toString()}`);
+    // Shallow URL update — NOT router.push (260616). The spendings page is a
+    // static shell and the month is pure client state, so a router.push would
+    // do a needless RSC navigation that HANGS offline (the month-nav-offline
+    // bug). Native history.pushState integrates with Next's useSearchParams
+    // (14.1+), re-rendering useMonthParam without any RSC fetch — works offline
+    // and is instant online. Bookmarkable + back-button still work (real history
+    // entry).
+    window.history.pushState(null, "", `${pathname}?${sp.toString()}`);
   }
 
   function prev() {

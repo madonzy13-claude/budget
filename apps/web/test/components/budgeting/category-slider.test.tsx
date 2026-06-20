@@ -86,20 +86,18 @@ describe("CategorySlider", () => {
     expect(screen.getByText("catSlider.header.edit")).toBeTruthy();
   });
 
-  it("icon picker shows icon options (8 preset lucide icons)", () => {
+  // 260613-v1p: the icon picker is REMOVED — no icon label, no icon buttons.
+  it("does NOT render the icon picker (removed in 260613-v1p)", () => {
     render(
       <TestQueryProvider>
         <CategorySlider {...defaultProps} />
       </TestQueryProvider>,
     );
-    // Should have icon picker section
-    const iconLabel = screen.queryByText("catSlider.field.icon");
-    expect(iconLabel).toBeTruthy();
-    // Should have at least some icon buttons
+    expect(screen.queryByText("catSlider.field.icon")).toBeNull();
     const iconButtons = document.querySelectorAll(
       "[data-testid^='icon-option-']",
     );
-    expect(iconButtons.length).toBeGreaterThanOrEqual(8);
+    expect(iconButtons.length).toBe(0);
   });
 
   it("color picker shows color swatches (8 colors)", () => {
@@ -257,6 +255,17 @@ describe("CategorySlider", () => {
       expect.stringContaining(`/budgets/budget-1/categories`),
       expect.objectContaining({ method: "POST" }),
     );
+    // 260613-v1p: the create payload carries colorKey and does NOT carry iconKey.
+    const createCall = fetchMock.mock.calls.find(
+      (c) =>
+        String(c[0]).endsWith("/categories") &&
+        (c[1] as RequestInit)?.method === "POST",
+    )!;
+    const createBody = JSON.parse(
+      (createCall[1] as RequestInit).body as string,
+    );
+    expect(createBody).toHaveProperty("colorKey");
+    expect(createBody).not.toHaveProperty("iconKey");
     // POST limits called with the id from the response
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("cat-new-123/limits"),

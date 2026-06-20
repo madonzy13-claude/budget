@@ -37,6 +37,8 @@ interface PillTaskSliderProps {
   locale: string;
   pill: Pill;
   initialTasks: TaskSummary[];
+  /** Deep-link: auto-expand the row matching this task id on mount (D-PH7-30 / PWAX-06). */
+  focusTaskId?: string;
 }
 
 export function PillTaskSlider({
@@ -44,6 +46,7 @@ export function PillTaskSlider({
   locale,
   pill,
   initialTasks,
+  focusTaskId,
 }: PillTaskSliderProps) {
   const t = useTranslations();
   const queryClient = useQueryClient();
@@ -70,7 +73,18 @@ export function PillTaskSlider({
   );
 
   // UAT round 2 (issue #5): always start collapsed. User must click to expand.
+  // Deep-link: if focusTaskId is in the filtered pending list, auto-expand on mount.
+  // D-14: if focusTaskId is present but NOT in the list, stay collapsed (silent-land).
   const [expanded, setExpanded] = useState(false);
+
+  // Deep-link auto-expand effect (D-PH7-30 / PWAX-06 / D-14).
+  // Runs once on mount. No toast, no redirect if id is not found (D-14 silent-land).
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const inList = (tasks ?? []).some((t) => t.id === focusTaskId);
+    if (inList) setExpanded(true);
+    // Intentionally depends only on focusTaskId (deep-link target), not tasks.
+  }, [focusTaskId]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -112,7 +126,12 @@ export function PillTaskSlider({
     // (logo→profile) and the BDP content: mx-auto max-w-[1280px] with the
     // header's px-4 sm:px-8 gutters. Previously full-viewport (px-3 sm:px-4),
     // which overhung the content column on desktop.
-    <div className="mx-auto mt-3 w-full max-w-[1280px] px-4 sm:px-8">
+    // Placement (quick-260612-cdu R2): the slider renders as normal page
+    // content BELOW the [data-bdp-tabs] sticky band (first child of the
+    // pb-shell-safe wrapper in bdp/[id]/layout.tsx) — at rest fully visible
+    // under the band; it may scroll under the band/header on page scroll.
+    // mt-3: gutter below the band's border-b. mb-1.5: gutter above {children} (halved, quick-260612-e82 R3).
+    <div className="mx-auto mb-1.5 mt-3 w-full max-w-[1280px] px-4 sm:px-8">
       <div
         data-testid="pill-task-slider"
         data-pill={pill}
@@ -146,13 +165,18 @@ export function PillTaskSlider({
             className="bg-[#141920] shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]"
           >
             {filtered.map((task) => (
-              <TaskBannerRow
+              <div
                 key={task.id}
-                task={task}
-                budgetId={budgetId}
-                locale={locale}
-                onResolved={onResolved}
-              />
+                data-testid={`task-banner-${task.id}`}
+                data-expanded={task.id === focusTaskId ? "true" : undefined}
+              >
+                <TaskBannerRow
+                  task={task}
+                  budgetId={budgetId}
+                  locale={locale}
+                  onResolved={onResolved}
+                />
+              </div>
             ))}
           </div>
         ) : null}

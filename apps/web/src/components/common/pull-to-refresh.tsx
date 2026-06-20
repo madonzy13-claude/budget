@@ -38,15 +38,19 @@
  * Coverage:
  *   - Touch only; mouse drags are not pull-to-refresh on the web.
  *   - Listener is attached to `[data-ptr-blur-target]` (the wrapper that
- *     spans header + main). Earlier this hooked `<main>` only, but iOS
- *     touches that start on the `<header>` element never bubbled into
- *     main's touchstart, so pulling from the top nav did nothing — UAT
- *     round 14. The main element is still consulted for `scrollTop` (it's
- *     the real scroll surface; body is locked overflow:hidden) so PTR
+ *     spans header + main) so iOS touches that start on the `<header>`
+ *     element still register (they never bubble into main's touchstart —
+ *     UAT round 14). The main element is still consulted for `scrollTop`
+ *     (it's the real scroll surface; body is locked overflow:hidden) so PTR
  *     still bails when the user has scrolled into the page.
+ *   - HEADER-ONLY engagement (user 260619): the gesture only triggers when
+ *     the pull STARTS on the header (`[data-shell-header]`). Pulling anywhere
+ *     below the header (page content / lists) scrolls or does nothing — it
+ *     never reloads. (Guard in onTouchStart.)
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 
 const PULL_THRESHOLD = 80; // px past which a release triggers a reload
@@ -58,6 +62,16 @@ const MAX_BLUR_PX = 8; // peak background blur (hit at threshold + during refres
 export function PullToRefresh() {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Pull-to-refresh now REFETCHES the React Query cache instead of doing a hard
+  // window.location.reload() (260616). A hard reload offline tore the document
+  // down and re-raced the IndexedDB cache restore → the list flashed skeleton
+  // then BLANK (the data was cached but lost in the reload). invalidateQueries
+  // refreshes data in place: online → SWR refetch updates the cards; offline →
+  // React Query pauses the refetch and KEEPS the cached data on screen. Ref-held
+  // so the [] touch-listener effect always calls the live client.
+  const queryClient = useQueryClient();
+  const qcRef = useRef(queryClient);
+  qcRef.current = queryClient;
 
   // Ref-mirror the pull distance so touchend can read the latest value
   // without re-registering the listener every render.
@@ -69,6 +83,16 @@ export function PullToRefresh() {
   const innerScrollRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    // UAT-08: standalone-only. In browser tabs the page scrolls natively
+    // (global.css display-mode:browser block) so the platform provides its
+    // own pull-to-refresh and bottom-bar collapse; the custom gesture would
+    // fight the native one.
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      ("standalone" in window.navigator &&
+        (window.navigator as { standalone?: boolean }).standalone === true);
+    if (!standalone) return;
+
     // The gesture surface spans BOTH the header and the main scroll area
     // (see (app)/layout.tsx — `[data-ptr-blur-target]` wraps them). The
     // real scroll surface is still `<main>` (body locked overflow:hidden
@@ -113,6 +137,12 @@ export function PullToRefresh() {
       const startTarget =
         e.target instanceof Element ? (e.target as Element) : null;
       if (startTarget?.closest("[data-no-pull-refresh]")) return;
+      // Header-only engagement (user 260619): PTR triggers ONLY when the pull
+      // STARTS on the header ([data-shell-header]). A pull that starts below the
+      // header (in page content) must never reload — it just scrolls. The
+      // listener stays on the header+main wrapper so iOS header touches still
+      // register; this guard scopes the gesture to the header.
+      if (!startTarget?.closest("[data-shell-header]")) return;
       // Both the outer main AND any inner scroll container must be at
       // the top — otherwise the user's gesture is "scroll within that
       // list", not "pull to refresh".
@@ -154,9 +184,17 @@ export function PullToRefresh() {
     const onTouchEnd = () => {
       if (startYRef.current !== null && pullRef.current >= PULL_THRESHOLD) {
         setRefreshing(true);
-        // Tiny defer so the indicator's final upright frame paints
-        // before the reload tears down the document.
-        setTimeout(() => window.location.reload(), 120);
+        // Refetch active queries (SWR). Do NOT await — offline the refetch is
+        // PAUSED by React Query's networkMode and never settles, which would
+        // hang the spinner; cached data stays on screen meanwhile. Online the
+        // refetch lands in the background and swaps in fresh data. Clear the
+        // indicator after a short beat regardless.
+        void qcRef.current.invalidateQueries();
+        setTimeout(() => {
+          pullRef.current = 0;
+          setPull(0);
+          setRefreshing(false);
+        }, 600);
       } else {
         pullRef.current = 0;
         setPull(0);

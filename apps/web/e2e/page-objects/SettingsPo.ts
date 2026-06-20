@@ -61,4 +61,43 @@ export class SettingsPo {
   async assertCushionPreviewContains(text: string | RegExp): Promise<void> {
     await expect(this.cushionPreview()).toContainText(text);
   }
+
+  /**
+   * The share URL field that appears in the Members section after
+   * generating an invite link. testid = "share-url-field" (share-url-field.tsx).
+   */
+  shareUrlField() {
+    return this.page.getByTestId("share-url-field");
+  }
+
+  /**
+   * Open the Members accordion section (collapsed by default). Mirrors
+   * openCushionSection(). Trigger label = i18n `settings.sections.members`
+   * (EN: "Members"). Idempotent — skips click if already expanded.
+   */
+  async openMembersSection(): Promise<void> {
+    const trigger = this.page.getByRole("button", {
+      name: /^Members$/,
+    });
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
+    // Wait for the generate button to be attached inside the expanded section.
+    await this.page
+      .getByRole("button", { name: /invite|generate|share/i })
+      .first()
+      .waitFor({ state: "attached" });
+  }
+
+  /**
+   * Click the "Generate invite link" / "Invite member" button in the Members
+   * section to reveal the ShareUrlField. Located by visible text since
+   * members-section.tsx uses no testid on this button.
+   */
+  async clickGenerateInviteLink(): Promise<void> {
+    await this.page
+      .getByRole("button", { name: /invite|generate|share/i })
+      .first()
+      .click();
+  }
 }

@@ -7,7 +7,8 @@
  * D-PH4-INT3: inline-edit scope = amount only; other fields via slider.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { mapTxnRowToDTO } from "@/lib/txn-mapper";
 
@@ -20,6 +21,7 @@ export interface UpdateTransactionInput {
 
 export function useUpdateTransaction(budgetId: string, month: string) {
   const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
 
   return useMutation({
     mutationFn: async (input: UpdateTransactionInput) => {
@@ -29,7 +31,7 @@ export function useUpdateTransaction(budgetId: string, month: string) {
       if (note !== undefined) body.note = note;
       if (date !== undefined) body.date = date;
 
-      const res = await clientApiFetch(
+      const res = await clientApiWrite(
         `/budgets/${budgetId}/transactions/${txId}`,
         {
           method: "PATCH",
@@ -70,9 +72,14 @@ export function useUpdateTransaction(budgetId: string, month: string) {
       return { previous };
     },
 
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       if (ctx?.previous !== undefined) {
         qc.setQueryData(["transactions", budgetId, month], ctx.previous);
+      }
+      // Honest-offline: refused write shows the shared offline toast.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
       }
     },
 

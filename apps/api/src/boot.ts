@@ -227,12 +227,11 @@ export async function boot(): Promise<BootedDeps> {
   const expenseLedgerDraftPortRepo = new DrizzleExpenseLedgerDraftPortRepo();
 
   const reorderCategoriesService = reorderCategories({ repo: categoryRepo });
-  // Phase 7 (D-PH7-10): inject taskRepo so dismiss auto-resolves the
-  // matching PENDING CONFIRM_DRAFT task (separate withTenantTx — A2 fallback,
-  // see dismiss-draft.ts comment for trade-off).
+  // 260612-kxd T3: dismiss auto-resolves the matching PENDING CONFIRM_DRAFT
+  // task INSIDE the adapter's own tx (expense-ledger-draft-port-repo.ts) —
+  // no taskRepo dep, no separate withTenantTx (Phase 7 A2 fallback removed).
   const dismissDraftService = dismissDraft({
     repo: expenseLedgerDraftPortRepo,
-    taskRepo,
   });
   // Phase 7 (D-PH7-10) + UAT round 12: confirm also auto-resolves the
   // matching PENDING CONFIRM_DRAFT task (mirrors dismiss above).

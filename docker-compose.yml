@@ -66,12 +66,22 @@ services:
       SMTP_FROM: ${SMTP_FROM}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
+      # Web push (server-side web-push signing). Without these the push send
+      # throws "VAPID_SUBJECT, VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set".
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
       OTEL_SERVICE_NAME: api
       # DEV-ONLY: opt in to the gated test clock (POST /test/clock). Combined with
       # the absence of NODE_ENV=production, this lets the E2E reserve golden walk
       # move the server clock May→June. Prod images/compose never set this, so the
       # endpoint 404s and serverNow() is always the real clock there.
       ALLOW_TEST_CLOCK: "1"
+      # CI E2E ONLY: forwarded from .env so the e2e job can disable Better Auth's
+      # rate limiter (the suite's ~800 fresh-user sign-ups across 6 viewport
+      # projects otherwise get throttled by the 100/60s bucket). Defaults to empty
+      # (limiter stays ENABLED) in dev/prod, where the var is unset.
+      AUTH_RATE_LIMIT_DISABLED: ${AUTH_RATE_LIMIT_DISABLED:-}
     depends_on:
       migrator:
         condition: service_completed_successfully
@@ -92,6 +102,12 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        # Inlined into the client bundle so pushManager.subscribe has a real
+        # applicationServerKey. Sourced from the (infisical) env at build time;
+        # empty when unset → push stays unavailable. MUST equal the server's
+        # VAPID_PUBLIC_KEY so delivered pushes validate.
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
     restart: unless-stopped
     environment:
       # NEXT_PUBLIC_* is inlined at BUILD time. For server-side fetches that must
@@ -127,6 +143,10 @@ services:
       # this is the worker-side backstop. (worker is workerDb for its own jobs.)
       DATABASE_URL_APP: ${DATABASE_URL_APP}
       BUDGET_KEK: ${BUDGET_KEK}
+      # Web push: the pg-boss notification worker signs/sends pushes via web-push.
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
     depends_on:
       migrator:
         condition: service_completed_successfully

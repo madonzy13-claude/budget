@@ -52,6 +52,20 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
            AND deleted_at IS NULL
       `);
 
+      // 260612-kxd T3: resolve the matching PENDING CONFIRM_DRAFT task in the
+      // SAME tx. Previously dismiss-draft.ts opened a SEPARATE withTenantTx
+      // ("A2 fallback") — a dismiss that committed while the resolve raced
+      // left the task PENDING for one poll cycle. Mirrors the in-tx resolve
+      // skip-recurring-draft.ts already does. Idempotent (status='PENDING').
+      await drizzleTx.execute(sql`
+        UPDATE budgeting.tasks
+           SET status = 'RESOLVED', resolved_at = now()
+         WHERE tenant_id = ${tenantId}::uuid
+           AND kind = 'CONFIRM_DRAFT'
+           AND payload_json->>'draft_id' = ${draftId}
+           AND status = 'PENDING'
+      `);
+
       await writeAudit(tx, {
         tenantId: tid,
         entityType: "expense_ledger_draft",
@@ -105,7 +119,8 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
       if (rows[0].dismissed_at !== null) return "already_dismissed" as const;
 
       const amountClause =
-        amountOverrideCents !== undefined && Number.isFinite(amountOverrideCents)
+        amountOverrideCents !== undefined &&
+        Number.isFinite(amountOverrideCents)
           ? sql`amount_original_cents = ${amountOverrideCents}::bigint,
                  amount_converted_cents = ${amountOverrideCents}::bigint,`
           : sql``;

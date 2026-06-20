@@ -97,9 +97,16 @@ vi.mock("temporal-polyfill", () => {
 import { useMonthParam } from "../../src/hooks/use-month-param";
 
 describe("useMonthParam", () => {
+  // setMonth now uses window.history.pushState (shallow URL update, no RSC
+  // fetch — works offline), not router.push (260616).
+  let pushStateSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     mockSearchParamsValue = "";
     mockPush.mockClear();
+    pushStateSpy = vi
+      .spyOn(window.history, "pushState")
+      .mockImplementation(() => {});
+    pushStateSpy.mockClear(); // reset call history (spyOn may reuse the spy)
   });
 
   it("defaults to current month when ?month absent", () => {
@@ -125,7 +132,9 @@ describe("useMonthParam", () => {
     mockSearchParamsValue = "month=2026-05";
     const { result } = renderHook(() => useMonthParam());
     act(() => result.current.prev());
-    expect(mockPush).toHaveBeenCalledWith(
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      "",
       expect.stringContaining("month=2026-04"),
     );
   });
@@ -136,7 +145,9 @@ describe("useMonthParam", () => {
     mockSearchParamsValue = "month=2026-04";
     const { result } = renderHook(() => useMonthParam());
     act(() => result.current.next());
-    expect(mockPush).toHaveBeenCalledWith(
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      "",
       expect.stringContaining("month=2026-05"),
     );
   });
@@ -145,14 +156,16 @@ describe("useMonthParam", () => {
     mockSearchParamsValue = "month=2026-05";
     const { result } = renderHook(() => useMonthParam());
     act(() => result.current.next());
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(pushStateSpy).not.toHaveBeenCalled();
   });
 
   it("today() sets to current month", () => {
     mockSearchParamsValue = "month=2024-01";
     const { result } = renderHook(() => useMonthParam());
     act(() => result.current.today());
-    expect(mockPush).toHaveBeenCalledWith(
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      null,
+      "",
       expect.stringContaining("month=2026-05"),
     );
   });

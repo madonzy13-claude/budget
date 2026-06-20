@@ -57,9 +57,10 @@ function positions(): ReservePositionsResult {
 }
 
 const cats = [
-  { id: G, name: "Grocery", reserveExcluded: false },
-  { id: H, name: "Housing", reserveExcluded: false },
-  { id: X, name: "Excluded", reserveExcluded: true },
+  // 260613-v1p: colorKey threaded onto each category → row.colorKey.
+  { id: G, name: "Grocery", reserveExcluded: false, colorKey: "blue" },
+  { id: H, name: "Housing", reserveExcluded: false, colorKey: null },
+  { id: X, name: "Excluded", reserveExcluded: true, colorKey: "red" },
 ];
 
 describe("buildReservesSummaryDto", () => {
@@ -133,6 +134,20 @@ describe("buildReservesSummaryDto", () => {
     expect(x.overspentCents).toBe("0");
   });
 
+  it("threads colorKey onto active + excluded rows (260613-v1p)", () => {
+    const dto = buildReservesSummaryDto({
+      positions: positions(),
+      categories: cats,
+      budgetCurrency: "EUR",
+      disabled: false,
+    });
+    const grocery = dto.rows.find((r) => r.categoryId === G);
+    const housing = dto.rows.find((r) => r.categoryId === H);
+    expect(grocery?.colorKey).toBe("blue");
+    expect(housing?.colorKey).toBeNull();
+    expect(dto.excludedRows[0].colorKey).toBe("red");
+  });
+
   it("emits NO walletShare / actual / mismatch keys", () => {
     const dto = buildReservesSummaryDto({
       positions: positions(),
@@ -160,7 +175,9 @@ describe("buildReservesSummaryDto", () => {
         surplusCents: 0n,
         direction: "NONE",
       },
-      categories: [{ id: G, name: "Grocery", reserveExcluded: false }],
+      categories: [
+        { id: G, name: "Grocery", reserveExcluded: false, colorKey: null },
+      ],
       budgetCurrency: "PLN",
       disabled: false,
     });

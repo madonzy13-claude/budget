@@ -214,6 +214,11 @@ export function CushionSection({
       );
     }
     if (!cushionSummary) return null;
+    // required_cents===0 means no cushion requirement configured (feature off OR
+    // no cushion category limits) — nothing to preview; avoids the meaningless
+    // "Have 0 of 0 — target met". Verified via get-cushion-summary.ts (zero DTO
+    // when disabled; Σ limits × months = 0 when no cushion categories).
+    if (BigInt(cushionSummary.required_cents) === 0n) return null;
     const currency = cushionSummary.currency || budgetCurrency || "USD";
     const shortfall = BigInt(cushionSummary.shortfall_cents);
     const positive = shortfall > 0n;

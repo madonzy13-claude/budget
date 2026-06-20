@@ -31,6 +31,8 @@ import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
+import { useBudget } from "@/hooks/use-budget-data";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
 import { useArchiveWallet } from "@/hooks/use-archive-wallet";
@@ -47,36 +49,38 @@ type WalletType = WalletDto["walletType"];
 
 interface WalletsSectionedListProps {
   budgetId: string;
-  budgetCurrency: string;
-  initial: WalletDto[];
-  /**
-   * D-PH5-R11 cascading-hide surface 4: when false, the Reserve wallet
-   * section is omitted from the Wallets tab (mirrors the Reserves pill
-   * + Spendings column-header row hide). Defaults to true so existing
-   * callers keep their behaviour.
-   */
-  reservesEnabled?: boolean;
-  /**
-   * Phase 6 onboarding rewrite parallel: when false, the Cushion wallet
-   * section is omitted entirely. Same cascading-hide pattern as
-   * reservesEnabled. Defaults true to preserve existing UX.
-   */
-  cushionEnabled?: boolean;
 }
 
-export function WalletsSectionedList({
-  budgetId,
-  budgetCurrency,
-  initial,
-  reservesEnabled = true,
-  cushionEnabled = true,
-}: WalletsSectionedListProps) {
+export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
+  // SPA refactor (260616): budget meta (currency + section flags) is now read
+  // client-side via useBudget instead of baked into the page by the server, so
+  // the route stays a static prefetchable shell (no per-soft-nav loading.tsx
+  // flash). Served instantly from the warm React Query cache; defaults apply
+  // only during a cold fetch.
+  // - D-PH5-R11 cascading-hide surface 4: reservesEnabled=false hides the
+  //   Reserve wallet section (mirrors Reserves pill + Spendings header hide).
+  // - Phase 6 onboarding: cushionEnabled=false hides the Cushion section.
+  // Defaults true/EUR preserve existing UX while the budget meta loads.
+  const budgetQuery = useBudget(budgetId);
+  const budgetMeta = budgetQuery.data as
+    | {
+        defaultCurrency?: string;
+        default_currency?: string;
+        reservesEnabled?: boolean;
+        cushionEnabled?: boolean;
+      }
+    | undefined;
+  const budgetCurrency =
+    budgetMeta?.defaultCurrency ?? budgetMeta?.default_currency ?? "EUR";
+  const reservesEnabled = budgetMeta?.reservesEnabled ?? true;
+  const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
   const t = useTranslations("bdp.tab.wallets.toast");
   // UAT-PH5-T3-33: separate translator for the full section labels
   // ("Spendings wallets", "Cushion wallets", "Reserve wallets") so the
   // move toast reads "Moved Savings to Cushion wallets" instead of the
   // raw enum "CUSHION".
   const tSection = useTranslations("bdp.tab.wallets.section");
+  const tUnavailable = useTranslations("offline.unavailable");
   const sectionLabelFor = (kind: WalletDto["walletType"]) =>
     tSection(
       kind === "SPENDINGS"
@@ -85,7 +89,12 @@ export function WalletsSectionedList({
           ? "cushion"
           : "reserve",
     );
-  const { data: wallets = initial } = useWallets(budgetId, initial);
+  // Client-data (260615-e8s round 8): the page no longer bakes the wallet list
+  // into its HTML. useWallets fetches it client-side (online → API + cache to
+  // IDB; offline → IDB), so the document stays light and the data is cached as
+  // small JSON. The hook itself writes the IDB cache now (no island effect).
+  const walletsQuery = useWallets(budgetId);
+  const wallets = walletsQuery.data ?? [];
   const updateMut = useUpdateWallet(budgetId);
   const createMut = useCreateWallet(budgetId);
   const archiveMut = useArchiveWallet(budgetId);
@@ -317,6 +326,22 @@ export function WalletsSectionedList({
     [],
   );
 
+  // First paint with no cached data and the fetch in flight → skeleton (mirrors
+  // loading.tsx geometry). Offline with no cache → the query errors → show an
+  // in-content "not available offline" note (keeps header + pills mounted).
+  if (walletsQuery.isPending) {
+    return <WalletsSkeleton label={sectionLabelFor("SPENDINGS")} />;
+  }
+  if (walletsQuery.isError && wallets.length === 0) {
+    return (
+      <div className="mx-auto w-full max-w-[1280px] p-6">
+        <p className="text-sm text-[var(--muted-foreground)]">
+          {tUnavailable("body")}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -482,6 +507,44 @@ function WalletDragGhost({
       <span className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]">
         {share}
       </span>
+    </div>
+  );
+}
+
+/**
+ * WalletsSkeleton — client first-paint skeleton while useWallets is fetching
+ * (client-data: the page no longer SSRs the list). Mirrors loading.tsx geometry
+ * so there is no layout shift when the rows arrive.
+ */
+function WalletsSkeleton({ label }: { label: string }) {
+  return (
+    // reveal-delayed: whole skeleton invisible 200ms so a cache restore replaces
+    // it first — no skeleton-scaffold flash on warm/offline nav (260617).
+    <div className="reveal-delayed mx-auto w-full max-w-[1280px]">
+      <div className="flex flex-col gap-4 p-4 sm:p-6">
+        <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-2">
+          <h3 className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+            {label}
+          </h3>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]"
+            >
+              <Skeleton className="h-4 w-2 shrink-0" />
+              <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-3.5 w-24" />
+              </div>
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-3.5 w-10" />
+                <Skeleton className="h-3.5 w-12" />
+              </div>
+            </div>
+          ))}
+          <div className="flex min-h-[44px] w-full items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)]" />
+        </section>
+      </div>
     </div>
   );
 }

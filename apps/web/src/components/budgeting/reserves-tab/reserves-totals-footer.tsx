@@ -100,8 +100,8 @@ export function ReservesTotalsFooter({
         </span>
       </div>
 
-      {/* TOTAL USED — this month (prominent) over all time (small, muted). The
-          differing size + colour separates the two periods visually. */}
+      {/* TOTAL USED — this month over all time, SAME size now. The muted colour
+          + the THIS MONTH/ALL TIME tag separate the two periods visually. */}
       <div className="flex items-start justify-between gap-4">
         <span className={`${label} pt-0.5`}>{t("totals.usedLabel")}</span>
         {/* Period tag sits LEFT of the amount so the currency code stays the
@@ -115,7 +115,7 @@ export function ReservesTotalsFooter({
           </span>
           <span
             data-testid="reserves-total-used-alltime"
-            className="flex items-center gap-1 whitespace-nowrap text-sm tabular-nums text-[var(--muted-foreground)]"
+            className="flex items-center gap-1 whitespace-nowrap text-num-md tabular-nums text-[var(--muted-foreground)]"
           >
             <span className="text-[9px] uppercase tracking-wider">
               {t("totals.allTime")}

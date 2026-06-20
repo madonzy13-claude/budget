@@ -10,6 +10,11 @@ vi.mock("../../src/lib/budget-fetch", () => ({
 vi.mock("../../src/lib/idempotency", () => ({
   generateIdempotencyKey: () => "test-key",
 }));
+// The hook now pulls the shared honest-offline toast (useOfflineWriteToast →
+// useTranslations("offline")); echo keys so it renders without a real provider.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (k: string) => k,
+}));
 
 const BUDGET = "budget-1";
 const MONTH = "2026-05";

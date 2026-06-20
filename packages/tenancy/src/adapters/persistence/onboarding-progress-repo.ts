@@ -15,7 +15,8 @@ export class DrizzleOnboardingProgressRepo implements OnboardingProgressRepo {
     const r = await withUserContext(UserId(userId), async (tx) => {
       const result = await tx.execute<{
         step: number;
-        completed_at: Date | null;
+        // raw tx.execute returns timestamptz as a STRING (no type parser)
+        completed_at: Date | string | null;
       }>(sql`
         SELECT step, completed_at
         FROM tenancy.onboarding_progress
@@ -25,10 +26,15 @@ export class DrizzleOnboardingProgressRepo implements OnboardingProgressRepo {
     });
     if (r.isErr()) throw r.error;
     if (!r.value) return null;
+    // `tx.execute` (raw SQL) skips drizzle's column type parsing, so a
+    // timestamptz comes back as a STRING, not a Date — calling .toISOString()
+    // on it threw "toISOString is not a function" and 500'd this route (and the
+    // (app) layout's onboarding gate → "Something went wrong"). Bug live since
+    // 2026-05-22. Normalise through `new Date(...)` so both string and Date work.
     return {
       step: r.value.step,
       completedAt: r.value.completed_at
-        ? r.value.completed_at.toISOString()
+        ? new Date(r.value.completed_at).toISOString()
         : null,
     };
   }

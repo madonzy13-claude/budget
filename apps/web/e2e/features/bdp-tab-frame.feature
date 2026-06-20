@@ -48,3 +48,76 @@ Feature: BDP tab frame
     When I open the BDP for "My E2E Budget"
     And I click the "Reserves" tab pill
     Then the app main scroll surface has overscroll-behavior-y "none"
+
+  # quick-260612-cdu R2 geometry proofs (browser mode, Chromium multi-viewport).
+  # Standalone display-mode and real env() insets are NOT emulatable in
+  # Playwright — those invariants stay Vitest source-guarded (shell-safe-area.test.ts).
+  #
+  # RESERVE_TOPUP maps to the *reserves* pill (kind-pill-map.ts), so the
+  # banner renders on the reserves tab — mirrors the working seeding pattern
+  # in tasks.feature. The seeded categories provide real scroll room (honesty
+  # guard: scrollY > 50 after scroll, same pattern as assertBannerBelowHeader).
+  #
+  # Projects: geom-320, geom-390, geom-430, geom-1280 (defined in playwright.config.ts).
+  # The same @tasks-geometry tag gates all three scenarios so they run together.
+
+  @tasks-geometry
+  Scenario: banner is below the band (not inside it) in browser mode
+    Given the budget has 12 seeded categories with monthly limits
+    And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
+    When I open the reserves tab for "My E2E Budget"
+    Then the tasks banner top edge is at or below the band bottom edge at rest
+    And the tasks banner is fully visible within the viewport at rest
+
+  @tasks-geometry
+  Scenario: bottom clearance is present in browser mode (last rows clear the bar)
+    Given the budget has 12 seeded categories with monthly limits
+    And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
+    When I open the reserves tab for "My E2E Budget"
+    Then the page bottom clearance is at least 48 pixels
+
+  @tasks-geometry
+  Scenario: shell root does not exceed the viewport height in browser mode
+    Given the budget has 12 seeded categories with monthly limits
+    And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
+    When I open the reserves tab for "My E2E Budget"
+    Then the shell root height does not exceed the viewport height
+
+  @tasks-geometry
+  Scenario: spendings grid last row clears the bottom bar in browser mode
+    Given the budget has 12 seeded categories with monthly limits
+    When I open the BDP spendings tab for "My E2E Budget"
+    Then the spendings grid last row clears the bottom bar by at least 48 pixels
+
+  @tasks-geometry
+  Scenario: spendings grid box bottom reaches the visual viewport bottom at rest
+    Given the budget has 12 seeded categories with monthly limits
+    When I open the BDP spendings tab for "My E2E Budget"
+    Then the spendings grid box bottom reaches the visual viewport bottom
+
+  # Tab-switch residual scroll — SHELL-R18 rewrite (round 7+8).
+  # Root cause: in browser mode the page scroll lives on window (html/body),
+  # NOT main[data-shell-scroll] (overflow-y:visible there). Round 6
+  # (ScrollResetOnMount) reset only main — a no-op in browser mode. The e2e
+  # also tautologically scrolled and asserted the same non-scrolling element.
+  # Fix: ScrollResetOnMount now calls window.scrollTo(0,0) + zeroes
+  # scrollingElement + main, keyed on pathname + rAF-deferred (SHELL-R18).
+  #
+  # Round 8 honesty fix: the round-7 step scrolled the WALLETS tab, but a
+  # fresh user's wallets tab (only the default Reserve/Cushion sections) is
+  # SHORTER than the shortest viewport (320x568) so window never scrolled —
+  # the precondition failed loud (anti-tautology guard, as designed). The
+  # user's real device repro was the RESERVES tab, which renders one row per
+  # category. Seeding 12 categories gives 12 reserve rows → genuinely taller
+  # than 568px, so window.scrollTo actually moves. We scroll the REAL
+  # browser-mode root (window), assert it took (scrollY > threshold), THEN
+  # switch to spendings and assert all three roots reset + month-nav visible.
+  @tasks-geometry
+  Scenario: switching from a scrolled tab to spendings resets page scroll and shows month nav
+    Given the budget has 12 seeded categories with monthly limits
+    When I open the reserves tab for "My E2E Budget"
+    And the reserves tab content is taller than the viewport
+    And I scroll the page down on the current tab
+    And I click the "Spendings" tab pill
+    Then the page scroll position is at the top
+    And the month navigator is fully below the sticky band

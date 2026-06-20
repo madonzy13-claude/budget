@@ -196,7 +196,17 @@
        the top nav engages the custom indicator/reload. */
     overscroll-behavior: none;
     overflow: hidden;
+    /* UAT-08: large-viewport sizing. iOS Safari only resizes the viewport
+       when the PAGE scrolls — ours never does (body locked for the custom
+       PTR; an inner <main> scrolls) — so dvh/% stay pinned to the
+       expanded-bar size and the zone where the bar was is a permanent dead
+       black band. 100lvh paints edge-to-edge; content slides under the
+       translucent bar like a native list, and the shell's scroll surface
+       carries matching bottom clearance (see main[data-shell-scroll]).
+       In standalone lvh == screen height, so nothing changes there.
+       The 100% line stays as fallback for engines without lvh. */
     height: 100%;
+    height: 100lvh;
   }
 
   body {
@@ -218,6 +228,8 @@
     background-color: var(--primary);
     color: var(--on-primary);
   }
+
+
 
   /* See unlayered cursor rules below — moved out of @layer base in
      round 19 because CSS cascade layers invert !important order
@@ -439,6 +451,104 @@ button:disabled,
   cursor: not-allowed;
 }
 
+/* UAT-08: browser-tab mode scrolls the PAGE natively. iOS Safari only
+   collapses its bottom bar and extends the viewport edge-to-edge (the
+   google.com / home-assistant.io behavior) when the page itself scrolls —
+   the locked-body + inner-scroll architecture kept the bar permanently
+   expanded with a dead band beneath it. Standalone keeps the locked body +
+   custom pull-to-refresh; in the browser the platform provides both
+   gestures natively (the custom PTR bails — see pull-to-refresh.tsx). The
+   header intentionally scrolls away; the BDP tab band (sticky top-0 in
+   budgets/[id]/layout.tsx) takes over as the pinned navigation.
+   UNLAYERED on purpose: the shell's flex-1 / min-h-0 / overflow-y-auto are
+   Tailwind utilities (@layer utilities) — a base-layer override loses the
+   cascade; unlayered normal rules win (same rationale as the cursor rules
+   above). */
+@media (display-mode: browser) {
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
+  }
+  [data-shell-root] {
+    height: auto;
+    /* SHELL-R16: Round 2 (0e07dd6) set 100dvh here to kill a "black band" —
+       that was a MISDIAGNOSIS. The real black-band cause was round-4 stacked
+       clearances (removed in R14). dvh caps the painted canvas at the bar's
+       top edge, so the R15 grid box (100lvh − top) extends into an unpainted
+       region → the Safari black block. 100lvh paints the canvas edge-to-edge
+       under the translucent bar (matches base html,body:209 and standalone).
+       Bar-collapse still works because html,body overflow is visible (above) —
+       the PAGE scrolls. Safe now: the dvh cap was the sole remaining clip
+       in the chain (audit: all other ancestors have overflow:visible in
+       browser mode). */
+    min-height: 100lvh;
+  }
+  main[data-shell-scroll] {
+    flex: none;
+    min-height: 0;
+    overflow-y: visible;
+    /* env(safe-area-inset-bottom) ≈ 0 in browser mode when Safari's bar is
+       visible — the bar eats ~50px. An explicit floor (72px) ensures the last
+       rows clear the bottom bar regardless of env resolution.
+       The standalone code path uses .pb-shell-safe — no double-pad risk.
+       SHELL-R14: inner-scrolling tabs opt out via :has([data-no-page-clearance])
+       so the grid scroller box is not dead-banded by this page-level floor. */
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  }
+  /* SHELL-R14: zero the browser floor for pages whose content owns the scroll
+     surface (e.g. spendings grid). :has() is safe — iOS 16.4+. */
+  main[data-shell-scroll]:has([data-no-page-clearance]) {
+    padding-bottom: 0;
+  }
+  /* UAT feedback: keep the header pinned during native page scroll, like
+     standalone. The BDP tab band (sticky top-0) must then stick BELOW the
+     header — 4rem TopNav (h-16) + 1px border — instead of sliding under. */
+  [data-shell-header] {
+    position: sticky;
+    top: 0;
+  }
+  [data-bdp-tabs] {
+    top: calc(4rem + 1px);
+  }
+  /* SHELL-R15: grid tail-spacer browser floor. The grid box now extends
+     UNDER the Safari bar (100lvh bottom anchor) so content paints beneath
+     the translucent bar like a native page — but the last fully-scrolled
+     row must clear the VISIBLE area above the bar. env() ≈ 0 with the bar
+     shown; the bar eats ~50px + home-indicator zone → 96px floor.
+     Standalone keeps the JSX fallback env+64 (user-approved, untouched).
+     Unlayered so it beats the Tailwind h-[calc(...)] utility (@layer). */
+  [data-grid-tail-spacer] {
+    height: var(--grid-tail-spacer-h, calc(env(safe-area-inset-bottom, 0px) + 96px));
+  }
+}
+
+/* UAT-08: standalone full-scroll clearance — applied to PAGE CONTENT, not
+   the shell. Every shell-level mechanism failed on iOS WebKit while
+   passing on Chromium (device-verified across SHELL-R8..R10):
+   padding-bottom on the scroll container is ignored; ::after on it
+   computes a height but never enters the scroll flow; a real sibling
+   spacer lands at the flex-basis-0 box edge (~container height) because
+   iOS sizes the flex-1 overlay to the container and lets content
+   overflow past it, while Chromium sizes it to content (min-height:auto)
+   — which is exactly why headless checks kept passing as the device
+   stayed glued. Padding INSIDE the in-flow page content has no engine
+   disagreement to lose: block-flow padding always extends scrollHeight.
+   Applied on the BDP children wrapper and the home page root. */
+@media (display-mode: standalone) {
+  .pb-shell-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  }
+  /* SHELL-R14: zero the standalone clearance for inner-scrolling tabs.
+     The [data-no-page-clearance] wrapper neutralizes .pb-shell-safe on the
+     spendings subtree while page-scrolling tabs keep their clearance. */
+  [data-no-page-clearance],
+  [data-no-page-clearance] .pb-shell-safe {
+    padding-bottom: 0;
+  }
+}
+
 input:where(
     [type="text"],
     [type="email"],
@@ -471,3 +581,159 @@ input:disabled,
 textarea:disabled {
   cursor: not-allowed;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Offline read-only (260617 round 4). The pre-paint inline marker in
+   app/layout.tsx toggles `html.is-offline` BEFORE first paint; these rules are
+   unlayered (like the cursor rules above) so they win the cascade.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Reserve the staleness-bar slot height so the bar — a client leaf that SSRs
+   null — fills pre-reserved space on an offline hard reload (no content jump).
+   Matches OfflineStaleBar's fixed h-6 (1.5rem). Online: slot collapses to 0. */
+[data-offline-bar-slot] {
+  height: 0;
+}
+/* Reserve height AND paint the red band pre-paint (the inline marker sets
+   html.is-offline before first paint). On a residual hard reload offline the
+   red bar is then visible in frame 1 — the OfflineStaleBar fills its text on
+   top of the same red, so the banner never flashes in/out (260617 round 5). */
+html.is-offline [data-offline-bar-slot] {
+  height: 1.5rem;
+  background: var(--destructive, #ef4444);
+}
+
+/* Read-only dimming of write controls while offline. Visual only — pointer
+   events stay ON so OfflineReadOnly's capture listener still fires the bottom
+   toast. Navigation/view controls (links, plain buttons) are untouched.
+   [data-offline-ok] (e.g. spendings quick-entry, which owns its own dialog) is
+   excluded. */
+html.is-offline
+  :is(
+    input,
+    textarea,
+    select,
+    [contenteditable="true"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="slider"],
+    [role="spinbutton"],
+    [role="combobox"],
+    [role="option"],
+    [type="submit"],
+    [data-offline-block]
+  ):not([data-offline-ok]) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Server-down mirrors offline. ConnectivityProvider toggles `html.is-server-down`
+   when the API is unreachable (network up). Same red bar slot + control dimming
+   as offline; the provider removes the class on recovery so nothing stays stale.
+   The offline path keeps its own pre-paint marker — these are additive. */
+html.is-server-down [data-offline-bar-slot] {
+  height: 1.5rem;
+  background: var(--destructive, #ef4444);
+}
+html.is-server-down
+  :is(
+    input,
+    textarea,
+    select,
+    [contenteditable="true"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="slider"],
+    [role="spinbutton"],
+    [role="combobox"],
+    [role="option"],
+    [type="submit"],
+    [data-offline-block]
+  ):not([data-offline-ok]) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Delayed skeleton (260617). A warm cache restore (persisted React Query → IDB)
+   or a fast SWR refetch fills data within ~one frame, so a skeleton that paints
+   immediately FLICKERS (skeleton → data) on every nav / app restart. Hold every
+   <Skeleton> INVISIBLE (but space-reserved via visibility:hidden — no layout
+   shift) for its first 200ms; if data replaces it first, it is never seen. Only
+   a genuinely slow load (>200ms) ever shows the pulsing skeleton.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes skeleton-reveal {
+  to {
+    visibility: visible;
+  }
+}
+.skeleton-delayed {
+  visibility: hidden;
+  animation:
+    skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite,
+    skeleton-reveal 1ms linear 200ms forwards;
+}
+
+/* Same 200ms invisibility for a WHOLE skeleton BLOCK (a loading-state container
+   with its own non-Skeleton scaffold — cards, dividers, input outlines). Hiding
+   only the inner <Skeleton> bars left the scaffold showing → a half-rendered
+   "weird layout" for a few ms on warm/offline nav (260617 device shot). Wrap the
+   entire skeleton block in `reveal-delayed` so the scaffold AND bars stay hidden
+   (space reserved) until 200ms; a cache restore replaces it first → nothing
+   shows. No pulse here (the inner Skeletons pulse once revealed). */
+.reveal-delayed {
+  visibility: hidden;
+  animation: skeleton-reveal 1ms linear 200ms forwards;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Month-nav directional slide (260618 UX). The spendings columns slide in the
+   direction of travel on prev/next — driven by SlideOnChange, which re-triggers
+   the keyframe per month change (no remount). BDP TAB switches use framer-motion
+   (PageTransition) + the layoutId pill, not these classes.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes slide-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(56px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes slide-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-56px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.slide-in-forward {
+  animation: slide-in-forward 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.slide-in-back {
+  animation: slide-in-back 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-in-forward,
+  .slide-in-back {
+    animation: none;
+  }
+}
+
