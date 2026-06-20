@@ -3,6 +3,15 @@
 **Created:** 2026-06-20
 **Ambiguity score:** 0.16 (gate: ≤ 0.20)
 **Requirements:** 16 locked
+**Amended:** 2026-06-20 (discuss-phase — see Amendments below)
+
+## Amendments (discuss-phase, 2026-06-20)
+
+These HOW-decisions from `/gsd-discuss-phase 9` modify the locked requirements/boundaries below. **The amendments are authoritative**; where prose below conflicts, defer to this section. Full rationale in `09-CONTEXT.md` + `09-DISCUSSION-LOG.md`.
+
+- **A1 — New Task type (amends Out-of-scope "Tasks untouched"):** A single new Tasks-queue type, `INVESTMENT_INSTRUMENT_DELISTED`, IS in scope. The daily instrument refresh, on finding a held instrument gone inactive, emits one task per affected holding ("Review {name} — instrument delisted, price frozen"), resolving when the holding is archived or switched to custom. Reuses the existing Phase 7 Tasks subsystem (new type only — no new Tasks infrastructure).
+- **A2 — Price model (amends INV-14, trims INV-09 state-chrome):** There is **NO "pending" state and NO "stale" state**. A current price is **required to save** a holding. The instant on-add fetch (still rate-limited 10/user/min) supplies a price at save time; on the rare case it cannot (limit hit / fetch fails / uncached), the save is **blocked** with a "couldn't fetch the price — try again in a moment" message (the holding is NOT saved as pending). Rows always show the latest cached price with no stale badge. The ONLY price-state chrome is **delisted** — a "delisted" label + a slightly transparent/dimmed row.
+- **A3 — Cash balances in scope; forex deferred (clarifies INV-07 universe + INV-03/09 fields for `cash_fx`):** The instrument search universe also includes plain currencies held as **cash** ("dry powder"). A cash holding (type `cash_fx`) is amount + currency, **value-only — no buy/current price, no P/L** — counted toward portfolio value/weight via FX to the budget default currency. Traded **forex positions** (currency pairs with buy/current rate + P/L) are **DEFERRED** to a future phase; currencies appear in the list only as cash this phase.
 
 ## Goal
 
@@ -125,7 +134,7 @@ The deliverable does not exist today: there is no investments feature, no holdin
 - Real-time / streaming / sub-hourly price updates — hourly cron + on-add fetch only.
 - Paid or API-key-gated premium price tiers — free APIs only.
 - Brokerage / open-banking sync or auto-updating quantity — manual entry only.
-- Investment-related Tasks-queue kinds or alerts — the Tasks queue is untouched this phase.
+- Investment-related Tasks-queue kinds or alerts — out of scope, **except** the single `INVESTMENT_INSTRUMENT_DELISTED` task type added per Amendment A1. No other investment task kinds, alerts, or banners this phase.
 - Whether holdings live in a new `investments` table vs. an extended `wallets` table, and whether `INVESTMENTS` joins the `wallet_type` enum — a HOW decision left to discuss-phase (this SPEC only fixes behavior, not table shape).
 - PL/UK translation-quality review — message keys are added, but copy quality is not gated here (follows the existing i18n phase pattern).
 
