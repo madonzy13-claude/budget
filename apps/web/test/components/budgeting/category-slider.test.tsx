@@ -5,7 +5,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TestQueryProvider } from "../../setup/query-client";
+import {
+  TestQueryProvider,
+  makeTestQueryClient,
+} from "../../setup/query-client";
 
 const fetchMock = vi.fn();
 vi.mock("@/lib/budget-fetch", () => ({
@@ -170,6 +173,38 @@ describe("CategorySlider", () => {
     // effectiveFrom must anchor to the first of the month so the limit is
     // visible in the current month's spendings-summary.
     expect(body.effectiveFrom).toMatch(/^\d{4}-\d{2}-01$/);
+  });
+
+  it("edit flow: saving a limit change invalidates the pending-tasks query (cushion task badge refresh)", async () => {
+    // Changing a category's cushion limit can resolve/raise the
+    // CUSHION_BELOW_TARGET task server-side, so the ["tasks", budgetId,
+    // "pending"] query must be invalidated → the badge refreshes in the
+    // background instead of staying stale until a page reload.
+    const user = userEvent.setup();
+    const client = makeTestQueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    render(
+      <TestQueryProvider client={client}>
+        <CategorySlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const cushion = document.querySelector(
+      "#cat-slider-cushion",
+    ) as HTMLInputElement;
+    await user.clear(cushion);
+    await user.type(cushion, "50");
+    const saveBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("catSlider.cta.save"))!;
+    await user.click(saveBtn);
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: ["tasks", "budget-1", "pending"],
+        }),
+      );
+    });
   });
 
   it("validation: name required; save button present", () => {

@@ -134,6 +134,10 @@ export function CategorySlider({
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
     qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+    // A limit change can resolve/raise the CUSHION_BELOW_TARGET task server-side
+    // (cushion target vs actual), so refresh the pending-tasks query → the pill
+    // badge updates in the background instead of going stale until a reload.
+    qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     if (includeTxns) {
       qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
       qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
