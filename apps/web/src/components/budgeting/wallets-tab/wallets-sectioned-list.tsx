@@ -33,6 +33,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
 import { useBudget } from "@/hooks/use-budget-data";
 import { WalletsSkeleton } from "@/components/budgeting/wallets-tab/wallets-skeleton";
+import { isRestoreComplete } from "@/lib/query-persist";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
 import { useArchiveWallet } from "@/hooks/use-archive-wallet";
@@ -330,7 +331,15 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // loading.tsx geometry). Offline with no cache → the query errors → show an
   // in-content "not available offline" note (keeps header + pills mounted).
   if (walletsQuery.isPending) {
-    return <WalletsSkeleton label={sectionLabelFor("SPENDINGS")} />;
+    // delayed only while the one-shot IDB restore is still bridging; once it's
+    // done, a pending query = network wait (>200ms), so render immediately
+    // instead of blanking the pane (260620).
+    return (
+      <WalletsSkeleton
+        label={sectionLabelFor("SPENDINGS")}
+        delayed={!isRestoreComplete()}
+      />
+    );
   }
   if (walletsQuery.isError && wallets.length === 0) {
     return (

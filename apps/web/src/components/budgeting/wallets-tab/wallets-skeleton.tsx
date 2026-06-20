@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 /**
  * WalletsSkeleton — the Wallets tab's first-paint skeleton.
@@ -11,12 +12,29 @@ import { Skeleton } from "@/components/ui/skeleton";
  * the real data lands (260620) — loading.tsx and the cold client view are now
  * pixel-identical, so only one skeleton is ever seen.
  *
- * `reveal-delayed` keeps the whole skeleton invisible for 200ms so a warm cache
- * restore / fast gate replaces it before it ever shows — no scaffold flash.
+ * `delayed` (default true): wrap in `reveal-delayed` so the whole skeleton stays
+ * invisible for 200ms — on a client mount that lets a warm RQ-cache restore (IDB,
+ * async ~tens of ms) replace it before it ever shows, so no scaffold flash. But
+ * loading.tsx must pass `delayed={false}`: the server membership gate is always
+ * ~330ms (never a sub-200ms cache hit), so a 200ms-invisible skeleton there just
+ * shows an EMPTY pane under the band before the rows appear — its own flicker
+ * (260620 follow-up). Immediate = the waiting layout paints the instant the nav
+ * commits.
  */
-export function WalletsSkeleton({ label }: { label: string }) {
+export function WalletsSkeleton({
+  label,
+  delayed = true,
+}: {
+  label: string;
+  delayed?: boolean;
+}) {
   return (
-    <div className="reveal-delayed mx-auto w-full max-w-[1280px]">
+    <div
+      className={cn(
+        "mx-auto w-full max-w-[1280px]",
+        delayed && "reveal-delayed",
+      )}
+    >
       <div className="flex flex-col gap-4 p-4 sm:p-6">
         <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-2">
           <h3 className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">

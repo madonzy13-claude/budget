@@ -70,9 +70,15 @@ describe("BDP loading.tsx", () => {
       container.querySelector(".bg-\\[var\\(--surface-card-dark\\)\\]"),
     ).not.toBeNull();
     expect(container.querySelector(".border-dashed")).not.toBeNull();
-    // delayed-pulse placeholders (invisible 200ms) so a fast gate never flashes.
     expect(
       container.querySelectorAll(".skeleton-delayed").length,
     ).toBeGreaterThan(4);
+  });
+
+  it("shows the pane skeleton IMMEDIATELY (no 200ms reveal-delay empty window)", async () => {
+    const { container } = await renderLoading();
+    // the gate is always ~330ms, so the skeleton must paint at once — a
+    // reveal-delayed wrapper would blank the pane under the band first.
+    expect(container.querySelector(".reveal-delayed")).toBeNull();
   });
 });

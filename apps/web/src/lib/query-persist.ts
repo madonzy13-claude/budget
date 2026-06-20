@@ -29,6 +29,24 @@ const VERSION = "v1";
 // SWR the moment the device is back online.
 const MAX_AGE_MS = 1000 * 60 * 60 * 24 * 365; // 1 year
 
+/**
+ * One-shot "the initial IDB cache restore has finished" flag (260620). Skeletons
+ * use `reveal-delayed` (200ms invisible) ONLY to bridge this async restore so a
+ * warm cache replaces the skeleton before it shows. The restore runs once, early.
+ * AFTER it completes, any skeleton that mounts (e.g. a cold tab opened via a
+ * client soft-nav) is genuinely waiting on the NETWORK (always >200ms), so the
+ * 200ms-invisible window is pure downside — it just blanks the pane first. Cold
+ * skeletons read this to render IMMEDIATELY once restore is done.
+ *
+ * Hydration-safe: restore runs in a QueryProvider effect (after hydration), so
+ * this is `false` during SSR AND first client paint (no mismatch); it only flips
+ * true later, gating mounts that happen after — none of which are SSR'd.
+ */
+let restoreComplete = false;
+export function isRestoreComplete(): boolean {
+  return restoreComplete;
+}
+
 /** Persist only budget-scoped queries — never auth or unrelated keys.
  *
  * 260617: the SETTINGS-tab drivers (budget-members, cushion-summary,
@@ -123,6 +141,10 @@ export async function restoreQueryCache(client: QueryClient): Promise<void> {
     }
   } catch {
     // IDB unavailable (private browsing) — skip persistence silently.
+  } finally {
+    // Restore attempt done (data found or not): later cold skeletons can stop
+    // waiting on the (now-finished) restore and render immediately.
+    restoreComplete = true;
   }
 }
 

@@ -55,6 +55,8 @@ import { useReorderCategories } from "@/hooks/use-reorder-categories";
 import { useBudget, useCategories } from "@/hooks/use-budget-data";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { isRestoreComplete } from "@/lib/query-persist";
 import {
   useSpendingsSummary,
   fetchSpendingsSummary,
@@ -89,8 +91,15 @@ function ColumnSkeleton() {
   return (
     // reveal-delayed (global.css): the WHOLE column scaffold (card + dividers +
     // input outline) stays invisible for 200ms so a cache restore replaces it
-    // first — no half-skeleton "weird layout" flash on warm/offline nav.
-    <div className="reveal-delayed h-full w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip">
+    // first — no half-skeleton "weird layout" flash on warm/offline nav. Only
+    // while the one-shot IDB restore is bridging though (260620): after it's
+    // done, a cold column = network wait, so render at once (no blank pane).
+    <div
+      className={cn(
+        "h-full w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip",
+        !isRestoreComplete() && "reveal-delayed",
+      )}
+    >
       <div className="flex min-h-[44px] items-center gap-1.5 px-2 py-2 border-b border-[var(--hairline-dark)]">
         <Skeleton className="h-3.5 w-2.5 shrink-0" />
         <Skeleton className="h-3.5 w-2/3" />

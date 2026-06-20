@@ -96,9 +96,15 @@ export default async function BdpLoading() {
       </div>
 
       {/* Pane — the SAME skeleton the cold Wallets tab renders (the common
-          landing tab), so loading→loaded is a single continuous skeleton. */}
+          landing tab), so loading→loaded is a single continuous skeleton.
+          delayed=false: show it immediately — the gate is always ~330ms, so the
+          default 200ms-invisible window would just blank the pane under the band
+          first (the "empty page before the skeleton" flicker). */}
       <div className="pb-shell-safe">
-        <WalletsSkeleton label={t("wallets.section.spendings")} />
+        <WalletsSkeleton
+          label={t("wallets.section.spendings")}
+          delayed={false}
+        />
       </div>
     </>
   );

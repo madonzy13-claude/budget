@@ -20,6 +20,8 @@
  * On drag-end: call useToggleCategoryReserveExcluded with the new excluded state.
  */
 import * as React from "react";
+import { cn } from "@/lib/utils";
+import { isRestoreComplete } from "@/lib/query-persist";
 import {
   DndContext,
   useSensors,
@@ -62,8 +64,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 function ReservesSkeleton({ label }: { label: string }) {
   return (
     // reveal-delayed: whole skeleton invisible 200ms so a cache restore replaces
-    // it first — no skeleton-scaffold flash on warm/offline nav (260617).
-    <div className="reveal-delayed mx-auto w-full max-w-[1280px]">
+    // it first — no skeleton-scaffold flash on warm/offline nav (260617). Only
+    // while the one-shot IDB restore is bridging (260620): after it's done, a
+    // cold table = network wait, so render at once (no blank pane under the band).
+    <div
+      className={cn(
+        "mx-auto w-full max-w-[1280px]",
+        !isRestoreComplete() && "reveal-delayed",
+      )}
+    >
       <div className="flex flex-col gap-4 p-4 pb-20 sm:p-6">
         <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] py-2 sm:p-2">
           <h3 className="px-2 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
