@@ -38,141 +38,179 @@ export function usePrefetchBudgetTabs(budgetId: string) {
       return pick(await res.json());
     };
 
-    const jobs: Array<{ key: readonly unknown[]; fn: () => Promise<unknown> }> =
-      [
-        {
-          key: ["budget", budgetId, "wallets"],
-          fn: () =>
-            get(
-              "/wallets",
-              (j) => (j as { wallets?: unknown[] }).wallets ?? [],
-            ),
-        },
-        {
-          key: ["budget", budgetId, "reserves"],
-          fn: () => get(`/budgets/${budgetId}/reserves`, (j) => j),
-        },
-        {
-          key: ["budget", budgetId, "categories"],
-          fn: () =>
-            get(
-              `/budgets/${budgetId}/categories`,
-              (j) => (j as { categories?: unknown[] }).categories ?? [],
-            ),
-        },
-        {
-          key: ["budget", budgetId, "detail"],
-          fn: () =>
-            get(`/budgets/${budgetId}`, (j) => {
-              const o = j as { budget?: unknown };
-              return o.budget ?? j;
-            }),
-        },
-        {
-          key: ["spendings-summary", budgetId, month],
-          fn: () => fetchSpendingsSummary(budgetId, month),
-        },
-        // SPENDINGS rows (260617) — the grid's transactions + drafts. Without
-        // these the grid renders (summary/categories cached) but the per-category
-        // rows fetch on first visit and are empty offline. Shapes match
-        // useTransactions/useDrafts verbatim (same endpoint + mapTxnRowToDTO).
-        {
-          key: ["transactions", budgetId, month],
-          fn: () =>
-            get(
-              `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
-              (j) =>
-                ((j as { transactions?: unknown[] }).transactions ?? []).map(
-                  (r) =>
-                    mapTxnRowToDTO(r as Parameters<typeof mapTxnRowToDTO>[0]),
-                ),
-            ),
-        },
-        {
-          key: ["drafts", budgetId, month],
-          fn: () =>
-            get(
-              `/budgets/${budgetId}/transactions?month=${month}&confirmed=false`,
-              (j) =>
-                ((j as { transactions?: unknown[] }).transactions ?? []).map(
-                  (r) => {
-                    const row = r as Parameters<typeof mapTxnRowToDTO>[0] & {
-                      rule_name?: string;
-                    };
-                    return {
-                      ...mapTxnRowToDTO(row),
-                      ruleName: row.rule_name ?? "",
-                    };
-                  },
-                ),
-            ),
-        },
-        // SETTINGS-tab drivers (260617) — so the Settings tab is fully populated
-        // offline (members were missing → empty in a shared budget). These keys
-        // are now persisted too (query-persist.shouldPersist) so they survive a
-        // reload offline. Shapes match each section's queryFn verbatim.
-        {
-          // members-section reads data.members → cache the WHOLE object.
-          key: ["budget-members", budgetId],
-          fn: () => get(`/budgets/${budgetId}/members`, (j) => j),
-        },
-        {
-          key: ["cushion-summary", budgetId],
-          fn: () => get(`/budgets/${budgetId}/cushion-summary`, (j) => j),
-        },
-        {
-          key: ["recurring-rules", budgetId],
-          fn: () =>
-            get(
-              `/budgets/${budgetId}/recurring-rules`,
-              (j) => (j as { rules?: unknown[] }).rules ?? [],
-            ),
-        },
-        {
-          key: ["categories-lite", budgetId],
-          fn: () =>
-            get(
-              `/budgets/${budgetId}/categories`,
-              (j) => (j as { categories?: unknown[] }).categories ?? [],
-            ),
-        },
-        // Notification settings (260618) — so the Settings → Notifications
-        // section hydrates from cache like members. push-prefs caches the whole
-        // {preferences:[...]} object (matches push-prefs-section's queryFn).
-        {
-          key: ["push-prefs", budgetId],
-          fn: () => get(`/push/preferences?budgetId=${budgetId}`, (j) => j),
-        },
-        // push-subscription-status needs THIS device's push endpoint, so it
-        // can't use the generic `get`. Mirrors push-prefs-section's queryFn.
-        {
-          key: ["push-subscription-status", budgetId],
-          fn: async () => {
-            try {
-              const reg = await navigator.serviceWorker?.ready;
-              const sub = await reg?.pushManager?.getSubscription?.();
-              if (!sub) return { subscribed: false };
-              const res = await clientApiFetch(
-                `/push/subscription-status?budgetId=${budgetId}&endpoint=${encodeURIComponent(
-                  sub.endpoint,
-                )}`,
-                {
-                  signal: AbortSignal.timeout(8000),
-                  headers: { "X-Budget-ID": budgetId },
-                },
-              );
-              if (!res.ok) return { subscribed: false };
-              return res.json();
-            } catch {
-              return { subscribed: false };
-            }
-          },
-        },
-      ];
+    type Job = { key: readonly unknown[]; fn: () => Promise<unknown> };
 
-    for (const { key, fn } of jobs) {
-      if (qc.getQueryData(key)) continue; // already cached — leave it untouched.
-      void qc.prefetchQuery({ queryKey: key, queryFn: fn, staleTime: 30_000 });
-    }
+    // PRIORITY tier — drivers for the three tabs the user navigates among first
+    // (Wallets / Spendings / Reserves) + budget detail. Fired IMMEDIATELY so the
+    // first pill nav is cached + the RSC prefetch (bdp-tabs.tsx) isn't starved.
+    // Keeping this burst small is the whole point: firing all 14 at once peaked
+    // at ~16 concurrent requests and inflated each ~4x on the API (260ms → ~1s),
+    // so the primary data + RSC didn't land until ~2s → cold/janky first click.
+    const priorityJobs: Job[] = [
+      {
+        key: ["budget", budgetId, "wallets"],
+        fn: () =>
+          get("/wallets", (j) => (j as { wallets?: unknown[] }).wallets ?? []),
+      },
+      {
+        key: ["budget", budgetId, "reserves"],
+        fn: () => get(`/budgets/${budgetId}/reserves`, (j) => j),
+      },
+      {
+        key: ["budget", budgetId, "categories"],
+        fn: () =>
+          get(
+            `/budgets/${budgetId}/categories`,
+            (j) => (j as { categories?: unknown[] }).categories ?? [],
+          ),
+      },
+      {
+        key: ["budget", budgetId, "detail"],
+        fn: () =>
+          get(`/budgets/${budgetId}`, (j) => {
+            const o = j as { budget?: unknown };
+            return o.budget ?? j;
+          }),
+      },
+      {
+        key: ["spendings-summary", budgetId, month],
+        fn: () => fetchSpendingsSummary(budgetId, month),
+      },
+      // SPENDINGS rows (260617) — the grid's transactions + drafts. Shapes match
+      // useTransactions/useDrafts verbatim (same endpoint + mapTxnRowToDTO).
+      {
+        key: ["transactions", budgetId, month],
+        fn: () =>
+          get(
+            `/budgets/${budgetId}/transactions?month=${month}&confirmed=true`,
+            (j) =>
+              ((j as { transactions?: unknown[] }).transactions ?? []).map(
+                (r) =>
+                  mapTxnRowToDTO(r as Parameters<typeof mapTxnRowToDTO>[0]),
+              ),
+          ),
+      },
+      {
+        key: ["drafts", budgetId, month],
+        fn: () =>
+          get(
+            `/budgets/${budgetId}/transactions?month=${month}&confirmed=false`,
+            (j) =>
+              ((j as { transactions?: unknown[] }).transactions ?? []).map(
+                (r) => {
+                  const row = r as Parameters<typeof mapTxnRowToDTO>[0] & {
+                    rule_name?: string;
+                  };
+                  return {
+                    ...mapTxnRowToDTO(row),
+                    ruleName: row.rule_name ?? "",
+                  };
+                },
+              ),
+          ),
+      },
+    ];
+
+    // DEFERRED tier — Settings-tab drivers. Settings is rarely the first pill, so
+    // these run AFTER the browser goes idle (or a short fallback timeout) to keep
+    // them off the critical path. They still populate the persisted cache so the
+    // Settings tab renders instantly/offline once warmed.
+    const deferredJobs: Job[] = [
+      {
+        // members-section reads data.members → cache the WHOLE object.
+        key: ["budget-members", budgetId],
+        fn: () => get(`/budgets/${budgetId}/members`, (j) => j),
+      },
+      {
+        key: ["cushion-summary", budgetId],
+        fn: () => get(`/budgets/${budgetId}/cushion-summary`, (j) => j),
+      },
+      {
+        key: ["recurring-rules", budgetId],
+        fn: () =>
+          get(
+            `/budgets/${budgetId}/recurring-rules`,
+            (j) => (j as { rules?: unknown[] }).rules ?? [],
+          ),
+      },
+      {
+        // settings recurring-section reads ["categories-lite"]. Same data + shape
+        // as the priority ["budget", id, "categories"] fetch — REUSE that cached
+        // value (it has resolved by the time this idle tier runs) instead of
+        // hitting /categories a second time. Falls back to a fetch only if the
+        // priority job somehow hasn't populated it yet.
+        key: ["categories-lite", budgetId],
+        fn: async () =>
+          qc.getQueryData(["budget", budgetId, "categories"]) ??
+          get(
+            `/budgets/${budgetId}/categories`,
+            (j) => (j as { categories?: unknown[] }).categories ?? [],
+          ),
+      },
+      // Notification settings — push-prefs caches the whole {preferences:[...]}.
+      {
+        key: ["push-prefs", budgetId],
+        fn: () => get(`/push/preferences?budgetId=${budgetId}`, (j) => j),
+      },
+      // push-subscription-status needs THIS device's push endpoint, so it can't
+      // use the generic `get`. Mirrors push-prefs-section's queryFn.
+      {
+        key: ["push-subscription-status", budgetId],
+        fn: async () => {
+          try {
+            const reg = await navigator.serviceWorker?.ready;
+            const sub = await reg?.pushManager?.getSubscription?.();
+            if (!sub) return { subscribed: false };
+            const res = await clientApiFetch(
+              `/push/subscription-status?budgetId=${budgetId}&endpoint=${encodeURIComponent(
+                sub.endpoint,
+              )}`,
+              {
+                signal: AbortSignal.timeout(8000),
+                headers: { "X-Budget-ID": budgetId },
+              },
+            );
+            if (!res.ok) return { subscribed: false };
+            return res.json();
+          } catch {
+            return { subscribed: false };
+          }
+        },
+      },
+    ];
+
+    const run = (jobs: Job[]): Promise<unknown>[] => {
+      const ps: Promise<unknown>[] = [];
+      for (const { key, fn } of jobs) {
+        if (qc.getQueryData(key)) continue; // already cached — leave untouched.
+        ps.push(
+          qc.prefetchQuery({ queryKey: key, queryFn: fn, staleTime: 30_000 }),
+        );
+      }
+      return ps;
+    };
+
+    const priorityPromises = run(priorityJobs);
+
+    // Defer the Settings drivers until the priority tab data has finished loading
+    // over the NETWORK. Do NOT use requestIdleCallback: these prefetches are
+    // network-bound, so the main thread idles almost immediately while they're in
+    // flight and rIC fires ~at once — recreating the 16-way thundering herd that
+    // inflated every request ~4x. Chaining on the priority promises keeps Settings
+    // strictly off the critical-path burst. The fallback timer guarantees Settings
+    // still warms if a priority job hangs (each has an 8s abort) or the tab idles.
+    let cancelled = false;
+    let started = false;
+    const runDeferredOnce = () => {
+      if (cancelled || started) return;
+      started = true;
+      run(deferredJobs);
+    };
+    void Promise.allSettled(priorityPromises).then(runDeferredOnce);
+    const timerId = setTimeout(runDeferredOnce, 4000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timerId);
+    };
   }, [budgetId, qc]);
 }
