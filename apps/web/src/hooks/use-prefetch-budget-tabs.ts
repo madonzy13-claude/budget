@@ -112,9 +112,9 @@ export function usePrefetchBudgetTabs(budgetId: string) {
     ];
 
     // DEFERRED tier — Settings-tab drivers. Settings is rarely the first pill, so
-    // these run AFTER the browser goes idle (or a short fallback timeout) to keep
-    // them off the critical path. They still populate the persisted cache so the
-    // Settings tab renders instantly/offline once warmed.
+    // these run only AFTER the priority tab data has finished over the network
+    // (see the deferral below) to keep them off the critical path. They still
+    // populate the persisted cache so Settings renders instantly/offline once warm.
     const deferredJobs: Job[] = [
       {
         // members-section reads data.members → cache the WHOLE object.
