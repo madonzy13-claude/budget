@@ -439,4 +439,68 @@ describe("useUpdateReserveAdjustment", () => {
       "bdp.tab.reserves.toast.saved",
     );
   });
+
+  // ── Cross-tab freshness: a reserve adjust changes per-category reserveUsed /
+  // overspent / balance on the SPENDINGS grid, so the spendings-summary query
+  // must be invalidated. Without this, moving Reserves → Spendings showed stale
+  // cached spendings until a full page reload (cached-first is correct; the
+  // missing piece was the background refetch trigger).
+
+  it("invalidates spendings-summary on success so the spendings grid refetches in background", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        reserveCents: "31000",
+        deltaCents: "1000",
+        summary: {
+          ...initialSummary,
+          rows: [
+            { ...initialSummary.rows[0]!, reserveCents: "31000" },
+            initialSummary.rows[1]!,
+          ],
+        },
+      }),
+    });
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateReserveAdjustment(BUDGET_ID), {
+      wrapper,
+    });
+
+    await act(async () => {
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 31000 });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["spendings-summary", BUDGET_ID] }),
+    );
+  });
+
+  it("cover>0: also invalidates spendings-summary (cover consumes reserve, changing the grid)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        reserveCents: "20000",
+        deltaCents: "50000",
+        summary: coverSummary,
+      }),
+    });
+    const onCoverDetected = vi.fn();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(
+      () => useUpdateReserveAdjustment(BUDGET_ID, { onCoverDetected }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 50000 });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["spendings-summary", BUDGET_ID] }),
+    );
+  });
 });

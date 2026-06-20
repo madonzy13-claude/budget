@@ -132,6 +132,11 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+      // Excluding/including a category also changes its reserveExcluded /
+      // reserveAvailable on the SPENDINGS grid — invalidate every month's
+      // spendings-summary so it refetches in the background (cached-first), so
+      // Reserves → Spendings shows fresh data without a full reload.
+      qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
     },
   });
 }

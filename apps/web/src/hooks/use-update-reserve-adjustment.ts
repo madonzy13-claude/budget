@@ -147,6 +147,15 @@ export function useUpdateReserveAdjustment(
       // Adjust fires recomputeReserveTopupTask server-side — refresh the badge.
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
 
+      // A reserve adjust changes per-category reserveUsed / overspent / balance
+      // on the SPENDINGS grid too. Invalidate every month's spendings-summary so
+      // it refetches in the BACKGROUND (the cached version still renders first —
+      // invalidateQueries marks it stale, not absent — and the fresh data swaps
+      // in when it lands). Without this, navigating Reserves → Spendings after an
+      // adjust showed stale numbers until a full page reload. Fired in EVERY
+      // success path (including the cover branch below, which returns early).
+      qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+
       // Did part of the added reserve cover THIS month's overspend? cover =
       // typed target − resulting reserve. When it did (and a caller wants the
       // reveal), DEFER the snap: keep the optimistic numbers on screen so the
