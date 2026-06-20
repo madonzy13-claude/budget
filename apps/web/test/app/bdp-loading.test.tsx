@@ -3,44 +3,76 @@
  *
  * Why this file exists: a manual <Suspense> in the BDP *layout* does NOT make a
  * client soft-navigation commit instantly — App Router only commits the nav
- * immediately (and streams the page behind a fallback) when a `loading.tsx`
- * exists for the segment. Without it, home→BDP held the listing page visible for
- * the ~343ms of the server membership gate. loading.tsx is the fix.
+ * immediately (streaming the page behind a fallback) when a `loading.tsx` exists
+ * for the segment. Without it, home→BDP held the listing page for the ~330ms
+ * membership gate. loading.tsx is the fix.
  *
- * The contract this locks: the loading fallback reserves the EXACT sticky-band
- * footprint (same sticky wrapper classes + an h-12 nav row) as the live BdpTabs
- * band, so the real band fades into reserved space with ZERO layout shift, and it
- * shows a waiting skeleton (delayed-pulse) for the pane below.
+ * The contract this locks: loading.tsx renders the SAME waiting layout the cold
+ * <BudgetDetail> shows — a real-styled pills band (Wallets active) reserving the
+ * exact sticky-band footprint, plus the shared <WalletsSkeleton> for the pane —
+ * so there is no flicker between two different skeletons before the data lands.
  */
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+
+// loading.tsx is an async server component; mock next-intl/server so it resolves
+// labels without the request-locale context.
+vi.mock("next-intl/server", () => ({
+  getTranslations: async () => (key: string) => {
+    const map: Record<string, string> = {
+      aria: "Budget detail tabs",
+      "wallets.label": "Wallets",
+      "spendings.label": "Spendings",
+      "reserves.label": "Reserves",
+      "settings.label": "Settings",
+      "wallets.section.spendings": "Spendings wallets",
+    };
+    return map[key] ?? key;
+  },
+}));
+
 import BdpLoading from "@/app/[locale]/(app)/budgets/[id]/loading";
 
+async function renderLoading() {
+  const ui = await BdpLoading();
+  return render(ui);
+}
+
 describe("BDP loading.tsx", () => {
-  it("reserves the sticky band footprint (zero-shift vs the live BdpTabs band)", () => {
-    const { container } = render(<BdpLoading />);
+  it("reserves the sticky band footprint (zero-shift vs the live BdpTabs band)", async () => {
+    const { container } = await renderLoading();
     const band = container.querySelector(".sticky.top-0.z-40");
     expect(band).not.toBeNull();
-    // border + canvas bg = same wrapper the real band uses.
     expect(band!.className).toMatch(/border-b/);
     expect(band!.className).toMatch(/bg-\[var\(--canvas-dark\)\]/);
     // the nav row reserves h-12 (the BdpTabs nav height).
     expect(band!.querySelector(".h-12")).not.toBeNull();
+    // it is NOT the real band — no data-testid (geometry proofs / the nav
+    // measurement key off the real band only).
+    expect(band!.getAttribute("data-testid")).toBeNull();
   });
 
-  it("renders pill-shaped placeholders in the band", () => {
-    const { container } = render(<BdpLoading />);
+  it("renders the 4 real tab labels with Wallets active (yellow indicator)", async () => {
+    const { container } = await renderLoading();
+    for (const label of ["Wallets", "Spendings", "Reserves", "Settings"]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+    // active Wallets pill carries the primary (yellow) fill, like the live band.
     const band = container.querySelector(".sticky.top-0.z-40")!;
-    // rounded-full pill skeletons (the four tab pills).
-    const pills = band.querySelectorAll(".rounded-full");
-    expect(pills.length).toBeGreaterThanOrEqual(3);
+    expect(band.querySelector(".bg-\\[var\\(--primary\\)\\]")).not.toBeNull();
   });
 
-  it("renders a delayed-pulse waiting skeleton for the pane below the band", () => {
-    const { container } = render(<BdpLoading />);
-    // every placeholder uses the project's delayed skeleton (invisible 200ms),
-    // so a fast gate never flashes the skeleton.
-    const skeletons = container.querySelectorAll(".skeleton-delayed");
-    expect(skeletons.length).toBeGreaterThan(4);
+  it("reuses the Wallets tab skeleton for the pane (one continuous waiting layout)", async () => {
+    const { container } = await renderLoading();
+    // WalletsSkeleton markers: the section header + carded rows + dashed add row.
+    expect(screen.getByText("Spendings wallets")).toBeTruthy();
+    expect(
+      container.querySelector(".bg-\\[var\\(--surface-card-dark\\)\\]"),
+    ).not.toBeNull();
+    expect(container.querySelector(".border-dashed")).not.toBeNull();
+    // delayed-pulse placeholders (invisible 200ms) so a fast gate never flashes.
+    expect(
+      container.querySelectorAll(".skeleton-delayed").length,
+    ).toBeGreaterThan(4);
   });
 });

@@ -1,55 +1,104 @@
 /**
  * BDP loading.tsx — instant-commit skeleton for the catch-all [[...tab]] route.
  *
- * THE FIX (260620 — "moving listing→BDP feels like we wait on the listing
- * page"): a manual <Suspense> in the BDP layout does NOT make a client
- * soft-navigation commit instantly. App Router holds the PREVIOUS page visible
- * until it has the new segment's RSC payload — UNLESS a `loading.tsx` exists, in
- * which case it commits the navigation IMMEDIATELY and streams the page in behind
- * this fallback. The server membership gate in [[...tab]]/page.tsx took ~343ms, so
- * without this file home→BDP held the listing page for that whole gate. With it,
- * the band + a waiting skeleton paint the instant the URL changes, then
- * <BudgetDetail> swaps in once the gate resolves (each pane then renders from the
- * React Query cache, or its own per-tab skeleton on a cold cache).
+ * THE FIX (260620): a manual <Suspense> in the BDP layout does NOT make a client
+ * soft-navigation commit instantly — App Router only commits a soft nav
+ * immediately (streaming the page behind a fallback) when a `loading.tsx` exists
+ * for the segment. Without it the router held the listing page visible for the
+ * ~330ms server membership gate in [[...tab]]/page.tsx. With it, this skeleton
+ * paints the instant the URL changes and <BudgetDetail> swaps in once the gate
+ * resolves.
  *
- * Zero-shift contract: the band is the SAME sticky wrapper + h-12 nav row as the
- * live BdpTabs band (see budget-detail.tsx + the old BdpBandFallback), so the real
- * band fades into reserved space with no jump. The band bar paints instantly; the
- * pill + pane placeholders use the delayed Skeleton (invisible for 200ms) so a
- * fast gate never flashes them.
+ * ONE waiting layout (260620 follow-up — "it flickers from one waiting layout to
+ * another"): the first cut rendered a GENERIC skeleton (blank pills + plain
+ * rows), which then flickered into the real band + the Wallets tab's own
+ * WalletsSkeleton before the data landed — two different waiting layouts. This
+ * now renders the SAME thing the cold <BudgetDetail> shows: a real-styled pills
+ * band (Wallets active) + the shared <WalletsSkeleton>. So loading.tsx and the
+ * cold client view are pixel-identical and only one skeleton is ever seen.
+ *
+ * Static, not interactive: this is a server fallback, so the band is plain markup
+ * (no onSelect / no badge query / no framer) — it just reserves the exact band +
+ * pane geometry. It assumes the common landing case (Wallets tab, reserves
+ * enabled); a deep-link straight to another tab gets a brief band correction when
+ * <BudgetDetail> mounts, which is rare and acceptable.
  */
-import { Skeleton } from "@/components/ui/skeleton";
+import { getTranslations } from "next-intl/server";
+import {
+  LayoutGrid,
+  Coins,
+  Wallet,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { WalletsSkeleton } from "@/components/budgeting/wallets-tab/wallets-skeleton";
 
-export default function BdpLoading() {
+const TABS: ReadonlyArray<{ slug: string; icon: LucideIcon }> = [
+  { slug: "wallets", icon: Wallet },
+  { slug: "spendings", icon: LayoutGrid },
+  { slug: "reserves", icon: Coins },
+  { slug: "settings", icon: Settings },
+];
+
+export default async function BdpLoading() {
+  const t = await getTranslations("bdp.tab");
+
   return (
     <>
-      {/* Sticky pills-band footprint — matches the live band wrapper exactly. */}
+      {/* Sticky pills band — same wrapper + nav classes as the live BdpTabs band
+          (budget-detail.tsx) so the real band fades in with zero shift. No
+          data-testid: that marks the *real* band (geometry proofs + the nav
+          measurement key off it). */}
       <div
         aria-hidden="true"
         className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
       >
-        <div className="flex h-12 items-center gap-2 px-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 w-20 rounded-full" />
-          ))}
-        </div>
+        <nav
+          aria-label={t("aria")}
+          className="flex h-12 items-center justify-center gap-2 px-4 sm:px-6"
+        >
+          {TABS.map(({ slug, icon: Icon }) => {
+            const active = slug === "wallets";
+            return (
+              <span
+                key={slug}
+                className={cn(
+                  "relative inline-flex h-9 items-center gap-2 rounded-[var(--radius-pill)] px-4",
+                  "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
+                  active
+                    ? "text-[var(--on-primary)] text-sm font-semibold"
+                    : "text-[var(--muted-foreground)]",
+                )}
+              >
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 z-0 rounded-[var(--radius-pill)] bg-[var(--primary)]"
+                  />
+                )}
+                <Icon
+                  className="relative z-10 size-[18px]"
+                  aria-hidden="true"
+                />
+                <span
+                  className={cn(
+                    "relative z-10",
+                    active ? "inline" : "hidden sm:inline",
+                  )}
+                >
+                  {t(`${slug}.label`)}
+                </span>
+              </span>
+            );
+          })}
+        </nav>
       </div>
 
-      {/* Generic pane skeleton — a few rows; covers whichever tab a deep-link
-          targets until BudgetDetail mounts and shows its own per-tab skeleton. */}
-      <div className="mx-auto w-full max-w-[1280px] px-4 pt-4">
-        <div className="space-y-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-              <Skeleton className="h-3.5 w-32" />
-              <div className="ml-auto flex gap-3">
-                <Skeleton className="h-3.5 w-10" />
-                <Skeleton className="h-3.5 w-12" />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Pane — the SAME skeleton the cold Wallets tab renders (the common
+          landing tab), so loading→loaded is a single continuous skeleton. */}
+      <div className="pb-shell-safe">
+        <WalletsSkeleton label={t("wallets.section.spendings")} />
       </div>
     </>
   );
