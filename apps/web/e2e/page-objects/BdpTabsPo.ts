@@ -6,7 +6,10 @@ export class BdpTabsPo {
   constructor(private page: Page) {}
 
   pill(pill: Pill): Locator {
-    return this.page.getByRole("link", { name: new RegExp(`^${pill}$`, "i") });
+    // Pills are buttons (client tab switch via pushState), not links.
+    return this.page.getByRole("button", {
+      name: new RegExp(`^${pill}$`, "i"),
+    });
   }
 
   badge(pill: Pill): Locator {

@@ -12,7 +12,10 @@ export class BdpPo {
   }
 
   pill(slug: BdpTabSlug) {
-    return this.page.getByRole("link", { name: new RegExp(slug, "i") }).first();
+    // Pills are buttons (client tab switch via pushState), not links.
+    return this.page
+      .getByRole("button", { name: new RegExp(slug, "i") })
+      .first();
   }
 
   pillLabel(slug: BdpTabSlug) {
