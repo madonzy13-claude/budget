@@ -754,6 +754,16 @@ CREATE POLICY notification_prefs_tenant_isolation ON shared_kernel.notification_
 GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.investments TO app_role, worker_role;
 ALTER TABLE budgeting.investments FORCE ROW LEVEL SECURITY;
 
+-- Phase 9 (09-04): worker cron scan. The hourly price-refresh / daily snapshot / daily
+-- seed jobs read held instruments cross-tenant via withInfraTx (worker_role, no
+-- app.tenant_ids set). Mirrors wallets_worker_cron_scan — SELECT-only, permissive, so
+-- worker writes still flow through withTenantTx (GUC set; investments_tenant_isolation
+-- WITH CHECK applies). Without this the cron held-set queries return 0 rows (FORCE RLS).
+DROP POLICY IF EXISTS investments_worker_cron_scan ON budgeting.investments;
+CREATE POLICY investments_worker_cron_scan ON budgeting.investments
+  AS PERMISSIVE FOR SELECT TO worker_role
+  USING (true);
+
 -- Reference data (no RLS): app_role reads; worker_role reads/writes (seed + price jobs).
 GRANT SELECT ON budgeting.instruments, budgeting.instrument_price_cache, budgeting.instrument_price_snapshots TO app_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.instruments, budgeting.instrument_price_cache, budgeting.instrument_price_snapshots TO worker_role;

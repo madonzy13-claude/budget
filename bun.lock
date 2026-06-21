@@ -129,6 +129,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@budget/budgeting": "workspace:*",
+        "@budget/investments": "workspace:*",
         "@budget/platform": "workspace:*",
         "@budget/shared-kernel": "workspace:*",
         "drizzle-orm": "^0.45.2",
