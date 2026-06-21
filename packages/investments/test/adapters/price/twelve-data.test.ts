@@ -56,4 +56,54 @@ describe("TwelveDataPriceProvider", () => {
       provider.currentPrice("AAPL", "twelve_data"),
     ).rejects.toBeInstanceOf(NoPriceAvailable);
   });
+
+  test("HTTP-429 on the first key fails over to the second key", async () => {
+    let call = 0;
+    const calls: string[] = [];
+    const fn = (async (url: string) => {
+      calls.push(String(url));
+      call += 1;
+      if (call === 1) return { ok: false, status: 429, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({ price: "42.0" }) };
+    }) as unknown as typeof fetch;
+
+    const provider = new TwelveDataPriceProvider(["KEY_A", "KEY_B"], fn);
+    const quote = await provider.currentPrice("AAPL", "twelve_data");
+
+    expect(quote.price).toBe("42.0");
+    expect(call).toBe(2);
+    expect(calls[0]).toContain("apikey=KEY_A");
+    expect(calls[1]).toContain("apikey=KEY_B");
+  });
+
+  test("200-with-code-429 (credits exhausted) also triggers failover", async () => {
+    let call = 0;
+    const fn = (async () => {
+      call += 1;
+      if (call === 1)
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            code: 429,
+            status: "error",
+            message: "credits",
+          }),
+        };
+      return { ok: true, status: 200, json: async () => ({ price: "7.5" }) };
+    }) as unknown as typeof fetch;
+
+    const provider = new TwelveDataPriceProvider(["K1", "K2"], fn);
+    const quote = await provider.currentPrice("MSFT", "twelve_data");
+    expect(quote.price).toBe("7.5");
+    expect(call).toBe(2);
+  });
+
+  test("all keys rate-limited throws NoPriceAvailable", async () => {
+    const { fn } = mockFetch(() => ({ ok: false, status: 429, body: {} }));
+    const provider = new TwelveDataPriceProvider(["K1", "K2"], fn);
+    await expect(
+      provider.currentPrice("AAPL", "twelve_data"),
+    ).rejects.toBeInstanceOf(NoPriceAvailable);
+  });
 });
