@@ -32,6 +32,7 @@ import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createRecurringRulesRoute } from "./routes/recurring-rules";
 import { createTasksRoute } from "./routes/tasks";
+import { createInvestmentsRoute } from "./routes/investments";
 import { createPushRoute } from "./routes/push";
 import { createIdempotencyMiddleware } from "./middleware/idempotency";
 import { createShareJoinRoute } from "./routes/share-join";
@@ -103,6 +104,8 @@ export function createApp(deps: BootedDeps) {
   // cross-tenant attempts. Phase 7 will extend this sub-router with POST/
   // PATCH/DELETE without reshaping the read surface.
   app.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
+  // Phase 9: Investments — CRUD + search + reorder + on-add fetch under the budget namespace.
+  app.route("/budgets/:budgetId/investments", createInvestmentsRoute(deps));
 
   // Phase 4: budget-scoped routes under /budgets/:budgetId/
   // /budgets/* requireAuth fence (line 68) already covers these prefixes.

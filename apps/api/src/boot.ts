@@ -14,7 +14,16 @@ import {
   LibsodiumKeyStore,
   SmtpEmailSender,
   workerPool,
+  appPool,
 } from "@budget/platform";
+import { createInvestmentsModule } from "@budget/investments/src/contracts/factory";
+import { DrizzleHoldingRepo } from "@budget/investments/src/adapters/persistence/holding-repo";
+import { DrizzleInstrumentRepo } from "@budget/investments/src/adapters/persistence/instrument-repo";
+import { DrizzlePriceCacheRepo } from "@budget/investments/src/adapters/persistence/price-cache-repo";
+import { CompositePriceProvider } from "@budget/investments/src/adapters/price/composite-price-provider";
+import { TwelveDataPriceProvider } from "@budget/investments/src/adapters/price/twelve-data";
+import { CoinGeckoPriceProvider } from "@budget/investments/src/adapters/price/coingecko";
+import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
 import { createIdentityModule } from "@budget/identity"; // PC-02, PC-15
 import { createTenancyModule } from "@budget/tenancy"; // PC-02, PC-15
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
@@ -79,6 +88,8 @@ export interface BootedDeps {
     /** GRID-02/15, RSCM-03/04: 5-row spendings header read */
     getSpendingsSummary: ReturnType<typeof getSpendingsSummary>;
   };
+  /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
+  investments: ReturnType<typeof createInvestmentsModule>;
 }
 
 /**
@@ -262,7 +273,32 @@ export async function boot(): Promise<BootedDeps> {
     getSpendingsSummary: getSpendingsSummaryService,
   });
 
+  // Phase 9: Investments module. HoldingRepo uses withTenantTx internally (no pool);
+  // instrument/price-cache repos + the rate-limit counter run on the app_role pool.
+  // Reuse baseBudgeting.fxProvider for enrichment (no second FX path — SPEC).
+  const investments = createInvestmentsModule({
+    pool: appPool(),
+    fxProvider: baseBudgeting.fxProvider,
+    holdingRepo: new DrizzleHoldingRepo(),
+    instrumentRepo: new DrizzleInstrumentRepo(appPool()),
+    priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
+    priceProvider: new CompositePriceProvider({
+      twelve_data: new TwelveDataPriceProvider(env.TWELVE_DATA_API_KEY ?? ""),
+      coingecko: new CoinGeckoPriceProvider(env.COINGECKO_API_KEY ?? ""),
+      metals_dev: new MetalsDevPriceProvider(env.METALS_DEV_API_KEY ?? ""),
+    }),
+  });
+
   logger.info({ region: env.REGION }, "apps/api booted");
 
-  return { env, logger, keyStore, emailSender, identity, tenancy, budgeting };
+  return {
+    env,
+    logger,
+    keyStore,
+    emailSender,
+    identity,
+    tenancy,
+    budgeting,
+    investments,
+  };
 }
