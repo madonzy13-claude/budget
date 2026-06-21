@@ -37,6 +37,7 @@
       "dependencies": {
         "@budget/budgeting": "workspace:*",
         "@budget/identity": "workspace:*",
+        "@budget/investments": "workspace:*",
         "@budget/platform": "workspace:*",
         "@budget/shared-kernel": "workspace:*",
         "@budget/tenancy": "workspace:*",

@@ -7,6 +7,9 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./src/contracts/api": "./src/contracts/api.ts",
+    "./src/contracts/factory": "./src/contracts/factory.ts",
+    "./src/application/fetch-instrument-price": "./src/application/fetch-instrument-price.ts",
     "./src/domain/holding": "./src/domain/holding.ts",
     "./src/domain/portfolio-metrics": "./src/domain/portfolio-metrics.ts",
     "./src/ports/price-provider": "./src/ports/price-provider.ts",

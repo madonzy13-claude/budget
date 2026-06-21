@@ -24,6 +24,11 @@ const schema = z.object({
   SMTP_FROM: z.string().email().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  // Phase 9: investments price-provider API keys (free tiers). Optional — the
+  // adapters no-op-fail without them; the on-add fetch then blocks the save (A2).
+  TWELVE_DATA_API_KEY: z.string().optional(),
+  COINGECKO_API_KEY: z.string().optional(),
+  METALS_DEV_API_KEY: z.string().optional(),
   REGION: region,
   LOG_LEVEL: logLevel,
 });
