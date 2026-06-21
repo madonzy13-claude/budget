@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: executing
+status: milestone_complete
 stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
 last_updated: "2026-06-21T10:54:15.639Z"
 last_activity: 2026-06-21
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 70
   completed_plans: 74
   percent: 100
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 ## Current Position
 
-Phase: 09 (investments-wallet) — EXECUTING
-Plan: 7 of 7
+Phase: 09
+Plan: Not started
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
-Status: Ready to execute
+Status: Milestone complete
 Last activity: 2026-06-21
 
 ### Known test-debt (non-CI, non-blocking)
@@ -65,7 +65,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 
 **Velocity:**
 
-- Total plans completed: 0 (v1.1 — v1.0 history archived)
+- Total plans completed: 7 (v1.1 — v1.0 history archived)
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -81,6 +81,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 | 6. Settings, Onboarding & Share UI          | 0/TBD | —     | —        |
 | 7. Tasks Queue                              | 0/TBD | —     | —        |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD | —     | —        |
+| 09                                          | 7     | -     | -        |
 
 **Recent Trend:**
 

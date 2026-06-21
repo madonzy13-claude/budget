@@ -252,7 +252,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 09-04-PLAN.md — Wave 2 (tdd): 3 pg-boss jobs (hourly held-only price, daily seed+delist, daily price+FX snapshot) + TaskRepo.emitInvestmentDelisted + worker wiring (INV-13,15)
 - [x] 09-05-PLAN.md — Wave 1 scaffold (Nyquist/Wave-0): investments route integration stub + ci-gate tenant-leak registration + @investments-wallet Gherkin feature/PO/steps (INV-01,02,03,06,11,14,16)
 - [x] 09-06-PLAN.md — Wave 3: Zod contracts + 7 use-cases + factory + Hono investments route + boot wiring + investments_enabled DTO/PATCH plumbing + rate-limited on-add fetch (INV-01,03,04,05,07,08,09,10,14)
-- [ ] 09-07-PLAN.md — Wave 4 (autonomous=false): web InvestmentsSection island + HoldingSheet (search/type/group/cash) + 5 RQ hooks + swipe Edit+Delete + Settings/onboarding toggle + EN/PL/UK i18n + E2E + human-verify (INV-01,02,05,06,09,10,11,16)
+- [x] 09-07-PLAN.md — Wave 4 (autonomous=false): web InvestmentsSection island + HoldingSheet (search/type/group/cash) + 5 RQ hooks + swipe Edit+Delete + Settings/onboarding toggle + EN/PL/UK i18n + E2E + human-verify (INV-01,02,05,06,09,10,11,16)
       **UI hint**: yes
 
 ## Risk Register
