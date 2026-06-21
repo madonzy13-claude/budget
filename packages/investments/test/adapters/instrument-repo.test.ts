@@ -91,4 +91,17 @@ describe("DrizzleInstrumentRepo.search (local trigram, INV-07)", () => {
     const r = await repo.search("AAPL_OLD");
     expect(r.find((i) => i.symbol === "AAPL_OLD")).toBeUndefined();
   });
+
+  it("findById returns the matching instrument", async () => {
+    const hits = await repo.search("AAPL");
+    const id = hits.find((i) => i.symbol === "AAPL")!.id;
+    const found = await repo.findById(id);
+    expect(found?.symbol).toBe("AAPL");
+    expect(found?.assetClass).toBe("equities");
+  });
+
+  it("findById returns null for a missing id", async () => {
+    const found = await repo.findById("00000000-0000-0000-0000-000000000000");
+    expect(found).toBeNull();
+  });
 });
