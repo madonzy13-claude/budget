@@ -27,6 +27,7 @@ Feature: Investments wallet — section, holdings, grouping, optimistic add
     And I add a custom holding "Vintage Watch" worth 250000 cents via the sheet
     Then the holding row "Vintage Watch" is visible
     And the holding row "Vintage Watch" has no inline amount input
+    And the holding row "Vintage Watch" persists after a reload
 
   # INV-11 — drag a holding into a group; assignment persists.
   @skip-phase-09-debt

@@ -115,6 +115,19 @@ Then(
   },
 );
 
+// Persistence guard (regression for the /investments path 404 that the optimistic
+// insert masked): a real reload must still show the row from the server.
+Then(
+  "the holding row {string} persists after a reload",
+  async ({ page }, name: string) => {
+    await page.reload();
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+    await new InvestmentsPo(page).row(name).waitFor({ state: "visible" });
+  },
+);
+
 When(
   "I drag the holding {string} into group {string}",
   async ({ page }, name: string, group: string) => {
