@@ -376,7 +376,39 @@
         "lastUpdated": "Zaktualizowano {relativeTime}",
         "now": "przed chwilą",
         "amount": "Kwota",
-        "currency": "Waluta"
+        "currency": "Waluta",
+        "asset": "Aktywo",
+        "metal": "Metal",
+        "kind": "Rodzaj",
+        "uom": "Jednostka"
+      },
+      "uitype": {
+        "equity": "Akcje",
+        "etf": "ETF",
+        "etb": "Obligacje giełdowe",
+        "reit": "REIT",
+        "crypto": "Krypto",
+        "treasury_bond": "Detaliczne obligacje skarbowe",
+        "collectibles": "Kolekcje",
+        "real_estate": "Nieruchomości",
+        "other": "Inne",
+        "precious_metals": "Metale szlachetne",
+        "cash": "Gotówka"
+      },
+      "metalOption": {
+        "gold": "Złoto",
+        "silver": "Srebro",
+        "platinum": "Platyna"
+      },
+      "kindOption": {
+        "coin": "Moneta",
+        "bar": "Sztabka",
+        "other": "Inne"
+      },
+      "uomOption": {
+        "g": "Gramy (g)",
+        "oz": "Uncja trojańska (oz)",
+        "kg": "Kilogramy (kg)"
       },
       "type": {
         "equities": "Akcje",

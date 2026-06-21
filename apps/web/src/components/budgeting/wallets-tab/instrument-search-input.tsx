@@ -29,6 +29,10 @@ interface InstrumentSearchInputProps {
   onNameChange: (name: string) => void;
   onSelectInstrument: (instrument: InstrumentSuggestion) => void;
   onSelectCustom: () => void;
+  /** asset_class filter so the autocomplete only suggests the selected type. */
+  assetClass?: string;
+  /** Hide the "Custom" row (type-first form: custom is a separate type). */
+  hideCustom?: boolean;
   autoFocus?: boolean;
   disabled?: boolean;
 }
@@ -42,6 +46,8 @@ export function InstrumentSearchInput({
   onNameChange,
   onSelectInstrument,
   onSelectCustom,
+  assetClass,
+  hideCustom,
   autoFocus,
   disabled,
 }: InstrumentSearchInputProps) {
@@ -62,8 +68,11 @@ export function InstrumentSearchInput({
     setLoading(true);
     setOpen(true);
     try {
+      const typeParam = assetClass
+        ? `&type=${encodeURIComponent(assetClass)}`
+        : "";
       const res = await clientApiFetch(
-        `/budgets/${budgetId}/investments/search?q=${encodeURIComponent(query)}`,
+        `/budgets/${budgetId}/investments/search?q=${encodeURIComponent(query)}${typeParam}`,
         { signal: AbortSignal.timeout(7000) },
       );
       if (!res.ok) throw new Error(await res.text());
@@ -152,21 +161,24 @@ export function InstrumentSearchInput({
               {t("noResults")}
             </li>
           )}
-          {/* Custom entry — always the final row. */}
-          <li role="option">
-            <button
-              type="button"
-              data-testid="instrument-custom-option"
-              className="flex w-full items-center px-3 py-2 text-left text-body-md text-[var(--body-on-dark)] hover:bg-[var(--surface-elevated-dark)]"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onSelectCustom();
-                setOpen(false);
-              }}
-            >
-              {t("custom")}
-            </button>
-          </li>
+          {/* Custom entry — final row (hidden in the type-first form where custom
+              types are picked from the Type dropdown instead). */}
+          {!hideCustom && (
+            <li role="option">
+              <button
+                type="button"
+                data-testid="instrument-custom-option"
+                className="flex w-full items-center px-3 py-2 text-left text-body-md text-[var(--body-on-dark)] hover:bg-[var(--surface-elevated-dark)]"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onSelectCustom();
+                  setOpen(false);
+                }}
+              >
+                {t("custom")}
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>

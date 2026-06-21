@@ -31,8 +31,14 @@ export interface HoldingDto {
   id: string;
   name: string;
   holdingType: HoldingType;
+  /** Phase 9.1 user-facing type (11 values); null for pre-9.1 rows. */
+  uiType: string | null;
   group: string | null;
   instrumentId: string | null;
+  /** Precious-metals attributes (null otherwise). */
+  metal: string | null;
+  metalKind: string | null;
+  unitOfMeasure: string | null;
   isCustom: boolean;
   isDelisted: boolean;
   quantity: string;

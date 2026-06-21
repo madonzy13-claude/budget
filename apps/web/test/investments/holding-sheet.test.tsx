@@ -1,10 +1,11 @@
 /**
- * holding-sheet.test.tsx — Vitest+RTL tests for HoldingSheet (Phase 9, INV-05/06).
+ * holding-sheet.test.tsx — Vitest+RTL tests for the type-first HoldingSheet (9.1).
  *
  * Coverage:
- * - Cash variant: only currency + amount + group (no buy price / current price / quantity)
- * - Tracked variant: current price is read-only (no editable amount input)
- * - Dirty close fires the discard-confirm dialog (D-18)
+ * - Cash type: currency + amount only (no buy price / quantity)
+ * - Tracked type: current price read-only (no editable amount), buy price + quantity
+ * - Precious metals type: metal + kind + UoM fields present
+ * - Dirty close fires the discard-confirm dialog
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -26,7 +27,6 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-
 vi.mock("../../src/hooks/use-create-holding", () => ({
   useCreateHolding: () => ({ mutate: vi.fn() }),
 }));
@@ -34,7 +34,6 @@ vi.mock("../../src/hooks/use-update-holding", () => ({
   useUpdateHolding: () => ({ mutate: vi.fn() }),
 }));
 vi.mock("../../src/lib/budget-fetch", () => ({ clientApiFetch: vi.fn() }));
-
 vi.mock("../../src/components/common/currency-picker", () => ({
   CurrencyPicker: ({
     value,
@@ -59,9 +58,13 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     id: "h1",
     name: "Test",
     holdingType: "equities",
+    uiType: "equity",
     group: null,
-    instrumentId: null,
-    isCustom: true,
+    instrumentId: "i1",
+    metal: null,
+    metalKind: null,
+    unitOfMeasure: null,
+    isCustom: false,
     isDelisted: false,
     quantity: "1",
     buyPriceCents: "10000",
@@ -86,13 +89,18 @@ const baseProps = {
   groups: ["Broker A"],
 };
 
-describe("HoldingSheet — cash variant", () => {
-  it("shows ONLY currency + amount + group (no buy price / quantity)", () => {
+describe("HoldingSheet — type-first", () => {
+  it("cash type shows currency + amount only (no buy price / quantity)", () => {
     render(
       <HoldingSheet
         {...baseProps}
         mode="edit"
-        holding={holding({ holdingType: "cash_fx", name: "EUR Cash" })}
+        holding={holding({
+          holdingType: "cash_fx",
+          uiType: "cash",
+          instrumentId: null,
+          name: "EUR Cash",
+        })}
       />,
     );
     expect(screen.getByTestId("holding-sheet-amount")).toBeInTheDocument();
@@ -100,32 +108,43 @@ describe("HoldingSheet — cash variant", () => {
     expect(screen.queryByTestId("holding-sheet-quantity")).toBeNull();
     expect(screen.getByTestId("holding-sheet-group")).toBeInTheDocument();
   });
-});
 
-describe("HoldingSheet — tracked variant", () => {
-  it("renders current price read-only (no editable amount input)", () => {
+  it("tracked type: read-only current price, editable buy price + quantity", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    expect(screen.queryByTestId("holding-sheet-amount")).toBeNull();
+    expect(screen.getByTestId("holding-sheet-buy-price")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-quantity")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("holding-sheet-current-price"),
+    ).toBeInTheDocument();
+  });
+
+  it("precious metals type reveals metal + kind + UoM fields", () => {
     render(
       <HoldingSheet
         {...baseProps}
         mode="edit"
-        holding={holding({ instrumentId: "i1", holdingType: "equities" })}
+        holding={holding({
+          holdingType: "commodity",
+          uiType: "precious_metals",
+          metal: "gold",
+          metalKind: "coin",
+          unitOfMeasure: "g",
+          name: "Krugerrand",
+        })}
       />,
     );
-    // Tracked: current price is a read-only display, buy price + quantity edit.
-    expect(screen.queryByTestId("holding-sheet-amount")).toBeNull();
-    expect(screen.getByTestId("holding-sheet-buy-price")).toBeInTheDocument();
-    expect(screen.getByTestId("holding-sheet-quantity")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-metal")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-kind")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-uom")).toBeInTheDocument();
   });
-});
 
-describe("HoldingSheet — dirty close", () => {
-  it("fires the discard-confirm dialog when closing with unsaved changes", async () => {
+  it("dirty close fires the discard-confirm dialog", async () => {
     render(<HoldingSheet {...baseProps} mode="create" holding={null} />);
-    // Type a name → form becomes dirty.
+    // Default type is tracked → the Asset input carries the holding-sheet-name id.
     fireEvent.change(screen.getByTestId("holding-sheet-name"), {
-      target: { value: "Vintage Watch" },
+      target: { value: "Apple" },
     });
-    // Click Cancel → discard-confirm appears.
     fireEvent.click(screen.getByText("sheet.cancel"));
     await waitFor(() => {
       expect(screen.getByText("confirm.discard.title")).toBeInTheDocument();

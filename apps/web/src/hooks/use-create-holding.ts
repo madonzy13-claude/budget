@@ -18,6 +18,7 @@ import type { HoldingDto, HoldingType } from "./use-investments";
 export interface CreateHoldingInput {
   name: string;
   holdingType: HoldingType;
+  uiType?: string | null;
   group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: string | number | null;
@@ -25,6 +26,9 @@ export interface CreateHoldingInput {
   quantity?: string;
   currentPriceCents?: string | number | null;
   currentPriceCurrency?: string | null;
+  metal?: string | null;
+  metalKind?: string | null;
+  unitOfMeasure?: string | null;
 }
 
 function optimisticRow(input: CreateHoldingInput): HoldingDto {
@@ -38,12 +42,17 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     id: crypto.randomUUID(),
     name: input.name,
     holdingType: input.holdingType,
+    uiType: input.uiType ?? null,
     group: input.group ?? null,
     instrumentId: input.instrumentId ?? null,
+    metal: input.metal ?? null,
+    metalKind: input.metalKind ?? null,
+    unitOfMeasure: input.unitOfMeasure ?? null,
     isCustom: !input.instrumentId,
     isDelisted: false,
     quantity: input.quantity ?? "1",
-    buyPriceCents: input.buyPriceCents != null ? String(input.buyPriceCents) : null,
+    buyPriceCents:
+      input.buyPriceCents != null ? String(input.buyPriceCents) : null,
     buyCurrency: input.buyCurrency ?? null,
     currentPriceCents:
       input.currentPriceCents != null ? String(input.currentPriceCents) : null,

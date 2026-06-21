@@ -376,7 +376,39 @@
         "lastUpdated": "Оновлено {relativeTime}",
         "now": "щойно",
         "amount": "Сума",
-        "currency": "Валюта"
+        "currency": "Валюта",
+        "asset": "Актив",
+        "metal": "Метал",
+        "kind": "Вид",
+        "uom": "Одиниця"
+      },
+      "uitype": {
+        "equity": "Акції",
+        "etf": "ETF",
+        "etb": "Біржові облігації",
+        "reit": "REIT",
+        "crypto": "Крипто",
+        "treasury_bond": "Роздрібні казначейські облігації",
+        "collectibles": "Колекції",
+        "real_estate": "Нерухомість",
+        "other": "Інше",
+        "precious_metals": "Дорогоцінні метали",
+        "cash": "Готівка"
+      },
+      "metalOption": {
+        "gold": "Золото",
+        "silver": "Срібло",
+        "platinum": "Платина"
+      },
+      "kindOption": {
+        "coin": "Монета",
+        "bar": "Зливок",
+        "other": "Інше"
+      },
+      "uomOption": {
+        "g": "Грами (g)",
+        "oz": "Тройська унція (oz)",
+        "kg": "Кілограми (kg)"
       },
       "type": {
         "equities": "Акції",

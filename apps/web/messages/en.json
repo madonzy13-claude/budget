@@ -376,7 +376,39 @@
         "lastUpdated": "Last updated {relativeTime}",
         "now": "just now",
         "amount": "Amount",
-        "currency": "Currency"
+        "currency": "Currency",
+        "asset": "Asset",
+        "metal": "Metal",
+        "kind": "Kind",
+        "uom": "Unit"
+      },
+      "uitype": {
+        "equity": "Equity",
+        "etf": "ETF",
+        "etb": "Exchange-traded bonds",
+        "reit": "REIT",
+        "crypto": "Crypto",
+        "treasury_bond": "Retail treasury bonds",
+        "collectibles": "Collectibles",
+        "real_estate": "Real estate",
+        "other": "Other",
+        "precious_metals": "Precious metals",
+        "cash": "Cash"
+      },
+      "metalOption": {
+        "gold": "Gold",
+        "silver": "Silver",
+        "platinum": "Platinum"
+      },
+      "kindOption": {
+        "coin": "Coin",
+        "bar": "Bar",
+        "other": "Other"
+      },
+      "uomOption": {
+        "g": "Grams (g)",
+        "oz": "Troy ounce (oz)",
+        "kg": "Kilograms (kg)"
       },
       "type": {
         "equities": "Equity",

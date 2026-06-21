@@ -38,10 +38,13 @@ export class InvestmentsPo {
     return this.page.getByTestId(`investment-group-${group}`);
   }
 
-  /** Open the Sheet and create a custom holding with a manual value (cents). */
+  /** Open the Sheet and create a manual ("Other") holding with a value (cents).
+   *  Type-first (9.1): pick a manual type so the name + editable amount appear. */
   async addCustomHolding(name: string, amountCents: number): Promise<void> {
     await this.addButton().click();
     await this.sheet().waitFor({ state: "visible" });
+    await this.page.getByTestId("holding-sheet-type").click();
+    await this.page.getByTestId("holding-type-other").click();
     await this.page.getByTestId("holding-sheet-name").fill(name);
     await this.page
       .getByTestId("holding-sheet-amount")

@@ -17,6 +17,7 @@ export interface UpdateHoldingInput {
   holdingId: string;
   name?: string;
   holdingType?: HoldingType;
+  uiType?: string | null;
   group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: string | number | null;
@@ -24,6 +25,9 @@ export interface UpdateHoldingInput {
   quantity?: string;
   currentPriceCents?: string | number | null;
   currentPriceCurrency?: string | null;
+  metal?: string | null;
+  metalKind?: string | null;
+  unitOfMeasure?: string | null;
 }
 
 export function useUpdateHolding(budgetId: string) {
@@ -39,12 +43,13 @@ export function useUpdateHolding(budgetId: string) {
         `/budgets/${budgetId}/investments/${holdingId}`,
         {
           method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": generateIdempotencyKey(),
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": generateIdempotencyKey(),
+          },
+          body: JSON.stringify(rest),
         },
-        body: JSON.stringify(rest),
-      });
+      );
       if (!res.ok) {
         const body = await res.text();
         const err: Error & { code?: string | null } = new Error(body);
