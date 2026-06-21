@@ -248,7 +248,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] 09-01-PLAN.md — Wave 1: packages/investments skeleton + 4 Drizzle schemas (holdings RLS + 3 reference) + investments_enabled flag + tasks CHECK extension + hand-authored migration 0038 + [BLOCKING] make migrate (INV-01,03,04)
 - [x] 09-02-PLAN.md — Wave 1 (tdd): Holding domain entity + portfolio-metrics (value/P-L%/weight%, FX conversion, cash sentinel, budget-ccy denominator) (INV-03,04,08,09,10)
-- [ ] 09-03-PLAN.md — Wave 2 (tdd): PriceProvider port + 3 free-API adapters (+composite, metals daily-only) + local trigram InstrumentRepo + Holding/PriceCache Drizzle repos (INV-07,12)
+- [x] 09-03-PLAN.md — Wave 2 (tdd): PriceProvider port + 3 free-API adapters (+composite, metals daily-only) + local trigram InstrumentRepo + Holding/PriceCache Drizzle repos (INV-07,12)
 - [ ] 09-04-PLAN.md — Wave 2 (tdd): 3 pg-boss jobs (hourly held-only price, daily seed+delist, daily price+FX snapshot) + TaskRepo.emitInvestmentDelisted + worker wiring (INV-13,15)
 - [x] 09-05-PLAN.md — Wave 1 scaffold (Nyquist/Wave-0): investments route integration stub + ci-gate tenant-leak registration + @investments-wallet Gherkin feature/PO/steps (INV-01,02,03,06,11,14,16)
 - [ ] 09-06-PLAN.md — Wave 3: Zod contracts + 7 use-cases + factory + Hono investments route + boot wiring + investments_enabled DTO/PATCH plumbing + rate-limited on-add fetch (INV-01,03,04,05,07,08,09,10,14)
