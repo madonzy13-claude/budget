@@ -244,8 +244,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. Holdings drag-reorder within the section; dragging a holding into/out of a group reassigns its group; whole groups reorder. Holdings cannot be dragged in from other wallet sections (cross-section drop rejected, mirroring the existing `wallet_id_not_in_section` guard).
 5. A `PriceProvider` port + free-API adapter(s) back an hourly cron that fetches current prices ONLY for instruments at least one budget holds; an instrument with no cached price is fetched instantly on add, rate-limited to 10/user/min with overflow deferred to the next hourly run. A daily job snapshots each held instrument's last price AND the day's FX rates (extending the existing daily-FX job to investment currency pairs) — one row per instrument/pair per day — for future charts. Reads flow through the existing React-Query client cache (`["budget", id, "investments"]`) with optimistic writes.
 
-**Plans**: TBD (run /gsd-plan-phase 9 after discuss-phase)
-**UI hint**: yes
+**Plans** (7 — Wave 1 foundation+domain+scaffold -> Wave 2 adapters+jobs -> Wave 3 API -> Wave 4 web UI):
+
+- [ ] 09-01-PLAN.md — Wave 1: packages/investments skeleton + 4 Drizzle schemas (holdings RLS + 3 reference) + investments_enabled flag + tasks CHECK extension + hand-authored migration 0038 + [BLOCKING] make migrate (INV-01,03,04)
+- [ ] 09-02-PLAN.md — Wave 1 (tdd): Holding domain entity + portfolio-metrics (value/P-L%/weight%, FX conversion, cash sentinel, budget-ccy denominator) (INV-03,04,08,09,10)
+- [ ] 09-03-PLAN.md — Wave 2 (tdd): PriceProvider port + 3 free-API adapters (+composite, metals daily-only) + local trigram InstrumentRepo + Holding/PriceCache Drizzle repos (INV-07,12)
+- [ ] 09-04-PLAN.md — Wave 2 (tdd): 3 pg-boss jobs (hourly held-only price, daily seed+delist, daily price+FX snapshot) + TaskRepo.emitInvestmentDelisted + worker wiring (INV-13,15)
+- [ ] 09-05-PLAN.md — Wave 1 scaffold (Nyquist/Wave-0): investments route integration stub + ci-gate tenant-leak registration + @investments-wallet Gherkin feature/PO/steps (INV-01,02,03,06,11,14,16)
+- [ ] 09-06-PLAN.md — Wave 3: Zod contracts + 7 use-cases + factory + Hono investments route + boot wiring + investments_enabled DTO/PATCH plumbing + rate-limited on-add fetch (INV-01,03,04,05,07,08,09,10,14)
+- [ ] 09-07-PLAN.md — Wave 4 (autonomous=false): web InvestmentsSection island + HoldingSheet (search/type/group/cash) + 5 RQ hooks + swipe Edit+Delete + Settings/onboarding toggle + EN/PL/UK i18n + E2E + human-verify (INV-01,02,05,06,09,10,11,16)
+      **UI hint**: yes
 
 ## Risk Register
 
