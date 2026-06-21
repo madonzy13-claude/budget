@@ -46,6 +46,9 @@ export const budgets = tenancy.table(
     // cushion_mode_enabled, which records whether the CURRENT MONTH is
     // operated in cushion mode (paired with budget_mode_history SCD-2 rows).
     cushionEnabled: boolean("cushion_enabled").notNull().default(true),
+    // Phase 9: gates the Investments section on the wallets page. Opt-in —
+    // default false (unlike reserves/cushion, which default true).
+    investmentsEnabled: boolean("investments_enabled").notNull().default(false),
     // Phase 6 (D-09): soft-delete timestamp. NULL = active, non-NULL = archived.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
