@@ -39,6 +39,7 @@ import { useCreateWallet } from "@/hooks/use-create-wallet";
 import { useArchiveWallet } from "@/hooks/use-archive-wallet";
 import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
+import { InvestmentsSection } from "./investments-section";
 // UAT-PH5-T3-28: import the ghost preview's helpers statically. Inline
 // `require()` worked on dev but blew up on iOS Safari with a
 // client-side exception when the row's DragOverlay first rendered.
@@ -69,12 +70,15 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         default_currency?: string;
         reservesEnabled?: boolean;
         cushionEnabled?: boolean;
+        investmentsEnabled?: boolean;
       }
     | undefined;
   const budgetCurrency =
     budgetMeta?.defaultCurrency ?? budgetMeta?.default_currency ?? "EUR";
   const reservesEnabled = budgetMeta?.reservesEnabled ?? true;
   const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
+  // Phase 9 (D-PH9): investments section gates on its own flag; default off.
+  const investmentsEnabled = budgetMeta?.investmentsEnabled ?? false;
   const t = useTranslations("bdp.tab.wallets.toast");
   // UAT-PH5-T3-33: separate translator for the full section labels
   // ("Spendings wallets", "Cushion wallets", "Reserve wallets") so the
@@ -405,6 +409,14 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             onDiscardDraft={handleDiscardDraft(type)}
           />
         ))}
+        {/* Phase 9 (INV-01/02): Investments renders LAST when its flag is on —
+            mirrors the reservesEnabled/cushionEnabled section gates above. */}
+        {investmentsEnabled && (
+          <InvestmentsSection
+            budgetId={budgetId}
+            budgetCurrency={budgetCurrency}
+          />
+        )}
       </div>
       {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
           loses the dragged row visually as the pointer crosses a context

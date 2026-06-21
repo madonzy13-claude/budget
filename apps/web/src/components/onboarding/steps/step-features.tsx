@@ -18,6 +18,9 @@ interface StepFeaturesProps {
   onChangeCushion: (v: boolean) => void;
   reservesEnabled: boolean;
   onChangeReserves: (v: boolean) => void;
+  /** Phase 9: opt into the Investments wallet section. Default off. */
+  investmentsEnabled: boolean;
+  onChangeInvestments: (v: boolean) => void;
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
   onChangeCushionTargetMonths: (v: number) => void;
@@ -72,6 +75,8 @@ export function StepFeatures({
   onChangeCushion,
   reservesEnabled,
   onChangeReserves,
+  investmentsEnabled,
+  onChangeInvestments,
   cushionTargetMonths,
   onChangeCushionTargetMonths,
   pushEnabled,
@@ -138,6 +143,14 @@ export function StepFeatures({
           help={t("reserves_help")}
           checked={reservesEnabled}
           onChange={onChangeReserves}
+        />
+        <FeatureRow
+          id="wizard-feat-investments"
+          testId="wizard-feature-investments"
+          label={t("investments_label")}
+          help={t("investments_help")}
+          checked={investmentsEnabled}
+          onChange={onChangeInvestments}
         />
         <FeatureRow
           id="wizard-feat-push"

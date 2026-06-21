@@ -48,6 +48,8 @@ interface WizardForm {
   kind: "PRIVATE" | "SHARED";
   cushionEnabled: boolean;
   reservesEnabled: boolean;
+  /** Phase 9: opt into the Investments wallet section. Default off. */
+  investmentsEnabled: boolean;
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
   pushEnabled: boolean;
@@ -108,6 +110,7 @@ export function WizardPage({
     kind: "PRIVATE",
     cushionEnabled: true,
     reservesEnabled: true,
+    investmentsEnabled: false,
     cushionTargetMonths: 6,
     pushEnabled: false,
   });
@@ -155,10 +158,13 @@ export function WizardPage({
     const patchPayload: {
       cushion_enabled?: boolean;
       reserves_enabled?: boolean;
+      investments_enabled?: boolean;
       cushion_target_months?: number;
     } = {};
     if (!form.cushionEnabled) patchPayload.cushion_enabled = false;
     if (!form.reservesEnabled) patchPayload.reserves_enabled = false;
+    // Investments default OFF server-side — only PATCH when the user opted in.
+    if (form.investmentsEnabled) patchPayload.investments_enabled = true;
     if (form.cushionEnabled) {
       // Phase 7-09 (D-PH7-33): always send target months when cushion is
       // enabled, so the server has truthy data even if the user kept the
@@ -281,6 +287,8 @@ export function WizardPage({
             onChangeCushion={(v) => updateForm("cushionEnabled", v)}
             reservesEnabled={form.reservesEnabled}
             onChangeReserves={(v) => updateForm("reservesEnabled", v)}
+            investmentsEnabled={form.investmentsEnabled}
+            onChangeInvestments={(v) => updateForm("investmentsEnabled", v)}
             cushionTargetMonths={form.cushionTargetMonths}
             onChangeCushionTargetMonths={(v) =>
               updateForm("cushionTargetMonths", v)
