@@ -26,8 +26,14 @@ const schema = z.object({
   SMTP_PASS: z.string().optional(),
   // Phase 9: investments price-provider API keys (free tiers). Optional — the
   // adapters no-op-fail without them; the on-add fetch then blocks the save (A2).
+  // *_API_KEYS (plural) accept a comma-separated list for round-robin failover
+  // when one key hits its rate limit; *_API_KEY (singular) stays for back-compat.
   TWELVE_DATA_API_KEY: z.string().optional(),
+  TWELVE_DATA_API_KEYS: z.string().optional(),
   COINGECKO_API_KEY: z.string().optional(),
+  COINGECKO_API_KEYS: z.string().optional(),
+  FINNHUB_API_KEY: z.string().optional(),
+  FINNHUB_API_KEYS: z.string().optional(),
   METALS_DEV_API_KEY: z.string().optional(),
   REGION: region,
   LOG_LEVEL: logLevel,

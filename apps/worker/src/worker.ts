@@ -17,6 +17,7 @@ import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-
 import { CompositePriceProvider } from "@budget/investments/src/adapters/price/composite-price-provider";
 import { TwelveDataPriceProvider } from "@budget/investments/src/adapters/price/twelve-data";
 import { CoinGeckoPriceProvider } from "@budget/investments/src/adapters/price/coingecko";
+import { FinnhubPriceProvider } from "@budget/investments/src/adapters/price/finnhub";
 import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
 import type { InstrumentUpsert } from "@budget/investments/src/ports/instrument-repo";
 import { registerInstrumentPriceHourly } from "./handlers/instrument-price-hourly";
@@ -36,49 +37,49 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
   {
     symbol: "AAPL",
     displayName: "Apple Inc.",
-    provider: "twelve_data",
+    provider: "finnhub",
     assetClass: "equities",
     quoteCurrency: "USD",
   },
   {
     symbol: "MSFT",
     displayName: "Microsoft Corp.",
-    provider: "twelve_data",
+    provider: "finnhub",
     assetClass: "equities",
     quoteCurrency: "USD",
   },
   {
     symbol: "GOOGL",
     displayName: "Alphabet Inc.",
-    provider: "twelve_data",
+    provider: "finnhub",
     assetClass: "equities",
     quoteCurrency: "USD",
   },
   {
     symbol: "AMZN",
     displayName: "Amazon.com Inc.",
-    provider: "twelve_data",
+    provider: "finnhub",
     assetClass: "equities",
     quoteCurrency: "USD",
   },
   {
     symbol: "NVDA",
     displayName: "NVIDIA Corp.",
-    provider: "twelve_data",
+    provider: "finnhub",
     assetClass: "equities",
     quoteCurrency: "USD",
   },
   {
     symbol: "TSLA",
     displayName: "Tesla Inc.",
-    provider: "twelve_data",
+    provider: "finnhub",
     assetClass: "equities",
     quoteCurrency: "USD",
   },
   {
     symbol: "VOO",
     displayName: "Vanguard S&P 500 ETF",
-    provider: "twelve_data",
+    provider: "finnhub",
     assetClass: "etf",
     quoteCurrency: "USD",
   },
@@ -230,18 +231,29 @@ async function main() {
 
   // ── Phase 9: Investments jobs (reference-data scope, no per-tenant iteration) ──
   const priceProvider = new CompositePriceProvider({
+    // *_API_KEYS (CSV) enable round-robin failover across multiple free-tier keys
+    // when one hits its rate limit; *_API_KEY is the single-key fallback.
     twelve_data: new TwelveDataPriceProvider(
-      process.env.TWELVE_DATA_API_KEY ?? "",
+      process.env.TWELVE_DATA_API_KEYS ?? process.env.TWELVE_DATA_API_KEY ?? "",
     ),
-    coingecko: new CoinGeckoPriceProvider(process.env.COINGECKO_API_KEY ?? ""),
+    finnhub: new FinnhubPriceProvider(
+      process.env.FINNHUB_API_KEYS ?? process.env.FINNHUB_API_KEY ?? "",
+    ),
+    coingecko: new CoinGeckoPriceProvider(
+      process.env.COINGECKO_API_KEYS ?? process.env.COINGECKO_API_KEY ?? "",
+    ),
     metals_dev: new MetalsDevPriceProvider(
       process.env.METALS_DEV_API_KEY ?? "",
     ),
   });
 
-  // Hourly held-only price refresh (INV-13). Excludes custom + daily metals.
+  // Held-only price refresh (INV-13). Excludes custom holdings + daily metals.
+  // Cadence is env-configurable (PRICE_SCAN_CRON, default every 3h UTC) so the
+  // distinct-instrument fan-out stays within the free-tier credit budgets:
+  // fewer scans/day ⇒ more distinct instruments fit under the daily cap.
+  const PRICE_SCAN_CRON = process.env.PRICE_SCAN_CRON ?? "0 */3 * * *";
   await boss.createQueue("instrument-price-hourly");
-  await boss.schedule("instrument-price-hourly", "0 * * * *"); // top of every hour, UTC
+  await boss.schedule("instrument-price-hourly", PRICE_SCAN_CRON);
   registerInstrumentPriceHourly(
     boss as unknown as Parameters<typeof registerInstrumentPriceHourly>[0],
     priceProvider,
@@ -277,7 +289,7 @@ async function main() {
   });
 
   console.log(
-    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC; instrument-price-hourly schedule=0 * * * * UTC; instruments-daily-seed schedule=0 18 * * * Europe/Berlin; investment-snapshot-daily schedule=30 17 * * * Europe/Berlin",
+    `[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC; instrument-price-scan schedule=${PRICE_SCAN_CRON} UTC; instruments-daily-seed schedule=0 18 * * * Europe/Berlin; investment-snapshot-daily schedule=30 17 * * * Europe/Berlin`,
   );
 
   process.on("SIGTERM", async () => {

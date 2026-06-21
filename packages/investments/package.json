@@ -18,6 +18,7 @@
     "./src/ports/price-cache-repo": "./src/ports/price-cache-repo.ts",
     "./src/adapters/price/twelve-data": "./src/adapters/price/twelve-data.ts",
     "./src/adapters/price/coingecko": "./src/adapters/price/coingecko.ts",
+    "./src/adapters/price/finnhub": "./src/adapters/price/finnhub.ts",
     "./src/adapters/price/metals-dev": "./src/adapters/price/metals-dev.ts",
     "./src/adapters/price/composite-price-provider": "./src/adapters/price/composite-price-provider.ts",
     "./src/adapters/persistence/holding-repo": "./src/adapters/persistence/holding-repo.ts",

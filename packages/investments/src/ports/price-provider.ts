@@ -6,7 +6,7 @@
  * ACL: `price` is always a string (number->string at the adapter boundary) so a
  * JS float never crosses into the domain math (T-9-04).
  */
-export type ProviderId = "twelve_data" | "coingecko" | "metals_dev";
+export type ProviderId = "twelve_data" | "coingecko" | "metals_dev" | "finnhub";
 
 /** Pitfall 3: metals.dev is gated to the daily refresh only (100 req/month tier). */
 export type PriceContext = "hourly" | "daily";
@@ -42,6 +42,55 @@ export class NoPriceAvailable extends Error {
     super(`No price available for ${symbol} from ${provider}`);
     this.name = "NoPriceAvailable";
   }
+}
+
+/**
+ * Internal control-flow signal: a provider hit its rate/credit limit with the
+ * current key. `withKeyFailover` catches it to advance to the next key; if every
+ * key is exhausted it surfaces as NoPriceAvailable so upstream handling (blocked
+ * banner / job `failed` counter) is unchanged.
+ */
+export class RateLimited extends Error {
+  constructor(public readonly provider: string) {
+    super(`Rate limited by ${provider}`);
+    this.name = "RateLimited";
+  }
+}
+
+/** Normalize a key config (single string, CSV string, or array) to a clean list. */
+export function normalizeKeys(keys: string | string[]): string[] {
+  const arr = Array.isArray(keys) ? keys : [keys];
+  return arr
+    .flatMap((k) => (k ?? "").split(","))
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+}
+
+/**
+ * Try each key in order; advance to the next ONLY when `attempt` throws
+ * RateLimited. Any other error propagates immediately (a missing symbol won't be
+ * fixed by another key). When every key is rate-limited — or no keys are
+ * configured — throw NoPriceAvailable so callers keep their existing behaviour.
+ */
+export async function withKeyFailover<T>(
+  keys: string[],
+  symbol: string,
+  provider: string,
+  attempt: (key: string) => Promise<T>,
+): Promise<T> {
+  // Keyless attempt still runs once so the provider's own error surfaces.
+  const usable = keys.length > 0 ? keys : [""];
+  for (let i = 0; i < usable.length; i++) {
+    try {
+      return await attempt(usable[i]!);
+    } catch (e) {
+      if (e instanceof RateLimited && i < usable.length - 1) continue;
+      if (e instanceof RateLimited)
+        throw new NoPriceAvailable(symbol, provider);
+      throw e;
+    }
+  }
+  throw new NoPriceAvailable(symbol, provider);
 }
 
 /** T-9-09: metals.dev must never be called from the hourly cron (quota guard). */
