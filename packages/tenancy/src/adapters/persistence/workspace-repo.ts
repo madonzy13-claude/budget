@@ -35,11 +35,12 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         cushion_mode_enabled: boolean;
         reserves_enabled: boolean;
         cushion_enabled: boolean;
+        investments_enabled: boolean;
         // Migration 0027: column is numeric(4,1); pg returns numeric as
         // string. Caller parses to number.
         cushion_target_months: string | number | null;
       }>(
-        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, cushion_target_months
+        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, investments_enabled, cushion_target_months
             FROM tenancy.budgets WHERE id = ${id}`,
       );
       return result.rows[0] ?? null;
@@ -59,6 +60,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       cushionModeEnabled: row.cushion_mode_enabled,
       reservesEnabled: row.reserves_enabled ?? true,
       cushionEnabled: row.cushion_enabled ?? true,
+      investmentsEnabled: row.investments_enabled ?? false,
       cushionTargetMonths:
         row.cushion_target_months == null
           ? 6
@@ -236,6 +238,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       defaultCurrency?: string;
       reservesEnabled?: boolean;
       cushionEnabled?: boolean;
+      investmentsEnabled?: boolean;
       // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33): cushion target months —
       // multiplier for category cushion_amount in the cushion summary math.
       // Range 1..60 enforced at API (Zod) AND DB (CHECK constraint via
@@ -271,6 +274,14 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         // is enforced upstream in the budget-identity route.
         await tx.execute(
           sql`UPDATE tenancy.budgets SET cushion_enabled = ${patch.cushionEnabled} WHERE id = ${budgetId}::uuid`,
+        );
+      }
+      if (patch.investmentsEnabled !== undefined) {
+        // Phase 9: Investments global toggle. Boolean only; gates the
+        // Investments section on the wallets page. Owner gate enforced
+        // upstream in the budget-identity route.
+        await tx.execute(
+          sql`UPDATE tenancy.budgets SET investments_enabled = ${patch.investmentsEnabled} WHERE id = ${budgetId}::uuid`,
         );
       }
       if (patch.cushionTargetMonths !== undefined) {
