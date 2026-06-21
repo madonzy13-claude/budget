@@ -23,21 +23,23 @@ interface Init {
   createdAt?: Date;
 }
 
+// NOTE: nullable fields use `=== undefined` (not `??`) so an explicit `null`
+// (e.g. instrumentId: null, buyPriceCents: null) is preserved, not defaulted.
 export const mk = (o: Init = {}): Holding =>
   new Holding(
     o.id ?? "h1",
     o.tenantId ?? "t1",
     o.name ?? "Apple",
     o.holdingType ?? "equities",
-    o.group ?? null,
-    o.instrumentId ?? "i1",
-    o.buyPriceCents ?? 10000n,
-    o.buyCurrency ?? "USD",
+    o.group === undefined ? null : o.group,
+    o.instrumentId === undefined ? "i1" : o.instrumentId,
+    o.buyPriceCents === undefined ? 10000n : o.buyPriceCents,
+    o.buyCurrency === undefined ? "USD" : o.buyCurrency,
     o.quantity ?? "1",
-    o.currentPriceCents ?? 10000n,
-    o.currentPriceCurrency ?? "USD",
+    o.currentPriceCents === undefined ? 10000n : o.currentPriceCents,
+    o.currentPriceCurrency === undefined ? "USD" : o.currentPriceCurrency,
     o.sortOrder ?? 0,
-    o.archivedAt ?? null,
+    o.archivedAt === undefined ? null : o.archivedAt,
     o.createdAt ?? new Date("2026-01-01T00:00:00Z"),
   );
 
