@@ -710,22 +710,27 @@ LIMIT 20;
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> Resolved during /gsd-plan-phase 09 (plan-checker gate, 2026-06-21). Each question's chosen answer is now locked in the PLAN.md set.
 
 1. **Investments as separate package vs extending budgeting package**
    - What we know: All prior bounded contexts are separate packages (`packages/budgeting`, `packages/identity`, `packages/tenancy`).
    - What's unclear: Is the `packages/investments/` approach preferred, or should holdings/instruments live inside `packages/budgeting/`?
    - Recommendation: New package. Investments has its own domain entity, ports, adapters, and factory — fits the established pattern. Budgeting is already large.
+   - **RESOLVED:** New package `packages/investments/` (locked in 09-01-PLAN.md — skeleton + workspace config).
 
 2. **Rate-limit counter for 10/user/min instant fetch**
    - What we know: No Redis; pg-boss and Postgres available.
    - What's unclear: Is a Postgres counter table acceptable (adds a write on every add-attempt), or should the planner choose pg-boss job throttle, or accept a simple in-process Map with TTL per worker instance?
    - Recommendation: Postgres counter table `api_rate_limits(user_id, window_min timestamptz, count int)` — single upsert, correct across restarts. Given this is a household app with very low concurrency, correctness > performance.
+   - **RESOLVED:** Postgres counter table `api_rate_limits` — DDL authored in migration 0038 (09-01-PLAN.md), consumed by `fetch-instrument-price` (09-06-PLAN.md).
 
 3. **Metals price refresh cadence**
    - What we know: metals.dev 100 req/month free.
    - What's unclear: Should the planner budget for a paid metals tier or accept daily-only refresh?
    - Recommendation: Daily-only metals refresh (plan must document this explicitly as the metals-specific behavior). No paid tier.
+   - **RESOLVED:** Daily-only metals refresh — `MetalsDailyOnlyError` guard in the adapter (09-03-PLAN.md) + `refresh_cadence='daily'` filter in the hourly job (09-04-PLAN.md). No paid tier.
 
 ---
 
