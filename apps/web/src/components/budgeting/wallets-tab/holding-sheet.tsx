@@ -15,7 +15,6 @@
  */
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Trash2 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -112,7 +111,9 @@ export function HoldingSheet({
   const [instrumentId, setInstrumentId] = useState<string | null>(
     holding?.instrumentId ?? null,
   );
-  const [buyPrice, setBuyPrice] = useState(centsToDecimal(holding?.buyPriceCents ?? null));
+  const [buyPrice, setBuyPrice] = useState(
+    centsToDecimal(holding?.buyPriceCents ?? null),
+  );
   const [buyCurrency, setBuyCurrency] = useState(
     holding?.buyCurrency ?? budgetCurrency,
   );
@@ -145,9 +146,10 @@ export function HoldingSheet({
         `/budgets/${budgetId}/investments/price/${id}`,
         {
           method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        },
+      );
       if (!res.ok) {
         setPriceBlocked(true);
         return;

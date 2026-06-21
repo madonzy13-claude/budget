@@ -53,7 +53,10 @@ const bySort = (a: HoldingDto, b: HoldingDto) =>
   (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
 
 const slug = (name: string) =>
-  name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 
 export function InvestmentsSection({
   budgetId,
@@ -136,7 +139,9 @@ export function InvestmentsSection({
         if (!(name in next)) {
           let stored: string | null = null;
           try {
-            stored = localStorage.getItem(`inv-group-${budgetId}-${slug(name)}`);
+            stored = localStorage.getItem(
+              `inv-group-${budgetId}-${slug(name)}`,
+            );
           } catch {
             stored = null;
           }
@@ -145,7 +150,6 @@ export function InvestmentsSection({
       }
       return next;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupNamesKey, budgetId]);
 
   const isExpanded = (name: string) => expandedMap[name] ?? true;
