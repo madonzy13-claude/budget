@@ -138,6 +138,7 @@
     "sections": {
       "identity": "Budget Identity",
       "cushion": "Cushion",
+      "investments": "Investments",
       "recurring": "Recurring Expenses",
       "members": "Members",
       "danger": "Danger Zone"
@@ -342,6 +343,102 @@
       "tab": "Settings",
       "members_tab": "Members",
       "shares_tab": "Shares"
+    },
+    "investments": {
+      "feature_label": "Investments",
+      "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
+      "feature_on_toast": "Investments enabled",
+      "feature_off_toast": "Investments disabled",
+      "error_save": "Failed to save — try again",
+      "section": {
+        "title": "INVESTMENTS"
+      },
+      "add": {
+        "cta": "Add investment"
+      },
+      "sheet": {
+        "title": {
+          "add": "Add investment",
+          "edit": "Edit investment"
+        },
+        "save": "Save investment",
+        "cancel": "Cancel"
+      },
+      "field": {
+        "name": "Name",
+        "type": "Type",
+        "group": "Group",
+        "groupPlaceholder": "Ungrouped",
+        "buyPrice": "Buy price",
+        "buyCurrency": "Buy currency",
+        "quantity": "Quantity",
+        "currentPrice": "Current price",
+        "lastUpdated": "Last updated {relativeTime}",
+        "now": "just now",
+        "amount": "Amount",
+        "currency": "Currency"
+      },
+      "type": {
+        "equities": "Equity",
+        "etf": "ETF",
+        "bond": "Bond",
+        "crypto": "Crypto",
+        "reit": "REIT",
+        "commodity": "Commodity",
+        "cash_fx": "Cash",
+        "real_estate": "Real Estate",
+        "other": "Other"
+      },
+      "group": {
+        "portfolioSuffix": "of portfolio",
+        "noGroups": "No groups yet.",
+        "create": "Create '{name}'",
+        "headerAria": "{name}, {pct} of portfolio. {state}.",
+        "expanded": "Expanded",
+        "collapsed": "Collapsed"
+      },
+      "row": {
+        "delisted": "Delisted",
+        "editAria": "Edit {name}.",
+        "deleteAria": "Archive {name}.",
+        "dragAria": "Drag to reorder {name}."
+      },
+      "rowExpandAria": "Expand {name} details.",
+      "plAria": "{value} profit/loss",
+      "search": {
+        "placeholder": "Search instruments…",
+        "loading": "Searching…",
+        "noResults": "No instruments found. Enter a name and choose \"Custom\".",
+        "custom": "Custom — enter manually"
+      },
+      "priceBlocked": {
+        "body": "Couldn't fetch the price — try again in a moment.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "created": "Investment added",
+        "createFailed": "Couldn't add investment. Try again.",
+        "saved": "Investment updated",
+        "saveFailed": "Couldn't save changes. Check your connection and try again.",
+        "archived": "Investment archived",
+        "archiveFailed": "Couldn't archive investment. Try again.",
+        "reorderFailed": "Couldn't reorder. Try again.",
+        "crossSectionRejected": "Holdings can only be in Investments."
+      },
+      "confirm": {
+        "delete": {
+          "title": "Archive holding '{name}'?",
+          "body": "This can't be undone here.",
+          "cta": "Archive",
+          "cancel": "Cancel"
+        },
+        "discard": {
+          "title": "Discard changes?",
+          "body": "Your unsaved changes will be lost.",
+          "cta": "Discard",
+          "cancel": "Keep editing"
+        }
+      }
     }
   },
   "state": {
@@ -453,6 +550,8 @@
         "cushion_help": "Plan a small financial cushion alongside each category so a bad month doesn't tip the main budget over. Turn off if you don't want any cushion at all.",
         "reserves_label": "Reserves",
         "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
+        "investments_label": "Investments",
+        "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
         "targetMonthsLabel": "Target months",
         "targetMonthsError": "Months must be a whole number between 1 and 60.",
         "push_label": "Enable push notifications",
