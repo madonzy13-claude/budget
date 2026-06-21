@@ -141,8 +141,10 @@ export function HoldingSheet({
     setRetrying(true);
     setPriceBlocked(false);
     try {
-      const res = await clientApiFetch(`/investments/price/${id}`, {
-        method: "POST",
+      const res = await clientApiFetch(
+        `/budgets/${budgetId}/investments/price/${id}`,
+        {
+          method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
@@ -284,6 +286,7 @@ export function HoldingSheet({
           {/* 1. Name / Instrument */}
           <Field label={t("field.name")}>
             <InstrumentSearchInput
+              budgetId={budgetId}
               name={name}
               onNameChange={(v) => {
                 markDirty();

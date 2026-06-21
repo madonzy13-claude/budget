@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api-client";
 
@@ -23,6 +24,7 @@ export function InvestmentsSection({
   investmentsEnabled,
 }: InvestmentsSectionProps) {
   const t = useTranslations("budget.investments");
+  const qc = useQueryClient();
   const [enabled, setEnabled] = useState(investmentsEnabled);
   const [saving, setSaving] = useState(false);
 
@@ -35,6 +37,9 @@ export function InvestmentsSection({
         json: { investments_enabled: checked },
       });
       if (!res.ok) throw new Error("Failed to update investments flag");
+      // The Wallets tab reads investmentsEnabled from the budget-detail query;
+      // invalidate it so the section appears/disappears WITHOUT a page reload.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
       toast.success(checked ? t("feature_on_toast") : t("feature_off_toast"));
     } catch {
       setEnabled(!checked);

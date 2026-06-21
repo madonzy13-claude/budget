@@ -35,8 +35,10 @@ export function useUpdateHolding(budgetId: string) {
   return useMutation({
     mutationFn: async (input: UpdateHoldingInput) => {
       const { holdingId, ...rest } = input;
-      const res = await clientApiWrite(`/investments/${holdingId}`, {
-        method: "PATCH",
+      const res = await clientApiWrite(
+        `/budgets/${budgetId}/investments/${holdingId}`,
+        {
+          method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": generateIdempotencyKey(),

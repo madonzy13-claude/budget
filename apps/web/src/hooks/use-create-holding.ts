@@ -65,7 +65,7 @@ export function useCreateHolding(budgetId: string) {
 
   return useMutation({
     mutationFn: async (input: CreateHoldingInput) => {
-      const res = await clientApiWrite(`/investments`, {
+      const res = await clientApiWrite(`/budgets/${budgetId}/investments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -24,6 +24,7 @@ export interface InstrumentSuggestion {
 }
 
 interface InstrumentSearchInputProps {
+  budgetId: string;
   name: string;
   onNameChange: (name: string) => void;
   onSelectInstrument: (instrument: InstrumentSuggestion) => void;
@@ -36,6 +37,7 @@ const DEBOUNCE_MS = 2000;
 const MIN_CHARS = 2;
 
 export function InstrumentSearchInput({
+  budgetId,
   name,
   onNameChange,
   onSelectInstrument,
@@ -61,7 +63,7 @@ export function InstrumentSearchInput({
     setOpen(true);
     try {
       const res = await clientApiFetch(
-        `/investments/search?q=${encodeURIComponent(query)}`,
+        `/budgets/${budgetId}/investments/search?q=${encodeURIComponent(query)}`,
         { signal: AbortSignal.timeout(7000) },
       );
       if (!res.ok) throw new Error(await res.text());
@@ -101,9 +103,13 @@ export function InstrumentSearchInput({
         placeholder={t("placeholder")}
         onChange={(e) => onNameChange(e.target.value)}
         onBlur={() => {
-          // Blur triggers an immediate search (the 2s timer may not have fired).
+          // Close on blur so the absolute suggestion overlay never covers the
+          // fields below it (Type / Group). A short delay lets an option's
+          // onMouseDown fire first. The 2s idle debounce is the open trigger;
+          // blur no longer re-runs a search (that re-opened the overlay and
+          // swallowed clicks on the Type dropdown).
           if (timerRef.current) clearTimeout(timerRef.current);
-          if (name.trim().length >= MIN_CHARS) void runSearch(name);
+          window.setTimeout(() => setOpen(false), 120);
         }}
         aria-expanded={open}
         aria-autocomplete="list"

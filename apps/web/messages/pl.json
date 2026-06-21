@@ -392,7 +392,7 @@
       "group": {
         "portfolioSuffix": "portfela",
         "noGroups": "Brak grup.",
-        "create": "Utwórz '{name}'",
+        "create": "Utwórz \"{name}\"",
         "headerAria": "{name}, {pct} portfela. {state}.",
         "expanded": "Rozwinięte",
         "collapsed": "Zwinięte"
@@ -427,7 +427,7 @@
       },
       "confirm": {
         "delete": {
-          "title": "Zarchiwizować pozycję '{name}'?",
+          "title": "Zarchiwizować pozycję \"{name}\"?",
           "body": "Tego nie można tutaj cofnąć.",
           "cta": "Archiwizuj",
           "cancel": "Anuluj"

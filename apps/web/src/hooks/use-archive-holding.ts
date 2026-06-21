@@ -20,8 +20,10 @@ export function useArchiveHolding(budgetId: string) {
 
   return useMutation({
     mutationFn: async (holdingId: string) => {
-      const res = await clientApiWrite(`/investments/${holdingId}/archive`, {
-        method: "POST",
+      const res = await clientApiWrite(
+        `/budgets/${budgetId}/investments/${holdingId}/archive`,
+        {
+          method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });

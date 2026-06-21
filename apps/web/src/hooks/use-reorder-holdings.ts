@@ -27,7 +27,7 @@ export function useReorderHoldings(budgetId: string) {
 
   return useMutation({
     mutationFn: async (input: ReorderHoldingsInput) => {
-      const res = await clientApiWrite(`/investments/reorder`, {
+      const res = await clientApiWrite(`/budgets/${budgetId}/investments/reorder`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

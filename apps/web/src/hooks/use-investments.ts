@@ -56,7 +56,7 @@ export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {
   return useQuery({
     queryKey: ["budget", budgetId, "investments"],
     queryFn: async () => {
-      const res = await clientApiFetch(`/investments`, {
+      const res = await clientApiFetch(`/budgets/${budgetId}/investments`, {
         signal: AbortSignal.timeout(7000),
       });
       if (!res.ok) throw new Error(await res.text());

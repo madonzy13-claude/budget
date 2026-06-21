@@ -90,22 +90,24 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
     quoteCurrency: "EUR",
   },
   {
+    // CoinGecko ids are slugs ("bitcoin"), but users search by ticker ("BTC").
+    // The local trigram search matches display_name, so carry the ticker there.
     symbol: "bitcoin",
-    displayName: "Bitcoin",
+    displayName: "Bitcoin (BTC)",
     provider: "coingecko",
     assetClass: "crypto",
     quoteCurrency: "USD",
   },
   {
     symbol: "ethereum",
-    displayName: "Ethereum",
+    displayName: "Ethereum (ETH)",
     provider: "coingecko",
     assetClass: "crypto",
     quoteCurrency: "USD",
   },
   {
     symbol: "solana",
-    displayName: "Solana",
+    displayName: "Solana (SOL)",
     provider: "coingecko",
     assetClass: "crypto",
     quoteCurrency: "USD",
