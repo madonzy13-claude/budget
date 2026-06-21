@@ -39,6 +39,10 @@ function mapRow(row: Record<string, unknown>): Holding {
     Number(row.sort_order),
     row.archived_at ? new Date(String(row.archived_at)) : null,
     new Date(String(row.created_at)),
+    (row.ui_type as string | null) ?? null,
+    (row.metal as string | null) ?? null,
+    (row.metal_kind as string | null) ?? null,
+    (row.unit_of_measure as string | null) ?? null,
   );
 }
 
@@ -56,24 +60,27 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           INSERT INTO budgeting.investments
-            (id, tenant_id, budget_id, instrument_id, name, holding_type, group_name,
-             buy_price_cents, buy_currency, quantity, current_price_cents,
-             current_price_currency, sort_order, created_at)
+            (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type,
+             group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
+             current_price_currency, metal, metal_kind, unit_of_measure, sort_order, created_at)
           VALUES
             (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
-             ${input.name}, ${input.holdingType}, ${input.group},
+             ${input.name}, ${input.holdingType}, ${input.uiType},
+             ${input.group},
              ${b8(input.buyPriceCents)}::bigint, ${input.buyCurrency},
              ${input.quantity}::numeric, ${b8(input.currentPriceCents)}::bigint,
              ${input.currentPriceCurrency},
+             ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
              COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
                         WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
              now())
           RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    group_name, instrument_id::text AS instrument_id,
+                    ui_type, group_name, instrument_id::text AS instrument_id,
                     buy_price_cents::text AS buy_price_cents, buy_currency,
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
-                    current_price_currency, sort_order, archived_at, created_at
+                    current_price_currency, metal, metal_kind, unit_of_measure,
+                    sort_order, archived_at, created_at
         `);
         return mapRow(res.rows[0]);
       },
@@ -98,19 +105,24 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             instrument_id = ${input.instrumentId}::uuid,
             name = ${input.name},
             holding_type = ${input.holdingType},
+            ui_type = ${input.uiType},
             group_name = ${input.group},
             buy_price_cents = ${b8(input.buyPriceCents)}::bigint,
             buy_currency = ${input.buyCurrency},
             quantity = ${input.quantity}::numeric,
             current_price_cents = ${b8(input.currentPriceCents)}::bigint,
-            current_price_currency = ${input.currentPriceCurrency}
+            current_price_currency = ${input.currentPriceCurrency},
+            metal = ${input.metal},
+            metal_kind = ${input.metalKind},
+            unit_of_measure = ${input.unitOfMeasure}
           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid AND archived_at IS NULL
           RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    group_name, instrument_id::text AS instrument_id,
+                    ui_type, group_name, instrument_id::text AS instrument_id,
                     buy_price_cents::text AS buy_price_cents, buy_currency,
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
-                    current_price_currency, sort_order, archived_at, created_at
+                    current_price_currency, metal, metal_kind, unit_of_measure,
+                    sort_order, archived_at, created_at
         `);
         return res.rows.length ? mapRow(res.rows[0]) : null;
       },
@@ -146,7 +158,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           SELECT inv.id::text AS id, inv.tenant_id::text AS tenant_id, inv.name,
-                 inv.holding_type, inv.group_name,
+                 inv.holding_type, inv.ui_type, inv.group_name,
+                 inv.metal, inv.metal_kind, inv.unit_of_measure,
                  inv.instrument_id::text AS instrument_id,
                  inv.buy_price_cents::text AS buy_price_cents, inv.buy_currency,
                  inv.quantity::text AS quantity,
@@ -205,7 +218,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           SELECT id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                 group_name, instrument_id::text AS instrument_id,
+                 ui_type, group_name, metal, metal_kind, unit_of_measure,
+                 instrument_id::text AS instrument_id,
                  buy_price_cents::text AS buy_price_cents, buy_currency,
                  quantity::text AS quantity,
                  current_price_cents::text AS current_price_cents,

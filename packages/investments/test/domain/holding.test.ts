@@ -21,6 +21,10 @@ interface Init {
   sortOrder?: number;
   archivedAt?: Date | null;
   createdAt?: Date;
+  uiType?: string | null;
+  metal?: string | null;
+  metalKind?: string | null;
+  unitOfMeasure?: string | null;
 }
 
 // NOTE: nullable fields use `=== undefined` (not `??`) so an explicit `null`
@@ -41,6 +45,10 @@ export const mk = (o: Init = {}): Holding =>
     o.sortOrder ?? 0,
     o.archivedAt === undefined ? null : o.archivedAt,
     o.createdAt ?? new Date("2026-01-01T00:00:00Z"),
+    o.uiType === undefined ? null : o.uiType,
+    o.metal === undefined ? null : o.metal,
+    o.metalKind === undefined ? null : o.metalKind,
+    o.unitOfMeasure === undefined ? null : o.unitOfMeasure,
   );
 
 describe("Holding entity", () => {

@@ -14,16 +14,40 @@ import type { Holding } from "./holding";
 export type RateMap = Record<string, string | number>;
 
 /**
+ * Troy ounces per 1 unit of a precious-metals UoM. Spot prices are per troy
+ * ounce, so per-unit price = spot x (ounces in one unit).
+ *   1 g  = 1/31.1034768 oz ; 1 kg = 1000/31.1034768 oz ; 1 oz = 1 oz.
+ */
+const OZ_PER_UNIT: Record<string, string> = {
+  oz: "1",
+  g: "0.03215074656862",
+  kg: "32.15074656862",
+};
+
+/**
+ * Per-unit current price in CENTS. For precious metals, `currentPriceCents` is
+ * the spot per troy ounce, converted here to the holding's UoM; for everything
+ * else it is already the per-quantity price.
+ */
+export function currentUnitPriceCents(h: Holding): Big {
+  const price = new Big((h.currentPriceCents ?? 0n).toString());
+  if (h.isMetals() && h.unitOfMeasure) {
+    return price.times(new Big(OZ_PER_UNIT[h.unitOfMeasure] ?? "1"));
+  }
+  return price;
+}
+
+/**
  * Total value of a holding, in CENTS, as an exact Big (no rounding).
  * cash_fx: value = the cash amount (currentPriceCents), quantity ignored.
+ * precious metals: value = quantity x (spot/oz converted to UoM).
  * everything else: value = quantity x currentPriceCents.
  */
 export function holdingValue(h: Holding): Big {
-  const priceCents = new Big((h.currentPriceCents ?? 0n).toString());
   if (h.isCash()) {
-    return priceCents;
+    return new Big((h.currentPriceCents ?? 0n).toString());
   }
-  return new Big(h.quantity).times(priceCents);
+  return new Big(h.quantity).times(currentUnitPriceCents(h));
 }
 
 /**
@@ -43,7 +67,9 @@ export function profitLossPct(
   const buy = new Big(h.buyPriceCents.toString());
   if (buy.eq(0)) return null;
 
-  let current = new Big(h.currentPriceCents.toString());
+  // Per-unit current price (metals: spot/oz converted to the holding's UoM, so
+  // it compares like-for-like against the per-unit buy price).
+  let current = currentUnitPriceCents(h);
   if (h.currentPriceCurrency !== h.buyCurrency) {
     current = current.times(new Big(String(rate)));
   }

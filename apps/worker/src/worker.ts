@@ -130,6 +130,43 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
     assetClass: "commodity",
     quoteCurrency: "USD",
   },
+  {
+    symbol: "XPT/USD",
+    displayName: "Platinum (troy ounce)",
+    provider: "twelve_data",
+    assetClass: "commodity",
+    quoteCurrency: "USD",
+  },
+  // REITs (US-listed → Finnhub) for the REIT type autocomplete (9.1).
+  {
+    symbol: "O",
+    displayName: "Realty Income Corp.",
+    provider: "finnhub",
+    assetClass: "reit",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "VNQ",
+    displayName: "Vanguard Real Estate ETF",
+    provider: "finnhub",
+    assetClass: "reit",
+    quoteCurrency: "USD",
+  },
+  // Exchange-traded bonds (US-listed → Finnhub) for the ETB type autocomplete (9.1).
+  {
+    symbol: "AGG",
+    displayName: "iShares Core US Aggregate Bond ETF",
+    provider: "finnhub",
+    assetClass: "bond",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "BND",
+    displayName: "Vanguard Total Bond Market ETF",
+    provider: "finnhub",
+    assetClass: "bond",
+    quoteCurrency: "USD",
+  },
 ];
 
 async function main() {

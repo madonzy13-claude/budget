@@ -8,6 +8,7 @@ import type { Holding, HoldingType } from "../domain/holding";
 export interface NewHolding {
   name: string;
   holdingType: HoldingType;
+  uiType: string | null;
   group: string | null;
   instrumentId: string | null;
   buyPriceCents: bigint | null;
@@ -15,6 +16,9 @@ export interface NewHolding {
   quantity: string;
   currentPriceCents: bigint | null;
   currentPriceCurrency: string | null;
+  metal: string | null;
+  metalKind: string | null;
+  unitOfMeasure: string | null;
 }
 
 export interface HoldingRepo {

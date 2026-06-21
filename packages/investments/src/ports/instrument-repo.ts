@@ -24,8 +24,13 @@ export interface InstrumentUpsert {
 }
 
 export interface InstrumentRepo {
-  /** >=2 char query; ranks exact symbol > symbol-prefix > name match. */
-  search(query: string, limit?: number): Promise<InstrumentSearchResult[]>;
+  /** >=2 char query; ranks exact symbol > symbol-prefix > name match.
+   *  Optional assetClass narrows to one type (the type-filtered Asset autocomplete). */
+  search(
+    query: string,
+    limit?: number,
+    assetClass?: string | null,
+  ): Promise<InstrumentSearchResult[]>;
   /** Idempotent seed (ON CONFLICT (symbol, provider)); returns the instrument id. */
   upsert(input: InstrumentUpsert): Promise<string>;
   findById(id: string): Promise<InstrumentSearchResult | null>;

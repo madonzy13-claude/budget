@@ -57,11 +57,28 @@ export class Holding {
     public sortOrder: number,
     public archivedAt: Date | null,
     public readonly createdAt: Date,
+    // Phase 9.1 — trailing optional so existing positional constructors keep working.
+    /** User-facing form type (11 values); null for pre-9.1 rows. */
+    public uiType: string | null = null,
+    /** Precious-metals only: gold | silver | platinum. */
+    public metal: string | null = null,
+    /** Precious-metals only: coin | bar | other (descriptive label). */
+    public metalKind: string | null = null,
+    /** Precious-metals only: g | oz | kg — the unit `quantity` is expressed in. */
+    public unitOfMeasure: string | null = null,
   ) {}
 
   /** cash_fx holdings are valued by amount (no quantity x price) and have no P/L. */
   isCash(): boolean {
     return this.holdingType === "cash_fx";
+  }
+
+  /**
+   * Precious-metals holding: priced off a spot instrument (per troy ounce) but
+   * quantity is in `unitOfMeasure`, so value/P-L convert spot to that unit.
+   */
+  isMetals(): boolean {
+    return this.unitOfMeasure !== null && this.holdingType === "commodity";
   }
 
   /** Custom holdings (real_estate / other / cash) have no tracked instrument. */

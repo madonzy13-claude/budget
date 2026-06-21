@@ -22,8 +22,12 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       tenantId: h.tenantId,
       name: h.name,
       holdingType: h.holdingType,
+      uiType: h.uiType ?? null,
       group: h.group,
       instrumentId: h.instrumentId,
+      metal: h.metal ?? null,
+      metalKind: h.metalKind ?? null,
+      unitOfMeasure: h.unitOfMeasure ?? null,
       buyPriceCents:
         h.buyPriceCents === null ? null : h.buyPriceCents.toString(),
       buyCurrency: h.buyCurrency,
@@ -84,9 +88,13 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
-  // GET /search?q= — local trigram (min 2 chars); never a price provider
+  // GET /search?q=&type= — local trigram (min 2 chars); never a price provider.
+  // `type` is an asset_class filter (the type-filtered Asset autocomplete, 9.1).
   app.get("/search", async (c) => {
-    const r = await deps.investments.searchInstruments(c.req.query("q") ?? "");
+    const r = await deps.investments.searchInstruments(
+      c.req.query("q") ?? "",
+      c.req.query("type") ?? null,
+    );
     if (r.isErr()) return serverError(c, "search_failed", r.error);
     return c.json({ results: r.value });
   });

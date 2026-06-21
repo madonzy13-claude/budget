@@ -47,6 +47,18 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
           input.currentPriceCurrency !== undefined
             ? (input.currentPriceCurrency ?? null)
             : current.currentPriceCurrency,
+        uiType:
+          input.uiType !== undefined ? (input.uiType ?? null) : current.uiType,
+        metal:
+          input.metal !== undefined ? (input.metal ?? null) : current.metal,
+        metalKind:
+          input.metalKind !== undefined
+            ? (input.metalKind ?? null)
+            : current.metalKind,
+        unitOfMeasure:
+          input.unitOfMeasure !== undefined
+            ? (input.unitOfMeasure ?? null)
+            : current.unitOfMeasure,
       };
 
       const updated = await deps.holdingRepo.update(

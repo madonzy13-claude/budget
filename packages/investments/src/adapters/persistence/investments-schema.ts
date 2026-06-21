@@ -33,6 +33,14 @@ export const investments = budgeting.table(
     name: text("name").notNull(),
     // holding_type CHECK enforced below (INV-04, 9 locked values).
     holdingType: text("holding_type").notNull(),
+    // Phase 9.1: user-facing type the add/edit form was filled with (11 values,
+    // CHECK below). Disambiguates cases holding_type can't (etb vs treasury_bond
+    // → both 'bond'; collectibles → 'other'). Drives the dynamic form on edit.
+    uiType: text("ui_type"),
+    // Precious-metals attributes (NULL for every other type).
+    metal: text("metal"), // gold | silver | platinum
+    metalKind: text("metal_kind"), // coin | bar | other (descriptive)
+    unitOfMeasure: text("unit_of_measure"), // g | oz | kg
     // Optional user-defined grouping label within the Investments section.
     groupName: text("group_name"),
     buyPriceCents: bigint("buy_price_cents", { mode: "bigint" }),
@@ -50,6 +58,22 @@ export const investments = budgeting.table(
     check(
       "investments_holding_type_chk",
       sql`${t.holdingType} IN ('equities','etf','bond','crypto','reit','commodity','cash_fx','real_estate','other')`,
+    ),
+    check(
+      "investments_ui_type_chk",
+      sql`${t.uiType} IS NULL OR ${t.uiType} IN ('equity','etf','etb','reit','crypto','treasury_bond','collectibles','real_estate','other','precious_metals','cash')`,
+    ),
+    check(
+      "investments_metal_chk",
+      sql`${t.metal} IS NULL OR ${t.metal} IN ('gold','silver','platinum')`,
+    ),
+    check(
+      "investments_metal_kind_chk",
+      sql`${t.metalKind} IS NULL OR ${t.metalKind} IN ('coin','bar','other')`,
+    ),
+    check(
+      "investments_uom_chk",
+      sql`${t.unitOfMeasure} IS NULL OR ${t.unitOfMeasure} IN ('g','oz','kg')`,
     ),
     pgPolicy("investments_tenant_isolation", {
       as: "permissive",

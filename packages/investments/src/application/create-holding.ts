@@ -23,6 +23,7 @@ export function createHolding(deps: { holdingRepo: HoldingRepo }) {
     const nh: NewHolding = {
       name: input.name,
       holdingType: input.holdingType,
+      uiType: input.uiType ?? null,
       group: input.group ?? null,
       instrumentId: input.instrumentId ?? null,
       buyPriceCents: toCents(input.buyPriceCents),
@@ -30,6 +31,9 @@ export function createHolding(deps: { holdingRepo: HoldingRepo }) {
       quantity: input.quantity ?? "1",
       currentPriceCents: toCents(input.currentPriceCents),
       currentPriceCurrency: input.currentPriceCurrency ?? null,
+      metal: input.metal ?? null,
+      metalKind: input.metalKind ?? null,
+      unitOfMeasure: input.unitOfMeasure ?? null,
     };
     try {
       return ok(

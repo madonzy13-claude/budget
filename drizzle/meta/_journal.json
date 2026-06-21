@@ -267,6 +267,13 @@
       "when": 1782032088798,
       "tag": "0038_phase09_investments",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0039_phase09_type_first",
+      "breakpoints": true
     }
   ]
 }

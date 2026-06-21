@@ -29,6 +29,33 @@ describe("holdingValue (quantity x current price, big.js cents)", () => {
     });
     expect(holdingValue(h).toString()).toBe("50000");
   });
+
+  test("precious metals (g): spot/oz converted to grams x quantity", () => {
+    // spot 200000c/oz ($2000); 100 g; per-g = 200000/31.1034768 = 6430.149...
+    // value = 100 * per-g = 643014.93... cents.
+    const h = mk({
+      holdingType: "commodity",
+      uiType: "precious_metals",
+      metal: "gold",
+      unitOfMeasure: "g",
+      quantity: "100",
+      currentPriceCents: 200000n,
+    });
+    // 200000 * 0.03215074656862 * 100 = 643014.9313724
+    expect(holdingValue(h).toFixed(2)).toBe("643014.93");
+  });
+
+  test("precious metals (oz): spot x quantity unchanged", () => {
+    const h = mk({
+      holdingType: "commodity",
+      uiType: "precious_metals",
+      metal: "gold",
+      unitOfMeasure: "oz",
+      quantity: "2",
+      currentPriceCents: 200000n,
+    });
+    expect(holdingValue(h).toString()).toBe("400000");
+  });
 });
 
 describe("profitLossPct (signed %, FX-converted, 1 decimal)", () => {

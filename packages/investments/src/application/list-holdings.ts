@@ -94,8 +94,12 @@ export function listHoldings(deps: {
           id: h.id,
           name: h.name,
           holdingType: h.holdingType,
+          uiType: h.uiType,
           group: h.group,
           instrumentId: h.instrumentId,
+          metal: h.metal,
+          metalKind: h.metalKind,
+          unitOfMeasure: h.unitOfMeasure,
           isCustom: h.isCustom(),
           // Delisted chrome is surfaced via the INVESTMENT_INSTRUMENT_DELISTED
           // task (09-04); per-row enrichment is deferred to P07.
