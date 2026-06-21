@@ -64,6 +64,17 @@ a budget-scoped API.
 | INV-11 DnD reorder/group-reassign/cross-section reject   | ⚠ logic shipped; visual feel → UAT |
 | INV-16 optimistic create/edit/reorder via clientApiWrite | ✓ verified live (persists)         |
 
+## Post-completion evolution (2026-06-21) — see 09-ADDENDUM-type-first.md
+
+After completion, owner UAT drove: (1) five defect fixes incl. the budget-scoped API
+path 404 the optimistic insert had masked; (2) provider rework (Finnhub US / Twelve
+Data non-US+metals / CoinGecko crypto, multi-key failover, env cadence; metals.dev
+dropped); (3) the **type-first redesign** (11 UI types, metals metal/kind/UoM, migration
+0039). Re-verified: 19 domain + 16 adapter + 12 web tests, typecheck 0, i18n PASS,
+6 @investments-wallet E2E (0 flaky), and live Playwright (type-first ordering, per-type
+field swap, type-filtered autocomplete, manual add persists with ui_type). Full detail
+in the addendum.
+
 ## Status: human_needed
 
 Functional path verified. Visual/interaction polish + live tracked-price (needs

@@ -5,6 +5,15 @@
 **Requirements:** 16 locked
 **Amended:** 2026-06-20 (discuss-phase — see Amendments below)
 
+> ⚠️ **Post-launch as-built changes (2026-06-21) — see `09-ADDENDUM-type-first.md`.**
+> Owner UAT superseded two locked items: (1) the "locked 9-value Type enum" is now an
+> 11-value **UI type** set (type-first form; coarse 9-value `holding_type` retained
+> internally + new `ui_type`/metals columns via migration 0039); (2) provider routing is
+> **Finnhub** (US equities/ETF/REIT/bond-ETF) + **Twelve Data** (non-US + precious
+> metals via XAU/XAG/XPT FX) + **CoinGecko** (crypto) with multi-key failover and an
+> env-configurable scan cadence — **metals.dev dropped**. The addendum is authoritative
+> where it conflicts with this SPEC.
+
 ## Amendments (discuss-phase, 2026-06-20)
 
 These HOW-decisions from `/gsd-discuss-phase 9` modify the locked requirements/boundaries below. **The amendments are authoritative**; where prose below conflicts, defer to this section. Full rationale in `09-CONTEXT.md` + `09-DISCUSSION-LOG.md`.

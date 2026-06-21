@@ -312,6 +312,13 @@ Swipe-left gesture (distinct from tap-expand) reveals Edit + Delete action panel
 
 ## Sheet Form Layout
 
+> ⚠️ **SUPERSEDED (2026-06-21) by `09-ADDENDUM-type-first.md`.** Post-launch UAT
+> reworked this into a **type-first** form: the first field is Type (11 user-facing
+> types), and the fields below show/hide per type (tracked / manual / precious-metals /
+> cash). The name-first, 9-type layout described in this section is historical. See the
+> addendum §3 for the as-built field matrix, the metals metal/kind/UoM fields, and
+> migration 0039.
+
 The `<HoldingSheet>` is a **single scrolling form** (D-11) rendered inside shadcn `<Sheet side="right">`. Field order below is prescriptive.
 
 ### Tracked instrument form (instrument linked)

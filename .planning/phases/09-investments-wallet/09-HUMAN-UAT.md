@@ -54,15 +54,24 @@ result: [pending]
 
 expected: selecting a tracked instrument (e.g. AAPL) fetches a live current price
 shown read-only with "Last updated …"; P/L computes against it. Requires
-TwelveData/CoinGecko/metals.dev keys in the environment.
+Finnhub (US) / Twelve Data (non-US + metals) / CoinGecko (crypto) keys in Infisical
+(`*_API_KEYS`). Until then the price-blocked banner shows.
+result: [pending]
+
+### 7. Type-first form + precious metals (9.1 — see 09-ADDENDUM-type-first.md)
+
+expected: Type is the first field; choosing a type swaps the fields — tracked
+(Asset autocomplete filtered to the type), manual (name + editable price), precious
+metals (metal/kind/UoM + spot-fetched price converted by UoM), cash (currency +
+amount). Metals value = spot/oz converted to the chosen unit × quantity.
 result: [pending]
 
 ## Summary
 
-total: 6
+total: 7
 passed: 0
 issues: 0
-pending: 6
+pending: 7
 skipped: 0
 blocked: 0
 

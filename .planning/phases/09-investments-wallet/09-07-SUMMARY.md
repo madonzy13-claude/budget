@@ -58,6 +58,10 @@ completed: 2026-06-21
 
 # Phase 09 Plan 07: Investments Web Surface Summary
 
+> **Post-launch evolution:** owner UAT drove a type-first redesign + provider rework
+> after this plan shipped. See `09-ADDENDUM-type-first.md` for the as-built state
+> (the name-first form / metals.dev described here is superseded).
+
 Built the full Investments section on the Wallets tab: 5 React-Query hooks
 (`use-investments` + 4 optimistic mutation hooks keyed on
 `["budget", id, "investments"]` through `clientApiWrite`), the
