@@ -113,19 +113,20 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
     quoteCurrency: "USD",
   },
   {
-    symbol: "XAU",
+    // Metals priced via Twelve Data FX pairs (XAU/USD, XAG/USD) instead of
+    // metals.dev — its free tier (100 req/mo) is too tight. TD's free tier
+    // (800/day) absorbs hourly metals trivially, so drop the daily-only cadence.
+    symbol: "XAU/USD",
     displayName: "Gold (troy ounce)",
-    provider: "metals_dev",
+    provider: "twelve_data",
     assetClass: "commodity",
-    refreshCadence: "daily",
     quoteCurrency: "USD",
   },
   {
-    symbol: "XAG",
+    symbol: "XAG/USD",
     displayName: "Silver (troy ounce)",
-    provider: "metals_dev",
+    provider: "twelve_data",
     assetClass: "commodity",
-    refreshCadence: "daily",
     quoteCurrency: "USD",
   },
 ];
