@@ -14,6 +14,119 @@ import {
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
+import { CompositePriceProvider } from "@budget/investments/src/adapters/price/composite-price-provider";
+import { TwelveDataPriceProvider } from "@budget/investments/src/adapters/price/twelve-data";
+import { CoinGeckoPriceProvider } from "@budget/investments/src/adapters/price/coingecko";
+import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
+import type { InstrumentUpsert } from "@budget/investments/src/ports/instrument-repo";
+import { registerInstrumentPriceHourly } from "./handlers/instrument-price-hourly";
+import {
+  registerInstrumentsDailySeed,
+  type InstrumentsDailySeedDeps,
+} from "./handlers/instruments-daily-seed";
+import { registerInvestmentSnapshotDaily } from "./handlers/investment-snapshot-daily";
+
+/**
+ * Phase 9: the authoritative supported-instrument universe (search hits the local
+ * budgeting.instruments table — D-04). The daily seed upserts this set and delists
+ * anything removed from it. Grow this catalog (or swap fetchUniverse for a live
+ * provider-API feed) without touching the job mechanics.
+ */
+const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
+  {
+    symbol: "AAPL",
+    displayName: "Apple Inc.",
+    provider: "twelve_data",
+    assetClass: "equities",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "MSFT",
+    displayName: "Microsoft Corp.",
+    provider: "twelve_data",
+    assetClass: "equities",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "GOOGL",
+    displayName: "Alphabet Inc.",
+    provider: "twelve_data",
+    assetClass: "equities",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "AMZN",
+    displayName: "Amazon.com Inc.",
+    provider: "twelve_data",
+    assetClass: "equities",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "NVDA",
+    displayName: "NVIDIA Corp.",
+    provider: "twelve_data",
+    assetClass: "equities",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "TSLA",
+    displayName: "Tesla Inc.",
+    provider: "twelve_data",
+    assetClass: "equities",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "VOO",
+    displayName: "Vanguard S&P 500 ETF",
+    provider: "twelve_data",
+    assetClass: "etf",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "VWCE",
+    displayName: "Vanguard FTSE All-World ETF",
+    provider: "twelve_data",
+    assetClass: "etf",
+    quoteCurrency: "EUR",
+  },
+  {
+    symbol: "bitcoin",
+    displayName: "Bitcoin",
+    provider: "coingecko",
+    assetClass: "crypto",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "ethereum",
+    displayName: "Ethereum",
+    provider: "coingecko",
+    assetClass: "crypto",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "solana",
+    displayName: "Solana",
+    provider: "coingecko",
+    assetClass: "crypto",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "XAU",
+    displayName: "Gold (troy ounce)",
+    provider: "metals_dev",
+    assetClass: "commodity",
+    refreshCadence: "daily",
+    quoteCurrency: "USD",
+  },
+  {
+    symbol: "XAG",
+    displayName: "Silver (troy ounce)",
+    provider: "metals_dev",
+    assetClass: "commodity",
+    refreshCadence: "daily",
+    quoteCurrency: "USD",
+  },
+];
 
 async function main() {
   const boss = await getBoss();
@@ -112,13 +225,56 @@ async function main() {
     reconciliationSweepDeps,
   );
 
+  // ── Phase 9: Investments jobs (reference-data scope, no per-tenant iteration) ──
+  const priceProvider = new CompositePriceProvider({
+    twelve_data: new TwelveDataPriceProvider(
+      process.env.TWELVE_DATA_API_KEY ?? "",
+    ),
+    coingecko: new CoinGeckoPriceProvider(process.env.COINGECKO_API_KEY ?? ""),
+    metals_dev: new MetalsDevPriceProvider(
+      process.env.METALS_DEV_API_KEY ?? "",
+    ),
+  });
+
+  // Hourly held-only price refresh (INV-13). Excludes custom + daily metals.
+  await boss.createQueue("instrument-price-hourly");
+  await boss.schedule("instrument-price-hourly", "0 * * * *"); // top of every hour, UTC
+  registerInstrumentPriceHourly(
+    boss as unknown as Parameters<typeof registerInstrumentPriceHourly>[0],
+    priceProvider,
+  );
+
+  // Daily instruments seed + delisting detection (D-09/D-10). 18:00 Europe/Berlin.
+  const seedDeps: InstrumentsDailySeedDeps = {
+    fetchUniverse: async () => DEFAULT_INVESTMENT_UNIVERSE,
+    taskRepo,
+  };
+  await boss.createQueue("instruments-daily-seed");
+  await boss.schedule("instruments-daily-seed", "0 18 * * *", null, {
+    tz: "Europe/Berlin",
+  });
+  registerInstrumentsDailySeed(
+    boss as unknown as Parameters<typeof registerInstrumentsDailySeed>[0],
+    seedDeps,
+  );
+
+  // Daily price + FX snapshot (INV-15). 17:30 Europe/Berlin — after fx-daily-fetch (17:00).
+  await boss.createQueue("investment-snapshot-daily");
+  await boss.schedule("investment-snapshot-daily", "30 17 * * *", null, {
+    tz: "Europe/Berlin",
+  });
+  registerInvestmentSnapshotDaily(
+    boss as unknown as Parameters<typeof registerInvestmentSnapshotDaily>[0],
+    fxProvider,
+  );
+
   // Push notifications — eventBus subscriber on task.created (no boss queue).
   registerPushNotificationHandler({
     pushRepo: { getSubscriptionsForBudget, deleteSubscription },
   });
 
   console.log(
-    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC",
+    "[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC; instrument-price-hourly schedule=0 * * * * UTC; instruments-daily-seed schedule=0 18 * * * Europe/Berlin; investment-snapshot-daily schedule=30 17 * * * Europe/Berlin",
   );
 
   process.on("SIGTERM", async () => {

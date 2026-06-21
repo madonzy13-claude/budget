@@ -153,15 +153,30 @@ export async function seedPriceCache(
   );
 }
 
-export async function countPendingDelisted(holdingId: string): Promise<number> {
-  const r = await workerSeedPool.query<{ n: string }>(
-    `SELECT count(*)::text AS n FROM budgeting.tasks
-      WHERE kind = 'INVESTMENT_INSTRUMENT_DELISTED'
-        AND status = 'PENDING'
-        AND payload_json->>'holding_id' = $1`,
-    [holdingId],
-  );
-  return Number(r.rows[0].n);
+export async function countPendingDelisted(
+  holdingId: string,
+  budgetId: string,
+): Promise<number> {
+  // tasks has FORCE RLS (tasks_tenant_isolation on app.tenant_ids) — the GUC must be
+  // set or the row is invisible. tenant_id === budget_id in v1.1.
+  const c = await appPool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{${budgetId}}`,
+    ]);
+    const r = await c.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM budgeting.tasks
+        WHERE kind = 'INVESTMENT_INSTRUMENT_DELISTED'
+          AND status = 'PENDING'
+          AND payload_json->>'holding_id' = $1`,
+      [holdingId],
+    );
+    await c.query("COMMIT");
+    return Number(r.rows[0].n);
+  } finally {
+    c.release();
+  }
 }
 
 export async function cacheRowExists(instrumentId: string): Promise<boolean> {

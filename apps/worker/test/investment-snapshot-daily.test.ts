@@ -7,7 +7,6 @@ import {
   deleteBudgetInvestments,
   cleanupReferenceData,
   workerSeedPool,
-  endPools,
   type SeededBudget,
 } from "./_investment-fixtures";
 import { runInvestmentSnapshotDaily } from "../src/handlers/investment-snapshot-daily";
@@ -41,7 +40,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await deleteBudgetInvestments(budget.budgetId);
   await cleanupReferenceData(PROVIDER);
-  await endPools();
 });
 
 function spyFx() {

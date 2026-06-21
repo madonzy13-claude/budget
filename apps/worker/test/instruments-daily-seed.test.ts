@@ -7,7 +7,7 @@ import {
   cleanupReferenceData,
   countPendingDelisted,
   workerSeedPool,
-  endPools,
+  appPool,
   type SeededBudget,
 } from "./_investment-fixtures";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
@@ -42,7 +42,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await deleteBudgetInvestments(budget.budgetId);
   await cleanupReferenceData(PROVIDER);
-  await endPools();
 });
 
 describe("instruments-daily-seed job (D-09/D-10/T-9-11)", () => {
@@ -60,7 +59,7 @@ describe("instruments-daily-seed job (D-09/D-10/T-9-11)", () => {
     const taskRepo = createTaskRepo();
 
     await runInstrumentsDailySeed({ fetchUniverse, taskRepo });
-    expect(await countPendingDelisted(heldHolding)).toBe(1);
+    expect(await countPendingDelisted(heldHolding, budget.budgetId)).toBe(1);
 
     const inst = await workerSeedPool.query<{ active: boolean }>(
       `SELECT active FROM budgeting.instruments WHERE id = $1::uuid`,
@@ -70,15 +69,28 @@ describe("instruments-daily-seed job (D-09/D-10/T-9-11)", () => {
 
     // Second run: ON CONFLICT DO NOTHING against tasks_investment_delisted_dedup_idx (0038)
     await runInstrumentsDailySeed({ fetchUniverse, taskRepo });
-    expect(await countPendingDelisted(heldHolding)).toBe(1);
+    expect(await countPendingDelisted(heldHolding, budget.budgetId)).toBe(1);
   });
 
   it("an inactive instrument that no budget holds emits NO task", async () => {
-    const r = await workerSeedPool.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM budgeting.tasks
-        WHERE kind = 'INVESTMENT_INSTRUMENT_DELISTED'
-          AND payload_json->>'instrument_symbol' = 'ORPHAN'`,
-    );
-    expect(r.rows[0].n).toBe(0);
+    // ORPHAN was deactivated but is unheld → no task. Query under the budget GUC so
+    // tasks RLS does not hide a (hypothetical) wrong emit. The budget has exactly the
+    // one delisted task from the held holding; none reference ORPHAN.
+    const c = await appPool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${budget.budgetId}}`,
+      ]);
+      const r = await c.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM budgeting.tasks
+          WHERE kind = 'INVESTMENT_INSTRUMENT_DELISTED'
+            AND payload_json->>'instrument_symbol' = 'ORPHAN'`,
+      );
+      await c.query("COMMIT");
+      expect(r.rows[0].n).toBe(0);
+    } finally {
+      c.release();
+    }
   });
 });

@@ -7,7 +7,6 @@ import {
   cacheRowExists,
   deleteBudgetInvestments,
   cleanupReferenceData,
-  endPools,
   type SeededBudget,
 } from "./_investment-fixtures";
 import { runInstrumentPriceHourly } from "../src/handlers/instrument-price-hourly";
@@ -54,7 +53,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await deleteBudgetInvestments(budget.budgetId);
   await cleanupReferenceData(PROVIDER);
-  await endPools();
 });
 
 describe("instrument-price-hourly job (INV-13)", () => {

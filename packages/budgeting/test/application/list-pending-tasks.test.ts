@@ -26,6 +26,7 @@ function makeRepo(impl: Partial<TaskRepo> = {}): TaskRepo {
     emitReserveTopup: async () => {},
     emitConfirmDraft: async () => {},
     emitCushionBelowTarget: async () => {},
+    emitInvestmentDelisted: async () => {},
     resolveByKindAndBudget: async () => {},
     resolveConfirmDraftByDraftId: async () => {},
     ...impl,
@@ -136,9 +137,8 @@ describe.skipIf(!DB_URL_RAW)(
     async function setup() {
       const { resetPools } = await import("@budget/platform");
       resetPools();
-      const { createTaskRepo } = await import(
-        "../../src/adapters/persistence/task-repo"
-      );
+      const { createTaskRepo } =
+        await import("../../src/adapters/persistence/task-repo");
       const fixtures = await import("../draft-task-fixtures");
       const svc = listPendingTasks({ taskRepo: createTaskRepo() });
       return { svc, ...fixtures };
