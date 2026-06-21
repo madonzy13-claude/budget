@@ -44,11 +44,16 @@ export class InvestmentsPo {
     await this.addButton().click();
     await this.sheet().waitFor({ state: "visible" });
     await this.page.getByTestId("holding-sheet-type").click();
-    await this.page.getByTestId("holding-type-other").click();
-    await this.page.getByTestId("holding-sheet-name").fill(name);
     await this.page
-      .getByTestId("holding-sheet-amount")
-      .fill(String(amountCents));
+      .getByTestId("holding-type-other")
+      .waitFor({ state: "visible" });
+    await this.page.getByTestId("holding-type-other").click();
+    // Wait for the manual layout (editable amount) to render before filling so
+    // the field-fill never races the Type select swap.
+    const amount = this.page.getByTestId("holding-sheet-amount");
+    await amount.waitFor({ state: "visible" });
+    await this.page.getByTestId("holding-sheet-name").fill(name);
+    await amount.fill(String(amountCents));
     await this.page.getByTestId("holding-sheet-submit").click();
   }
 
