@@ -427,13 +427,16 @@
         "create": "Створити \"{name}\"",
         "headerAria": "{name}, {pct} портфеля. {state}.",
         "expanded": "Розгорнуто",
-        "collapsed": "Згорнуто"
+        "collapsed": "Згорнуто",
+        "dragAria": "Перетягніть, щоб перемістити групу {name}.",
+        "metricsAria": "Показати прибуток/збиток і частку портфеля для {name}."
       },
       "row": {
         "delisted": "Знято з торгів",
         "editAria": "Редагувати {name}.",
         "deleteAria": "Архівувати {name}.",
-        "dragAria": "Перетягніть, щоб змінити порядок {name}."
+        "dragAria": "Перетягніть, щоб змінити порядок {name}.",
+        "share": "Частка: {pct}"
       },
       "rowExpandAria": "Розгорнути деталі {name}.",
       "plAria": "{value} прибуток/збиток",

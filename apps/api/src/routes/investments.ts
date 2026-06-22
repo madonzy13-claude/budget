@@ -28,6 +28,7 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       metal: h.metal ?? null,
       metalKind: h.metalKind ?? null,
       unitOfMeasure: h.unitOfMeasure ?? null,
+      symbol: h.symbol ?? null,
       buyPriceCents:
         h.buyPriceCents === null ? null : h.buyPriceCents.toString(),
       buyCurrency: h.buyCurrency,

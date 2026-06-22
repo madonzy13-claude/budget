@@ -10,6 +10,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { persistNow } from "@/lib/query-persist";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
@@ -48,6 +49,7 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     metal: input.metal ?? null,
     metalKind: input.metalKind ?? null,
     unitOfMeasure: input.unitOfMeasure ?? null,
+    symbol: null,
     isCustom: !input.instrumentId,
     isDelisted: false,
     quantity: input.quantity ?? "1",
@@ -102,11 +104,19 @@ export function useCreateHolding(budgetId: string) {
         ...(old ?? []),
         optimisticRow(input),
       ]);
+      // Write-through: make the optimistic row durable in IDB NOW, before the
+      // POST/any reload — the 800ms debounced persister otherwise leaves a window
+      // where a reload restores the stale pre-add snapshot and the holding
+      // "vanishes" (260621 persistence-guard flake). See persistNow().
+      await persistNow(qc);
       return { previous };
     },
 
     onError: (err, _input, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous);
+      // Roll the durable cache back too, so a reload after a failed create does
+      // not resurrect the rolled-back optimistic row.
+      void persistNow(qc);
       if (isOfflineWriteError(err)) {
         offlineToast();
         return;
@@ -116,8 +126,11 @@ export function useCreateHolding(budgetId: string) {
 
     onSuccess: () => toast.success(t("created")),
 
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: key });
+    onSettled: async () => {
+      // Revalidate, then persist the server-reconciled list so the durable cache
+      // holds the real (enriched) row rather than the optimistic placeholder.
+      await qc.invalidateQueries({ queryKey: key });
+      void persistNow(qc);
     },
   });
 }

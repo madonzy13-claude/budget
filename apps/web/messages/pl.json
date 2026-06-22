@@ -427,13 +427,16 @@
         "create": "Utwórz \"{name}\"",
         "headerAria": "{name}, {pct} portfela. {state}.",
         "expanded": "Rozwinięte",
-        "collapsed": "Zwinięte"
+        "collapsed": "Zwinięte",
+        "dragAria": "Przeciągnij, aby przenieść grupę {name}.",
+        "metricsAria": "Pokaż zysk/stratę i udział w portfelu dla {name}."
       },
       "row": {
         "delisted": "Wycofany",
         "editAria": "Edytuj {name}.",
         "deleteAria": "Archiwizuj {name}.",
-        "dragAria": "Przeciągnij, aby zmienić kolejność {name}."
+        "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
+        "share": "Udział: {pct}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",

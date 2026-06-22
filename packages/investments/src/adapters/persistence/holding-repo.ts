@@ -43,6 +43,7 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.metal as string | null) ?? null,
     (row.metal_kind as string | null) ?? null,
     (row.unit_of_measure as string | null) ?? null,
+    (row.symbol as string | null) ?? null,
   );
 }
 
@@ -169,10 +170,13 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                  CASE WHEN inv.instrument_id IS NOT NULL AND c.currency IS NOT NULL
                       THEN c.currency
                       ELSE inv.current_price_currency END AS current_price_currency,
-                 inv.sort_order, inv.archived_at, inv.created_at
+                 inv.sort_order, inv.archived_at, inv.created_at,
+                 i.symbol AS symbol
             FROM budgeting.investments inv
             LEFT JOIN budgeting.instrument_price_cache c
                    ON c.instrument_id = inv.instrument_id
+            LEFT JOIN budgeting.instruments i
+                   ON i.id = inv.instrument_id
            WHERE inv.budget_id = ${budgetId}::uuid
              AND inv.tenant_id = ${tenantId}::uuid
              AND inv.archived_at IS NULL

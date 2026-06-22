@@ -54,7 +54,25 @@ export class InvestmentsPo {
     await amount.waitFor({ state: "visible" });
     await this.page.getByTestId("holding-sheet-name").fill(name);
     await amount.fill(String(amountCents));
+    // The Save handler is fire-and-forget optimistic: it mutate()s and closes the
+    // sheet immediately, so the create POST is still in flight when this method
+    // returns. A following page.reload() then CANCELS that in-flight POST (a
+    // navigation aborts pending fetches) and the holding never persists — a ~50%
+    // flake on the persistence guard. Wait for the POST to actually land before
+    // returning so reload can't race it.
+    const createPosted = this.page.waitForResponse(
+      (r) =>
+        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
+        r.request().method() === "POST",
+      { timeout: 15000 },
+    );
     await this.page.getByTestId("holding-sheet-submit").click();
+    const res = await createPosted;
+    if (!res.ok()) {
+      throw new Error(
+        `create holding POST failed: ${res.status()} ${res.url()}`,
+      );
+    }
   }
 
   /** Drag a holding row onto a group header (HTML5 DnD). */

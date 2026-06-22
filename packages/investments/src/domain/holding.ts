@@ -66,6 +66,9 @@ export class Holding {
     public metalKind: string | null = null,
     /** Precious-metals only: g | oz | kg — the unit `quantity` is expressed in. */
     public unitOfMeasure: string | null = null,
+    /** Tracked instruments only: the instrument ticker (e.g. AAPL), joined from
+     *  budgeting.instruments on read; null for custom/cash/metals. */
+    public readonly symbol: string | null = null,
   ) {}
 
   /** cash_fx holdings are valued by amount (no quantity x price) and have no P/L. */

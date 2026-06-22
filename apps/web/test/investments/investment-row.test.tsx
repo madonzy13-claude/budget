@@ -10,7 +10,7 @@
  * - NO inline <input> on the row (sheet-only editing, INV-06)
  */
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { InvestmentRow } from "../../src/components/budgeting/wallets-tab/investment-row";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
@@ -23,6 +23,8 @@ vi.mock("next-intl", () => ({
         "row.delisted": "Delisted",
         "row.editAria": "Edit {name}",
         "row.deleteAria": "Archive {name}",
+        "uitype.cash": "Cash",
+        "row.share": "Share: {pct}",
         rowExpandAria: "Expand {name}",
         plAria: "{value} profit/loss",
       };
@@ -48,6 +50,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    symbol: null,
     isCustom: false,
     isDelisted: false,
     quantity: "10",
@@ -68,11 +71,40 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
 describe("InvestmentRow", () => {
   it("renders name, currency, value, P/L% and weight%", () => {
     render(<InvestmentRow holding={holding()} />);
-    expect(screen.getByText("AAPL")).toBeInTheDocument();
+    // Name renders in both the mobile + desktop spans (one shown per breakpoint).
+    expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
     expect(screen.getAllByText("USD").length).toBeGreaterThan(0);
     expect(screen.getByText("4,200")).toBeInTheDocument();
     expect(screen.getByText("+12.4%")).toBeInTheDocument();
     expect(screen.getByText("18.0%")).toBeInTheDocument();
+  });
+
+  it("tracked stock → desktop 'TICKER (Name)', mobile shows the ticker", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Apple Inc.",
+          symbol: "AAPL",
+          holdingType: "equities",
+        })}
+      />,
+    );
+    expect(screen.getByText("AAPL (Apple Inc.)")).toBeInTheDocument(); // desktop
+    expect(screen.getByText("AAPL")).toBeInTheDocument(); // mobile collapsed
+  });
+
+  it("crypto → ticker parsed from the parenthetical name", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Bitcoin (BTC)",
+          symbol: "bitcoin",
+          holdingType: "crypto",
+        })}
+      />,
+    );
+    expect(screen.getByText("BTC (Bitcoin)")).toBeInTheDocument(); // desktop
+    expect(screen.getByText("BTC")).toBeInTheDocument(); // mobile
   });
 
   it("has NO inline input (sheet-only editing, INV-06)", () => {
@@ -93,7 +125,7 @@ describe("InvestmentRow", () => {
     expect(pl.className).toContain("text-[var(--trading-down)]");
   });
 
-  it("renders '—' for a cash holding with no P/L", () => {
+  it("cash → renders 'Cash' (not the stored name), no P/L dash, share still shows", () => {
     render(
       <InvestmentRow
         holding={holding({
@@ -103,7 +135,30 @@ describe("InvestmentRow", () => {
         })}
       />,
     );
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
+    expect(screen.queryByText("EUR Cash")).not.toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.getByText("18.0%")).toBeInTheDocument(); // share / weight
+  });
+
+  it("mobile expand → 3 rows: name, P/L + money, and localized Share", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Vintage car",
+          symbol: null,
+          profitLossPct: 50,
+          weightPct: 13,
+          valueCents: "4500000",
+          currentPriceCurrency: "USD",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand Vintage car"));
+    expect(screen.getByText("Share: 13.0%")).toBeInTheDocument();
+    // P/L money amount (value 45,000 @ +50% → cost 30,000 → +15,000), no currency.
+    expect(screen.getByText("+15,000")).toBeInTheDocument();
+    expect(screen.getAllByText("+50.0%").length).toBeGreaterThan(0); // P/L%
   });
 
   it("dims a delisted row (opacity-50) and shows the Delisted chip", () => {

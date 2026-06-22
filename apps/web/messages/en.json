@@ -427,13 +427,16 @@
         "create": "Create \"{name}\"",
         "headerAria": "{name}, {pct} of portfolio. {state}.",
         "expanded": "Expanded",
-        "collapsed": "Collapsed"
+        "collapsed": "Collapsed",
+        "dragAria": "Drag to move the {name} group.",
+        "metricsAria": "Show {name} profit/loss and portfolio percentage."
       },
       "row": {
         "delisted": "Delisted",
         "editAria": "Edit {name}.",
         "deleteAria": "Archive {name}.",
-        "dragAria": "Drag to reorder {name}."
+        "dragAria": "Drag to reorder {name}.",
+        "share": "Share: {pct}"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",

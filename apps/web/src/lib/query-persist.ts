@@ -148,34 +148,55 @@ export async function restoreQueryCache(client: QueryClient): Promise<void> {
   }
 }
 
+/** Dehydrate the budget-scoped cache and write it to IDB once. Shared by the
+ * debounced subscriber and the immediate `persistNow` write-through. */
+async function writeCache(client: QueryClient): Promise<void> {
+  try {
+    const state = dehydrate(client, {
+      // Persist any budget-scoped query that HAS DATA — not only status ===
+      // "success" (260616). CRITICAL: on iOS navigator.onLine lies true while
+      // offline, so refetchOnMount fires, the fetch hangs, AbortSignal.timeout
+      // flips the query to status "error" (its data still in memory). The old
+      // success-only filter then DROPPED that query on the next persist →
+      // poisoned the cache → the next reload restored nothing → blank pages.
+      // Keeping any data-bearing query means a transient offline error never
+      // wipes the last-good cached data.
+      shouldDehydrateQuery: (q) =>
+        q.state.data !== undefined && shouldPersist(q.queryKey),
+    });
+    const db = await openCacheDb();
+    await db.put(STORE, { v: VERSION, at: Date.now(), state }, KEY);
+    db.close();
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Persist the cache to IDB IMMEDIATELY (no 800ms debounce). Write-through for
+ * optimistic mutations whose durability must survive a reload that races the
+ * debounced writer.
+ *
+ * The bug (260621): add a holding → optimistic onMutate writes the row to the
+ * in-memory cache, but the debounced persister waits 800ms. A reload inside that
+ * window restored the PRE-add snapshot (stale-empty), and with staleTime:30s the
+ * query treated that empty list as fresh and never revalidated → the just-added
+ * holding "vanished" (~50% in the persistence-guard E2E). Awaiting persistNow in
+ * onMutate makes the optimistic row durable before the write can be reloaded over.
+ *
+ * Best-effort + safe to await; never throws.
+ */
+export async function persistNow(client: QueryClient): Promise<void> {
+  await writeCache(client);
+}
+
 /** Start persisting the cache to IDB on every change (debounced). Returns an
  * unsubscribe. */
 export function startPersisting(client: QueryClient): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const write = async () => {
-    try {
-      const state = dehydrate(client, {
-        // Persist any budget-scoped query that HAS DATA — not only status ===
-        // "success" (260616). CRITICAL: on iOS navigator.onLine lies true while
-        // offline, so refetchOnMount fires, the fetch hangs, AbortSignal.timeout
-        // flips the query to status "error" (its data still in memory). The old
-        // success-only filter then DROPPED that query on the next persist →
-        // poisoned the cache → the next reload restored nothing → blank pages.
-        // Keeping any data-bearing query means a transient offline error never
-        // wipes the last-good cached data.
-        shouldDehydrateQuery: (q) =>
-          q.state.data !== undefined && shouldPersist(q.queryKey),
-      });
-      const db = await openCacheDb();
-      await db.put(STORE, { v: VERSION, at: Date.now(), state }, KEY);
-      db.close();
-    } catch {
-      // best-effort
-    }
-  };
   const unsub = client.getQueryCache().subscribe(() => {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(write, 800); // debounce bursts of updates
+    timer = setTimeout(() => void writeCache(client), 800); // debounce bursts
   });
   return () => {
     if (timer) clearTimeout(timer);
