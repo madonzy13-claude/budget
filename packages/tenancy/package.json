@@ -23,6 +23,6 @@
   },
   "devDependencies": {
     "@budget/db": "workspace:*",
-    "@types/big.js": "^6.2.2"
+    "@types/big.js": "^7.0.0"
   }
 }
