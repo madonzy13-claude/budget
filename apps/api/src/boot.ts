@@ -25,6 +25,7 @@ import { TwelveDataPriceProvider } from "@budget/investments/src/adapters/price/
 import { CoinGeckoPriceProvider } from "@budget/investments/src/adapters/price/coingecko";
 import { FinnhubPriceProvider } from "@budget/investments/src/adapters/price/finnhub";
 import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
+import { GoldApiPriceProvider } from "@budget/investments/src/adapters/price/gold-api";
 import { resolveApiKey } from "@budget/investments/src/ports/price-provider";
 import { createIdentityModule } from "@budget/identity"; // PC-02, PC-15
 import { createTenancyModule } from "@budget/tenancy"; // PC-02, PC-15
@@ -300,6 +301,8 @@ export async function boot(): Promise<BootedDeps> {
         resolveApiKey(env.COINGECKO_API_KEYS, env.COINGECKO_API_KEY),
       ),
       metals_dev: new MetalsDevPriceProvider(env.METALS_DEV_API_KEY || ""),
+      // Metals (XAU/XAG/XPT) — gold-api.com, free + keyless (TD free is gold-only).
+      gold_api: new GoldApiPriceProvider(),
     }),
   });
 

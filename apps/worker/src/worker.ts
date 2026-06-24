@@ -19,6 +19,7 @@ import { TwelveDataPriceProvider } from "@budget/investments/src/adapters/price/
 import { CoinGeckoPriceProvider } from "@budget/investments/src/adapters/price/coingecko";
 import { FinnhubPriceProvider } from "@budget/investments/src/adapters/price/finnhub";
 import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
+import { GoldApiPriceProvider } from "@budget/investments/src/adapters/price/gold-api";
 import { resolveApiKey } from "@budget/investments/src/ports/price-provider";
 import type { InstrumentUpsert } from "@budget/investments/src/ports/instrument-repo";
 import { buildUniverse } from "@budget/investments/src/adapters/instruments/universe-catalog";
@@ -293,6 +294,8 @@ async function main() {
     metals_dev: new MetalsDevPriceProvider(
       process.env.METALS_DEV_API_KEY || "",
     ),
+    // Metals (XAU/XAG/XPT) — gold-api.com, free + keyless (TD free is gold-only).
+    gold_api: new GoldApiPriceProvider(),
   });
 
   // Held-only price refresh (INV-13). Excludes custom holdings, daily metals, and

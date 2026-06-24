@@ -33,6 +33,7 @@ export const AUTO_PRICE_PROVIDERS: readonly string[] = [
   "finnhub",
   "coingecko",
   "twelve_data",
+  "gold_api",
 ];
 
 /** Sentinel provider for instruments with no free server-side price source
@@ -45,7 +46,10 @@ export const MANUAL_PROVIDER = "manual";
 
 /** True for the manual sentinel and any exchange-qualified variant (`manual:XWAR`). */
 export function isManualProvider(provider: string | null | undefined): boolean {
-  return !!provider && (provider === MANUAL_PROVIDER || provider.startsWith("manual:"));
+  return (
+    !!provider &&
+    (provider === MANUAL_PROVIDER || provider.startsWith("manual:"))
+  );
 }
 
 export function isAutoPriced(provider: string): boolean {

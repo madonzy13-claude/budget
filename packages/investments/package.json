@@ -20,6 +20,7 @@
     "./src/adapters/price/coingecko": "./src/adapters/price/coingecko.ts",
     "./src/adapters/price/finnhub": "./src/adapters/price/finnhub.ts",
     "./src/adapters/price/metals-dev": "./src/adapters/price/metals-dev.ts",
+    "./src/adapters/price/gold-api": "./src/adapters/price/gold-api.ts",
     "./src/adapters/price/composite-price-provider": "./src/adapters/price/composite-price-provider.ts",
     "./src/adapters/persistence/holding-repo": "./src/adapters/persistence/holding-repo.ts",
     "./src/adapters/persistence/instrument-repo": "./src/adapters/persistence/instrument-repo.ts",

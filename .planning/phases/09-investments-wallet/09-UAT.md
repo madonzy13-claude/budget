@@ -8,12 +8,16 @@ updated: 2026-06-21
 
 ## Current Test
 
-number: 6
-name: Live tracked-instrument price (needs provider API keys)
+number: 7
+name: Type-first form + precious metals (9.1) + global universe / manual pricing / Broker / metals FX (9.2)
 expected: |
-  selecting a tracked instrument (e.g. AAPL) fetches a live current price shown
-  read-only with "Last updated …"; P/L computes against it. Requires Finnhub /
-  Twelve Data / CoinGecko keys. Until then the price-blocked banner shows.
+Type is the first field; choosing a type swaps the fields. Tracked (Asset
+autocomplete), manual (name + editable price), precious metals
+(metal/kind/UoM + currency + spot-fetched price converted by UoM AND by FX to
+the chosen currency), cash (currency + amount), Broker (deposited + currency +
+actual). Global search returns any seeded instrument (≈219k) instantly; non-US
+picks are user-priced; "Enter manually" always available; rows show a colored
+type icon.
 awaiting: user response
 
 ## Pre-flight verification (Claude, before human UAT)
@@ -62,8 +66,8 @@ Groups behave like first-class rows in ONE interleaved list:
   +20.0%/9,600). The drag GESTURE is human-only (Playwright can't drive @dnd-kit
   pointer sensors); the reorder + group-change data-paths are unit-proven + the
   PATCH/reorder endpoints verified live.
-result: pass
-note_pass: |
+  result: pass
+  note_pass: |
   Owner confirmed after extensive iteration. DnD reworked to the canonical
   @dnd-kit grouped-sortable (onDragOver live-move, no overlay,
   animateLayoutChanges) — reorder/join/move-out/group-block-drag all smooth,
@@ -76,11 +80,11 @@ expected: tap a row expands P/L%+weight%; swipe-left reveals Edit+Delete;
 long-press the handle starts drag — the three gestures do not collide.
 result: pass
 note_pass: |
-  Owner confirmed on device. Mobile cash row also reworked this pass: the empty
-  P/L middle line dropped, then a dash "—" placed in the profit slot so the
-  expanded card is a uniform 3 rows (name / — · ccy amount / Share) — verified
-  live 390px. Crash on dragging the last item out of a group fixed (reverted the
-  keep-empty-group augmentation).
+Owner confirmed on device. Mobile cash row also reworked this pass: the empty
+P/L middle line dropped, then a dash "—" placed in the profit slot so the
+expanded card is a uniform 3 rows (name / — · ccy amount / Share) — verified
+live 390px. Crash on dragging the last item out of a group fixed (reverted the
+keep-empty-group augmentation).
 
 ### 3. Collapsible group persistence
 
@@ -88,13 +92,13 @@ expected: collapse/expand a group; reload → state persists (localStorage
 inv-group-{budgetId}-{slug}); ungrouped rows always visible.
 result: [pending]
 note: |
-  Pre-flight verified (Claude). Added durable E2E "A group's expanded state
-  persists across a reload" (seed 2 grouped + 1 loose holding → expand →
-  reload → group still expanded + child row + loose row visible): @investments-wallet
-  8/8 (desktop+mobile). Live (budget-dev, 390px): expanding Brokerage wrote
-  localStorage inv-group-1765d91e…-brokerage="1"; after reload Brokerage stayed
-  Expanded (children shown), Metals stayed Collapsed, ungrouped Vintage car +
-  Cash visible throughout.
+Pre-flight verified (Claude). Added durable E2E "A group's expanded state
+persists across a reload" (seed 2 grouped + 1 loose holding → expand →
+reload → group still expanded + child row + loose row visible): @investments-wallet
+8/8 (desktop+mobile). Live (budget-dev, 390px): expanding Brokerage wrote
+localStorage inv-group-1765d91e…-brokerage="1"; after reload Brokerage stayed
+Expanded (children shown), Metals stayed Collapsed, ungrouped Vintage car +
+Cash visible throughout.
 result_pass: pass
 note_pass: Owner confirmed on device.
 
@@ -105,29 +109,29 @@ chip, drag handle full opacity; an on-add price-fetch failure shows the
 PriceBlockedBanner (role=alert, red left border) + disables Save + inline Retry.
 result: [pending]
 note: |
-  Pre-flight (Claude):
-  • Price-blocked banner — VERIFIED LIVE (budget-dev). Add investment → pick AAPL
-    (tracked) → with no provider keys the instant price fetch fails → banner
-    role=alert "Couldn't fetch the price — try again in a moment.", 4px red left
-    border, inline Retry, Save disabled. 2 new integration tests (holding-sheet.test:
-    failure→banner+disabled+Retry; Retry-success→banner clears). This also
-    pre-confirms Test 6's blocked-state behavior.
-  • Delisted chrome — BUG FOUND + FIXED. 09-07-PLAN requires the drag handle stays
-    full opacity on a delisted row, but opacity-50 was on the whole row container
-    (a parent's opacity caps children → handle was dimmed too). Moved the dim onto
-    the content siblings; handle stays full opacity. investment-row.test 10/10
-    (incl. new handle-opacity test). HOWEVER row-level isDelisted is hardcoded
-    false in list-holdings.ts (per-row enrichment deferred to P07, documented) —
-    so a delisted row CANNOT be produced live yet; chrome is unit-proven only.
+Pre-flight (Claude):
+• Price-blocked banner — VERIFIED LIVE (budget-dev). Add investment → pick AAPL
+(tracked) → with no provider keys the instant price fetch fails → banner
+role=alert "Couldn't fetch the price — try again in a moment.", 4px red left
+border, inline Retry, Save disabled. 2 new integration tests (holding-sheet.test:
+failure→banner+disabled+Retry; Retry-success→banner clears). This also
+pre-confirms Test 6's blocked-state behavior.
+• Delisted chrome — BUG FOUND + FIXED. 09-07-PLAN requires the drag handle stays
+full opacity on a delisted row, but opacity-50 was on the whole row container
+(a parent's opacity caps children → handle was dimmed too). Moved the dim onto
+the content siblings; handle stays full opacity. investment-row.test 10/10
+(incl. new handle-opacity test). HOWEVER row-level isDelisted is hardcoded
+false in list-holdings.ts (per-row enrichment deferred to P07, documented) —
+so a delisted row CANNOT be produced live yet; chrome is unit-proven only.
 result_pass: pass
 note_pass: |
-  Owner confirmed. Banner live-verified. During Test-4 iteration the owner also
-  requested HoldingSheet UX fixes (all shipped + verified live): search loader
-  spinner + 400ms debounce; "Keep editing" no longer dead (sheet outside-close
-  suppressed so the discard dialog can't re-trigger it); Group field grey fill +
-  no keyboard-on-open; and the price error moved from top-of-form to the Current
-  price field (reads as price-related). investment/sheet/search vitest 30/30,
-  @investments-wallet E2E 8/8.
+Owner confirmed. Banner live-verified. During Test-4 iteration the owner also
+requested HoldingSheet UX fixes (all shipped + verified live): search loader
+spinner + 400ms debounce; "Keep editing" no longer dead (sheet outside-close
+suppressed so the discard dialog can't re-trigger it); Group field grey fill +
+no keyboard-on-open; and the price error moved from top-of-form to the Current
+price field (reads as price-related). investment/sheet/search vitest 30/30,
+@investments-wallet E2E 8/8.
 
 ### 5. Visual contract (DESIGN.md authority)
 
@@ -136,25 +140,25 @@ NOT yellow; the ONLY yellow is the sheet Save CTA + the Wallets pill; all number
 use the tabular numeric font (IBM Plex Sans), never Inter.
 result: [pending]
 note: |
-  Pre-flight (Claude, live computed-style audit of the investments section):
-  • P/L = text-only — colored span, backgroundColor rgba(0,0,0,0) (no filled badge).
-  • Dashed add button — border rgb(112,122,138) (--muted-foreground), dashed,
-    bg transparent → NOT yellow.
-  • Yellow scan of the whole section → 0 elements with yellow text/bg/border.
-    The brand yellow (#fcd535) appears only on the Wallets pill + the sheet Save
-    CTA (+ app chrome: logo, PWA install banner) — none inside the section.
-  • Numbers — all 19 number-bearing leaves render IBM Plex Sans; the only "digit"
-    in Inter is the instrument NAME "S&P 500" (correct — names use the body font).
+Pre-flight (Claude, live computed-style audit of the investments section):
+• P/L = text-only — colored span, backgroundColor rgba(0,0,0,0) (no filled badge).
+• Dashed add button — border rgb(112,122,138) (--muted-foreground), dashed,
+bg transparent → NOT yellow.
+• Yellow scan of the whole section → 0 elements with yellow text/bg/border.
+The brand yellow (#fcd535) appears only on the Wallets pill + the sheet Save
+CTA (+ app chrome: logo, PWA install banner) — none inside the section.
+• Numbers — all 19 number-bearing leaves render IBM Plex Sans; the only "digit"
+in Inter is the instrument NAME "S&P 500" (correct — names use the body font).
 result_pass: pass
 note_pass: |
-  Owner confirmed (under the renamed Assets tab). During this pass the owner also
-  reworked the HoldingSheet type-first flow (all shipped + verified): no type
-  preselected ("Select a type" placeholder; nothing focused on open; fields appear
-  only after a type is chosen), "Other" moved last in the type list, and the Type
-  dropdown now closes on a trigger tap (controlled open + reopen-guard — Radix
-  close-then-reopen race on touch). Section name kept as "Investments"; tab renamed
-  Wallets→Assets. holding-sheet/instrument/investment vitest 45/45,
-  @investments-wallet E2E 8/8.
+Owner confirmed (under the renamed Assets tab). During this pass the owner also
+reworked the HoldingSheet type-first flow (all shipped + verified): no type
+preselected ("Select a type" placeholder; nothing focused on open; fields appear
+only after a type is chosen), "Other" moved last in the type list, and the Type
+dropdown now closes on a trigger tap (controlled open + reopen-guard — Radix
+close-then-reopen race on touch). Section name kept as "Investments"; tab renamed
+Wallets→Assets. holding-sheet/instrument/investment vitest 45/45,
+@investments-wallet E2E 8/8.
 
 ### 6. Live tracked-instrument price (needs provider API keys)
 
@@ -164,16 +168,22 @@ Finnhub / Twelve Data / CoinGecko keys in Infisical (\*\_API_KEYS). Until then t
 price-blocked banner shows.
 result: [pending]
 note: |
-  Unblocked: owner added FINNHUB/TWELVE_DATA/COINGECKO single keys to Infisical dev.
-  Verified live (budget-dev): Add → Equity → AAPL → Current price "298.26 USD" +
-  "Last updated just now", no price-blocked banner, Save enabled. (Finnhub serves
-  the equities; key confirmed working via direct quote = 298.63.)
-  BUG FOUND + FIXED during this (see Gaps): empty-string *_API_KEYS placeholders in
-  Infisical shadowed the populated *_API_KEY because boot used `??` (only catches
-  null/undefined) → adapter got "" → every price came back price_unavailable.
-  Fixed with resolveApiKey() (`||` semantics) in apps/api/boot.ts + apps/worker;
-  unit-tested (price-provider.test, 4 cases). The fallback banner remains verified
-  (Test 4) for genuinely-missing keys.
+Unblocked: owner added FINNHUB/TWELVE_DATA/COINGECKO single keys to Infisical dev.
+Verified live (budget-dev): Add → Equity → AAPL → Current price "298.26 USD" +
+"Last updated just now", no price-blocked banner, Save enabled. (Finnhub serves
+the equities; key confirmed working via direct quote = 298.63.)
+BUG FOUND + FIXED during this (see Gaps): empty-string _\_API_KEYS placeholders in
+Infisical shadowed the populated _\_API_KEY because boot used `??` (only catches
+null/undefined) → adapter got "" → every price came back price_unavailable.
+Fixed with resolveApiKey() (`||` semantics) in apps/api/boot.ts + apps/worker;
+unit-tested (price-provider.test, 4 cases). The fallback banner remains verified
+(Test 4) for genuinely-missing keys.
+result_pass: pass
+note_pass: |
+Owner confirmed live (AAPL 298.26 USD, read-only, "Last updated just now",
+Save enabled). Key-shadowing bug found + fixed (resolveApiKey). 9.2 then made
+pricing global + per-instrument: US equities/ETF→Finnhub, crypto→CoinGecko,
+metals→Twelve Data FX; non-US = manual (user-priced). Hourly price scan.
 
 ### 7. Type-first form + precious metals (9.1)
 
@@ -182,13 +192,23 @@ expected: Type is the first field; choosing a type swaps the fields — tracked
 metals (metal/kind/UoM + spot-fetched price converted by UoM), cash (currency +
 amount). Metals value = spot/oz converted to the chosen unit × quantity.
 result: [pending]
+note: |
+Pre-flight (Claude): type-first form unit-proven (holding-sheet.test, 12 cases:
+cash/tracked/metals/Broker/manual-entry/manual-currency/no-fields-on-open).
+Metals end-to-end verified: XAU/USD spot live = 4006.57 USD (hourly cron),
+FX-converted to the chosen currency on the on-add fetch (fetch-instrument-price
+test: 2000 USD ×4.0 → 8000 PLN) and re-denominated in the list (list-holdings).
+9.2 additions all unit/integration-proven + deployed: global universe (~219k,
+3ms trigram search), manual pricing (provider=manual:<MIC>), Broker type,
+"Enter manually", REIT/ETB dropped, metals name-not-ticker, colored row icons,
+DnD keep-empty-group (withPersistentGroups). 54 web + 70 backend tests green.
 
 ## Summary
 
 total: 7
-passed: 5
+passed: 6
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
@@ -224,15 +244,15 @@ blocked: 0
 
 - truth: "With a provider key set, a tracked instrument fetches a live price."
   status: fixed
-  reason: "Empty-string *_API_KEYS placeholders in Infisical shadowed the populated single *_API_KEY: boot/worker used `KEYS ?? KEY` and `??` only coalesces null/undefined, so the adapter received \"\" and every price returned 422 price_unavailable — even though the keys were valid (Finnhub quote AAPL=298.63 directly)."
+  reason: "Empty-string _\_API_KEYS placeholders in Infisical shadowed the populated single _\_API_KEY: boot/worker used `KEYS ?? KEY` and `??` only coalesces null/undefined, so the adapter received \"\" and every price returned 422 price_unavailable — even though the keys were valid (Finnhub quote AAPL=298.63 directly)."
   severity: major (silently breaks all live pricing whenever the empty placeholder exists)
   test: packages/investments/test/ports/price-provider.test.ts (resolveApiKey: empty CSV → single key; 4 cases)
   artifacts:
   - path: apps/api/src/boot.ts
-    issue: "TWELVE_DATA/FINNHUB/COINGECKO key = env.*_API_KEYS ?? env.*_API_KEY"
+    issue: "TWELVE_DATA/FINNHUB/COINGECKO key = env._\_API_KEYS ?? env._\_API_KEY"
   - path: apps/worker/src/worker.ts
     issue: "same ?? pattern on process.env"
-  resolution: "Added resolveApiKey(csv, single) = csv || single || \"\" in price-provider port; both boot + worker use it. Verified live: AAPL → 298.26 USD."
+    resolution: "Added resolveApiKey(csv, single) = csv || single || \"\" in price-provider port; both boot + worker use it. Verified live: AAPL → 298.26 USD."
 
 - truth: "After picking a search suggestion, the dropdown stays closed (reopens only on a new query)."
   status: fixed
@@ -249,6 +269,7 @@ blocked: 0
   resolution: "Read-through cache: serve a price fresh within 3h (CACHE_TTL_MS, aligned to the price-scan cron) with no provider call and no rate-limit charge. Verified live: GOOG re-fetch → 0 new rate-limit rows in the minute, price served from the 16-min-old cache."
 
 # Open question (not a defect) — instrument universe coverage.
+
 - truth: "Search returns any real stock/crypto the user types (e.g. META)."
   status: known-limitation
   reason: "Search is LOCAL over budgeting.instruments (D-04: never calls a provider, to protect quota). The universe is a HARDCODED DEFAULT_INVESTMENT_UNIVERSE (~21 rows, dev/UAT) seeded daily via runInstrumentsDailySeed(fetchUniverse). META/most symbols aren't seeded → 'nothing found'."
