@@ -11,9 +11,19 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Loader2, PlusCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { clientApiFetch } from "@/lib/budget-fetch";
-import { AssetClassChip } from "./asset-class-chip";
+
+/** Short, human label for a suggestion's listing venue. Manual instruments carry
+ *  the exchange MIC in the provider (`manual:XWAR`); US is Finnhub; crypto/metals
+ *  have no meaningful exchange (the currency alone disambiguates). */
+function exchangeLabel(provider?: string): string {
+  if (!provider) return "";
+  if (provider.startsWith("manual:")) return provider.slice("manual:".length);
+  if (provider === "finnhub") return "US";
+  return "";
+}
 
 export interface InstrumentSuggestion {
   id: string;
@@ -21,6 +31,10 @@ export interface InstrumentSuggestion {
   displayName: string;
   assetClass: string;
   quoteCurrency?: string;
+  /** Price provider; 'manual' = user-priced (no free server-side source). */
+  provider?: string;
+  refreshCadence?: "hourly" | "daily";
+  rank?: number;
 }
 
 interface InstrumentSearchInputProps {
@@ -31,13 +45,16 @@ interface InstrumentSearchInputProps {
   onSelectCustom: () => void;
   /** asset_class filter so the autocomplete only suggests the selected type. */
   assetClass?: string;
-  /** Hide the "Custom" row (type-first form: custom is a separate type). */
+  /** Hide the always-present "Custom" row (type-first form: custom is a separate type). */
   hideCustom?: boolean;
+  /** When the search returns nothing, offer an "enter manually" row (→ onSelectCustom)
+   *  so a ticker missing from the catalog can still be added by hand. */
+  allowManualEntry?: boolean;
   autoFocus?: boolean;
   disabled?: boolean;
 }
 
-const DEBOUNCE_MS = 2000;
+const DEBOUNCE_MS = 400;
 const MIN_CHARS = 2;
 
 export function InstrumentSearchInput({
@@ -48,15 +65,25 @@ export function InstrumentSearchInput({
   onSelectCustom,
   assetClass,
   hideCustom,
+  allowManualEntry,
   autoFocus,
   disabled,
 }: InstrumentSearchInputProps) {
   const t = useTranslations("budget.investments.search");
   const [results, setResults] = useState<InstrumentSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
+  // `pending` = a search is queued/running for the current query (covers the
+  // debounce window too) → drives the inline spinner so typing shows feedback
+  // immediately, before the request even fires.
+  const [pending, setPending] = useState(false);
   const [open, setOpen] = useState(false);
   const [searched, setSearched] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // True when `name` last changed because the user PICKED a suggestion (not
+  // typed). Selecting sets the name to the instrument's display name, which would
+  // otherwise re-trigger the debounced search and re-open the dropdown. Suppress
+  // that one reopen; a real keystroke clears the flag.
+  const justSelectedRef = useRef(false);
 
   async function runSearch(q: string) {
     const query = q.trim();
@@ -82,19 +109,29 @@ export function InstrumentSearchInput({
       setResults([]);
     } finally {
       setLoading(false);
+      setPending(false);
       setSearched(true);
     }
   }
 
-  // 2s idle debounce.
+  // Idle debounce. `pending` flips true the moment a valid query is typed so the
+  // spinner shows during the debounce wait, not only once the fetch starts.
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (justSelectedRef.current) {
+      // Name was set by a selection → keep the dropdown closed, don't re-search.
+      setOpen(false);
+      setPending(false);
+      return;
+    }
     const q = name.trim();
     if (q.length < MIN_CHARS) {
       setOpen(false);
       setResults([]);
+      setPending(false);
       return;
     }
+    setPending(true);
     timerRef.current = setTimeout(() => runSearch(q), DEBOUNCE_MS);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -109,7 +146,10 @@ export function InstrumentSearchInput({
         disabled={disabled}
         value={name}
         placeholder={t("placeholder")}
-        onChange={(e) => onNameChange(e.target.value)}
+        onChange={(e) => {
+          justSelectedRef.current = false; // a real keystroke → search again
+          onNameChange(e.target.value);
+        }}
         onBlur={() => {
           // Close on blur so the absolute suggestion overlay never covers the
           // fields below it (Type / Group). A short delay lets an option's
@@ -122,6 +162,13 @@ export function InstrumentSearchInput({
         aria-expanded={open}
         aria-autocomplete="list"
       />
+      {(pending || loading) && name.trim().length >= MIN_CHARS && (
+        <Loader2
+          data-testid="instrument-search-spinner"
+          aria-label={t("loading")}
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[var(--muted-foreground)]"
+        />
+      )}
       {open && (
         <ul
           role="listbox"
@@ -142,6 +189,7 @@ export function InstrumentSearchInput({
                   onMouseDown={(e) => {
                     // mousedown (not click) so it fires before the input blur.
                     e.preventDefault();
+                    justSelectedRef.current = true; // suppress the reopen-search
                     onSelectInstrument(r);
                     setOpen(false);
                   }}
@@ -152,13 +200,49 @@ export function InstrumentSearchInput({
                   <span className="min-w-0 flex-1 truncate text-body-md text-[var(--body-on-dark)]">
                     {r.displayName}
                   </span>
-                  <AssetClassChip label={r.assetClass} />
+                  {/* Exchange + currency so cross-listings of the same ticker
+                      (e.g. SPCX on NASDAQ/SIX/TSX) are distinguishable. */}
+                  <span className="shrink-0 whitespace-nowrap text-num-sm text-[var(--muted-foreground)]">
+                    {[exchangeLabel(r.provider), r.quoteCurrency]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
                 </button>
               </li>
             ))}
-          {!loading && searched && results.length === 0 && (
+          {!loading && searched && results.length === 0 && !allowManualEntry && (
             <li className="px-3 py-2 text-body-md text-[var(--muted-foreground)]">
               {t("noResults")}
+            </li>
+          )}
+          {/* "Enter manually" — ALWAYS the last item (even with suggestions), set
+              off by a divider + accent so it reads as a distinct action (add a
+              ticker the catalog doesn't list), not just another suggestion. */}
+          {!loading && searched && allowManualEntry && (
+            <li role="option" className="mt-1 border-t border-[var(--hairline-dark)]">
+              <button
+                type="button"
+                data-testid="instrument-manual-entry-option"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[var(--primary)] hover:bg-[var(--surface-elevated-dark)]"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  justSelectedRef.current = true;
+                  onSelectCustom();
+                  setOpen(false);
+                }}
+              >
+                <PlusCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-body-md font-medium">
+                    {t("enterManually")}
+                  </span>
+                  <span className="truncate text-caption text-[var(--muted-foreground)]">
+                    {results.length === 0
+                      ? t("noResults")
+                      : t("enterManuallyHint")}
+                  </span>
+                </span>
+              </button>
             </li>
           )}
           {/* Custom entry — final row (hidden in the type-first form where custom
@@ -171,6 +255,7 @@ export function InstrumentSearchInput({
                 className="flex w-full items-center px-3 py-2 text-left text-body-md text-[var(--body-on-dark)] hover:bg-[var(--surface-elevated-dark)]"
                 onMouseDown={(e) => {
                   e.preventDefault();
+                  justSelectedRef.current = true;
                   onSelectCustom();
                   setOpen(false);
                 }}

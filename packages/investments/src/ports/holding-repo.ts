@@ -11,6 +11,8 @@ export interface NewHolding {
   uiType: string | null;
   group: string | null;
   instrumentId: string | null;
+  /** User-typed ticker for a manual (no-instrument) tracked holding. */
+  manualTicker: string | null;
   buyPriceCents: bigint | null;
   buyCurrency: string | null;
   quantity: string;

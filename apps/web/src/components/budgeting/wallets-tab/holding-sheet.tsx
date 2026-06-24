@@ -14,21 +14,9 @@
  * Group is optional on every type. shadcn <Sheet side="right"> (controlled, no
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import {
-  TrendingUp,
-  BarChart2,
-  Landmark,
-  Building2,
-  Bitcoin,
-  Gem,
-  Home,
-  MoreHorizontal,
-  Coins,
-  Banknote,
-  type LucideIcon,
-} from "lucide-react";
+import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   Sheet,
   SheetContent,
@@ -68,6 +56,7 @@ import {
   UOMS,
   OZ_PER_UNIT,
   deriveUiType,
+  isAutoPriced,
   type UiType,
   type Metal,
   type MetalKind,
@@ -89,20 +78,6 @@ interface HoldingSheetProps {
   groups: string[];
   holding?: HoldingDto | null;
 }
-
-const UI_TYPE_ICON: Record<UiType, LucideIcon> = {
-  equity: TrendingUp,
-  etf: BarChart2,
-  etb: Landmark,
-  reit: Building2,
-  crypto: Bitcoin,
-  treasury_bond: Landmark,
-  collectibles: Gem,
-  real_estate: Home,
-  other: MoreHorizontal,
-  precious_metals: Coins,
-  cash: Banknote,
-};
 
 /** Decimal string → integer-cents string, or null. */
 function toCents(value: string): string | null {
@@ -129,14 +104,39 @@ export function HoldingSheet({
   const createMut = useCreateHolding(budgetId);
   const updateMut = useUpdateHolding(budgetId);
 
-  const [uiType, setUiType] = useState<UiType>(
+  // Create mode starts with NO type chosen ("") so nothing is preselected; edit
+  // mode derives the existing holding's type.
+  const [uiType, setUiType] = useState<UiType | "">(
     holding
       ? deriveUiType(holding.uiType, holding.holdingType, holding.isCustom)
-      : "equity",
+      : "",
   );
   const [name, setName] = useState(holding?.name ?? "");
   const [instrumentId, setInstrumentId] = useState<string | null>(
     holding?.instrumentId ?? null,
+  );
+  // Price provider of the selected instrument. 'manual' (non-US equities/ETF) ⇒
+  // the user enters the price; auto providers ⇒ read-only fetched price.
+  const [instrumentProvider, setInstrumentProvider] = useState<string | null>(
+    holding?.instrumentProvider ?? null,
+  );
+  // A tracked type where the user chose "enter manually" (ticker not in the
+  // catalog): no instrument, editable price, currency picker visible. In edit mode,
+  // a tracked-type holding that has no instrument is exactly this case.
+  const isManualTracked = (h: HoldingDto): boolean => {
+    if (h.instrumentId != null) return false;
+    const ut = deriveUiType(h.uiType, h.holdingType, h.isCustom);
+    return UI_TYPE_META[ut].behavior === "tracked";
+  };
+  const [manualEntry, setManualEntry] = useState(
+    !!holding && isManualTracked(holding),
+  );
+  // Ticker: a selected instrument's symbol (read-only, for the optimistic row) OR
+  // the user-typed ticker in manual entry. For a manual-tracked holding in edit
+  // mode, `symbol` already holds the manual ticker (COALESCE on read).
+  const [symbol, setSymbol] = useState<string | null>(holding?.symbol ?? null);
+  const [manualTicker, setManualTicker] = useState(
+    holding && isManualTracked(holding) ? (holding.symbol ?? "") : "",
   );
   const [buyPrice, setBuyPrice] = useState(
     centsToDecimal(holding?.buyPriceCents ?? null),
@@ -164,12 +164,40 @@ export function HoldingSheet({
   const [priceBlocked, setPriceBlocked] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  const behavior = UI_TYPE_META[uiType].behavior;
+  // Controlled Type-dropdown open state. On touch, Radix closes the open dropdown
+  // on the trigger tap (pointer-down-outside) and then the trigger reopens it in
+  // the same gesture → it never closes. Suppress any "open" that fires right
+  // after a "close" so a trigger tap reliably toggles it shut. Open by default on
+  // create so the user sees the type options immediately on opening the sheet.
+  const [typeOpen, setTypeOpen] = useState(mode === "create");
+  const reopenBlockUntil = useRef(0);
+  const onTypeOpenChange = (next: boolean) => {
+    const now = Date.now();
+    if (next && now < reopenBlockUntil.current) return;
+    if (!next) reopenBlockUntil.current = now + 300;
+    setTypeOpen(next);
+  };
+
+  const meta = uiType ? UI_TYPE_META[uiType] : null;
+  const behavior = meta?.behavior ?? null;
+  // A tracked type whose price the user enters by hand: either a selected non-US
+  // instrument (provider='manual', no free quote) OR a manual entry (ticker not in
+  // the catalog, no instrument). Both ⇒ editable current-price field.
+  const trackedManual =
+    behavior === "tracked" &&
+    (manualEntry ||
+      (instrumentId != null && !isAutoPriced(instrumentProvider)));
+  // Currency comes FROM a selected instrument, so hide the picker once one is
+  // chosen; show it only when the user supplies the value by hand (manual / cash /
+  // broker / manual-entry tracked with no instrument). Metals are the exception:
+  // the spot is USD but the user picks the currency to value the coins in (the
+  // fetched price is FX-converted to it).
+  const showBuyCurrency = instrumentId == null || behavior === "metals";
   const markDirty = () => {
     if (!dirty) setDirty(true);
   };
 
-  async function fetchPrice(id: string) {
+  async function fetchPrice(id: string, targetCurrency?: string) {
     setRetrying(true);
     setPriceBlocked(false);
     try {
@@ -178,7 +206,8 @@ export function HoldingSheet({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: "{}",
+          // Metals: ask for the price in the user's chosen currency (USD → ccy).
+          body: JSON.stringify(targetCurrency ? { currency: targetCurrency } : {}),
         },
       );
       if (!res.ok) {
@@ -205,10 +234,12 @@ export function HoldingSheet({
     }
   }
 
-  /** Resolve a metal to its spot instrument id, then fetch its price. */
-  async function resolveMetal(m: Metal) {
+  /** Resolve a metal to its spot instrument id, then fetch its (FX-converted) price
+   *  in `ccy` (defaults to the currently selected value currency). */
+  async function resolveMetal(m: Metal, ccy?: string) {
     const symbol = METAL_TO_SYMBOL[m];
     const q = symbol.split("/")[0]; // "XAU"
+    const target = ccy ?? currentPriceCurrency;
     try {
       const res = await clientApiFetch(
         `/budgets/${budgetId}/investments/search?q=${encodeURIComponent(q)}&type=commodity`,
@@ -219,8 +250,9 @@ export function HoldingSheet({
       const hit = (json.results ?? []).find((r) => r.symbol === symbol);
       if (hit) {
         setInstrumentId(hit.id);
-        setCurrentPriceCurrency(hit.quoteCurrency ?? "USD");
-        void fetchPrice(hit.id);
+        // The fetched price is converted to `target`, so value the holding in it.
+        setCurrentPriceCurrency(target);
+        void fetchPrice(hit.id, target);
       }
     } catch {
       /* best-effort */
@@ -232,6 +264,10 @@ export function HoldingSheet({
     setUiType(next);
     // Reset type-specific fields so stale values don't leak across behaviors.
     setInstrumentId(null);
+    setInstrumentProvider(null);
+    setManualEntry(false);
+    setSymbol(null);
+    setManualTicker("");
     setName("");
     setCurrentPrice("");
     setPriceBlocked(false);
@@ -245,13 +281,36 @@ export function HoldingSheet({
 
   function selectInstrument(inst: InstrumentSuggestion) {
     markDirty();
+    setManualEntry(false);
     setInstrumentId(inst.id);
+    setInstrumentProvider(inst.provider ?? null);
+    setSymbol(inst.symbol);
     setName(inst.displayName);
     if (inst.quoteCurrency) {
       setBuyCurrency(inst.quoteCurrency);
       setCurrentPriceCurrency(inst.quoteCurrency);
     }
-    void fetchPrice(inst.id);
+    // Auto-priced → fetch a read-only price. Manual (non-US) → the user types it;
+    // never call the price endpoint (it would 422 → spurious blocked banner).
+    if (isAutoPriced(inst.provider)) {
+      setCurrentPrice("");
+      void fetchPrice(inst.id);
+    } else {
+      setCurrentPrice("");
+      setPriceBlocked(false);
+    }
+  }
+
+  /** "Enter manually": ticker not in the catalog. Keep what the user typed as the
+   *  name, drop any instrument, make the price + currency user-editable. */
+  function enableManualEntry() {
+    markDirty();
+    setManualEntry(true);
+    setInstrumentId(null);
+    setInstrumentProvider(null);
+    setSymbol(null);
+    setPriceBlocked(false);
+    setCurrentPrice("");
   }
 
   // Read-only current-price preview (metals: spot/oz converted to the UoM).
@@ -265,9 +324,12 @@ export function HoldingSheet({
   }, [currentPrice, behavior, uom]);
 
   const canSave = useMemo(() => {
+    if (!uiType) return false; // no type chosen yet
     if (priceBlocked) return false;
     switch (behavior) {
       case "tracked":
+        // Manual entry has no instrument — require a typed name + price instead.
+        if (manualEntry) return !!name.trim() && !!currentPrice.trim();
         return instrumentId != null && !!currentPrice.trim();
       case "metals":
         return (
@@ -278,11 +340,24 @@ export function HoldingSheet({
         );
       case "cash":
         return !!name.trim() && !!currentPrice.trim();
+      case "broker":
+        // name + deposited (buyPrice) + actual (currentPrice); no quantity.
+        return !!name.trim() && !!buyPrice.trim() && !!currentPrice.trim();
       case "manual":
       default:
         return !!name.trim() && !!currentPrice.trim();
     }
-  }, [behavior, priceBlocked, instrumentId, currentPrice, name, quantity]);
+  }, [
+    uiType,
+    behavior,
+    priceBlocked,
+    instrumentId,
+    manualEntry,
+    currentPrice,
+    buyPrice,
+    name,
+    quantity,
+  ]);
 
   function attemptClose() {
     if (dirty) {
@@ -293,8 +368,10 @@ export function HoldingSheet({
   }
 
   function buildPayload() {
-    const holdingType = UI_TYPE_META[uiType].holdingType as HoldingType;
-    const common = { uiType, holdingType, group };
+    // Only reached via handleSave after canSave, which guarantees uiType is set.
+    const ut = uiType as UiType;
+    const holdingType = UI_TYPE_META[ut].holdingType as HoldingType;
+    const common = { uiType: ut, holdingType, group };
     if (behavior === "cash") {
       return {
         ...common,
@@ -303,6 +380,19 @@ export function HoldingSheet({
         currentPriceCents: toCents(currentPrice),
         currentPriceCurrency,
         buyCurrency: currentPriceCurrency,
+      };
+    }
+    if (behavior === "broker") {
+      // Brokerage account: deposited (cost basis) vs actual (current value),
+      // single currency, no quantity. P/L = actual − deposited.
+      return {
+        ...common,
+        name: name.trim(),
+        quantity: "1",
+        buyPriceCents: toCents(buyPrice),
+        buyCurrency,
+        currentPriceCents: toCents(currentPrice),
+        currentPriceCurrency: buyCurrency,
       };
     }
     if (behavior === "metals") {
@@ -321,10 +411,14 @@ export function HoldingSheet({
       };
     }
     if (behavior === "tracked") {
+      const ticker = manualEntry ? manualTicker.trim() || null : null;
       return {
         ...common,
         name: name.trim(),
         instrumentId,
+        manualTicker: ticker,
+        // `symbol` is web-only (optimistic row ticker); the server derives it.
+        symbol: manualEntry ? ticker : symbol,
         buyPriceCents: toCents(buyPrice),
         buyCurrency,
         quantity,
@@ -372,7 +466,19 @@ export function HoldingSheet({
       <SheetContent
         side="right"
         data-testid="holding-sheet"
-        className="flex w-full flex-col bg-[var(--canvas-dark)] sm:max-w-[480px]"
+        // pointer-events-auto: an open <Select> (Radix modal) locks body
+        // pointer-events to none; the sheet's own overlay stays interactive and
+        // would steal clicks meant for the Type trigger (re-click reopened the
+        // dropdown instead of closing it). Forcing the content interactive keeps
+        // the trigger clickable so it toggles closed normally.
+        className="!pointer-events-auto flex w-full flex-col bg-[var(--canvas-dark)] sm:max-w-[480px]"
+        // Close ONLY via the explicit X / Cancel / Discard buttons. The discard
+        // AlertDialog portals OUTSIDE this content, so any click on it counts as
+        // "interact outside"; letting that close the sheet re-ran attemptClose →
+        // re-opened the discard dialog (Keep editing looked dead). Suppressing
+        // outside-close unconditionally breaks that loop (no stale-state race).
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
       >
         <SheetHeader className="mb-2">
           <SheetTitle className="text-[var(--body-on-dark)]">
@@ -385,22 +491,26 @@ export function HoldingSheet({
           <Field label={t("field.type")}>
             <Select
               value={uiType}
+              open={typeOpen}
+              onOpenChange={onTypeOpenChange}
               onValueChange={(v) => changeType(v as UiType)}
             >
               <SelectTrigger
                 aria-label={t("field.type")}
                 data-testid="holding-sheet-type"
               >
-                <SelectValue>
-                  <span className="flex items-center gap-2">
-                    {(() => {
-                      const Icon = UI_TYPE_ICON[uiType];
-                      return (
-                        <Icon className="h-4 w-4 text-[var(--body-on-dark)]" />
-                      );
-                    })()}
-                    <span>{t(`uitype.${uiType}`)}</span>
-                  </span>
+                <SelectValue placeholder={t("field.typePlaceholder")}>
+                  {uiType ? (
+                    <span className="flex items-center gap-2">
+                      {(() => {
+                        const Icon = UI_TYPE_ICON[uiType];
+                        return (
+                          <Icon className="h-4 w-4 text-[var(--body-on-dark)]" />
+                        );
+                      })()}
+                      <span>{t(`uitype.${uiType}`)}</span>
+                    </span>
+                  ) : null}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -423,29 +533,57 @@ export function HoldingSheet({
             </Select>
           </Field>
 
-          {/* 2. Name / Asset */}
-          {behavior === "tracked" ? (
+          {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
+              open: no type → no Asset/Name field, and neither input auto-focuses). */}
+          {behavior === "tracked" && !manualEntry ? (
             <Field label={t("field.asset")}>
               <InstrumentSearchInput
                 budgetId={budgetId}
-                assetClass={UI_TYPE_META[uiType].assetClass}
+                assetClass={meta?.assetClass}
                 hideCustom
+                allowManualEntry
                 name={name}
                 onNameChange={(v) => {
                   markDirty();
                   setName(v);
-                  if (instrumentId != null) setInstrumentId(null);
+                  if (instrumentId != null) {
+                    setInstrumentId(null);
+                    setSymbol(null);
+                  }
                 }}
                 onSelectInstrument={selectInstrument}
-                onSelectCustom={() => {}}
-                autoFocus={mode === "create"}
+                onSelectCustom={enableManualEntry}
               />
             </Field>
-          ) : (
+          ) : behavior === "tracked" && manualEntry ? (
+            // Manual entry (ticker not in the catalog): plain name + ticker fields.
+            <>
+              <Field label={t("field.name")}>
+                <Input
+                  data-testid="holding-sheet-name"
+                  value={name}
+                  onChange={(e) => {
+                    markDirty();
+                    setName(e.target.value);
+                  }}
+                />
+              </Field>
+              <Field label={t("field.ticker")}>
+                <Input
+                  data-testid="holding-sheet-ticker"
+                  value={manualTicker}
+                  onChange={(e) => {
+                    markDirty();
+                    setManualTicker(e.target.value.toUpperCase());
+                  }}
+                  placeholder={t("field.tickerPlaceholder")}
+                />
+              </Field>
+            </>
+          ) : behavior ? (
             <Field label={t("field.name")}>
               <Input
                 data-testid="holding-sheet-name"
-                autoFocus={mode === "create"}
                 value={name}
                 onChange={(e) => {
                   markDirty();
@@ -453,7 +591,7 @@ export function HoldingSheet({
                 }}
               />
             </Field>
-          )}
+          ) : null}
 
           {/* 3. Metals: metal + kind + UoM */}
           {behavior === "metals" && (
@@ -532,10 +670,54 @@ export function HoldingSheet({
                 />
               </Field>
             </>
-          ) : (
+          ) : behavior === "broker" ? (
+            /* 4b. Broker: deposited value + currency + actual value (no quantity). */
             <>
-              {/* 5. Buy price + currency + quantity (tracked / manual / metals) */}
-              <Field label={t("field.buyPrice")}>
+              <Field label={t("field.depositedValue")}>
+                <NumericInput
+                  testId="holding-sheet-deposited"
+                  value={buyPrice}
+                  onChange={(v) => {
+                    markDirty();
+                    setBuyPrice(v);
+                  }}
+                />
+              </Field>
+              <Field label={t("field.currency")}>
+                <CurrencyPicker
+                  variant="field"
+                  value={buyCurrency}
+                  onSelect={(v) => {
+                    markDirty();
+                    setBuyCurrency(v);
+                    setCurrentPriceCurrency(v);
+                  }}
+                  aria-label={t("field.currency")}
+                />
+              </Field>
+              <Field label={t("field.actualValue")}>
+                <NumericInput
+                  testId="holding-sheet-actual"
+                  value={currentPrice}
+                  onChange={(v) => {
+                    markDirty();
+                    setCurrentPrice(v);
+                  }}
+                />
+              </Field>
+            </>
+          ) : behavior ? (
+            <>
+              {/* 5. Buy price + currency + quantity (tracked / manual / metals).
+                  Currency picker hides once an instrument is chosen (its quote
+                  currency is used); the price labels then show that currency. */}
+              <Field
+                label={
+                  showBuyCurrency
+                    ? t("field.buyPrice")
+                    : `${t("field.buyPrice")} (${buyCurrency})`
+                }
+              >
                 <NumericInput
                   testId="holding-sheet-buy-price"
                   value={buyPrice}
@@ -545,17 +727,30 @@ export function HoldingSheet({
                   }}
                 />
               </Field>
-              <Field label={t("field.buyCurrency")}>
-                <CurrencyPicker
-                  variant="field"
-                  value={buyCurrency}
-                  onSelect={(v) => {
-                    markDirty();
-                    setBuyCurrency(v);
-                  }}
-                  aria-label={t("field.buyCurrency")}
-                />
-              </Field>
+              {showBuyCurrency && (
+                <Field
+                  label={
+                    behavior === "metals"
+                      ? t("field.currency")
+                      : t("field.buyCurrency")
+                  }
+                >
+                  <CurrencyPicker
+                    variant="field"
+                    value={behavior === "metals" ? currentPriceCurrency : buyCurrency}
+                    onSelect={(v) => {
+                      markDirty();
+                      setBuyCurrency(v);
+                      // A manual value is a single currency: keep the current-price
+                      // currency in lock-step so the saved value is unambiguous.
+                      setCurrentPriceCurrency(v);
+                      // Metals: re-fetch the spot converted into the new currency.
+                      if (behavior === "metals") void resolveMetal(metal, v);
+                    }}
+                    aria-label={t("field.currency")}
+                  />
+                </Field>
+              )}
               <Field label={t("field.quantity")}>
                 <NumericInput
                   testId="holding-sheet-quantity"
@@ -567,9 +762,18 @@ export function HoldingSheet({
                 />
               </Field>
 
-              {/* 6. Current price */}
-              <Field label={t("field.currentPrice")}>
-                {behavior === "manual" ? (
+              {/* 6. Current price — editable for manual types AND for tracked
+                  instruments the user prices by hand (non-US instrument or manual
+                  entry). The currency is shown in the label when it's fixed by a
+                  chosen instrument (no picker above). */}
+              <Field
+                label={
+                  showBuyCurrency
+                    ? t("field.currentPrice")
+                    : `${t("field.currentPrice")} (${currentPriceCurrency})`
+                }
+              >
+                {behavior === "manual" || trackedManual ? (
                   <NumericInput
                     testId="holding-sheet-amount"
                     value={currentPrice}
@@ -578,6 +782,16 @@ export function HoldingSheet({
                       setCurrentPrice(v);
                     }}
                     placeholder={buyPrice}
+                  />
+                ) : priceBlocked ? (
+                  // Price-fetch failure shown AT the price field so it reads as
+                  // price-related (not a generic top-of-form error).
+                  <PriceBlockedBanner
+                    onRetry={() => {
+                      if (behavior === "metals") void resolveMetal(metal);
+                      else if (instrumentId) void fetchPrice(instrumentId);
+                    }}
+                    retrying={retrying}
                   />
                 ) : (
                   <div className="space-y-1">
@@ -596,29 +810,22 @@ export function HoldingSheet({
                 )}
               </Field>
             </>
-          )}
+          ) : null}
 
-          {/* 7. Group (all types) */}
-          <Field label={t("field.group")}>
-            <GroupCombobox
-              value={group}
-              groups={groups}
-              onChange={(v) => {
-                markDirty();
-                setGroup(v);
-              }}
-              aria-label={t("field.group")}
-            />
-          </Field>
-
-          {priceBlocked && (
-            <PriceBlockedBanner
-              onRetry={() => {
-                if (behavior === "metals") void resolveMetal(metal);
-                else if (instrumentId) void fetchPrice(instrumentId);
-              }}
-              retrying={retrying}
-            />
+          {/* 7. Group (every type) — only once a Type is chosen, so the open
+              form is just the Type picker until then. */}
+          {behavior && (
+            <Field label={t("field.group")}>
+              <GroupCombobox
+                value={group}
+                groups={groups}
+                onChange={(v) => {
+                  markDirty();
+                  setGroup(v);
+                }}
+                aria-label={t("field.group")}
+              />
+            </Field>
           )}
         </div>
 
@@ -718,8 +925,25 @@ function SimpleSelect({
   testId?: string;
   ariaLabel?: string;
 }) {
+  // Same close-then-reopen guard as the Type dropdown: on touch, Radix closes the
+  // open list on the trigger tap (pointer-down-outside) and the trigger then
+  // reopens it in the same gesture → it never closes. Suppress any "open" that
+  // fires right after a "close" so a trigger tap reliably toggles it shut.
+  const [open, setOpen] = useState(false);
+  const reopenBlockUntil = useRef(0);
+  const onOpenChange = (next: boolean) => {
+    const now = Date.now();
+    if (next && now < reopenBlockUntil.current) return;
+    if (!next) reopenBlockUntil.current = now + 300;
+    setOpen(next);
+  };
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select
+      value={value}
+      open={open}
+      onOpenChange={onOpenChange}
+      onValueChange={onChange}
+    >
       <SelectTrigger aria-label={ariaLabel} data-testid={testId}>
         <SelectValue />
       </SelectTrigger>

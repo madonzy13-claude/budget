@@ -100,6 +100,7 @@ export function BdpTabs({
           <button
             key={slug}
             type="button"
+            data-testid={`bdp-tab-${slug}`}
             onClick={() => onSelect(slug as BdpTab)}
             aria-current={active ? "page" : undefined}
             aria-label={label}

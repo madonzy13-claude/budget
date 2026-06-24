@@ -25,6 +25,7 @@ import { TwelveDataPriceProvider } from "@budget/investments/src/adapters/price/
 import { CoinGeckoPriceProvider } from "@budget/investments/src/adapters/price/coingecko";
 import { FinnhubPriceProvider } from "@budget/investments/src/adapters/price/finnhub";
 import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
+import { resolveApiKey } from "@budget/investments/src/ports/price-provider";
 import { createIdentityModule } from "@budget/identity"; // PC-02, PC-15
 import { createTenancyModule } from "@budget/tenancy"; // PC-02, PC-15
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
@@ -286,16 +287,19 @@ export async function boot(): Promise<BootedDeps> {
     priceProvider: new CompositePriceProvider({
       // *_API_KEYS (CSV) preferred for round-robin failover; *_API_KEY is the
       // single-key fallback. normalizeKeys() inside each adapter splits the CSV.
+      // Use `||` (not `??`): an EMPTY-STRING *_API_KEYS placeholder must fall
+      // through to the single *_API_KEY, otherwise it shadows it and the adapter
+      // gets no key → every price comes back price_unavailable.
       twelve_data: new TwelveDataPriceProvider(
-        env.TWELVE_DATA_API_KEYS ?? env.TWELVE_DATA_API_KEY ?? "",
+        resolveApiKey(env.TWELVE_DATA_API_KEYS, env.TWELVE_DATA_API_KEY),
       ),
       finnhub: new FinnhubPriceProvider(
-        env.FINNHUB_API_KEYS ?? env.FINNHUB_API_KEY ?? "",
+        resolveApiKey(env.FINNHUB_API_KEYS, env.FINNHUB_API_KEY),
       ),
       coingecko: new CoinGeckoPriceProvider(
-        env.COINGECKO_API_KEYS ?? env.COINGECKO_API_KEY ?? "",
+        resolveApiKey(env.COINGECKO_API_KEYS, env.COINGECKO_API_KEY),
       ),
-      metals_dev: new MetalsDevPriceProvider(env.METALS_DEV_API_KEY ?? ""),
+      metals_dev: new MetalsDevPriceProvider(env.METALS_DEV_API_KEY || ""),
     }),
   });
 

@@ -28,34 +28,54 @@ beforeAll(async () => {
   await pool.query(`DELETE FROM budgeting.instruments WHERE provider = $1`, [
     TEST_PROVIDER,
   ]);
+  // Unique "QQZZ" marker symbols/names so assertions don't collide with the ~219k
+  // real instruments the 9.2 universe seed loads into the shared dev DB.
   await repo.upsert({
-    symbol: "AAPL",
-    displayName: "Apple Inc.",
+    symbol: "QQZZAP",
+    displayName: "Qqzz Apple Inc.",
     provider: TEST_PROVIDER,
     assetClass: "equities",
     quoteCurrency: "USD",
   });
   await repo.upsert({
-    symbol: "BTC",
-    displayName: "Bitcoin",
+    symbol: "QQZZBT",
+    displayName: "Qqzz Bitcoin",
     provider: TEST_PROVIDER,
     assetClass: "crypto",
     quoteCurrency: "USD",
   });
   await repo.upsert({
-    symbol: "XAU",
-    displayName: "Gold (troy ounce)",
+    symbol: "QQZZAU",
+    displayName: "Qqzz Gold (troy ounce)",
     provider: TEST_PROVIDER,
     assetClass: "commodity",
     quoteCurrency: "USD",
   });
   await repo.upsert({
-    symbol: "AAPL_OLD",
-    displayName: "Apple delisted shell",
+    symbol: "QQZZAP_OLD",
+    displayName: "Qqzz Apple delisted shell",
     provider: TEST_PROVIDER,
     assetClass: "equities",
     quoteCurrency: "USD",
     active: false,
+  });
+  // Two name-matching rows with different prominence — the higher rank must
+  // surface first within the same match tier (9.2 ranked universe).
+  await repo.upsert({
+    symbol: "QQZZBIG",
+    displayName: "Qqzz Zeta Bank Holdings PLC",
+    provider: TEST_PROVIDER,
+    assetClass: "equities",
+    quoteCurrency: "USD",
+    rank: 90,
+  });
+  await repo.upsert({
+    symbol: "QQZZSML",
+    displayName: "Qqzz Zeta Bank Microcap Ltd",
+    provider: TEST_PROVIDER,
+    assetClass: "equities",
+    quoteCurrency: "USD",
+    rank: 5,
   });
 });
 
@@ -68,18 +88,27 @@ afterAll(async () => {
 
 describe("DrizzleInstrumentRepo.search (local trigram, INV-07)", () => {
   it("matches by symbol prefix", async () => {
-    const r = await repo.search("AAP");
-    expect(r.map((i) => i.symbol)).toContain("AAPL");
+    const r = await repo.search("QQZZA");
+    expect(r.map((i) => i.symbol)).toContain("QQZZAP");
   });
 
   it("matches by display name", async () => {
-    const r = await repo.search("App");
-    expect(r.map((i) => i.symbol)).toContain("AAPL");
+    const r = await repo.search("Qqzz App");
+    expect(r.map((i) => i.symbol)).toContain("QQZZAP");
   });
 
   it("ranks the exact symbol match first", async () => {
-    const r = await repo.search("AAPL");
-    expect(r[0]?.symbol).toBe("AAPL");
+    const r = await repo.search("QQZZAP");
+    expect(r[0]?.symbol).toBe("QQZZAP");
+  });
+
+  it("within a match tier, surfaces the higher-rank (more prominent) row first", async () => {
+    const r = await repo.search("Qqzz Zeta Bank");
+    const symbols = r.map((i) => i.symbol);
+    expect(symbols).toContain("QQZZBIG");
+    expect(symbols).toContain("QQZZSML");
+    expect(symbols.indexOf("QQZZBIG")).toBeLessThan(symbols.indexOf("QQZZSML"));
+    expect(r.find((i) => i.symbol === "QQZZBIG")?.rank).toBe(90);
   });
 
   it("returns nothing for a 1-char query (>=2 minimum)", async () => {
@@ -88,15 +117,15 @@ describe("DrizzleInstrumentRepo.search (local trigram, INV-07)", () => {
   });
 
   it("never returns an inactive instrument", async () => {
-    const r = await repo.search("AAPL_OLD");
-    expect(r.find((i) => i.symbol === "AAPL_OLD")).toBeUndefined();
+    const r = await repo.search("QQZZAP_OLD");
+    expect(r.find((i) => i.symbol === "QQZZAP_OLD")).toBeUndefined();
   });
 
   it("findById returns the matching instrument", async () => {
-    const hits = await repo.search("AAPL");
-    const id = hits.find((i) => i.symbol === "AAPL")!.id;
+    const hits = await repo.search("QQZZAP");
+    const id = hits.find((i) => i.symbol === "QQZZAP")!.id;
     const found = await repo.findById(id);
-    expect(found?.symbol).toBe("AAPL");
+    expect(found?.symbol).toBe("QQZZAP");
     expect(found?.assetClass).toBe("equities");
   });
 

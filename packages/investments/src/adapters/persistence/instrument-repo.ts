@@ -23,6 +23,7 @@ type InstrumentRow = {
   quote_currency: string | null;
   provider: string;
   refresh_cadence: string;
+  rank: number;
 };
 
 function mapRow(r: InstrumentRow): InstrumentSearchResult {
@@ -34,6 +35,7 @@ function mapRow(r: InstrumentRow): InstrumentSearchResult {
     quoteCurrency: r.quote_currency,
     provider: r.provider,
     refreshCadence: r.refresh_cadence === "daily" ? "daily" : "hourly",
+    rank: Number(r.rank ?? 0),
   };
 }
 
@@ -58,7 +60,7 @@ export class DrizzleInstrumentRepo implements InstrumentRepo {
     // query value can only ever be a filter, never alter the statement (T-9-08).
     const rows = await this.db.execute<InstrumentRow>(sql`
       SELECT id::text AS id, symbol, display_name, asset_class,
-             quote_currency, provider, refresh_cadence
+             quote_currency, provider, refresh_cadence, rank
         FROM budgeting.instruments
        WHERE active = true
          AND (${ac}::text IS NULL OR asset_class = ${ac})
@@ -68,6 +70,7 @@ export class DrizzleInstrumentRepo implements InstrumentRepo {
                   WHEN symbol ILIKE ${q} || '%' THEN 1
                   ELSE 2
                 END,
+                rank DESC,
                 display_name ASC
        LIMIT ${limit}
     `);
@@ -77,26 +80,57 @@ export class DrizzleInstrumentRepo implements InstrumentRepo {
   async upsert(input: InstrumentUpsert): Promise<string> {
     const rows = await this.db.execute<{ id: string }>(sql`
       INSERT INTO budgeting.instruments
-        (symbol, display_name, provider, asset_class, quote_currency, refresh_cadence, active, fetched_at)
+        (symbol, display_name, provider, asset_class, quote_currency, refresh_cadence, active, rank, fetched_at)
       VALUES
         (${input.symbol}, ${input.displayName}, ${input.provider}, ${input.assetClass},
-         ${input.quoteCurrency ?? null}, ${input.refreshCadence ?? "hourly"}, ${input.active ?? true}, now())
+         ${input.quoteCurrency ?? null}, ${input.refreshCadence ?? "hourly"}, ${input.active ?? true},
+         ${input.rank ?? 0}, now())
       ON CONFLICT (symbol, provider) DO UPDATE SET
         display_name   = EXCLUDED.display_name,
         asset_class    = EXCLUDED.asset_class,
         quote_currency = EXCLUDED.quote_currency,
         refresh_cadence = EXCLUDED.refresh_cadence,
         active         = EXCLUDED.active,
+        rank           = EXCLUDED.rank,
         fetched_at     = now()
       RETURNING id::text AS id
     `);
     return rows.rows[0].id;
   }
 
+  /**
+   * Bulk upsert for the daily universe seed: one multi-row INSERT per batch
+   * (not N round-trips). Same ON CONFLICT (symbol, provider) merge as upsert().
+   * Returns the number of rows sent. Caller batches (~1–5k per call).
+   */
+  async upsertMany(inputs: InstrumentUpsert[]): Promise<number> {
+    if (inputs.length === 0) return 0;
+    const values = inputs.map(
+      (i) =>
+        sql`(${i.symbol}, ${i.displayName}, ${i.provider}, ${i.assetClass},
+             ${i.quoteCurrency ?? null}, ${i.refreshCadence ?? "hourly"},
+             ${i.active ?? true}, ${i.rank ?? 0}, now())`,
+    );
+    await this.db.execute(sql`
+      INSERT INTO budgeting.instruments
+        (symbol, display_name, provider, asset_class, quote_currency, refresh_cadence, active, rank, fetched_at)
+      VALUES ${sql.join(values, sql`, `)}
+      ON CONFLICT (symbol, provider) DO UPDATE SET
+        display_name    = EXCLUDED.display_name,
+        asset_class     = EXCLUDED.asset_class,
+        quote_currency  = EXCLUDED.quote_currency,
+        refresh_cadence = EXCLUDED.refresh_cadence,
+        active          = EXCLUDED.active,
+        rank            = EXCLUDED.rank,
+        fetched_at      = now()
+    `);
+    return inputs.length;
+  }
+
   async findById(id: string): Promise<InstrumentSearchResult | null> {
     const rows = await this.db.execute<InstrumentRow>(sql`
       SELECT id::text AS id, symbol, display_name, asset_class,
-             quote_currency, provider, refresh_cadence
+             quote_currency, provider, refresh_cadence, rank
         FROM budgeting.instruments
        WHERE id = ${id}::uuid
        LIMIT 1

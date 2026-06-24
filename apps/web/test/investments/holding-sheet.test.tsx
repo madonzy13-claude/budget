@@ -10,6 +10,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { HoldingSheet } from "../../src/components/budgeting/wallets-tab/holding-sheet";
+import { clientApiFetch } from "../../src/lib/budget-fetch";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
 vi.mock("next-intl", () => ({
@@ -27,13 +28,85 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+const createMutate = vi.fn();
+const updateMutate = vi.fn();
 vi.mock("../../src/hooks/use-create-holding", () => ({
-  useCreateHolding: () => ({ mutate: vi.fn() }),
+  useCreateHolding: () => ({ mutate: createMutate }),
 }));
 vi.mock("../../src/hooks/use-update-holding", () => ({
-  useUpdateHolding: () => ({ mutate: vi.fn() }),
+  useUpdateHolding: () => ({ mutate: updateMutate }),
 }));
 vi.mock("../../src/lib/budget-fetch", () => ({ clientApiFetch: vi.fn() }));
+// Stub the asset autocomplete: keep the holding-sheet-name input (so the
+// dirty-close test still drives it) and add a button that selects a tracked
+// instrument — this is what triggers the on-add price fetch.
+vi.mock(
+  "../../src/components/budgeting/wallets-tab/instrument-search-input",
+  () => ({
+    InstrumentSearchInput: ({
+      name,
+      onNameChange,
+      onSelectInstrument,
+      onSelectCustom,
+    }: {
+      name: string;
+      onNameChange: (v: string) => void;
+      onSelectInstrument: (i: {
+        id: string;
+        displayName: string;
+        quoteCurrency: string;
+        symbol: string;
+        provider?: string;
+      }) => void;
+      onSelectCustom: () => void;
+    }) => (
+      <div>
+        <input
+          data-testid="holding-sheet-name"
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+        />
+        <button
+          type="button"
+          data-testid="pick-manual-entry"
+          onClick={() => onSelectCustom()}
+        >
+          enter-manually
+        </button>
+        <button
+          type="button"
+          data-testid="pick-instrument"
+          onClick={() =>
+            onSelectInstrument({
+              id: "i1",
+              displayName: "Apple Inc",
+              quoteCurrency: "USD",
+              symbol: "AAPL",
+              provider: "finnhub",
+            })
+          }
+        >
+          pick
+        </button>
+        <button
+          type="button"
+          data-testid="pick-manual-instrument"
+          onClick={() =>
+            onSelectInstrument({
+              id: "i2",
+              displayName: "CD Projekt",
+              quoteCurrency: "PLN",
+              symbol: "CDR",
+              provider: "manual",
+            })
+          }
+        >
+          pick-manual
+        </button>
+      </div>
+    ),
+  }),
+);
 vi.mock("../../src/components/common/currency-picker", () => ({
   CurrencyPicker: ({
     value,
@@ -49,6 +122,7 @@ vi.mock("../../src/components/common/currency-picker", () => ({
     >
       <option value="USD">USD</option>
       <option value="EUR">EUR</option>
+      <option value="PLN">PLN</option>
     </select>
   ),
 }));
@@ -64,6 +138,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    instrumentProvider: "finnhub",
     isCustom: false,
     isDelisted: false,
     quantity: "1",
@@ -139,9 +214,150 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.getByTestId("holding-sheet-uom")).toBeInTheDocument();
   });
 
-  it("dirty close fires the discard-confirm dialog", async () => {
+  it("create mode preselects no type → no Asset/Name field, Save disabled", () => {
     render(<HoldingSheet {...baseProps} mode="create" holding={null} />);
-    // Default type is tracked → the Asset input carries the holding-sheet-name id.
+    expect(screen.queryByTestId("holding-sheet-name")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-amount")).toBeNull();
+    expect(screen.getByTestId("holding-sheet-submit")).toBeDisabled();
+    // Type shows the placeholder (no preselection).
+    expect(screen.getByText("field.typePlaceholder")).toBeInTheDocument();
+  });
+
+  it("on-select price-fetch failure → PriceBlockedBanner (alert) + Save disabled + Retry", async () => {
+    // The price POST resolves !ok → the sheet sets priceBlocked.
+    vi.mocked(clientApiFetch).mockResolvedValue({ ok: false } as Response);
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+
+    // Default type is tracked → selecting an instrument fires the price fetch.
+    fireEvent.click(screen.getByTestId("pick-instrument"));
+
+    const banner = await screen.findByTestId("price-blocked-banner");
+    expect(banner).toHaveAttribute("role", "alert");
+    // Red 4px left border.
+    expect(banner.className).toContain("border-l-4");
+    expect(banner.className).toContain("border-[var(--destructive)]");
+    // Inline Retry present + Save disabled while blocked.
+    expect(screen.getByText("retry")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-submit")).toBeDisabled();
+  });
+
+  it("Retry after a price-fetch failure clears the banner on success", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValueOnce({ ok: false } as Response);
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    fireEvent.click(screen.getByTestId("pick-instrument"));
+    await screen.findByTestId("price-blocked-banner");
+
+    // Retry → price POST now succeeds → banner clears, Save enabled.
+    vi.mocked(clientApiFetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ priceCents: "19800", currency: "USD" }),
+    } as unknown as Response);
+    fireEvent.click(screen.getByText("retry"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("price-blocked-banner")).toBeNull();
+    });
+  });
+
+  it("selecting a manual-provider (non-US) instrument makes the price editable and fetches nothing", async () => {
+    vi.mocked(clientApiFetch).mockClear();
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    // A fresh tracked holding, then pick a manual (PLN/GPW) instrument.
+    fireEvent.click(screen.getByTestId("pick-manual-instrument"));
+
+    // Editable current-price input appears (no read-only preview / banner).
+    expect(await screen.findByTestId("holding-sheet-amount")).toBeInTheDocument();
+    expect(screen.queryByTestId("price-blocked-banner")).toBeNull();
+    // The price endpoint is NEVER called for a manual instrument.
+    expect(clientApiFetch).not.toHaveBeenCalled();
+
+    // Typing a price enables Save.
+    fireEvent.change(screen.getByTestId("holding-sheet-amount"), {
+      target: { value: "120.50" },
+    });
+    expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled();
+  });
+
+  it("broker type shows deposited + actual value (no quantity, no generic buy-price block)", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "other",
+          uiType: "broker",
+          instrumentId: null,
+          name: "IBKR account",
+          buyPriceCents: "1000000",
+          currentPriceCents: "1125000",
+        })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-deposited")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-actual")).toBeInTheDocument();
+    // No quantity and no generic buy-price field (those are for tracked/manual).
+    expect(screen.queryByTestId("holding-sheet-quantity")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-buy-price")).toBeNull();
+    // Name present and Save enabled (deposited + actual + name all filled).
+    expect(screen.getByTestId("holding-sheet-name")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled();
+  });
+
+  it("selecting an instrument hides the currency picker and shows its currency in the price label", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    // Default tracked holding has an instrument (i1) → currency is the instrument's,
+    // so the picker is hidden and the price label carries the currency.
+    expect(screen.queryByTestId("currency-stub")).toBeNull();
+    expect(screen.getByText(/field\.currentPrice \(USD\)/)).toBeInTheDocument();
+  });
+
+  it("'enter manually' (no catalog match) shows an editable price + the currency picker", async () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    fireEvent.click(screen.getByTestId("pick-manual-entry"));
+    // No instrument now → plain name + ticker inputs, currency picker, editable price.
+    expect(await screen.findByTestId("currency-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-ticker")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-amount")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "Obscure Co" },
+    });
+    fireEvent.change(screen.getByTestId("holding-sheet-amount"), {
+      target: { value: "42" },
+    });
+    expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled();
+  });
+
+  it("changing the currency updates the SAVED value currency (USD → PLN), not just the buy currency", () => {
+    updateMutate.mockClear();
+    // A manual (collectibles) holding: currency picker is shown, price is editable.
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "other",
+          uiType: "collectibles",
+          instrumentId: null,
+          name: "Gold coins",
+          currentPriceCents: "10000",
+          currentPriceCurrency: "USD",
+          buyCurrency: "USD",
+        })}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("currency-stub"), {
+      target: { value: "PLN" },
+    });
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(updateMutate).toHaveBeenCalledTimes(1);
+    const payload = updateMutate.mock.calls[0][0];
+    expect(payload.currentPriceCurrency).toBe("PLN");
+    expect(payload.buyCurrency).toBe("PLN");
+  });
+
+  it("dirty close fires the discard-confirm dialog", async () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    // Tracked holding → the Asset input carries the holding-sheet-name id.
     fireEvent.change(screen.getByTestId("holding-sheet-name"), {
       target: { value: "Apple" },
     });

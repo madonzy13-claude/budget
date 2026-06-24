@@ -367,6 +367,7 @@
       "field": {
         "name": "Nazwa",
         "type": "Typ",
+        "typePlaceholder": "Wybierz typ",
         "group": "Grupa",
         "groupPlaceholder": "Bez grupy",
         "buyPrice": "Cena zakupu",
@@ -380,7 +381,11 @@
         "asset": "Aktywo",
         "metal": "Metal",
         "kind": "Rodzaj",
-        "uom": "Jednostka"
+        "uom": "Jednostka",
+        "depositedValue": "Wartość wpłacona",
+        "actualValue": "Wartość aktualna",
+        "ticker": "Symbol",
+        "tickerPlaceholder": "np. AAPL"
       },
       "uitype": {
         "equity": "Akcje",
@@ -393,7 +398,8 @@
         "real_estate": "Nieruchomości",
         "other": "Inne",
         "precious_metals": "Metale szlachetne",
-        "cash": "Gotówka"
+        "cash": "Gotówka",
+        "broker": "Konto maklerskie"
       },
       "metalOption": {
         "gold": "Złoto",
@@ -434,7 +440,7 @@
       "row": {
         "delisted": "Wycofany",
         "editAria": "Edytuj {name}.",
-        "deleteAria": "Archiwizuj {name}.",
+        "deleteAria": "Usuń {name}.",
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
         "share": "Udział: {pct}"
       },
@@ -443,8 +449,10 @@
       "search": {
         "placeholder": "Szukaj instrumentów…",
         "loading": "Szukanie…",
-        "noResults": "Nie znaleziono instrumentów. Wpisz nazwę i wybierz \"Niestandardowy\".",
-        "custom": "Niestandardowy — wpisz ręcznie"
+        "noResults": "Brak dopasowania w katalogu",
+        "custom": "Niestandardowy — wpisz ręcznie",
+        "enterManually": "Wpisz ręcznie",
+        "enterManuallyHint": "Brak tickera na liście? Dodaj ręcznie"
       },
       "priceBlocked": {
         "body": "Nie udało się pobrać ceny — spróbuj za chwilę.",
@@ -455,16 +463,16 @@
         "createFailed": "Nie udało się dodać inwestycji. Spróbuj ponownie.",
         "saved": "Zaktualizowano inwestycję",
         "saveFailed": "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.",
-        "archived": "Zarchiwizowano inwestycję",
-        "archiveFailed": "Nie udało się zarchiwizować inwestycji. Spróbuj ponownie.",
+        "archived": "Usunięto inwestycję",
+        "archiveFailed": "Nie udało się usunąć inwestycji. Spróbuj ponownie.",
         "reorderFailed": "Nie udało się zmienić kolejności. Spróbuj ponownie.",
         "crossSectionRejected": "Aktywa mogą być tylko w Inwestycjach."
       },
       "confirm": {
         "delete": {
-          "title": "Zarchiwizować pozycję \"{name}\"?",
+          "title": "Usunąć pozycję \"{name}\"?",
           "body": "Tego nie można tutaj cofnąć.",
-          "cta": "Archiwizuj",
+          "cta": "Usuń",
           "cancel": "Anuluj"
         },
         "discard": {
@@ -1016,8 +1024,8 @@
         }
       },
       "wallets": {
-        "label": "Portfele",
-        "title": "Portfele",
+        "label": "Aktywa",
+        "title": "Aktywa",
         "section": {
           "spendings": "Portfele wydatków",
           "cushion": "Portfele poduszki",
@@ -1129,7 +1137,7 @@
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Uzupełnij poduszkę",
-          "ariaLabel": "Przejdź do Portfeli, aby uzupełnić poduszkę"
+          "ariaLabel": "Przejdź do Aktywów, aby uzupełnić poduszkę"
         }
       },
       "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie.",

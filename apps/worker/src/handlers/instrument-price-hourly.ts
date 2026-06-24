@@ -40,6 +40,11 @@ export async function runInstrumentPriceHourly(
          AND inv.instrument_id IS NOT NULL
          AND i.active = true
          AND i.refresh_cadence <> 'daily'
+         -- 9.2: manual-priced instruments (non-US equities/ETF) are user-maintained;
+         -- never auto-fetched. The sentinel is 'manual', exchange-qualified as
+         -- 'manual:<MIC>', so exclude the whole family. Everything else routes
+         -- through a real PriceProvider.
+         AND i.provider NOT LIKE 'manual%'
     `);
     return rows.rows as unknown as HeldInstrument[];
   });

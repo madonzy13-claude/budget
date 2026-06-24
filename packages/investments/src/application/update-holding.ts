@@ -30,6 +30,10 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
           input.instrumentId !== undefined
             ? (input.instrumentId ?? null)
             : current.instrumentId,
+        manualTicker:
+          input.manualTicker !== undefined
+            ? (input.manualTicker ?? null)
+            : current.manualTicker,
         buyPriceCents:
           input.buyPriceCents !== undefined
             ? toCents(input.buyPriceCents)

@@ -1,0 +1,188 @@
+/**
+ * universe-catalog.test.ts — classification + assembly for the 9.2 global universe.
+ * Pure (no DB / no network): the HTTP layer is exercised via an injected fake fetch.
+ */
+import { describe, it, expect } from "bun:test";
+import {
+  classifyTdRow,
+  classifyCryptoRow,
+  cryptoRank,
+  buildUniverse,
+  dedupeUniverse,
+  METALS_UNIVERSE,
+  type TdCatalogRow,
+} from "../../../src/adapters/instruments/universe-catalog";
+import type { InstrumentUpsert } from "../../../src/ports/instrument-repo";
+
+describe("classifyTdRow (stocks/ETF → provider + rank)", () => {
+  const us: TdCatalogRow = {
+    symbol: "AAPL",
+    name: "Apple Inc",
+    currency: "USD",
+    mic_code: "XNAS",
+    country: "United States",
+    type: "Common Stock",
+  };
+  const gpw: TdCatalogRow = {
+    symbol: "CDR",
+    name: "CD Projekt SA",
+    currency: "PLN",
+    mic_code: "XWAR",
+    country: "Poland",
+    type: "Common Stock",
+  };
+
+  it("US equities → Finnhub (auto), USD, top rank", () => {
+    const r = classifyTdRow(us, "equities")!;
+    expect(r.provider).toBe("finnhub");
+    expect(r.assetClass).toBe("equities");
+    expect(r.quoteCurrency).toBe("USD");
+    expect(r.rank).toBe(100);
+  });
+
+  it("Warsaw (GPW) equities → manual qualified by exchange, PLN, mid rank", () => {
+    const r = classifyTdRow(gpw, "equities")!;
+    // Exchange-qualified so a same-ticker Toronto/London listing won't collide.
+    expect(r.provider).toBe("manual:XWAR");
+    expect(r.quoteCurrency).toBe("PLN");
+    expect(r.rank).toBe(70);
+  });
+
+  it("the same ticker on two exchanges yields two distinct providers (no collision)", () => {
+    const warsaw = classifyTdRow(gpw, "equities")!;
+    const toronto = classifyTdRow(
+      { symbol: "CDR", name: "Cardero Resource", currency: "CAD", mic_code: "XTSE", country: "Canada" },
+      "equities",
+    )!;
+    expect(warsaw.symbol).toBe(toronto.symbol); // same ticker
+    expect(warsaw.provider).not.toBe(toronto.provider); // different (symbol,provider) key
+  });
+
+  it("a London ETF → manual:XLON, ranked above Warsaw", () => {
+    const lse = classifyTdRow(
+      { symbol: "VUSA", name: "Vanguard S&P 500", currency: "GBP", mic_code: "XLON", country: "United Kingdom" },
+      "etf",
+    )!;
+    expect(lse.provider).toBe("manual:XLON");
+    expect(lse.assetClass).toBe("etf");
+    expect(lse.rank).toBe(80);
+    expect(lse.rank ?? 0).toBeGreaterThan(classifyTdRow(gpw, "equities")!.rank ?? 0);
+  });
+
+  it("an unknown exchange falls back to the rank floor (still manual-qualified)", () => {
+    const r = classifyTdRow(
+      { symbol: "ZZZ", name: "Obscure Co", mic_code: "XZZZ", country: "Nowhere" },
+      "equities",
+    )!;
+    expect(r.rank).toBe(10);
+    expect(r.provider).toBe("manual:XZZZ");
+  });
+
+  it("rows missing a symbol or name are dropped", () => {
+    expect(classifyTdRow({ symbol: "", name: "x" }, "equities")).toBeNull();
+    expect(classifyTdRow({ symbol: "x", name: "" }, "equities")).toBeNull();
+  });
+});
+
+describe("crypto ranking + classification", () => {
+  it("cryptoRank bands by market cap", () => {
+    expect(cryptoRank(1)).toBe(95);
+    expect(cryptoRank(100)).toBe(82);
+    expect(cryptoRank(500)).toBe(70);
+    expect(cryptoRank(5000)).toBe(60);
+    expect(cryptoRank(null)).toBe(60);
+  });
+
+  it("classifyCryptoRow uses the coin id as symbol and carries the ticker in the name", () => {
+    const r = classifyCryptoRow({
+      id: "bitcoin",
+      symbol: "btc",
+      name: "Bitcoin",
+      market_cap_rank: 1,
+    })!;
+    expect(r.symbol).toBe("bitcoin");
+    expect(r.displayName).toBe("Bitcoin (BTC)");
+    expect(r.provider).toBe("coingecko");
+    expect(r.assetClass).toBe("crypto");
+    expect(r.rank).toBe(95);
+  });
+});
+
+describe("dedupeUniverse (no duplicate (symbol, provider) for the bulk upsert)", () => {
+  it("collapses a repeated (symbol, provider), keeping the highest rank", () => {
+    const list: InstrumentUpsert[] = [
+      { symbol: "AAPL", displayName: "Apple", provider: "finnhub", assetClass: "equities", rank: 80 },
+      { symbol: "AAPL", displayName: "Apple", provider: "finnhub", assetClass: "equities", rank: 100 },
+      { symbol: "CDR", displayName: "CD Projekt", provider: "manual:XWAR", assetClass: "equities", rank: 70 },
+      { symbol: "CDR", displayName: "Cardero", provider: "manual:XTSE", assetClass: "equities", rank: 78 },
+    ];
+    const out = dedupeUniverse(list);
+    expect(out).toHaveLength(3); // AAPL collapsed; the two CDRs differ by provider
+    expect(out.find((i) => i.symbol === "AAPL")!.rank).toBe(100);
+  });
+});
+
+describe("buildUniverse (assembly + resilience)", () => {
+  const fakeFetch = ((url: string) => {
+    const u = String(url);
+    if (u.includes("/stocks")) {
+      // Per-country requests now: return each country's row, empty for the rest.
+      if (u.includes("country=United%20States")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: [{ symbol: "AAPL", name: "Apple Inc", currency: "USD", mic_code: "XNAS", country: "United States" }] }), { status: 200 }),
+        );
+      }
+      if (u.includes("country=Poland")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: [{ symbol: "CDR", name: "CD Projekt", currency: "PLN", mic_code: "XWAR", country: "Poland" }] }), { status: 200 }),
+        );
+      }
+      return Promise.resolve(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+    }
+    if (u.includes("/etf")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ data: [{ symbol: "VOO", name: "Vanguard S&P 500 ETF", currency: "USD", mic_code: "ARCX", country: "United States" }] }), { status: 200 }),
+      );
+    }
+    if (u.includes("/coins/markets")) {
+      // First page returns one coin; later pages empty → loop stops.
+      if (u.includes("page=1")) {
+        return Promise.resolve(
+          new Response(JSON.stringify([{ id: "bitcoin", symbol: "btc", name: "Bitcoin", market_cap_rank: 1 }]), { status: 200 }),
+        );
+      }
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    }
+    return Promise.resolve(new Response("[]", { status: 200 }));
+  }) as unknown as typeof fetch;
+
+  it("combines metals + stocks + ETF + crypto and routes providers correctly", async () => {
+    const u = await buildUniverse({
+      twelveDataKey: "k",
+      fetchFn: fakeFetch,
+      cryptoPages: 4,
+      retryDelayMs: 0,
+    });
+    const bySym = Object.fromEntries(u.map((i) => [i.symbol, i]));
+    expect(bySym["AAPL"].provider).toBe("finnhub");
+    expect(bySym["CDR"].provider).toBe("manual:XWAR");
+    expect(bySym["VOO"].provider).toBe("finnhub");
+    expect(bySym["bitcoin"].provider).toBe("coingecko");
+    // Metals always present (auto, Twelve Data FX).
+    expect(bySym["XAU/USD"].provider).toBe("twelve_data");
+    expect(u.length).toBe(METALS_UNIVERSE.length + 3 + 1);
+  });
+
+  it("a failing sub-feed is skipped, not fatal (metals + crypto still returned)", async () => {
+    const throwingTd = ((url: string) => {
+      if (String(url).includes("/stocks") || String(url).includes("/etf")) {
+        return Promise.resolve(new Response("err", { status: 500 }));
+      }
+      return fakeFetch(url as never);
+    }) as unknown as typeof fetch;
+    const u = await buildUniverse({ twelveDataKey: "k", fetchFn: throwingTd, retryDelayMs: 0 });
+    expect(u.find((i) => i.symbol === "XAU/USD")).toBeTruthy();
+    expect(u.find((i) => i.symbol === "bitcoin")).toBeTruthy();
+    expect(u.find((i) => i.symbol === "AAPL")).toBeUndefined();
+  });
+});

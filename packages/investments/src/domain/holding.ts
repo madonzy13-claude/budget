@@ -69,6 +69,18 @@ export class Holding {
     /** Tracked instruments only: the instrument ticker (e.g. AAPL), joined from
      *  budgeting.instruments on read; null for custom/cash/metals. */
     public readonly symbol: string | null = null,
+    /** Tracked instruments only: the price provider, joined from
+     *  budgeting.instruments on read. 'manual' = user-priced (no auto refresh);
+     *  null for custom/cash holdings. */
+    public readonly provider: string | null = null,
+    /** User-typed ticker for a manual (no-instrument) tracked holding; null
+     *  otherwise. `symbol` already reflects COALESCE(instrument.symbol, this). */
+    public readonly manualTicker: string | null = null,
+    /** The currency the user chose to value this holding in (the stored
+     *  current_price_currency). May differ from `currentPriceCurrency` after a
+     *  cache override puts the price in the source currency (metals: USD); the
+     *  read use-case FX-converts the price back into this. */
+    public readonly displayCurrency: string | null = null,
   ) {}
 
   /** cash_fx holdings are valued by amount (no quantity x price) and have no P/L. */

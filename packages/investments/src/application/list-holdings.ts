@@ -61,6 +61,28 @@ export function listHoldings(deps: {
         }
       };
 
+      // Re-denominate the live price into the currency the user chose for the
+      // holding when they differ (metals: the cache price is USD but the user
+      // valued the coins in PLN). Mutates the price into displayCurrency so all
+      // downstream value/P-L math reads a single, user-facing currency.
+      for (const h of holdings) {
+        const priceCcy = h.currentPriceCurrency;
+        const displayCcy = h.displayCurrency;
+        if (
+          h.currentPriceCents !== null &&
+          priceCcy &&
+          displayCcy &&
+          priceCcy !== displayCcy
+        ) {
+          const rate = await getRate(priceCcy, displayCcy);
+          const converted = new Big(h.currentPriceCents.toString()).times(
+            new Big(rate),
+          );
+          h.currentPriceCents = BigInt(converted.toFixed(0));
+          h.currentPriceCurrency = displayCcy;
+        }
+      }
+
       // value-currency -> budget-ccy rate map (weights denominator).
       const valueCcys = Array.from(
         new Set(
@@ -101,6 +123,7 @@ export function listHoldings(deps: {
           metalKind: h.metalKind,
           unitOfMeasure: h.unitOfMeasure,
           symbol: h.symbol,
+          instrumentProvider: h.provider,
           isCustom: h.isCustom(),
           // Delisted chrome is surfaced via the INVESTMENT_INSTRUMENT_DELISTED
           // task (09-04); per-row enrichment is deferred to P07.

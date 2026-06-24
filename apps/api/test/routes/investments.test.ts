@@ -3,14 +3,16 @@
  * Real Postgres (DATABASE_URL_APP / _WORKER). Un-skipped from the 09-05 scaffold.
  * Covers INV-03 round-trip, cross-tenant RLS, and INV-14 on-add rate limit.
  */
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { describe, it, expect, afterAll } from "bun:test";
 import { Hono } from "hono";
 import { Pool } from "pg";
 
 const DB_APP_RAW = process.env.DATABASE_URL_APP;
 const DB_WORKER_RAW = process.env.DATABASE_URL_WORKER;
 if (!DB_APP_RAW || !DB_WORKER_RAW)
-  throw new Error("DATABASE_URL_APP and _WORKER required for integration tests");
+  throw new Error(
+    "DATABASE_URL_APP and _WORKER required for integration tests",
+  );
 process.env.DATABASE_URL_APP = DB_APP_RAW.replace("@db:", "@localhost:");
 process.env.DATABASE_URL_WORKER = DB_WORKER_RAW.replace("@db:", "@localhost:");
 const DB_APP = process.env.DATABASE_URL_APP;
@@ -75,31 +77,33 @@ async function seedInstrument(symbol: string): Promise<string> {
   }
 }
 
-async function buildApp(fix: Fixture, priceSymbol?: string) {
-  const { createInvestmentsModule } = await import(
-    "@budget/investments/src/contracts/factory"
-  );
-  const { DrizzleHoldingRepo } = await import(
-    "@budget/investments/src/adapters/persistence/holding-repo"
-  );
-  const { DrizzleInstrumentRepo } = await import(
-    "@budget/investments/src/adapters/persistence/instrument-repo"
-  );
-  const { DrizzlePriceCacheRepo } = await import(
-    "@budget/investments/src/adapters/persistence/price-cache-repo"
-  );
-  const { InMemoryPriceProvider } = await import(
-    "@budget/investments/src/ports/price-provider"
-  );
+async function buildApp(fix: Fixture, priceSymbol?: string | string[]) {
+  const { createInvestmentsModule } =
+    await import("@budget/investments/src/contracts/factory");
+  const { DrizzleHoldingRepo } =
+    await import("@budget/investments/src/adapters/persistence/holding-repo");
+  const { DrizzleInstrumentRepo } =
+    await import("@budget/investments/src/adapters/persistence/instrument-repo");
+  const { DrizzlePriceCacheRepo } =
+    await import("@budget/investments/src/adapters/persistence/price-cache-repo");
+  const { InMemoryPriceProvider } =
+    await import("@budget/investments/src/ports/price-provider");
   const { appPool } = await import("@budget/platform");
-  const { createInvestmentsRoute } = await import("../../src/routes/investments");
+  const { createInvestmentsRoute } =
+    await import("../../src/routes/investments");
 
   const fxProvider = {
     rateAsOf: async () => ({ rate: "1", provider: "stub", isStale: false }),
   } as never;
-  const priceProvider = new InMemoryPriceProvider(
-    priceSymbol ? { [priceSymbol]: { price: "100.00", currency: "USD" } } : {},
-  );
+  const priceMap: Record<string, { price: string; currency: string }> = {};
+  for (const s of priceSymbol
+    ? Array.isArray(priceSymbol)
+      ? priceSymbol
+      : [priceSymbol]
+    : []) {
+    priceMap[s] = { price: "100.00", currency: "USD" };
+  }
+  const priceProvider = new InMemoryPriceProvider(priceMap);
 
   const investments = createInvestmentsModule({
     pool: appPool(),
@@ -252,12 +256,18 @@ describe("Investments routes", () => {
 
   it("the 11th on-add instant price fetch within a minute is rate-limited (INV-14)", async () => {
     const fix = await createFixture("EUR");
-    const instrumentId = await seedInstrument("RLTEST");
-    const app = await buildApp(fix, "RLTEST");
+    // 11 DISTINCT instruments: the read-through cache (9.2) serves a repeated
+    // same-instrument fetch without charging the limit (that's the quota-protection
+    // point), so the per-user/minute throttle is exercised by distinct cache-miss
+    // fetches — each charges the counter, the 11th trips it.
+    const symbols = Array.from({ length: 11 }, (_, i) => `RLTEST${i}`);
+    const ids: string[] = [];
+    for (const s of symbols) ids.push(await seedInstrument(s));
+    const app = await buildApp(fix, symbols);
 
     const statuses: number[] = [];
-    for (let i = 0; i < 11; i++) {
-      const res = await app.request(`/investments/price/${instrumentId}`, {
+    for (const id of ids) {
+      const res = await app.request(`/investments/price/${id}`, {
         method: "POST",
       });
       statuses.push(res.status);

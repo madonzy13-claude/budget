@@ -63,7 +63,9 @@ export function GroupCombobox({
           aria-expanded={open}
           aria-label={ariaLabel ?? t("field.group")}
           data-testid="holding-sheet-group"
-          className="w-full justify-between font-normal"
+          // Match the other fields (Input/SelectTrigger): grey field fill +
+          // hairline border, not the outline button's dark/transparent bg.
+          className="h-10 w-full justify-between border border-[var(--input)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] px-3 py-2 text-base font-normal text-[var(--foreground)] sm:text-sm"
         >
           <span
             className={value ? "" : "text-[var(--muted-foreground)]"}
@@ -73,7 +75,13 @@ export function GroupCombobox({
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        // Don't auto-focus the search box on open — on mobile that pops the
+        // keyboard and covers the whole field. The user can tap an existing
+        // group from the list, or tap the search box to type a new one.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <Command>
           <CommandInput
             placeholder={t("field.group")}

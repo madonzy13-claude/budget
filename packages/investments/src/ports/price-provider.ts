@@ -57,6 +57,19 @@ export class RateLimited extends Error {
   }
 }
 
+/**
+ * Resolve a provider key config from env: prefer the CSV `*_API_KEYS`, else the
+ * single `*_API_KEY`. Uses non-empty selection (NOT `??`) so an empty-string
+ * `*_API_KEYS` placeholder doesn't shadow a populated single key — that shadowing
+ * made every price come back price_unavailable (T-9 UAT).
+ */
+export function resolveApiKey(
+  csv: string | undefined,
+  single: string | undefined,
+): string {
+  return csv || single || "";
+}
+
 /** Normalize a key config (single string, CSV string, or array) to a clean list. */
 export function normalizeKeys(keys: string | string[]): string[] {
   const arr = Array.isArray(keys) ? keys : [keys];

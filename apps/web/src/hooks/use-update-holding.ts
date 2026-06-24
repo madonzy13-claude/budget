@@ -28,6 +28,9 @@ export interface UpdateHoldingInput {
   metal?: string | null;
   metalKind?: string | null;
   unitOfMeasure?: string | null;
+  manualTicker?: string | null;
+  /** Web-only optimistic ticker; the server derives the persisted symbol. */
+  symbol?: string | null;
 }
 
 export function useUpdateHolding(budgetId: string) {
@@ -80,9 +83,16 @@ export function useUpdateHolding(budgetId: string) {
                 ...(input.currentPriceCents !== undefined
                   ? { currentPriceCents: String(input.currentPriceCents) }
                   : {}),
+                ...(input.currentPriceCurrency !== undefined
+                  ? { currentPriceCurrency: input.currentPriceCurrency }
+                  : {}),
+                ...(input.buyCurrency !== undefined
+                  ? { buyCurrency: input.buyCurrency }
+                  : {}),
                 ...(input.quantity !== undefined
                   ? { quantity: input.quantity }
                   : {}),
+                ...(input.symbol !== undefined ? { symbol: input.symbol } : {}),
               }
             : h,
         );

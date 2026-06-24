@@ -18,6 +18,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { TrendingUp, TrendingDown, Pencil, Trash2 } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
+import { holdingIcon } from "@/lib/investment-icons";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { AssetClassChip } from "./asset-class-chip";
 
@@ -64,6 +65,9 @@ export function InvestmentRow({
   const cashLabel = t("uitype.cash");
   const desktopName = isCash ? cashLabel : desktopLabel(holding);
   const mobileName = isCash ? cashLabel : mobileLabel(holding, expanded);
+
+  // Type icon + fixed accent color so the list is scannable by asset type.
+  const { Icon: TypeIcon, color: typeColor } = holdingIcon(holding);
 
   // P/L cell — color/sign/icon unless delisted (dimming wins) or cash (—).
   const plColor =
@@ -113,11 +117,12 @@ export function InvestmentRow({
         nested
           ? "bg-[color-mix(in_srgb,var(--surface-card-dark),#000_22%)] hover:bg-[var(--surface-card-dark)]"
           : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
-        delisted ? "opacity-50" : "",
       ]
         .filter(Boolean)
         .join(" ")}
     >
+      {/* Delisted dims the CONTENT only — the handle is a sibling and stays full
+          opacity (a parent's opacity caps its children, 09-07-PLAN D-#delisted). */}
       {dragHandle}
 
       {/* Clickable cells — mobile tap lifts ONLY the name (currency + value stay
@@ -134,12 +139,23 @@ export function InvestmentRow({
             setExpanded((x) => !x);
           }
         }}
-        className="flex min-w-0 flex-1 items-center gap-2"
+        className={[
+          "flex min-w-0 flex-1 items-center gap-2",
+          delisted ? "opacity-50" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         {/* Left column — full width on mobile-expanded (currency+amount hide).
             gap-0 + leading-tight so the 3-row card fits the row height (no grow). */}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
           <div className="flex min-w-0 items-center gap-2">
+            {/* Type icon (fixed accent color) so the row is identifiable at a glance. */}
+            <TypeIcon
+              className="h-4 w-4 shrink-0"
+              style={{ color: typeColor }}
+              aria-hidden="true"
+            />
             {/* Stock/crypto: mobile shows the TICKER (tap → full name); desktop
                 shows "TICKER (Name)". Non-tracked holdings show their name. */}
             <span
@@ -172,13 +188,21 @@ export function InvestmentRow({
             )}
           </div>
           {/* Mobile expanded rows 2 + 3 — middle line: P/L% + P/L money (left) ·
-              currency + amount (right, aligned); then "Share: X%". */}
+              currency + amount (right, aligned); then "Share: X%". For cash (no
+              P/L) a dash takes the profit slot so the card is a uniform 3 rows,
+              not 2 (D-#cash3). */}
           {expanded && (
             <div className="flex flex-col gap-0 sm:hidden">
               <div className="flex items-center justify-between gap-2 text-num-sm tabular-nums">
                 <span className="flex min-w-0 items-center gap-2">
-                  {plNode}
-                  {plMoney && <span className={plColor}>{plMoney}</span>}
+                  {pct != null ? (
+                    <>
+                      {plNode}
+                      {plMoney && <span className={plColor}>{plMoney}</span>}
+                    </>
+                  ) : (
+                    <span className="text-[var(--muted-strong)]">—</span>
+                  )}
                 </span>
                 <span className="flex shrink-0 items-baseline gap-1">
                   <span className="text-[var(--muted-foreground)]">
@@ -194,9 +218,9 @@ export function InvestmentRow({
           )}
         </div>
 
-        {/* Currency tight to the amount (gap-1, D-#3). Hidden on mobile-expanded
-            (re-rendered inside the middle row so the name uses the full width);
-            shown when collapsed and always on desktop. */}
+        {/* Currency tight to the amount (gap-1, D-#3). On mobile-expanded it's
+            re-rendered inside the middle row (P/L or day), so hide it here;
+            desktop (sm) + mobile-collapsed keep it on the right. */}
         <div
           className={[
             "shrink-0 items-baseline gap-1",
@@ -231,8 +255,16 @@ export function InvestmentRow({
         </span>
       </div>
 
-      {/* Desktop hover actions — pen + trash (28×28). */}
-      <div className="hidden shrink-0 items-center gap-1 sm:flex">
+      {/* Desktop hover actions — pen + trash (28×28). Dimmed with the content
+          when delisted; the handle (left) stays full opacity. */}
+      <div
+        className={[
+          "hidden shrink-0 items-center gap-1 sm:flex",
+          delisted ? "opacity-50" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <button
           type="button"
           aria-label={t("row.editAria", { name: holding.name })}

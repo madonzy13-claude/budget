@@ -367,6 +367,7 @@
       "field": {
         "name": "Name",
         "type": "Type",
+        "typePlaceholder": "Select a type",
         "group": "Group",
         "groupPlaceholder": "Ungrouped",
         "buyPrice": "Buy price",
@@ -380,7 +381,11 @@
         "asset": "Asset",
         "metal": "Metal",
         "kind": "Kind",
-        "uom": "Unit"
+        "uom": "Unit",
+        "depositedValue": "Deposited value",
+        "actualValue": "Actual value",
+        "ticker": "Ticker",
+        "tickerPlaceholder": "e.g. AAPL"
       },
       "uitype": {
         "equity": "Equity",
@@ -393,7 +398,8 @@
         "real_estate": "Real estate",
         "other": "Other",
         "precious_metals": "Precious metals",
-        "cash": "Cash"
+        "cash": "Cash",
+        "broker": "Broker"
       },
       "metalOption": {
         "gold": "Gold",
@@ -434,7 +440,7 @@
       "row": {
         "delisted": "Delisted",
         "editAria": "Edit {name}.",
-        "deleteAria": "Archive {name}.",
+        "deleteAria": "Remove {name}.",
         "dragAria": "Drag to reorder {name}.",
         "share": "Share: {pct}"
       },
@@ -443,8 +449,10 @@
       "search": {
         "placeholder": "Search instruments…",
         "loading": "Searching…",
-        "noResults": "No instruments found. Enter a name and choose \"Custom\".",
-        "custom": "Custom — enter manually"
+        "noResults": "No match in the catalog",
+        "custom": "Custom — enter manually",
+        "enterManually": "Enter manually",
+        "enterManuallyHint": "Ticker not listed? Add it by hand"
       },
       "priceBlocked": {
         "body": "Couldn't fetch the price — try again in a moment.",
@@ -455,16 +463,16 @@
         "createFailed": "Couldn't add investment. Try again.",
         "saved": "Investment updated",
         "saveFailed": "Couldn't save changes. Check your connection and try again.",
-        "archived": "Investment archived",
-        "archiveFailed": "Couldn't archive investment. Try again.",
+        "archived": "Investment removed",
+        "archiveFailed": "Couldn't remove investment. Try again.",
         "reorderFailed": "Couldn't reorder. Try again.",
         "crossSectionRejected": "Holdings can only be in Investments."
       },
       "confirm": {
         "delete": {
-          "title": "Archive holding \"{name}\"?",
+          "title": "Remove holding \"{name}\"?",
           "body": "This can't be undone here.",
-          "cta": "Archive",
+          "cta": "Remove",
           "cancel": "Cancel"
         },
         "discard": {
@@ -993,8 +1001,8 @@
         }
       },
       "wallets": {
-        "label": "Wallets",
-        "title": "Wallets",
+        "label": "Assets",
+        "title": "Assets",
         "section": {
           "spendings": "Spendings wallets",
           "cushion": "Cushion wallets",
@@ -1106,7 +1114,7 @@
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Top up cushion",
-          "ariaLabel": "Go to Wallets to top up cushion"
+          "ariaLabel": "Go to Assets to top up cushion"
         }
       },
       "confirmError": "Could not confirm draft. Try again.",

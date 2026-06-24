@@ -19,6 +19,7 @@ import type {
 } from "@budget/budgeting/src/ports/task-repo";
 import type { InstrumentUpsert } from "@budget/investments/src/ports/instrument-repo";
 import { DrizzleInstrumentRepo } from "@budget/investments/src/adapters/persistence/instrument-repo";
+import { dedupeUniverse } from "@budget/investments/src/adapters/instruments/universe-catalog";
 import { withInfraTx, withTenantTx, workerPool } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { sql } from "drizzle-orm";
@@ -45,35 +46,53 @@ interface AffectedHolding {
   symbol: string;
 }
 
+/** Rows per multi-row INSERT — keeps each statement well under the 65535-param cap
+ *  (8 cols/row) while still cutting ~253k singleton round-trips to a few hundred. */
+const SEED_BATCH = 1000;
+
 export async function runInstrumentsDailySeed(
   deps: InstrumentsDailySeedDeps,
 ): Promise<{ upserted: number; deactivated: number; delistedEmitted: number }> {
-  const universe = await deps.fetchUniverse();
+  // Dedupe by (symbol, provider): a multi-row upsert cannot carry the same conflict
+  // key twice in one statement. Cross-listings make duplicates common in the feed.
+  const universe = dedupeUniverse(await deps.fetchUniverse());
   const repo = new DrizzleInstrumentRepo(workerPool());
 
-  // 1. Upsert the universe (active=true).
-  for (const inst of universe) {
-    await repo.upsert({ ...inst, active: true });
+  // Capture the run start on the DB clock BEFORE any upsert. Every upserted row
+  // sets fetched_at = now() (≥ runStart); rows absent from this run's feed keep an
+  // older fetched_at and are deactivated below. This replaces the old per-key
+  // `<> ALL(array)` diff, which doesn't scale to a ~253k-symbol global universe.
+  const startR = await withInfraTx(async (tx) => {
+    const res = await tx.execute(
+      sql`SELECT clock_timestamp() AS ts`,
+    );
+    return (res.rows[0] as { ts: string }).ts;
+  });
+  const runStart = startR.isOk() ? startR.value : null;
+
+  // 1. Bulk upsert the universe (active=true) in batches.
+  for (let i = 0; i < universe.length; i += SEED_BATCH) {
+    const batch = universe
+      .slice(i, i + SEED_BATCH)
+      .map((inst) => ({ ...inst, active: true }));
+    await repo.upsertMany(batch);
   }
 
-  // 2. Deactivate the refreshed providers' instruments absent from the feed.
-  // drizzle binds a JS array as a scalar param ("x" not "{x}"), so build the
-  // Postgres array literals explicitly and bind them as text → ::text[].
+  // 2. Deactivate the refreshed providers' instruments absent from this feed:
+  // active rows of those providers whose fetched_at predates the run start.
   const providers = [...new Set(universe.map((u) => u.provider))];
-  const keys = universe.map((u) => `${u.symbol}|${u.provider}`);
-  const toArrayLiteral = (xs: string[]): string =>
-    `{${xs.map((x) => `"${x.replace(/(["\\])/g, "\\$1")}"`).join(",")}}`;
-  const providersLit = toArrayLiteral(providers);
-  const keysLit = toArrayLiteral(keys);
+  const providersLit = `{${providers
+    .map((p) => `"${p.replace(/(["\\])/g, "\\$1")}"`)
+    .join(",")}}`;
   let deactivated = 0;
-  if (providers.length > 0) {
+  if (providers.length > 0 && runStart) {
     const r = await withInfraTx(async (tx) => {
       const res = await tx.execute(sql`
         UPDATE budgeting.instruments
            SET active = false
          WHERE active = true
            AND provider = ANY(${providersLit}::text[])
-           AND (symbol || '|' || provider) <> ALL(${keysLit}::text[])
+           AND fetched_at < ${runStart}::timestamptz
         RETURNING id
       `);
       return res.rows.length;

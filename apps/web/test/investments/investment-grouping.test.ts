@@ -13,6 +13,7 @@ import {
   buildInvestmentEntries,
   groupAggregate,
   resolveDragEnd,
+  withPersistentGroups,
 } from "../../src/lib/investment-grouping";
 
 function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
@@ -25,6 +26,8 @@ function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    symbol: null,
+    instrumentProvider: null,
     isCustom: true,
     isDelisted: false,
     quantity: "1",
@@ -52,6 +55,40 @@ function sample(): HoldingDto[] {
     h({ id: "E", group: null, sortOrder: 4 }),
   ];
 }
+
+describe("withPersistentGroups (group stays put while its last item is dragged)", () => {
+  // Snapshot the entry order at drag-start.
+  const snapshotOf = (holdings: HoldingDto[]) =>
+    buildInvestmentEntries(holdings).map((e) =>
+      e.kind === "group"
+        ? { key: `group:${e.name}`, group: e.name }
+        : { key: `loose:${e.holding.id}` },
+    );
+
+  it("re-inserts a now-empty group (its last member dragged out) at its spot, empty", () => {
+    const snapshot = snapshotOf(sample()); // A,B in Brokerage; C loose; D in Metals; E loose
+    // Mid-drag: D (Metals' only member) pulled out to loose → Metals is empty.
+    const live = buildInvestmentEntries([
+      h({ id: "A", group: "Brokerage", sortOrder: 0 }),
+      h({ id: "B", group: "Brokerage", sortOrder: 1 }),
+      h({ id: "C", group: null, sortOrder: 2 }),
+      h({ id: "D", group: null, sortOrder: 3 }), // moved out of Metals
+      h({ id: "E", group: null, sortOrder: 4 }),
+    ]);
+    expect(live.find((e) => e.kind === "group" && e.name === "Metals")).toBeUndefined();
+
+    const out = withPersistentGroups(live, snapshot);
+    const metals = out.find((e) => e.kind === "group" && e.name === "Metals");
+    expect(metals).toBeTruthy();
+    expect(metals && metals.kind === "group" && metals.holdings).toHaveLength(0);
+  });
+
+  it("returns the entries unchanged when no snapshot group went missing", () => {
+    const entries = buildInvestmentEntries(sample());
+    const snapshot = snapshotOf(sample());
+    expect(withPersistentGroups(entries, snapshot)).toBe(entries);
+  });
+});
 
 describe("buildInvestmentEntries", () => {
   it("interleaves group blocks and loose rows by representative order", () => {

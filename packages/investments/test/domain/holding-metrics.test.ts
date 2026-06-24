@@ -100,3 +100,35 @@ describe("profitLossPct (signed %, FX-converted, 1 decimal)", () => {
     expect(profitLossPct(h)).toBeNull();
   });
 });
+
+describe("broker holding (deposited vs actual, qty=1)", () => {
+  // ui_type 'broker' -> holding_type 'other', no instrument, quantity 1.
+  // deposited = buyPriceCents (basis); actual = currentPriceCents (value).
+  test("value equals the actual value (quantity 1, no instrument)", () => {
+    const h = mk({
+      holdingType: "other",
+      uiType: "broker",
+      instrumentId: null,
+      quantity: "1",
+      buyPriceCents: 1000000n, // deposited 10,000.00
+      buyCurrency: "PLN",
+      currentPriceCents: 1125000n, // actual 11,250.00
+      currentPriceCurrency: "PLN",
+    });
+    expect(holdingValue(h).toString()).toBe("1125000");
+  });
+
+  test("P/L = (actual − deposited) / deposited: 10,000 → 11,250 = +12.5%", () => {
+    const h = mk({
+      holdingType: "other",
+      uiType: "broker",
+      instrumentId: null,
+      quantity: "1",
+      buyPriceCents: 1000000n,
+      buyCurrency: "PLN",
+      currentPriceCents: 1125000n,
+      currentPriceCurrency: "PLN",
+    });
+    expect(profitLossPct(h)).toBe(12.5);
+  });
+});

@@ -25,6 +25,10 @@ export interface InstrumentLabel {
 export function instrumentLabel(h: InstrumentLabelInput): InstrumentLabel {
   if (!h.symbol) return { ticker: null, full: h.name };
 
+  // Precious metals are priced off a spot pair (XAU/USD) — that's not a user-facing
+  // ticker, so show the holding's own name ("Gold coins") instead.
+  if (h.holdingType === "commodity") return { ticker: null, full: h.name };
+
   if (h.holdingType === "crypto") {
     const m = h.name.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
     if (m) return { ticker: m[2], full: m[1] };

@@ -22,9 +22,15 @@ export type UiType =
   | "real_estate"
   | "other"
   | "precious_metals"
-  | "cash";
+  | "cash"
+  | "broker";
 
-export type InvestmentBehavior = "tracked" | "manual" | "metals" | "cash";
+export type InvestmentBehavior =
+  | "tracked"
+  | "manual"
+  | "metals"
+  | "cash"
+  | "broker";
 
 export interface UiTypeMeta {
   /** Coarse backend holding_type. */
@@ -41,8 +47,12 @@ export const UI_TYPE_META: Record<UiType, UiTypeMeta> = {
     assetClass: "equities",
   },
   etf: { holdingType: "etf", behavior: "tracked", assetClass: "etf" },
-  etb: { holdingType: "bond", behavior: "tracked", assetClass: "bond" },
-  reit: { holdingType: "reit", behavior: "tracked", assetClass: "reit" },
+  // The catalog (Twelve Data) doesn't tag REITs or exchange-traded bonds as their
+  // own class — a REIT is an `equities` row, a bond ETF is an `etf` row. So DON'T
+  // filter their autocomplete (would be empty); search the whole universe and keep
+  // the user's REIT/ETB tag on the holding via ui_type / holding_type.
+  etb: { holdingType: "bond", behavior: "tracked" },
+  reit: { holdingType: "reit", behavior: "tracked" },
   crypto: { holdingType: "crypto", behavior: "tracked", assetClass: "crypto" },
   treasury_bond: { holdingType: "bond", behavior: "manual" },
   collectibles: { holdingType: "other", behavior: "manual" },
@@ -50,22 +60,41 @@ export const UI_TYPE_META: Record<UiType, UiTypeMeta> = {
   other: { holdingType: "other", behavior: "manual" },
   precious_metals: { holdingType: "commodity", behavior: "metals" },
   cash: { holdingType: "cash_fx", behavior: "cash" },
+  broker: { holdingType: "other", behavior: "broker" },
 };
 
-/** Dropdown order (tracked first, then manual, then metals, then cash). */
+/** Dropdown order (tracked first, then manual, then metals/cash/broker; the
+ *  catch-all "Other" is always last). REIT + exchange-traded bonds were dropped —
+ *  the catalog has no separate class for them; track via Equity/ETF + a Group. The
+ *  `reit`/`etb` UI types still exist (deriveUiType/edit) for any pre-existing rows. */
 export const UI_TYPE_ORDER: UiType[] = [
   "equity",
   "etf",
-  "etb",
-  "reit",
   "crypto",
   "treasury_bond",
   "collectibles",
   "real_estate",
-  "other",
   "precious_metals",
   "cash",
+  "broker",
+  "other",
 ];
+
+/** Providers whose price is auto-fetched + read-only in the form. Anything else
+ *  (notably the 'manual' sentinel for non-US equities/ETF) is user-priced: the
+ *  form shows an editable current-price field and never calls the price endpoint. */
+export const AUTO_PRICE_PROVIDERS = [
+  "finnhub",
+  "coingecko",
+  "twelve_data",
+] as const;
+
+export function isAutoPriced(provider: string | null | undefined): boolean {
+  return (
+    !!provider &&
+    (AUTO_PRICE_PROVIDERS as readonly string[]).includes(provider)
+  );
+}
 
 export type Metal = "gold" | "silver" | "platinum";
 export const METALS: Metal[] = ["gold", "silver", "platinum"];

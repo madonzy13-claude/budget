@@ -38,6 +38,20 @@ Feature: Investments wallet — section, holdings, grouping, optimistic add
     And I drag the holding "Gold Bar" into group "Precious Metals"
     Then the holding "Gold Bar" is in group "Precious Metals"
 
+  # INV-13 — a group's expanded/collapsed state persists across a reload
+  # (localStorage inv-group-<budget>-<slug>); ungrouped rows are always visible.
+  Scenario: A group's expanded state persists across a reload
+    Given investments are enabled for my budget
+    And a custom holding "Apple" worth 198000 cents in group "Brokerage" exists in my budget
+    And a custom holding "Vanguard" worth 115000 cents in group "Brokerage" exists in my budget
+    And a custom holding "Vintage Car" worth 4500000 cents exists in my budget
+    When I open the investments wallets tab
+    And I expand the group "Brokerage"
+    And I reload the wallets tab
+    Then the group "Brokerage" is expanded
+    And the holding row "Apple" is visible
+    And the holding row "Vintage Car" is visible
+
   # INV-16 — optimistic create reflects without a reload.
   Scenario: Optimistic create reflects the new holding without a page reload
     Given investments are enabled for my budget

@@ -141,6 +141,25 @@ describe("InvestmentRow", () => {
     expect(screen.getByText("18.0%")).toBeInTheDocument(); // share / weight
   });
 
+  it("cash expanded → 3 rows: name, a dash (in place of P/L), Share", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "USD Cash",
+          holdingType: "cash_fx",
+          profitLossPct: null,
+          weightPct: 5,
+          valueCents: "1000000",
+          currentPriceCurrency: "USD",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand USD Cash"));
+    // Profit slot shows a dash → card stays a uniform 3 rows.
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
+  });
+
   it("mobile expand → 3 rows: name, P/L + money, and localized Share", () => {
     render(
       <InvestmentRow
@@ -161,10 +180,22 @@ describe("InvestmentRow", () => {
     expect(screen.getAllByText("+50.0%").length).toBeGreaterThan(0); // P/L%
   });
 
-  it("dims a delisted row (opacity-50) and shows the Delisted chip", () => {
-    render(<InvestmentRow holding={holding({ isDelisted: true })} />);
-    const row = screen.getByTestId("holding-row-AAPL");
-    expect(row.className).toContain("opacity-50");
+  it("dims a delisted holding's content but keeps the drag handle full opacity", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ isDelisted: true })}
+        dragHandle={<span data-testid="grip" />}
+      />,
+    );
+    // The grip (handle slot) must NOT sit inside any opacity-50 element — a
+    // parent's opacity caps its children, so the handle stays usable (09-07-PLAN).
+    for (let el = screen.getByTestId("grip").parentElement; el; el = el.parentElement) {
+      expect(el.className ?? "").not.toContain("opacity-50");
+    }
+    // The row content (the tap-to-expand region) IS dimmed; chip still shows.
+    expect(screen.getByLabelText("Expand AAPL").className).toContain(
+      "opacity-50",
+    );
     expect(screen.getByText("Delisted")).toBeInTheDocument();
   });
 });

@@ -43,6 +43,7 @@ export function createInvestmentsModule(deps: {
       priceProvider: deps.priceProvider,
       instrumentRepo: deps.instrumentRepo,
       priceCacheRepo: deps.priceCacheRepo,
+      fxProvider: deps.fxProvider,
     }),
   };
 }

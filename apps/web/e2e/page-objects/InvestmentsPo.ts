@@ -38,16 +38,33 @@ export class InvestmentsPo {
     return this.page.getByTestId(`investment-group-${group}`);
   }
 
+  /** The chevron collapse toggle for a group (carries aria-expanded). */
+  groupToggle(group: string) {
+    return this.page.getByTestId(`investment-group-toggle-${group}`);
+  }
+
+  /** Expand a group if it is collapsed (idempotent). */
+  async expandGroup(group: string): Promise<void> {
+    const toggle = this.groupToggle(group);
+    await toggle.waitFor({ state: "visible" });
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+      await toggle.click();
+    }
+  }
+
   /** Open the Sheet and create a manual ("Other") holding with a value (cents).
    *  Type-first (9.1): pick a manual type so the name + editable amount appear. */
   async addCustomHolding(name: string, amountCents: number): Promise<void> {
     await this.addButton().click();
     await this.sheet().waitFor({ state: "visible" });
-    await this.page.getByTestId("holding-sheet-type").click();
-    await this.page
-      .getByTestId("holding-type-other")
-      .waitFor({ state: "visible" });
-    await this.page.getByTestId("holding-type-other").click();
+    // The Type dropdown auto-opens on create; only tap the trigger to open it if
+    // it isn't already showing its options (tapping an open trigger closes it).
+    const otherOption = this.page.getByTestId("holding-type-other");
+    if (!(await otherOption.isVisible().catch(() => false))) {
+      await this.page.getByTestId("holding-sheet-type").click();
+    }
+    await otherOption.waitFor({ state: "visible" });
+    await otherOption.click();
     // Wait for the manual layout (editable amount) to render before filling so
     // the field-fill never races the Type select swap.
     const amount = this.page.getByTestId("holding-sheet-amount");

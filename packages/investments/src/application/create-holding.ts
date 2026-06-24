@@ -26,6 +26,7 @@ export function createHolding(deps: { holdingRepo: HoldingRepo }) {
       uiType: input.uiType ?? null,
       group: input.group ?? null,
       instrumentId: input.instrumentId ?? null,
+      manualTicker: input.manualTicker ?? null,
       buyPriceCents: toCents(input.buyPriceCents),
       buyCurrency: input.buyCurrency ?? null,
       quantity: input.quantity ?? "1",

@@ -57,6 +57,41 @@ export function buildInvestmentEntries(
   return entries;
 }
 
+export const entryKeyOf = (e: InvestmentEntry): string =>
+  e.kind === "group" ? `group:${e.name}` : `loose:${e.holding.id}`;
+
+/**
+ * Keep a group visible during a drag even after its last member is pulled out.
+ * `snapshot` is the entry order captured at drag-start; any snapshot GROUP that's
+ * no longer in `entries` is re-inserted as an EMPTY block right after its nearest
+ * preceding snapshot entry that's still present (so it stays put and droppable).
+ * Pure so the placement maths is unit-tested; the section calls it while dragging.
+ */
+export function withPersistentGroups(
+  entries: InvestmentEntry[],
+  snapshot: { key: string; group?: string }[],
+): InvestmentEntry[] {
+  const present = new Set(entries.map(entryKeyOf));
+  const missing = snapshot.filter(
+    (s) => s.group !== undefined && !present.has(s.key),
+  );
+  if (missing.length === 0) return entries;
+  const result = [...entries];
+  for (const snap of missing) {
+    const snapIdx = snapshot.findIndex((s) => s.key === snap.key);
+    let insertAt = 0;
+    for (let i = snapIdx - 1; i >= 0; i--) {
+      const idx = result.findIndex((e) => entryKeyOf(e) === snapshot[i].key);
+      if (idx >= 0) {
+        insertAt = idx + 1;
+        break;
+      }
+    }
+    result.splice(insertAt, 0, { kind: "group", name: snap.group!, holdings: [] });
+  }
+  return result;
+}
+
 /** Flatten entries back to a holding-id order (groups expanded as blocks). */
 export function flattenEntries(entries: InvestmentEntry[]): string[] {
   const ids: string[] = [];

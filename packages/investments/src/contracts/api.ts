@@ -19,7 +19,7 @@ export const holdingTypeSchema = z.enum([
 ]);
 export type HoldingTypeInput = z.infer<typeof holdingTypeSchema>;
 
-/** Phase 9.1 — user-facing type the add/edit form was filled with (11 values). */
+/** Phase 9.1/9.2 — user-facing type the add/edit form was filled with (12 values). */
 export const uiTypeSchema = z.enum([
   "equity",
   "etf",
@@ -32,6 +32,8 @@ export const uiTypeSchema = z.enum([
   "other",
   "precious_metals",
   "cash",
+  // 9.2 — brokerage/cash account: deposited value vs actual value, no instrument.
+  "broker",
 ]);
 export type UiTypeInput = z.infer<typeof uiTypeSchema>;
 
@@ -48,6 +50,7 @@ export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
   other: "other",
   precious_metals: "commodity",
   cash: "cash_fx",
+  broker: "other",
 };
 
 export const metalSchema = z.enum(["gold", "silver", "platinum"]);
@@ -77,6 +80,8 @@ export const createHoldingSchema = z.object({
   uiType: uiTypeSchema.nullish(),
   group: z.string().max(120).nullish(),
   instrumentId: z.string().uuid().nullish(),
+  /** User-typed ticker for a manual (no-instrument) tracked holding. */
+  manualTicker: z.string().max(20).nullish(),
   buyPriceCents: centsInput.nullish(),
   buyCurrency: currencyCode.nullish(),
   quantity: numericString.default("1"),
@@ -112,6 +117,9 @@ export interface EnrichedHoldingDto {
   unitOfMeasure: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
+  /** Tracked-instrument price provider; 'manual' = user-priced (editable in the
+   *  form, no auto refresh); null for custom/cash holdings. */
+  instrumentProvider: string | null;
   isCustom: boolean;
   isDelisted: boolean;
   quantity: string;

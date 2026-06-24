@@ -19,7 +19,9 @@ import { TwelveDataPriceProvider } from "@budget/investments/src/adapters/price/
 import { CoinGeckoPriceProvider } from "@budget/investments/src/adapters/price/coingecko";
 import { FinnhubPriceProvider } from "@budget/investments/src/adapters/price/finnhub";
 import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
+import { resolveApiKey } from "@budget/investments/src/ports/price-provider";
 import type { InstrumentUpsert } from "@budget/investments/src/ports/instrument-repo";
+import { buildUniverse } from "@budget/investments/src/adapters/instruments/universe-catalog";
 import { registerInstrumentPriceHourly } from "./handlers/instrument-price-hourly";
 import {
   registerInstrumentsDailySeed,
@@ -84,9 +86,10 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
     quoteCurrency: "USD",
   },
   {
+    // Non-US ETF: no free server-side quote → user-priced (provider='manual').
     symbol: "VWCE",
     displayName: "Vanguard FTSE All-World ETF",
-    provider: "twelve_data",
+    provider: "manual",
     assetClass: "etf",
     quoteCurrency: "EUR",
   },
@@ -269,26 +272,34 @@ async function main() {
   // ── Phase 9: Investments jobs (reference-data scope, no per-tenant iteration) ──
   const priceProvider = new CompositePriceProvider({
     // *_API_KEYS (CSV) enable round-robin failover across multiple free-tier keys
-    // when one hits its rate limit; *_API_KEY is the single-key fallback.
+    // when one hits its rate limit; *_API_KEY is the single-key fallback. Use
+    // `||` (not `??`) so an EMPTY-STRING *_API_KEYS placeholder falls through to
+    // the single *_API_KEY instead of shadowing it (→ price_unavailable).
     twelve_data: new TwelveDataPriceProvider(
-      process.env.TWELVE_DATA_API_KEYS ?? process.env.TWELVE_DATA_API_KEY ?? "",
+      resolveApiKey(
+        process.env.TWELVE_DATA_API_KEYS,
+        process.env.TWELVE_DATA_API_KEY,
+      ),
     ),
     finnhub: new FinnhubPriceProvider(
-      process.env.FINNHUB_API_KEYS ?? process.env.FINNHUB_API_KEY ?? "",
+      resolveApiKey(process.env.FINNHUB_API_KEYS, process.env.FINNHUB_API_KEY),
     ),
     coingecko: new CoinGeckoPriceProvider(
-      process.env.COINGECKO_API_KEYS ?? process.env.COINGECKO_API_KEY ?? "",
+      resolveApiKey(
+        process.env.COINGECKO_API_KEYS,
+        process.env.COINGECKO_API_KEY,
+      ),
     ),
     metals_dev: new MetalsDevPriceProvider(
-      process.env.METALS_DEV_API_KEY ?? "",
+      process.env.METALS_DEV_API_KEY || "",
     ),
   });
 
-  // Held-only price refresh (INV-13). Excludes custom holdings + daily metals.
-  // Cadence is env-configurable (PRICE_SCAN_CRON, default every 3h UTC) so the
-  // distinct-instrument fan-out stays within the free-tier credit budgets:
-  // fewer scans/day ⇒ more distinct instruments fit under the daily cap.
-  const PRICE_SCAN_CRON = process.env.PRICE_SCAN_CRON ?? "0 */3 * * *";
+  // Held-only price refresh (INV-13). Excludes custom holdings, daily metals, and
+  // manual (non-US) instruments. Default HOURLY (9.2): only the DISTINCT set of
+  // actually-held auto-priced instruments is fetched, so the fan-out is tiny —
+  // Finnhub 60/min + CoinGecko + Twelve Data FX absorb it. Env-overridable.
+  const PRICE_SCAN_CRON = process.env.PRICE_SCAN_CRON ?? "0 * * * *";
   await boss.createQueue("instrument-price-hourly");
   await boss.schedule("instrument-price-hourly", PRICE_SCAN_CRON);
   registerInstrumentPriceHourly(
@@ -297,8 +308,28 @@ async function main() {
   );
 
   // Daily instruments seed + delisting detection (D-09/D-10). 18:00 Europe/Berlin.
+  // 9.2: pull the global catalog (Twelve Data stocks/ETF + CoinGecko crypto + metals,
+  // ~5 bulk calls). Falls back to the curated DEFAULT set when no Twelve Data key is
+  // configured or the live pull yields nothing, so dev/offline still has a universe.
+  const twelveDataKey = resolveApiKey(
+    process.env.TWELVE_DATA_API_KEYS,
+    process.env.TWELVE_DATA_API_KEY,
+  );
+  const coingeckoKey = resolveApiKey(
+    process.env.COINGECKO_API_KEYS,
+    process.env.COINGECKO_API_KEY,
+  );
   const seedDeps: InstrumentsDailySeedDeps = {
-    fetchUniverse: async () => DEFAULT_INVESTMENT_UNIVERSE,
+    fetchUniverse: async () => {
+      if (!twelveDataKey) return DEFAULT_INVESTMENT_UNIVERSE;
+      try {
+        const universe = await buildUniverse({ twelveDataKey, coingeckoKey });
+        return universe.length > 0 ? universe : DEFAULT_INVESTMENT_UNIVERSE;
+      } catch (e) {
+        console.warn("[worker] universe build failed, using default:", e);
+        return DEFAULT_INVESTMENT_UNIVERSE;
+      }
+    },
     taskRepo,
   };
   await boss.createQueue("instruments-daily-seed");

@@ -27,7 +27,8 @@
     "./src/adapters/persistence/investments-schema": "./src/adapters/persistence/investments-schema.ts",
     "./src/adapters/persistence/instruments-schema": "./src/adapters/persistence/instruments-schema.ts",
     "./src/adapters/persistence/price-cache-schema": "./src/adapters/persistence/price-cache-schema.ts",
-    "./src/adapters/persistence/price-snapshot-schema": "./src/adapters/persistence/price-snapshot-schema.ts"
+    "./src/adapters/persistence/price-snapshot-schema": "./src/adapters/persistence/price-snapshot-schema.ts",
+    "./src/adapters/instruments/universe-catalog": "./src/adapters/instruments/universe-catalog.ts"
   },
   "scripts": {
     "test": "bun test",

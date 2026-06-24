@@ -44,6 +44,9 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.metal_kind as string | null) ?? null,
     (row.unit_of_measure as string | null) ?? null,
     (row.symbol as string | null) ?? null,
+    (row.provider as string | null) ?? null,
+    (row.manual_ticker as string | null) ?? null,
+    (row.display_currency as string | null) ?? null,
   );
 }
 
@@ -63,7 +66,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
           INSERT INTO budgeting.investments
             (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type,
              group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
-             current_price_currency, metal, metal_kind, unit_of_measure, sort_order, created_at)
+             current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
+             sort_order, created_at)
           VALUES
             (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
              ${input.name}, ${input.holdingType}, ${input.uiType},
@@ -72,6 +76,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
              ${input.quantity}::numeric, ${b8(input.currentPriceCents)}::bigint,
              ${input.currentPriceCurrency},
              ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
+             ${input.manualTicker},
              COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
                         WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
              now())
@@ -81,6 +86,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
                     current_price_currency, metal, metal_kind, unit_of_measure,
+                    manual_ticker, manual_ticker AS symbol,
                     sort_order, archived_at, created_at
         `);
         return mapRow(res.rows[0]);
@@ -115,7 +121,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             current_price_currency = ${input.currentPriceCurrency},
             metal = ${input.metal},
             metal_kind = ${input.metalKind},
-            unit_of_measure = ${input.unitOfMeasure}
+            unit_of_measure = ${input.unitOfMeasure},
+            manual_ticker = ${input.manualTicker}
           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid AND archived_at IS NULL
           RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
                     ui_type, group_name, instrument_id::text AS instrument_id,
@@ -123,6 +130,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
                     current_price_currency, metal, metal_kind, unit_of_measure,
+                    manual_ticker, manual_ticker AS symbol,
                     sort_order, archived_at, created_at
         `);
         return res.rows.length ? mapRow(res.rows[0]) : null;
@@ -171,7 +179,12 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                       THEN c.currency
                       ELSE inv.current_price_currency END AS current_price_currency,
                  inv.sort_order, inv.archived_at, inv.created_at,
-                 i.symbol AS symbol
+                 inv.manual_ticker,
+                 -- The currency the user chose to value the holding in. The CASE above
+                 -- may put current_price_currency in the price source's currency (a
+                 -- metals cache row is USD); list-holdings FX-converts back into this.
+                 inv.current_price_currency AS display_currency,
+                 COALESCE(i.symbol, inv.manual_ticker) AS symbol, i.provider AS provider
             FROM budgeting.investments inv
             LEFT JOIN budgeting.instrument_price_cache c
                    ON c.instrument_id = inv.instrument_id
@@ -223,7 +236,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const res = await dt.execute(sql`
           SELECT id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
                  ui_type, group_name, metal, metal_kind, unit_of_measure,
-                 instrument_id::text AS instrument_id,
+                 instrument_id::text AS instrument_id, manual_ticker,
+                 manual_ticker AS symbol,
                  buy_price_cents::text AS buy_price_cents, buy_currency,
                  quantity::text AS quantity,
                  current_price_cents::text AS current_price_cents,

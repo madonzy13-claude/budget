@@ -41,6 +41,9 @@ export interface HoldingDto {
   unitOfMeasure: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
+  /** Tracked-instrument provider; 'manual' = user-priced (editable price, no auto
+   *  refresh); null for custom/cash holdings. */
+  instrumentProvider: string | null;
   isCustom: boolean;
   isDelisted: boolean;
   quantity: string;

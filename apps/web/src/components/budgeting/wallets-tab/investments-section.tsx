@@ -49,6 +49,7 @@ import {
   flattenEntries,
   groupAggregate,
   resolveDragEnd,
+  withPersistentGroups,
   groupSortId,
   isGroupSortId,
   type InvestmentEntry,
@@ -200,6 +201,14 @@ export function InvestmentsSection({
   // and the drop is already in place. Null when not dragging → server data.
   const [dndHoldings, setDndHoldings] = useState<HoldingDto[] | null>(null);
   const liveHoldings = dndHoldings ?? holdings;
+  // Ordered entry keys captured at drag-start. While dragging, a group whose last
+  // member is pulled out would vanish mid-drag (its block is no longer built from
+  // liveHoldings) — but it should persist as an empty drop target until the row is
+  // actually DROPPED elsewhere (so the user can still drop it back in). We re-inject
+  // such emptied groups at their snapshot position. Null when not dragging.
+  const [dragSnapshot, setDragSnapshot] = useState<
+    { key: string; group?: string }[] | null
+  >(null);
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const archiveMut = useArchiveHolding(budgetId);
@@ -219,6 +228,13 @@ export function InvestmentsSection({
   const groupNames = useMemo(
     () => entries.flatMap((e) => (e.kind === "group" ? [e.name] : [])),
     [entries],
+  );
+
+  // What we actually render: `entries`, plus any group emptied mid-drag re-inserted
+  // in place (so it stays visible + droppable until the row is dropped elsewhere).
+  const displayEntries = useMemo<InvestmentEntry[]>(
+    () => (dragSnapshot ? withPersistentGroups(entries, dragSnapshot) : entries),
+    [entries, dragSnapshot],
   );
 
   const totalBudgetCents = useMemo(
@@ -320,6 +336,14 @@ export function InvestmentsSection({
 
   function handleDragStart() {
     setDndHoldings([...holdings]);
+    // Snapshot the current entry order so an emptied group can be kept in place.
+    setDragSnapshot(
+      entries.map((e) =>
+        e.kind === "group"
+          ? { key: `group:${e.name}`, group: e.name }
+          : { key: `loose:${e.holding.id}` },
+      ),
+    );
   }
 
   // Live-move the dragged HOLDING into the target group/position on every dragOver
@@ -341,12 +365,14 @@ export function InvestmentsSection({
 
   function handleDragCancel() {
     setDndHoldings(null);
+    setDragSnapshot(null);
   }
 
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     const live = dndHoldings;
     setDndHoldings(null);
+    setDragSnapshot(null);
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -412,7 +438,7 @@ export function InvestmentsSection({
           strategy={verticalListSortingStrategy}
         >
           <div className="flex flex-col gap-2">
-            {entries.map((entry) =>
+            {displayEntries.map((entry) =>
               entry.kind === "group" ? (
                 <GroupBlock
                   key={`group:${entry.name}`}

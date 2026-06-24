@@ -73,6 +73,21 @@ Given(
   },
 );
 
+Given(
+  "a custom holding {string} worth {int} cents in group {string} exists in my budget",
+  async ({ freshUser }, name: string, amountCents: number, group: string) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, group_name, quantity,
+            current_price_cents, current_price_currency, sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'other', $4, '1', $3, 'USD', 0, now())`,
+        [freshUser.budgetId, name, amountCents, group],
+      );
+    });
+  },
+);
+
 When("I open the investments wallets tab", async ({ page, freshUser }) => {
   await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
   await page
@@ -127,6 +142,26 @@ Then(
     await new InvestmentsPo(page).row(name).waitFor({ state: "visible" });
   },
 );
+
+When("I expand the group {string}", async ({ page }, group: string) => {
+  await new InvestmentsPo(page).expandGroup(group);
+});
+
+// Distinct phrasing from the global "I reload the page" (workspace.steps.ts) so
+// this feature stays on a single test fixture (fresh-user-per-scenario).
+When("I reload the wallets tab", async ({ page }) => {
+  await page.reload();
+  await page
+    .waitForLoadState("networkidle", { timeout: 10000 })
+    .catch(() => {});
+});
+
+Then("the group {string} is expanded", async ({ page }, group: string) => {
+  await expect(new InvestmentsPo(page).groupToggle(group)).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+});
 
 When(
   "I drag the holding {string} into group {string}",

@@ -157,7 +157,7 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
       # Phase 9: price-scan cadence (UTC cron) + provider keys (CSV failover).
-      PRICE_SCAN_CRON: "${PRICE_SCAN_CRON:-0 */3 * * *}"
+      PRICE_SCAN_CRON: "${PRICE_SCAN_CRON:-0 * * * *}"
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       FINNHUB_API_KEYS: ${FINNHUB_API_KEYS:-}
       TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}

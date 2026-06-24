@@ -29,6 +29,7 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       metalKind: h.metalKind ?? null,
       unitOfMeasure: h.unitOfMeasure ?? null,
       symbol: h.symbol ?? null,
+      instrumentProvider: h.provider ?? null,
       buyPriceCents:
         h.buyPriceCents === null ? null : h.buyPriceCents.toString(),
       buyCurrency: h.buyCurrency,
@@ -105,14 +106,23 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     const session = c.get("session");
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const { instrumentId } = c.req.param();
+    // Optional target currency (metals: convert the USD spot to the user's currency).
+    const body = (await c.req.json().catch(() => ({}))) as {
+      currency?: string;
+    };
     const r = await deps.investments.fetchInstrumentPrice({
       instrumentId,
       userId,
+      targetCurrency:
+        typeof body.currency === "string" ? body.currency : undefined,
     });
     if (r.isErr()) {
       const msg = r.error.message;
       if (msg === "rate_limited") return c.json({ error: "rate_limited" }, 429);
       if (msg === "not_found") return c.json({ error: "not_found" }, 404);
+      // Manual-priced instrument: not an error — the form enters the price itself.
+      if (msg === "manual_pricing")
+        return c.json({ error: "manual_pricing", manual: true }, 422);
       // provider failure / no price → the add is BLOCKED (A2)
       return c.json({ error: "price_unavailable" }, 422);
     }
