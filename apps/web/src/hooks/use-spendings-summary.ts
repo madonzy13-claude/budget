@@ -61,7 +61,16 @@ export function useSpendingsSummary(
     queryKey: ["spendings-summary", budgetId, month] as const,
     initialData,
     queryFn: () => fetchSpendingsSummary(budgetId, month),
-    staleTime: 30_000,
+    // 260625: cache-first + ALWAYS background-revalidate. The BDP carousel does
+    // not remount the grid on in-tab month nav (a queryKey switch, for which RQ
+    // consults staleTime, not refetchOnMount), and a cross-month mutation (cushion
+    // toggle, limit effective-from a prior month) recomputes PAST months. With the
+    // restore-gate (QueryProvider IsRestoringProvider) hydrate lands before any
+    // fetch, so staleTime:0 + refetchOnMount:"always" deterministically fires a
+    // background refetch that replaces the cached rows the instant the fetch lands
+    // — cache-first paint via keepPreviousData, no skeleton, never stale.
+    staleTime: 0,
+    refetchOnMount: "always",
     // SPA/SWR (260616): warm cache renders instantly; this background refetch
     // replaces it if the month's data changed (matches use-transactions).
     // 260618: keep the PREVIOUS month's summary on screen while the new month's

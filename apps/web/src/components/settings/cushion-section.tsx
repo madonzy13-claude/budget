@@ -137,6 +137,7 @@ export function CushionSection({
           ? t("cushion.feature_on_toast")
           : t("cushion.feature_off_toast"),
       );
+      invalidateCushionAffected();
     } catch {
       setEnabled(!checked);
       toast.error(t("error_save"));
@@ -192,12 +193,31 @@ export function CushionSection({
       });
       if (!res.ok) throw new Error("Failed to update cushion mode");
       toast.success(checked ? t("cushion.on_toast") : t("cushion.off_toast"));
+      invalidateCushionAffected();
     } catch {
       setMode(!checked);
       toast.error(t("error_save"));
     } finally {
       setSavingMode(false);
     }
+  }
+
+  /**
+   * Cross-tab refresh after a cushion master/mode toggle. The toggle recomputes
+   * reserve availability (and the cushionModeEnabled flag the grid reads) for the
+   * affected months server-side, but the BDP carousel reuses the warm cache on
+   * tab switch — the Reserves tab would show the pre-toggle value. Mark reserves
+   * + budget detail stale; both tabs are INACTIVE while we're on Settings, so
+   * this only flags them (default refetchType) and they revalidate on the next
+   * tab switch (Reserves remounts → refetchOnMount). Spendings is intentionally
+   * NOT invalidated here: useSpendingsSummary already revalidates every month nav
+   * (staleTime:0), and invalidating it from Settings races that path.
+   */
+  function invalidateCushionAffected() {
+    queryClient.invalidateQueries({
+      queryKey: ["budget", budgetId, "reserves"],
+    });
+    queryClient.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
   }
 
   const renderPreview = () => {
