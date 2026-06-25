@@ -350,7 +350,14 @@ Then(
     const budgetId = budgetIdOf(ctx);
     const lm = ctx["lmMonth"] as string;
     await page.goto(`/en/budgets/${budgetId}/spendings?month=${lm}`);
-    await expect(page.getByTestId("spendings-grid")).toBeVisible({
+    // BDP carousel AnimatePresence can transiently render two `spendings-grid`
+    // panes (outgoing exit + incoming enter); a strict locator would throw
+    // "resolved to 2 elements". Wait for the slide to settle to one, then assert
+    // the live (last-in-DOM = incoming) pane is visible.
+    await expect(page.getByTestId("spendings-grid")).toHaveCount(1, {
+      timeout: 20000,
+    });
+    await expect(page.getByTestId("spendings-grid").last()).toBeVisible({
       timeout: 20000,
     });
     const c = name.toLowerCase();
@@ -433,7 +440,14 @@ Then(
   ) => {
     const budgetId = budgetIdOf(scenarioCtx as Record<string, unknown>);
     await page.goto(`/en/budgets/${budgetId}/spendings`);
-    await expect(page.getByTestId("spendings-grid")).toBeVisible({
+    // BDP carousel AnimatePresence can transiently render two `spendings-grid`
+    // panes (outgoing exit + incoming enter); a strict locator would throw
+    // "resolved to 2 elements". Wait for the slide to settle to one, then assert
+    // the live (last-in-DOM = incoming) pane is visible.
+    await expect(page.getByTestId("spendings-grid")).toHaveCount(1, {
+      timeout: 20000,
+    });
+    await expect(page.getByTestId("spendings-grid").last()).toBeVisible({
       timeout: 20000,
     });
     const c = name.toLowerCase();

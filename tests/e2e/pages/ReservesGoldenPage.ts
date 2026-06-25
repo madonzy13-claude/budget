@@ -126,7 +126,34 @@ export class ReservesGoldenPage {
   }
 
   async gotoReserves(): Promise<void> {
+    // The reserve cells first paint at a "0" PLACEHOLDER: useReservesSummary has
+    // no SSR initialData, so the persisted/empty React-Query cache renders every
+    // per-category cell as "0". ~0.5s later the refetchOnMount:"always" GET
+    // /budgets/:id/reserves lands and replaces them with real values. The footer
+    // is already visible in that zero-shell, so waiting only on it lets a click
+    // land on a placeholder cell — the InlineEditCell then seeds draft="0" and an
+    // "adjust to 0" write silently no-ops on the equality guard (no POST).
+    //
+    // Arm the GET-list waiter BEFORE the goto so we catch the hydration response,
+    // then await it: the per-category cells hold REAL values before any
+    // interaction. Match method GET + pathname ENDING in /reserves (the list
+    // endpoint) — this never matches POST /reserves/:categoryId/adjust (different
+    // method AND the path ends in /adjust, not /reserves).
+    const hydrated = this.page
+      .waitForResponse(
+        (r) => {
+          if (r.request().method() !== "GET") return false;
+          try {
+            return new URL(r.url()).pathname.endsWith("/reserves");
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 20000 },
+      )
+      .catch(() => undefined);
     await this.page.goto(`/en/budgets/${this.budgetId}/reserves`);
+    await hydrated;
     await expect(this.reserves.totalsFooter()).toBeVisible({ timeout: 20000 });
     this.curView = null;
   }
@@ -154,11 +181,29 @@ export class ReservesGoldenPage {
   ): Promise<ActionTab> {
     await this.gotoReserves();
     const id = this.idOf(catName);
-    await this.page.getByTestId(`reserves-balance-${id}`).click();
+    // gotoReserves() awaited the GET-hydration above, so this cell shows its real
+    // committed value (not the "0" placeholder). Capture that hydrated display
+    // text BEFORE opening the editor so we can assert the editor seeded from it.
+    const cell = this.page.getByTestId(`reserves-balance-${id}`);
+    const hydratedText = (await cell.innerText()).trim();
+    await cell.click();
     const input = this.page
       .getByTestId(`reserves-balance-${id}-editor`)
       .locator("input");
     await input.waitFor({ state: "visible", timeout: 10000 });
+    // Guard: the editor must have seeded from the HYDRATED cell value. If the
+    // cell were still a "0" placeholder while the real value differs, an
+    // "adjust to 0" fill would hit InlineEditCell's Object.is(draft,value)
+    // equality guard and silently drop the write (no POST) — the exact bug this
+    // page fixes. Fail loudly here rather than time out on a swallowed write.
+    // (Only enforced when the hydrated cell is non-empty and looks like "0":
+    //  if the seeded input reads "0" but the cell did not, hydration regressed.)
+    const seeded = (await input.inputValue()).trim();
+    if (hydratedText && seeded === "0" && hydratedText !== "0") {
+      throw new Error(
+        `reserves-balance-${id} editor seeded "0" but the hydrated cell shows "${hydratedText}" — placeholder click (GET hydration regressed); "adjust to ${major}" would no-op.`,
+      );
+    }
     await input.fill(major);
     // POST /api/budgets/:id/reserves/:categoryId/adjust — wait for the committed
     // response before the cover-dialog/return so the next read sees the adjust.

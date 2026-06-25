@@ -1,4 +1,4 @@
-import { type Page, type Locator } from "@playwright/test";
+import { type Page, type Locator, expect } from "@playwright/test";
 
 export class SpendingsPage {
   constructor(private readonly page: Page) {}
@@ -8,12 +8,38 @@ export class SpendingsPage {
       ? `/${locale}/budgets/${budgetId}/spendings?month=${month}`
       : `/${locale}/budgets/${budgetId}/spendings`;
     await this.page.goto(url);
+    // The BDP carousel (budget-detail.tsx) renders tabs via AnimatePresence: on a
+    // tab slide the OUTGOING (exit) and INCOMING (enter) panes briefly coexist in
+    // the shared grid cell, so two `spendings-grid` testids exist for the slide
+    // duration. Any strict locator (.toBeVisible / .click) then throws
+    // "resolved to 2 elements". Wait for the transition to settle to exactly one
+    // grid before returning so callers always see a single, live grid.
+    await this.waitForGridSettled();
   }
 
   // ── Grid container ─────────────────────────────────────────────────────────
 
+  /**
+   * The live spendings grid. During a carousel slide two grids transiently
+   * coexist (exiting + entering pane); AnimatePresence inserts the INCOMING pane
+   * AFTER the outgoing one in DOM order, so `.last()` is the active/live pane.
+   * Combine with waitForGridSettled() (called from goto) to absorb the transient
+   * double rather than rely on .last() alone.
+   */
   gridContainer(): Locator {
-    return this.page.getByTestId("spendings-grid");
+    return this.page.getByTestId("spendings-grid").last();
+  }
+
+  /**
+   * Wait for the carousel slide to settle so exactly one `spendings-grid` exists.
+   * Absorbs the transient AnimatePresence double-pane (outgoing exit + incoming
+   * enter) that makes the strict `getByTestId("spendings-grid")` locator throw
+   * "resolved to 2 elements". The incoming pane's grid is asserted visible too.
+   */
+  async waitForGridSettled(): Promise<void> {
+    const grids = this.page.getByTestId("spendings-grid");
+    await expect(grids).toHaveCount(1, { timeout: 20000 });
+    await expect(grids.first()).toBeVisible({ timeout: 20000 });
   }
 
   // ── Month navigator ────────────────────────────────────────────────────────
