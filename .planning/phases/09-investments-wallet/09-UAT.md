@@ -1,24 +1,15 @@
 ---
-status: testing
+status: passed
 phase: 09-investments-wallet
 source: [09-07-SUMMARY.md, 09-ADDENDUM-type-first.md, 09-HUMAN-UAT.md]
 started: 2026-06-21
-updated: 2026-06-21
+updated: 2026-06-25
 ---
 
 ## Current Test
 
-number: 7
-name: Type-first form + precious metals (9.1) + global universe / manual pricing / Broker / metals FX (9.2)
-expected: |
-Type is the first field; choosing a type swaps the fields. Tracked (Asset
-autocomplete), manual (name + editable price), precious metals
-(metal/kind/UoM + currency + spot-fetched price converted by UoM AND by FX to
-the chosen currency), cash (currency + amount), Broker (deposited + currency +
-actual). Global search returns any seeded instrument (≈219k) instantly; non-US
-picks are user-priced; "Enter manually" always available; rows show a colored
-type icon.
-awaiting: user response
+ALL PASS — 7/7. Phase 9 (Investments/Assets) + 9.1 (type-first) + 9.2 (global
+universe, manual pricing, Broker, metals FX, gold-api metals) UAT complete.
 
 ## Pre-flight verification (Claude, before human UAT)
 
@@ -164,7 +155,7 @@ Wallets→Assets. holding-sheet/instrument/investment vitest 45/45,
 
 expected: selecting a tracked instrument (e.g. AAPL) fetches a live current price
 shown read-only with "Last updated …"; P/L computes against it. Requires
-Finnhub / Twelve Data / CoinGecko keys in Infisical (\*\_API_KEYS). Until then the
+Finnhub / Twelve Data / CoinGecko keys in Infisical (\*\_API*KEYS). Until then the
 price-blocked banner shows.
 result: [pending]
 note: |
@@ -172,8 +163,8 @@ Unblocked: owner added FINNHUB/TWELVE_DATA/COINGECKO single keys to Infisical de
 Verified live (budget-dev): Add → Equity → AAPL → Current price "298.26 USD" +
 "Last updated just now", no price-blocked banner, Save enabled. (Finnhub serves
 the equities; key confirmed working via direct quote = 298.63.)
-BUG FOUND + FIXED during this (see Gaps): empty-string _\_API_KEYS placeholders in
-Infisical shadowed the populated _\_API_KEY because boot used `??` (only catches
+BUG FOUND + FIXED during this (see Gaps): empty-string *\_API*KEYS placeholders in
+Infisical shadowed the populated *\_API_KEY because boot used `??` (only catches
 null/undefined) → adapter got "" → every price came back price_unavailable.
 Fixed with resolveApiKey() (`||` semantics) in apps/api/boot.ts + apps/worker;
 unit-tested (price-provider.test, 4 cases). The fallback banner remains verified
@@ -202,13 +193,20 @@ test: 2000 USD ×4.0 → 8000 PLN) and re-denominated in the list (list-holdings
 3ms trigram search), manual pricing (provider=manual:<MIC>), Broker type,
 "Enter manually", REIT/ETB dropped, metals name-not-ticker, colored row icons,
 DnD keep-empty-group (withPersistentGroups). 54 web + 70 backend tests green.
+result_pass: pass
+note_pass: |
+Owner confirmed. Type-first form + all four behaviors verified live. Metals bug
+found + fixed during this test: Twelve Data free prices ONLY gold (silver +
+platinum are paid-plan; Finnhub free has no metals) → added gold-api.com (free,
+keyless) as the metals provider; verified end-to-end via the real hourly cron
+(XAG cached 58.73 USD). gold-api adapter 4/4. Committed cc61930.
 
 ## Summary
 
 total: 7
-passed: 6
+passed: 7
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
@@ -249,7 +247,7 @@ blocked: 0
   test: packages/investments/test/ports/price-provider.test.ts (resolveApiKey: empty CSV → single key; 4 cases)
   artifacts:
   - path: apps/api/src/boot.ts
-    issue: "TWELVE_DATA/FINNHUB/COINGECKO key = env._\_API_KEYS ?? env._\_API_KEY"
+    issue: "TWELVE*DATA/FINNHUB/COINGECKO key = env.*\_API*KEYS ?? env.*\_API_KEY"
   - path: apps/worker/src/worker.ts
     issue: "same ?? pattern on process.env"
     resolution: "Added resolveApiKey(csv, single) = csv || single || \"\" in price-provider port; both boot + worker use it. Verified live: AAPL → 298.26 USD."
