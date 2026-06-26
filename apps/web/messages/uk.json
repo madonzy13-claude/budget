@@ -404,7 +404,8 @@
       "metalOption": {
         "gold": "Золото",
         "silver": "Срібло",
-        "platinum": "Платина"
+        "platinum": "Платина",
+        "palladium": "Паладій"
       },
       "kindOption": {
         "coin": "Монета",

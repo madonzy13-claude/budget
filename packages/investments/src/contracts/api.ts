@@ -53,7 +53,7 @@ export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
   broker: "other",
 };
 
-export const metalSchema = z.enum(["gold", "silver", "platinum"]);
+export const metalSchema = z.enum(["gold", "silver", "platinum", "palladium"]);
 export const metalKindSchema = z.enum(["coin", "bar", "other"]);
 export const uomSchema = z.enum(["g", "oz", "kg"]);
 
@@ -62,6 +62,7 @@ export const METAL_TO_SYMBOL: Record<z.infer<typeof metalSchema>, string> = {
   gold: "XAU/USD",
   silver: "XAG/USD",
   platinum: "XPT/USD",
+  palladium: "XPD/USD",
 };
 
 const currencyCode = z.string().regex(/^[A-Z0-9]{3,5}$/);

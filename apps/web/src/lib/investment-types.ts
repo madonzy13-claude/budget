@@ -109,12 +109,13 @@ export function usesUserChosenCurrency(
   return uiType === "crypto";
 }
 
-export type Metal = "gold" | "silver" | "platinum";
-export const METALS: Metal[] = ["gold", "silver", "platinum"];
+export type Metal = "gold" | "silver" | "platinum" | "palladium";
+export const METALS: Metal[] = ["gold", "silver", "platinum", "palladium"];
 export const METAL_TO_SYMBOL: Record<Metal, string> = {
   gold: "XAU/USD",
   silver: "XAG/USD",
   platinum: "XPT/USD",
+  palladium: "XPD/USD",
 };
 
 export type MetalKind = "coin" | "bar" | "other";

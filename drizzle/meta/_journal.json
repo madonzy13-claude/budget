@@ -295,6 +295,13 @@
       "when": 1782220000000,
       "tag": "0042_investments_manual_ticker",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1782230000000,
+      "tag": "0043_investments_palladium_metal",
+      "breakpoints": true
     }
   ]
 }

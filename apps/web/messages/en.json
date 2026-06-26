@@ -404,7 +404,8 @@
       "metalOption": {
         "gold": "Gold",
         "silver": "Silver",
-        "platinum": "Platinum"
+        "platinum": "Platinum",
+        "palladium": "Palladium"
       },
       "kindOption": {
         "coin": "Coin",

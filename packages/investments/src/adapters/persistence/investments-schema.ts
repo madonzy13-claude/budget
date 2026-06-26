@@ -38,7 +38,7 @@ export const investments = budgeting.table(
     // → both 'bond'; collectibles → 'other'). Drives the dynamic form on edit.
     uiType: text("ui_type"),
     // Precious-metals attributes (NULL for every other type).
-    metal: text("metal"), // gold | silver | platinum
+    metal: text("metal"), // gold | silver | platinum | palladium
     metalKind: text("metal_kind"), // coin | bar | other (descriptive)
     unitOfMeasure: text("unit_of_measure"), // g | oz | kg
     // Optional user-defined grouping label within the Investments section.
@@ -65,7 +65,7 @@ export const investments = budgeting.table(
     ),
     check(
       "investments_metal_chk",
-      sql`${t.metal} IS NULL OR ${t.metal} IN ('gold','silver','platinum')`,
+      sql`${t.metal} IS NULL OR ${t.metal} IN ('gold','silver','platinum','palladium')`,
     ),
     check(
       "investments_metal_kind_chk",
