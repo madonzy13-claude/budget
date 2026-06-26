@@ -1,6 +1,6 @@
 /**
  * settings.ts — /settings route factory
- * User settings: locale, display_currency, provider_prefs, sessions.
+ * User settings: locale, display_currency, sessions.
  *
  * PC-02: uses deps.identity.userRepo + deps.identity.auth from factory output.
  * T-01-07-06: zValidator on every state-changing endpoint.
@@ -10,11 +10,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { BootedDeps } from "../boot";
 import { UserId } from "@budget/shared-kernel";
-import type {
-  Locale,
-  LLMProviderName,
-  STTProviderName,
-} from "@budget/identity";
+import type { Locale } from "@budget/identity";
 
 export function settingsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -25,11 +21,6 @@ export function settingsRoutesFactory(deps: BootedDeps) {
 
   const currencySchema = z.object({
     currency: z.string().regex(/^[A-Z]{3}$/),
-  });
-
-  const providerPrefsSchema = z.object({
-    llm: z.enum(["claude_haiku", "groq"]).nullable().optional(),
-    stt: z.enum(["browser", "groq"]).nullable().optional(),
   });
 
   // PUT /settings/locale — update user locale
@@ -69,31 +60,6 @@ export function settingsRoutesFactory(deps: BootedDeps) {
       throw e;
     }
   });
-
-  // PUT /settings/provider-prefs — update LLM/STT provider preferences
-  r.put(
-    "/provider-prefs",
-    zValidator("json", providerPrefsSchema),
-    async (c) => {
-      const session = c.get("session");
-      if (!session) return c.json({ error: "unauthorized" }, 401);
-
-      const body = c.req.valid("json");
-      const prefs: {
-        llm?: LLMProviderName | null;
-        stt?: STTProviderName | null;
-      } = {};
-      if (body.llm !== undefined)
-        prefs.llm = body.llm as LLMProviderName | null;
-      if (body.stt !== undefined)
-        prefs.stt = body.stt as STTProviderName | null;
-      await deps.identity.userRepo.updateProviderPrefs(
-        UserId(session.user.id),
-        prefs,
-      );
-      return c.json({ ok: true });
-    },
-  );
 
   // GET /settings/sessions — list active sessions
   r.get("/sessions", async (c) => {

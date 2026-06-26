@@ -7,8 +7,6 @@ export interface ServerSessionUser {
   emailVerified: boolean;
   locale?: string;
   displayCurrency?: string;
-  preferredLlmProvider?: string | null;
-  preferredSttProvider?: string | null;
 }
 
 export interface ServerSession {
@@ -185,20 +183,6 @@ export async function getServerSession(
       u["display_currency"] !== undefined
     ) {
       u["displayCurrency"] = u["display_currency"];
-    }
-    // preferredLlmProvider / preferred_llm_provider
-    if (
-      u["preferredLlmProvider"] === undefined &&
-      u["preferred_llm_provider"] !== undefined
-    ) {
-      u["preferredLlmProvider"] = u["preferred_llm_provider"];
-    }
-    // preferredSttProvider / preferred_stt_provider
-    if (
-      u["preferredSttProvider"] === undefined &&
-      u["preferred_stt_provider"] !== undefined
-    ) {
-      u["preferredSttProvider"] = u["preferred_stt_provider"];
     }
     // emailVerified / email_verified
     if (u["emailVerified"] === undefined && u["email_verified"] !== undefined) {

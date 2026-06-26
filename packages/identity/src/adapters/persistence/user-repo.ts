@@ -5,12 +5,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { appPool, withUserContext } from "@budget/platform";
 import type { UserId } from "@budget/shared-kernel";
 import type { UserRepo } from "../../ports/user-repo";
-import type {
-  Locale,
-  LLMProviderName,
-  STTProviderName,
-  UserDTO,
-} from "../../contracts/api";
+import type { Locale, UserDTO } from "../../contracts/api";
 import { users } from "./schema";
 import { userPreferences } from "./user-preferences";
 
@@ -36,10 +31,6 @@ export class DrizzleUserRepo implements UserRepo {
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
       display_currency: row.displayCurrency,
-      preferred_llm_provider:
-        row.preferredLlmProvider as LLMProviderName | null,
-      preferred_stt_provider:
-        row.preferredSttProvider as STTProviderName | null,
     };
   }
 
@@ -57,10 +48,6 @@ export class DrizzleUserRepo implements UserRepo {
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
       display_currency: row.displayCurrency,
-      preferred_llm_provider:
-        row.preferredLlmProvider as LLMProviderName | null,
-      preferred_stt_provider:
-        row.preferredSttProvider as STTProviderName | null,
     };
   }
 
@@ -79,27 +66,6 @@ export class DrizzleUserRepo implements UserRepo {
       await tx
         .update(users)
         .set({ displayCurrency: currency, updatedAt: new Date() })
-        .where(eq(users.id, id as string));
-    });
-    if (r.isErr()) throw r.error;
-  }
-
-  async updateProviderPrefs(
-    id: UserId,
-    prefs: { llm?: LLMProviderName | null; stt?: STTProviderName | null },
-  ): Promise<void> {
-    const updates: Partial<{
-      preferredLlmProvider: string | null;
-      preferredSttProvider: string | null;
-      updatedAt: Date;
-    }> = { updatedAt: new Date() };
-    if (prefs.llm !== undefined) updates.preferredLlmProvider = prefs.llm;
-    if (prefs.stt !== undefined) updates.preferredSttProvider = prefs.stt;
-
-    const r = await withUserContext(id, async (tx) => {
-      await tx
-        .update(users)
-        .set(updates)
         .where(eq(users.id, id as string));
     });
     if (r.isErr()) throw r.error;

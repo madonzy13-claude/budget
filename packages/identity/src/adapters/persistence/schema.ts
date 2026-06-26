@@ -24,7 +24,7 @@ const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
 
 /**
  * Better Auth manages this table; additionalFields appended:
- *   locale, display_currency, preferred_llm_provider, preferred_stt_provider
+ *   locale, display_currency
  * D-16 PII at rest: email_hash + email_encrypted + email_nonce columns.
  * Phase 1 keeps Better Auth's plain `email` text column for compatibility;
  * Phase 6 TODO: drop plain email, route lookups exclusively via email_hash.
@@ -44,8 +44,6 @@ export const users = identity.table(
     image: text("image"),
     locale: text("locale").notNull().default("en"),
     displayCurrency: text("display_currency").notNull().default("USD"),
-    preferredLlmProvider: text("preferred_llm_provider"),
-    preferredSttProvider: text("preferred_stt_provider"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

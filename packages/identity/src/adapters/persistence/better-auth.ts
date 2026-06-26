@@ -146,16 +146,6 @@ export function createAuth(opts: CreateAuthOptions) {
           required: true,
           defaultValue: "USD",
         },
-        preferredLlmProvider: {
-          type: "string",
-          input: true,
-          required: false,
-        },
-        preferredSttProvider: {
-          type: "string",
-          input: true,
-          required: false,
-        },
       },
     },
     // D-16 wiring: email hash + DEK written in create-after via withUserContext (PC-03).

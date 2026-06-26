@@ -1,8 +1,6 @@
 import type { UserId } from "@budget/shared-kernel";
 
 export type Locale = "en" | "pl" | "uk";
-export type LLMProviderName = "claude_haiku" | "groq";
-export type STTProviderName = "browser" | "groq";
 
 export interface UserDTO {
   id: UserId;
@@ -11,8 +9,6 @@ export interface UserDTO {
   emailVerified: boolean;
   locale: Locale;
   display_currency: string; // ISO-4217 (per D-05/MONY-09)
-  preferred_llm_provider: LLMProviderName | null;
-  preferred_stt_provider: STTProviderName | null;
 }
 
 export interface SessionDTO {
