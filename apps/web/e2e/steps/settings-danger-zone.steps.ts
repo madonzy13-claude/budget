@@ -45,7 +45,7 @@ async function fetchDeleteUrl(email: string): Promise<string> {
 }
 
 When("I open the Danger Zone", async ({ page }) => {
-  await page.goto("/en/settings/user");
+  await page.goto("/en/settings");
   await page
     .waitForLoadState("networkidle", { timeout: 10000 })
     .catch(() => {});

@@ -1,44 +1,19 @@
 /**
- * user-settings-shell.test.tsx — Plan 10-02
+ * user-settings-shell.test.tsx — Phase 10 (pills removed)
  *
- * Covers the 2-pill client carousel: both pills render, General is the default
- * pane (language + currency controls), clicking the User pill swaps to the
- * Profile/Security/Danger accordion AND pushes the URL via history.pushState with
- * NO Next navigation (assert pushState is called — the only "navigation").
+ * The settings page is now a SINGLE stacked accordion (no pills, no carousel):
+ * General · Profile · Security · Danger Zone, with General open by default.
+ * Covers: all four section triggers render, the old pill chrome is gone, and the
+ * General section (language + currency) is shown by default.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { UserSettingsShell } from "@/components/settings/user-settings-shell";
 
 // next-intl mock — echo the key so assertions are deterministic.
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => "en",
-}));
-
-// motion/react mock — passthrough so panes mount synchronously (no animation).
-vi.mock("motion/react", () => ({
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
-  motion: new Proxy(
-    {},
-    {
-      get:
-        (_t, tag: string) =>
-        ({
-          children,
-          className,
-        }: {
-          children?: React.ReactNode;
-          className?: string;
-        }) => {
-          const Tag = tag as keyof React.JSX.IntrinsicElements;
-          return <Tag className={className}>{children}</Tag>;
-        },
-    },
-  ),
-  useReducedMotion: () => false,
 }));
 
 // Reused General controls — stub out their api-client / locale deps.
@@ -49,78 +24,41 @@ vi.mock("@/components/settings/display-currency-picker", () => ({
   DisplayCurrencyPicker: () => <div data-testid="currency-picker" />,
 }));
 
-describe("UserSettingsShell — 2-pill carousel (USET-01/02/03)", () => {
+const props = {
+  initialLocale: "en",
+  initialDisplayCurrency: "USD",
+  initialProfile: {
+    name: "Ada",
+    email: "ada@example.com",
+    emailVerified: true,
+  },
+};
+
+describe("UserSettingsShell — stacked accordion, no pills (Phase 10)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    window.history.pushState(null, "", "/en/settings");
   });
 
-  it("renders both pills with General active by default (language + currency)", () => {
-    render(
-      <UserSettingsShell
-        locale="en"
-        initialTab="general"
-        initialLocale="en"
-        initialDisplayCurrency="USD"
-        initialProfile={{
-          name: "Ada",
-          email: "ada@example.com",
-          emailVerified: true,
-        }}
-      />,
-    );
-    expect(screen.getByTestId("settings-pill-general")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-pill-user")).toBeInTheDocument();
-    // General pane: the two reused controls + their section headings.
+  it("renders the four section triggers and NO pill chrome", () => {
+    render(<UserSettingsShell {...props} />);
+    // Section titles come from settings.user.sections.* (mock echoes the key).
+    expect(screen.getByText("general")).toBeInTheDocument();
+    expect(screen.getByText("profile")).toBeInTheDocument();
+    expect(screen.getByText("security")).toBeInTheDocument();
+    expect(screen.getByText("danger")).toBeInTheDocument();
+    // The old pill carousel is gone.
+    expect(screen.queryByTestId("settings-pills")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-pill-general"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("settings-pill-user")).not.toBeInTheDocument();
+  });
+
+  it("opens General by default (language + currency controls visible)", () => {
+    render(<UserSettingsShell {...props} />);
     expect(screen.getByTestId("locale-select")).toBeInTheDocument();
     expect(screen.getByTestId("currency-picker")).toBeInTheDocument();
     expect(screen.getByText("locale.label")).toBeInTheDocument();
     expect(screen.getByText("display_currency.label")).toBeInTheDocument();
-  });
-
-  it("clicking the User pill swaps to the accordion and pushState's the URL (no Next nav)", () => {
-    const pushSpy = vi.spyOn(window.history, "pushState");
-    render(
-      <UserSettingsShell
-        locale="en"
-        initialTab="general"
-        initialLocale="en"
-        initialDisplayCurrency="USD"
-        initialProfile={{
-          name: "Ada",
-          email: "ada@example.com",
-          emailVerified: true,
-        }}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("settings-pill-user"));
-
-    // URL pushed to /en/settings/user — this is the ONLY navigation (no router).
-    expect(pushSpy).toHaveBeenCalledWith(null, "", "/en/settings/user");
-    // User pane: Profile / Security / Danger accordion section titles.
-    expect(screen.getByText("profile")).toBeInTheDocument();
-    expect(screen.getByText("security")).toBeInTheDocument();
-    expect(screen.getByText("danger")).toBeInTheDocument();
-    // General pane is no longer mounted.
-    expect(screen.queryByTestId("locale-select")).not.toBeInTheDocument();
-  });
-
-  it("deep-link to the User tab renders the accordion first", () => {
-    render(
-      <UserSettingsShell
-        locale="en"
-        initialTab="user"
-        initialLocale="en"
-        initialDisplayCurrency="USD"
-        initialProfile={{
-          name: "Ada",
-          email: "ada@example.com",
-          emailVerified: true,
-        }}
-      />,
-    );
-    expect(screen.getByText("profile")).toBeInTheDocument();
-    expect(screen.queryByTestId("locale-select")).not.toBeInTheDocument();
   });
 });

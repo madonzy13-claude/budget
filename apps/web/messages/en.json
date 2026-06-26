@@ -132,17 +132,13 @@
       "tab": "Language",
       "error_save": "Failed to save language. Try again."
     },
-    "pills": {
-      "general": "General",
-      "user": "User",
-      "aria": "Settings sections"
-    },
     "general": {
       "title": "General"
     },
     "user": {
       "title": "User",
       "sections": {
+        "general": "General",
         "profile": "Profile",
         "security": "Security",
         "danger": "Danger Zone"

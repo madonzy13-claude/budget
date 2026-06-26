@@ -2,14 +2,15 @@ import { createBdd } from "playwright-bdd";
 import { test } from "../fixtures/fresh-user-per-scenario";
 const { When, Then } = createBdd(test);
 
-// USET-04 — the User-pill Profile section. The accordion opens Profile by
-// default, so navigating straight to /settings/user surfaces the fields.
+// USET-04 — the Profile section of the single settings accordion. General is the
+// default-open section, so expand Profile to surface its fields.
 When("I open the User settings page", async ({ page }) => {
-  await page.goto("/en/settings/user");
+  await page.goto("/en/settings");
   await page
     .waitForLoadState("networkidle", { timeout: 10000 })
     .catch(() => {});
-  // Profile fields live in the default-open accordion item.
+  // exact:true — "Profile" would otherwise also match the header "Open profile menu".
+  await page.getByRole("button", { name: "Profile", exact: true }).click();
   await page
     .getByTestId("profile-name-input")
     .waitFor({ state: "visible", timeout: 10000 });

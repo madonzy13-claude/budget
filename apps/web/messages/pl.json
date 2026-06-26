@@ -132,17 +132,13 @@
       "tab": "Język",
       "error_save": "Nie udało się zapisać języka. Spróbuj ponownie."
     },
-    "pills": {
-      "general": "Ogólne",
-      "user": "Użytkownik",
-      "aria": "Sekcje ustawień"
-    },
     "general": {
       "title": "Ogólne"
     },
     "user": {
       "title": "Użytkownik",
       "sections": {
+        "general": "Ogólne",
         "profile": "Profil",
         "security": "Bezpieczeństwo",
         "danger": "Strefa zagrożenia"

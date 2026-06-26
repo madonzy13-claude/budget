@@ -1,15 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import { UserSettingsShell } from "@/components/settings/user-settings-shell";
 import { getServerSession } from "@/lib/server-session";
-import { isSettingsTab, type SettingsTab } from "@/lib/settings-tabs";
 
 /**
- * User Settings — catch-all `[[...tab]]` route (mirrors the BDP `[[...tab]]`).
- *
- * One route segment serves both pill URLs (`/settings` → General, `/settings/user`
- * → User). The pill is read from the path here (direct loads / bookmarks /
- * deep-links) and seeded into <UserSettingsShell>, which from then on switches
- * pills in pure client state (pushState, no Next nav) — no per-pill RSC round-trip.
+ * User Settings — catch-all `[[...tab]]` route. The page is now a single stacked
+ * accordion (General · Profile · Security · Danger Zone), so the path segment is
+ * ignored; `/settings` and any legacy `/settings/*` deep-link render the same page.
  *
  * The session is read FRESH (bypass the 60s Better Auth cookie cache): the
  * display-currency PUT updates the DB directly, so the cached session would serve
@@ -21,9 +17,7 @@ interface SettingsPageProps {
 }
 
 export default async function SettingsPage({ params }: SettingsPageProps) {
-  const { locale, tab } = await params;
-  const seg = tab?.[0];
-  const initialTab: SettingsTab = isSettingsTab(seg) ? seg : "general";
+  const { locale } = await params;
 
   const session = await getServerSession({ disableCookieCache: true });
   const initialDisplayCurrency = session?.user?.displayCurrency ?? undefined;
@@ -31,8 +25,6 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   return (
     <>
       <UserSettingsShell
-        locale={locale}
-        initialTab={initialTab}
         initialLocale={locale}
         initialDisplayCurrency={initialDisplayCurrency}
         initialProfile={{

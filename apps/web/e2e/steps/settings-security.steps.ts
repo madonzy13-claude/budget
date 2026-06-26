@@ -25,9 +25,9 @@ Given("I have a second active session", async ({ freshUser, baseURL }) => {
   }
 });
 
-// Open /settings/user and expand the (default-closed) Security accordion item.
+// Open /settings and expand the (default-closed) Security accordion item.
 When("I open the Security section", async ({ page }) => {
-  await page.goto("/en/settings/user");
+  await page.goto("/en/settings");
   await page
     .waitForLoadState("networkidle", { timeout: 10000 })
     .catch(() => {});
