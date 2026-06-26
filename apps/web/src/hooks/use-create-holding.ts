@@ -70,6 +70,7 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     valueCents,
     valueInBudgetCents: valueCents,
     profitLossPct: null,
+    profitLossCents: null,
     weightPct: 0,
     sortOrder: 9999,
     createdAt: new Date().toISOString(),

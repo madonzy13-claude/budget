@@ -5,6 +5,7 @@ import type { HoldingRepo } from "../ports/holding-repo";
 import {
   holdingValue,
   profitLossPct,
+  profitLossCents,
   portfolioWeights,
   groupWeights,
   type RateMap,
@@ -140,6 +141,7 @@ export function listHoldings(deps: {
           valueCents: value.toFixed(0),
           valueInBudgetCents: valueInBudget.toFixed(0),
           profitLossPct: profitLossPct(h, plRate),
+          profitLossCents: profitLossCents(h, plRate),
           weightPct: weights.get(h.id) ?? 0,
           sortOrder: h.sortOrder,
           createdAt: h.createdAt.toISOString(),

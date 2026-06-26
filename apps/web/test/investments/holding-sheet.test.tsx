@@ -149,6 +149,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     valueCents: "12000",
     valueInBudgetCents: "12000",
     profitLossPct: 20,
+    profitLossCents: "2000",
     weightPct: 100,
     sortOrder: 1,
     createdAt: "2026-06-21T00:00:00Z",

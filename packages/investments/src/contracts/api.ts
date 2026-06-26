@@ -133,6 +133,10 @@ export interface EnrichedHoldingDto {
   valueInBudgetCents: string;
   /** signed P/L %, 1 decimal; null for cash / no-basis. */
   profitLossPct: number | null;
+  /** signed absolute P/L in cents (buy-currency basis); null for cash / no-basis.
+   *  Computed server-side from the real cost basis so a near-total loss stays a
+   *  real number (the client must NOT back-derive it from value + rounded pct). */
+  profitLossCents: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;

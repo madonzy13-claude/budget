@@ -79,13 +79,15 @@ export function InvestmentRow({
           ? "text-[var(--trading-down)]"
           : "text-[var(--muted-foreground)]";
 
-  // P/L money amount (real gain/loss in the value currency, NO currency symbol)
-  // derived from value + P/L%: cost = value / (1 + pl/100), amount = value − cost.
+  // P/L money amount (real gain/loss, NO currency symbol). Read straight from the
+  // SERVER's profitLossCents (computed from the real cost basis). It must NOT be
+  // back-derived as value/(1 + pl/100): pl is rounded to 1 decimal, so a near-total
+  // loss rounds to -100.0 → ÷0 → the amount collapsed to "-0" (260626 bug).
   // Shown beside the P/L% in the mobile expanded stack (D-#plmoney).
   const plMoney = (() => {
-    if (pct == null) return null;
-    const vc = Number(holding.valueCents || 0);
-    const amt = vc - vc / (1 + pct / 100); // cents
+    if (pct == null || holding.profitLossCents == null) return null;
+    const amt = Number(holding.profitLossCents); // cents
+    if (!Number.isFinite(amt)) return null;
     const sign = amt > 0 ? "+" : amt < 0 ? "−" : "";
     return `${sign}${centsToBare(String(Math.round(Math.abs(amt))), locale)}`;
   })();

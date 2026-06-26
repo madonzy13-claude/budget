@@ -38,6 +38,7 @@ function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
     valueCents: "0",
     valueInBudgetCents: "0",
     profitLossPct: null,
+    profitLossCents: null,
     weightPct: 0,
     sortOrder: 0,
     createdAt: "2026-06-21T00:00:00Z",
@@ -75,12 +76,16 @@ describe("withPersistentGroups (group stays put while its last item is dragged)"
       h({ id: "D", group: null, sortOrder: 3 }), // moved out of Metals
       h({ id: "E", group: null, sortOrder: 4 }),
     ]);
-    expect(live.find((e) => e.kind === "group" && e.name === "Metals")).toBeUndefined();
+    expect(
+      live.find((e) => e.kind === "group" && e.name === "Metals"),
+    ).toBeUndefined();
 
     const out = withPersistentGroups(live, snapshot);
     const metals = out.find((e) => e.kind === "group" && e.name === "Metals");
     expect(metals).toBeTruthy();
-    expect(metals && metals.kind === "group" && metals.holdings).toHaveLength(0);
+    expect(metals && metals.kind === "group" && metals.holdings).toHaveLength(
+      0,
+    );
   });
 
   it("returns the entries unchanged when no snapshot group went missing", () => {

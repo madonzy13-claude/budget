@@ -57,6 +57,8 @@ export interface HoldingDto {
   valueInBudgetCents: string;
   /** signed P/L %, 1 decimal; null for cash / no-basis. */
   profitLossPct: number | null;
+  /** signed absolute P/L in cents (server-computed); null for cash / no-basis. */
+  profitLossCents: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;

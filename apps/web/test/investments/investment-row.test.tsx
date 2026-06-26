@@ -61,6 +61,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     valueCents: "420000",
     valueInBudgetCents: "420000",
     profitLossPct: 12.4,
+    profitLossCents: "120000",
     weightPct: 18,
     sortOrder: 1,
     createdAt: "2026-06-21T00:00:00Z",
@@ -167,6 +168,7 @@ describe("InvestmentRow", () => {
           name: "Vintage car",
           symbol: null,
           profitLossPct: 50,
+          profitLossCents: "1500000",
           weightPct: 13,
           valueCents: "4500000",
           currentPriceCurrency: "USD",
@@ -175,9 +177,30 @@ describe("InvestmentRow", () => {
     );
     fireEvent.click(screen.getByLabelText("Expand Vintage car"));
     expect(screen.getByText("Share: 13.0%")).toBeInTheDocument();
-    // P/L money amount (value 45,000 @ +50% → cost 30,000 → +15,000), no currency.
+    // P/L money amount comes straight from the server (+15,000.00), no currency.
     expect(screen.getByText("+15,000")).toBeInTheDocument();
     expect(screen.getAllByText("+50.0%").length).toBeGreaterThan(0); // P/L%
+  });
+
+  // 260626 regression: the old plMoney back-derived cost as value/(1+pct/100);
+  // at a near-total loss pct rounds to -100.0 → ÷0 → the amount collapsed to "-0".
+  // The row now renders the server's profitLossCents, a real number.
+  it("expanded P/L money uses server profitLossCents — a near-total loss is real, not '−0'", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Silver coin",
+          symbol: null,
+          profitLossPct: -100,
+          profitLossCents: "-3449500", // −34,495.00
+          valueCents: "161",
+          currentPriceCurrency: "EUR",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand Silver coin"));
+    expect(screen.getByText("−34,495")).toBeInTheDocument();
+    expect(screen.queryByText("−0")).toBeNull();
   });
 
   it("dims a delisted holding's content but keeps the drag handle full opacity", () => {
@@ -189,7 +212,11 @@ describe("InvestmentRow", () => {
     );
     // The grip (handle slot) must NOT sit inside any opacity-50 element — a
     // parent's opacity caps its children, so the handle stays usable (09-07-PLAN).
-    for (let el = screen.getByTestId("grip").parentElement; el; el = el.parentElement) {
+    for (
+      let el = screen.getByTestId("grip").parentElement;
+      el;
+      el = el.parentElement
+    ) {
       expect(el.className ?? "").not.toContain("opacity-50");
     }
     // The row content (the tap-to-expand region) IS dimmed; chip still shows.
