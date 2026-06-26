@@ -44,6 +44,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { centsToBare } from "@/lib/cents-format";
 import { useCreateHolding } from "@/hooks/use-create-holding";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import type { HoldingDto, HoldingType } from "@/hooks/use-investments";
@@ -94,6 +95,11 @@ function centsToDecimal(cents: string | null): string {
   if (cents == null) return "";
   const n = Number(cents);
   return Number.isFinite(n) ? String(n / 100) : "";
+}
+/** Drop trailing zeros from a numeric(28,8) string: "1.13000000" → "1.13",
+ *  "1.00000000" → "1". Leaves a non-decimal string untouched. */
+function trimQty(q: string): string {
+  return q.includes(".") ? q.replace(/0+$/, "").replace(/\.$/, "") : q;
 }
 
 export function HoldingSheet({
@@ -149,7 +155,7 @@ export function HoldingSheet({
   const [buyCurrency, setBuyCurrency] = useState(
     holding?.buyCurrency ?? budgetCurrency,
   );
-  const [quantity, setQuantity] = useState(holding?.quantity ?? "1");
+  const [quantity, setQuantity] = useState(trimQty(holding?.quantity ?? "1"));
   const [currentPrice, setCurrentPrice] = useState(
     centsToDecimal(holding?.currentPriceCents ?? null),
   );
@@ -964,11 +970,9 @@ function HoldingPreviewBlock({
 }) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
-  const fmt = (n: number) =>
-    new Intl.NumberFormat(locale, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(n);
+  // Same number rule as the rest of the app (centsToBare): whole → no decimals,
+  // fractional → exactly 2 (100 → "100", 100.5 → "100.50", 100.34 → "100.34").
+  const fmt = (n: number) => centsToBare(String(Math.round(n * 100)), locale);
   const money = (n: number) => `${fmt(n)} ${preview.currency}`;
   const trim = (n: number) => {
     const s = String(n);
@@ -1053,9 +1057,9 @@ function HoldingPreviewBlock({
   return (
     <div
       data-testid="holding-sheet-preview"
-      className="mt-2 rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] p-3"
+      className="mt-2 rounded-[var(--radius-md)] border border-[var(--input)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] p-3"
     >
-      <p className="mb-2 text-caption font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+      <p className="mb-3 border-b border-[var(--hairline-dark)] pb-2 text-caption font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
         {t("preview.title")}
       </p>
       <div className="space-y-2.5">

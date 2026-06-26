@@ -247,6 +247,27 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.getByTestId("holding-sheet-current-price")).toBeDisabled();
   });
 
+  // 260626: the quantity field drops numeric(28,8) trailing zeros.
+  it("quantity field trims trailing zeros (1.13000000 → 1.13, 1.00000000 → 1)", () => {
+    const { unmount } = render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({ quantity: "1.13000000" })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-quantity")).toHaveValue("1.13");
+    unmount();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({ quantity: "1.00000000" })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-quantity")).toHaveValue("1");
+  });
+
   // 260626: bottom Preview sum-up across types.
   it("preview sum-up (metals): buy total, current value, premium, P/L", () => {
     render(
@@ -271,7 +292,7 @@ describe("HoldingSheet — type-first", () => {
       />,
     );
     const p = screen.getByTestId("holding-sheet-preview");
-    expect(p.textContent).toMatch(/6,000\.00 EUR/); // buy total 60 × 100
+    expect(p.textContent).toMatch(/6,000 EUR/); // buy total 60 × 100
     expect(p.textContent).toMatch(/6,430\.15 EUR/); // current base 64.30 × 100
     expect(p.textContent).toMatch(/1,286\.03 EUR/); // +20% premium
     expect(p.textContent).toMatch(/7,716\.1[78] EUR/); // with premium
@@ -295,7 +316,7 @@ describe("HoldingSheet — type-first", () => {
       />,
     );
     const p = screen.getByTestId("holding-sheet-preview");
-    expect(p.textContent).toMatch(/500\.00 EUR/);
+    expect(p.textContent).toMatch(/500 EUR/);
     expect(p.textContent).not.toMatch(/preview\.pl/); // no P/L row for cash
   });
 
