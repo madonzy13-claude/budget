@@ -309,6 +309,13 @@
       "when": 1782240000000,
       "tag": "0044_investments_bullion_premium",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1782250000000,
+      "tag": "0045_phase10_drop_provider_prefs",
+      "breakpoints": true
     }
   ]
 }
