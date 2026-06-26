@@ -46,12 +46,13 @@ describe("(app) shell clears iOS bottom UI", () => {
     expect(standaloneBlock).toMatch(
       /\.pb-shell-safe[^}]*padding-bottom:\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*64px\)/,
     );
-    // Applied where it covers all mobile surfaces:
-    const bdpLayout = readFileSync(
-      resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+    // Applied where it covers all mobile surfaces — the pb-shell-safe content
+    // wrapper now lives in the single client <BudgetDetail> tree.
+    const budgetDetail = readFileSync(
+      resolve(__dirname, "../src/components/budgeting/budget-detail.tsx"),
       "utf8",
     );
-    expect(bdpLayout).toMatch(/pb-shell-safe/);
+    expect(budgetDetail).toMatch(/pb-shell-safe/);
     // SPA refactor (260616): the home <main> + pb-shell-safe moved out of the
     // static page.tsx into the HomeBudgetsClient island.
     const homePage = readFileSync(
@@ -88,16 +89,13 @@ describe("(app) shell clears iOS bottom UI", () => {
       /data-bdp-tabs[^}]*top:\s*calc\(4rem \+ 1px\)/,
     );
     expect(layout).toMatch(/<header[^>]*data-shell-header/);
-    // quick-260613-pdb moved the sticky band into <BudgetShellData> so layout.tsx
-    // commits synchronously; the data-bdp-tabs band lives there now.
-    const shellData = readFileSync(
-      resolve(
-        __dirname,
-        "../src/app/[locale]/(app)/budgets/[id]/budget-shell-data.tsx",
-      ),
+    // The data-bdp-tabs sticky band now lives in the single client
+    // <BudgetDetail> tree (the per-tab routes + BudgetShellData are gone).
+    const budgetDetail = readFileSync(
+      resolve(__dirname, "../src/components/budgeting/budget-detail.tsx"),
       "utf8",
     );
-    expect(shellData).toMatch(/data-bdp-tabs/);
+    expect(budgetDetail).toMatch(/data-bdp-tabs/);
   });
 
   it("right-side Sheet variant is decoupled from .pb-shell-safe page padding (quick-260612-a0c R1)", () => {
@@ -338,24 +336,23 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
     resolve(__dirname, "../src/components/common/viewport-debug.tsx"),
     "utf8",
   );
-  const bdpLayoutR4 = readFileSync(
-    resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
+  const budgetDetailR4 = readFileSync(
+    resolve(__dirname, "../src/components/budgeting/budget-detail.tsx"),
     "utf8",
   );
   const homePageR4 = readFileSync(
     resolve(__dirname, "../src/components/budgeting/home-budgets-client.tsx"),
     "utf8",
   );
-  const spendingsPageR4 = readFileSync(
-    resolve(
-      __dirname,
-      "../src/app/[locale]/(app)/budgets/[id]/spendings/page.tsx",
-    ),
-    "utf8",
-  );
-  const spendingsPageCode = spendingsPageR4
+  const budgetDetailR4Code = budgetDetailR4
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
+  // The spendings pane block: its wrapper carries data-no-page-clearance and must
+  // NOT carry pb-shell-safe (that lives on the outer carousel content wrapper).
+  const spendingsPaneCode =
+    budgetDetailR4Code.match(
+      /case "spendings":[\s\S]*?case "reserves":/,
+    )?.[0] ?? "";
 
   it("R4-A (amended by R5): box height subtracts NO clearance constant", () => {
     // SHELL-R15 superseded the px formula (vv.height - rect.top) with an lvh
@@ -374,9 +371,9 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
   it("R4-C: spendings page wrapper uses data-no-page-clearance to opt out of page-level clearance", () => {
     // The spendings page content must carry data-no-page-clearance so the
     // browser floor + pb-shell-safe do NOT dead-strip the inner-scrolling tab.
-    expect(spendingsPageCode).toMatch(/data-no-page-clearance/);
-    // The wrapper must NOT carry pb-shell-safe (inner scroller, not page scroll).
-    expect(spendingsPageCode).not.toMatch(/pb-shell-safe/);
+    expect(spendingsPaneCode).toMatch(/data-no-page-clearance/);
+    // The pane wrapper must NOT carry pb-shell-safe (inner scroller, not page scroll).
+    expect(spendingsPaneCode).not.toMatch(/pb-shell-safe/);
   });
 
   it("R4-D: global.css zeros page clearances for data-no-page-clearance subtrees in both modes", () => {
@@ -409,9 +406,9 @@ describe("Round 4 — box reaches vv bottom, no stacked clearance (SHELL-R14)", 
     expect(homePageR4).toMatch(/pb-shell-safe/);
   });
 
-  it("R4-G: bdp layout.tsx still carries pb-shell-safe on the content wrapper", () => {
-    // The wrapper covers ActivePillTaskSlider + page-scrolling tab children.
-    expect(bdpLayoutR4).toMatch(/pb-shell-safe/);
+  it("R4-G: BudgetDetail still carries pb-shell-safe on the content wrapper", () => {
+    // The wrapper covers the tasks slider + page-scrolling tab panes.
+    expect(budgetDetailR4).toMatch(/pb-shell-safe/);
   });
 
   it("R4-H: BUILD_MARKER advanced past SHELL-R13 (chain marker)", () => {
@@ -526,15 +523,11 @@ describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issue
     ),
     "utf8",
   );
-  // quick-260613-pdb: the sticky band + ActivePillTaskSlider moved out of
-  // layout.tsx into <BudgetShellData>. The banner-placement assertions read it.
-  // Strip comments first — the JSDoc names both data-bdp-tabs and
-  // ActivePillTaskSlider, which would pollute structural string matching.
-  const shellCode = readFileSync(
-    resolve(
-      __dirname,
-      "../src/app/[locale]/(app)/budgets/[id]/budget-shell-data.tsx",
-    ),
+  // The sticky band + the tasks slider now both live in the single client
+  // <BudgetDetail> tree. Strip comments first so the JSDoc (which names
+  // data-bdp-tabs + PillTaskSlider) can't pollute structural string matching.
+  const budgetDetailCode = readFileSync(
+    resolve(__dirname, "../src/components/budgeting/budget-detail.tsx"),
     "utf8",
   )
     .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -542,35 +535,24 @@ describe("Banner placement, grid tail, browser bottom clearance (SHELL-R12 issue
     .replace(/^\s*\/\/.*$/gm, "");
 
   // ── Issue #2: Banner below band ──────────────────────────────────────────
-  it("#2: ActivePillTaskSlider is NOT inside [data-bdp-tabs] wrapper", () => {
-    // User wants the banner as normal page content BELOW the sticky band,
-    // not occluded inside it. Extract the data-bdp-tabs band element (anchored
-    // on the attribute → `>` so the comment can't match) and assert the
-    // slider JSX does not appear in it.
-    const dataBdpTabsBlock =
-      shellCode.match(/data-bdp-tabs\s*>[\s\S]*?<\/div>/)?.[0] ?? "";
-    expect(dataBdpTabsBlock).not.toMatch(/<ActivePillTaskSlider/);
+  it("#2: the tasks slider is NOT inside the [data-bdp-tabs] band wrapper", () => {
+    // The banner is normal page content BELOW the sticky band, not occluded
+    // inside it. The band wrapper holds only <BdpTabs>.
+    const bandBlock =
+      budgetDetailCode.match(/data-bdp-tabs\s*>[\s\S]*?<\/div>/)?.[0] ?? "";
+    expect(bandBlock).not.toMatch(/<PillTaskSlider/);
   });
 
-  it("#2: ActivePillTaskSlider renders inside the sliding content region, below the band (260618)", () => {
-    // 260618: the slider moved OUT of <BudgetShellData> into the BDP layout's
-    // sliding region (TabSlide / .bdp-content) so it slides as ONE unit with the
-    // page on a tab switch (was frozen chrome → vertical jump). It is still below
-    // the sticky band (BudgetShellData, which holds data-bdp-tabs, renders before
-    // the pb-shell-safe content) and still scrolls with page content.
-    const bdpLayout = readFileSync(
-      resolve(__dirname, "../src/app/[locale]/(app)/budgets/[id]/layout.tsx"),
-      "utf8",
-    )
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/^\s*\/\/.*$/gm, "");
-    expect(bdpLayout).toMatch(/<ActivePillTaskSlider/);
-    // …rendered inside the TabSlide (sliding) region.
-    expect(bdpLayout.indexOf("<ActivePillTaskSlider")).toBeGreaterThan(
-      bdpLayout.indexOf("<TabSlide"),
+  it("#2: the tasks slider renders below the band, as the first child of the sliding pane", () => {
+    // It slides as ONE unit with the page on a tab switch: first child of the
+    // motion pane, inside the pb-shell-safe content region, below the band.
+    expect(budgetDetailCode).toMatch(/<PillTaskSlider/);
+    expect(budgetDetailCode.indexOf("<PillTaskSlider")).toBeGreaterThan(
+      budgetDetailCode.indexOf("data-bdp-tabs"),
     );
-    // …and no longer in the sticky-band shell file.
-    expect(shellCode).not.toMatch(/<ActivePillTaskSlider/);
+    expect(budgetDetailCode.indexOf("<PillTaskSlider")).toBeGreaterThan(
+      budgetDetailCode.indexOf("pb-shell-safe"),
+    );
   });
 
   // ── Issue #3: Grid tail spacer ───────────────────────────────────────────

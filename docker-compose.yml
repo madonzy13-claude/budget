@@ -71,6 +71,15 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      # Phase 9: investments price-provider keys (on-add instant fetch). Each
+      # *_API_KEYS accepts a comma-separated list for round-robin failover.
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      FINNHUB_API_KEYS: ${FINNHUB_API_KEYS:-}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      TWELVE_DATA_API_KEYS: ${TWELVE_DATA_API_KEYS:-}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      COINGECKO_API_KEYS: ${COINGECKO_API_KEYS:-}
+      METALS_DEV_API_KEY: ${METALS_DEV_API_KEY:-}
       OTEL_SERVICE_NAME: api
       # DEV-ONLY: opt in to the gated test clock (POST /test/clock). Combined with
       # the absence of NODE_ENV=production, this lets the E2E reserve golden walk
@@ -147,6 +156,15 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      # Phase 9: price-scan cadence (UTC cron) + provider keys (CSV failover).
+      PRICE_SCAN_CRON: "${PRICE_SCAN_CRON:-0 * * * *}"
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      FINNHUB_API_KEYS: ${FINNHUB_API_KEYS:-}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      TWELVE_DATA_API_KEYS: ${TWELVE_DATA_API_KEYS:-}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      COINGECKO_API_KEYS: ${COINGECKO_API_KEYS:-}
+      METALS_DEV_API_KEY: ${METALS_DEV_API_KEY:-}
     depends_on:
       migrator:
         condition: service_completed_successfully

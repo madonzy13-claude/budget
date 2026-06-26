@@ -132,6 +132,43 @@ describe("InlineEditCell", () => {
       await waitFor(() => expect(onSave).toHaveBeenCalledWith("world"));
       expect(screen.queryByTestId("editor-input")).not.toBeInTheDocument();
     });
+
+    // 260625 regression: when a background refetch updates `value` AFTER mount
+    // (e.g. a reserves cell hydrating 0 → 900), clicking to edit must seed the
+    // editor from the LATEST value (the one the cell visibly shows), never the
+    // stale value captured at mount. beginEdit now seeds setDraft(props.value)
+    // explicitly so the value-sync effect can't be preempted by the click. A
+    // stale seed (0) would no-op the commit on the Object.is(draft,value) guard
+    // even though the user sees 900 — exactly the reserves-golden adjust flake.
+    it("seeds the editor from the LATEST value after a background update", () => {
+      const onSave = vi.fn().mockResolvedValue(undefined);
+      const renderEditor = (draft: number, onChange: (v: number) => void) => (
+        <input
+          data-testid="editor-input"
+          value={String(draft)}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+      );
+      const renderDisplay = (v: number) => (
+        <span data-testid="display-value">{String(v)}</span>
+      );
+      const view = (v: number) => (
+        <InlineEditCell
+          value={v}
+          render={renderDisplay}
+          renderEditor={renderEditor}
+          onSave={onSave}
+          ariaLabel="edit cell"
+          testId="cell"
+        />
+      );
+      const { rerender } = render(view(0)); // placeholder at mount
+      rerender(view(900)); // background refetch hydrates the real value
+      expect(screen.getByTestId("display-value")).toHaveTextContent("900");
+      fireEvent.click(screen.getByRole("button"));
+      // Editor seeds 900 (the shown value), not the stale 0.
+      expect(screen.getByTestId("editor-input")).toHaveValue("900");
+    });
   });
 
   describe("onSave throws (error state)", () => {

@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: milestone
-status: executing
-stopped_at: Phase 08 UI-SPEC approved
-last_updated: "2026-06-10T22:09:20.266Z"
-last_activity: 2026-06-10
+milestone_name: track)_
+status: milestone_complete
+stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
+last_updated: "2026-06-21T10:54:15.639Z"
+last_activity: 2026-06-21
 progress:
-  total_phases: 8
-  completed_phases: 7
-  total_plans: 63
-  completed_plans: 67
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 70
+  completed_plans: 74
   percent: 100
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 08 — pwa-offline-push-i18n-e2e-hardening
+**Current focus:** Phase 09 — investments-wallet
 
 ## Current Position
 
-Phase: 08 (pwa-offline-push-i18n-e2e-hardening) — EXECUTED, awaiting verification
-Plan: 7 of 7 complete (all SUMMARYs present)
+Phase: 09
+Plan: Not started
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
-Status: All 7 plans executed; automated gates green (ci-gate, typecheck x10, dependency-cruiser, check:i18n wired into CI, 571 Vitest pass). Live stack up at https://budget-dev.madonzy.com. Offline write-path guaranteed by deterministic Vitest suite (3 real-browser offline E2E scenarios @skip — env-fragile setOffline+SW). Manual-only UAT remaining: real-device install, real web-push delivery, deep-link landing, PL/UK translation quality.
-Last activity: 2026-06-13 - Completed quick task 260613-v1p: category color persisted (migration 0036) + 4px accent bar on spendings/reserves, icon picker removed
+Status: Milestone complete
+Last activity: 2026-06-21
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -65,7 +65,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 
 **Velocity:**
 
-- Total plans completed: 0 (v1.1 — v1.0 history archived)
+- Total plans completed: 7 (v1.1 — v1.0 history archived)
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -81,6 +81,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 | 6. Settings, Onboarding & Share UI          | 0/TBD | —     | —        |
 | 7. Tasks Queue                              | 0/TBD | —     | —        |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD | —     | —        |
+| 09                                          | 7     | -     | -        |
 
 **Recent Trend:**
 
@@ -100,6 +101,12 @@ _Updated after each plan completion_
 | Phase 05 P14 | 25m | 2 tasks | 5 files |
 | Phase 05 P19 | 25m | 3 tasks | 16 files |
 | Phase 08 P08-05 | 18 | 4 tasks | 20 files |
+| Phase 09 P01 | 12 min | 4 tasks | 12 files |
+| Phase 09 P02 | 8 min | 2 tasks | 5 files |
+| Phase 09 P05 | 18 min | 2 tasks | 7 files |
+| Phase 09 P03 | 13 min | 2 tasks | 16 files |
+| Phase 09 P04 | 60 min | 2 tasks | 14 files |
+| Phase 09 P06 | 35 min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -233,9 +240,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-10T22:09:20.221Z
-Stopped at: Phase 08 UI-SPEC approved
-Resume file: None
+Last session: 2026-06-21T10:54:15.616Z
+Stopped at: Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context.
+Resume file: .planning/phases/09-investments-wallet/09-07-PLAN.md
 
 ## v1.0 History (archived)
 

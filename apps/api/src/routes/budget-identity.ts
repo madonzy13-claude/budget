@@ -28,6 +28,9 @@ const patchBudgetSchema = z.object({
   // lane is exposed in the UI at all. Distinct from cushion_mode_enabled
   // which tracks per-month cushion-vs-normal state via SCD-2 history.
   cushion_enabled: z.boolean().optional(),
+  // Phase 9: Investments feature toggle. Plain boolean — gates the Investments
+  // section on the wallets page. Owner-gated via the same path as cushion.
+  investments_enabled: z.boolean().optional(),
   // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33) + UAT round 7: cushion target
   // months multiplier. Defense in depth: Zod 1..60 here + DB CHECK
   // constraint (1..60) via migration 0026. Migration 0027 promotes the DB
@@ -96,6 +99,7 @@ export function budgetIdentityRoutesFactory(
       cushionModeEnabled: budget.cushionModeEnabled ?? false,
       reservesEnabled: budget.reservesEnabled ?? true,
       cushionEnabled: budget.cushionEnabled ?? true,
+      investmentsEnabled: budget.investmentsEnabled ?? false,
       hasTransactions,
       currentUserRole,
     });
@@ -144,6 +148,7 @@ export function budgetIdentityRoutesFactory(
       body.default_currency !== undefined ||
       body.reserves_enabled !== undefined ||
       body.cushion_enabled !== undefined ||
+      body.investments_enabled !== undefined ||
       body.cushion_target_months !== undefined
     ) {
       try {
@@ -159,6 +164,9 @@ export function budgetIdentityRoutesFactory(
               : {}),
             ...(body.cushion_enabled !== undefined
               ? { cushionEnabled: body.cushion_enabled }
+              : {}),
+            ...(body.investments_enabled !== undefined
+              ? { investmentsEnabled: body.investments_enabled }
               : {}),
             ...(body.cushion_target_months !== undefined
               ? { cushionTargetMonths: body.cushion_target_months }

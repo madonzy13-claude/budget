@@ -138,6 +138,7 @@
     "sections": {
       "identity": "Tożsamość budżetu",
       "cushion": "Poduszka",
+      "investments": "Inwestycje",
       "recurring": "Wydatki cykliczne",
       "members": "Członkowie",
       "danger": "Strefa niebezpieczna"
@@ -342,6 +343,145 @@
       "tab": "Ustawienia",
       "members_tab": "Członkowie",
       "shares_tab": "Udziały"
+    },
+    "investments": {
+      "feature_label": "Inwestycje",
+      "feature_help_text": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli. Domyślnie wyłączone.",
+      "feature_on_toast": "Inwestycje włączone",
+      "feature_off_toast": "Inwestycje wyłączone",
+      "error_save": "Nie udało się zapisać — spróbuj ponownie",
+      "section": {
+        "title": "INWESTYCJE"
+      },
+      "add": {
+        "cta": "Dodaj inwestycję"
+      },
+      "sheet": {
+        "title": {
+          "add": "Dodaj inwestycję",
+          "edit": "Edytuj inwestycję"
+        },
+        "save": "Zapisz inwestycję",
+        "cancel": "Anuluj"
+      },
+      "field": {
+        "name": "Nazwa",
+        "type": "Typ",
+        "typePlaceholder": "Wybierz typ",
+        "group": "Grupa",
+        "groupPlaceholder": "Bez grupy",
+        "buyPrice": "Cena zakupu",
+        "buyCurrency": "Waluta zakupu",
+        "quantity": "Ilość",
+        "currentPrice": "Cena bieżąca",
+        "lastUpdated": "Zaktualizowano {relativeTime}",
+        "now": "przed chwilą",
+        "amount": "Kwota",
+        "currency": "Waluta",
+        "asset": "Aktywo",
+        "metal": "Metal",
+        "kind": "Rodzaj",
+        "uom": "Jednostka",
+        "depositedValue": "Wartość wpłacona",
+        "actualValue": "Wartość aktualna",
+        "ticker": "Symbol",
+        "tickerPlaceholder": "np. AAPL"
+      },
+      "uitype": {
+        "equity": "Akcje",
+        "etf": "ETF",
+        "etb": "Obligacje giełdowe",
+        "reit": "REIT",
+        "crypto": "Krypto",
+        "treasury_bond": "Detaliczne obligacje skarbowe",
+        "collectibles": "Kolekcje",
+        "real_estate": "Nieruchomości",
+        "other": "Inne",
+        "precious_metals": "Metale szlachetne",
+        "cash": "Gotówka",
+        "broker": "Konto maklerskie"
+      },
+      "metalOption": {
+        "gold": "Złoto",
+        "silver": "Srebro",
+        "platinum": "Platyna"
+      },
+      "kindOption": {
+        "coin": "Moneta",
+        "bar": "Sztabka",
+        "other": "Inne"
+      },
+      "uomOption": {
+        "g": "Gramy (g)",
+        "oz": "Uncja trojańska (oz)",
+        "kg": "Kilogramy (kg)"
+      },
+      "type": {
+        "equities": "Akcje",
+        "etf": "ETF",
+        "bond": "Obligacje",
+        "crypto": "Krypto",
+        "reit": "REIT",
+        "commodity": "Surowce",
+        "cash_fx": "Gotówka",
+        "real_estate": "Nieruchomości",
+        "other": "Inne"
+      },
+      "group": {
+        "portfolioSuffix": "portfela",
+        "noGroups": "Brak grup.",
+        "create": "Utwórz \"{name}\"",
+        "headerAria": "{name}, {pct} portfela. {state}.",
+        "expanded": "Rozwinięte",
+        "collapsed": "Zwinięte",
+        "dragAria": "Przeciągnij, aby przenieść grupę {name}.",
+        "metricsAria": "Pokaż zysk/stratę i udział w portfelu dla {name}."
+      },
+      "row": {
+        "delisted": "Wycofany",
+        "editAria": "Edytuj {name}.",
+        "deleteAria": "Usuń {name}.",
+        "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
+        "share": "Udział: {pct}"
+      },
+      "rowExpandAria": "Rozwiń szczegóły {name}.",
+      "plAria": "{value} zysk/strata",
+      "search": {
+        "placeholder": "Szukaj instrumentów…",
+        "loading": "Szukanie…",
+        "noResults": "Brak dopasowania w katalogu",
+        "custom": "Niestandardowy — wpisz ręcznie",
+        "enterManually": "Wpisz ręcznie",
+        "enterManuallyHint": "Brak tickera na liście? Dodaj ręcznie"
+      },
+      "priceBlocked": {
+        "body": "Nie udało się pobrać ceny — spróbuj za chwilę.",
+        "retry": "Ponów"
+      },
+      "toast": {
+        "created": "Dodano inwestycję",
+        "createFailed": "Nie udało się dodać inwestycji. Spróbuj ponownie.",
+        "saved": "Zaktualizowano inwestycję",
+        "saveFailed": "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.",
+        "archived": "Usunięto inwestycję",
+        "archiveFailed": "Nie udało się usunąć inwestycji. Spróbuj ponownie.",
+        "reorderFailed": "Nie udało się zmienić kolejności. Spróbuj ponownie.",
+        "crossSectionRejected": "Aktywa mogą być tylko w Inwestycjach."
+      },
+      "confirm": {
+        "delete": {
+          "title": "Usunąć pozycję \"{name}\"?",
+          "body": "Tego nie można tutaj cofnąć.",
+          "cta": "Usuń",
+          "cancel": "Anuluj"
+        },
+        "discard": {
+          "title": "Odrzucić zmiany?",
+          "body": "Niezapisane zmiany zostaną utracone.",
+          "cta": "Odrzuć",
+          "cancel": "Edytuj dalej"
+        }
+      }
     }
   },
   "state": {
@@ -453,6 +593,8 @@
         "cushion_help": "Zaplanuj niewielką rezerwę finansową obok każdej kategorii, aby zły miesiąc nie wywrócił głównego budżetu. Wyłącz, jeśli nie chcesz żadnej poduszki.",
         "reserves_label": "Rezerwy",
         "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączone ukrywa zakładkę Rezerwy.",
+        "investments_label": "Inwestycje",
+        "investments_help": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli. Domyślnie wyłączone.",
         "targetMonthsLabel": "Docelowe miesiące",
         "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
         "push_label": "Włącz powiadomienia push",
@@ -882,8 +1024,8 @@
         }
       },
       "wallets": {
-        "label": "Portfele",
-        "title": "Portfele",
+        "label": "Aktywa",
+        "title": "Aktywa",
         "section": {
           "spendings": "Portfele wydatków",
           "cushion": "Portfele poduszki",
@@ -995,7 +1137,7 @@
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Uzupełnij poduszkę",
-          "ariaLabel": "Przejdź do Portfeli, aby uzupełnić poduszkę"
+          "ariaLabel": "Przejdź do Aktywów, aby uzupełnić poduszkę"
         }
       },
       "confirmError": "Nie udało się potwierdzić szkicu. Spróbuj ponownie.",

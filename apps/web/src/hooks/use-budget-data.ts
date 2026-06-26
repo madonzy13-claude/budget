@@ -40,6 +40,14 @@ export function useBudget(budgetId: string, initialData?: BudgetDto) {
       return json.budget ?? json;
     },
     staleTime: 60_000,
+    // 260625: cache-first + always background-revalidate on mount. The restore-
+    // gate (QueryProvider IsRestoringProvider) hydrates the IDB snapshot before
+    // any fetch, so the budget detail / categories paint instantly from cache and
+    // are then replaced by a fresh fetch — without this the staleTime:60s window
+    // kept a just-hydrated STALE value (e.g. the pre-rename budget name) on screen
+    // after a reload (budget-settings "name persists after reload" regression).
+    // Offline is unaffected: networkMode pauses the refetch, cache stays visible.
+    refetchOnMount: "always",
   });
 }
 
@@ -62,5 +70,13 @@ export function useCategories(budgetId: string, initialData?: CategoryDto[]) {
       return json.categories ?? [];
     },
     staleTime: 60_000,
+    // 260625: cache-first + always background-revalidate on mount. The restore-
+    // gate (QueryProvider IsRestoringProvider) hydrates the IDB snapshot before
+    // any fetch, so the budget detail / categories paint instantly from cache and
+    // are then replaced by a fresh fetch — without this the staleTime:60s window
+    // kept a just-hydrated STALE value (e.g. the pre-rename budget name) on screen
+    // after a reload (budget-settings "name persists after reload" regression).
+    // Offline is unaffected: networkMode pauses the refetch, cache stays visible.
+    refetchOnMount: "always",
   });
 }

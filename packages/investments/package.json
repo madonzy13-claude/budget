@@ -1,0 +1,53 @@
+{
+  "name": "@budget/investments",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/contracts/api": "./src/contracts/api.ts",
+    "./src/contracts/factory": "./src/contracts/factory.ts",
+    "./src/application/fetch-instrument-price": "./src/application/fetch-instrument-price.ts",
+    "./src/domain/holding": "./src/domain/holding.ts",
+    "./src/domain/portfolio-metrics": "./src/domain/portfolio-metrics.ts",
+    "./src/ports/price-provider": "./src/ports/price-provider.ts",
+    "./src/ports/holding-repo": "./src/ports/holding-repo.ts",
+    "./src/ports/instrument-repo": "./src/ports/instrument-repo.ts",
+    "./src/ports/price-cache-repo": "./src/ports/price-cache-repo.ts",
+    "./src/adapters/price/twelve-data": "./src/adapters/price/twelve-data.ts",
+    "./src/adapters/price/coingecko": "./src/adapters/price/coingecko.ts",
+    "./src/adapters/price/finnhub": "./src/adapters/price/finnhub.ts",
+    "./src/adapters/price/metals-dev": "./src/adapters/price/metals-dev.ts",
+    "./src/adapters/price/gold-api": "./src/adapters/price/gold-api.ts",
+    "./src/adapters/price/composite-price-provider": "./src/adapters/price/composite-price-provider.ts",
+    "./src/adapters/persistence/holding-repo": "./src/adapters/persistence/holding-repo.ts",
+    "./src/adapters/persistence/instrument-repo": "./src/adapters/persistence/instrument-repo.ts",
+    "./src/adapters/persistence/price-cache-repo": "./src/adapters/persistence/price-cache-repo.ts",
+    "./src/adapters/persistence/investments-schema": "./src/adapters/persistence/investments-schema.ts",
+    "./src/adapters/persistence/instruments-schema": "./src/adapters/persistence/instruments-schema.ts",
+    "./src/adapters/persistence/price-cache-schema": "./src/adapters/persistence/price-cache-schema.ts",
+    "./src/adapters/persistence/price-snapshot-schema": "./src/adapters/persistence/price-snapshot-schema.ts",
+    "./src/adapters/instruments/universe-catalog": "./src/adapters/instruments/universe-catalog.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@budget/shared-kernel": "workspace:*",
+    "@budget/platform": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "neverthrow": "^8.0.0",
+    "big.js": "^7.0.1",
+    "zod": "^3.25.0",
+    "temporal-polyfill": "^0.3.2"
+  },
+  "devDependencies": {
+    "@types/big.js": "^6.2.2",
+    "typescript": "^5.6.0",
+    "fast-check": "^3.20.0"
+  }
+}

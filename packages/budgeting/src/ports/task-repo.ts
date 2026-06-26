@@ -30,7 +30,10 @@ export type TenantTx = {
 export type TaskKind =
   | "RESERVE_TOPUP"
   | "CONFIRM_DRAFT"
-  | "CUSHION_BELOW_TARGET";
+  | "CUSHION_BELOW_TARGET"
+  // Phase 9 (INV-01 / A1 / D-10): a tracked instrument a budget holds was
+  // delisted (no longer in the daily seed feed → active=false).
+  | "INVESTMENT_INSTRUMENT_DELISTED";
 
 export type TaskStatus = "PENDING" | "RESOLVED";
 
@@ -88,6 +91,17 @@ export interface CushionBelowTargetPayload {
   target_months: number;
 }
 
+/**
+ * Payload for an INVESTMENT_INSTRUMENT_DELISTED task (Phase 9, A1/D-10). Carries
+ * enough context for the row to render "{symbol} delisted — review {name}" without
+ * an extra read. `holding_id` is also the dedup key (tasks_investment_delisted_dedup_idx).
+ */
+export interface InvestmentDelistedPayload {
+  holding_id: string;
+  holding_name: string;
+  instrument_symbol: string;
+}
+
 export interface TaskRepo {
   /**
    * Returns PENDING tasks for the given budget, ordered ASC by `created_at`.
@@ -143,6 +157,20 @@ export interface TaskRepo {
     tenantId: string,
     budgetId: string,
     payload: CushionBelowTargetPayload,
+    tx: TenantTx,
+  ): Promise<void>;
+
+  /**
+   * Emits an INVESTMENT_INSTRUMENT_DELISTED task (Phase 9, A1/D-10). Idempotent
+   * at the DB layer via the partial unique index on (payload_json->>'holding_id')
+   * WHERE kind='INVESTMENT_INSTRUMENT_DELISTED' AND status='PENDING' (migration
+   * 0038, tasks_investment_delisted_dedup_idx). Re-running the daily seed never
+   * creates a second OPEN task for the same holding (ON CONFLICT DO NOTHING).
+   */
+  emitInvestmentDelisted(
+    tenantId: string,
+    budgetId: string,
+    payload: InvestmentDelistedPayload,
     tx: TenantTx,
   ): Promise<void>;
 

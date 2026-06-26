@@ -86,6 +86,19 @@ export function CushionSection({
   useEffect(() => {
     setTargetMonthsRaw(String(cushionTargetMonths ?? 6));
   }, [cushionTargetMonths]);
+  // 260625: re-sync the master/mode toggle state when the parent prop changes
+  // after the refetchOnMount GET lands (warm cache → instant stale paint, then
+  // fresh server value). Without these, the switch keeps the just-hydrated
+  // STALE value (e.g. cushion_mode_enabled from the pre-toggle snapshot) and the
+  // golden-timeline harness then read a stale aria-checked and SKIPPED the
+  // toggle click → no PATCH → reserve recompute never ran. Guarded by saving*
+  // so an in-flight optimistic toggle is not clobbered by an interleaved prop.
+  useEffect(() => {
+    if (!savingFlag) setEnabled(cushionEnabled);
+  }, [cushionEnabled, savingFlag]);
+  useEffect(() => {
+    if (!savingMode) setMode(cushionModeEnabled);
+  }, [cushionModeEnabled, savingMode]);
   const targetMonths = (() => {
     // UAT round 7 / 8: parseFloat (was parseInt) to accept fractional months
     // (e.g. 4.5). Normalize comma decimal separator to dot first so users on
@@ -137,6 +150,7 @@ export function CushionSection({
           ? t("cushion.feature_on_toast")
           : t("cushion.feature_off_toast"),
       );
+      invalidateCushionAffected();
     } catch {
       setEnabled(!checked);
       toast.error(t("error_save"));
@@ -192,12 +206,31 @@ export function CushionSection({
       });
       if (!res.ok) throw new Error("Failed to update cushion mode");
       toast.success(checked ? t("cushion.on_toast") : t("cushion.off_toast"));
+      invalidateCushionAffected();
     } catch {
       setMode(!checked);
       toast.error(t("error_save"));
     } finally {
       setSavingMode(false);
     }
+  }
+
+  /**
+   * Cross-tab refresh after a cushion master/mode toggle. The toggle recomputes
+   * reserve availability (and the cushionModeEnabled flag the grid reads) for the
+   * affected months server-side, but the BDP carousel reuses the warm cache on
+   * tab switch — the Reserves tab would show the pre-toggle value. Mark reserves
+   * + budget detail stale; both tabs are INACTIVE while we're on Settings, so
+   * this only flags them (default refetchType) and they revalidate on the next
+   * tab switch (Reserves remounts → refetchOnMount). Spendings is intentionally
+   * NOT invalidated here: useSpendingsSummary already revalidates every month nav
+   * (staleTime:0), and invalidating it from Settings races that path.
+   */
+  function invalidateCushionAffected() {
+    queryClient.invalidateQueries({
+      queryKey: ["budget", budgetId, "reserves"],
+    });
+    queryClient.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
   }
 
   const renderPreview = () => {

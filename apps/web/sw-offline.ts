@@ -62,18 +62,48 @@ export async function handleNavigationRequest(
     const cached = await matchCache(request);
     if (cached) return cached;
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let unreachable = false;
-  try {
-    const res = await fetchFn(
-      new Request(request, { signal: controller.signal }),
-    );
+
+  // Kick off the REAL network navigation. CRITICAL (260625): do NOT abort it on
+  // the timeout. A healthy ONLINE navigation that merely needs longer than
+  // `timeoutMs` — e.g. the browser's per-host connection pool is briefly
+  // saturated by a burst of background data prefetches (the BDP past-month
+  // spendings-summary prefetch fires ~14 requests at once) — must NEVER be
+  // killed and shown the offline app-shell while the device is online. The old
+  // code aborted the fetch at 3s → the abort threw → "unreachable" → the
+  // precached offline-shell was served for a perfectly reachable route. That
+  // produced a spurious "This page isn't available offline" page under load (a
+  // real user-facing bug AND the reserves-golden walk's wallet-row flake: the
+  // /wallets nav doc returned 200 at ~3010ms, just past the 3s timeout). The
+  // timeout now only RACES a cached fallback; the network request itself runs to
+  // completion and its result is always honored.
+  const network: Promise<{ res: Response } | { err: unknown }> = fetchFn(
+    request,
+  ).then(
+    (res) => ({ res }),
+    (err) => ({ err }),
+  );
+  const timeout: Promise<"timeout"> = new Promise((resolve) =>
+    setTimeout(() => resolve("timeout"), timeoutMs),
+  );
+
+  // If the network is slower than the timeout, serve a cached document for this
+  // route WHEN ONE EXISTS (the nav doc is a data-free client shell, so a cache
+  // hit paints fast and carries no stale data — RQ rehydrates the rows). With NO
+  // cache we keep waiting for the real network response below rather than falsely
+  // declaring the app offline while it is online.
+  const raced = await Promise.race([network, timeout]);
+  if (raced === "timeout") {
+    const cached = await matchCache(request);
+    if (cached) return cached;
+  }
+
+  const settled = raced === "timeout" ? await network : raced;
+
+  if ("res" in settled) {
+    const res = settled.res;
     // 5xx → server reachable but failing; treat as unreachable for navigation so
     // we render the last-known-good cached/app-shell doc instead of an error body.
-    if (res.status >= 500) {
-      unreachable = true;
-    } else {
+    if (res.status < 500) {
       // NetworkFirst WRITE: only cache real successful navigations (2xx). Never
       // cache 3xx redirects or 4xx so server-side auth redirects + 404s stay
       // correct and are not replayed stale offline.
@@ -82,30 +112,24 @@ export async function handleNavigationRequest(
       }
       return res;
     }
-  } catch {
-    unreachable = true;
-  } finally {
-    clearTimeout(timer);
   }
 
-  if (unreachable) {
-    const cached = await matchCache(request);
-    if (cached) return cached;
-    const shell = await matchShell();
-    if (shell) return shell;
-    return new Response(
-      "<!doctype html><meta charset=utf-8><title>Budget</title>" +
-        "<body>Offline. Reconnect to continue.</body>",
-      {
-        status: 503,
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "retry-after": "5",
-        },
-      },
-    );
-  }
-  // Unreachable in practice — kept for exhaustiveness.
+  // Thrown fetch (offline / DNS / connect-refused) OR a 5xx → unreachable: serve
+  // the cached real document for this route, else the precached app-shell, else a
+  // minimal last-resort 503 (never undefined).
+  const cached = await matchCache(request);
+  if (cached) return cached;
   const shell = await matchShell();
-  return shell ?? new Response(null, { status: 503 });
+  if (shell) return shell;
+  return new Response(
+    "<!doctype html><meta charset=utf-8><title>Budget</title>" +
+      "<body>Offline. Reconnect to continue.</body>",
+    {
+      status: 503,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "retry-after": "5",
+      },
+    },
+  );
 }

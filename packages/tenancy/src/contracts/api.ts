@@ -16,6 +16,9 @@ export interface BudgetDTO {
   // cushion column is hidden entirely. Default true so legacy budgets keep
   // existing UX.
   cushionEnabled?: boolean;
+  // Phase 9: Investments feature flag. When false the Investments section on
+  // the wallets page is hidden. Default false (opt-in).
+  investmentsEnabled?: boolean;
   // Phase 7-09 / UAT round 6: desired cushion runway in months (1..60).
   // Settable via PATCH /budgets/:id { cushion_target_months }; default 6.
   // Surfaced on findById so the Settings page can read the current value.

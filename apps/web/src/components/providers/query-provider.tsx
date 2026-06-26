@@ -1,5 +1,9 @@
 "use client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  IsRestoringProvider,
+} from "@tanstack/react-query";
 import { useState, useEffect, type ReactNode } from "react";
 import {
   restoreQueryCache,
@@ -20,12 +24,15 @@ export function QueryProvider({ children }: { children: ReactNode }) {
         },
       }),
   );
-  // Stale-while-revalidate (260615-e8s round 8): hydrate the budget query cache
-  // from IndexedDB on mount so a cold load renders cached data INSTANTLY, then
-  // persist on every change. The read hooks use refetchOnMount:"always", so the
-  // hydrated data is replaced by a fresh fetch in the background. No render gate
-  // → SSR content paints normally; client-data queries flip from skeleton to the
-  // hydrated rows within ~one IDB read.
+  // Restore-gate (260625 r3) — DETERMINISTIC stale-while-revalidate. Children
+  // render immediately (cache-first paint, no spinner), but `isRestoring` gates
+  // observer FETCHING the way react-query's own PersistQueryClientProvider does:
+  // while true, useBaseQuery sets shouldSubscribe=false, so no observer runs its
+  // refetchOnMount:"always" mount fetch yet. We flip it false only AFTER
+  // restoreQueryCache().hydrate() finishes — so hydrate ALWAYS lands before any
+  // fetch, then every read hook subscribes and refetches against the hydrated
+  // cache. The fresh fetch lands last → it can never lose to the stale snapshot.
+  const [isRestoring, setIsRestoring] = useState(true);
   useEffect(() => {
     let stop = () => {};
     let cancelled = false;
@@ -33,7 +40,9 @@ export function QueryProvider({ children }: { children: ReactNode }) {
     // the IDB cache + SW caches under pressure (260619 "cache vanished" fix).
     void requestPersistentStorage();
     void restoreQueryCache(client).finally(() => {
-      if (!cancelled) stop = startPersisting(client);
+      if (cancelled) return;
+      setIsRestoring(false);
+      stop = startPersisting(client);
     });
     return () => {
       cancelled = true;
@@ -42,7 +51,9 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   }, [client]);
   return (
     <QueryClientProvider client={client}>
-      <ConnectivityProvider>{children}</ConnectivityProvider>
+      <IsRestoringProvider value={isRestoring}>
+        <ConnectivityProvider>{children}</ConnectivityProvider>
+      </IsRestoringProvider>
     </QueryClientProvider>
   );
 }

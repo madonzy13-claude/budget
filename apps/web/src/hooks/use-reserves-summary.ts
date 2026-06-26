@@ -69,5 +69,17 @@ export function useReservesSummary(
       return (await res.json()) as ReservesSummaryDto;
     },
     initialData,
+    // 260625: cache-first + always background-revalidate, symmetric with
+    // useSpendingsSummary. The BDP carousel reuses the warm cache on tab switch;
+    // a cushion toggle / reserve adjust recomputes reserve availability
+    // server-side, so the cached value can be stale. The restore-gate
+    // (QueryProvider IsRestoringProvider) guarantees the persisted snapshot is
+    // hydrated BEFORE this mount fetch fires, so the fetch always lands last and
+    // replaces the snapshot — cache-first instant paint, fresh value when it
+    // lands. (No staleTime:0: the reserve-adjust mutation writes optimistically +
+    // invalidates on settle; an extra every-render staleness isn't needed and
+    // refetchOnMount alone is the SWR contract without fighting the optimistic
+    // write.)
+    refetchOnMount: "always",
   });
 }

@@ -260,6 +260,41 @@
       "when": 1781821800000,
       "tag": "0037_push_subscription_per_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1782032088798,
+      "tag": "0038_phase09_investments",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0039_phase09_type_first",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1782200000000,
+      "tag": "0040_phase09_universe_rank_broker",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1782210000000,
+      "tag": "0041_instruments_trgm_search_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1782220000000,
+      "tag": "0042_investments_manual_ticker",
+      "breakpoints": true
     }
   ]
 }

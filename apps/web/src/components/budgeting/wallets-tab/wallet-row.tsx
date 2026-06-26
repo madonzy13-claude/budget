@@ -338,9 +338,20 @@ function PersistedRow({
     listeners,
     setNodeRef,
     transform,
+    transition,
     isDragging,
     isOver: isRowDropOver,
-  } = useSortable({ id: wallet.id });
+  } = useSortable({
+    id: wallet.id,
+    // Animate the gap-open WHILE dragging, but NOT the post-drop layout change.
+    // The reorder comes from React Query (DOM order changes on drop); with the
+    // old constant `transition-transform` class @dnd-kit also animated the
+    // transform-reset → the sibling above the drop rendered at (new slot +
+    // leftover transform) then slid to 0 = the "jump up then settle". Returning
+    // `isSorting` makes the drop an instant transform→DOM handoff (no jump),
+    // while keeping the during-drag slide. (Mirrors the investments fix.)
+    animateLayoutChanges: ({ isSorting }) => isSorting,
+  });
 
   // Combine the dnd-kit sortable transform with the swipe offset so a
   // dragged-and-dropped row also keeps its mobile swipe state coherent.
@@ -386,31 +397,33 @@ function PersistedRow({
         className={[
           "absolute right-0 top-0 bottom-0 flex w-20 items-center justify-center",
           "rounded-[var(--radius-md)] bg-[var(--destructive)]",
-          "text-body-md font-medium text-white",
+          "text-white",
           "cursor-pointer sm:hidden",
         ].join(" ")}
       >
-        {t("swipeDeleteCta")}
+        <Trash2 className="h-5 w-5" aria-hidden="true" />
       </button>
       <div
         ref={setNodeRef}
         data-testid="wallet-row"
         data-wallet-id={wallet.id}
         data-row-drop-over={isRowDropOver || undefined}
-        // UAT-PH5-T3-23 + T3-38: dnd-kit sortable transform + horizontal
-        // swipe offset compose here. transition stays a className so
-        // sibling reorder + swipe settle both animate smoothly.
+        // UAT-PH5-T3-23 + T3-38: dnd-kit sortable transform + horizontal swipe
+        // offset compose here. Use @dnd-kit's MANAGED `transition` (gated by
+        // animateLayoutChanges above) instead of a constant `transition-transform`
+        // class — the constant class animated the transform-reset on drop and
+        // caused the sibling "jump up then settle". The managed transition
+        // animates the during-drag slide but is instant on drop.
         style={{
           transform: combinedTransform,
-          // During an active horizontal swipe the row tracks the finger
-          // 1:1, so disable the snap transition; on release we restore
-          // it so the snap animates.
-          transition: swiping ? "none" : undefined,
+          // During an active horizontal swipe the row tracks the finger 1:1, so
+          // disable the transition; otherwise use the managed sortable transition.
+          transition: swiping ? "none" : transition,
           // Source row hidden completely during drag — the <DragOverlay>
           // ghost stands in.
           visibility: isDragging ? "hidden" : undefined,
         }}
-        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-transform duration-200 ease-out hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
       >
         <RowDragHandle
           name={wallet.name || "wallet"}

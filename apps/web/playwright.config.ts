@@ -20,9 +20,12 @@ const testDir = defineBddConfig({
   ],
   // Scenarios tagged @skip-phase-05-debt are excluded — each carries an
   // inline TODO with the re-enable condition (v1.1 surface not yet shipped).
+  // @skip-phase-09-debt is the Wave-0 investments scaffold (Plan 09-05): the
+  // @investments-wallet feature exists but its UI ships in Plan 09-07, which
+  // removes this clause + the feature tag to un-skip it.
   // @skip-phase-07-debt + @skip-tasks-redesign-debt are honored via the
   // --grep-invert flag on the runner (see Makefile / make test-e2e).
-  tags: "not @skip-phase-05-debt",
+  tags: "not @skip-phase-05-debt and not @skip-phase-09-debt",
 });
 
 export default defineConfig({

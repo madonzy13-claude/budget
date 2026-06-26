@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/accordion";
 import { BudgetIdentitySection } from "@/components/settings/budget-identity-section";
 import { CushionSection } from "@/components/settings/cushion-section";
+import { InvestmentsSection } from "@/components/settings/investments-section";
 import { RecurringSection } from "@/components/settings/recurring-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
@@ -30,6 +31,8 @@ export interface SettingsBudget {
   cushionEnabled: boolean;
   /** Phase 7-09: desired cushion runway in months. Default 6 server-side. */
   cushionTargetMonths?: number;
+  /** Phase 9: gates the Investments section on the wallets page. Default off. */
+  investmentsEnabled?: boolean;
   hasTransactions: boolean;
   currentUserRole: "owner" | "member";
 }
@@ -85,7 +88,20 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
         </AccordionContent>
       </AccordionItem>
 
-      {/* 3. Recurring Rules */}
+      {/* 3. Investments (feature flag toggle — Phase 9) */}
+      <AccordionItem value="investments">
+        <AccordionTrigger className="px-6">
+          {t("sections.investments")}
+        </AccordionTrigger>
+        <AccordionContent className="bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
+          <InvestmentsSection
+            budgetId={budget.id}
+            investmentsEnabled={budget.investmentsEnabled ?? false}
+          />
+        </AccordionContent>
+      </AccordionItem>
+
+      {/* 4. Recurring Rules */}
       <AccordionItem value="recurring-rules">
         <AccordionTrigger className="px-6">
           {t("sections.recurring")}

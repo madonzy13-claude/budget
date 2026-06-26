@@ -1,0 +1,117 @@
+/**
+ * instrument-search-input.test.tsx — the search loader (UAT: visible loading).
+ *
+ * Typing a valid query (>= 2 chars) must show an inline spinner immediately —
+ * during the debounce window, before the request resolves — so the user can see
+ * a search is happening.
+ */
+import { describe, it, expect, vi } from "vitest";
+import { useState } from "react";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { InstrumentSearchInput } from "../../src/components/budgeting/wallets-tab/instrument-search-input";
+import { clientApiFetch } from "../../src/lib/budget-fetch";
+
+vi.mock("next-intl", () => ({
+  useTranslations: (_ns: string) => (key: string) => key,
+}));
+// A never-resolving fetch keeps the search "in flight" so the spinner persists.
+vi.mock("../../src/lib/budget-fetch", () => ({
+  clientApiFetch: vi.fn(() => new Promise(() => {})),
+}));
+
+function Harness() {
+  const [name, setName] = useState("");
+  return (
+    <InstrumentSearchInput
+      budgetId="b1"
+      name={name}
+      onNameChange={setName}
+      onSelectInstrument={() => {}}
+      onSelectCustom={() => {}}
+    />
+  );
+}
+
+describe("InstrumentSearchInput — loading feedback", () => {
+  it("shows a spinner as soon as a valid query is typed", async () => {
+    render(<Harness />);
+    expect(screen.queryByTestId("instrument-search-spinner")).toBeNull();
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "AA" },
+    });
+    expect(
+      await screen.findByTestId("instrument-search-spinner"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no spinner below the minimum query length", () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "A" },
+    });
+    expect(screen.queryByTestId("instrument-search-spinner")).toBeNull();
+  });
+
+  it("offers 'enter manually' when nothing is found (allowManualEntry)", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ results: [] }),
+    } as unknown as Response);
+    const onSelectCustom = vi.fn();
+    function H() {
+      const [name, setName] = useState("");
+      return (
+        <InstrumentSearchInput
+          budgetId="b1"
+          name={name}
+          onNameChange={setName}
+          onSelectInstrument={() => {}}
+          onSelectCustom={onSelectCustom}
+          hideCustom
+          allowManualEntry
+        />
+      );
+    }
+    render(<H />);
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "NOSUCHTICKER" },
+    });
+    const opt = await screen.findByTestId("instrument-manual-entry-option");
+    fireEvent.mouseDown(opt);
+    expect(onSelectCustom).toHaveBeenCalledTimes(1);
+  });
+
+  it("distinguishes cross-listings by exchange + currency, not the (redundant) type", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "1",
+            symbol: "SPCX",
+            displayName: "Space Exploration Technologies",
+            assetClass: "equities",
+            quoteCurrency: "CHF",
+            provider: "manual:XSWX",
+          },
+          {
+            id: "2",
+            symbol: "SPCX",
+            displayName: "Space Exploration Technologies",
+            assetClass: "equities",
+            quoteCurrency: "USD",
+            provider: "finnhub",
+          },
+        ],
+      }),
+    } as unknown as Response);
+    render(<Harness />);
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "SPCX" },
+    });
+    expect(await screen.findByText("XSWX · CHF")).toBeInTheDocument();
+    expect(screen.getByText("US · USD")).toBeInTheDocument();
+    // The asset-class/type is no longer rendered (the Type field already set it).
+    expect(screen.queryByText("equities")).toBeNull();
+  });
+});

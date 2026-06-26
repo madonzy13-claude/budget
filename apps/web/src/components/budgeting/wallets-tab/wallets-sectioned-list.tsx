@@ -32,12 +32,14 @@ import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
 import { useBudget } from "@/hooks/use-budget-data";
-import { Skeleton } from "@/components/ui/skeleton";
+import { WalletsSkeleton } from "@/components/budgeting/wallets-tab/wallets-skeleton";
+import { isRestoreComplete } from "@/lib/query-persist";
 import { useUpdateWallet } from "@/hooks/use-update-wallet";
 import { useCreateWallet } from "@/hooks/use-create-wallet";
 import { useArchiveWallet } from "@/hooks/use-archive-wallet";
 import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
+import { InvestmentsSection } from "./investments-section";
 // UAT-PH5-T3-28: import the ghost preview's helpers statically. Inline
 // `require()` worked on dev but blew up on iOS Safari with a
 // client-side exception when the row's DragOverlay first rendered.
@@ -68,12 +70,15 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         default_currency?: string;
         reservesEnabled?: boolean;
         cushionEnabled?: boolean;
+        investmentsEnabled?: boolean;
       }
     | undefined;
   const budgetCurrency =
     budgetMeta?.defaultCurrency ?? budgetMeta?.default_currency ?? "EUR";
   const reservesEnabled = budgetMeta?.reservesEnabled ?? true;
   const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
+  // Phase 9 (D-PH9): investments section gates on its own flag; default off.
+  const investmentsEnabled = budgetMeta?.investmentsEnabled ?? false;
   const t = useTranslations("bdp.tab.wallets.toast");
   // UAT-PH5-T3-33: separate translator for the full section labels
   // ("Spendings wallets", "Cushion wallets", "Reserve wallets") so the
@@ -330,7 +335,15 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // loading.tsx geometry). Offline with no cache → the query errors → show an
   // in-content "not available offline" note (keeps header + pills mounted).
   if (walletsQuery.isPending) {
-    return <WalletsSkeleton label={sectionLabelFor("SPENDINGS")} />;
+    // delayed only while the one-shot IDB restore is still bridging; once it's
+    // done, a pending query = network wait (>200ms), so render immediately
+    // instead of blanking the pane (260620).
+    return (
+      <WalletsSkeleton
+        label={sectionLabelFor("SPENDINGS")}
+        delayed={!isRestoreComplete()}
+      />
+    );
   }
   if (walletsQuery.isError && wallets.length === 0) {
     return (
@@ -396,6 +409,14 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             onDiscardDraft={handleDiscardDraft(type)}
           />
         ))}
+        {/* Phase 9 (INV-01/02): Investments renders LAST when its flag is on —
+            mirrors the reservesEnabled/cushionEnabled section gates above. */}
+        {investmentsEnabled && (
+          <InvestmentsSection
+            budgetId={budgetId}
+            budgetCurrency={budgetCurrency}
+          />
+        )}
       </div>
       {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
           loses the dragged row visually as the pointer crosses a context
@@ -507,44 +528,6 @@ function WalletDragGhost({
       <span className="hidden w-[64px] text-right text-num-sm text-[var(--muted-foreground)] sm:block sm:w-[80px]">
         {share}
       </span>
-    </div>
-  );
-}
-
-/**
- * WalletsSkeleton — client first-paint skeleton while useWallets is fetching
- * (client-data: the page no longer SSRs the list). Mirrors loading.tsx geometry
- * so there is no layout shift when the rows arrive.
- */
-function WalletsSkeleton({ label }: { label: string }) {
-  return (
-    // reveal-delayed: whole skeleton invisible 200ms so a cache restore replaces
-    // it first — no skeleton-scaffold flash on warm/offline nav (260617).
-    <div className="reveal-delayed mx-auto w-full max-w-[1280px]">
-      <div className="flex flex-col gap-4 p-4 sm:p-6">
-        <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-2">
-          <h3 className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-            {label}
-          </h3>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]"
-            >
-              <Skeleton className="h-4 w-2 shrink-0" />
-              <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-              <div className="min-w-0 flex-1">
-                <Skeleton className="h-3.5 w-24" />
-              </div>
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-3.5 w-10" />
-                <Skeleton className="h-3.5 w-12" />
-              </div>
-            </div>
-          ))}
-          <div className="flex min-h-[44px] w-full items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)]" />
-        </section>
-      </div>
     </div>
   );
 }

@@ -36,6 +36,7 @@ import type {
   ReserveTopupPayload,
   ConfirmDraftPayload,
   CushionBelowTargetPayload,
+  InvestmentDelistedPayload,
 } from "../../ports/task-repo";
 
 /**
@@ -299,6 +300,39 @@ export function createTaskRepo(): TaskRepo {
         tenantId,
         budgetId,
         "CUSHION_BELOW_TARGET",
+      );
+    },
+
+    async emitInvestmentDelisted(
+      tenantId,
+      budgetId,
+      payload: InvestmentDelistedPayload,
+      tx,
+    ) {
+      // Phase 9 (A1/D-10): bare DO-NOTHING insert (exactly like emitConfirmDraft).
+      // The partial unique index tasks_investment_delisted_dedup_idx (0038) — keyed on
+      // (payload_json->>'holding_id') WHERE kind='INVESTMENT_INSTRUMENT_DELISTED' AND
+      // status='PENDING' — is the dedup. Bare DO NOTHING catches a violation of that
+      // partial index without an inference clause (specifying the expression+predicate
+      // target trips Postgres' ON CONFLICT matcher on expression indexes). Re-running the
+      // daily seed yields at most one OPEN delisted task per holding.
+      const drizzleTx = tx as DrizzleTx;
+      const payloadJson = JSON.stringify(payload);
+      const res = await drizzleTx.execute(sql`
+        INSERT INTO budgeting.tasks
+          (id, tenant_id, budget_id, kind, payload_json, status, created_at)
+        VALUES
+          (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid,
+           'INVESTMENT_INSTRUMENT_DELISTED', ${payloadJson}::jsonb, 'PENDING', now())
+        ON CONFLICT DO NOTHING
+        RETURNING id, (xmax = 0) AS inserted
+      `);
+      await emitTaskCreatedIfInserted(
+        tx,
+        res,
+        tenantId,
+        budgetId,
+        "INVESTMENT_INSTRUMENT_DELISTED",
       );
     },
 

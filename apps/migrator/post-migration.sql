@@ -744,3 +744,33 @@ CREATE POLICY notification_prefs_tenant_isolation ON shared_kernel.notification_
   AS PERMISSIVE FOR ALL TO app_role, worker_role
   USING   (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
+
+-- =====================================================================
+-- Phase 9 (migration 0038): Investments Wallet
+-- Tables created in drizzle/0038_phase09_investments.sql; grants + FORCE RLS here.
+-- =====================================================================
+
+-- Tenant-scoped holdings: GRANT + FORCE RLS (policy itself is in 0038). Mirrors wallets/tasks.
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.investments TO app_role, worker_role;
+ALTER TABLE budgeting.investments FORCE ROW LEVEL SECURITY;
+
+-- Phase 9 (09-04): worker cron scan. The hourly price-refresh / daily snapshot / daily
+-- seed jobs read held instruments cross-tenant via withInfraTx (worker_role, no
+-- app.tenant_ids set). Mirrors wallets_worker_cron_scan — SELECT-only, permissive, so
+-- worker writes still flow through withTenantTx (GUC set; investments_tenant_isolation
+-- WITH CHECK applies). Without this the cron held-set queries return 0 rows (FORCE RLS).
+DROP POLICY IF EXISTS investments_worker_cron_scan ON budgeting.investments;
+CREATE POLICY investments_worker_cron_scan ON budgeting.investments
+  AS PERMISSIVE FOR SELECT TO worker_role
+  USING (true);
+
+-- Reference data (no RLS): app_role reads; worker_role reads/writes (seed + price jobs).
+GRANT SELECT ON budgeting.instruments, budgeting.instrument_price_cache, budgeting.instrument_price_snapshots TO app_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.instruments, budgeting.instrument_price_cache, budgeting.instrument_price_snapshots TO worker_role;
+-- Phase 9 (09-06): the on-add instant fetch (app_role path) upserts the price cache.
+GRANT INSERT, UPDATE ON budgeting.instrument_price_cache TO app_role;
+
+-- INV-14 / T-9-16: per-user throttle (no RLS). app_role upserts on the on-add fetch path;
+-- worker_role mirrored for defense-in-depth.
+GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO app_role;
+GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO worker_role;

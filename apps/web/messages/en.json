@@ -138,6 +138,7 @@
     "sections": {
       "identity": "Budget Identity",
       "cushion": "Cushion",
+      "investments": "Investments",
       "recurring": "Recurring Expenses",
       "members": "Members",
       "danger": "Danger Zone"
@@ -342,6 +343,145 @@
       "tab": "Settings",
       "members_tab": "Members",
       "shares_tab": "Shares"
+    },
+    "investments": {
+      "feature_label": "Investments",
+      "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
+      "feature_on_toast": "Investments enabled",
+      "feature_off_toast": "Investments disabled",
+      "error_save": "Failed to save — try again",
+      "section": {
+        "title": "INVESTMENTS"
+      },
+      "add": {
+        "cta": "Add investment"
+      },
+      "sheet": {
+        "title": {
+          "add": "Add investment",
+          "edit": "Edit investment"
+        },
+        "save": "Save investment",
+        "cancel": "Cancel"
+      },
+      "field": {
+        "name": "Name",
+        "type": "Type",
+        "typePlaceholder": "Select a type",
+        "group": "Group",
+        "groupPlaceholder": "Ungrouped",
+        "buyPrice": "Buy price",
+        "buyCurrency": "Buy currency",
+        "quantity": "Quantity",
+        "currentPrice": "Current price",
+        "lastUpdated": "Last updated {relativeTime}",
+        "now": "just now",
+        "amount": "Amount",
+        "currency": "Currency",
+        "asset": "Asset",
+        "metal": "Metal",
+        "kind": "Kind",
+        "uom": "Unit",
+        "depositedValue": "Deposited value",
+        "actualValue": "Actual value",
+        "ticker": "Ticker",
+        "tickerPlaceholder": "e.g. AAPL"
+      },
+      "uitype": {
+        "equity": "Equity",
+        "etf": "ETF",
+        "etb": "Exchange-traded bonds",
+        "reit": "REIT",
+        "crypto": "Crypto",
+        "treasury_bond": "Retail treasury bonds",
+        "collectibles": "Collectibles",
+        "real_estate": "Real estate",
+        "other": "Other",
+        "precious_metals": "Precious metals",
+        "cash": "Cash",
+        "broker": "Broker"
+      },
+      "metalOption": {
+        "gold": "Gold",
+        "silver": "Silver",
+        "platinum": "Platinum"
+      },
+      "kindOption": {
+        "coin": "Coin",
+        "bar": "Bar",
+        "other": "Other"
+      },
+      "uomOption": {
+        "g": "Grams (g)",
+        "oz": "Troy ounce (oz)",
+        "kg": "Kilograms (kg)"
+      },
+      "type": {
+        "equities": "Equity",
+        "etf": "ETF",
+        "bond": "Bond",
+        "crypto": "Crypto",
+        "reit": "REIT",
+        "commodity": "Commodity",
+        "cash_fx": "Cash",
+        "real_estate": "Real Estate",
+        "other": "Other"
+      },
+      "group": {
+        "portfolioSuffix": "of portfolio",
+        "noGroups": "No groups yet.",
+        "create": "Create \"{name}\"",
+        "headerAria": "{name}, {pct} of portfolio. {state}.",
+        "expanded": "Expanded",
+        "collapsed": "Collapsed",
+        "dragAria": "Drag to move the {name} group.",
+        "metricsAria": "Show {name} profit/loss and portfolio percentage."
+      },
+      "row": {
+        "delisted": "Delisted",
+        "editAria": "Edit {name}.",
+        "deleteAria": "Remove {name}.",
+        "dragAria": "Drag to reorder {name}.",
+        "share": "Share: {pct}"
+      },
+      "rowExpandAria": "Expand {name} details.",
+      "plAria": "{value} profit/loss",
+      "search": {
+        "placeholder": "Search instruments…",
+        "loading": "Searching…",
+        "noResults": "No match in the catalog",
+        "custom": "Custom — enter manually",
+        "enterManually": "Enter manually",
+        "enterManuallyHint": "Ticker not listed? Add it by hand"
+      },
+      "priceBlocked": {
+        "body": "Couldn't fetch the price — try again in a moment.",
+        "retry": "Retry"
+      },
+      "toast": {
+        "created": "Investment added",
+        "createFailed": "Couldn't add investment. Try again.",
+        "saved": "Investment updated",
+        "saveFailed": "Couldn't save changes. Check your connection and try again.",
+        "archived": "Investment removed",
+        "archiveFailed": "Couldn't remove investment. Try again.",
+        "reorderFailed": "Couldn't reorder. Try again.",
+        "crossSectionRejected": "Holdings can only be in Investments."
+      },
+      "confirm": {
+        "delete": {
+          "title": "Remove holding \"{name}\"?",
+          "body": "This can't be undone here.",
+          "cta": "Remove",
+          "cancel": "Cancel"
+        },
+        "discard": {
+          "title": "Discard changes?",
+          "body": "Your unsaved changes will be lost.",
+          "cta": "Discard",
+          "cancel": "Keep editing"
+        }
+      }
     }
   },
   "state": {
@@ -453,6 +593,8 @@
         "cushion_help": "Plan a small financial cushion alongside each category so a bad month doesn't tip the main budget over. Turn off if you don't want any cushion at all.",
         "reserves_label": "Reserves",
         "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
+        "investments_label": "Investments",
+        "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
         "targetMonthsLabel": "Target months",
         "targetMonthsError": "Months must be a whole number between 1 and 60.",
         "push_label": "Enable push notifications",
@@ -859,8 +1001,8 @@
         }
       },
       "wallets": {
-        "label": "Wallets",
-        "title": "Wallets",
+        "label": "Assets",
+        "title": "Assets",
         "section": {
           "spendings": "Spendings wallets",
           "cushion": "Cushion wallets",
@@ -972,7 +1114,7 @@
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Top up cushion",
-          "ariaLabel": "Go to Wallets to top up cushion"
+          "ariaLabel": "Go to Assets to top up cushion"
         }
       },
       "confirmError": "Could not confirm draft. Try again.",
