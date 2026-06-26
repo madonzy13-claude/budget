@@ -491,7 +491,7 @@
         "deposited": "Внесено",
         "amount": "Сума",
         "currentValue": "Поточна вартість",
-        "premium": "Премія {pct}%",
+        "premium": "Премія",
         "withPremium": "З премією",
         "pl": "Прибуток/збиток"
       }

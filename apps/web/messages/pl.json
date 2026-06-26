@@ -491,7 +491,7 @@
         "deposited": "Wpłacono",
         "amount": "Kwota",
         "currentValue": "Wartość bieżąca",
-        "premium": "Premia {pct}%",
+        "premium": "Premia",
         "withPremium": "Z premią",
         "pl": "Zysk/strata"
       }

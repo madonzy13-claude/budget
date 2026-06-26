@@ -491,7 +491,7 @@
         "deposited": "Deposited",
         "amount": "Amount",
         "currentValue": "Current value",
-        "premium": "Premium {pct}%",
+        "premium": "Premium",
         "withPremium": "With premium",
         "pl": "P/L"
       }

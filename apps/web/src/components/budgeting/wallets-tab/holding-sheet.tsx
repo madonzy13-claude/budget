@@ -174,7 +174,7 @@ export function HoldingSheet({
   // current (resale) value; empty = melt/spot value. Kept as a string so the
   // field can hold a transient empty/decimal state.
   const [premiumPct, setPremiumPct] = useState<string>(
-    holding?.premiumPct ?? "",
+    trimQty(holding?.premiumPct ?? ""),
   );
   const [dirty, setDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -1023,7 +1023,8 @@ function HoldingPreviewBlock({
     if (preview.premiumPct > 0) {
       rows.push({
         key: "prem",
-        label: t("preview.premium", { pct: trim(preview.premiumPct) }),
+        label: t("preview.premium"),
+        sub: `${trim(preview.premiumPct)}%`,
         value: `+ ${money(preview.premiumAmount)}`,
       });
       rows.push({
