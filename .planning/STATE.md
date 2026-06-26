@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: track)_
 status: executing
 stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
-last_updated: "2026-06-26T15:51:00.000Z"
+last_updated: "2026-06-26T17:30:00.000Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 10
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 ## Current Position
 
-Phase: 10 (user-settings-redesign) — EXECUTING
-Plan: 6 of 6 (10-01..05 done → 10-06 last)
-Next: execute 10-06 (Danger Zone account deletion) — autonomous:false, REQUIRES A HUMAN CHECKPOINT before the GDPR cascade purge. Then phase completion gates.
-Status: Ready to execute (10-06 needs checkpoint approval)
+Phase: 10 (user-settings-redesign) — ALL 6 PLANS COMPLETE
+Plan: 6 of 6 done (10-01..06). Human checkpoint for 10-06 done (email-gated deletion + SHARED-block + anonymise).
+Next: phase verification/UAT — provider removal, 2-pill carousel, profile name/email, security (password-reset + sessions), forgot/reset pages, GDPR account deletion all landed + live-verified.
+Status: Ready for /gsd-verify-work 10 (conversational UAT) then phase close.
 Last activity: 2026-06-26
 
 ### Known test-debt (non-CI, non-blocking)
@@ -164,6 +164,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 10]: 10-03 — section components are SERVER-SEEDED via props threaded through the pill (mirrors GeneralPill), NEVER via a client `authClient.useSession`: the vanilla better-auth/client useSession is a nanostore Atom, not a React hook — it passes Vitest (mocked as a fn) but fails `next build` ("not callable"). Always run the production Docker build, not just Vitest. Applies to 10-04/10-06.
 - [Phase 10]: 10-04 — in-app password change = ZERO backend change: reuse the wired reset flow via `authClient.requestPasswordReset({email:self, redirectTo:/<locale>/reset-password})`; password is set on the shared /reset-password page (10-05), never in settings (T-10-05 inbox-gated). Client session reads use the CALLABLE `listSessions()`/`getSession()` (not the useSession atom); current session = matching `getSession().data.session.token`. One `Confirm` discriminated-union state backs a single AlertDialog for both revoke + revoke-others.
 - [Phase 10]: 10-05 — Better Auth reset email links the token as a PATH segment `/auth/reset-password/<token>?callbackURL=/<locale>/reset-password`; its GET handler validates then redirects to `<callbackURL>?token=<token>`, so the consume page reads `?token`. E2E must extract the token from the PATH, not `?token=`, in the email. forgot-password shows a NEUTRAL success regardless of registration (T-10-07).
+- [Phase 10]: 10-06 — account-deletion cascade (purgeUserData in better-auth.ts) is app-level (no DB FK identity→tenancy): one withUserContext tx, bootstrap memberships via budget_members_self → SET app.tenant_ids → block sole-owner-of-SHARED-with-members → purge 15 explicitly-deletable tenant tables (NOT budget_share_links/audit_history/outbox — no DELETE grant) → anonymise authored adjustments (created_by NULL, needs the post-migration column GRANT) → CRYPTO-SHRED the DEK (user_keys UPDATE destroyed_at, NOT delete). Email-gated (sendDeleteAccountVerification). app_role grants live in post-migration.sql, NOT drizzle migrations. See [[project_account_deletion_cascade]].
 
 ### Pending Todos
 
