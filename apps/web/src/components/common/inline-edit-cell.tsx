@@ -52,6 +52,17 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
     if (props.disabled || saving) return;
     setFailed(false);
     committedRef.current = false;
+    // 260625: seed the draft from the LATEST props.value at edit-start, not from
+    // the `draft` state synced by the effect below. That effect (deps
+    // [props.value, editing]) can be PREEMPTED by this beginEdit: when a
+    // background refetch updates props.value (e.g. the reserves cell hydrating
+    // 0 → 900) the cell first re-renders + PAINTS the new value via
+    // `render(props.value)`, but if a click flips `editing` true before the
+    // value-sync effect runs, the effect then skips (`if (!editing)` is false)
+    // and `draft` stays at the STALE value → the editor seeds the old number
+    // (0) even though the cell visibly shows 900, so a commit no-ops on the
+    // Object.is(draft, value) guard. Seeding here closes that window.
+    setDraft(props.value);
     setEditing(true);
   };
 

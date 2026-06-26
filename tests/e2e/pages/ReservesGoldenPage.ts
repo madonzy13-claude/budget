@@ -113,7 +113,20 @@ export class ReservesGoldenPage {
   // ── navigation ─────────────────────────────────────────────────────────────
 
   async gotoSpendings(month: string): Promise<void> {
+    // Arm the spendings-summary GET waiter BEFORE navigating. use-spendings-summary
+    // is staleTime:0 + refetchOnMount:"always", so a background refetch ALWAYS lands
+    // ~0.5s after mount and RE-RENDERS the grid. If a row gesture (dblclick to edit,
+    // hover to delete) fires in that window the target row/cell DETACHES mid-gesture
+    // → the inline-edit input never appears / the row "disappears" (the txn-row
+    // interaction flake, ~1-2 in 3 under load). Awaiting the refetch response makes
+    // the re-render happen BEFORE any gesture — mirrors gotoReserves' GET barrier.
+    const summaryHydrated = this.waitWrite(
+      "GET",
+      (p) => p.includes("/spendings-summary"),
+      20000,
+    );
     await this.spendings.goto("en", this.budgetId, month);
+    await summaryHydrated;
     await expect(this.spendings.gridContainer()).toBeVisible({
       timeout: 20000,
     });
@@ -161,7 +174,21 @@ export class ReservesGoldenPage {
   // ── actions (return the tab they leave the user on) ──────────────────────────
 
   async setUserDefined(major: string): Promise<ActionTab> {
+    // Arm the wallets-list GET waiter BEFORE navigating. useWallets has no
+    // staleTime override (defaults 0 + refetchOnMount), so a GET /api/wallets
+    // ALWAYS fires on mount and the rows render only once it lands. On a fresh
+    // user (no persisted cache) under full-suite load that GET can take >15s to
+    // paint the "Vault" row, so resolveIdByName timed out (the wallet-row flake,
+    // 1-in-N). Await the GET so the list is rendered before we resolve the id —
+    // mirrors gotoReserves' GET-hydration barrier. Method GET + pathname ending
+    // /wallets never matches PATCH /wallets/:id or POST /wallets/reorder.
+    const walletsHydrated = this.waitWrite(
+      "GET",
+      (p) => p.endsWith("/wallets"),
+      20000,
+    );
     await this.page.goto(`/en/budgets/${this.budgetId}/wallets`);
+    await walletsHydrated;
     this.curView = null;
     const walletId = await this.wallets.resolveIdByName(RESERVE_WALLET);
     // The wallet balance write is PATCH /api/wallets/:id. editAmount waits for
@@ -181,29 +208,41 @@ export class ReservesGoldenPage {
   ): Promise<ActionTab> {
     await this.gotoReserves();
     const id = this.idOf(catName);
-    // gotoReserves() awaited the GET-hydration above, so this cell shows its real
-    // committed value (not the "0" placeholder). Capture that hydrated display
-    // text BEFORE opening the editor so we can assert the editor seeded from it.
-    const cell = this.page.getByTestId(`reserves-balance-${id}`);
-    const hydratedText = (await cell.innerText()).trim();
-    await cell.click();
+    // gotoReserves() awaited the GET-hydration, so the cell shows its real
+    // committed value (not the "0" placeholder). Open the editor and verify it
+    // seeded from the SETTLED reserve value — retrying until the resting display
+    // and the editor seed AGREE. Why a retry, not a one-shot guard: a cover-reveal
+    // count-down (acknowledgeCover → ~700ms tween) drives a
+    // displayReserveCentsOverride that shows the ANIMATING value while the editor
+    // (InlineEditCell value = row.reserveCents, the not-yet-committed cache) still
+    // reads the pre-commit number — so a click landing mid-animation seeds a stale
+    // "0" under a real display, and a same-target adjust would no-op on the
+    // InlineEditCell Object.is(draft,value) guard. Re-opening converges as the
+    // animation commits the summary + clears the override on finish; this both
+    // preserves the original guard's intent (never seed-then-no-op) and waits the
+    // transient out instead of failing on it (a careful real user hits the same).
+    const cellTestId = `reserves-balance-${id}`;
+    const cell = this.page.getByTestId(cellTestId);
     const input = this.page
-      .getByTestId(`reserves-balance-${id}-editor`)
+      .getByTestId(`${cellTestId}-editor`)
       .locator("input");
-    await input.waitFor({ state: "visible", timeout: 10000 });
-    // Guard: the editor must have seeded from the HYDRATED cell value. If the
-    // cell were still a "0" placeholder while the real value differs, an
-    // "adjust to 0" fill would hit InlineEditCell's Object.is(draft,value)
-    // equality guard and silently drop the write (no POST) — the exact bug this
-    // page fixes. Fail loudly here rather than time out on a swallowed write.
-    // (Only enforced when the hydrated cell is non-empty and looks like "0":
-    //  if the seeded input reads "0" but the cell did not, hydration regressed.)
-    const seeded = (await input.inputValue()).trim();
-    if (hydratedText && seeded === "0" && hydratedText !== "0") {
-      throw new Error(
-        `reserves-balance-${id} editor seeded "0" but the hydrated cell shows "${hydratedText}" — placeholder click (GET hydration regressed); "adjust to ${major}" would no-op.`,
-      );
-    }
+    await expect(async () => {
+      // Return to the resting cell so a fresh beginEdit re-seeds from the CURRENT
+      // (post-animation) props.value.
+      if (await input.isVisible().catch(() => false)) {
+        await this.page.keyboard.press("Escape");
+        await expect(input).toBeHidden({ timeout: 2000 });
+      }
+      const display = (await cell.innerText()).trim();
+      await cell.click();
+      await expect(input).toBeVisible({ timeout: 2000 });
+      const seeded = (await input.inputValue()).trim();
+      if (display && display !== "0" && seeded === "0") {
+        throw new Error(
+          `reserves-balance-${id} editor seeded "0" while the cell shows "${display}" — cover-reveal/hydration transient; retry so "adjust to ${major}" is not a no-op.`,
+        );
+      }
+    }).toPass({ timeout: 20000 });
     await input.fill(major);
     // POST /api/budgets/:id/reserves/:categoryId/adjust — wait for the committed
     // response before the cover-dialog/return so the next read sees the adjust.
@@ -243,9 +282,17 @@ export class ReservesGoldenPage {
     await this.gotoSpendings(viewMonth);
     const row = this.txnRow(catName, major);
     await row.waitFor({ state: "visible", timeout: 10000 });
-    await row.hover();
     const del = row.getByTestId("txn-action-delete");
-    await del.waitFor({ state: "visible", timeout: 5000 });
+    // The transactions list (use-transactions) is a SEPARATE query from the
+    // summary the gotoSpendings barrier awaits; it refetches + re-renders the row
+    // ONCE ~0.5s after mount. A hover whose reveal is interrupted by that
+    // re-render leaves the delete affordance hidden (the txn-row interaction
+    // flake). Retry hover→reveal until the affordance is actually shown; the
+    // refetch is one-time so this converges immediately once it settles.
+    await expect(async () => {
+      await row.hover();
+      await expect(del).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 15000 });
     await del.click();
     // DELETE /api/budgets/:budgetId/transactions/:txId — fired by confirm; await
     // the committed response before returning.
@@ -264,15 +311,51 @@ export class ReservesGoldenPage {
     await this.gotoSpendings(viewMonth);
     const row = this.txnRow(catName, fromMajor);
     await row.waitFor({ state: "visible", timeout: 10000 });
-    await row.locator("[data-amount-cell]").dblclick();
+    const amountCell = row.locator("[data-amount-cell]");
     const input = row.locator("input");
-    await input.waitFor({ state: "visible", timeout: 10000 });
+    // The transactions list (use-transactions) is a SEPARATE query from the
+    // summary the gotoSpendings barrier awaits; it refetches + re-renders the row
+    // ONCE ~0.5s after mount. A dblclick that straddles that re-render (or whose
+    // freshly-opened editor is swapped out by it) never leaves a usable inline
+    // input — the editTxn flake (input never visible, 10s). Retry the dblclick
+    // until the editor is actually open; the refetch is one-time so this
+    // converges as soon as it settles, and the subsequent fill is then stable.
+    await expect(async () => {
+      await amountCell.dblclick();
+      await expect(input).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 15000 });
     await input.fill(toMajor);
     // PATCH /api/budgets/:budgetId/transactions/:txId — await the committed edit.
     const resp = this.waitWrite("PATCH", "/transactions");
     await input.press("Enter");
     await resp;
     return "spendings";
+  }
+
+  /** Read the budget's cushion flags from the SERVER (not the optimistic DOM).
+   * GET /api/budgets/:id returns camelCase { cushionEnabled, cushionModeEnabled }
+   * (budgets.ts / budget-identity.ts); useBudget unwraps json.budget ?? json. */
+  private async serverCushionState(): Promise<{
+    enabled: boolean;
+    mode: boolean;
+  }> {
+    // X-Budget-ID is REQUIRED: the API scopes tenantIds from this header (the
+    // app's clientApiFetch injects it on every call). Without it the budget GET
+    // returns 404 not_found — the same header setLimit() already sends.
+    const res = await this.page.request.get(`/api/budgets/${this.budgetId}`, {
+      headers: { "X-Budget-ID": this.budgetId },
+    });
+    if (!res.ok()) {
+      throw new Error(
+        `GET /budgets/:id failed: ${res.status()} ${await res.text()}`,
+      );
+    }
+    const json = (await res.json()) as Record<string, unknown>;
+    const b = (json.budget ?? json) as Record<string, unknown>;
+    return {
+      enabled: b.cushionEnabled !== false, // default true (server default)
+      mode: b.cushionModeEnabled === true, // default false
+    };
   }
 
   async setCushionMode(on: boolean): Promise<ActionTab> {
@@ -286,29 +369,40 @@ export class ReservesGoldenPage {
     // is PATCH /api/budgets/:id on the budget itself. Match the budget-root path
     // exactly so it is NOT confused with PATCH /budgets/:id/transactions/:txId.
     const isBudgetRoot = (p: string) => p.endsWith(`/budgets/${this.budgetId}`);
-    const mode = this.page.getByRole("switch", { name: "Cushion mode" });
-    if (!(await mode.isVisible({ timeout: 2000 }).catch(() => false))) {
-      // Master toggle fires PATCH { cushion_enabled: true }. Set the waiter
-      // BEFORE the click, await it AFTER, so the master write is committed before
-      // the per-month toggle below.
+    // 260625: decide every toggle from SERVER truth, not the DOM aria-checked.
+    // The switch hydrates from the warm React-Query cache (a STALE snapshot) and
+    // is corrected ~0.5s later by refetchOnMount. Reading aria-checked in that
+    // window saw the stale value, judged the switch "already off", SKIPPED the
+    // click → no PATCH → the reserve recompute never ran (the last golden flake,
+    // trace-proven). The server row is authoritative the instant a prior PATCH
+    // committed (each setCushionMode awaits its PATCH), so branch on it.
+    let { enabled, mode } = await this.serverCushionState();
+    const modeSwitch = this.page.getByRole("switch", { name: "Cushion mode" });
+    if (!enabled) {
+      // Master off → the "Cushion mode" switch is not rendered. Toggle the master
+      // (PATCH { cushion_enabled: true }), await the committed write, then refetch
+      // server truth so the mode decision below is based on the post-enable row.
       const enableResp = this.waitWrite("PATCH", isBudgetRoot);
       await this.page.getByRole("switch", { name: "Enable cushion" }).click();
       await enableResp;
+      ({ enabled, mode } = await this.serverCushionState());
     }
-    await mode.waitFor({ state: "visible", timeout: 8000 });
-    const checked = (await mode.getAttribute("aria-checked")) === "true";
-    if (checked !== on) {
+    await modeSwitch.waitFor({ state: "visible", timeout: 8000 });
+    if (mode !== on) {
       // aria-checked flips OPTIMISTICALLY — the cushion-mode PATCH (which drives
       // the reserve recompute) may still be in flight. Under full-suite load that
       // write can land AFTER the next assertReserves() navigation reads the page,
-      // yielding a stale reserve value (flake seen only in the long run). Wait for
-      // the actual PATCH /budgets/:id response — it returns only after the
-      // recompute is persisted — instead of the racy "networkidle".
+      // yielding a stale reserve value. Wait for the actual PATCH /budgets/:id
+      // response — it returns only after the recompute is persisted.
       const modeResp = this.waitWrite("PATCH", isBudgetRoot);
-      await mode.click();
+      await modeSwitch.click();
       await modeResp;
     }
-    await expect(mode).toHaveAttribute("aria-checked", String(on), {
+    // Now the switch must settle to the target. With cushion-section's prop-sync
+    // effect (260625) the refetchOnMount GET reconciles the optimistic state to
+    // the committed server value, so this asserts the SERVER outcome, not just the
+    // optimistic flip.
+    await expect(modeSwitch).toHaveAttribute("aria-checked", String(on), {
       timeout: 8000,
     });
     return "other";

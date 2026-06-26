@@ -27,7 +27,21 @@ import {
 // initial limits effective from there so they apply across the whole walk.
 const FIRST_MONTH = realMonth("2026-06"); // "2026-05"
 
-const { Given, When, Then } = createBdd(test);
+const { Given, When, Then, After } = createBdd(test);
+
+// Robust process-global clock reset between scenarios. The timeline When-step
+// clears the override in its try/finally, but a test TIMEOUT aborts the step
+// mid-await and SKIPS that finally, leaking the override (server serverNow()
+// stuck in May/June) into the NEXT scenario. The closed-month-adjust scenarios
+// seed "last month" off the REAL wall clock while the server computes overspend
+// from the leaked override → totals misalign → the grid never matches → a
+// cascade of cross-run failures (observed: a timeline timeout in run N poisoned
+// run N+1's closed-month tests). A scenario After hook runs even after a test
+// times out, so the override is ALWAYS cleared between scenarios regardless of
+// how the previous one ended. Best-effort: never throws.
+After(async ({ page }) => {
+  await page.request.delete("/api/test/clock").catch(() => {});
+});
 
 function budgetIdOf(scenarioCtx: Record<string, unknown>): string {
   const id = scenarioCtx["workspaceId"] as string | undefined;

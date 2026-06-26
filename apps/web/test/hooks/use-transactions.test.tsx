@@ -42,7 +42,7 @@ describe("useTransactions", () => {
     );
   });
 
-  it("initialData paints instantly and does NOT refetch while still fresh (staleTime)", async () => {
+  it("initialData paints instantly, then background-revalidates on mount (cache-first SWR)", async () => {
     const initialData = [
       {
         id: "txn-1",
@@ -53,10 +53,22 @@ describe("useTransactions", () => {
         confirmedAt: "2026-05-01T00:00:00Z",
       },
     ];
-    // A response is queued in case a refetch fires — we assert it does NOT.
+    // The mount revalidation returns an UPDATED list (snake_case, as the API
+    // does) so we can prove it replaces the cached paint.
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ transactions: [] }),
+      json: async () => ({
+        transactions: [
+          {
+            id: "txn-2",
+            category_id: "cat-2",
+            amount_converted_cents: 700,
+            currency_original: "USD",
+            confirmed_at: "2026-05-02T00:00:00Z",
+            date: "2026-05-02",
+          },
+        ],
+      }),
     });
 
     const { result } = renderHook(
@@ -67,12 +79,14 @@ describe("useTransactions", () => {
     // Instant paint: initialData is available synchronously on the first render
     // (stale-while-revalidate — zero waiting where cache exists).
     expect(result.current.data).toEqual(initialData);
-    // The hook sets staleTime: 30s and NO LONGER uses refetchOnMount:"always"
-    // (removed for nav perf — a refetch on every tab switch was the cache-lag
-    // cause; SPA/SWR revalidates only once the 30s window lapses). So fresh
-    // initialData must NOT trigger a background network call on mount.
-    await new Promise((r) => setTimeout(r, 50));
-    expect(mockFetch).not.toHaveBeenCalled();
+    // 260625: the hook now sets refetchOnMount:"always", so a background
+    // revalidation ALWAYS fires on mount even with fresh initialData — a reload
+    // must never serve a stale just-restored list (the reserves-golden "edit
+    // persisted on the server but the reloaded grid still shows the old amount"
+    // bug). keepPreviousData keeps the cached rows visible until the refetch
+    // lands, then the fresh server data replaces them.
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.data?.[0]?.id).toBe("txn-2"));
   });
 
   it("queryKey is exactly ['transactions', budgetId, month]", async () => {

@@ -253,6 +253,65 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
     expect(await res.text()).toContain('data-testid="offline-shell-header"');
   });
 
+  // 260625 regression guard: a SLOW but reachable ONLINE navigation must never
+  // be aborted and shown the offline app-shell. The old strategy aborted the
+  // fetch at `timeoutMs`, so a nav that crossed the timeout (e.g. the connection
+  // pool was briefly saturated by a burst of data prefetches) fell to the
+  // offline-shell even though it was online — the reserves-golden wallet-row
+  // flake (the /wallets doc came back 200 at ~3010ms, just past the 3s timeout).
+  test("ONLINE + SLOW network + cache MISS → waits for the network, returns the live 2xx (NOT the shell)", async () => {
+    const ok = new Response("<html>real page</html>", { status: 200 });
+    // Resolves AFTER the timeout — simulates a reachable-but-slow navigation.
+    const fetchFn = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => setTimeout(() => resolve(ok), 60)),
+    );
+    const matchCache = vi.fn().mockResolvedValue(undefined); // no cached doc
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+    const matchShell = vi.fn().mockResolvedValue(shellDoc());
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/budgets/abc/wallets"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      matchShell,
+      20, // short timeout the slow fetch deliberately overruns
+    );
+
+    // The real page wins — the offline shell is NEVER served for a reachable nav.
+    expect(res).toBe(ok);
+    expect(matchShell).not.toHaveBeenCalled();
+    // Still NetworkFirst-WRITE: the slow-but-successful nav is cached for replay.
+    expect(cachePut).toHaveBeenCalledTimes(1);
+  });
+
+  test("ONLINE + SLOW network + cache HIT → serves the cached doc at the timeout (fast paint), shell NOT used", async () => {
+    const slow = new Response("<html>late real page</html>", { status: 200 });
+    const fetchFn = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => setTimeout(() => resolve(slow), 60)),
+    );
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/settings"));
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+    const matchShell = vi.fn();
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/settings"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      matchShell,
+      20, // timeout fires before the 60ms fetch → serve cache
+    );
+
+    // Cached real document is served immediately at the timeout (no shell, no wait
+    // for the slow network).
+    expect(matchShell).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('data-testid="cached-page"');
+  });
+
   test("shell MISS too → last-resort minimal 503 (never undefined)", async () => {
     const fetchFn = vi.fn().mockRejectedValue(new TypeError("offline"));
     const matchCache = vi.fn().mockResolvedValue(undefined);

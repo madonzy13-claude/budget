@@ -86,6 +86,19 @@ export function CushionSection({
   useEffect(() => {
     setTargetMonthsRaw(String(cushionTargetMonths ?? 6));
   }, [cushionTargetMonths]);
+  // 260625: re-sync the master/mode toggle state when the parent prop changes
+  // after the refetchOnMount GET lands (warm cache → instant stale paint, then
+  // fresh server value). Without these, the switch keeps the just-hydrated
+  // STALE value (e.g. cushion_mode_enabled from the pre-toggle snapshot) and the
+  // golden-timeline harness then read a stale aria-checked and SKIPPED the
+  // toggle click → no PATCH → reserve recompute never ran. Guarded by saving*
+  // so an in-flight optimistic toggle is not clobbered by an interleaved prop.
+  useEffect(() => {
+    if (!savingFlag) setEnabled(cushionEnabled);
+  }, [cushionEnabled, savingFlag]);
+  useEffect(() => {
+    if (!savingMode) setMode(cushionModeEnabled);
+  }, [cushionModeEnabled, savingMode]);
   const targetMonths = (() => {
     // UAT round 7 / 8: parseFloat (was parseInt) to accept fractional months
     // (e.g. 4.5). Normalize comma decimal separator to dot first so users on

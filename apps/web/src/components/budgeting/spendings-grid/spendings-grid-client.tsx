@@ -317,16 +317,32 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     if (!summary.isSuccess) return;
     const LOOKBACK_MONTHS = 12;
     const anchor = Temporal.PlainYearMonth.from(month);
-    for (let i = 1; i <= LOOKBACK_MONTHS; i++) {
-      const m = anchor.subtract({ months: i }).toString();
-      const key = ["spendings-summary", budgetId, m] as const;
-      if (qc.getQueryData(key)) continue; // already cached — leave it untouched.
-      void qc.prefetchQuery({
-        queryKey: key,
-        queryFn: () => fetchSpendingsSummary(budgetId, m),
-        staleTime: 30_000,
-      });
-    }
+    // 260625: warm the past months SEQUENTIALLY, not in a synchronous 12-wide
+    // fan-out. Firing all 12 past-month summary prefetches at once saturated the
+    // browser's ~6-connection-per-host pool and STARVED the foreground work —
+    // the current month's transactions GET and, critically, the NEXT navigation
+    // document — so a nav/read/write that had to queue behind the herd raced the
+    // UI (the reserves-golden walk surfaced this as missing txn rows + a 3s SW
+    // nav timeout falling to the offline shell). These are pure background
+    // warmups, so their latency is irrelevant; awaiting each before the next
+    // keeps connections free for foreground interactions. Cancelled on month
+    // change / unmount so a stale chain never warms the wrong anchor.
+    let cancelled = false;
+    void (async () => {
+      for (let i = 1; i <= LOOKBACK_MONTHS; i++) {
+        if (cancelled) return;
+        const m = anchor.subtract({ months: i }).toString();
+        const key = ["spendings-summary", budgetId, m] as const;
+        if (qc.getQueryData(key)) continue; // already cached — leave it untouched.
+        await qc
+          .prefetchQuery({
+            queryKey: key,
+            queryFn: () => fetchSpendingsSummary(budgetId, m),
+            staleTime: 30_000,
+          })
+          .catch(() => {});
+      }
+    })();
     if (!preloadCapLoggedRef.current) {
       preloadCapLoggedRef.current = true;
       console.info(
@@ -334,6 +350,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           `(no budget first-month/createdAt source on GET /budgets/:id)`,
       );
     }
+    return () => {
+      cancelled = true;
+    };
   }, [summary.isSuccess, budgetId, month, qc]);
 
   // Track whether the grid is scrolled FAR ENOUGH that at least HALF a
