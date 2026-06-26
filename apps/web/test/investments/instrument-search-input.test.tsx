@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { useState } from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { InstrumentSearchInput } from "../../src/components/budgeting/wallets-tab/instrument-search-input";
 import { clientApiFetch } from "../../src/lib/budget-fetch";
 
@@ -42,6 +42,35 @@ describe("InstrumentSearchInput — loading feedback", () => {
     expect(
       await screen.findByTestId("instrument-search-spinner"),
     ).toBeInTheDocument();
+  });
+
+  // 260626 bug: opening the EDIT sheet pre-fills the asset name, which used to
+  // fire the debounced search on mount → the dropdown opened + the field
+  // "activated" though the user changed nothing. A pre-filled name is the
+  // already-selected instrument: stay passive until the user actually edits it.
+  it("edit mode: a pre-filled name does NOT auto-search or activate on mount", () => {
+    vi.mocked(clientApiFetch).mockClear();
+    vi.useFakeTimers();
+    try {
+      render(
+        <InstrumentSearchInput
+          budgetId="b1"
+          name="Bitcoin (BTC)"
+          onNameChange={() => {}}
+          onSelectInstrument={() => {}}
+          onSelectCustom={() => {}}
+        />,
+      );
+      // No pending spinner the instant the editor opens.
+      expect(screen.queryByTestId("instrument-search-spinner")).toBeNull();
+      // …and no search fires even after the debounce window elapses.
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(clientApiFetch).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows no spinner below the minimum query length", () => {

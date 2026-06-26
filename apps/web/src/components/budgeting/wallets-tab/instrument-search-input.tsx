@@ -83,7 +83,13 @@ export function InstrumentSearchInput({
   // typed). Selecting sets the name to the instrument's display name, which would
   // otherwise re-trigger the debounced search and re-open the dropdown. Suppress
   // that one reopen; a real keystroke clears the flag.
-  const justSelectedRef = useRef(false);
+  //
+  // 260626: seed it from a PRE-FILLED name too. In edit mode the sheet opens with
+  // the holding's asset name already set — that is the already-selected
+  // instrument, so the debounced mount effect must NOT fire a search and "activate"
+  // the field (open the dropdown / show the spinner) before the user changes
+  // anything. The first real keystroke clears the flag and search resumes.
+  const justSelectedRef = useRef(name.trim().length > 0);
 
   async function runSearch(q: string) {
     const query = q.trim();
@@ -210,16 +216,22 @@ export function InstrumentSearchInput({
                 </button>
               </li>
             ))}
-          {!loading && searched && results.length === 0 && !allowManualEntry && (
-            <li className="px-3 py-2 text-body-md text-[var(--muted-foreground)]">
-              {t("noResults")}
-            </li>
-          )}
+          {!loading &&
+            searched &&
+            results.length === 0 &&
+            !allowManualEntry && (
+              <li className="px-3 py-2 text-body-md text-[var(--muted-foreground)]">
+                {t("noResults")}
+              </li>
+            )}
           {/* "Enter manually" — ALWAYS the last item (even with suggestions), set
               off by a divider + accent so it reads as a distinct action (add a
               ticker the catalog doesn't list), not just another suggestion. */}
           {!loading && searched && allowManualEntry && (
-            <li role="option" className="mt-1 border-t border-[var(--hairline-dark)]">
+            <li
+              role="option"
+              className="mt-1 border-t border-[var(--hairline-dark)]"
+            >
               <button
                 type="button"
                 data-testid="instrument-manual-entry-option"
