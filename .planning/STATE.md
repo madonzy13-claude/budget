@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: milestone_complete
+status: executing
 stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
-last_updated: "2026-06-21T10:54:15.639Z"
-last_activity: 2026-06-21
+last_updated: "2026-06-26T13:46:38.511Z"
+last_activity: 2026-06-26 -- Phase 10 planning complete
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 9
-  total_plans: 70
-  completed_plans: 74
-  percent: 100
+  total_plans: 76
+  completed_plans: 75
+  percent: 99
 ---
 
 # Project State
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 Phase: 09
 Plan: Not started
 Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
-Status: Milestone complete
-Last activity: 2026-06-21
+Status: Ready to execute
+Last activity: 2026-06-26 -- Phase 10 planning complete
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -109,6 +109,10 @@ _Updated after each plan completion_
 | Phase 09 P06 | 35 min | 3 tasks | 18 files |
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 10 added (2026-06-26): User Settings Redesign — 2-pill carousel (General · User) reusing the BDP pill/prefetch frame + Settings-tab accordion; remove AI/voice Provider feature end-to-end (incl. column-drop migration); add profile name/email edit (email re-verify), email-gated password change (reuses reset flow), active-sessions revoke + sign-out-others, Danger Zone account deletion (GDPR); build the missing logged-out forgot/reset-password pages + fix the dead sign-in link. Depends on Phase 3 (BDP frame) + Phase 6 (settings). _(v1.2 track)_
 
 ### Decisions
 

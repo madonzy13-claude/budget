@@ -26,6 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Tasks Queue** — Banner-with-expand UI, three deterministic generators (RESERVE*TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET), kind-specific resolution actions, auto-resolve on state change. CUSHION_BELOW_TARGET surfaces actual cushion-vs-target shortfall (the two legacy 4-kind generators have been dropped from v1.1 scope and deferred to v1.2 Insights). *(All 10 plans + summaries; CI green on ccca754. Non-CI test-debt tracked in STATE.md: reserve-topup.test.ts:610 it.skip.)\_
 - [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
 - [ ] **Phase 9: Investments Wallet** _(v1.2 track)_ — Feature-flagged `INVESTMENTS` wallet section (last on the wallets page, hidden when off): per-instrument holdings (name/type/group/buy-price/buy-currency/quantity/current-price) edited in a side `Sheet`; debounced instrument search over a unified universe (equities/ETF/FX/crypto/metals) preselecting type + live price; greenfield `PriceProvider` port + free-API adapters with an hourly cron fetching only held instruments + rate-limited instant fetch; values converted to budget currency for weights; daily price + FX snapshot persisted for future charts (charts NOT built here)
+- [ ] **Phase 10: User Settings Redesign** _(v1.2 track)_ — Mobile-first redesign of USER account settings as a 2-pill carousel (reusing the BDP pill/prefetch frame + Settings-tab accordion): **General** (language + display currency) and **User** (Profile: name + email-with-reverify · Security: email-gated password change + active-sessions revoke + sign-out-others · Danger Zone: delete account/GDPR). Removes the AI/voice Provider feature end-to-end (incl. column-drop migration). Builds the missing logged-out forgot/reset-password pages + fixes the dead sign-in link. TDD, EN/PL/UK, E2E Gherkin
 
 ## Phase Details
 
@@ -314,6 +315,24 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 7. Tasks Queue                              | 0/10           | Planned     | -          |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 6/7            | In Progress |            |
 | 9. Investments Wallet _(v1.2)_              | 0/TBD          | Spec'd      | -          |
+
+### Phase 10: User Settings Redesign _(v1.2 track)_
+
+**Goal:** Replace the legacy user-settings page with a mobile-first redesign aligned to the current design system. Shell = a 2-pill client carousel reusing the BDP pill/pushState/prefetch/caching pattern; section content reuses the BDP Settings-tab accordion. Pills: **General** (display language + display currency) and **User** (Profile: name + email-with-reverify · Security: email-gated password change + active-sessions list/revoke + sign-out-other-devices · Danger Zone: delete own account). Remove the AI/voice Provider feature end-to-end (DB columns via migration, `user.additionalFields`, route, repo, app layer, types, session normalization, i18n). Build the missing logged-out forgot/reset-password pages and fix the dead sign-in link.
+**Requirements**: SETT-01, SETT-02 (existing locale + display-currency, restyled) + new USET-\* enumerated in 10-SPEC (profile name/email edit, email change + re-verify, email-gated password change, sessions mgmt, account deletion/GDPR right-to-delete, forgot/reset-password flow, Provider-feature removal)
+**Depends on:** Phase 3 (BDP pill/carousel frame) + Phase 6 (Settings/onboarding/share UI)
+**Plans:** 0 plans (run /gsd-plan-phase 10 to break down)
+
+**Success Criteria** (what must be TRUE):
+
+1. The user-settings route renders a 2-pill carousel (General · User) using the same pill/pushState/prefetch mechanism as the BDP tabs — pill switching fires zero per-nav RSC and renders without horizontal scroll or clipped controls at a 375px viewport.
+2. General pill changes display language (hard-reload locale swap, persisted) and display currency (persisted) — both behaviors preserved from the legacy page.
+3. User → Profile: user can change display name and email; an email change sends a verification link to the NEW address, leaves the account email pending/unverified until clicked, and recomputes `email_hash` so email lookups still resolve.
+4. User → Security: "Change password" emails a reset link (reuses `sendResetPassword`/`reset-password`) and the new password applies only after following that link; the active-sessions list shows current + other sessions with per-session revoke and a "sign out all other devices" action.
+5. User → Danger Zone: user can permanently delete their own account after explicit confirmation; account + associated personal data are removed (GDPR right-to-delete) and the user is signed out.
+6. A logged-out user can request a reset link at `/[locale]/forgot-password` and set a new password at `/[locale]/reset-password?token=…`; the sign-in "Forgot your password?" link points to the live request page (no dead link); an expired token shows the expired-state copy.
+7. The AI/voice Provider feature is gone end-to-end: no providers UI, no `PUT /settings/provider-prefs` route, no `preferred_llm_provider`/`preferred_stt_provider` columns (migration applied) or `user.additionalFields` entries, no `settings.providers.*` i18n keys, no provider refs in `server-session` normalization; tests updated, `make ci-gate` green.
+8. All new/changed UI strings exist in EN/PL/UK; E2E Gherkin features cover forgot-password (golden + expired), change name, change email + re-verify, email-gated password change, revoke session, delete account.
 
 ---
 
