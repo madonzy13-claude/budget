@@ -47,7 +47,10 @@ export function ProfileSection({
       const res = await authClient.updateUser({ name: nameValue });
       if ((res as { error?: unknown } | undefined)?.error) throw new Error();
       toast.success(t("name.saved"));
-      setNameEdit(null);
+      // Keep the just-saved value in the field. Resetting to null would fall
+      // back to the server-seeded `name` prop, which is stale until the next
+      // full reload (fresh getServerSession) — making the input snap back.
+      setNameEdit(nameValue);
     } catch {
       toast.error(t("error"));
     } finally {

@@ -47,6 +47,16 @@ describe("ProfileSection — name + email edit (USET-04)", () => {
     );
   });
 
+  it("keeps the just-saved name in the field (does not revert to the stale prop)", async () => {
+    render(<ProfileSection {...VERIFIED} />);
+    const input = screen.getByTestId("profile-name-input");
+    fireEvent.change(input, { target: { value: "Ada Lovelace" } });
+    fireEvent.click(screen.getByTestId("profile-name-save"));
+    await waitFor(() => expect(updateUser).toHaveBeenCalled());
+    // BUG repro: it used to snap back to "Ada" (the server-seeded prop) until reload.
+    expect(input).toHaveValue("Ada Lovelace");
+  });
+
   it("changes email via authClient.changeEmail", async () => {
     render(<ProfileSection {...VERIFIED} />);
     const input = screen.getByTestId("profile-email-input");
