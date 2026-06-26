@@ -72,6 +72,20 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
         },
         headers: c.req.raw.headers,
       });
+
+      // Default the user's global display currency to their FIRST budget's
+      // currency. setDisplayCurrencyIfUnset only writes when the column is still
+      // NULL (untouched), so a later budget or a manual pick is never clobbered.
+      // Best-effort: a failure here must not fail budget creation.
+      try {
+        await deps.identity.userRepo.setDisplayCurrencyIfUnset(
+          UserId(session.user.id),
+          body.default_currency,
+        );
+      } catch (e) {
+        console.error("[create-budget] display-currency seed failed:", e);
+      }
+
       return c.json({ id: r2.id, name: body.name }, 201);
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";

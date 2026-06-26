@@ -1,6 +1,6 @@
 // This file MUST NOT be imported directly by domain/application/ports layers.
 // Domain/application code accesses this only through the UserRepo port interface.
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { appPool, withUserContext } from "@budget/platform";
 import type { UserId } from "@budget/shared-kernel";
@@ -30,7 +30,8 @@ export class DrizzleUserRepo implements UserRepo {
       name: row.name,
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
-      display_currency: row.displayCurrency,
+      // NULL = never set; surface "USD" so the DTO contract stays a string.
+      display_currency: row.displayCurrency ?? "USD",
     };
   }
 
@@ -47,7 +48,7 @@ export class DrizzleUserRepo implements UserRepo {
       name: row.name,
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
-      display_currency: row.displayCurrency,
+      display_currency: row.displayCurrency ?? "USD",
     };
   }
 
@@ -67,6 +68,21 @@ export class DrizzleUserRepo implements UserRepo {
         .update(users)
         .set({ displayCurrency: currency, updatedAt: new Date() })
         .where(eq(users.id, id as string));
+    });
+    if (r.isErr()) throw r.error;
+  }
+
+  /**
+   * Seed display_currency ONLY when it is still unset (NULL). The WHERE clause
+   * makes this atomic + idempotent: the first budget seeds the currency, while a
+   * later budget or a deliberate manual pick (non-NULL) is never clobbered.
+   */
+  async setDisplayCurrencyIfUnset(id: UserId, currency: string): Promise<void> {
+    const r = await withUserContext(id, async (tx) => {
+      await tx
+        .update(users)
+        .set({ displayCurrency: currency, updatedAt: new Date() })
+        .where(and(eq(users.id, id as string), isNull(users.displayCurrency)));
     });
     if (r.isErr()) throw r.error;
   }

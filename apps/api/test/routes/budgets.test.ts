@@ -34,6 +34,7 @@ describe("Budgets route (renamed from workspaces)", () => {
           setActiveWorkspaceIds: async () => {},
           findById: async () => null,
           updateLocale: async () => {},
+          setDisplayCurrencyIfUnset: async () => {},
         },
         auth: {
           api: {
@@ -122,6 +123,7 @@ describe("Budgets route (renamed from workspaces)", () => {
           setActiveWorkspaceIds: async () => {},
           findById: async () => null,
           updateLocale: async () => {},
+          setDisplayCurrencyIfUnset: async () => {},
         },
         auth: { api: { createOrganization: async () => ({}) } },
       },
@@ -157,6 +159,7 @@ describe("Budgets route (renamed from workspaces)", () => {
           setActiveWorkspaceIds: async () => {},
           findById: async () => null,
           updateLocale: async () => {},
+          setDisplayCurrencyIfUnset: async () => {},
         },
         auth: { api: {} },
       },
@@ -205,6 +208,7 @@ describe("Budgets route (renamed from workspaces)", () => {
           setActiveWorkspaceIds: async () => {},
           findById: async () => null,
           updateLocale: async () => {},
+          setDisplayCurrencyIfUnset: async () => {},
         },
         auth: { api: {} },
       },

@@ -297,11 +297,13 @@ export function createAuth(opts: CreateAuthOptions) {
           required: true,
           defaultValue: "en",
         },
+        // Optional + no default: a fresh signup leaves display_currency NULL so
+        // the first budget's currency can seed it (Phase 10 UAT). A null/unset
+        // value reads back as "USD" at the repo boundary.
         displayCurrency: {
           type: "string",
           input: true,
-          required: true,
-          defaultValue: "USD",
+          required: false,
         },
       },
       // USET-04: let a signed-in user change their login email. Because the

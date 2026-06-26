@@ -43,7 +43,10 @@ export const users = identity.table(
     nameNonce: bytea("name_nonce"),
     image: text("image"),
     locale: text("locale").notNull().default("en"),
-    displayCurrency: text("display_currency").notNull().default("USD"),
+    // Nullable + no default: a fresh user starts UNSET (NULL). The budget-create
+    // path seeds it to the first budget's currency (setDisplayCurrencyIfUnset);
+    // findById coalesces NULL -> "USD" so the UserDTO contract stays a string.
+    displayCurrency: text("display_currency"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
