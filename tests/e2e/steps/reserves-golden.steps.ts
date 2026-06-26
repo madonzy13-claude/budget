@@ -39,7 +39,16 @@ const { Given, When, Then, After } = createBdd(test);
 // run N+1's closed-month tests). A scenario After hook runs even after a test
 // times out, so the override is ALWAYS cleared between scenarios regardless of
 // how the previous one ended. Best-effort: never throws.
-After(async ({ page }) => {
+//
+// MUST be tag-scoped to @reserves-golden. An UNtagged hook applies to EVERY
+// feature, including those whose steps come from a DIFFERENT createBdd(test)
+// instance (apps/web/e2e uses its own fixtures `test`, this file uses
+// tests/e2e/fixtures `test`). bddgen then sees two non-extending test instances
+// for an unrelated feature (e2e/features/bdp-tab-frame.feature) and aborts:
+// "Can't guess test instance … Found 2 test instances". Scoping the hook to the
+// @reserves-golden scenarios (which already use THIS file's `test`) keeps it off
+// every other feature, so generation stays unambiguous.
+After({ tags: "@reserves-golden" }, async ({ page }) => {
   await page.request.delete("/api/test/clock").catch(() => {});
 });
 
