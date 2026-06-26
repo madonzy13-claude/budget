@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: track)_
 status: executing
 stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
-last_updated: "2026-06-26T14:49:14.160Z"
+last_updated: "2026-06-26T15:21:00.000Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 10
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: 10 (user-settings-redesign) — EXECUTING
-Plan: 3 of 6
-Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
+Plan: 4 of 6 (10-01/02/03 done; Wave 2 → 10-04 next)
+Next: execute 10-04 (Security section: email-gated password change + active-sessions revoke), then 10-05 (forgot/reset pages), then 10-06 (Danger Zone, human checkpoint).
 Status: Ready to execute
 Last activity: 2026-06-26
 
@@ -160,6 +160,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase ?]: [Phase 05]: Plan 05-13 — reserve mutations rewritten to the replay model (delta-only adjust = target−currentR, userDefined-only wallet edits, surplus-driven RESERVE_TOPUP); greedy allocator + stored reserveActualCents deleted. Executed on tasks-redesign branch parallel to the main Phase-07 cursor.
 - [Phase 05]: 05-14 — reserve HTTP contracts locked to the engine shape: /reserves rows{reserveCents,usedCents,overspentCents} + totals{internal,userDefined,surplus,direction,disabled,budgetCurrency}; adjust → {reserveCents,deltaCents,summary}; spendings carries reserveUsedCents+overspentCents+balanceCents (no reserveAvailableCents). Routes are thin forwarders — DTO shaped in the use-case, zero route field-logic change. Real-Postgres integration tests assert key-presence + dead-key absence + adjust ledger delta + disabled path (25 reserve-route tests green).
 - [Phase 05]: 05-14 — reserve-balance-repo.ts is now fully orphaned: removed the BudgetingModule field (factory) + the dead boot constructions; getForBudget has ZERO live callers and budget-home-summary-repo reads category_limits, NOT the dropped category_reserve_balance VIEW → no live 500 risk. File deletion deferred to 05-16. Executed on tasks-redesign branch parallel to the Phase-07 cursor (which stays at plan 2 of 10).
+- [Phase 10]: 10-03 — single `recomputeEmailHash(keyStore,userId,email)` helper called by BOTH create-after AND update-after hooks; Better Auth changeEmail writes only the plain email column, so the deterministic email_hash (users_email_hash_uq) must be recomputed on the update path or findByEmail/uniqueness go stale. Confirm link goes to the CURRENT address (updateEmailWithoutVerification:false).
+- [Phase 10]: 10-03 — section components are SERVER-SEEDED via props threaded through the pill (mirrors GeneralPill), NEVER via a client `authClient.useSession`: the vanilla better-auth/client useSession is a nanostore Atom, not a React hook — it passes Vitest (mocked as a fn) but fails `next build` ("not callable"). Always run the production Docker build, not just Vitest. Applies to 10-04/10-06.
 
 ### Pending Todos
 
