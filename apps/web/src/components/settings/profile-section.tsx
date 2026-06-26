@@ -13,6 +13,7 @@
  * authClient + toast idiom.
  */
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ export function ProfileSection({
 }: ProfileSectionProps) {
   const t = useTranslations("settings.profile");
   const locale = useLocale();
+  const router = useRouter();
 
   const [nameEdit, setNameEdit] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState("");
@@ -51,6 +53,11 @@ export function ProfileSection({
       // back to the server-seeded `name` prop, which is stale until the next
       // full reload (fresh getServerSession) — making the input snap back.
       setNameEdit(nameValue);
+      // Re-render the server tree so the header profile menu (server-seeded
+      // name + avatar initials) reflects the new name without a manual reload.
+      // Better Auth's updateUser refreshes the session cookie cache, so the
+      // TopNav getServerSession read picks up the new value on refresh.
+      router.refresh();
     } catch {
       toast.error(t("error"));
     } finally {
