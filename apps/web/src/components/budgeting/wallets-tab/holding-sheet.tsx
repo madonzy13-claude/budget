@@ -15,7 +15,7 @@
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
 import { useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   Sheet,
@@ -63,6 +63,10 @@ import {
   type MetalKind,
   type Uom,
 } from "@/lib/investment-types";
+import {
+  computeHoldingPreview,
+  type HoldingPreview,
+} from "@/lib/holding-preview";
 import { GroupCombobox } from "./group-combobox";
 import { PriceBlockedBanner } from "./price-blocked-banner";
 import {
@@ -330,18 +334,42 @@ export function HoldingSheet({
     setCurrentPrice("");
   }
 
-  // Read-only current-price preview (metals: spot/oz converted to the UoM).
+  // Read-only current-price preview (metals: spot/oz converted to the UoM). This is
+  // the RAW market price per unit — the bullion premium is shown + applied below in
+  // the Preview sum-up, not folded into this field.
   const currentPricePreview = useMemo(() => {
     if (!currentPrice) return "";
     if (behavior === "metals") {
-      // spot/oz → per-UoM, then lift by the bullion premium (resale > melt).
-      const prem = Number(premiumPct.replace(",", "."));
-      const factor = Number.isFinite(prem) ? 1 + prem / 100 : 1;
-      const perUnit = Number(currentPrice) * OZ_PER_UNIT[uom] * factor;
+      const perUnit = Number(currentPrice) * OZ_PER_UNIT[uom];
       return Number.isFinite(perUnit) ? perUnit.toFixed(2) : "";
     }
     return currentPrice;
-  }, [currentPrice, behavior, uom, premiumPct]);
+  }, [currentPrice, behavior, uom]);
+
+  // Live "what will be created" sum-up (all types) — buy/current totals, premium,
+  // P/L. buy + current currency are kept lock-step in this form, so it is single-
+  // currency and the P/L is exact (no FX in the preview).
+  const preview = useMemo(
+    () =>
+      computeHoldingPreview({
+        behavior,
+        currency: currentPriceCurrency,
+        quantity,
+        buyPrice,
+        currentPrice,
+        uom,
+        premiumPct,
+      }),
+    [
+      behavior,
+      currentPriceCurrency,
+      quantity,
+      buyPrice,
+      currentPrice,
+      uom,
+      premiumPct,
+    ],
+  );
 
   const canSave = useMemo(() => {
     if (!uiType) return false; // no type chosen yet
@@ -664,17 +692,6 @@ export function HoldingSheet({
                   ariaLabel={t("field.uom")}
                 />
               </Field>
-              <Field label={t("field.premium")}>
-                <NumericInput
-                  testId="holding-sheet-premium"
-                  value={premiumPct}
-                  onChange={(v) => {
-                    markDirty();
-                    setPremiumPct(v);
-                  }}
-                  placeholder="0"
-                />
-              </Field>
             </>
           )}
 
@@ -835,20 +852,40 @@ export function HoldingSheet({
                   />
                 ) : (
                   <div className="space-y-1">
-                    <p
+                    {/* Auto-fetched price: a real (disabled) field, not editable. */}
+                    <Input
                       data-testid="holding-sheet-current-price"
-                      className="text-num-md text-[var(--body-on-dark)]"
-                    >
-                      {currentPricePreview
-                        ? `${currentPricePreview} ${currentPriceCurrency}`
-                        : "—"}
-                    </p>
+                      disabled
+                      readOnly
+                      value={
+                        currentPricePreview
+                          ? `${currentPricePreview} ${currentPriceCurrency}`
+                          : "—"
+                      }
+                      className="text-num-md tabular-nums"
+                    />
+                    {/* When the price was fetched. */}
                     <p className="text-caption text-[var(--muted-foreground)]">
                       {t("field.lastUpdated", { relativeTime: t("field.now") })}
                     </p>
                   </div>
                 )}
               </Field>
+              {/* Bullion premium — metals only, BELOW the (raw) current price; the
+                  Preview sum-up applies it to the resale value. */}
+              {behavior === "metals" && (
+                <Field label={t("field.premium")}>
+                  <NumericInput
+                    testId="holding-sheet-premium"
+                    value={premiumPct}
+                    onChange={(v) => {
+                      markDirty();
+                      setPremiumPct(v);
+                    }}
+                    placeholder="0"
+                  />
+                </Field>
+              )}
             </>
           ) : null}
 
@@ -866,6 +903,11 @@ export function HoldingSheet({
                 aria-label={t("field.group")}
               />
             </Field>
+          )}
+
+          {/* 8. Preview — "what will be created" sum-up (all types). */}
+          {preview && (
+            <HoldingPreviewBlock preview={preview} behavior={behavior} />
           )}
         </div>
 
@@ -908,6 +950,136 @@ export function HoldingSheet({
         </AlertDialogContent>
       </AlertDialog>
     </Sheet>
+  );
+}
+
+/** "What will be created" sum-up. Type-aware rows: buy total, current value,
+ *  (metals: + premium = with-premium), and P/L. Single-currency (the form keeps
+ *  buy + current currency in lock-step). */
+function HoldingPreviewBlock({
+  preview,
+  behavior,
+}: {
+  preview: HoldingPreview;
+  behavior: string | null;
+}) {
+  const t = useTranslations("budget.investments");
+  const locale = useLocale();
+  const fmt = (n: number) =>
+    new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  const money = (n: number) => `${fmt(n)} ${preview.currency}`;
+  const trim = (n: number) => {
+    const s = String(n);
+    return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
+  };
+  const qtyStr = preview.showQty ? ` × ${trim(preview.qty)}` : "";
+
+  type Row = {
+    key: string;
+    label: string;
+    sub?: string;
+    value: string;
+    pl?: boolean;
+  };
+  const rows: Row[] = [];
+  if (behavior === "cash") {
+    rows.push({
+      key: "amount",
+      label: t("preview.amount"),
+      value: money(preview.actualTotal),
+    });
+  } else if (behavior === "broker") {
+    if (preview.buyTotal != null)
+      rows.push({
+        key: "dep",
+        label: t("preview.deposited"),
+        value: money(preview.buyTotal),
+      });
+    rows.push({
+      key: "cur",
+      label: t("preview.currentValue"),
+      value: money(preview.actualTotal),
+    });
+  } else {
+    if (preview.buyTotal != null)
+      rows.push({
+        key: "buy",
+        label: t("preview.buyTotal"),
+        sub: `${fmt(preview.buyUnit ?? 0)}${qtyStr}`,
+        value: money(preview.buyTotal),
+      });
+    rows.push({
+      key: "cur",
+      label: t("preview.currentValue"),
+      sub: `${fmt(preview.actualUnit)}${qtyStr}`,
+      value: money(preview.actualBase),
+    });
+    if (preview.premiumPct > 0) {
+      rows.push({
+        key: "prem",
+        label: t("preview.premium", { pct: trim(preview.premiumPct) }),
+        value: `+ ${money(preview.premiumAmount)}`,
+      });
+      rows.push({
+        key: "withprem",
+        label: t("preview.withPremium"),
+        value: money(preview.actualTotal),
+      });
+    }
+  }
+  if (preview.pl != null) {
+    const sign = preview.pl > 0 ? "+" : preview.pl < 0 ? "−" : "";
+    const pct =
+      preview.plPct != null
+        ? ` (${preview.plPct >= 0 ? "+" : "−"}${Math.abs(preview.plPct).toFixed(1)}%)`
+        : "";
+    rows.push({
+      key: "pl",
+      label: t("preview.pl"),
+      value: `${sign}${money(Math.abs(preview.pl))}${pct}`,
+      pl: true,
+    });
+  }
+
+  return (
+    <div
+      data-testid="holding-sheet-preview"
+      className="mt-2 space-y-1 rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] p-3"
+    >
+      <p className="text-caption font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+        {t("preview.title")}
+      </p>
+      {rows.map((r) => (
+        <div
+          key={r.key}
+          className="flex items-baseline justify-between gap-3 text-body-sm"
+        >
+          <span className="text-[var(--muted-foreground)]">
+            {r.label}
+            {r.sub && (
+              <span className="ml-1 text-caption tabular-nums text-[var(--muted-strong)]">
+                {r.sub}
+              </span>
+            )}
+          </span>
+          <span
+            className={[
+              "shrink-0 tabular-nums",
+              r.pl && preview.pl != null && preview.pl < 0
+                ? "text-[var(--trading-down)]"
+                : r.pl && preview.pl != null && preview.pl > 0
+                  ? "text-[var(--trading-up)]"
+                  : "text-[var(--body-on-dark)]",
+            ].join(" ")}
+          >
+            {r.value}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

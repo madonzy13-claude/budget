@@ -484,6 +484,16 @@
           "cta": "Discard",
           "cancel": "Keep editing"
         }
+      },
+      "preview": {
+        "title": "Preview",
+        "buyTotal": "Buy total",
+        "deposited": "Deposited",
+        "amount": "Amount",
+        "currentValue": "Current value",
+        "premium": "Premium {pct}%",
+        "withPremium": "With premium",
+        "pl": "P/L"
       }
     }
   },

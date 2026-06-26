@@ -241,6 +241,64 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.queryByTestId("holding-sheet-premium")).toBeNull();
   });
 
+  // 260626: auto-fetched price is a DISABLED field (not an editable input).
+  it("auto-fetched current price renders a disabled field", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    expect(screen.getByTestId("holding-sheet-current-price")).toBeDisabled();
+  });
+
+  // 260626: bottom Preview sum-up across types.
+  it("preview sum-up (metals): buy total, current value, premium, P/L", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        budgetCurrency="EUR"
+        mode="edit"
+        holding={holding({
+          holdingType: "commodity",
+          uiType: "precious_metals",
+          metal: "gold",
+          unitOfMeasure: "g",
+          name: "Bar",
+          instrumentProvider: "gold_api",
+          buyPriceCents: "6000", // 60.00/g
+          buyCurrency: "EUR",
+          currentPriceCents: "200000", // 2000.00/oz spot
+          currentPriceCurrency: "EUR",
+          quantity: "100",
+          premiumPct: "20",
+        })}
+      />,
+    );
+    const p = screen.getByTestId("holding-sheet-preview");
+    expect(p.textContent).toMatch(/6,000\.00 EUR/); // buy total 60 × 100
+    expect(p.textContent).toMatch(/6,430\.15 EUR/); // current base 64.30 × 100
+    expect(p.textContent).toMatch(/1,286\.03 EUR/); // +20% premium
+    expect(p.textContent).toMatch(/7,716\.1[78] EUR/); // with premium
+    expect(p.textContent).toMatch(/1,716\.1[78] EUR/); // P/L
+  });
+
+  it("preview sum-up (cash): amount only, no P/L", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        budgetCurrency="EUR"
+        mode="edit"
+        holding={holding({
+          holdingType: "cash_fx",
+          uiType: "cash",
+          instrumentId: null,
+          name: "EUR Cash",
+          currentPriceCents: "50000",
+          currentPriceCurrency: "EUR",
+        })}
+      />,
+    );
+    const p = screen.getByTestId("holding-sheet-preview");
+    expect(p.textContent).toMatch(/500\.00 EUR/);
+    expect(p.textContent).not.toMatch(/preview\.pl/); // no P/L row for cash
+  });
+
   it("create mode preselects no type → no Asset/Name field, Save disabled", () => {
     render(<HoldingSheet {...baseProps} mode="create" holding={null} />);
     expect(screen.queryByTestId("holding-sheet-name")).toBeNull();

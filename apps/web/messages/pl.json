@@ -484,6 +484,16 @@
           "cta": "Odrzuć",
           "cancel": "Edytuj dalej"
         }
+      },
+      "preview": {
+        "title": "Podgląd",
+        "buyTotal": "Łączny zakup",
+        "deposited": "Wpłacono",
+        "amount": "Kwota",
+        "currentValue": "Wartość bieżąca",
+        "premium": "Premia {pct}%",
+        "withPremium": "Z premią",
+        "pl": "Zysk/strata"
       }
     }
   },
