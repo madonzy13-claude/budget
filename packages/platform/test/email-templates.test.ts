@@ -59,6 +59,51 @@ describe("Email Templates", () => {
     });
   });
 
+  describe("change-email", () => {
+    test("renders English with the confirm url and the new address", () => {
+      const url = "http://x/auth/verify-email?token=ce";
+      const out = renderEmail(
+        "change-email",
+        { url, newEmail: "new@example.com" },
+        "en",
+      );
+      expect(out.subject).toContain("Budget");
+      expect(out.html).toContain(url);
+      expect(out.text).toContain(url);
+      expect(out.text).toContain("new@example.com");
+      expect(out.html).toContain("new@example.com");
+    });
+
+    test("renders Polish with the new address", () => {
+      const out = renderEmail(
+        "change-email",
+        { url: "http://x", newEmail: "new@example.com" },
+        "pl",
+      );
+      expect(out.subject).toContain("Budget");
+      expect(out.text).toContain("new@example.com");
+    });
+
+    test("renders Ukrainian with the new address", () => {
+      const out = renderEmail(
+        "change-email",
+        { url: "http://x", newEmail: "new@example.com" },
+        "uk",
+      );
+      expect(out.subject).toContain("Budget");
+      expect(out.text).toContain("new@example.com");
+    });
+
+    test("escapes an HTML-unsafe new email", () => {
+      const out = renderEmail(
+        "change-email",
+        { url: "http://x", newEmail: "<script>@x.com" },
+        "en",
+      );
+      expect(out.html).not.toContain("<script>");
+    });
+  });
+
   test("throws on unknown template name", () => {
     expect(() => renderEmail("unknown", {})).toThrow(/Unknown email template/);
   });
