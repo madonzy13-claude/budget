@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: track)_
 status: executing
 stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
-last_updated: "2026-06-26T15:34:00.000Z"
+last_updated: "2026-06-26T15:51:00.000Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 10
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: 10 (user-settings-redesign) — EXECUTING
-Plan: 5 of 6 (10-01/02/03/04 done; Wave 2 complete → 10-05 next)
-Next: execute 10-05 (logged-out forgot-password + shared /reset-password consume page; fix the dead sign-in link), then 10-06 (Danger Zone account deletion, human checkpoint).
-Status: Ready to execute
+Plan: 6 of 6 (10-01..05 done → 10-06 last)
+Next: execute 10-06 (Danger Zone account deletion) — autonomous:false, REQUIRES A HUMAN CHECKPOINT before the GDPR cascade purge. Then phase completion gates.
+Status: Ready to execute (10-06 needs checkpoint approval)
 Last activity: 2026-06-26
 
 ### Known test-debt (non-CI, non-blocking)
@@ -163,6 +163,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 10]: 10-03 — single `recomputeEmailHash(keyStore,userId,email)` helper called by BOTH create-after AND update-after hooks; Better Auth changeEmail writes only the plain email column, so the deterministic email_hash (users_email_hash_uq) must be recomputed on the update path or findByEmail/uniqueness go stale. Confirm link goes to the CURRENT address (updateEmailWithoutVerification:false).
 - [Phase 10]: 10-03 — section components are SERVER-SEEDED via props threaded through the pill (mirrors GeneralPill), NEVER via a client `authClient.useSession`: the vanilla better-auth/client useSession is a nanostore Atom, not a React hook — it passes Vitest (mocked as a fn) but fails `next build` ("not callable"). Always run the production Docker build, not just Vitest. Applies to 10-04/10-06.
 - [Phase 10]: 10-04 — in-app password change = ZERO backend change: reuse the wired reset flow via `authClient.requestPasswordReset({email:self, redirectTo:/<locale>/reset-password})`; password is set on the shared /reset-password page (10-05), never in settings (T-10-05 inbox-gated). Client session reads use the CALLABLE `listSessions()`/`getSession()` (not the useSession atom); current session = matching `getSession().data.session.token`. One `Confirm` discriminated-union state backs a single AlertDialog for both revoke + revoke-others.
+- [Phase 10]: 10-05 — Better Auth reset email links the token as a PATH segment `/auth/reset-password/<token>?callbackURL=/<locale>/reset-password`; its GET handler validates then redirects to `<callbackURL>?token=<token>`, so the consume page reads `?token`. E2E must extract the token from the PATH, not `?token=`, in the email. forgot-password shows a NEUTRAL success regardless of registration (T-10-07).
 
 ### Pending Todos
 
