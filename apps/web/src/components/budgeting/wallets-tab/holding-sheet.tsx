@@ -857,11 +857,10 @@ export function HoldingSheet({
                       data-testid="holding-sheet-current-price"
                       disabled
                       readOnly
-                      value={
-                        currentPricePreview
-                          ? `${currentPricePreview} ${currentPriceCurrency}`
-                          : "—"
-                      }
+                      // Currency is conveyed by the field label (tracked) / the
+                      // currency picker (metals / crypto) + the Preview — so the
+                      // value itself is just the number.
+                      value={currentPricePreview || "—"}
                       className="text-num-md tabular-nums"
                     />
                     {/* When the price was fetched. */}
@@ -1044,41 +1043,54 @@ function HoldingPreviewBlock({
     });
   }
 
+  const plColor =
+    preview.pl != null && preview.pl < 0
+      ? "text-[var(--trading-down)]"
+      : preview.pl != null && preview.pl > 0
+        ? "text-[var(--trading-up)]"
+        : "text-[var(--body-on-dark)]";
+
   return (
     <div
       data-testid="holding-sheet-preview"
-      className="mt-2 space-y-1 rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] p-3"
+      className="mt-2 rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] p-3"
     >
-      <p className="text-caption font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+      <p className="mb-2 text-caption font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
         {t("preview.title")}
       </p>
-      {rows.map((r) => (
-        <div
-          key={r.key}
-          className="flex items-baseline justify-between gap-3 text-body-sm"
-        >
-          <span className="text-[var(--muted-foreground)]">
-            {r.label}
-            {r.sub && (
-              <span className="ml-1 text-caption tabular-nums text-[var(--muted-strong)]">
-                {r.sub}
-              </span>
-            )}
-          </span>
-          <span
+      <div className="space-y-2.5">
+        {rows.map((r) => (
+          <div
+            key={r.key}
             className={[
-              "shrink-0 tabular-nums",
-              r.pl && preview.pl != null && preview.pl < 0
-                ? "text-[var(--trading-down)]"
-                : r.pl && preview.pl != null && preview.pl > 0
-                  ? "text-[var(--trading-up)]"
-                  : "text-[var(--body-on-dark)]",
+              // label + its formula stack on the LEFT (so the formula never
+              // competes with the amount → no wrap); the amount stays on one line.
+              "flex items-center justify-between gap-4",
+              // Separate the concluding P/L row with a divider.
+              r.pl ? "mt-1 border-t border-[var(--hairline-dark)] pt-2.5" : "",
             ].join(" ")}
           >
-            {r.value}
-          </span>
-        </div>
-      ))}
+            <span className="flex min-w-0 flex-col">
+              <span className="text-body-sm text-[var(--muted-foreground)]">
+                {r.label}
+              </span>
+              {r.sub && (
+                <span className="text-caption tabular-nums text-[var(--muted-strong)]">
+                  {r.sub}
+                </span>
+              )}
+            </span>
+            <span
+              className={[
+                "shrink-0 whitespace-nowrap text-num-sm font-medium tabular-nums",
+                r.pl ? plColor : "text-[var(--body-on-dark)]",
+              ].join(" ")}
+            >
+              {r.value}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
