@@ -136,7 +136,20 @@
       }
     },
     "profile": {
-      "placeholder": "Ustawienia profilu już wkrótce."
+      "name": {
+        "label": "Imię",
+        "save": "Zapisz",
+        "saved": "Zaktualizowano imię"
+      },
+      "email": {
+        "label": "E-mail",
+        "pending": "Oczekuje",
+        "placeholder": "nowy@email.com",
+        "change": "Zmień",
+        "sent": "Wysłano potwierdzenie — sprawdź swoją obecną skrzynkę",
+        "helper": "Zanim zmienimy adres, wyślemy link potwierdzający na Twój obecny adres."
+      },
+      "error": "Coś poszło nie tak. Spróbuj ponownie."
     },
     "security": {
       "placeholder": "Ustawienia bezpieczeństwa już wkrótce."

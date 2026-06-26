@@ -136,7 +136,20 @@
       }
     },
     "profile": {
-      "placeholder": "Profile settings coming soon."
+      "name": {
+        "label": "Name",
+        "save": "Save",
+        "saved": "Name updated"
+      },
+      "email": {
+        "label": "Email",
+        "pending": "Pending",
+        "placeholder": "new@email.com",
+        "change": "Change",
+        "sent": "Confirmation sent — check your current inbox",
+        "helper": "We'll email a confirmation link to your current address before switching."
+      },
+      "error": "Something went wrong. Try again."
     },
     "security": {
       "placeholder": "Security settings coming soon."

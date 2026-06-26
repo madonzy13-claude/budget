@@ -34,6 +34,30 @@ export function buildTrustedOrigins(
   ];
 }
 
+/**
+ * Recompute identity.users.email_hash from the plain email.
+ *
+ * email_hash is a deterministic BLAKE2b(email) backing the users_email_hash_uq
+ * UNIQUE index. Better Auth writes only the PLAIN email column on create AND on
+ * changeEmail-confirm — so both the create-after and update-after hooks call this
+ * to keep the hash in sync. Without it, an email change leaves a stale hash
+ * (broken uniqueness + lookup). Runs inside withUserContext so RLS permits the
+ * self-row UPDATE (PC-03).
+ */
+export async function recomputeEmailHash(
+  keyStore: LibsodiumKeyStore,
+  userId: UserId,
+  email: string,
+): Promise<void> {
+  const hash = await keyStore.emailHash(email);
+  const r = await withUserContext(userId, async (tx) => {
+    await tx.execute(
+      sql`UPDATE identity.users SET email_hash = ${Buffer.from(hash)} WHERE id = ${userId as string}::uuid`,
+    );
+  });
+  if (r.isErr()) throw r.error;
+}
+
 export function createAuth(opts: CreateAuthOptions) {
   const env = loadEnv();
   const db = drizzle(appPool(), { casing: "snake_case" });
@@ -147,6 +171,31 @@ export function createAuth(opts: CreateAuthOptions) {
           defaultValue: "USD",
         },
       },
+      // USET-04: let a signed-in user change their login email. Because the
+      // current email is verified (requireEmailVerification), Better Auth first
+      // sends a confirm link to the OLD address; on click the plain email column
+      // updates, email_verified flips false, and the existing
+      // emailVerification.sendVerificationEmail re-verifies the NEW address.
+      changeEmail: {
+        enabled: true,
+        sendChangeEmailConfirmation: async ({
+          user,
+          newEmail,
+          url,
+        }: {
+          user: { email: string; locale?: string };
+          newEmail: string;
+          url: string;
+        }) => {
+          await opts.emailSender.send({
+            to: user.email, // OLD address — the confirm link
+            template: "change-email",
+            vars: { url, newEmail },
+            locale: pickLocale(user.locale),
+          });
+        },
+        updateEmailWithoutVerification: false,
+      },
     },
     // D-16 wiring: email hash + DEK written in create-after via withUserContext (PC-03).
     // email_hash cannot be set in create-before because Better Auth's Drizzle adapter only
@@ -168,16 +217,24 @@ export function createAuth(opts: CreateAuthOptions) {
           // PC-09: best-effort write; user row commits before this hook fires. A reconciliation
           // worker (Phase 6) detects users with no user_keys row and back-fills.
           after: async (user) => {
-            const [hash, wrapped] = await Promise.all([
-              opts.keyStore.emailHash(user.email as string),
-              opts.keyStore.generateUserDek(user.id as never),
-            ]);
+            // email_hash seed via the shared helper (same path update.after uses).
+            await recomputeEmailHash(
+              opts.keyStore,
+              UserId(user.id as string),
+              user.email as string,
+            ).catch((e) =>
+              console.error(
+                "[identity] email_hash seed failed for user",
+                user.id,
+                e,
+              ),
+            );
+            const wrapped = await opts.keyStore.generateUserDek(
+              user.id as never,
+            );
             const r = await withUserContext(
               UserId(user.id as string),
               async (tx) => {
-                await tx.execute(sql`
-                  UPDATE identity.users SET email_hash = ${Buffer.from(hash)} WHERE id = ${user.id}::uuid
-                `);
                 await tx.execute(sql`
                   INSERT INTO shared_kernel.user_keys (user_id, cipher_dek, nonce)
                   VALUES (${user.id}, ${Buffer.from(wrapped.cipherDek)}, ${Buffer.from(wrapped.nonce)})
@@ -201,6 +258,27 @@ export function createAuth(opts: CreateAuthOptions) {
                 r.error,
               );
             }
+          },
+        },
+        update: {
+          // USET-04: keep email_hash in sync after any user update. Better Auth
+          // fires update.after for any field change; recomputing from the current
+          // email is cheap + idempotent (a RAW SQL UPDATE, so it does NOT
+          // re-trigger this hook). The changeEmail-confirm path is the one that
+          // actually moves the email — without this the hash would stale and break
+          // the users_email_hash_uq uniqueness + lookups.
+          after: async (user: { id: string; email: string }) => {
+            await recomputeEmailHash(
+              opts.keyStore,
+              UserId(user.id),
+              user.email,
+            ).catch((e) =>
+              console.error(
+                "[identity] email_hash recompute failed for user",
+                user.id,
+                e,
+              ),
+            );
           },
         },
       },
