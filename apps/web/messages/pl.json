@@ -175,7 +175,18 @@
       "sessions_loading": "Ładowanie sesji…"
     },
     "accountDanger": {
-      "placeholder": "Usuwanie konta już wkrótce."
+      "title": "Usuń konto",
+      "warning": "Trwale usuń swoje konto i każdy budżet, którego jesteś jedynym właścicielem, wraz ze wszystkimi danymi. Tej operacji nie można cofnąć.",
+      "delete_button": "Usuń konto",
+      "confirm": {
+        "title": "Usunąć konto?",
+        "body": "To trwale usunie Twoje konto i każdy budżet, którego jesteś jedynym właścicielem, wraz ze wszystkimi danymi. Wyślemy Ci link potwierdzający e-mailem.",
+        "type_label": "Wpisz {word}, aby potwierdzić",
+        "cancel": "Anuluj",
+        "cta": "Usuń konto"
+      },
+      "sent": "Sprawdź pocztę — wysłaliśmy link potwierdzający usunięcie.",
+      "error": "Nie udało się rozpocząć usuwania konta. Spróbuj ponownie."
     },
     "save": "Zapisz zmiany",
     "save_success": "Ustawienia zapisane.",

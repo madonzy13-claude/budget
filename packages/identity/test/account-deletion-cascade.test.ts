@@ -130,11 +130,13 @@ const countMembers = (u: string, b: string) =>
   );
 const countTenant = (u: string, b: string, t: string) =>
   scalar(u, b, `SELECT count(*)::int AS n FROM ${t} WHERE tenant_id = '${b}'`);
+// LIVE (non-shredded) DEK rows — deletion crypto-shreds (destroyed_at + wiped key
+// material), it does NOT delete the row, so "no live DEK" == zero undestroyed rows.
 const countUserKeys = (u: string) =>
   scalar(
     u,
     null,
-    `SELECT count(*)::int AS n FROM shared_kernel.user_keys WHERE user_id = '${u}'`,
+    `SELECT count(*)::int AS n FROM shared_kernel.user_keys WHERE user_id = '${u}' AND destroyed_at IS NULL`,
   );
 const countAnonAdjustments = (u: string, b: string) =>
   scalar(

@@ -14,6 +14,7 @@ export type TemplateName =
   | "verify-email"
   | "reset-password"
   | "change-email"
+  | "delete-account"
   | "workspace-invite";
 
 export interface TemplateVars {
@@ -79,6 +80,7 @@ interface Strings {
   verify: CommonBlock;
   reset: CommonBlock;
   changeEmail: ChangeEmailBlock;
+  deleteAccount: CommonBlock;
   invite: InviteBlock;
 }
 
@@ -110,6 +112,15 @@ const STRINGS: Record<EmailLocale, Strings> = {
       pasteHint: "Or paste this URL into your browser:",
       footer:
         "If you did not request this change, ignore this email — your email address will remain unchanged.",
+    },
+    deleteAccount: {
+      subject: "Confirm account deletion — Budget",
+      heading: "Confirm account deletion",
+      body: "We received a request to permanently delete your Budget account and all of its data. This cannot be undone. Click the button below to confirm.",
+      cta: "Delete my account",
+      pasteHint: "Or paste this URL into your browser:",
+      footer:
+        "If you did not request this, ignore this email — your account will remain unchanged.",
     },
     invite: {
       subject: (ws) => `Join "${ws}" on Budget`,
@@ -150,6 +161,15 @@ const STRINGS: Record<EmailLocale, Strings> = {
       footer:
         "Jeśli to nie Ty prosiłeś/aś o tę zmianę, zignoruj tę wiadomość — Twój adres e-mail pozostanie bez zmian.",
     },
+    deleteAccount: {
+      subject: "Potwierdź usunięcie konta — Budget",
+      heading: "Potwierdź usunięcie konta",
+      body: "Otrzymaliśmy prośbę o trwałe usunięcie Twojego konta Budget i wszystkich jego danych. Tej operacji nie można cofnąć. Kliknij przycisk poniżej, aby potwierdzić.",
+      cta: "Usuń moje konto",
+      pasteHint: "Lub wklej ten adres URL do przeglądarki:",
+      footer:
+        "Jeśli to nie Ty, zignoruj tę wiadomość — Twoje konto pozostanie bez zmian.",
+    },
     invite: {
       subject: (ws) => `Dołącz do "${ws}" na Budget`,
       heading: (ws) => `Otrzymałeś/aś zaproszenie do "${ws}"`,
@@ -188,6 +208,15 @@ const STRINGS: Record<EmailLocale, Strings> = {
       pasteHint: "Або вставте це посилання у браузер:",
       footer:
         "Якщо ви не запитували цю зміну, проігноруйте цей лист — ваша електронна адреса залишиться без змін.",
+    },
+    deleteAccount: {
+      subject: "Підтвердьте видалення облікового запису — Budget",
+      heading: "Підтвердьте видалення облікового запису",
+      body: "Ми отримали запит на остаточне видалення вашого облікового запису Budget та всіх його даних. Цю дію не можна скасувати. Натисніть кнопку нижче, щоб підтвердити.",
+      cta: "Видалити мій обліковий запис",
+      pasteHint: "Або вставте це посилання у браузер:",
+      footer:
+        "Якщо ви не робили цього запиту, проігноруйте цей лист — ваш обліковий запис залишиться без змін.",
     },
     invite: {
       subject: (ws) => `Приєднайтесь до "${ws}" в Budget`,
@@ -313,6 +342,19 @@ function renderChangeEmail(
   };
 }
 
+function renderDeleteAccount(
+  vars: TemplateVars,
+  locale: EmailLocale,
+): RenderedEmail {
+  const url = String(vars.url ?? "");
+  const s = STRINGS[locale].deleteAccount;
+  return {
+    subject: s.subject,
+    html: htmlShell(s.heading, s.body, s.cta, url, s.pasteHint, s.footer),
+    text: textShell(s.heading, s.body, url, s.pasteHint, s.footer),
+  };
+}
+
 function renderWorkspaceInvite(
   vars: TemplateVars,
   locale: EmailLocale,
@@ -348,6 +390,7 @@ const RENDERERS: Record<
   "verify-email": renderVerifyEmail,
   "reset-password": renderResetPassword,
   "change-email": renderChangeEmail,
+  "delete-account": renderDeleteAccount,
   "workspace-invite": renderWorkspaceInvite,
 };
 

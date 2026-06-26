@@ -175,7 +175,18 @@
       "sessions_loading": "Loading sessions…"
     },
     "accountDanger": {
-      "placeholder": "Account deletion coming soon."
+      "title": "Delete account",
+      "warning": "Permanently delete your account and every budget you solely own, with all their data. This can't be undone.",
+      "delete_button": "Delete account",
+      "confirm": {
+        "title": "Delete your account?",
+        "body": "This permanently deletes your account and every budget you solely own, with all their data. We'll email you a link to confirm.",
+        "type_label": "Type {word} to confirm",
+        "cancel": "Cancel",
+        "cta": "Delete account"
+      },
+      "sent": "Check your email — we sent a link to confirm deletion.",
+      "error": "Couldn't start account deletion. Try again."
     },
     "save": "Save changes",
     "save_success": "Settings saved.",

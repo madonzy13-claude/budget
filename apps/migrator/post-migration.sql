@@ -711,6 +711,11 @@ ALTER TABLE budgeting.category_reserve_adjustments FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON budgeting.category_reserve_adjustments TO app_role, worker_role;
 REVOKE UPDATE, DELETE ON budgeting.category_reserve_adjustments FROM app_role, worker_role;
 GRANT DELETE ON budgeting.category_reserve_adjustments TO app_role;
+-- Phase 10-06 (USET-06): the account-deletion cascade ANONYMISES adjustments the
+-- leaving user authored in OTHER members' budgets (created_by -> NULL), keeping the
+-- household's data. Column-scoped UPDATE on ONLY created_by — every other column
+-- stays append-only.
+GRANT UPDATE (created_by) ON budgeting.category_reserve_adjustments TO app_role;
 
 -- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
 GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;
