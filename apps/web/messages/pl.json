@@ -42,7 +42,10 @@
         "heading": "Wybierz nowe hasło",
         "cta": "Zresetuj hasło"
       },
-      "expired": "Ten link do resetowania wygasł. Poproś o nowy — są ważne przez 30 minut."
+      "expired": "Ten link do resetowania wygasł. Poproś o nowy — są ważne przez 30 minut.",
+      "min_length": "Hasło musi mieć co najmniej 10 znaków.",
+      "back_to_signin": "Powrót do logowania",
+      "request_new_link": "Poproś o nowy link"
     },
     "verify": {
       "banner": {

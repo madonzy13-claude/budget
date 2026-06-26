@@ -107,7 +107,7 @@ export default async function SignInPage({
                   {t("signup_link")}
                 </Link>
                 <Link
-                  href={`/${locale}/reset-password`}
+                  href={`/${locale}/forgot-password`}
                   className="font-medium text-[var(--primary)] hover:text-[var(--primary-active)]"
                 >
                   {t("signin.forgot")}

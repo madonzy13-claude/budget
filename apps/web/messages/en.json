@@ -42,7 +42,10 @@
         "heading": "Choose a new password",
         "cta": "Reset password"
       },
-      "expired": "This reset link has expired. Request a new one — they're valid for 30 minutes."
+      "expired": "This reset link has expired. Request a new one — they're valid for 30 minutes.",
+      "min_length": "Password must be at least 10 characters.",
+      "back_to_signin": "Back to sign in",
+      "request_new_link": "Request a new link"
     },
     "verify": {
       "banner": {
