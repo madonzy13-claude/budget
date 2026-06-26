@@ -16,32 +16,11 @@ import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AuthCardShell } from "@/components/auth/auth-card-shell";
 import { authClient } from "@/lib/auth-client";
 
 // Mirrors emailAndPassword.minPasswordLength in packages/identity better-auth.ts.
 const MIN_PASSWORD = 10;
-
-// Module-scoped so it is NOT re-created each render (a nested component identity
-// would remount the form subtree on every keystroke and drop input focus).
-function Shell({
-  locale,
-  children,
-}: {
-  locale: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[var(--canvas-dark)] px-4 py-10">
-      <Link
-        href={`/${locale}`}
-        className="mb-6 inline-flex items-center text-[17px] font-bold uppercase tracking-[0.04em] text-[var(--primary)]"
-      >
-        Budget
-      </Link>
-      <div className="w-full max-w-md">{children}</div>
-    </main>
-  );
-}
 
 export default function ResetPasswordPage() {
   const t = useTranslations("auth");
@@ -55,7 +34,7 @@ export default function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <Shell locale={locale}>
+      <AuthCardShell locale={locale}>
         <Card>
           <CardHeader className="gap-2">
             <CardTitle className="text-display-sm">
@@ -78,7 +57,7 @@ export default function ResetPasswordPage() {
             </Link>
           </CardContent>
         </Card>
-      </Shell>
+      </AuthCardShell>
     );
   }
 
@@ -109,7 +88,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <Shell locale={locale}>
+    <AuthCardShell locale={locale}>
       <Card>
         <CardHeader className="gap-2">
           <CardTitle className="text-display-sm">
@@ -168,6 +147,6 @@ export default function ResetPasswordPage() {
           </Link>
         </CardContent>
       </Card>
-    </Shell>
+    </AuthCardShell>
   );
 }

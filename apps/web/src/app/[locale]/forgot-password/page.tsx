@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AuthCardShell } from "@/components/auth/auth-card-shell";
 import { authClient } from "@/lib/auth-client";
 
 export default function ForgotPasswordPage() {
@@ -47,68 +48,60 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[var(--canvas-dark)] px-4 py-10">
-      <Link
-        href={`/${locale}`}
-        className="mb-6 inline-flex items-center text-[17px] font-bold uppercase tracking-[0.04em] text-[var(--primary)]"
-      >
-        Budget
-      </Link>
-      <div className="w-full max-w-md">
-        <Card>
-          <CardHeader className="gap-2">
-            <CardTitle className="text-display-sm">
-              {t("reset.request.heading")}
-            </CardTitle>
-            <CardDescription>{t("reset.request.body")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {sent ? (
-              <p
-                data-testid="forgot-success"
-                className="text-sm text-[var(--body-on-dark)]"
-              >
-                {t("reset.request.success")}
-              </p>
-            ) : (
-              <form onSubmit={onSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="forgot-email"
-                    className="block text-sm font-medium text-[var(--on-dark)]"
-                  >
-                    {t("email.label")}
-                  </label>
-                  <Input
-                    id="forgot-email"
-                    data-testid="forgot-email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder={t("email.placeholder")}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  data-testid="forgot-submit"
-                  disabled={busy || email.trim().length === 0}
-                  className="w-full"
-                >
-                  {busy ? t("reset_loading") : t("reset.request.cta")}
-                </Button>
-              </form>
-            )}
-            <Link
-              href={`/${locale}/sign-in`}
-              className="block text-sm font-medium text-[var(--primary)] hover:text-[var(--primary-active)]"
+    <AuthCardShell locale={locale}>
+      <Card>
+        <CardHeader className="gap-2">
+          <CardTitle className="text-display-sm">
+            {t("reset.request.heading")}
+          </CardTitle>
+          <CardDescription>{t("reset.request.body")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {sent ? (
+            <p
+              data-testid="forgot-success"
+              className="text-sm text-[var(--body-on-dark)]"
             >
-              {t("reset.back_to_signin")}
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+              {t("reset.request.success")}
+            </p>
+          ) : (
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label
+                  htmlFor="forgot-email"
+                  className="block text-sm font-medium text-[var(--on-dark)]"
+                >
+                  {t("email.label")}
+                </label>
+                <Input
+                  id="forgot-email"
+                  data-testid="forgot-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder={t("email.placeholder")}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                data-testid="forgot-submit"
+                disabled={busy || email.trim().length === 0}
+                className="w-full"
+              >
+                {busy ? t("reset_loading") : t("reset.request.cta")}
+              </Button>
+            </form>
+          )}
+          <Link
+            href={`/${locale}/sign-in`}
+            className="block text-sm font-medium text-[var(--primary)] hover:text-[var(--primary-active)]"
+          >
+            {t("reset.back_to_signin")}
+          </Link>
+        </CardContent>
+      </Card>
+    </AuthCardShell>
   );
 }
