@@ -266,7 +266,9 @@ describe("HoldingSheet — type-first", () => {
     fireEvent.click(screen.getByTestId("pick-manual-instrument"));
 
     // Editable current-price input appears (no read-only preview / banner).
-    expect(await screen.findByTestId("holding-sheet-amount")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("holding-sheet-amount"),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("price-blocked-banner")).toBeNull();
     // The price endpoint is NEVER called for a manual instrument.
     expect(clientApiFetch).not.toHaveBeenCalled();
@@ -309,6 +311,57 @@ describe("HoldingSheet — type-first", () => {
     // so the picker is hidden and the price label carries the currency.
     expect(screen.queryByTestId("currency-stub")).toBeNull();
     expect(screen.getByText(/field\.currentPrice \(USD\)/)).toBeInTheDocument();
+  });
+
+  // 260626: crypto is quoted in USD (CoinGecko) but the user values it in a
+  // currency of their choice — like precious metals. So unlike equity/ETF, a
+  // crypto holding with an instrument selected must STILL show the currency
+  // picker (manual currency), and the read-only price is FX-converted to it.
+  it("crypto: keeps the currency picker visible WITH an instrument (manual currency, unlike equity)", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "crypto",
+          uiType: "crypto",
+          instrumentProvider: "coingecko",
+          name: "Bitcoin",
+          buyCurrency: "EUR",
+          currentPriceCurrency: "EUR",
+        })}
+      />,
+    );
+    expect(screen.getByTestId("currency-stub")).toBeInTheDocument();
+  });
+
+  it("crypto: changing the currency re-fetches the price converted to that currency", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "1800000", currency: "EUR" }),
+    } as unknown as Response);
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "crypto",
+          uiType: "crypto",
+          instrumentProvider: "coingecko",
+          name: "Bitcoin",
+        })}
+      />,
+    );
+    vi.mocked(clientApiFetch).mockClear();
+    fireEvent.change(screen.getByTestId("currency-stub"), {
+      target: { value: "EUR" },
+    });
+    await waitFor(() => expect(clientApiFetch).toHaveBeenCalled());
+    const call = vi.mocked(clientApiFetch).mock.calls.at(-1);
+    expect(String(call?.[0])).toContain("/investments/price/i1");
+    expect(JSON.parse((call?.[1] as RequestInit).body as string)).toMatchObject(
+      { currency: "EUR" },
+    );
   });
 
   it("'enter manually' (no catalog match) shows an editable price + the currency picker", async () => {

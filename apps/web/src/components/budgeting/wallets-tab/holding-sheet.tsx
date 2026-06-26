@@ -57,6 +57,7 @@ import {
   OZ_PER_UNIT,
   deriveUiType,
   isAutoPriced,
+  usesUserChosenCurrency,
   type UiType,
   type Metal,
   type MetalKind,
@@ -189,10 +190,13 @@ export function HoldingSheet({
       (instrumentId != null && !isAutoPriced(instrumentProvider)));
   // Currency comes FROM a selected instrument, so hide the picker once one is
   // chosen; show it only when the user supplies the value by hand (manual / cash /
-  // broker / manual-entry tracked with no instrument). Metals are the exception:
-  // the spot is USD but the user picks the currency to value the coins in (the
-  // fetched price is FX-converted to it).
-  const showBuyCurrency = instrumentId == null || behavior === "metals";
+  // broker / manual-entry tracked with no instrument). Two exceptions value an
+  // upstream-USD quote in a user-chosen currency, so they KEEP the picker even
+  // with an instrument: metals (spot/oz) and crypto (CoinGecko USD) — the fetched
+  // price is FX-converted to the chosen currency.
+  const userChosenCurrency = usesUserChosenCurrency(uiType);
+  const showBuyCurrency =
+    instrumentId == null || behavior === "metals" || userChosenCurrency;
   const markDirty = () => {
     if (!dirty) setDirty(true);
   };
@@ -207,7 +211,9 @@ export function HoldingSheet({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           // Metals: ask for the price in the user's chosen currency (USD → ccy).
-          body: JSON.stringify(targetCurrency ? { currency: targetCurrency } : {}),
+          body: JSON.stringify(
+            targetCurrency ? { currency: targetCurrency } : {},
+          ),
         },
       );
       if (!res.ok) {
@@ -286,7 +292,11 @@ export function HoldingSheet({
     setInstrumentProvider(inst.provider ?? null);
     setSymbol(inst.symbol);
     setName(inst.displayName);
-    if (inst.quoteCurrency) {
+    // Crypto values its USD quote in the user's chosen currency, so DON'T lock to
+    // the instrument's quote currency — keep what the user picked (default = budget
+    // currency) and fetch the price converted into it (below). Everything else
+    // adopts the instrument's quote currency.
+    if (inst.quoteCurrency && !userChosenCurrency) {
       setBuyCurrency(inst.quoteCurrency);
       setCurrentPriceCurrency(inst.quoteCurrency);
     }
@@ -294,7 +304,8 @@ export function HoldingSheet({
     // never call the price endpoint (it would 422 → spurious blocked banner).
     if (isAutoPriced(inst.provider)) {
       setCurrentPrice("");
-      void fetchPrice(inst.id);
+      // Crypto: ask for the price FX-converted into the chosen currency.
+      void fetchPrice(inst.id, userChosenCurrency ? buyCurrency : undefined);
     } else {
       setCurrentPrice("");
       setPriceBlocked(false);
@@ -730,14 +741,18 @@ export function HoldingSheet({
               {showBuyCurrency && (
                 <Field
                   label={
-                    behavior === "metals"
+                    behavior === "metals" || userChosenCurrency
                       ? t("field.currency")
                       : t("field.buyCurrency")
                   }
                 >
                   <CurrencyPicker
                     variant="field"
-                    value={behavior === "metals" ? currentPriceCurrency : buyCurrency}
+                    value={
+                      behavior === "metals" || userChosenCurrency
+                        ? currentPriceCurrency
+                        : buyCurrency
+                    }
                     onSelect={(v) => {
                       markDirty();
                       setBuyCurrency(v);
@@ -746,6 +761,9 @@ export function HoldingSheet({
                       setCurrentPriceCurrency(v);
                       // Metals: re-fetch the spot converted into the new currency.
                       if (behavior === "metals") void resolveMetal(metal, v);
+                      // Crypto: re-fetch the instrument's USD quote converted to it.
+                      else if (userChosenCurrency && instrumentId != null)
+                        void fetchPrice(instrumentId, v);
                     }}
                     aria-label={t("field.currency")}
                   />
