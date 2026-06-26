@@ -321,7 +321,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 **Goal:** Replace the legacy user-settings page with a mobile-first redesign aligned to the current design system. Shell = a 2-pill client carousel reusing the BDP pill/pushState/prefetch/caching pattern; section content reuses the BDP Settings-tab accordion. Pills: **General** (display language + display currency) and **User** (Profile: name + email-with-reverify · Security: email-gated password change + active-sessions list/revoke + sign-out-other-devices · Danger Zone: delete own account). Remove the AI/voice Provider feature end-to-end (DB columns via migration, `user.additionalFields`, route, repo, app layer, types, session normalization, i18n). Build the missing logged-out forgot/reset-password pages and fix the dead sign-in link.
 **Requirements**: SETT-01, SETT-02 (existing locale + display-currency, restyled) + new USET-\* enumerated in 10-SPEC (profile name/email edit, email change + re-verify, email-gated password change, sessions mgmt, account deletion/GDPR right-to-delete, forgot/reset-password flow, Provider-feature removal)
 **Depends on:** Phase 3 (BDP pill/carousel frame) + Phase 6 (Settings/onboarding/share UI)
-**Plans:** 0 plans (run /gsd-plan-phase 10 to break down)
+**Plans:** 1/6 plans executed
 
 **Success Criteria** (what must be TRUE):
 
