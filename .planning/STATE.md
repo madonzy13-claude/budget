@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: track)_
 status: executing
 stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
-last_updated: "2026-06-26T15:21:00.000Z"
+last_updated: "2026-06-26T15:34:00.000Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 10
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: 10 (user-settings-redesign) — EXECUTING
-Plan: 4 of 6 (10-01/02/03 done; Wave 2 → 10-04 next)
-Next: execute 10-04 (Security section: email-gated password change + active-sessions revoke), then 10-05 (forgot/reset pages), then 10-06 (Danger Zone, human checkpoint).
+Plan: 5 of 6 (10-01/02/03/04 done; Wave 2 complete → 10-05 next)
+Next: execute 10-05 (logged-out forgot-password + shared /reset-password consume page; fix the dead sign-in link), then 10-06 (Danger Zone account deletion, human checkpoint).
 Status: Ready to execute
 Last activity: 2026-06-26
 
@@ -162,6 +162,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 05]: 05-14 — reserve-balance-repo.ts is now fully orphaned: removed the BudgetingModule field (factory) + the dead boot constructions; getForBudget has ZERO live callers and budget-home-summary-repo reads category_limits, NOT the dropped category_reserve_balance VIEW → no live 500 risk. File deletion deferred to 05-16. Executed on tasks-redesign branch parallel to the Phase-07 cursor (which stays at plan 2 of 10).
 - [Phase 10]: 10-03 — single `recomputeEmailHash(keyStore,userId,email)` helper called by BOTH create-after AND update-after hooks; Better Auth changeEmail writes only the plain email column, so the deterministic email_hash (users_email_hash_uq) must be recomputed on the update path or findByEmail/uniqueness go stale. Confirm link goes to the CURRENT address (updateEmailWithoutVerification:false).
 - [Phase 10]: 10-03 — section components are SERVER-SEEDED via props threaded through the pill (mirrors GeneralPill), NEVER via a client `authClient.useSession`: the vanilla better-auth/client useSession is a nanostore Atom, not a React hook — it passes Vitest (mocked as a fn) but fails `next build` ("not callable"). Always run the production Docker build, not just Vitest. Applies to 10-04/10-06.
+- [Phase 10]: 10-04 — in-app password change = ZERO backend change: reuse the wired reset flow via `authClient.requestPasswordReset({email:self, redirectTo:/<locale>/reset-password})`; password is set on the shared /reset-password page (10-05), never in settings (T-10-05 inbox-gated). Client session reads use the CALLABLE `listSessions()`/`getSession()` (not the useSession atom); current session = matching `getSession().data.session.token`. One `Confirm` discriminated-union state backs a single AlertDialog for both revoke + revoke-others.
 
 ### Pending Todos
 
