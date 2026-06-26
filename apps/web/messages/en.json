@@ -119,17 +119,30 @@
       "tab": "Language",
       "error_save": "Failed to save language. Try again."
     },
-    "providers": {
-      "tab": "Providers",
-      "llm": {
-        "label": "AI assistant",
-        "helper": "Used for the budget setup wizard and insights."
-      },
-      "stt": {
-        "label": "Voice input",
-        "helper": "Used for voice-to-text expense capture."
-      },
-      "footnote": "Phase 1 wires the picker only. STT and LLM adapters connect in Phase 5."
+    "pills": {
+      "general": "General",
+      "user": "User",
+      "aria": "Settings sections"
+    },
+    "general": {
+      "title": "General"
+    },
+    "user": {
+      "title": "User",
+      "sections": {
+        "profile": "Profile",
+        "security": "Security",
+        "danger": "Danger Zone"
+      }
+    },
+    "profile": {
+      "placeholder": "Profile settings coming soon."
+    },
+    "security": {
+      "placeholder": "Security settings coming soon."
+    },
+    "accountDanger": {
+      "placeholder": "Account deletion coming soon."
     },
     "save": "Save changes",
     "save_success": "Settings saved.",

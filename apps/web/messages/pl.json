@@ -119,17 +119,30 @@
       "tab": "Język",
       "error_save": "Nie udało się zapisać języka. Spróbuj ponownie."
     },
-    "providers": {
-      "tab": "Dostawcy",
-      "llm": {
-        "label": "Asystent AI",
-        "helper": "Używany przez kreator konfiguracji budżetu i analizy."
-      },
-      "stt": {
-        "label": "Wprowadzanie głosowe",
-        "helper": "Używane do rejestrowania wydatków przez mowę."
-      },
-      "footnote": "Faza 1 podpina tylko przełącznik. Adaptery STT i LLM zostaną podłączone w fazie 5."
+    "pills": {
+      "general": "Ogólne",
+      "user": "Użytkownik",
+      "aria": "Sekcje ustawień"
+    },
+    "general": {
+      "title": "Ogólne"
+    },
+    "user": {
+      "title": "Użytkownik",
+      "sections": {
+        "profile": "Profil",
+        "security": "Bezpieczeństwo",
+        "danger": "Strefa zagrożenia"
+      }
+    },
+    "profile": {
+      "placeholder": "Ustawienia profilu już wkrótce."
+    },
+    "security": {
+      "placeholder": "Ustawienia bezpieczeństwa już wkrótce."
+    },
+    "accountDanger": {
+      "placeholder": "Usuwanie konta już wkrótce."
     },
     "save": "Zapisz zmiany",
     "save_success": "Ustawienia zapisane.",
