@@ -38,6 +38,38 @@ export interface InstrumentsDailySeedDeps {
   taskRepo: TaskRepo;
 }
 
+export interface ColdStartUniverseSeedDeps {
+  /** Count of ACTIVE instruments currently in the universe (what search reads). */
+  countActiveInstruments: () => Promise<number>;
+  /** Enqueue a one-off run of the `instruments-daily-seed` job. */
+  enqueueSeed: () => Promise<void>;
+}
+
+/**
+ * Cold-start guard (260626): the instrument universe (`budgeting.instruments
+ * WHERE active = true`) is the ONLY source investment search queries, so an empty
+ * table — fresh DB, first boot, or a wiped dev stack — makes crypto/equity/ETF
+ * search return nothing until the next daily-seed cron (18:00 Berlin). Call this
+ * on worker boot: if no active instruments exist, enqueue the seed NOW instead of
+ * waiting. Idempotent (the seed upserts ON CONFLICT (symbol, provider)); a normal
+ * restart with a populated universe is a no-op. Best-effort — a failing count is
+ * swallowed so it never blocks startup (it retries next boot / cron). Returns
+ * whether the seed was enqueued.
+ */
+export async function coldStartUniverseSeedIfEmpty(
+  deps: ColdStartUniverseSeedDeps,
+): Promise<boolean> {
+  try {
+    const active = await deps.countActiveInstruments();
+    if (active > 0) return false;
+    await deps.enqueueSeed();
+    return true;
+  } catch (e) {
+    console.warn("[worker] cold-start universe check failed:", e);
+    return false;
+  }
+}
+
 interface AffectedHolding {
   id: string;
   tenant_id: string;
@@ -63,9 +95,7 @@ export async function runInstrumentsDailySeed(
   // older fetched_at and are deactivated below. This replaces the old per-key
   // `<> ALL(array)` diff, which doesn't scale to a ~253k-symbol global universe.
   const startR = await withInfraTx(async (tx) => {
-    const res = await tx.execute(
-      sql`SELECT clock_timestamp() AS ts`,
-    );
+    const res = await tx.execute(sql`SELECT clock_timestamp() AS ts`);
     return (res.rows[0] as { ts: string }).ts;
   });
   const runStart = startR.isOk() ? startR.value : null;

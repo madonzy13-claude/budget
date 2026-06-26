@@ -11,7 +11,10 @@ import {
   type SeededBudget,
 } from "./_investment-fixtures";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
-import { runInstrumentsDailySeed } from "../src/handlers/instruments-daily-seed";
+import {
+  runInstrumentsDailySeed,
+  coldStartUniverseSeedIfEmpty,
+} from "../src/handlers/instruments-daily-seed";
 
 const PROVIDER = "test_seed";
 let budget: SeededBudget;
@@ -92,5 +95,48 @@ describe("instruments-daily-seed job (D-09/D-10/T-9-11)", () => {
     } finally {
       c.release();
     }
+  });
+});
+
+describe("cold-start universe seed — run the seed NOW when the table is empty (260626)", () => {
+  it("enqueues the seed when no active instruments exist (count 0)", async () => {
+    let sent = 0;
+    const fired = await coldStartUniverseSeedIfEmpty({
+      countActiveInstruments: async () => 0,
+      enqueueSeed: async () => {
+        sent += 1;
+      },
+    });
+    // Empty universe → search returns nothing → fire the seed immediately
+    // instead of waiting for the daily cron.
+    expect(fired).toBe(true);
+    expect(sent).toBe(1);
+  });
+
+  it("does NOT enqueue when the universe already has active instruments", async () => {
+    let sent = 0;
+    const fired = await coldStartUniverseSeedIfEmpty({
+      countActiveInstruments: async () => 219_000,
+      enqueueSeed: async () => {
+        sent += 1;
+      },
+    });
+    // A normal restart with a populated universe must not fire a redundant pull.
+    expect(fired).toBe(false);
+    expect(sent).toBe(0);
+  });
+
+  it("never lets a failing count crash boot — swallows and reports not-fired", async () => {
+    let sent = 0;
+    const fired = await coldStartUniverseSeedIfEmpty({
+      countActiveInstruments: async () => {
+        throw new Error("db down at boot");
+      },
+      enqueueSeed: async () => {
+        sent += 1;
+      },
+    });
+    expect(fired).toBe(false);
+    expect(sent).toBe(0);
   });
 });

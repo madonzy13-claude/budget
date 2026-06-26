@@ -26,6 +26,7 @@ import { buildUniverse } from "@budget/investments/src/adapters/instruments/univ
 import { registerInstrumentPriceHourly } from "./handlers/instrument-price-hourly";
 import {
   registerInstrumentsDailySeed,
+  coldStartUniverseSeedIfEmpty,
   type InstrumentsDailySeedDeps,
 } from "./handlers/instruments-daily-seed";
 import { registerInvestmentSnapshotDaily } from "./handlers/investment-snapshot-daily";
@@ -343,6 +344,25 @@ async function main() {
     boss as unknown as Parameters<typeof registerInstrumentsDailySeed>[0],
     seedDeps,
   );
+
+  // Cold-start universe seed (260626): run the daily-seed NOW when the universe is
+  // empty (fresh DB / first boot / wiped dev stack) instead of waiting for the
+  // 18:00 cron, so investment search works immediately. Logic + guards are unit-
+  // tested in instruments-daily-seed.test.ts (coldStartUniverseSeedIfEmpty).
+  await coldStartUniverseSeedIfEmpty({
+    countActiveInstruments: async () => {
+      const { rows } = await workerPool().query<{ n: string }>(
+        "SELECT count(*)::text AS n FROM budgeting.instruments WHERE active = true",
+      );
+      return Number(rows[0]?.n ?? "0");
+    },
+    enqueueSeed: async () => {
+      console.log(
+        "[worker] instruments universe empty → enqueuing instruments-daily-seed now (cold start)",
+      );
+      await boss.send("instruments-daily-seed", {});
+    },
+  });
 
   // Daily price + FX snapshot (INV-15). 17:30 Europe/Berlin — after fx-daily-fetch (17:00).
   await boss.createQueue("investment-snapshot-daily");
