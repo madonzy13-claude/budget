@@ -13,6 +13,7 @@ import { UserSettingsShell } from "@/components/settings/user-settings-shell";
 // next-intl mock — echo the key so assertions are deterministic.
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
 }));
 
 // motion/react mock — passthrough so panes mount synchronously (no animation).
@@ -61,6 +62,11 @@ describe("UserSettingsShell — 2-pill carousel (USET-01/02/03)", () => {
         initialTab="general"
         initialLocale="en"
         initialDisplayCurrency="USD"
+        initialProfile={{
+          name: "Ada",
+          email: "ada@example.com",
+          emailVerified: true,
+        }}
       />,
     );
     expect(screen.getByTestId("settings-pill-general")).toBeInTheDocument();
@@ -80,6 +86,11 @@ describe("UserSettingsShell — 2-pill carousel (USET-01/02/03)", () => {
         initialTab="general"
         initialLocale="en"
         initialDisplayCurrency="USD"
+        initialProfile={{
+          name: "Ada",
+          email: "ada@example.com",
+          emailVerified: true,
+        }}
       />,
     );
 
@@ -102,6 +113,11 @@ describe("UserSettingsShell — 2-pill carousel (USET-01/02/03)", () => {
         initialTab="user"
         initialLocale="en"
         initialDisplayCurrency="USD"
+        initialProfile={{
+          name: "Ada",
+          email: "ada@example.com",
+          emailVerified: true,
+        }}
       />,
     );
     expect(screen.getByText("profile")).toBeInTheDocument();

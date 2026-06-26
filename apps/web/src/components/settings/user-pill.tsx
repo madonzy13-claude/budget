@@ -15,11 +15,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { ProfileSection } from "@/components/settings/profile-section";
+import {
+  ProfileSection,
+  type ProfileSectionProps,
+} from "@/components/settings/profile-section";
 import { SecuritySection } from "@/components/settings/security-section";
 import { AccountDangerZone } from "@/components/settings/account-danger-zone";
 
-export function UserPill() {
+export function UserPill({ profile }: { profile: ProfileSectionProps }) {
   const t = useTranslations("settings.user.sections");
 
   return (
@@ -32,7 +35,7 @@ export function UserPill() {
       <AccordionItem value="profile">
         <AccordionTrigger className="px-6">{t("profile")}</AccordionTrigger>
         <AccordionContent className="bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
-          <ProfileSection />
+          <ProfileSection {...profile} />
         </AccordionContent>
       </AccordionItem>
 

@@ -21,6 +21,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { GeneralPill } from "@/components/settings/general-pill";
 import { UserPill } from "@/components/settings/user-pill";
+import type { ProfileSectionProps } from "@/components/settings/profile-section";
 import {
   SETTINGS_TAB_ORDER,
   isSettingsTab,
@@ -32,6 +33,7 @@ interface UserSettingsShellProps {
   initialTab: SettingsTab;
   initialLocale: string;
   initialDisplayCurrency?: string;
+  initialProfile: ProfileSectionProps;
 }
 
 const variants = {
@@ -44,10 +46,12 @@ function Pane({
   tab,
   initialLocale,
   initialDisplayCurrency,
+  initialProfile,
 }: {
   tab: SettingsTab;
   initialLocale: string;
   initialDisplayCurrency?: string;
+  initialProfile: ProfileSectionProps;
 }) {
   if (tab === "general") {
     return (
@@ -57,7 +61,7 @@ function Pane({
       />
     );
   }
-  return <UserPill />;
+  return <UserPill profile={initialProfile} />;
 }
 
 export function UserSettingsShell({
@@ -65,6 +69,7 @@ export function UserSettingsShell({
   initialTab,
   initialLocale,
   initialDisplayCurrency,
+  initialProfile,
 }: UserSettingsShellProps) {
   const t = useTranslations("settings.pills");
   const tRoot = useTranslations("settings");
@@ -180,6 +185,7 @@ export function UserSettingsShell({
               tab={activeTab}
               initialLocale={initialLocale}
               initialDisplayCurrency={initialDisplayCurrency}
+              initialProfile={initialProfile}
             />
           </motion.div>
         </AnimatePresence>

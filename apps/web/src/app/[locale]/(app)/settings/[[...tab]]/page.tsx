@@ -35,6 +35,11 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         initialTab={initialTab}
         initialLocale={locale}
         initialDisplayCurrency={initialDisplayCurrency}
+        initialProfile={{
+          name: session?.user?.name ?? "",
+          email: session?.user?.email ?? "",
+          emailVerified: session?.user?.emailVerified ?? true,
+        }}
       />
       <BuildStamp locale={locale} />
     </>

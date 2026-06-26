@@ -10,15 +10,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const updateUser = vi.fn().mockResolvedValue({ data: {}, error: null });
 const changeEmail = vi.fn().mockResolvedValue({ data: {}, error: null });
-let sessionData: {
-  user: { name: string; email: string; emailVerified: boolean };
-} | null = {
-  user: { name: "Ada", email: "ada@example.com", emailVerified: true },
-};
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
-    useSession: () => ({ data: sessionData, isPending: false }),
     updateUser: (...a: unknown[]) => updateUser(...a),
     changeEmail: (...a: unknown[]) => changeEmail(...a),
   },
@@ -31,17 +25,20 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ProfileSection } from "@/components/settings/profile-section";
 
+const VERIFIED = {
+  name: "Ada",
+  email: "ada@example.com",
+  emailVerified: true,
+} as const;
+
 describe("ProfileSection — name + email edit (USET-04)", () => {
   beforeEach(() => {
     updateUser.mockClear();
     changeEmail.mockClear();
-    sessionData = {
-      user: { name: "Ada", email: "ada@example.com", emailVerified: true },
-    };
   });
 
   it("saves a new name via authClient.updateUser", async () => {
-    render(<ProfileSection />);
+    render(<ProfileSection {...VERIFIED} />);
     const input = screen.getByTestId("profile-name-input");
     fireEvent.change(input, { target: { value: "Ada Lovelace" } });
     fireEvent.click(screen.getByTestId("profile-name-save"));
@@ -51,7 +48,7 @@ describe("ProfileSection — name + email edit (USET-04)", () => {
   });
 
   it("changes email via authClient.changeEmail", async () => {
-    render(<ProfileSection />);
+    render(<ProfileSection {...VERIFIED} />);
     const input = screen.getByTestId("profile-email-input");
     fireEvent.change(input, { target: { value: "new@example.com" } });
     fireEvent.click(screen.getByTestId("profile-email-save"));
@@ -63,15 +60,12 @@ describe("ProfileSection — name + email edit (USET-04)", () => {
   });
 
   it("shows a pending badge when the email is unverified", () => {
-    sessionData = {
-      user: { name: "Ada", email: "ada@example.com", emailVerified: false },
-    };
-    render(<ProfileSection />);
+    render(<ProfileSection {...VERIFIED} emailVerified={false} />);
     expect(screen.getByTestId("profile-email-pending")).toBeInTheDocument();
   });
 
   it("does not show the pending badge when verified", () => {
-    render(<ProfileSection />);
+    render(<ProfileSection {...VERIFIED} />);
     expect(
       screen.queryByTestId("profile-email-pending"),
     ).not.toBeInTheDocument();

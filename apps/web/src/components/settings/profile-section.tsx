@@ -5,9 +5,11 @@
  *
  * Edit the account NAME (authClient.updateUser({ name })) and EMAIL
  * (authClient.changeEmail({ newEmail }) → confirm link to the OLD address, then
- * re-verify the NEW one; email stays pending until clicked). Reads the current
- * user from authClient.useSession so it needs no props (mounts into the 10-02
- * accordion slot as <ProfileSection />). Mirrors sessions-list.tsx for the
+ * re-verify the NEW one; email stays pending until clicked). The current user is
+ * SERVER-SEEDED as props (mirrors GeneralPill): the vanilla better-auth/client
+ * `useSession` is a nanostore atom, not a React hook, so we thread name/email/
+ * emailVerified from the catch-all page's fresh getServerSession instead — no
+ * extra dep, no loading flash, SSR-correct. Mirrors sessions-list.tsx for the
  * authClient + toast idiom.
  */
 import { useState } from "react";
@@ -18,20 +20,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { authClient } from "@/lib/auth-client";
 
-export function ProfileSection() {
+export interface ProfileSectionProps {
+  name: string;
+  email: string;
+  emailVerified: boolean;
+}
+
+export function ProfileSection({
+  name,
+  email,
+  emailVerified,
+}: ProfileSectionProps) {
   const t = useTranslations("settings.profile");
   const locale = useLocale();
-  const { data: session } = authClient.useSession();
-  const user = session?.user as
-    | { name?: string; email?: string; emailVerified?: boolean }
-    | undefined;
 
   const [nameEdit, setNameEdit] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
 
-  const nameValue = nameEdit ?? user?.name ?? "";
+  const nameValue = nameEdit ?? name ?? "";
 
   const handleSaveName = async () => {
     setSavingName(true);
@@ -101,8 +109,8 @@ export function ProfileSection() {
           {t("email.label")}
         </label>
         <p className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
-          <span>{user?.email ?? ""}</span>
-          {user && user.emailVerified === false && (
+          <span>{email}</span>
+          {emailVerified === false && (
             <Badge variant="secondary" data-testid="profile-email-pending">
               {t("email.pending")}
             </Badge>
