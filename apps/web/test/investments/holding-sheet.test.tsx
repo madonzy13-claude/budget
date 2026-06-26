@@ -138,6 +138,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    premiumPct: null,
     instrumentProvider: "finnhub",
     isCustom: false,
     isDelisted: false,
@@ -213,6 +214,31 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.getByTestId("holding-sheet-metal")).toBeInTheDocument();
     expect(screen.getByTestId("holding-sheet-kind")).toBeInTheDocument();
     expect(screen.getByTestId("holding-sheet-uom")).toBeInTheDocument();
+  });
+
+  // 260626: bullion premium — metals only, seeded from the holding.
+  it("precious metals show the premium field, seeded from the holding", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "commodity",
+          uiType: "precious_metals",
+          metal: "gold",
+          metalKind: "coin",
+          unitOfMeasure: "g",
+          name: "Krugerrand",
+          premiumPct: "20",
+        })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-premium")).toHaveValue("20");
+  });
+
+  it("non-metals do NOT show the premium field", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    expect(screen.queryByTestId("holding-sheet-premium")).toBeNull();
   });
 
   it("create mode preselects no type → no Asset/Name field, Save disabled", () => {

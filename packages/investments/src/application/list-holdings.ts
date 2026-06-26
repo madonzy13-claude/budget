@@ -123,6 +123,7 @@ export function listHoldings(deps: {
           metal: h.metal,
           metalKind: h.metalKind,
           unitOfMeasure: h.unitOfMeasure,
+          premiumPct: h.premiumPct,
           symbol: h.symbol,
           instrumentProvider: h.provider,
           isCustom: h.isCustom(),

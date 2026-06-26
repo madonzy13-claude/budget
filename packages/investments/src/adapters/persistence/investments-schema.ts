@@ -41,6 +41,9 @@ export const investments = budgeting.table(
     metal: text("metal"), // gold | silver | platinum | palladium
     metalKind: text("metal_kind"), // coin | bar | other (descriptive)
     unitOfMeasure: text("unit_of_measure"), // g | oz | kg
+    // Bullion premium over spot as a percent (e.g. 20.000 = +20%); metals only,
+    // applied to the CURRENT (resale) value. NULL = no premium (melt/spot value).
+    premiumPct: numeric("premium_pct", { precision: 6, scale: 3 }),
     // Optional user-defined grouping label within the Investments section.
     groupName: text("group_name"),
     buyPriceCents: bigint("buy_price_cents", { mode: "bigint" }),

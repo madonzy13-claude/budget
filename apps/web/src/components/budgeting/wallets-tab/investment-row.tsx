@@ -63,6 +63,14 @@ export function InvestmentRow({
   // instruments show TICKER / "TICKER (Name)"; everything else the stored name.
   const isCash = holding.holdingType === "cash_fx";
   const cashLabel = t("uitype.cash");
+
+  // Quantity for the mobile-expanded row — only for holdings where it's meaningful
+  // (tracked / metals). Cash + broker are single-unit (qty 1), so omit it. Trim
+  // trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
+  const showQty = !isCash && holding.uiType !== "broker";
+  const qtyDisplay = holding.quantity.includes(".")
+    ? holding.quantity.replace(/0+$/, "").replace(/\.$/, "")
+    : holding.quantity;
   const desktopName = isCash ? cashLabel : desktopLabel(holding);
   const mobileName = isCash ? cashLabel : mobileLabel(holding, expanded);
 
@@ -214,7 +222,13 @@ export function InvestmentRow({
                 </span>
               </div>
               <div className="text-caption text-[var(--muted-foreground)] tabular-nums">
-                {t("row.share", { pct: weight })}
+                {showQty && (
+                  <>
+                    <span>{t("row.qty", { qty: qtyDisplay })}</span>
+                    <span aria-hidden="true"> · </span>
+                  </>
+                )}
+                <span>{t("row.share", { pct: weight })}</span>
               </div>
             </div>
           )}

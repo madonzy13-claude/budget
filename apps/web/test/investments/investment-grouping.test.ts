@@ -26,6 +26,7 @@ function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    premiumPct: null,
     symbol: null,
     instrumentProvider: null,
     isCustom: true,

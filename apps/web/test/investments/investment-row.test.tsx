@@ -24,6 +24,7 @@ vi.mock("next-intl", () => ({
         "row.editAria": "Edit {name}",
         "row.deleteAria": "Archive {name}",
         "uitype.cash": "Cash",
+        "row.qty": "Qty: {qty}",
         "row.share": "Share: {pct}",
         rowExpandAria: "Expand {name}",
         plAria: "{value} profit/loss",
@@ -50,6 +51,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    premiumPct: null,
     symbol: null,
     isCustom: false,
     isDelisted: false,
@@ -201,6 +203,47 @@ describe("InvestmentRow", () => {
     fireEvent.click(screen.getByLabelText("Expand Silver coin"));
     expect(screen.getByText("−34,495")).toBeInTheDocument();
     expect(screen.queryByText("−0")).toBeNull();
+  });
+
+  // 260626: mobile-expanded third row shows Qty before Share for holdings with a
+  // real quantity (tracked/metals); cash/broker (qty 1) omit it.
+  it("mobile expand shows 'Qty: <n>' before Share for a metals holding", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Bullion",
+          symbol: null,
+          uiType: "precious_metals",
+          holdingType: "commodity",
+          quantity: "0.98563280",
+          weightPct: 100,
+          valueCents: "161",
+          profitLossPct: -100,
+          profitLossCents: "-3449500",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand Bullion"));
+    // trailing zeros trimmed for display.
+    expect(screen.getByText("Qty: 0.9856328")).toBeInTheDocument();
+    expect(screen.getByText("Share: 100.0%")).toBeInTheDocument();
+  });
+
+  it("mobile expand omits Qty for a cash holding (qty is meaningless)", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "USD Cash",
+          holdingType: "cash_fx",
+          profitLossPct: null,
+          weightPct: 5,
+          valueCents: "1000000",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand USD Cash"));
+    expect(screen.queryByText(/^Qty:/)).toBeNull();
+    expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
   });
 
   it("dims a delisted holding's content but keeps the drag handle full opacity", () => {

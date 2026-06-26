@@ -160,6 +160,12 @@ export function HoldingSheet({
     (holding?.metalKind as MetalKind) ?? "coin",
   );
   const [uom, setUom] = useState<Uom>((holding?.unitOfMeasure as Uom) ?? "g");
+  // Bullion premium over spot (percent string), metals only. Applied to the
+  // current (resale) value; empty = melt/spot value. Kept as a string so the
+  // field can hold a transient empty/decimal state.
+  const [premiumPct, setPremiumPct] = useState<string>(
+    holding?.premiumPct ?? "",
+  );
   const [dirty, setDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [priceBlocked, setPriceBlocked] = useState(false);
@@ -328,11 +334,14 @@ export function HoldingSheet({
   const currentPricePreview = useMemo(() => {
     if (!currentPrice) return "";
     if (behavior === "metals") {
-      const perUnit = Number(currentPrice) * OZ_PER_UNIT[uom];
+      // spot/oz → per-UoM, then lift by the bullion premium (resale > melt).
+      const prem = Number(premiumPct.replace(",", "."));
+      const factor = Number.isFinite(prem) ? 1 + prem / 100 : 1;
+      const perUnit = Number(currentPrice) * OZ_PER_UNIT[uom] * factor;
       return Number.isFinite(perUnit) ? perUnit.toFixed(2) : "";
     }
     return currentPrice;
-  }, [currentPrice, behavior, uom]);
+  }, [currentPrice, behavior, uom, premiumPct]);
 
   const canSave = useMemo(() => {
     if (!uiType) return false; // no type chosen yet
@@ -414,6 +423,8 @@ export function HoldingSheet({
         metal,
         metalKind,
         unitOfMeasure: uom,
+        // Premium over spot (resale value). Empty → null (melt/spot value).
+        premiumPct: premiumPct.trim() ? premiumPct.replace(",", ".") : null,
         quantity,
         buyPriceCents: toCents(buyPrice),
         buyCurrency,
@@ -651,6 +662,17 @@ export function HoldingSheet({
                     setUom(v as Uom);
                   }}
                   ariaLabel={t("field.uom")}
+                />
+              </Field>
+              <Field label={t("field.premium")}>
+                <NumericInput
+                  testId="holding-sheet-premium"
+                  value={premiumPct}
+                  onChange={(v) => {
+                    markDirty();
+                    setPremiumPct(v);
+                  }}
+                  placeholder="0"
                 />
               </Field>
             </>

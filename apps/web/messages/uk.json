@@ -382,6 +382,7 @@
         "metal": "Метал",
         "kind": "Вид",
         "uom": "Одиниця",
+        "premium": "Премія %",
         "depositedValue": "Внесена вартість",
         "actualValue": "Поточна вартість",
         "ticker": "Тікер",
@@ -443,6 +444,7 @@
         "editAria": "Редагувати {name}.",
         "deleteAria": "Видалити {name}.",
         "dragAria": "Перетягніть, щоб змінити порядок {name}.",
+        "qty": "Кількість: {qty}",
         "share": "Частка: {pct}"
       },
       "rowExpandAria": "Розгорнути деталі {name}.",

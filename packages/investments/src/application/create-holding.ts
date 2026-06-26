@@ -35,6 +35,7 @@ export function createHolding(deps: { holdingRepo: HoldingRepo }) {
       metal: input.metal ?? null,
       metalKind: input.metalKind ?? null,
       unitOfMeasure: input.unitOfMeasure ?? null,
+      premiumPct: input.premiumPct ?? null,
     };
     try {
       return ok(

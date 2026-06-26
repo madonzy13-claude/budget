@@ -302,6 +302,13 @@
       "when": 1782230000000,
       "tag": "0043_investments_palladium_metal",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1782240000000,
+      "tag": "0044_investments_bullion_premium",
+      "breakpoints": true
     }
   ]
 }

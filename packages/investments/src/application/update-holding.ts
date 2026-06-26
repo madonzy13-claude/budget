@@ -63,6 +63,10 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
           input.unitOfMeasure !== undefined
             ? (input.unitOfMeasure ?? null)
             : current.unitOfMeasure,
+        premiumPct:
+          input.premiumPct !== undefined
+            ? (input.premiumPct ?? null)
+            : current.premiumPct,
       };
 
       const updated = await deps.holdingRepo.update(

@@ -32,7 +32,14 @@ const OZ_PER_UNIT: Record<string, string> = {
 export function currentUnitPriceCents(h: Holding): Big {
   const price = new Big((h.currentPriceCents ?? 0n).toString());
   if (h.isMetals() && h.unitOfMeasure) {
-    return price.times(new Big(OZ_PER_UNIT[h.unitOfMeasure] ?? "1"));
+    const perUnit = price.times(new Big(OZ_PER_UNIT[h.unitOfMeasure] ?? "1"));
+    // Bullion premium (260626): a coin/bar resells ABOVE spot. Apply the user's
+    // premium% to the CURRENT (resale) value only — the buy price already carries
+    // their acquisition premium. null/"" = no premium (melt/spot value). The spot
+    // in current_price_cents stays raw (cron-refreshed); premium is a stable input.
+    const prem =
+      h.premiumPct && h.premiumPct.trim() !== "" ? new Big(h.premiumPct) : null;
+    return prem ? perUnit.times(new Big(1).plus(prem.div(100))) : perUnit;
   }
   return price;
 }

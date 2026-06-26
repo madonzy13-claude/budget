@@ -92,6 +92,9 @@ export const createHoldingSchema = z.object({
   metal: metalSchema.nullish(),
   metalKind: metalKindSchema.nullish(),
   unitOfMeasure: uomSchema.nullish(),
+  /** Bullion premium over spot as a percent ("20" = +20%); metals only. Applied to
+   *  the current (resale) value; null/"" = melt/spot value. */
+  premiumPct: numericString.nullish(),
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
@@ -116,6 +119,8 @@ export interface EnrichedHoldingDto {
   metal: string | null;
   metalKind: string | null;
   unitOfMeasure: string | null;
+  /** Precious-metals bullion premium over spot (percent string); null = none. */
+  premiumPct: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
   /** Tracked-instrument price provider; 'manual' = user-priced (editable in the

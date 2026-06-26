@@ -30,6 +30,8 @@ export interface CreateHoldingInput {
   metal?: string | null;
   metalKind?: string | null;
   unitOfMeasure?: string | null;
+  /** Bullion premium over spot, percent string ("20"=+20%); metals only. */
+  premiumPct?: string | null;
   /** User-typed ticker for a manual (no-instrument) tracked holding. */
   manualTicker?: string | null;
   /** Ticker for the optimistic row (selected instrument symbol or manual ticker);
@@ -54,6 +56,7 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     metal: input.metal ?? null,
     metalKind: input.metalKind ?? null,
     unitOfMeasure: input.unitOfMeasure ?? null,
+    premiumPct: input.premiumPct ?? null,
     // Show the ticker immediately (selected instrument symbol or the manual ticker);
     // the list refetch later confirms it from the server (COALESCE join).
     symbol: input.symbol ?? input.manualTicker ?? null,

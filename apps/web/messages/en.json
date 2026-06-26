@@ -382,6 +382,7 @@
         "metal": "Metal",
         "kind": "Kind",
         "uom": "Unit",
+        "premium": "Premium %",
         "depositedValue": "Deposited value",
         "actualValue": "Actual value",
         "ticker": "Ticker",
@@ -443,6 +444,7 @@
         "editAria": "Edit {name}.",
         "deleteAria": "Remove {name}.",
         "dragAria": "Drag to reorder {name}.",
+        "qty": "Qty: {qty}",
         "share": "Share: {pct}"
       },
       "rowExpandAria": "Expand {name} details.",

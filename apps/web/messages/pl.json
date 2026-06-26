@@ -382,6 +382,7 @@
         "metal": "Metal",
         "kind": "Rodzaj",
         "uom": "Jednostka",
+        "premium": "Premia %",
         "depositedValue": "Wartość wpłacona",
         "actualValue": "Wartość aktualna",
         "ticker": "Symbol",
@@ -443,6 +444,7 @@
         "editAria": "Edytuj {name}.",
         "deleteAria": "Usuń {name}.",
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
+        "qty": "Ilość: {qty}",
         "share": "Udział: {pct}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
