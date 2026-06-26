@@ -43,7 +43,7 @@ export function UserPill({ profile }: { profile: ProfileSectionProps }) {
       <AccordionItem value="security">
         <AccordionTrigger className="px-6">{t("security")}</AccordionTrigger>
         <AccordionContent className="bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
-          <SecuritySection />
+          <SecuritySection email={profile.email} />
         </AccordionContent>
       </AccordionItem>
 

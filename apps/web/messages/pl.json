@@ -104,8 +104,18 @@
           "cancel": "Anuluj"
         }
       },
+      "sign_out_others": {
+        "label": "Wyloguj wszystkie inne urządzenia",
+        "confirm": {
+          "title": "Wylogować wszystkie inne urządzenia?",
+          "body": "Każde inne zalogowane urządzenie zostanie wylogowane. To urządzenie pozostanie zalogowane.",
+          "cta": "Wyloguj inne"
+        }
+      },
       "success_revoke": "Sesja wylogowana.",
-      "error_revoke": "Nie udało się wylogować sesji. Spróbuj ponownie."
+      "error_revoke": "Nie udało się wylogować sesji. Spróbuj ponownie.",
+      "success_revoke_others": "Wylogowano wszystkie inne urządzenia.",
+      "error_revoke_others": "Nie udało się wylogować innych urządzeń. Spróbuj ponownie."
     },
     "display_currency": {
       "label": "Waluta wyświetlania",
@@ -152,7 +162,14 @@
       "error": "Coś poszło nie tak. Spróbuj ponownie."
     },
     "security": {
-      "placeholder": "Ustawienia bezpieczeństwa już wkrótce."
+      "change_password": {
+        "label": "Zmień hasło",
+        "description": "Wyślemy bezpieczny link na adres Twojego konta. Hasło zmieni się dopiero po otwarciu tego linku.",
+        "sent": "Sprawdź pocztę — wysłaliśmy link do ustawienia nowego hasła.",
+        "error": "Nie udało się wysłać linku resetującego. Spróbuj ponownie."
+      },
+      "sessions_heading": "Aktywne sesje",
+      "sessions_loading": "Ładowanie sesji…"
     },
     "accountDanger": {
       "placeholder": "Usuwanie konta już wkrótce."

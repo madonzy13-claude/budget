@@ -104,8 +104,18 @@
           "cancel": "Cancel"
         }
       },
+      "sign_out_others": {
+        "label": "Sign out all other devices",
+        "confirm": {
+          "title": "Sign out all other devices?",
+          "body": "Every other signed-in device will be signed out. This device stays signed in.",
+          "cta": "Sign out others"
+        }
+      },
       "success_revoke": "Session signed out.",
-      "error_revoke": "Failed to sign out session. Try again."
+      "error_revoke": "Failed to sign out session. Try again.",
+      "success_revoke_others": "Signed out all other devices.",
+      "error_revoke_others": "Failed to sign out other devices. Try again."
     },
     "display_currency": {
       "label": "Display currency",
@@ -152,7 +162,14 @@
       "error": "Something went wrong. Try again."
     },
     "security": {
-      "placeholder": "Security settings coming soon."
+      "change_password": {
+        "label": "Change password",
+        "description": "We'll email a secure link to your account address. Your password changes only after you open that link.",
+        "sent": "Check your email — we sent a link to set a new password.",
+        "error": "Couldn't send the reset link. Try again."
+      },
+      "sessions_heading": "Active sessions",
+      "sessions_loading": "Loading sessions…"
     },
     "accountDanger": {
       "placeholder": "Account deletion coming soon."
