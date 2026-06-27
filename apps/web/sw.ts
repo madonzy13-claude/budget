@@ -173,6 +173,32 @@ const serwist: Serwist = new Serwist({
         cacheName: SCRIPT_IMAGE_CACHE,
       }),
     },
+    // Side-effectful auth GET navigations (/auth/verify-email — signup verify
+    // AND both change-email steps) are ONE-SHOT: each hit mutates state and/or
+    // sends an email. With navigationPreload ON, the browser fires a preload
+    // fetch AND the generic nav handler below does its OWN fetch(req) — so the
+    // server is hit TWICE per navigation. For idempotent pages that is merely
+    // wasteful, but for these it sent the new-address verification email twice
+    // and tripped a spurious USER_NOT_FOUND on the duplicate. Consume the
+    // navigation preload (single request); fall back to ONE fetch when preload
+    // is unavailable. Never cached — auth redirects must stay live. Placed BEFORE
+    // the generic navigate route so it wins for /auth/*.
+    {
+      matcher: ({ request, url }: { request: Request; url: URL }) =>
+        request.mode === "navigate" && url.pathname.startsWith("/auth/"),
+      handler: async ({
+        request,
+        event,
+      }: {
+        request: Request;
+        event: { preloadResponse?: Promise<Response | undefined> };
+      }) => {
+        const preload = event?.preloadResponse
+          ? await event.preloadResponse
+          : undefined;
+        return preload ?? fetch(request);
+      },
+    },
     // Next.js page navigations — network-first WITH WRITE → CACHED real page →
     // precached app-shell (app-shell offline nav, 260614-rwt).
     //

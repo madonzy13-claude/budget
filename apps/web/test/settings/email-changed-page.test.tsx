@@ -11,10 +11,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 const getSession = vi.fn();
 const push = vi.fn();
+const refresh = vi.fn();
 let toParam = "new@example.com";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, refresh }),
   useSearchParams: () => ({
     get: (k: string) => (k === "to" ? toParam : null),
   }),
@@ -38,6 +39,7 @@ describe("EmailChangedPage — two-step change-email landing", () => {
   beforeEach(() => {
     getSession.mockReset();
     push.mockReset();
+    refresh.mockReset();
     toParam = "new@example.com";
   });
 
@@ -63,6 +65,8 @@ describe("EmailChangedPage — two-step change-email landing", () => {
     expect(
       screen.queryByTestId("email-changed-pending"),
     ).not.toBeInTheDocument();
+    // Busts the Router Cache so a later /settings visit shows the new email.
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("treats a signed-out / unreadable session as pending", async () => {

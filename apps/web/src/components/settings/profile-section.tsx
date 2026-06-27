@@ -155,15 +155,39 @@ export function ProfileSection({
           {t("email.helper")}
         </p>
         {emailRequested && (
-          <p
+          <div
             data-testid="email-change-pending"
-            className="rounded-md border border-[var(--info)]/40 bg-[var(--info)]/10 px-3 py-2 text-sm text-[var(--body-on-dark)]"
+            className="space-y-2 rounded-md border border-[var(--info)]/40 bg-[var(--info)]/10 px-3 py-3 text-sm text-[var(--body-on-dark)]"
           >
-            {t("email.confirm_pending", {
-              current: email,
-              next: emailRequested,
-            })}
-          </p>
+            <p className="font-medium text-[var(--on-dark)]">
+              {t("email.confirm_title")}
+            </p>
+            <ol className="list-decimal space-y-1 pl-5 marker:text-[var(--muted-foreground)]">
+              <li>
+                {t.rich("email.confirm_step1", {
+                  current: email,
+                  strong: (c) => (
+                    <span className="font-medium break-all text-[var(--on-dark)]">
+                      {c}
+                    </span>
+                  ),
+                })}
+              </li>
+              <li>
+                {t.rich("email.confirm_step2", {
+                  next: emailRequested,
+                  strong: (c) => (
+                    <span className="font-medium break-all text-[var(--on-dark)]">
+                      {c}
+                    </span>
+                  ),
+                })}
+              </li>
+            </ol>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("email.confirm_note")}
+            </p>
+          </div>
         )}
       </div>
     </div>

@@ -165,7 +165,10 @@
         "placeholder": "new@email.com",
         "change": "Change",
         "sent": "Confirmation sent — check your current inbox",
-        "confirm_pending": "Two quick steps: (1) open the confirmation link we sent to {current} to approve the change, then (2) open the verification link we'll send to {next} to finish. Your email changes only after step 2.",
+        "confirm_title": "Finish changing your email",
+        "confirm_step1": "Open the confirmation link we sent to <strong>{current}</strong>.",
+        "confirm_step2": "Then open the verification link we'll send to <strong>{next}</strong>.",
+        "confirm_note": "Your email changes only after step 2.",
         "helper": "We'll email a confirmation link to your current address before switching."
       },
       "error": "Something went wrong. Try again."

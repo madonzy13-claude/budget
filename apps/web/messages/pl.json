@@ -165,7 +165,10 @@
         "placeholder": "nowy@email.com",
         "change": "Zmień",
         "sent": "Wysłano potwierdzenie — sprawdź swoją obecną skrzynkę",
-        "confirm_pending": "Dwa szybkie kroki: (1) otwórz link potwierdzający, który wysłaliśmy na {current}, aby zatwierdzić zmianę, a następnie (2) otwórz link weryfikacyjny, który wyślemy na {next}, aby dokończyć. E-mail zmieni się dopiero po kroku 2.",
+        "confirm_title": "Dokończ zmianę adresu e-mail",
+        "confirm_step1": "Otwórz link potwierdzający, który wysłaliśmy na <strong>{current}</strong>.",
+        "confirm_step2": "Następnie otwórz link weryfikacyjny, który wyślemy na <strong>{next}</strong>.",
+        "confirm_note": "E-mail zmieni się dopiero po kroku 2.",
         "helper": "Zanim zmienimy adres, wyślemy link potwierdzający na Twój obecny adres."
       },
       "error": "Coś poszło nie tak. Spróbuj ponownie."

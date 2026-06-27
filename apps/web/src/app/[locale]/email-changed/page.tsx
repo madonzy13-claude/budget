@@ -52,11 +52,18 @@ export default function EmailChangedPage() {
       const changed =
         to.length > 0 && currentEmail.toLowerCase() === to.toLowerCase();
       setStage(changed ? "done" : "pending");
+      if (changed) {
+        // Bust the client Router Cache: the user opened /settings to START the
+        // change, so its RSC (with the OLD email) is cached (staleTimes.dynamic
+        // 120s) and would render stale until a hard reload. refresh() refetches
+        // server segments so the next visit shows the new address immediately.
+        router.refresh();
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [to]);
+  }, [to, router]);
 
   return (
     <AuthCardShell locale={locale}>

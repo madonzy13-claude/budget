@@ -18,7 +18,13 @@ vi.mock("@/lib/auth-client", () => ({
   },
 }));
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => {
+    const t = (key: string) => key;
+    // t.rich is used for the confirm-pending steps (bolded email via <strong>).
+    (t as unknown as { rich: (k: string) => string }).rich = (key: string) =>
+      key;
+    return t;
+  },
   useLocale: () => "en",
 }));
 vi.mock("next/navigation", () => ({
