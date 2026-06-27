@@ -181,3 +181,41 @@ blocked: 0
   fix: "user-settings-shell main max-w-3xl → max-w-[1280px] (the BDP Settings TabPane width); all other wrapper classes already matched."
   commit: be4e78e
   verified: "shell test asserts the 1280 column. Live: at a 1600px viewport the settings content caps at 1280 (not 768), matching the header span."
+
+- truth: "General settings has a searchable Timezone dropdown that saves + persists; a new user's timezone is seeded at registration."
+  status: fixed
+  reason: "User request: add a timezone dropdown in General; default it from the user's location at registration; review all dates to use the timezone."
+  severity: enhancement
+  test: 3
+  decisions: "Default seeded from the BROWSER timezone at sign-up (Intl.DateTimeFormat().resolvedOptions().timeZone), not IP geolocation — more accurate (device-true), dependency-free, and no extra network call. Flagged for the user to confirm."
+  fix: "identity.users.timezone column (migration 0047, nullable → 'UTC' fallback in the repo DTO); Better Auth additionalField timezone (input:true) so sign-up writes it; sign-up-form passes the browser zone; update-timezone application service (IANA-validated) + PUT /settings/timezone route; TimezoneSelect (Popover+Command, searchable, GMT-offset labels) in General; en/pl/uk keys."
+  commit: e1800d1
+  verified: "identity repo 8/0, settings route 11/0 (401/200/400), web component 40/0; web tsc clean. Live: picker filters to 'Europe/Warsaw GMT+2' → save → DB timezone=Europe/Warsaw → survives reload (hydrates from session). API sign-up with timezone='America/New_York' writes the column end-to-end (better-auth additionalField)."
+
+- truth: "Timestamps (session last-active) render in the user's chosen timezone, localized + 24h."
+  status: fixed
+  reason: "Part of the timezone request: review ALL dates so they use the timezone."
+  severity: enhancement
+  test: 4
+  fix: "formatTimestamp(value, locale, timeZone) — Intl.DateTimeFormat {day, month:long, year, hour, minute, hour12:false} in the user's IANA zone; security-section reads userTz from the live session. Date-ONLY values (transactions) stay UTC-pinned via the existing formatBudgetDate (calendar-correct, no tz shift) — only true instants get the zone."
+  commit: e1800d1
+  verified: "format-date 4/0 (Warsaw/UTC/Tokyo-boundary/invalid). Live: with tz=Europe/Warsaw a session whose raw updated_at is 10:37 UTC renders '12:37' (= UTC+2); a 10:38 UTC session renders '12:38'. NOTE: ordering is locale-driven — PL/UK render day-first like the example ('27 czerwca 2026, 12:37'); en-US renders month-first ('June 27, 2026 at 12:37'). Flag for the user if they want day-first forced for EN too."
+
+- truth: "Active-sessions list is mobile-friendly cards: device icon, parsed 'Browser on OS', IP + country flag, localized last-active, per-row revoke + sign-out-others."
+  status: fixed
+  reason: "User request: make the sessions UX mobile-friendly with human-readable localized dates, a shortened browser/OS, the IP, and a country flag."
+  severity: enhancement
+  test: 4
+  decisions: "Built-in UA parser (no external ua-parser-js dependency) — covers every browser/OS the app's users have; avoids a dep + Docker-install friction. IP→country via best-effort ipwho.is (3s timeout, private-IP guard, graceful no-flag fallback). Flagged for the user."
+  fix: "sessions-list rewritten from a Table to a card <ul>; parse-user-agent.ts ({browser,os}); ip-country.ts (flagEmoji + lookupCountry); Monitor/Smartphone icon by OS; testids preserved."
+  commit: e1800d1
+  verified: "parse-user-agent 8/0, ip-country flag tests, sessions component tests green. Live: two cards — 'Safari on Linux · Current · 🇵🇱 · 195.116.124.47 · June 27, 2026 at 12:38' + a Bun/1.3.12 card with revoke; sign-out-others present. (Real Chrome parses as 'Chrome'; only Playwright's HeadlessChrome UA — no word boundary before 'Chrome' — falls through to Safari, never a real user.)"
+
+- truth: "Settings has a Dark/Light appearance toggle; the choice flips the theme instantly, persists across reloads, and paints with no flash (FOUC)."
+  status: fixed
+  reason: "User request: add a light/dark mode toggle per DESIGN.md."
+  severity: enhancement
+  test: 2
+  fix: "ThemeToggle radiogroup (Dark/Light) in General; applyTheme sets html[data-theme] + budget-theme cookie + theme-color meta; global.css :root[data-theme=light] redefines only the base -dark tokens (shadcn aliases + @theme follow via var()); a pre-paint inline script in layout.tsx reads the cookie before first paint so there is no FOUC."
+  commit: e1800d1
+  verified: "theme-toggle component tests green; web tsc clean. Live: click Light → html data-theme=light, body bg #fff, color-scheme:light, cookie budget-theme=light, theme-color #ffffff → reload keeps Light with the pre-paint script present (no flash). Screenshot captured."
