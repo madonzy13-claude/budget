@@ -45,3 +45,30 @@ export function formatBudgetDateTime(
     minute: "2-digit",
   }).format(typeof date === "number" ? new Date(date) : date);
 }
+
+/**
+ * Format an INSTANT (a real point in time — e.g. a session's last-active) in the
+ * user's timezone, localized and human-readable: "13 February 2026, 10:44" (24h).
+ *
+ * Unlike formatBudgetDate (which renders a date-only calendar day, UTC-pinned),
+ * this is for timestamps that genuinely live on the clock, so the timeZone matters.
+ * Pass the user's IANA zone (e.g. "Europe/Warsaw"); omit to use the runtime zone.
+ * Returns "" for an unparseable value so callers can render a graceful blank.
+ */
+export function formatTimestamp(
+  value: Date | number | string,
+  locale: string,
+  timeZone?: string,
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    ...(timeZone ? { timeZone } : {}),
+  }).format(date);
+}

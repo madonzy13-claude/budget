@@ -72,6 +72,17 @@ export default function RootLayout({
               "(function(){try{var d=document.documentElement;function s(){d.classList.toggle('is-offline',navigator.onLine===false);}s();addEventListener('online',s);addEventListener('offline',s);}catch(e){}})();",
           }}
         />
+        {/* PRE-PAINT theme marker. Reads the `budget-theme` cookie and sets
+            html[data-theme] BEFORE first paint so the light/dark palette in
+            global.css applies in frame 1 (no flash). Default is dark (current
+            behaviour for users with no preference). suppressHydrationWarning on
+            <html> covers the attribute this sets. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var m=document.cookie.match(/(?:^|; )budget-theme=([^;]+)/);var t=m&&m[1]==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();",
+          }}
+        />
       </head>
       <body
         className={`${inter.variable} ${plex.variable} font-sans antialiased`}

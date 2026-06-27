@@ -26,6 +26,7 @@ import { AccountDangerZone } from "@/components/settings/account-danger-zone";
 interface UserSettingsShellProps {
   initialLocale: string;
   initialDisplayCurrency?: string;
+  initialTimezone?: string;
   initialProfile: ProfileSectionProps;
 }
 
@@ -35,6 +36,7 @@ const CONTENT =
 export function UserSettingsShell({
   initialLocale,
   initialDisplayCurrency,
+  initialTimezone,
   initialProfile,
 }: UserSettingsShellProps) {
   const tRoot = useTranslations("settings");
@@ -65,6 +67,7 @@ export function UserSettingsShell({
             <GeneralPill
               initialLocale={initialLocale}
               initialDisplayCurrency={initialDisplayCurrency}
+              initialTimezone={initialTimezone}
             />
           </AccordionContent>
         </AccordionItem>

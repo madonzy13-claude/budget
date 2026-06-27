@@ -23,21 +23,15 @@ import {
   type SessionInfo,
 } from "@/components/settings/sessions-list";
 import { authClient } from "@/lib/auth-client";
+import { parseUserAgent } from "@/lib/parse-user-agent";
+import { formatTimestamp } from "@/lib/format-date";
 
 interface RawSession {
   token: string;
   userAgent?: string | null;
+  ipAddress?: string | null;
   updatedAt?: string | Date;
   createdAt?: string | Date;
-}
-
-function formatWhen(value: unknown, locale: string): string {
-  try {
-    const d = new Date(value as string);
-    return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(locale);
-  } catch {
-    return "";
-  }
 }
 
 export function SecuritySection({ email }: { email: string }) {
@@ -54,16 +48,36 @@ export function SecuritySection({ email }: { email: string }) {
           authClient.listSessions(),
           authClient.getSession(),
         ]);
-        const curToken = (cur as { data?: { session?: { token?: string } } })
-          ?.data?.session?.token;
+        const curData = (
+          cur as {
+            data?: {
+              session?: { token?: string };
+              user?: { timezone?: string };
+            };
+          }
+        )?.data;
+        const curToken = curData?.session?.token;
+        // The user's IANA zone (additionalField) → render every session timestamp
+        // in it (UAT #4/#5); fall back to the runtime zone if unset.
+        const userTz = curData?.user?.timezone;
         const raw = ((list as { data?: RawSession[] })?.data ??
           []) as RawSession[];
-        const rows: SessionInfo[] = raw.map((s) => ({
-          id: s.token,
-          deviceInfo: s.userAgent ?? undefined,
-          lastActive: formatWhen(s.updatedAt ?? s.createdAt, locale),
-          isCurrent: s.token === curToken,
-        }));
+        const rows: SessionInfo[] = raw.map((s) => {
+          const { browser, os } = parseUserAgent(s.userAgent);
+          return {
+            id: s.token,
+            browser,
+            os,
+            deviceInfo: s.userAgent ?? undefined,
+            ipAddress: s.ipAddress ?? undefined,
+            lastActive: formatTimestamp(
+              (s.updatedAt ?? s.createdAt) as string | Date,
+              locale,
+              userTz,
+            ),
+            isCurrent: s.token === curToken,
+          };
+        });
         if (alive) setSessions(rows);
       } catch {
         if (alive) setSessions([]);

@@ -30,6 +30,7 @@ function buildDeps(overrides: Record<string, unknown> = {}) {
       userRepo: {
         async updateLocale() {},
         async updateDisplayCurrency() {},
+        async updateTimezone() {},
       },
       auth: {
         api: {
@@ -140,6 +141,40 @@ describe("PUT /settings/display-currency", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
       body: JSON.stringify({ currency: "us" }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("PUT /settings/timezone", () => {
+  test("returns 401 when not authenticated", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/timezone", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timezone: "Europe/Warsaw" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("accepts a valid IANA timezone", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/timezone", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ timezone: "Europe/Warsaw" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.ok).toBe(true);
+  });
+
+  test("rejects an invalid timezone with 400", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/timezone", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ timezone: "Mars/Olympus_Mons" }),
     });
     expect(res.status).toBe(400);
   });

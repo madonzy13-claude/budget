@@ -313,6 +313,14 @@ export function createAuth(opts: CreateAuthOptions) {
           input: true,
           required: false,
         },
+        // Optional + no default: seeded at sign-up from the browser's resolved
+        // IANA zone (sign-up form sends it). NULL reads back as "UTC" at the repo
+        // boundary so dates always render in a definite zone.
+        timezone: {
+          type: "string",
+          input: true,
+          required: false,
+        },
       },
       // USET-04: let a signed-in user change their login email. Because the
       // current email is verified (requireEmailVerification), Better Auth first

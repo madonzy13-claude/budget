@@ -47,6 +47,10 @@ export const users = identity.table(
     // path seeds it to the first budget's currency (setDisplayCurrencyIfUnset);
     // findById coalesces NULL -> "USD" so the UserDTO contract stays a string.
     displayCurrency: text("display_currency"),
+    // IANA timezone (e.g. "Europe/Warsaw"). Nullable: seeded at sign-up from the
+    // browser's resolved zone; a NULL reads back as "UTC" at the repo boundary so
+    // every date renders in a definite zone.
+    timezone: text("timezone"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

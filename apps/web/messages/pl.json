@@ -127,7 +127,8 @@
       "success_revoke": "Sesja wylogowana.",
       "error_revoke": "Nie udało się wylogować sesji. Spróbuj ponownie.",
       "success_revoke_others": "Wylogowano wszystkie inne urządzenia.",
-      "error_revoke_others": "Nie udało się wylogować innych urządzeń. Spróbuj ponownie."
+      "error_revoke_others": "Nie udało się wylogować innych urządzeń. Spróbuj ponownie.",
+      "device_label": "{browser} na {os}"
     },
     "display_currency": {
       "label": "Waluta wyświetlania",
@@ -300,6 +301,18 @@
       },
       "permissionDenied": "Uprawnienie do powiadomień zostało odrzucone. Włącz je w ustawieniach przeglądarki.",
       "saved": "Preferencje powiadomień zapisane."
+    },
+    "theme": {
+      "label": "Wygląd",
+      "dark": "Ciemny",
+      "light": "Jasny",
+      "system": "Systemowy"
+    },
+    "timezone": {
+      "label": "Strefa czasowa",
+      "helper": "Daty i godziny są wyświetlane w tej strefie czasowej.",
+      "search": "Szukaj strefy czasowej…",
+      "no_results": "Brak pasującej strefy czasowej"
     }
   },
   "budgets": {

@@ -32,6 +32,8 @@ export class DrizzleUserRepo implements UserRepo {
       locale: row.locale as Locale,
       // NULL = never set; surface "USD" so the DTO contract stays a string.
       display_currency: row.displayCurrency ?? "USD",
+      // NULL = never set; surface "UTC" so dates always render in a definite zone.
+      timezone: row.timezone ?? "UTC",
     };
   }
 
@@ -49,6 +51,7 @@ export class DrizzleUserRepo implements UserRepo {
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
       display_currency: row.displayCurrency ?? "USD",
+      timezone: row.timezone ?? "UTC",
     };
   }
 
@@ -67,6 +70,16 @@ export class DrizzleUserRepo implements UserRepo {
       await tx
         .update(users)
         .set({ displayCurrency: currency, updatedAt: new Date() })
+        .where(eq(users.id, id as string));
+    });
+    if (r.isErr()) throw r.error;
+  }
+
+  async updateTimezone(id: UserId, timezone: string): Promise<void> {
+    const r = await withUserContext(id, async (tx) => {
+      await tx
+        .update(users)
+        .set({ timezone, updatedAt: new Date() })
         .where(eq(users.id, id as string));
     });
     if (r.isErr()) throw r.error;

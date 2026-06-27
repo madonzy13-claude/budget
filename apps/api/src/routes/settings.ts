@@ -23,6 +23,18 @@ export function settingsRoutesFactory(deps: BootedDeps) {
     currency: z.string().regex(/^[A-Z]{3}$/),
   });
 
+  const timezoneSchema = z.object({
+    timezone: z.string().refine((tz) => {
+      try {
+        // eslint-disable-next-line no-new
+        new Intl.DateTimeFormat("en", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Invalid timezone"),
+  });
+
   // PUT /settings/locale — update user locale
   r.put("/locale", zValidator("json", localeSchema), async (c) => {
     const session = c.get("session");
@@ -57,6 +69,25 @@ export function settingsRoutesFactory(deps: BootedDeps) {
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
       if (/Invalid ISO-4217/.test(msg)) return c.json({ error: msg }, 400);
+      throw e;
+    }
+  });
+
+  // PUT /settings/timezone — update the user's IANA timezone
+  r.put("/timezone", zValidator("json", timezoneSchema), async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const body = c.req.valid("json");
+    try {
+      await deps.identity.userRepo.updateTimezone(
+        UserId(session.user.id),
+        body.timezone,
+      );
+      return c.json({ ok: true });
+    } catch (e) {
+      const msg = (e as Error).message ?? "unknown";
+      if (/Invalid timezone/.test(msg)) return c.json({ error: msg }, 400);
       throw e;
     }
   });

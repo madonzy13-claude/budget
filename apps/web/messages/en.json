@@ -127,7 +127,8 @@
       "success_revoke": "Session signed out.",
       "error_revoke": "Failed to sign out session. Try again.",
       "success_revoke_others": "Signed out all other devices.",
-      "error_revoke_others": "Failed to sign out other devices. Try again."
+      "error_revoke_others": "Failed to sign out other devices. Try again.",
+      "device_label": "{browser} on {os}"
     },
     "display_currency": {
       "label": "Display currency",
@@ -300,6 +301,18 @@
       "left_toast": "You have left the budget.",
       "leave_error": "Failed to leave budget. Try again.",
       "last_owner_tooltip": "You're the last owner. Delete the budget instead."
+    },
+    "theme": {
+      "label": "Appearance",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    },
+    "timezone": {
+      "label": "Timezone",
+      "helper": "Dates and times are shown in this timezone.",
+      "search": "Search timezone…",
+      "no_results": "No matching timezone"
     }
   },
   "budgets": {

@@ -21,12 +21,15 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
 
   const session = await getServerSession({ disableCookieCache: true });
   const initialDisplayCurrency = session?.user?.displayCurrency ?? undefined;
+  const initialTimezone =
+    (session?.user as { timezone?: string } | undefined)?.timezone ?? undefined;
 
   return (
     <>
       <UserSettingsShell
         initialLocale={locale}
         initialDisplayCurrency={initialDisplayCurrency}
+        initialTimezone={initialTimezone}
         initialProfile={{
           name: session?.user?.name ?? "",
           email: session?.user?.email ?? "",
