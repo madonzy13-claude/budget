@@ -207,9 +207,14 @@ export function InstrumentSearchInput({
                     {r.displayName}
                   </span>
                   {/* Exchange + currency so cross-listings of the same ticker
-                      (e.g. SPCX on NASDAQ/SIX/TSX) are distinguishable. */}
+                      (e.g. SPCX on NASDAQ/SIX/TSX) are distinguishable. Crypto
+                      has no meaningful venue and one global quote, so the
+                      currency just adds noise — omit it (UAT). */}
                   <span className="shrink-0 whitespace-nowrap text-num-sm text-[var(--muted-foreground)]">
-                    {[exchangeLabel(r.provider), r.quoteCurrency]
+                    {[
+                      exchangeLabel(r.provider),
+                      r.assetClass === "crypto" ? "" : r.quoteCurrency,
+                    ]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>

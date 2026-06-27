@@ -597,6 +597,8 @@
     "sign_out": "Sign out",
     "profile": "Profile",
     "profile_menu_aria": "Open profile menu",
+    "theme_light": "Light mode",
+    "theme_dark": "Dark mode",
     "budget": "Budget",
     "wallets": "Wallets",
     "transactions": "Transactions",

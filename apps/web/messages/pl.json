@@ -597,6 +597,8 @@
     "sign_out": "Wyloguj się",
     "profile": "Profil",
     "profile_menu_aria": "Otwórz menu profilu",
+    "theme_light": "Tryb jasny",
+    "theme_dark": "Tryb ciemny",
     "budget": "Budżet",
     "wallets": "Portfele",
     "transactions": "Transakcje",

@@ -43,8 +43,19 @@ import {
 import { useRouter } from "next/navigation";
 import { NavLink } from "@/components/common/nav-link";
 import { useTranslations } from "next-intl";
-import { LogOut, User, Settings as SettingsIcon, Download } from "lucide-react";
+import {
+  LogOut,
+  Settings as SettingsIcon,
+  Download,
+  Moon,
+  Sun,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  applyTheme,
+  readTheme,
+  type Theme,
+} from "@/components/settings/theme-toggle";
 import { signOut } from "@/lib/auth-client";
 import { clearQueryCache, dropLegacyBudgetCache } from "@/lib/query-persist";
 import { cn } from "@/lib/utils";
@@ -83,6 +94,9 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
   const [isStandaloneMode, setIsStandaloneMode] = useState(false);
   const [pwaInstalled, setPwaInstalled] = useState(false);
   const [iosDialogOpen, setIosDialogOpen] = useState(false);
+  // Default dark for SSR; sync to the live attribute after mount (no hydration
+  // mismatch when the cookie says light).
+  const [theme, setTheme] = useState<Theme>("dark");
   const menuId = useId();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -101,12 +115,19 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             (window.navigator as { standalone?: boolean }).standalone === true),
       );
     }
+    setTheme(readTheme());
     const unsubInstalled = subscribeToInstalled(setPwaInstalled);
     return () => {
       unsubInstalled();
       if (closeTimer.current) clearTimeout(closeTimer.current);
     };
   }, []);
+
+  function toggleTheme() {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    applyTheme(next);
+  }
 
   // Outside click closes the menu. The check runs on `pointerdown` so a
   // tap on a child triggers BEFORE the link navigation handler — we
@@ -262,16 +283,6 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
           <NavLink
             href={`/${locale}/settings`}
             role="menuitem"
-            data-testid="profile-menu-profile"
-            onClick={() => setOpen(false)}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-[var(--surface-elevated-dark)]"
-          >
-            <User className="h-4 w-4 text-[var(--muted-foreground)]" />
-            <span>{t("profile")}</span>
-          </NavLink>
-          <NavLink
-            href={`/${locale}/settings`}
-            role="menuitem"
             data-testid="profile-menu-settings"
             onClick={() => setOpen(false)}
             className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-[var(--surface-elevated-dark)]"
@@ -279,6 +290,22 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             <SettingsIcon className="h-4 w-4 text-[var(--muted-foreground)]" />
             <span>{t("settings")}</span>
           </NavLink>
+          {/* Theme toggle — flips dark/light in place (no nav), shows the target
+              mode so the action is obvious. */}
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="profile-menu-theme"
+            onClick={toggleTheme}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-[var(--surface-elevated-dark)]"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4 text-[var(--muted-foreground)]" />
+            ) : (
+              <Moon className="h-4 w-4 text-[var(--muted-foreground)]" />
+            )}
+            <span>{theme === "dark" ? t("theme_light") : t("theme_dark")}</span>
+          </button>
           {/* Install app — hidden in standalone mode or once installed */}
           {!isStandaloneMode && !pwaInstalled && (
             <>

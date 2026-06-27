@@ -597,6 +597,8 @@
     "sign_out": "Вийти",
     "profile": "Профіль",
     "profile_menu_aria": "Відкрити меню профілю",
+    "theme_light": "Світла тема",
+    "theme_dark": "Темна тема",
     "budget": "Бюджет",
     "wallets": "Гаманці",
     "transactions": "Транзакції",

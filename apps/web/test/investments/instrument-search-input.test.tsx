@@ -143,4 +143,31 @@ describe("InstrumentSearchInput — loading feedback", () => {
     // The asset-class/type is no longer rendered (the Type field already set it).
     expect(screen.queryByText("equities")).toBeNull();
   });
+
+  it("omits the currency on the right for crypto suggestions (UAT)", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "btc",
+            symbol: "BTC",
+            displayName: "Bitcoin",
+            assetClass: "crypto",
+            quoteCurrency: "USD",
+            provider: "coingecko",
+          },
+        ],
+      }),
+    } as unknown as Response);
+    render(<Harness />);
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "BTC" },
+    });
+    // The suggestion still shows the symbol + name…
+    expect(await screen.findByText("Bitcoin")).toBeInTheDocument();
+    expect(screen.getByText("BTC")).toBeInTheDocument();
+    // …but NOT the quote currency (crypto has one global quote — it's noise).
+    expect(screen.queryByText("USD")).toBeNull();
+  });
 });

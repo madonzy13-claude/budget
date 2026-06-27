@@ -26,7 +26,8 @@ interface InvestmentRowProps {
   holding: HoldingDto;
   /** Drag handle slot (injected by InvestmentRowSheet; omitted in unit tests). */
   dragHandle?: React.ReactNode;
-  /** A grouped child — renders a touch darker to read as a nested level (D-#7). */
+  /** A grouped child — distinct surface (darker in dark mode, lighter in light)
+   *  so it reads as a nested level (D-#7). */
   nested?: boolean;
   /** Longest formatted amount in the section → dynamic amount-column width so
    *  the currency codes line up in a column (mirrors wallet-row). */
@@ -142,7 +143,7 @@ export function InvestmentRow({
       className={[
         "group flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
         nested
-          ? "bg-[color-mix(in_srgb,var(--surface-card-dark),#000_22%)] hover:bg-[var(--surface-card-dark)]"
+          ? "bg-[var(--surface-nested-dark)] hover:bg-[var(--surface-card-dark)]"
           : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
       ]
         .filter(Boolean)

@@ -143,6 +143,10 @@
        slider). Was hardcoded as bg-[#141920] at call sites; token-ised so it
        flips under the light theme instead of staying black. */
     --surface-sunken-dark: #141920;
+    /* Nested row (grouped investment child) — a touch BELOW the card in dark
+       (= the old color-mix(card,#000 22%)); flips LIGHTER than the card in the
+       light scope so sub-items read as a deeper level either way. */
+    --surface-nested-dark: #171b20;
 
     /* Hairlines */
     --hairline-dark: #2b3139;
@@ -203,6 +207,8 @@
     --surface-card-dark: #eef1f4;
     --surface-sunken-dark: #e7eaef;
     --surface-elevated-dark: #e2e6ec;
+    /* Nested investment rows read LIGHTER than the group/card in light mode. */
+    --surface-nested-dark: #fafafa;
     --hairline-dark: #dde1e8;
     --hairline-on-dark: var(--hairline-dark);
     --body-on-dark: #181a20;

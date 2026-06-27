@@ -11,15 +11,24 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Moon, Sun } from "lucide-react";
 
-type Theme = "dark" | "light";
+export type Theme = "dark" | "light";
 
-function applyTheme(theme: Theme) {
+/** Current theme from the live <html data-theme> attribute (dark fallback). */
+export function readTheme(): Theme {
+  if (typeof document === "undefined") return "dark";
+  return document.documentElement.getAttribute("data-theme") === "light"
+    ? "light"
+    : "dark";
+}
+
+export function applyTheme(theme: Theme) {
   document.documentElement.setAttribute("data-theme", theme);
   // 1-year cookie so the server-rendered request paints the right palette.
   document.cookie = `budget-theme=${theme}; path=/; max-age=31536000; samesite=lax`;
   // Keep the browser chrome (status bar / address bar) colour in step.
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", theme === "light" ? "#ffffff" : "#0b0e11");
+  if (meta)
+    meta.setAttribute("content", theme === "light" ? "#ffffff" : "#0b0e11");
 }
 
 export function ThemeToggle() {

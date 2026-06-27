@@ -14,7 +14,7 @@
  *     `getSession` methods (NOT the useSession atom), then handed to <SessionsList>
  *     for per-row revoke + "sign out all other devices".
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,11 +34,19 @@ interface RawSession {
   createdAt?: string | Date;
 }
 
+/** A session row with its raw timestamp kept around so it can be re-formatted
+ *  when the user changes their timezone without a refetch. */
+type RawRow = Omit<SessionInfo, "lastActive"> & { ts?: string | Date };
+
 export function SecuritySection({ email }: { email: string }) {
   const t = useTranslations("settings.security");
   const locale = useLocale();
   const [sending, setSending] = useState(false);
-  const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
+  const [rows, setRows] = useState<RawRow[] | null>(null);
+  // The user's IANA zone (additionalField). Seeded from the session, then kept
+  // live: changing it in the General section dispatches budget:timezone-changed
+  // so these timestamps re-render in the new zone without a reload.
+  const [tz, setTz] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
@@ -57,12 +65,9 @@ export function SecuritySection({ email }: { email: string }) {
           }
         )?.data;
         const curToken = curData?.session?.token;
-        // The user's IANA zone (additionalField) → render every session timestamp
-        // in it (UAT #4/#5); fall back to the runtime zone if unset.
-        const userTz = curData?.user?.timezone;
         const raw = ((list as { data?: RawSession[] })?.data ??
           []) as RawSession[];
-        const rows: SessionInfo[] = raw.map((s) => {
+        const mapped: RawRow[] = raw.map((s) => {
           const { browser, os } = parseUserAgent(s.userAgent);
           return {
             id: s.token,
@@ -70,23 +75,43 @@ export function SecuritySection({ email }: { email: string }) {
             os,
             deviceInfo: s.userAgent ?? undefined,
             ipAddress: s.ipAddress ?? undefined,
-            lastActive: formatTimestamp(
-              (s.updatedAt ?? s.createdAt) as string | Date,
-              locale,
-              userTz,
-            ),
+            ts: (s.updatedAt ?? s.createdAt) as string | Date | undefined,
             isCurrent: s.token === curToken,
           };
         });
-        if (alive) setSessions(rows);
+        if (alive) {
+          setRows(mapped);
+          if (curData?.user?.timezone) setTz(curData.user.timezone);
+        }
       } catch {
-        if (alive) setSessions([]);
+        if (alive) setRows([]);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [locale]);
+  }, []);
+
+  // Live timezone changes from the General section (same /settings page).
+  useEffect(() => {
+    function onTz(e: Event) {
+      const next = (e as CustomEvent<string>).detail;
+      if (next) setTz(next);
+    }
+    window.addEventListener("budget:timezone-changed", onTz);
+    return () => window.removeEventListener("budget:timezone-changed", onTz);
+  }, []);
+
+  // Format each timestamp in the current zone (UAT #4/#5) — recomputed when the
+  // zone changes so the list updates in place.
+  const sessions = useMemo<SessionInfo[] | null>(
+    () =>
+      rows?.map((r) => ({
+        ...r,
+        lastActive: r.ts ? formatTimestamp(r.ts, locale, tz) : "",
+      })) ?? null,
+    [rows, tz, locale],
+  );
 
   const onChangePassword = useCallback(async () => {
     setSending(true);

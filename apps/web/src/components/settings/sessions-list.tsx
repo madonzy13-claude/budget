@@ -59,7 +59,10 @@ function deviceLabel(
 export function SessionsList({ sessions }: SessionsListProps) {
   const t = useTranslations("settings.sessions");
   const [confirm, setConfirm] = useState<Confirm>(null);
-  const [activeSessions, setActiveSessions] = useState(sessions);
+  // Revoked locally (no refetch) — kept as IDs so a re-formatted `sessions` prop
+  // (e.g. a live timezone change) still flows through while revoked rows stay gone.
+  const [revoked, setRevoked] = useState<Set<string>>(() => new Set());
+  const activeSessions = sessions.filter((s) => !revoked.has(s.id));
   // ip -> flag emoji, resolved best-effort (no flag if lookup fails).
   const [flags, setFlags] = useState<Record<string, string>>({});
 
@@ -67,9 +70,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
     let alive = true;
     const ips = [
       ...new Set(
-        activeSessions
-          .map((s) => s.ipAddress)
-          .filter((ip): ip is string => !!ip),
+        sessions.map((s) => s.ipAddress).filter((ip): ip is string => !!ip),
       ),
     ];
     for (const ip of ips) {
@@ -82,20 +83,23 @@ export function SessionsList({ sessions }: SessionsListProps) {
     return () => {
       alive = false;
     };
-  }, [activeSessions, flags]);
+  }, [sessions, flags]);
 
   const onConfirm = useCallback(async () => {
     if (!confirm) return;
     try {
       if (confirm.kind === "revoke") {
         await authClient.revokeSession({ token: confirm.session.id });
-        setActiveSessions((prev) =>
-          prev.filter((s) => s.id !== confirm.session.id),
-        );
+        const id = confirm.session.id;
+        setRevoked((prev) => new Set(prev).add(id));
         toast.success(t("success_revoke"));
       } else {
         await authClient.revokeOtherSessions();
-        setActiveSessions((prev) => prev.filter((s) => s.isCurrent));
+        setRevoked((prev) => {
+          const next = new Set(prev);
+          for (const s of sessions) if (!s.isCurrent) next.add(s.id);
+          return next;
+        });
         toast.success(t("success_revoke_others"));
       }
     } catch {
@@ -107,7 +111,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
     } finally {
       setConfirm(null);
     }
-  }, [confirm, t]);
+  }, [confirm, sessions, t]);
 
   if (activeSessions.length === 0) {
     return (

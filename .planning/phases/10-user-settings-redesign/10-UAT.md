@@ -219,3 +219,44 @@ blocked: 0
   fix: "ThemeToggle radiogroup (Dark/Light) in General; applyTheme sets html[data-theme] + budget-theme cookie + theme-color meta; global.css :root[data-theme=light] redefines only the base -dark tokens (shadcn aliases + @theme follow via var()); a pre-paint inline script in layout.tsx reads the cookie before first paint so there is no FOUC."
   commit: e1800d1
   verified: "theme-toggle component tests green; web tsc clean. Live: click Light → html data-theme=light, body bg #fff, color-scheme:light, cookie budget-theme=light, theme-color #ffffff → reload keeps Light with the pre-paint script present (no flash). Screenshot captured."
+
+- truth: "Light theme has no black gaps: accordion content / task-slider panels flip with the theme; cards read on the white canvas."
+  status: fixed
+  reason: "User screenshots: in light mode the expanded settings-accordion panels + task-slider were solid black, and #fafafa cards were near-invisible on white."
+  severity: major
+  fix: "9 call sites hardcoded bg-[#141920] → token-ised --surface-sunken-dark (dark #141920 / light #e7eaef); inset shadow softened 0.45→0.22 (harsh on light); light card #fafafa→#eef1f4 (visible), elevated/hairline tuned for hierarchy."
+  commit: 0e15ff7
+  verified: "Live (light, phone): panels compute #e7eaef, cards #eef1f4 on both BDP + global settings — no black. Screenshot."
+
+- truth: "Changing the timezone re-renders the session-list timestamps live (no reload)."
+  status: fixed
+  reason: "User report: changing the timezone didn't update the time shown in the sessions list."
+  severity: major
+  root_cause: "security-section read the zone once from getSession at mount; SessionsList also COPIED its prop into state once (useState(sessions)) and never synced — so a re-format never reached the DOM. (And getSession's cookie cache is stale right after the PUT.)"
+  fix: "timezone-select dispatches window 'budget:timezone-changed' on save; security-section keeps raw rows + a tz state (seeded from the session, updated by the event) and formats via useMemo; SessionsList now derives the visible list from props + a revoked-IDs set (so re-formatted props flow through while revoked rows stay gone)."
+  commit: d1202b7
+  verified: "vitest security-section-timezone 1/0 (event re-formats UTC→Tokyo) + sessions-list/security 13/0. Live: picking Europe/Warsaw → session times shift to 12:37/12:38 instantly; dispatch America/New_York → 06:37. (Initial live failure was a STALE Serwist SW serving old chunks — unregister+clear caches fixed it.)"
+
+- truth: "The profile mini-menu has an in-place Dark/Light theme toggle and no redundant Profile link."
+  status: fixed
+  reason: "User request: add a theme toggle to the profile mini-menu (#2) and remove the Profile link (#3, it duplicated Settings)."
+  severity: enhancement
+  fix: "Removed the Profile NavLink; added a theme menu item (Sun/Moon, shows the target mode) that calls the exported applyTheme from theme-toggle (one source of truth for cookie + data-theme + theme-color); nav.theme_light/theme_dark in en/pl/uk."
+  commit: d1202b7
+  verified: "profile-menu tests: no profile-menu-profile, theme item flips html data-theme. Live: menu = Settings · Dark mode · Install · Sign out (no Profile); clicking the toggle flips light↔dark in place (cookie + body bg) and relabels."
+
+- truth: "Crypto instrument suggestions don't show a currency on the right (it's noise — crypto has one global quote)."
+  status: fixed
+  reason: "User request: for the Crypto type, the suggestion dropdown should not show the currency on the right."
+  severity: minor
+  fix: "instrument-search-input right label drops quoteCurrency when assetClass === 'crypto' (equities/etc still show exchange · currency)."
+  commit: d1202b7
+  verified: "instrument-search 1/0 (crypto omits currency, equities keep it). Live: searching 'Bitcoin' under Crypto lists symbol + name only — no USD."
+
+- truth: "Grouped (nested) investment rows read as a deeper level: lighter than the group/top-level in light mode (#fafafa), darker in dark mode."
+  status: fixed
+  reason: "User report (screenshot): in light mode the group's sub-items were not visually distinct/were darker; they should be lighter (#fafafa)."
+  severity: minor
+  fix: "Nested-row bg token-ised --surface-nested-dark (dark #171b20 = the old color-mix; light #fafafa). Top-level/group stay on the card (#eef1f4), so children read lighter in light + darker in dark."
+  commit: d1202b7
+  verified: "investment-row tests green. Live (light): nested Microsoft row = #fafafa vs top-level Apple row = #eef1f4. Screenshot."

@@ -139,3 +139,25 @@ describe("ProfileMenu install entry", () => {
     await waitFor(() => expect(toastInfo).toHaveBeenCalled());
   });
 });
+
+describe("ProfileMenu theme + profile entry", () => {
+  test("no Profile link (it duplicated Settings)", async () => {
+    await openMenu();
+    expect(
+      screen.queryByTestId("profile-menu-profile"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("profile-menu-settings")).toBeInTheDocument();
+  });
+
+  test("theme item flips the <html data-theme> in place", async () => {
+    document.documentElement.removeAttribute("data-theme"); // starts dark
+    await openMenu();
+    const toggle = screen.getByTestId("profile-menu-theme");
+    // Dark by default → offers "Light mode".
+    expect(toggle).toHaveTextContent("theme_light");
+    fireEvent.click(toggle);
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    // Now offers "Dark mode".
+    expect(toggle).toHaveTextContent("theme_dark");
+  });
+});

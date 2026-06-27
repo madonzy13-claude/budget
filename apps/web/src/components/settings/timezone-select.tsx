@@ -59,8 +59,16 @@ export function TimezoneSelect({ initialTimezone }: TimezoneSelectProps) {
     setOpen(false);
     setSaving(true);
     try {
-      const res = await api.settings.timezone.$put({ json: { timezone: next } });
+      const res = await api.settings.timezone.$put({
+        json: { timezone: next },
+      });
       if (!res.ok) throw new Error("Failed to update timezone");
+      // Tell already-mounted siblings (e.g. the sessions list) to re-render their
+      // timestamps in the new zone — getSession's cookie cache is stale until the
+      // next full load, so a shared event is the reliable live signal.
+      window.dispatchEvent(
+        new CustomEvent("budget:timezone-changed", { detail: next }),
+      );
       toast.success(t("save_success"));
     } catch {
       setTz(previous);
