@@ -24,17 +24,13 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
-  pointerWithin,
-  useDroppable,
   useSensors,
   useSensor,
   PointerSensor,
   TouchSensor,
   KeyboardSensor,
   MeasuringStrategy,
-  type CollisionDetection,
   type DragEndEvent,
-  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -58,12 +54,9 @@ import {
   buildInvestmentEntries,
   groupAggregate,
   resolveDragEnd,
-  withPersistentGroups,
   groupSortId,
   isGroupSortId,
   groupNameFromSortId,
-  UNGROUPED_DROP_ID,
-  LOOSE_TOP_DROP_ID,
   type InvestmentEntry,
   type DragResult,
 } from "@/lib/investment-grouping";
@@ -158,49 +151,6 @@ function GroupHeaderItem({
   );
 }
 
-/**
- * closestCenter compares the DRAGGED item's rect centre to droppables, so a tall
- * holding row dragged over a loose boundary zone never selects it (its centre
- * stays nearer the rows). Prioritise a zone whenever the POINTER is within it
- * (pointerWithin), and fall back to closestCenter for the normal row/group
- * reorder + join targets (UAT #3/#4/#8).
- */
-const collisionDetection: CollisionDetection = (args) => {
-  const zoneHit = pointerWithin(args).find(
-    (c) => c.id === UNGROUPED_DROP_ID || c.id === LOOSE_TOP_DROP_ID,
-  );
-  return zoneHit ? [zoneHit] : closestCenter(args);
-};
-
-/** A dashed loose drop zone (UAT #3/#4/#8): a reliable target to land a holding
- *  loose at the very top (above a leading group) or end (below a trailing group /
- *  remove from group). Rendered only while a holding is dragged. */
-function LooseZone({
-  id,
-  label,
-  testId,
-}: {
-  id: string;
-  label: string;
-  testId: string;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      data-testid={testId}
-      className={[
-        "flex min-h-[44px] items-center justify-center rounded-[var(--radius-md)] border border-dashed px-3 text-caption transition-colors",
-        isOver
-          ? "border-[var(--info-ring)] bg-[var(--surface-elevated-dark)]/60 text-[var(--body-on-dark)]"
-          : "border-[var(--hairline-dark)] text-[var(--muted-foreground)]",
-      ].join(" ")}
-    >
-      {label}
-    </div>
-  );
-}
-
 /** Cohesive drag preview for a whole group block (DragOverlay content, UAT #1):
  *  a static copy of the header + its (expanded) children that follows the pointer
  *  as one unit, while the real block dims in place. */
@@ -280,24 +230,23 @@ export function InvestmentsSection({
     () => investmentsQuery.data ?? [],
     [investmentsQuery.data],
   );
-  // Live arrangement during a drag (canonical @dnd-kit onDragOver pattern): the
-  // dragged holding/group is moved into the target position in this local copy on
-  // every dragOver, so the DOM continuously reflects the drag — the target group
-  // grows as the row enters it (no overflow), @dnd-kit only animates tiny deltas,
-  // and the drop is already in place. Null when not dragging → server data.
-  const [dndHoldings, setDndHoldings] = useState<HoldingDto[] | null>(null);
-  const liveHoldings = dndHoldings ?? holdings;
-  // Ordered entry keys captured at drag-start. While dragging, a group whose last
-  // member is pulled out would vanish mid-drag (its block is no longer built from
-  // liveHoldings) — but it should persist as an empty drop target until the row is
-  // actually DROPPED elsewhere (so the user can still drop it back in). We re-inject
-  // such emptied groups at their snapshot position. Null when not dragging.
-  const [dragSnapshot, setDragSnapshot] = useState<
-    { key: string; group?: string }[] | null
-  >(null);
-  // The id currently being dragged (null when idle) → drives the ungroup-zone
-  // visibility so it only appears while a GROUPED holding is in flight (UAT #8).
+  // The id currently being dragged (null when idle) → drives the group-block
+  // DragOverlay + the dimming of the dragged block in place.
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Post-drop optimistic order: the committed arrangement applied synchronously on
+  // drop so the DOM is already in its final order on the pointer-up frame. Without
+  // this the row snaps back to its origin for one frame (the reorder mutation's
+  // optimistic cache update lands a tick later, after `await cancelQueries`) →
+  // "the item disappears then reappears" (UAT). Cleared once the server/optimistic
+  // data catches up (the effect below), so it never masks later updates.
+  const [committed, setCommitted] = useState<HoldingDto[] | null>(null);
+  const liveHoldings = committed ?? holdings;
+  useEffect(() => {
+    // Fresh holdings arrived (the optimistic reorder, or a refetch) — drop the
+    // post-drop override so we render live data again. Guarded to not fire mid-drag
+    // (holdings is stable during a drag; only a background refetch could land).
+    if (activeId === null) setCommitted(null);
+  }, [holdings]);
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const archiveMut = useArchiveHolding(budgetId);
@@ -309,7 +258,7 @@ export function InvestmentsSection({
     holding: HoldingDto | null;
   }>({ open: false, mode: "create", holding: null });
 
-  // ── Interleaved entries (groups + loose) — from the LIVE arrangement ──
+  // ── Interleaved entries (groups + loose) ──
   const entries = useMemo(
     () => buildInvestmentEntries(liveHoldings),
     [liveHoldings],
@@ -317,25 +266,6 @@ export function InvestmentsSection({
   const groupNames = useMemo(
     () => entries.flatMap((e) => (e.kind === "group" ? [e.name] : [])),
     [entries],
-  );
-
-  // What we actually render: `entries`, plus any group emptied mid-drag re-inserted
-  // in place (so it stays visible + droppable until the row is dropped elsewhere).
-  const displayEntries = useMemo<InvestmentEntry[]>(
-    () =>
-      dragSnapshot ? withPersistentGroups(entries, dragSnapshot) : entries,
-    [entries, dragSnapshot],
-  );
-
-  // Entry shape from the STABLE server data (NOT the live drag copy) — drives the
-  // loose-zone visibility. If it used the live arrangement, dragging a row to the
-  // top would make the live-first a loose row → firstIsGroup flips false → the top
-  // zone unmounts → collision falls to the group header → the row re-joins → group
-  // first again → zone remounts: an unmount/remount oscillation that crashes with
-  // React #185 (the "ERROR moving an item to the top"). Stable data → zone stays.
-  const baseEntries = useMemo(
-    () => buildInvestmentEntries(holdings),
-    [holdings],
   );
 
   const totalBudgetCents = useMemo(
@@ -404,7 +334,7 @@ export function InvestmentsSection({
   // whole list lives in one SortableContext and a child never crosses contexts.
   // Collapsed children aren't rendered → excluded to keep measurements consistent.
   const sortableIds: string[] = [];
-  for (const e of displayEntries) {
+  for (const e of entries) {
     if (e.kind === "group") {
       sortableIds.push(groupSortId(e.name));
       if (isExpanded(e.name))
@@ -413,6 +343,7 @@ export function InvestmentsSection({
       sortableIds.push(e.holding.id);
     }
   }
+  const lastSortableId = sortableIds[sortableIds.length - 1];
 
   // ── DnD ──
   const sensors = useSensors(
@@ -423,7 +354,8 @@ export function InvestmentsSection({
     useSensor(KeyboardSensor),
   );
   // Apply a DragResult to a holdings array → new array in the result's order with
-  // the moved holding's group updated (used for the live onDragOver arrangement).
+  // the moved holding's group updated. Used to seed the post-drop optimistic order
+  // (`committed`) so the DOM is already final on the pointer-up frame.
   function applyResult(base: HoldingDto[], result: DragResult): HoldingDto[] {
     const map = new Map(base.map((h) => [h.id, h]));
     if (result.groupChange) {
@@ -438,65 +370,22 @@ export function InvestmentsSection({
 
   function handleDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
-    setDndHoldings([...holdings]);
-    // Snapshot the current entry order so an emptied group can be kept in place.
-    setDragSnapshot(
-      entries.map((e) =>
-        e.kind === "group"
-          ? { key: `group:${e.name}`, group: e.name }
-          : { key: `loose:${e.holding.id}` },
-      ),
-    );
-  }
-
-  // Live-move the dragged HOLDING into the target position on every dragOver so the
-  // DOM tracks the drag continuously (no overflow, no big transforms). A GROUP block
-  // is NOT live-moved — its cohesive preview lives in the DragOverlay and it commits
-  // on drop. (Live-moving a group + MeasuringStrategy.Always re-measures every
-  // reorder → re-fires onDragOver → never converges → React #185 max-update-depth.)
-  // Rect midpoint gives the direction the pure module can't see: a holding dragged
-  // ABOVE a group header stays loose instead of joining (asLoose, UAT #5/#7).
-  function handleDragOver(e: DragOverEvent) {
-    const { active, over } = e;
-    if (!over) return;
-    const aId = String(active.id);
-    const oId = String(over.id);
-    if (oId.startsWith("section-")) return;
-    if (isGroupSortId(aId)) return; // group blocks move on drop, not live
-
-    const aMid = midY(active.rect.current.translated);
-    const oMid = midY(over.rect);
-    const aboveTarget = aMid != null && oMid != null ? aMid < oMid : false;
-
-    setDndHoldings((prev) => {
-      const base = prev ?? holdings;
-      const result = isGroupSortId(oId)
-        ? resolveDragEnd(base, aId, oId, { asLoose: aboveTarget })
-        : resolveDragEnd(base, aId, oId);
-      if (!result) return base;
-      // Live-move ONLY for a cross-context change (group re-nesting) or a loose
-      // zone. A same-group / loose-to-loose reorder is left to @dnd-kit's native
-      // sorting so the gap SLIDES — live-reordering the array every frame swaps the
-      // DOM nodes, resetting the sort transforms, so the row JUMPS instead of
-      // animating ("no animation inside the group"). The final order is recomputed
-      // from the stable holdings on drop, so skipping the live-move is lossless.
-      const isZone = oId === UNGROUPED_DROP_ID || oId === LOOSE_TOP_DROP_ID;
-      if (!result.groupChange && !isZone) return base;
-      return applyResult(base, result);
-    });
   }
 
   function handleDragCancel() {
     setActiveId(null);
-    setDndHoldings(null);
-    setDragSnapshot(null);
   }
 
+  // No onDragOver live-move: the list is a single flat SortableContext, so
+  // @dnd-kit's verticalListSortingStrategy animates EVERY reorder (within a group,
+  // across groups, in/out of loose) via transforms — the rows slide, the dragged
+  // row never leaves the DOM, and nothing shrinks mid-drag (UAT #4). Group
+  // membership is inferred purely from the DROP target + rect direction here, and
+  // committed once. (This also removes the onDragOver setState that, with
+  // MeasuringStrategy.Always, used to re-fire and crash with React #185.)
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
-    setDndHoldings(null);
-    setDragSnapshot(null);
     if (!over) return;
     const aId = String(active.id);
     const overId = String(over.id);
@@ -507,30 +396,46 @@ export function InvestmentsSection({
       return;
     }
 
-    // Everything commits from the STABLE holdings + the drop target — never the
-    // live arrangement (which may not exist for a same-context reorder left to
-    // @dnd-kit). Direction from the final drop rects: a group block dropped BELOW
-    // its anchor lands after it (placeAfter, UAT #6); a holding dropped ABOVE a
-    // group header stays loose (asLoose, UAT #5/#7).
+    // Direction from the final drop rects (the pure module has no geometry):
+    //   - group block dropped BELOW its anchor lands AFTER it (placeAfter, UAT #6)
+    //   - holding released ABOVE a group header (above its TOP edge) stays loose
+    //     above/between groups instead of joining (asLoose, UAT #5/#7)
+    //   - holding released clearly BELOW the last row (past its bottom edge) lands
+    //     loose at the very end / ungroups (asLooseEnd, UAT #4 — replaces the old
+    //     explicit drop zones). The TOP edge / BOTTOM edge thresholds (not the
+    //     midpoint) keep "drop onto the first/last member" a normal in-group
+    //     reorder, so a 2-item group's items still swap to first/last (UAT #1).
     const aMid = midY(active.rect.current.translated);
     const oMid = midY(over.rect);
+    const oTop = over.rect ? over.rect.top : null;
+    const oBottom = over.rect ? over.rect.top + over.rect.height : null;
 
     if (isGroupSortId(aId)) {
       const placeAfter = aMid != null && oMid != null ? aMid > oMid : false;
       const result = resolveDragEnd(holdings, aId, overId, { placeAfter });
-      if (result) reorderMut.mutate({ orderedIds: result.orderedIds });
+      if (result) {
+        setCommitted(applyResult(holdings, result));
+        reorderMut.mutate({ orderedIds: result.orderedIds });
+      }
       return;
     }
 
     const asLoose =
-      isGroupSortId(overId) && aMid != null && oMid != null && aMid < oMid;
+      isGroupSortId(overId) && aMid != null && oTop != null && aMid < oTop;
+    const asLooseEnd =
+      !isGroupSortId(overId) &&
+      overId === lastSortableId &&
+      aMid != null &&
+      oBottom != null &&
+      aMid > oBottom;
     const result = isGroupSortId(overId)
       ? resolveDragEnd(holdings, aId, overId, { asLoose })
-      : resolveDragEnd(holdings, aId, overId);
+      : resolveDragEnd(holdings, aId, overId, { asLooseEnd });
     if (!result) return;
     if (result.groupChange) {
       updateMut.mutate({ holdingId: aId, group: result.groupChange.group });
     }
+    setCommitted(applyResult(holdings, result));
     reorderMut.mutate({ orderedIds: result.orderedIds });
   }
 
@@ -541,29 +446,15 @@ export function InvestmentsSection({
     setSheet({ open: true, mode: "create", holding: null });
   }
 
-  // Show the bottom "remove from group" zone only while a holding that STARTED in
-  // a group is being dragged — that's the only case where ungroup is meaningful.
-  const activeIsGrouped =
-    activeId != null &&
-    !isGroupSortId(activeId) &&
-    (holdings.find((hh) => hh.id === activeId)?.group ?? null) != null;
-  const activeIsHolding = activeId != null && !isGroupSortId(activeId);
+  // The group block currently being dragged → its cohesive DragOverlay preview +
+  // the dimming of the real block in place (UAT #1).
   const activeGroupName =
     activeId != null && isGroupSortId(activeId)
       ? groupNameFromSortId(activeId)
       : null;
   const activeGroupEntry = activeGroupName
-    ? displayEntries.find(
-        (e) => e.kind === "group" && e.name === activeGroupName,
-      )
+    ? entries.find((e) => e.kind === "group" && e.name === activeGroupName)
     : undefined;
-  // Loose boundary zones (UAT #3/#4): a top zone when the first entry is a group
-  // (land a row loose ABOVE it) and a bottom zone when the last entry is a group
-  // or the dragged row is grouped (land it loose BELOW / remove from group).
-  const firstIsGroup = baseEntries[0]?.kind === "group";
-  const lastIsGroup = baseEntries[baseEntries.length - 1]?.kind === "group";
-  const topZoneVisible = activeIsHolding && firstIsGroup;
-  const bottomZoneVisible = activeIsHolding && (activeIsGrouped || lastIsGroup);
 
   if (!investmentsEnabled) return null;
 
@@ -578,12 +469,11 @@ export function InvestmentsSection({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={collisionDetection}
-        // Always-measure so the ungroup zone (mounted only mid-drag) is registered
-        // as a drop target the moment it appears (UAT #8).
+        collisionDetection={closestCenter}
+        // Always-measure so collisions stay accurate as @dnd-kit slides the rows
+        // during a drag (the dragged rect is compared against live row rects).
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
@@ -592,14 +482,7 @@ export function InvestmentsSection({
           strategy={verticalListSortingStrategy}
         >
           <div className="flex flex-col gap-2">
-            {topZoneVisible && (
-              <LooseZone
-                id={LOOSE_TOP_DROP_ID}
-                testId="loose-top-dropzone"
-                label={t("looseZone")}
-              />
-            )}
-            {displayEntries.map((entry) =>
+            {entries.map((entry) =>
               entry.kind === "group" ? (
                 <Fragment key={`group:${entry.name}`}>
                   <GroupHeaderItem
@@ -634,13 +517,6 @@ export function InvestmentsSection({
                   onArchive={(id) => archiveMut.mutate(id)}
                 />
               ),
-            )}
-            {bottomZoneVisible && (
-              <LooseZone
-                id={UNGROUPED_DROP_ID}
-                testId="ungroup-dropzone"
-                label={activeIsGrouped ? t("ungroupZone") : t("looseZone")}
-              />
             )}
           </div>
         </SortableContext>

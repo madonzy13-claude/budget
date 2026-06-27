@@ -57,45 +57,6 @@ export function buildInvestmentEntries(
   return entries;
 }
 
-export const entryKeyOf = (e: InvestmentEntry): string =>
-  e.kind === "group" ? `group:${e.name}` : `loose:${e.holding.id}`;
-
-/**
- * Keep a group visible during a drag even after its last member is pulled out.
- * `snapshot` is the entry order captured at drag-start; any snapshot GROUP that's
- * no longer in `entries` is re-inserted as an EMPTY block right after its nearest
- * preceding snapshot entry that's still present (so it stays put and droppable).
- * Pure so the placement maths is unit-tested; the section calls it while dragging.
- */
-export function withPersistentGroups(
-  entries: InvestmentEntry[],
-  snapshot: { key: string; group?: string }[],
-): InvestmentEntry[] {
-  const present = new Set(entries.map(entryKeyOf));
-  const missing = snapshot.filter(
-    (s) => s.group !== undefined && !present.has(s.key),
-  );
-  if (missing.length === 0) return entries;
-  const result = [...entries];
-  for (const snap of missing) {
-    const snapIdx = snapshot.findIndex((s) => s.key === snap.key);
-    let insertAt = 0;
-    for (let i = snapIdx - 1; i >= 0; i--) {
-      const idx = result.findIndex((e) => entryKeyOf(e) === snapshot[i].key);
-      if (idx >= 0) {
-        insertAt = idx + 1;
-        break;
-      }
-    }
-    result.splice(insertAt, 0, {
-      kind: "group",
-      name: snap.group!,
-      holdings: [],
-    });
-  }
-  return result;
-}
-
 /** Flatten entries back to a holding-id order (groups expanded as blocks). */
 export function flattenEntries(entries: InvestmentEntry[]): string[] {
   const ids: string[] = [];
@@ -149,19 +110,6 @@ export interface DragResult {
 }
 
 const GROUP_PREFIX = "group:";
-/**
- * Droppable id for the "remove from group" zone (UAT #8). Dropping a grouped
- * holding here makes it loose — the only way to ungroup when there are no loose
- * rows to drop onto (e.g. a single group holding every item).
- */
-export const UNGROUPED_DROP_ID = "ungrouped-zone";
-/**
- * Droppable id for the "keep loose, at the TOP" zone (UAT #3). Rendered above the
- * list while a holding is dragged and the first entry is a group — gives a
- * reliable target to land a loose row above a leading group (instead of the group
- * swallowing it). UNGROUPED_DROP_ID is the symmetric "loose, at the END" zone.
- */
-export const LOOSE_TOP_DROP_ID = "loose-top-zone";
 export const groupSortId = (name: string) => `${GROUP_PREFIX}${name}`;
 export const isGroupSortId = (id: string) => id.startsWith(GROUP_PREFIX);
 export const groupNameFromSortId = (id: string) =>
@@ -198,10 +146,13 @@ function recluster(
  *     before it (UAT #6 — otherwise a group can never become the last entry).
  *   - asLoose: a holding dragged ABOVE a group header stays LOOSE above the group
  *     instead of joining it (UAT #5 / #7 — a top group no longer swallows items).
+ *   - asLooseEnd: a holding dropped clearly BELOW the last (trailing) group's last
+ *     member lands LOOSE at the very end (replaces the old explicit ungroup zone).
  */
 export interface DragOpts {
   placeAfter?: boolean;
   asLoose?: boolean;
+  asLooseEnd?: boolean;
 }
 
 /**
@@ -265,11 +216,13 @@ export function resolveDragEnd(
   let groupChange: DragResult["groupChange"] | undefined;
   let newOrder: string[];
 
-  // ── Dropped on a loose boundary zone → make the holding loose, at top/end ────
-  if (overId === UNGROUPED_DROP_ID || overId === LOOSE_TOP_DROP_ID) {
-    const top = overId === LOOSE_TOP_DROP_ID;
+  // ── Dropped clearly BELOW the trailing group → loose at the very end ─────────
+  // (asLooseEnd; the section sets it when the over row is the last holding and the
+  // dragged midpoint is past its bottom edge.) The symmetric "loose at the top /
+  // between groups" is handled by asLoose on the group header below.
+  if (opts.asLooseEnd) {
     const without = baseOrder.filter((id) => id !== H);
-    const arranged = top ? [H, ...without] : [...without, H];
+    const arranged = [...without, H];
     const reclustered = recluster(arranged, (id) =>
       id === H ? null : (baseGroup.get(id) ?? null),
     );

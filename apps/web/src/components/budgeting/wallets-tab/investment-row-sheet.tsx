@@ -197,14 +197,11 @@ export function InvestmentRowSheet({
         nested
           ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
           : "",
-        // Holding rows move inline via their own transform and animate to the
-        // final slot on drop. Lift while dragging; dim when this row's group is
-        // being dragged as a block (ghost — the lifted copy is in the overlay).
-        isDragging
-          ? "z-50 rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]"
-          : ghost
-            ? "opacity-40"
-            : "",
+        // Lift above siblings while dragging (z) / dim when this row's group is
+        // dragged as a block (ghost). The visible lift (ring + shadow + rounded)
+        // lives on the INNER card below — on this wrapper it would enclose the
+        // indent padding + rail, drawing the ring left of the actual row (UAT).
+        isDragging ? "z-50" : ghost ? "opacity-40" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -255,6 +252,11 @@ export function InvestmentRowSheet({
       </div>
 
       <div
+        className={
+          isDragging
+            ? "rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]"
+            : ""
+        }
         style={{
           transform: swipeTransform,
           transition: swiping ? "none" : undefined,

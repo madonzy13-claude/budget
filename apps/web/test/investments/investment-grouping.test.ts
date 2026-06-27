@@ -13,9 +13,6 @@ import {
   buildInvestmentEntries,
   groupAggregate,
   resolveDragEnd,
-  withPersistentGroups,
-  UNGROUPED_DROP_ID,
-  LOOSE_TOP_DROP_ID,
 } from "../../src/lib/investment-grouping";
 
 function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
@@ -59,44 +56,6 @@ function sample(): HoldingDto[] {
     h({ id: "E", group: null, sortOrder: 4 }),
   ];
 }
-
-describe("withPersistentGroups (group stays put while its last item is dragged)", () => {
-  // Snapshot the entry order at drag-start.
-  const snapshotOf = (holdings: HoldingDto[]) =>
-    buildInvestmentEntries(holdings).map((e) =>
-      e.kind === "group"
-        ? { key: `group:${e.name}`, group: e.name }
-        : { key: `loose:${e.holding.id}` },
-    );
-
-  it("re-inserts a now-empty group (its last member dragged out) at its spot, empty", () => {
-    const snapshot = snapshotOf(sample()); // A,B in Brokerage; C loose; D in Metals; E loose
-    // Mid-drag: D (Metals' only member) pulled out to loose → Metals is empty.
-    const live = buildInvestmentEntries([
-      h({ id: "A", group: "Brokerage", sortOrder: 0 }),
-      h({ id: "B", group: "Brokerage", sortOrder: 1 }),
-      h({ id: "C", group: null, sortOrder: 2 }),
-      h({ id: "D", group: null, sortOrder: 3 }), // moved out of Metals
-      h({ id: "E", group: null, sortOrder: 4 }),
-    ]);
-    expect(
-      live.find((e) => e.kind === "group" && e.name === "Metals"),
-    ).toBeUndefined();
-
-    const out = withPersistentGroups(live, snapshot);
-    const metals = out.find((e) => e.kind === "group" && e.name === "Metals");
-    expect(metals).toBeTruthy();
-    expect(metals && metals.kind === "group" && metals.holdings).toHaveLength(
-      0,
-    );
-  });
-
-  it("returns the entries unchanged when no snapshot group went missing", () => {
-    const entries = buildInvestmentEntries(sample());
-    const snapshot = snapshotOf(sample());
-    expect(withPersistentGroups(entries, snapshot)).toBe(entries);
-  });
-});
 
 describe("buildInvestmentEntries", () => {
   it("interleaves group blocks and loose rows by representative order", () => {
@@ -198,16 +157,18 @@ describe("resolveDragEnd", () => {
     expect(resolveDragEnd(sample(), "A", "A")).toBeNull();
   });
 
-  // UAT #8: with a SINGLE group and NO loose rows there is no loose drop target,
-  // so a child could never leave the group. The ungroup drop zone fixes that —
-  // dropping a grouped holding on UNGROUPED_DROP_ID makes it loose at the end.
-  describe("ungroup drop zone (UNGROUPED_DROP_ID)", () => {
+  // UAT #4 (redesign): no more explicit drop zones. Dropping a holding clearly
+  // BELOW the trailing group's last member lands it loose at the very end — the
+  // section sets `asLooseEnd` when the over row is the last holding and the dragged
+  // midpoint is past its bottom edge. This is the only way to ungroup when a single
+  // group holds every item (no loose row to drop onto).
+  describe("asLooseEnd (drop below the trailing group → loose at the end)", () => {
     it("moves a grouped child out to loose even when it's the only group", () => {
       const onlyGroup = [
         h({ id: "A", group: "G", sortOrder: 0 }),
         h({ id: "B", group: "G", sortOrder: 1 }),
       ];
-      const r = resolveDragEnd(onlyGroup, "A", UNGROUPED_DROP_ID);
+      const r = resolveDragEnd(onlyGroup, "A", "B", { asLooseEnd: true });
       expect(r).not.toBeNull();
       expect(r!.groupChange).toEqual({ holdingId: "A", group: null });
       // B stays in G; A becomes loose at the end.
@@ -215,48 +176,23 @@ describe("resolveDragEnd", () => {
     });
 
     it("ungroups a child from a multi-entry layout, landing it loose at the end", () => {
-      const r = resolveDragEnd(sample(), "B", UNGROUPED_DROP_ID);
+      const r = resolveDragEnd(sample(), "B", "E", { asLooseEnd: true });
       expect(r!.groupChange).toEqual({ holdingId: "B", group: null });
       expect(r!.orderedIds).toEqual(["A", "C", "D", "E", "B"]);
     });
 
-    it("moves an already-loose middle row to the END (loose-below-group, UAT #4)", () => {
-      // C is loose in the middle of sample(); the bottom zone now means "place
-      // loose at the end" (so a loose row can land below a trailing group).
-      const r = resolveDragEnd(sample(), "C", UNGROUPED_DROP_ID);
+    it("moves an already-loose middle row to the END (no group change)", () => {
+      const r = resolveDragEnd(sample(), "C", "E", { asLooseEnd: true });
       expect(r).not.toBeNull();
       expect(r!.groupChange).toBeUndefined();
       expect(r!.orderedIds).toEqual(["A", "B", "D", "E", "C"]);
     });
 
-    it("is a no-op only when the row is already loose AND already last", () => {
-      // E is loose and already last → bottom zone does nothing.
-      expect(resolveDragEnd(sample(), "E", UNGROUPED_DROP_ID)).toBeNull();
-    });
-  });
-
-  // UAT #3 / #4: explicit loose drop zones make boundary placement reliable — a
-  // loose row can land at the very TOP (above a leading group) or the very END
-  // (below a trailing group) without getting swallowed into the adjacent group.
-  describe("loose boundary zones", () => {
-    it("LOOSE_TOP places a grouped child loose at the very top", () => {
-      const r = resolveDragEnd(sample(), "D", LOOSE_TOP_DROP_ID);
-      expect(r!.groupChange).toEqual({ holdingId: "D", group: null });
-      expect(r!.orderedIds).toEqual(["D", "A", "B", "C", "E"]);
-    });
-
-    it("LOOSE_TOP moves an already-loose middle row to the front (no group change)", () => {
-      const r = resolveDragEnd(sample(), "C", LOOSE_TOP_DROP_ID);
-      expect(r!.groupChange).toBeUndefined();
-      expect(r!.orderedIds).toEqual(["C", "A", "B", "D", "E"]);
-    });
-
-    it("LOOSE_TOP is a no-op when the row is already loose AND already first", () => {
-      const firstLoose = [
-        h({ id: "X", group: null, sortOrder: 0 }),
-        h({ id: "A", group: "G", sortOrder: 1 }),
-      ];
-      expect(resolveDragEnd(firstLoose, "X", LOOSE_TOP_DROP_ID)).toBeNull();
+    it("is a no-op when the row is already loose AND already last", () => {
+      // E is loose and already last → nothing to do.
+      expect(
+        resolveDragEnd(sample(), "E", "E", { asLooseEnd: true }),
+      ).toBeNull();
     });
   });
 
