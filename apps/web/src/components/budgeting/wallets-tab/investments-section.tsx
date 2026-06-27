@@ -328,6 +328,17 @@ export function InvestmentsSection({
     [entries, dragSnapshot],
   );
 
+  // Entry shape from the STABLE server data (NOT the live drag copy) — drives the
+  // loose-zone visibility. If it used the live arrangement, dragging a row to the
+  // top would make the live-first a loose row → firstIsGroup flips false → the top
+  // zone unmounts → collision falls to the group header → the row re-joins → group
+  // first again → zone remounts: an unmount/remount oscillation that crashes with
+  // React #185 (the "ERROR moving an item to the top"). Stable data → zone stays.
+  const baseEntries = useMemo(
+    () => buildInvestmentEntries(holdings),
+    [holdings],
+  );
+
   const totalBudgetCents = useMemo(
     () =>
       liveHoldings.reduce((s, h) => s + Number(h.valueInBudgetCents || 0), 0),
@@ -544,9 +555,8 @@ export function InvestmentsSection({
   // Loose boundary zones (UAT #3/#4): a top zone when the first entry is a group
   // (land a row loose ABOVE it) and a bottom zone when the last entry is a group
   // or the dragged row is grouped (land it loose BELOW / remove from group).
-  const firstIsGroup = displayEntries[0]?.kind === "group";
-  const lastIsGroup =
-    displayEntries[displayEntries.length - 1]?.kind === "group";
+  const firstIsGroup = baseEntries[0]?.kind === "group";
+  const lastIsGroup = baseEntries[baseEntries.length - 1]?.kind === "group";
   const topZoneVisible = activeIsHolding && firstIsGroup;
   const bottomZoneVisible = activeIsHolding && (activeIsGrouped || lastIsGroup);
 
