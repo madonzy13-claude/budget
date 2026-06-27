@@ -18,6 +18,7 @@
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensors,
@@ -26,6 +27,7 @@ import {
   TouchSensor,
   KeyboardSensor,
   MeasuringStrategy,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -168,6 +170,18 @@ function GroupBlock({
     </div>
   );
 }
+
+/**
+ * closestCenter compares the DRAGGED item's rect centre to droppables, so a tall
+ * holding row dragged over the bottom ungroup zone never selects it (its centre
+ * stays nearer the rows). Prioritise the zone whenever the POINTER is within it
+ * (pointerWithin), and fall back to closestCenter for all the normal row/group
+ * reorder + join targets (UAT #8).
+ */
+const collisionDetection: CollisionDetection = (args) => {
+  const zoneHit = pointerWithin(args).find((c) => c.id === UNGROUPED_DROP_ID);
+  return zoneHit ? [zoneHit] : closestCenter(args);
+};
 
 /** "Remove from group" drop target (UAT #8). Rendered only while a grouped
  *  holding is being dragged — gives an always-available loose target even when a
@@ -467,7 +481,7 @@ export function InvestmentsSection({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={collisionDetection}
         // Always-measure so the ungroup zone (mounted only mid-drag) is registered
         // as a drop target the moment it appears (UAT #8).
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
