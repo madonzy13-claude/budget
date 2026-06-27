@@ -183,6 +183,13 @@ export function InvestmentRowSheet({
       }}
       className={[
         "relative",
+        // Grouped child: indent + a continuous left rail. The flat list has no
+        // nested container to carry a `border-l`, so each child draws its own 1px
+        // rail via a ::before that extends up into the gap-2 above it (−top-2),
+        // joining the header's rail through to the last child (D-#flat-rail).
+        nested
+          ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
+          : "",
         // NO DragOverlay: the active row moves inline via its own transform and
         // animates to its final slot on drop, so it lands exactly where dropped.
         // Lift it (shadow + ring + above siblings) while dragging.

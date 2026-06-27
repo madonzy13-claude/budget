@@ -224,4 +224,58 @@ describe("resolveDragEnd", () => {
       expect(resolveDragEnd(sample(), "C", UNGROUPED_DROP_ID)).toBeNull();
     });
   });
+
+  // UAT #6: dragging a group DOWN past the last entry — the block must land
+  // AFTER the anchor, not before it (which was a no-op → "group can't be last").
+  describe("placeAfter (drag a group block downward)", () => {
+    it("lands the group block AFTER the anchor row when placeAfter", () => {
+      // drag g:Metals down onto E (last loose) → Metals lands after E (last).
+      const r = resolveDragEnd(sample(), "group:Metals", "E", {
+        placeAfter: true,
+      });
+      expect(r).not.toBeNull();
+      expect(r!.orderedIds).toEqual(["A", "B", "C", "E", "D"]);
+    });
+
+    it("moves a group to last when there is only one other (loose) entry", () => {
+      // [G(A,B), C loose]; without placeAfter, dropping G on C inserts BEFORE C
+      // → no-op (the #6 bug). placeAfter inserts after → C, then G.
+      const layout = [
+        h({ id: "A", group: "G", sortOrder: 0 }),
+        h({ id: "B", group: "G", sortOrder: 1 }),
+        h({ id: "C", group: null, sortOrder: 2 }),
+      ];
+      expect(resolveDragEnd(layout, "group:G", "C")).toBeNull(); // before = no-op
+      const r = resolveDragEnd(layout, "group:G", "C", { placeAfter: true });
+      expect(r!.orderedIds).toEqual(["C", "A", "B"]);
+    });
+  });
+
+  // UAT #5 / #7: a loose holding dragged ABOVE a top group must land loose above
+  // it, not get swallowed into the group. `asLoose` is set by the section when the
+  // dragged row's midpoint is above the group header's midpoint.
+  describe("asLoose (drop a holding above a group header → stays loose)", () => {
+    it("places an already-loose holding above the top group, no group change", () => {
+      const r = resolveDragEnd(sample(), "C", "group:Brokerage", {
+        asLoose: true,
+      });
+      expect(r).not.toBeNull();
+      expect(r!.groupChange).toBeUndefined();
+      expect(r!.orderedIds).toEqual(["C", "A", "B", "D", "E"]);
+    });
+
+    it("ungroups a grouped child dropped above a top group (loose)", () => {
+      const r = resolveDragEnd(sample(), "D", "group:Brokerage", {
+        asLoose: true,
+      });
+      expect(r!.groupChange).toEqual({ holdingId: "D", group: null });
+      expect(r!.orderedIds).toEqual(["D", "A", "B", "C", "E"]);
+    });
+
+    it("still JOINS (not loose) when asLoose is not set — default unchanged", () => {
+      const r = resolveDragEnd(sample(), "C", "group:Brokerage");
+      expect(r!.groupChange).toEqual({ holdingId: "C", group: "Brokerage" });
+      expect(r!.orderedIds).toEqual(["C", "A", "B", "D", "E"]);
+    });
+  });
 });

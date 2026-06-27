@@ -3,23 +3,26 @@
  * investments-section.tsx — Investments section client island (Phase 9 + group
  * redesign).
  *
- * Rendered LAST on the Wallets tab when investments_enabled. The list interleaves
- * GROUP blocks and LOOSE holdings in a single sortable list:
- *   - drag a GROUP (its handle)          → the whole block moves as a unit
+ * Rendered LAST on the Wallets tab when investments_enabled. The list is a SINGLE
+ * FLAT sortable: group headers AND holdings are sortable items in one container
+ * (no nested DOM subtrees). Grouped children render indented under a CSS rail, but
+ * are real siblings of the header — so a holding dragged across groups is a plain
+ * reorder in the same parent (it never re-mounts → no mid-drag crash, D-#flat).
+ *   - drag a GROUP (its handle)           → the whole block moves as a unit
  *   - drag a holding onto a group header  → join that group
- *   - drag a holding onto a row in another group / a loose row → move there
- *   - drag a holding within its group     → reorder within the group
+ *   - drag a holding ABOVE a group header → stays loose above it (rect midpoint)
+ *   - drag a holding onto a row / loose    → move there / reorder
+ *   - drag a group DOWN past the last row  → it becomes last (placeAfter)
  *   - drop on a wallet section            → rejected (cross-section), toast
  * The interleave + reorder maths is the pure `investment-grouping` module; this
- * island just renders entries and dispatches its DragResult to the reorder +
- * group-update mutations. Group children render indented (left rail). Group
- * amount/P/L/% are aggregated client-side so they track optimistic mutations.
+ * island renders entries and dispatches its DragResult to the reorder +
+ * group-update mutations. Group amount/P/L/% are aggregated client-side so they
+ * track optimistic mutations.
  */
 import {
   DndContext,
   closestCenter,
   pointerWithin,
-  useDraggable,
   useDroppable,
   useSensors,
   useSensor,
@@ -35,9 +38,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   SortableContext,
+  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
@@ -69,16 +73,21 @@ interface InvestmentsSectionProps {
   budgetCurrency?: string;
 }
 
-/** A draggable, collapsible group block with an indented, sortable child list. */
-function GroupBlock({
+/**
+ * Group header as a SORTABLE item (D-#flat): a single flat list slot that opens a
+ * drop gap when dragged (so the user sees where the group will land, UAT #4) and
+ * is a drop target for "join this group". The header's children render as the
+ * header's siblings right after it — the block moves together via the live
+ * onDragOver arrangement. Only the drag handle starts a drag (listeners on the
+ * handle, not the body) so the header body click still toggles collapse.
+ */
+function GroupHeaderItem({
   entry,
   budgetCurrency,
   totalBudgetCents,
   maxAmountChars,
   expanded,
   onToggle,
-  onEdit,
-  onArchive,
 }: {
   entry: Extract<InvestmentEntry, { kind: "group" }>;
   budgetCurrency: string;
@@ -86,49 +95,38 @@ function GroupBlock({
   maxAmountChars: number;
   expanded: boolean;
   onToggle: () => void;
-  onEdit: (h: HoldingDto) => void;
-  onArchive: (id: string) => void;
 }) {
   const t = useTranslations("budget.investments");
   const agg = groupAggregate(entry.holdings);
   const portfolioPct =
     totalBudgetCents > 0 ? (agg.valueBudgetCents / totalBudgetCents) * 100 : 0;
-  // A group is a DROP target (drop a holding here → join) + a DRAGGABLE block (its
-  // handle). It is NOT a sortable item, so dragging a child next to it never makes
-  // the whole group jump, and dragging the group never scatters the holdings (D-#dnd).
-  const { setNodeRef: setDropRef, isOver } = useDroppable({
-    id: groupSortId(entry.name),
-  });
   const {
-    setNodeRef: setDragRef,
+    setNodeRef,
     attributes,
     listeners,
-    isDragging,
     transform,
-  } = useDraggable({ id: groupSortId(entry.name) });
-  // Drop + drag refs on the SAME outer block so the whole group (header +
-  // children) moves as a unit (no overlay → lands exactly where dropped).
-  const setRefs = (node: HTMLDivElement | null) => {
-    setDropRef(node);
-    setDragRef(node);
-  };
-
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
+    id: groupSortId(entry.name),
+    animateLayoutChanges: () => false,
+  });
+  const dndTransform = CSS.Transform.toString(transform) ?? "";
   return (
     <div
-      ref={setRefs}
+      ref={setNodeRef}
       style={{
-        transform: transform ? CSS.Translate.toString(transform) : undefined,
+        transform:
+          dndTransform && dndTransform !== "none" ? dndTransform : undefined,
+        transition,
         zIndex: isDragging ? 50 : undefined,
-        position: isDragging ? "relative" : undefined,
       }}
-      className={[
-        "flex flex-col gap-2",
+      className={
         isDragging
-          ? "rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]"
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+          ? "relative z-50 rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]"
+          : "relative"
+      }
     >
       <InvestmentGroupHeader
         groupName={entry.name}
@@ -150,23 +148,6 @@ function GroupBlock({
           />
         }
       />
-      {expanded && (
-        <div className="ml-3 flex flex-col gap-2 border-l border-[var(--hairline-dark)] pl-3">
-          {/* Children are sortable items of the SECTION's single SortableContext
-              (not a nested one) — a nested context can't animate a drop gap or
-              collapse the source slot when a row crosses contexts (D-#dnd). */}
-          {entry.holdings.map((h) => (
-            <InvestmentRowSheet
-              key={h.id}
-              holding={h}
-              nested
-              maxAmountChars={maxAmountChars}
-              onEdit={onEdit}
-              onArchive={onArchive}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -205,6 +186,11 @@ function UngroupDropZone() {
   );
 }
 
+/** Midpoint of a dnd-kit rect (top + half height); null when the rect is absent. */
+function midY(rect: { top: number; height: number } | null | undefined) {
+  return rect ? rect.top + rect.height / 2 : null;
+}
+
 export function InvestmentsSection({
   budgetId,
   budgetCurrency: budgetCurrencyProp,
@@ -235,7 +221,7 @@ export function InvestmentsSection({
     [investmentsQuery.data],
   );
   // Live arrangement during a drag (canonical @dnd-kit onDragOver pattern): the
-  // dragged holding is moved into the target group/position in this local copy on
+  // dragged holding/group is moved into the target position in this local copy on
   // every dragOver, so the DOM continuously reflects the drag — the target group
   // grows as the row enters it (no overflow), @dnd-kit only animates tiny deltas,
   // and the drop is already in place. Null when not dragging → server data.
@@ -342,13 +328,14 @@ export function InvestmentsSection({
     });
   };
 
-  // Sortable items are HOLDINGS ONLY (group headers are droppable + draggable,
-  // not sortable) — so @dnd-kit's visual arrayMove matches resolveDragEnd exactly
-  // (no drop jump / move-back) and a child drag never reorders the group header.
+  // Flat sortable items, in render order: each group HEADER id, then (if expanded)
+  // its children, then loose rows. Group headers ARE sortable items now, so the
+  // whole list lives in one SortableContext and a child never crosses contexts.
   // Collapsed children aren't rendered → excluded to keep measurements consistent.
   const sortableIds: string[] = [];
-  for (const e of entries) {
+  for (const e of displayEntries) {
     if (e.kind === "group") {
+      sortableIds.push(groupSortId(e.name));
       if (isExpanded(e.name))
         for (const h of e.holdings) sortableIds.push(h.id);
     } else {
@@ -391,19 +378,33 @@ export function InvestmentsSection({
     );
   }
 
-  // Live-move the dragged HOLDING into the target group/position on every dragOver
-  // so the DOM tracks the drag continuously (no overflow, no big transforms). A
-  // group block is NOT live-moved — it moves on drop.
+  // Live-move the dragged item into the target position on every dragOver so the
+  // DOM tracks the drag continuously (no overflow, no big transforms). Both groups
+  // and holdings live-move now (single flat parent → safe). Rect midpoints give
+  // the direction the pure module can't see: a group dragged BELOW its anchor lands
+  // after it (placeAfter, UAT #6); a holding dragged ABOVE a group header stays
+  // loose above it instead of joining (asLoose, UAT #5/#7).
   function handleDragOver(e: DragOverEvent) {
     const { active, over } = e;
     if (!over) return;
-    const activeId = String(active.id);
-    if (isGroupSortId(activeId)) return;
-    const overId = String(over.id);
-    if (overId.startsWith("section-")) return;
+    const aId = String(active.id);
+    const oId = String(over.id);
+    if (oId.startsWith("section-")) return;
+
+    const aMid = midY(active.rect.current.translated);
+    const oMid = midY(over.rect);
+    const aboveTarget = aMid != null && oMid != null ? aMid < oMid : false;
+
     setDndHoldings((prev) => {
       const base = prev ?? holdings;
-      const result = resolveDragEnd(base, activeId, overId);
+      let result: DragResult | null;
+      if (isGroupSortId(aId)) {
+        result = resolveDragEnd(base, aId, oId, { placeAfter: !aboveTarget });
+      } else if (isGroupSortId(oId)) {
+        result = resolveDragEnd(base, aId, oId, { asLoose: aboveTarget });
+      } else {
+        result = resolveDragEnd(base, aId, oId);
+      }
       return result ? applyResult(base, result) : base;
     });
   }
@@ -421,7 +422,7 @@ export function InvestmentsSection({
     setDndHoldings(null);
     setDragSnapshot(null);
     if (!over) return;
-    const activeId = String(active.id);
+    const aId = String(active.id);
     const overId = String(over.id);
 
     // Cross-section drop (a wallet section) → rejected.
@@ -430,26 +431,21 @@ export function InvestmentsSection({
       return;
     }
 
-    // Group block → computed at drop (not live-moved).
-    if (isGroupSortId(activeId)) {
-      const result = resolveDragEnd(holdings, activeId, overId);
-      if (result) reorderMut.mutate({ orderedIds: result.orderedIds });
-      return;
-    }
-
-    // Holding → persist the LIVE arrangement (already built by onDragOver).
+    // Persist the LIVE arrangement (already built by onDragOver) for BOTH a group
+    // block and a holding. A group's id isn't a holding id, so `moved`/`original`
+    // stay undefined and only the reorder fires (no group change).
     const base = live ?? holdings;
     const orderedIds = base.map((h) => h.id);
     const origIds = flattenEntries(buildInvestmentEntries(holdings));
-    const moved = base.find((h) => h.id === activeId);
-    const original = holdings.find((h) => h.id === activeId);
+    const moved = base.find((h) => h.id === aId);
+    const original = holdings.find((h) => h.id === aId);
     const groupChanged =
       !!moved &&
       !!original &&
       (moved.group ?? null) !== (original.group ?? null);
     if (orderedIds.join() === origIds.join() && !groupChanged) return; // no-op
     if (groupChanged && moved) {
-      updateMut.mutate({ holdingId: activeId, group: moved.group ?? null });
+      updateMut.mutate({ holdingId: aId, group: moved.group ?? null });
     }
     reorderMut.mutate({ orderedIds });
   }
@@ -497,17 +493,27 @@ export function InvestmentsSection({
           <div className="flex flex-col gap-2">
             {displayEntries.map((entry) =>
               entry.kind === "group" ? (
-                <GroupBlock
-                  key={`group:${entry.name}`}
-                  entry={entry}
-                  budgetCurrency={budgetCurrency}
-                  totalBudgetCents={totalBudgetCents}
-                  maxAmountChars={maxAmountChars}
-                  expanded={isExpanded(entry.name)}
-                  onToggle={() => toggleGroup(entry.name)}
-                  onEdit={openEdit}
-                  onArchive={(id) => archiveMut.mutate(id)}
-                />
+                <Fragment key={`group:${entry.name}`}>
+                  <GroupHeaderItem
+                    entry={entry}
+                    budgetCurrency={budgetCurrency}
+                    totalBudgetCents={totalBudgetCents}
+                    maxAmountChars={maxAmountChars}
+                    expanded={isExpanded(entry.name)}
+                    onToggle={() => toggleGroup(entry.name)}
+                  />
+                  {isExpanded(entry.name) &&
+                    entry.holdings.map((h) => (
+                      <InvestmentRowSheet
+                        key={h.id}
+                        holding={h}
+                        nested
+                        maxAmountChars={maxAmountChars}
+                        onEdit={openEdit}
+                        onArchive={(id) => archiveMut.mutate(id)}
+                      />
+                    ))}
+                </Fragment>
               ) : (
                 <InvestmentRowSheet
                   key={entry.holding.id}

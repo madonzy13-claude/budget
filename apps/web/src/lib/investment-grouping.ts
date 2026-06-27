@@ -185,6 +185,19 @@ function recluster(
 }
 
 /**
+ * Direction hints, set by the section from the dragged row's midpoint relative to
+ * the target's midpoint (the pure module has no rects):
+ *   - placeAfter: a group block dragged DOWNWARD lands AFTER the anchor, not
+ *     before it (UAT #6 — otherwise a group can never become the last entry).
+ *   - asLoose: a holding dragged ABOVE a group header stays LOOSE above the group
+ *     instead of joining it (UAT #5 / #7 — a top group no longer swallows items).
+ */
+export interface DragOpts {
+  placeAfter?: boolean;
+  asLoose?: boolean;
+}
+
+/**
  * Resolve a drag-end into a new flat order (+ optional group change). Returns
  * null for a no-op (drop on self, drop on own group header, or unresolvable
  * target). Cross-section rejection is handled by the caller before this runs.
@@ -193,6 +206,7 @@ export function resolveDragEnd(
   holdings: HoldingDto[],
   activeId: string,
   overId: string,
+  opts: DragOpts = {},
 ): DragResult | null {
   if (activeId === overId) return null;
 
@@ -207,16 +221,25 @@ export function resolveDragEnd(
     if (block.length === 0) return null;
     const rest = baseOrder.filter((id) => baseGroup.get(id) !== groupName);
 
-    let anchorId: string | undefined;
+    // Anchor = the over target's slot in `rest`. For an over-group, the block
+    // spans first..last member; placeAfter inserts after the last member (so a
+    // group dragged down can land past the anchor → become last, UAT #6).
+    let anchorFirst: string | undefined;
+    let anchorLast: string | undefined;
     if (isGroupSortId(overId)) {
       const overName = groupNameFromSortId(overId);
-      anchorId = baseOrder.find((id) => baseGroup.get(id) === overName);
+      const members = rest.filter((id) => baseGroup.get(id) === overName);
+      anchorFirst = members[0];
+      anchorLast = members[members.length - 1];
     } else {
-      anchorId = overId;
+      anchorFirst = overId;
+      anchorLast = overId;
     }
-    if (!anchorId) return null;
-    let at = rest.indexOf(anchorId);
-    if (at === -1) at = rest.length;
+    if (!anchorFirst) return null;
+    let at = opts.placeAfter
+      ? rest.indexOf(anchorLast!) + 1
+      : rest.indexOf(anchorFirst);
+    if (at < 0) at = rest.length;
     const newOrder = [...rest.slice(0, at), ...block, ...rest.slice(at)];
     const finalOrder = recluster(newOrder, (id) => baseGroup.get(id) ?? null);
     if (finalOrder.join() === baseOrder.join()) return null;
@@ -249,7 +272,9 @@ export function resolveDragEnd(
   }
 
   if (isGroupSortId(overId)) {
-    // Dropped onto a group header → join that group at the TOP of its block.
+    // Over a group header. Default → JOIN at the TOP of its block. But when the
+    // dragged row's midpoint is ABOVE the header (asLoose), land it LOOSE just
+    // above the group block instead of joining (UAT #5 / #7).
     const targetGroup = groupNameFromSortId(overId);
     const without = baseOrder.filter((id) => id !== H);
     const firstIdx = without.findIndex(
@@ -257,7 +282,12 @@ export function resolveDragEnd(
     );
     const at = firstIdx === -1 ? without.length : firstIdx;
     newOrder = [...without.slice(0, at), H, ...without.slice(at)];
-    if (targetGroup !== curGroup) {
+    if (opts.asLoose) {
+      if (curGroup != null) {
+        overrideGroup = null;
+        groupChange = { holdingId: H, group: null };
+      }
+    } else if (targetGroup !== curGroup) {
       overrideGroup = targetGroup;
       groupChange = { holdingId: H, group: targetGroup };
     }
