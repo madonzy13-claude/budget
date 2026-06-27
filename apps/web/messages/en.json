@@ -79,7 +79,16 @@
     "no_account": "Don't have an account?",
     "have_account": "Already have an account?",
     "signup_link": "Sign up",
-    "signin_link": "Sign in"
+    "signin_link": "Sign in",
+    "emailChanged": {
+      "checking": "Checking your email change…",
+      "pending_title": "Confirmation received",
+      "pending_body": "Almost there — open the verification link we just emailed to {email} to finish changing your address. You can keep using Budget here in the meantime.",
+      "done_title": "Email updated",
+      "done_body": "Your account email is now {email} and verified. You're signed in with your new address.",
+      "back_to_settings": "Back to settings",
+      "continue": "Continue"
+    }
   },
   "settings": {
     "eyebrow": "Account",
@@ -156,6 +165,7 @@
         "placeholder": "new@email.com",
         "change": "Change",
         "sent": "Confirmation sent — check your current inbox",
+        "confirm_pending": "Two quick steps: (1) open the confirmation link we sent to {current} to approve the change, then (2) open the verification link we'll send to {next} to finish. Your email changes only after step 2.",
         "helper": "We'll email a confirmation link to your current address before switching."
       },
       "error": "Something went wrong. Try again."

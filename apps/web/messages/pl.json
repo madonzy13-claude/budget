@@ -79,7 +79,16 @@
     "no_account": "Nie masz konta?",
     "have_account": "Masz już konto?",
     "signup_link": "Zarejestruj się",
-    "signin_link": "Zaloguj się"
+    "signin_link": "Zaloguj się",
+    "emailChanged": {
+      "checking": "Sprawdzamy zmianę adresu e-mail…",
+      "pending_title": "Potwierdzenie odebrane",
+      "pending_body": "Już prawie gotowe — otwórz link weryfikacyjny, który właśnie wysłaliśmy na {email}, aby dokończyć zmianę adresu. W tym czasie możesz dalej korzystać z Budget tutaj.",
+      "done_title": "E-mail zaktualizowany",
+      "done_body": "Adres e-mail Twojego konta to teraz {email} i jest zweryfikowany. Jesteś zalogowany na nowy adres.",
+      "back_to_settings": "Wróć do ustawień",
+      "continue": "Kontynuuj"
+    }
   },
   "settings": {
     "eyebrow": "Konto",
@@ -156,6 +165,7 @@
         "placeholder": "nowy@email.com",
         "change": "Zmień",
         "sent": "Wysłano potwierdzenie — sprawdź swoją obecną skrzynkę",
+        "confirm_pending": "Dwa szybkie kroki: (1) otwórz link potwierdzający, który wysłaliśmy na {current}, aby zatwierdzić zmianę, a następnie (2) otwórz link weryfikacyjny, który wyślemy na {next}, aby dokończyć. E-mail zmieni się dopiero po kroku 2.",
         "helper": "Zanim zmienimy adres, wyślemy link potwierdzający na Twój obecny adres."
       },
       "error": "Coś poszło nie tak. Spróbuj ponownie."

@@ -21,6 +21,9 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => "en",
 }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ProfileSection } from "@/components/settings/profile-section";
@@ -66,6 +69,20 @@ describe("ProfileSection — name + email edit (USET-04)", () => {
       expect(changeEmail).toHaveBeenCalledWith(
         expect.objectContaining({ newEmail: "new@example.com" }),
       ),
+    );
+  });
+
+  it("shows the confirm-pending notice after requesting an email change", async () => {
+    render(<ProfileSection {...VERIFIED} />);
+    expect(
+      screen.queryByTestId("email-change-pending"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("profile-email-input"), {
+      target: { value: "new@example.com" },
+    });
+    fireEvent.click(screen.getByTestId("profile-email-save"));
+    await waitFor(() =>
+      expect(screen.getByTestId("email-change-pending")).toBeInTheDocument(),
     );
   });
 

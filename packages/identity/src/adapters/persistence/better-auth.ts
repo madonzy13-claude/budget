@@ -421,12 +421,14 @@ export function createAuth(opts: CreateAuthOptions) {
           },
         },
         update: {
-          // USET-04: keep email_hash in sync after any user update. Better Auth
-          // fires update.after for any field change; recomputing from the current
-          // email is cheap + idempotent (a RAW SQL UPDATE, so it does NOT
-          // re-trigger this hook). The changeEmail-confirm path is the one that
-          // actually moves the email — without this the hash would stale and break
-          // the users_email_hash_uq uniqueness + lookups.
+          // USET-04: keep email_hash in sync after any user update (Better Auth
+          // fires update.after for any field change, incl. the changeEmail-verify
+          // step that writes the new plain email). Raw SQL UPDATE, so it does NOT
+          // re-trigger this hook. Without it the hash would stale and break the
+          // users_email_hash_uq uniqueness + lookups. We do NOT revoke sessions
+          // here: Better Auth's change-email flow re-issues a session cookie for
+          // the new address on the verify step (auto-login), so the user stays
+          // signed in as the new email — the library's intended behaviour.
           after: async (user: { id: string; email: string }) => {
             await recomputeEmailHash(
               opts.keyStore,

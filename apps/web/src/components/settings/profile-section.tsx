@@ -38,6 +38,7 @@ export function ProfileSection({
 
   const [nameEdit, setNameEdit] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState("");
+  const [emailRequested, setEmailRequested] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
 
@@ -70,10 +71,16 @@ export function ProfileSection({
     try {
       const res = await authClient.changeEmail({
         newEmail,
-        callbackURL: `/${locale}/settings/user`,
+        // Better Auth's change-email is two clicks: the OLD-address link confirms
+        // and emails a verify link to the NEW address; the NEW-address link
+        // applies the change + auto-verifies. Both reuse this callbackURL, so we
+        // pass the target as `?to=` — /email-changed compares it to the live
+        // session email to tell "still pending" (step 1) from "done" (step 2).
+        callbackURL: `/${locale}/email-changed?to=${encodeURIComponent(newEmail)}`,
       });
       if ((res as { error?: unknown } | undefined)?.error) throw new Error();
       toast.success(t("email.sent"));
+      setEmailRequested(newEmail);
       setNewEmail("");
     } catch {
       toast.error(t("error"));
@@ -147,6 +154,17 @@ export function ProfileSection({
         <p className="text-xs text-[var(--muted-foreground)]">
           {t("email.helper")}
         </p>
+        {emailRequested && (
+          <p
+            data-testid="email-change-pending"
+            className="rounded-md border border-[var(--info)]/40 bg-[var(--info)]/10 px-3 py-2 text-sm text-[var(--body-on-dark)]"
+          >
+            {t("email.confirm_pending", {
+              current: email,
+              next: emailRequested,
+            })}
+          </p>
+        )}
       </div>
     </div>
   );

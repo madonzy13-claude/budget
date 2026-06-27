@@ -35,7 +35,8 @@ async function readEmailHash(userId: string): Promise<Buffer> {
     const res = await tx.execute(
       sql`SELECT email_hash FROM identity.users WHERE id = ${userId}::uuid`,
     );
-    return (res as { rows: Array<{ email_hash: Buffer }> }).rows[0]!.email_hash;
+    return (res as unknown as { rows: Array<{ email_hash: Buffer }> }).rows[0]!
+      .email_hash;
   });
   if (r.isErr()) throw r.error;
   return Buffer.from(r.value);
