@@ -144,13 +144,22 @@ DROP POLICY IF EXISTS sessions_owner_delete ON identity.sessions;
 CREATE POLICY sessions_owner_select ON identity.sessions
   FOR SELECT TO app_role, worker_role
   USING (true);
+-- Phase 10 UAT bug #2: "sign out this session" / "sign out all other devices"
+-- returned success but never revoked. Better Auth's revoke endpoints DELETE the
+-- session row through its Drizzle adapter with NO app.current_user_id GUC, so the
+-- strict owner check matched 0 rows — a silent no-op. Permit the GUC-EMPTY (Better
+-- Auth) path; when a GUC IS set (app-layer write) the row must still be owner-matched
+-- so no user can revoke another user's session.
 CREATE POLICY sessions_owner_modify ON identity.sessions
   FOR UPDATE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid)
-  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL)
+  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL);
 CREATE POLICY sessions_owner_delete ON identity.sessions
   FOR DELETE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL);
 
 -- identity.accounts: same Phase 1 trade-off. Better Auth reads accounts during
 -- sign-in to verify the password hash; runs without GUC. The provider/account_id
@@ -162,13 +171,21 @@ DROP POLICY IF EXISTS accounts_owner_delete ON identity.accounts;
 CREATE POLICY accounts_owner_select ON identity.accounts
   FOR SELECT TO app_role, worker_role
   USING (true);
+-- Phase 10 UAT bug #1: reset-password / change-password returned success but the
+-- password never changed. Better Auth's reset flow is an UNAUTHENTICATED token
+-- flow — it UPDATEs the credential row with no app.current_user_id GUC, so the
+-- strict owner check matched 0 rows (silent no-op, login kept the old password).
+-- Permit the GUC-EMPTY (Better Auth) path; a GUC-set write must still be owner-matched.
 CREATE POLICY accounts_owner_modify ON identity.accounts
   FOR UPDATE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid)
-  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL)
+  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL);
 CREATE POLICY accounts_owner_delete ON identity.accounts
   FOR DELETE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR NULLIF(current_setting('app.current_user_id', true), '') IS NULL);
 
 -- Plan 02-03: idempotency_keys (two-policy RLS — no separate cleanup role)
 -- Policy 1 (idempotency_keys_tenant_isolation) is declared in Drizzle schema (pgPolicy).

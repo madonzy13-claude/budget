@@ -96,6 +96,9 @@ export const sessions = identity.table(
       to: [appRole, workerRole],
       withCheck: sql`true`,
     }),
+    // NOTE: the canonical sessions SELECT/UPDATE/DELETE policies are (re)defined in
+    // apps/migrator/post-migration.sql (single source of truth). This FOR ALL policy
+    // is created by 0001 and then dropped+replaced there.
     pgPolicy("sessions_owner_only", {
       as: "permissive",
       for: "all",
@@ -138,6 +141,10 @@ export const accounts = identity.table(
       to: [appRole, workerRole],
       withCheck: sql`true`,
     }),
+    // NOTE: the canonical accounts SELECT/UPDATE/DELETE policies are (re)defined in
+    // apps/migrator/post-migration.sql (it runs AFTER drizzle migrations and is the
+    // single source of truth for these Better-Auth-owned identity tables). This
+    // FOR ALL policy is created by 0001 and then dropped+replaced there.
     pgPolicy("accounts_owner_only", {
       as: "permissive",
       for: "all",
