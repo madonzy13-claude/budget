@@ -53,6 +53,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   applyTheme,
+  persistTheme,
   readTheme,
   type Theme,
 } from "@/components/settings/theme-toggle";
@@ -127,6 +128,7 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     applyTheme(next);
+    persistTheme(next);
   }
 
   // Outside click closes the menu. The check runs on `pointerdown` so a
@@ -280,18 +282,8 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             )}
           </div>
           <div className="my-1 h-px bg-[var(--hairline-on-dark)]" />
-          <NavLink
-            href={`/${locale}/settings`}
-            role="menuitem"
-            data-testid="profile-menu-settings"
-            onClick={() => setOpen(false)}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-[var(--surface-elevated-dark)]"
-          >
-            <SettingsIcon className="h-4 w-4 text-[var(--muted-foreground)]" />
-            <span>{t("settings")}</span>
-          </NavLink>
           {/* Theme toggle — flips dark/light in place (no nav), shows the target
-              mode so the action is obvious. */}
+              mode so the action is obvious. Placed above Settings (UAT). */}
           <button
             type="button"
             role="menuitem"
@@ -306,6 +298,16 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
             )}
             <span>{theme === "dark" ? t("theme_light") : t("theme_dark")}</span>
           </button>
+          <NavLink
+            href={`/${locale}/settings`}
+            role="menuitem"
+            data-testid="profile-menu-settings"
+            onClick={() => setOpen(false)}
+            className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-[var(--surface-elevated-dark)]"
+          >
+            <SettingsIcon className="h-4 w-4 text-[var(--muted-foreground)]" />
+            <span>{t("settings")}</span>
+          </NavLink>
           {/* Install app — hidden in standalone mode or once installed */}
           {!isStandaloneMode && !pwaInstalled && (
             <>

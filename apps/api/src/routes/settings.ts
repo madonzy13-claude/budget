@@ -26,13 +26,16 @@ export function settingsRoutesFactory(deps: BootedDeps) {
   const timezoneSchema = z.object({
     timezone: z.string().refine((tz) => {
       try {
-        // eslint-disable-next-line no-new
         new Intl.DateTimeFormat("en", { timeZone: tz });
         return true;
       } catch {
         return false;
       }
     }, "Invalid timezone"),
+  });
+
+  const themeSchema = z.object({
+    theme: z.enum(["dark", "light"]),
   });
 
   // PUT /settings/locale — update user locale
@@ -90,6 +93,19 @@ export function settingsRoutesFactory(deps: BootedDeps) {
       if (/Invalid timezone/.test(msg)) return c.json({ error: msg }, 400);
       throw e;
     }
+  });
+
+  // PUT /settings/theme — update the user's UI theme
+  r.put("/theme", zValidator("json", themeSchema), async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const body = c.req.valid("json");
+    await deps.identity.userRepo.updateTheme(
+      UserId(session.user.id),
+      body.theme,
+    );
+    return c.json({ ok: true });
   });
 
   // GET /settings/sessions — list active sessions

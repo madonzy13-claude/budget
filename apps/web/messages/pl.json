@@ -61,7 +61,9 @@
     },
     "password": {
       "label": "Hasło",
-      "new_label": "Nowe hasło"
+      "new_label": "Nowe hasło",
+      "show": "Pokaż hasło",
+      "hide": "Ukryj hasło"
     },
     "name": {
       "label": "Imię i nazwisko",

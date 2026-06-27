@@ -51,6 +51,10 @@ export const users = identity.table(
     // browser's resolved zone; a NULL reads back as "UTC" at the repo boundary so
     // every date renders in a definite zone.
     timezone: text("timezone"),
+    // UI theme ("dark" | "light"). Nullable: a NULL reads back as "dark" at the
+    // repo boundary (the app default). Persisted so the choice follows the user
+    // across devices/browsers (Phase 10 UAT).
+    theme: text("theme"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

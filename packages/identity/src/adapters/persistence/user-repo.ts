@@ -34,6 +34,8 @@ export class DrizzleUserRepo implements UserRepo {
       display_currency: row.displayCurrency ?? "USD",
       // NULL = never set; surface "UTC" so dates always render in a definite zone.
       timezone: row.timezone ?? "UTC",
+      // NULL = never set; surface "dark" (the app default theme).
+      theme: row.theme ?? "dark",
     };
   }
 
@@ -52,6 +54,7 @@ export class DrizzleUserRepo implements UserRepo {
       locale: row.locale as Locale,
       display_currency: row.displayCurrency ?? "USD",
       timezone: row.timezone ?? "UTC",
+      theme: row.theme ?? "dark",
     };
   }
 
@@ -80,6 +83,16 @@ export class DrizzleUserRepo implements UserRepo {
       await tx
         .update(users)
         .set({ timezone, updatedAt: new Date() })
+        .where(eq(users.id, id as string));
+    });
+    if (r.isErr()) throw r.error;
+  }
+
+  async updateTheme(id: UserId, theme: string): Promise<void> {
+    const r = await withUserContext(id, async (tx) => {
+      await tx
+        .update(users)
+        .set({ theme, updatedAt: new Date() })
         .where(eq(users.id, id as string));
     });
     if (r.isErr()) throw r.error;

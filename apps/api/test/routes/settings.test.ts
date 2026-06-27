@@ -31,6 +31,7 @@ function buildDeps(overrides: Record<string, unknown> = {}) {
         async updateLocale() {},
         async updateDisplayCurrency() {},
         async updateTimezone() {},
+        async updateTheme() {},
       },
       auth: {
         api: {
@@ -175,6 +176,40 @@ describe("PUT /settings/timezone", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
       body: JSON.stringify({ timezone: "Mars/Olympus_Mons" }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("PUT /settings/theme", () => {
+  test("returns 401 when not authenticated", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: "light" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("accepts a valid theme", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ theme: "light" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.ok).toBe(true);
+  });
+
+  test("rejects an invalid theme with 400", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ theme: "sepia" }),
     });
     expect(res.status).toBe(400);
   });

@@ -20,7 +20,10 @@ export function PillBadge({ count, ariaLabel }: PillBadgeProps) {
       aria-label={ariaLabel}
       className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--trading-down)] px-1.5 text-[10px] font-bold leading-none text-white"
     >
-      {count}
+      {/* The numeral's ink sits high in its line box (no descender), so pure
+          flex-centering reads ~1px high in the circle — nudge it down to optically
+          center against the pill label. */}
+      <span className="relative top-px">{count}</span>
     </span>
   );
 }

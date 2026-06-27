@@ -18,7 +18,7 @@ const FIELD =
 
 export default function SettingsLoading() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
+    <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
       <header className="mb-6 space-y-2" aria-hidden="true">
         <div className={`h-3 w-16 ${BAR}`} />
         <div className={`h-7 w-40 ${BAR}`} />

@@ -61,7 +61,9 @@
     },
     "password": {
       "label": "Password",
-      "new_label": "New password"
+      "new_label": "New password",
+      "show": "Show password",
+      "hide": "Hide password"
     },
     "name": {
       "label": "Full name",

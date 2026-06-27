@@ -10,8 +10,18 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Moon, Sun } from "lucide-react";
+import { api } from "@/lib/api-client";
 
 export type Theme = "dark" | "light";
+
+/** Persist the theme to the user's account so it follows them across devices.
+ *  Fire-and-forget — the cookie + data-theme already gave instant local feedback;
+ *  a failed save just means the next device falls back to the cookie/default.
+ *  Call ONLY from authenticated surfaces (settings, profile menu) — not the
+ *  logged-out auth header. */
+export function persistTheme(theme: Theme) {
+  void api.settings.theme.$put({ json: { theme } }).catch(() => {});
+}
 
 /** Current theme from the live <html data-theme> attribute (dark fallback). */
 export function readTheme(): Theme {
@@ -48,6 +58,7 @@ export function ThemeToggle() {
   function choose(next: Theme) {
     setTheme(next);
     applyTheme(next);
+    persistTheme(next);
   }
 
   const options: { value: Theme; label: string; Icon: typeof Moon }[] = [

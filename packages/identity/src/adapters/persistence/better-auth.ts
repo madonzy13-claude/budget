@@ -321,6 +321,14 @@ export function createAuth(opts: CreateAuthOptions) {
           input: true,
           required: false,
         },
+        // Optional + no default: UI theme ("dark" | "light"). NULL reads back as
+        // "dark" at the repo boundary. Persisted so it follows the user across
+        // devices (Phase 10 UAT). Included in the session so SSR can pre-seed it.
+        theme: {
+          type: "string",
+          input: true,
+          required: false,
+        },
       },
       // USET-04: let a signed-in user change their login email. Because the
       // current email is verified (requireEmailVerification), Better Auth first

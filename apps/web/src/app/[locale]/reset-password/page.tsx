@@ -13,6 +13,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
+import { Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ export default function ResetPasswordPage() {
   const router = useRouter();
   const token = useSearchParams().get("token");
   const [pw, setPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [minErr, setMinErr] = useState(false);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -104,14 +106,31 @@ export default function ResetPasswordPage() {
               >
                 {t("password.new_label")}
               </label>
-              <Input
-                id="reset-pw"
-                data-testid="reset-password-input"
-                type="password"
-                autoComplete="new-password"
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="reset-pw"
+                  data-testid="reset-password-input"
+                  type={showPw ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={pw}
+                  onChange={(e) => setPw(e.target.value)}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  data-testid="reset-password-toggle"
+                  aria-label={t(showPw ? "password.hide" : "password.show")}
+                  aria-pressed={showPw}
+                  onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
+                >
+                  {showPw ? (
+                    <EyeOff className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
               {minErr && (
                 <p
                   data-testid="reset-minlen"
@@ -138,13 +157,6 @@ export default function ResetPasswordPage() {
               {busy ? t("reset_loading") : t("reset.consume.cta")}
             </Button>
           </form>
-          <Link
-            href={`/${locale}/forgot-password`}
-            data-testid="reset-request-new"
-            className="block text-sm font-medium text-[var(--primary)] hover:text-[var(--primary-active)]"
-          >
-            {t("reset.request_new_link")}
-          </Link>
         </CardContent>
       </Card>
     </AuthCardShell>

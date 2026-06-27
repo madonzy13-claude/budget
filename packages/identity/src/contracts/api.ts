@@ -10,6 +10,7 @@ export interface UserDTO {
   locale: Locale;
   display_currency: string; // ISO-4217 (per D-05/MONY-09)
   timezone: string; // IANA zone (e.g. "Europe/Warsaw"); NULL in DB reads back as "UTC"
+  theme: string; // "dark" | "light"; NULL in DB reads back as "dark"
 }
 
 export interface SessionDTO {

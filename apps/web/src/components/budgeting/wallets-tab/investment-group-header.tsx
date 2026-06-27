@@ -16,7 +16,6 @@
  * Color: P/L uses --trading-up / --trading-down as TEXT only (semantic exception);
  * no-basis groups render "—" in --muted-strong.
  */
-import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   ChevronDown,
@@ -68,7 +67,6 @@ export function InvestmentGroupHeader({
 }: InvestmentGroupHeaderProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
-  const [metricsOpen, setMetricsOpen] = useState(false);
 
   const amount = centsToBare(String(Math.round(valueBudgetCents)), locale);
   const portfolio = `${portfolioPct.toFixed(1)}%`;
@@ -122,9 +120,12 @@ export function InvestmentGroupHeader({
     >
       {dragHandle}
 
-      {/* Collapse children toggle (dedicated affordance). */}
-      <button
-        type="button"
+      {/* The whole group line is the expand/collapse toggle (UAT): tapping
+          anywhere — chevron, name, or columns — toggles its children. The chevron
+          is a visual affordance only. */}
+      <div
+        role="button"
+        tabIndex={0}
         aria-expanded={expanded}
         aria-label={t("group.headerAria", {
           name: groupName,
@@ -133,63 +134,29 @@ export function InvestmentGroupHeader({
         })}
         data-testid={`investment-group-toggle-${groupName}`}
         onClick={onToggle}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
-      >
-        {expanded ? (
-          <ChevronDown className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        )}
-      </button>
-
-      {/* Body — mobile tap lifts ONLY the name (currency + amount stay centered)
-          and reveals P/L% + portfolio% under the name (D-#6). */}
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={metricsOpen}
-        aria-label={t("group.metricsAria", { name: groupName })}
-        onClick={() => setMetricsOpen((v) => !v)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setMetricsOpen((v) => !v);
+            onToggle();
           }
         }}
         className="flex min-w-0 flex-1 items-center gap-2"
       >
-        {/* Left column — full width on mobile-expanded; gap-0 + leading-tight so
-            the 3-row card fits the header height (no grow), like the row. */}
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center text-[var(--muted-foreground)]"
+          aria-hidden="true"
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </span>
+        {/* Left column — gap-0 + leading-tight so the header keeps the row height. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
-          <span
-            className={[
-              "min-w-0 truncate text-[var(--body-on-dark)]",
-              metricsOpen ? "text-num-sm font-medium" : "text-title-sm",
-            ].join(" ")}
-          >
+          <span className="min-w-0 truncate text-title-sm text-[var(--body-on-dark)]">
             {groupName}
           </span>
-          {/* Mobile expanded: P/L% + P/L money (left) · currency + amount (right);
-              then "Share: portfolio%". */}
-          {metricsOpen && (
-            <div className="flex flex-col gap-0 sm:hidden">
-              <div className="flex items-center justify-between gap-2 text-num-sm tabular-nums">
-                <span className="flex min-w-0 items-center gap-2">
-                  {plNode}
-                  {plMoney && <span className={plColor}>{plMoney}</span>}
-                </span>
-                <span className="flex shrink-0 items-baseline gap-1">
-                  <span className="text-[var(--muted-foreground)]">
-                    {budgetCurrency}
-                  </span>
-                  <span className="text-[var(--body-on-dark)]">{amount}</span>
-                </span>
-              </div>
-              <div className="text-caption text-[var(--muted-foreground)] tabular-nums">
-                {t("row.share", { pct: portfolio })}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Desktop columns mirror the holding row (UAT #7): qty · P/L% · P/L amt ·
@@ -204,14 +171,8 @@ export function InvestmentGroupHeader({
         >
           {plMoney ?? ""}
         </span>
-        {/* Currency tight to amount (gap-1). Hidden on mobile-expanded (moves into
-            the middle row); shown collapsed + on desktop. */}
-        <div
-          className={[
-            "shrink-0 items-baseline gap-1",
-            metricsOpen ? "hidden sm:flex" : "flex",
-          ].join(" ")}
-        >
+        {/* Currency tight to amount (gap-1) — always shown (collapsed + desktop). */}
+        <div className="flex shrink-0 items-baseline gap-1">
           <span className="text-num-sm text-[var(--muted-foreground)]">
             {budgetCurrency}
           </span>

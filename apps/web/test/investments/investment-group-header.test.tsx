@@ -103,13 +103,9 @@ describe("InvestmentGroupHeader", () => {
     expect(screen.queryByText(/^\+/)).toBeNull();
   });
 
-  it("tapping the body reveals the mobile P/L + portfolio% line", () => {
-    renderHeader();
-    // desktop-inline copy renders once; tapping the body adds the mobile line.
-    const before = screen.getAllByText("+23.4%").length;
-    fireEvent.click(
-      screen.getByLabelText("Show Brokerage P/L and portfolio percentage."),
-    );
-    expect(screen.getAllByText("+23.4%").length).toBe(before + 1);
+  it("tapping the group line (name) toggles its children — the whole row is the toggle", () => {
+    const { onToggle } = renderHeader();
+    fireEvent.click(screen.getByText("Brokerage"));
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,3 @@
-import { getTranslations } from "next-intl/server";
 import { UserSettingsShell } from "@/components/settings/user-settings-shell";
 import { getServerSession } from "@/lib/server-session";
 
@@ -36,22 +35,6 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           emailVerified: session?.user?.emailVerified ?? true,
         }}
       />
-      <BuildStamp locale={locale} />
     </>
-  );
-}
-
-/* Build-freshness stamp (260614-rwt): muted footer so on-device freshness can be
-   confirmed without the removed debug overlay. NEXT_PUBLIC_BUILD_ID is inlined at
-   build time in next.config.mjs. */
-async function BuildStamp({ locale }: { locale: string }) {
-  const t = await getTranslations({ locale, namespace: "settings" });
-  return (
-    <footer className="mx-auto max-w-3xl border-t border-[var(--hairline-dark)] px-4 pt-4 pb-10 sm:px-6">
-      <p className="text-[11px] text-[var(--muted-foreground)]">
-        {t("build.label", { defaultValue: "Build" })}{" "}
-        {process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}
-      </p>
-    </footer>
   );
 }

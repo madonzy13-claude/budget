@@ -64,6 +64,16 @@ describe("ResetPasswordPage — consume token + set new password (USET-07)", () 
     expect(resetPassword).not.toHaveBeenCalled();
   });
 
+  it("toggles password visibility with the eye button", () => {
+    render(<ResetPasswordPage />);
+    const input = screen.getByTestId("reset-password-input");
+    expect(input).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByTestId("reset-password-toggle"));
+    expect(input).toHaveAttribute("type", "text");
+    fireEvent.click(screen.getByTestId("reset-password-toggle"));
+    expect(input).toHaveAttribute("type", "password");
+  });
+
   it("shows an error with a link to /forgot-password when the token is missing", () => {
     mockToken.value = null;
     render(<ResetPasswordPage />);

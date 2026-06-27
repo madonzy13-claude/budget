@@ -182,6 +182,19 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     (await cookies()).get("budget-locale")?.value ??
     "en";
 
+  // Cross-device theme: seed the budget-theme cookie + <html data-theme> from the
+  // account's saved theme on a device that has no cookie yet (a fresh browser).
+  // Only-when-absent (like LocaleCookieSync): a present cookie is the live choice
+  // and the Better Auth session caches a STALE theme right after a toggle, so we
+  // must not clobber it. Injected pre-paint so the new device has no flash.
+  const accountTheme = (session?.user as { theme?: string } | undefined)?.theme;
+  const themeSeedScript =
+    accountTheme === "light" || accountTheme === "dark"
+      ? "(function(){try{if(!/(?:^|; )budget-theme=/.test(document.cookie)){var t=" +
+        JSON.stringify(accountTheme) +
+        ";document.documentElement.setAttribute('data-theme',t);document.cookie='budget-theme='+t+'; path=/; max-age=31536000; samesite=lax';}}catch(e){}})();"
+      : null;
+
   return (
     /* global.css locks html + body to height:100% + overflow:hidden (anti
        rubber-band guard for iOS). The (app) shell must therefore own the
@@ -198,6 +211,9 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         data-shell-root
         className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]"
       >
+        {themeSeedScript && (
+          <script dangerouslySetInnerHTML={{ __html: themeSeedScript }} />
+        )}
         <LocaleCookieSync accountLocale={accountLocale} />
         {/* PullToRefresh is mounted once at the shell level so every
             authenticated route inherits the gesture automatically.
