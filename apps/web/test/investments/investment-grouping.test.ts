@@ -15,6 +15,7 @@ import {
   resolveDragEnd,
   withPersistentGroups,
   UNGROUPED_DROP_ID,
+  LOOSE_TOP_DROP_ID,
 } from "../../src/lib/investment-grouping";
 
 function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
@@ -219,9 +220,43 @@ describe("resolveDragEnd", () => {
       expect(r!.orderedIds).toEqual(["A", "C", "D", "E", "B"]);
     });
 
-    it("is a no-op when the dragged holding is already loose", () => {
-      // C is loose in sample() → dropping it on the ungroup zone does nothing.
-      expect(resolveDragEnd(sample(), "C", UNGROUPED_DROP_ID)).toBeNull();
+    it("moves an already-loose middle row to the END (loose-below-group, UAT #4)", () => {
+      // C is loose in the middle of sample(); the bottom zone now means "place
+      // loose at the end" (so a loose row can land below a trailing group).
+      const r = resolveDragEnd(sample(), "C", UNGROUPED_DROP_ID);
+      expect(r).not.toBeNull();
+      expect(r!.groupChange).toBeUndefined();
+      expect(r!.orderedIds).toEqual(["A", "B", "D", "E", "C"]);
+    });
+
+    it("is a no-op only when the row is already loose AND already last", () => {
+      // E is loose and already last → bottom zone does nothing.
+      expect(resolveDragEnd(sample(), "E", UNGROUPED_DROP_ID)).toBeNull();
+    });
+  });
+
+  // UAT #3 / #4: explicit loose drop zones make boundary placement reliable — a
+  // loose row can land at the very TOP (above a leading group) or the very END
+  // (below a trailing group) without getting swallowed into the adjacent group.
+  describe("loose boundary zones", () => {
+    it("LOOSE_TOP places a grouped child loose at the very top", () => {
+      const r = resolveDragEnd(sample(), "D", LOOSE_TOP_DROP_ID);
+      expect(r!.groupChange).toEqual({ holdingId: "D", group: null });
+      expect(r!.orderedIds).toEqual(["D", "A", "B", "C", "E"]);
+    });
+
+    it("LOOSE_TOP moves an already-loose middle row to the front (no group change)", () => {
+      const r = resolveDragEnd(sample(), "C", LOOSE_TOP_DROP_ID);
+      expect(r!.groupChange).toBeUndefined();
+      expect(r!.orderedIds).toEqual(["C", "A", "B", "D", "E"]);
+    });
+
+    it("LOOSE_TOP is a no-op when the row is already loose AND already first", () => {
+      const firstLoose = [
+        h({ id: "X", group: null, sortOrder: 0 }),
+        h({ id: "A", group: "G", sortOrder: 1 }),
+      ];
+      expect(resolveDragEnd(firstLoose, "X", LOOSE_TOP_DROP_ID)).toBeNull();
     });
   });
 

@@ -155,6 +155,13 @@ const GROUP_PREFIX = "group:";
  * rows to drop onto (e.g. a single group holding every item).
  */
 export const UNGROUPED_DROP_ID = "ungrouped-zone";
+/**
+ * Droppable id for the "keep loose, at the TOP" zone (UAT #3). Rendered above the
+ * list while a holding is dragged and the first entry is a group — gives a
+ * reliable target to land a loose row above a leading group (instead of the group
+ * swallowing it). UNGROUPED_DROP_ID is the symmetric "loose, at the END" zone.
+ */
+export const LOOSE_TOP_DROP_ID = "loose-top-zone";
 export const groupSortId = (name: string) => `${GROUP_PREFIX}${name}`;
 export const isGroupSortId = (id: string) => id.startsWith(GROUP_PREFIX);
 export const groupNameFromSortId = (id: string) =>
@@ -258,17 +265,19 @@ export function resolveDragEnd(
   let groupChange: DragResult["groupChange"] | undefined;
   let newOrder: string[];
 
-  // ── Dropped on the ungroup zone → make the holding loose, at the end ────────
-  if (overId === UNGROUPED_DROP_ID) {
-    if (curGroup == null) return null; // already loose — nothing to do
+  // ── Dropped on a loose boundary zone → make the holding loose, at top/end ────
+  if (overId === UNGROUPED_DROP_ID || overId === LOOSE_TOP_DROP_ID) {
+    const top = overId === LOOSE_TOP_DROP_ID;
     const without = baseOrder.filter((id) => id !== H);
-    const reclustered = recluster([...without, H], (id) =>
+    const arranged = top ? [H, ...without] : [...without, H];
+    const reclustered = recluster(arranged, (id) =>
       id === H ? null : (baseGroup.get(id) ?? null),
     );
-    return {
-      orderedIds: reclustered,
-      groupChange: { holdingId: H, group: null },
-    };
+    const change = curGroup != null ? { holdingId: H, group: null } : undefined;
+    if (reclustered.join() === baseOrder.join() && !change) return null;
+    return change
+      ? { orderedIds: reclustered, groupChange: change }
+      : { orderedIds: reclustered };
   }
 
   if (isGroupSortId(overId)) {

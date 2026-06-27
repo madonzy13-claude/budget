@@ -18,7 +18,7 @@ export function PillBadge({ count, ariaLabel }: PillBadgeProps) {
     <span
       data-testid="pill-badge"
       aria-label={ariaLabel}
-      className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--trading-down)] px-1.5 text-[10px] font-bold leading-none text-white"
+      className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--trading-down)] px-1 text-center text-[10px] font-bold leading-none text-white tabular-nums"
     >
       {count}
     </span>

@@ -531,6 +531,7 @@
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
       "ungroupZone": "Upuść tutaj, aby usunąć z grupy",
+      "looseZone": "Upuść tutaj, aby zostawić luzem",
       "search": {
         "placeholder": "Szukaj instrumentów…",
         "loading": "Szukanie…",

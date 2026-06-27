@@ -531,6 +531,7 @@
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
       "ungroupZone": "Drop here to remove from group",
+      "looseZone": "Drop here to keep it separate",
       "search": {
         "placeholder": "Search instruments…",
         "loading": "Searching…",

@@ -25,6 +25,9 @@ interface InvestmentRowSheetProps {
   holding: HoldingDto;
   /** A grouped child — renders a touch darker (D-#7). */
   nested?: boolean;
+  /** Dim in place — this row's group is being dragged as a block; the lifted copy
+   *  lives in the section's DragOverlay (UAT #1). */
+  ghost?: boolean;
   /** Longest formatted amount in the section → dynamic amount-column width. */
   maxAmountChars?: number;
   onEdit: (holding: HoldingDto) => void;
@@ -38,6 +41,7 @@ const ACTION_W = 136;
 export function InvestmentRowSheet({
   holding,
   nested,
+  ghost,
   maxAmountChars,
   onEdit,
   onArchive,
@@ -187,15 +191,19 @@ export function InvestmentRowSheet({
         // nested container to carry a `border-l`, so each child draws its own 1px
         // rail via a ::before that extends up into the gap-2 above it (−top-2),
         // joining the header's rail through to the last child (D-#flat-rail).
-        nested
+        // Suppress while THIS row is dragging — a row in flight floats flush, no
+        // stray rail/indent left of it (UAT #3 "weird empty space").
+        nested && !isDragging
           ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
           : "",
-        // NO DragOverlay: the active row moves inline via its own transform and
-        // animates to its final slot on drop, so it lands exactly where dropped.
-        // Lift it (shadow + ring + above siblings) while dragging.
+        // Holding rows move inline via their own transform and animate to the
+        // final slot on drop. Lift while dragging; dim when this row's group is
+        // being dragged as a block (ghost — the lifted copy is in the overlay).
         isDragging
           ? "z-50 rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]"
-          : "",
+          : ghost
+            ? "opacity-40"
+            : "",
       ]
         .filter(Boolean)
         .join(" ")}
