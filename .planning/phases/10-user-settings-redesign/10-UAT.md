@@ -317,10 +317,34 @@ blocked: 0
   commit: 0db7604
   verified: "Live: no 'Build' text on /settings."
 
-- truth: "The pill count badge numeral is optically centered in its circle."
+- truth: "The pill count badge numeral is optically centered in its circle and the circle aligns with the pill icon/label."
   status: fixed
-  reason: "User (screenshot): the red circle's number wasn't well aligned with the label."
+  reason: "User: 'numeral isn't centered, it's even worse now, use playwright to check' — the earlier top-px nudge over-corrected."
   severity: trivial
-  fix: "The numeral has no descender so flex-centering reads ~1px high — nudged the digit down (relative top-px) in PillBadge."
-  commit: 0db7604
-  verified: "Injected-badge probe (with vs without nudge): the nudged numeral sits centered. Real badge appears when a pill has pending tasks."
+  fix: "Reverted the top-px nudge (flex-centering a no-descender digit is already correct — pixel-decode: ink center 90.5 == circle center 90.5). Separately fixed the circle sitting ~1px below the icon/label by adding inline-flex items-center to the badge wrapper in bdp-tabs (it was inheriting line-height leading)."
+  commit: 3ce9108
+  verified: "Pillow pixel-decode of REAL badges (injected tasks): numeral centered; bdp-tab badge vs icon cy delta 0."
+
+- truth: "The investment group header name is normal weight (not bold)."
+  status: fixed
+  reason: "User: 'why did you make the group label bold? there's no need for that'."
+  severity: trivial
+  fix: "Group name span text-title-sm (600) → text-body-md (normal), matching the holding rows."
+  commit: 3ce9108
+  verified: "Vitest investment-group-header 9/9; live DOM weight normal."
+
+- truth: "The logged-out header theme switcher is a plain button, not a filled circle."
+  status: fixed
+  reason: "User: 'I don't like that the logged-out theme switcher is in a circle'."
+  severity: trivial
+  fix: "HeaderThemeToggle rounded-full + surface-card bg → rounded-md + bg-transparent (hairline border only)."
+  commit: 3ce9108
+  verified: "Live: square-ish bordered icon button, no filled circle."
+
+- truth: "Investments drag-and-drop: dragging a group shows a drop gap; a group can move to last; loose items dragged above a top group stay loose; cross-group moves don't throw."
+  status: fixed
+  reason: "User UAT #4-8: (#4) no drop affordance when dragging a group; (#5/#7) a top group swallows items dragged above/up into it; (#6) a group can't become the last entry; (#8) moving an item between groups throws an error mid-drag."
+  severity: major
+  fix: "Root cause: group children rendered in a separate nested <div> subtree and group headers were draggable-but-not-sortable. Unified into ONE flat SortableContext — headers AND holdings are sortable items in a single container; grouped children keep the indented look via a per-row ::before rail (no nested subtree). Cross-group moves are now a plain reorder in the same parent (no remount → no #8 crash). resolveDragEnd gains rect-midpoint direction opts: placeAfter (group dragged below its anchor lands after it, #6) and asLoose (holding dragged above a group header stays loose, #5/#7). Both live-move in onDragOver so the block follows and the drop lands in place (#4 gap)."
+  commit: d381568
+  verified: "22 unit tests in investment-grouping.test.ts (placeAfter + asLoose + existing). Live Playwright pointer-drags (error-instrumented): cross-group drag → errors []; group drag → mid-drag layout snapshot shows siblings open a gap + the block (header+children) relocates as a unit; loose rows dragged near a group stay loose, never swallowed."
