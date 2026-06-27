@@ -190,10 +190,11 @@ export function InvestmentRowSheet({
         // Grouped child: indent + a continuous left rail. The flat list has no
         // nested container to carry a `border-l`, so each child draws its own 1px
         // rail via a ::before that extends up into the gap-2 above it (−top-2),
-        // joining the header's rail through to the last child (D-#flat-rail).
-        // Suppress while THIS row is dragging — a row in flight floats flush, no
-        // stray rail/indent left of it (UAT #3 "weird empty space").
-        nested && !isDragging
+        // joining the header's rail through to the last child (D-#flat-rail). Kept
+        // while dragging too: a grouped child reordered in place must keep its
+        // indent (matching its slot geometry) or the in-group reorder gap can't
+        // animate and the row reads as un-nested (UAT).
+        nested
           ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
           : "",
         // Holding rows move inline via their own transform and animate to the

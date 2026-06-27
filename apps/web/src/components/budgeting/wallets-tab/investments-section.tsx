@@ -56,7 +56,6 @@ import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { useArchiveHolding } from "@/hooks/use-archive-holding";
 import {
   buildInvestmentEntries,
-  flattenEntries,
   groupAggregate,
   resolveDragEnd,
   withPersistentGroups,
@@ -474,7 +473,16 @@ export function InvestmentsSection({
       const result = isGroupSortId(oId)
         ? resolveDragEnd(base, aId, oId, { asLoose: aboveTarget })
         : resolveDragEnd(base, aId, oId);
-      return result ? applyResult(base, result) : base;
+      if (!result) return base;
+      // Live-move ONLY for a cross-context change (group re-nesting) or a loose
+      // zone. A same-group / loose-to-loose reorder is left to @dnd-kit's native
+      // sorting so the gap SLIDES — live-reordering the array every frame swaps the
+      // DOM nodes, resetting the sort transforms, so the row JUMPS instead of
+      // animating ("no animation inside the group"). The final order is recomputed
+      // from the stable holdings on drop, so skipping the live-move is lossless.
+      const isZone = oId === UNGROUPED_DROP_ID || oId === LOOSE_TOP_DROP_ID;
+      if (!result.groupChange && !isZone) return base;
+      return applyResult(base, result);
     });
   }
 
@@ -486,7 +494,6 @@ export function InvestmentsSection({
 
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
-    const live = dndHoldings;
     setActiveId(null);
     setDndHoldings(null);
     setDragSnapshot(null);
@@ -500,33 +507,31 @@ export function InvestmentsSection({
       return;
     }
 
-    // Group block → computed at drop (not live-moved). Direction from the final
-    // drop rects: a block dropped BELOW its anchor lands after it (placeAfter → it
-    // can become last, UAT #6).
+    // Everything commits from the STABLE holdings + the drop target — never the
+    // live arrangement (which may not exist for a same-context reorder left to
+    // @dnd-kit). Direction from the final drop rects: a group block dropped BELOW
+    // its anchor lands after it (placeAfter, UAT #6); a holding dropped ABOVE a
+    // group header stays loose (asLoose, UAT #5/#7).
+    const aMid = midY(active.rect.current.translated);
+    const oMid = midY(over.rect);
+
     if (isGroupSortId(aId)) {
-      const aMid = midY(active.rect.current.translated);
-      const oMid = midY(over.rect);
       const placeAfter = aMid != null && oMid != null ? aMid > oMid : false;
       const result = resolveDragEnd(holdings, aId, overId, { placeAfter });
       if (result) reorderMut.mutate({ orderedIds: result.orderedIds });
       return;
     }
 
-    // Persist the LIVE arrangement (already built by onDragOver) for a holding.
-    const base = live ?? holdings;
-    const orderedIds = base.map((h) => h.id);
-    const origIds = flattenEntries(buildInvestmentEntries(holdings));
-    const moved = base.find((h) => h.id === aId);
-    const original = holdings.find((h) => h.id === aId);
-    const groupChanged =
-      !!moved &&
-      !!original &&
-      (moved.group ?? null) !== (original.group ?? null);
-    if (orderedIds.join() === origIds.join() && !groupChanged) return; // no-op
-    if (groupChanged && moved) {
-      updateMut.mutate({ holdingId: aId, group: moved.group ?? null });
+    const asLoose =
+      isGroupSortId(overId) && aMid != null && oMid != null && aMid < oMid;
+    const result = isGroupSortId(overId)
+      ? resolveDragEnd(holdings, aId, overId, { asLoose })
+      : resolveDragEnd(holdings, aId, overId);
+    if (!result) return;
+    if (result.groupChange) {
+      updateMut.mutate({ holdingId: aId, group: result.groupChange.group });
     }
-    reorderMut.mutate({ orderedIds });
+    reorderMut.mutate({ orderedIds: result.orderedIds });
   }
 
   function openEdit(holding: HoldingDto) {
