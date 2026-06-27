@@ -39,7 +39,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
@@ -54,6 +54,7 @@ import {
   buildInvestmentEntries,
   groupAggregate,
   resolveDragEnd,
+  resolveHoldingDrop,
   groupSortId,
   isGroupSortId,
   groupNameFromSortId,
@@ -343,7 +344,6 @@ export function InvestmentsSection({
       sortableIds.push(e.holding.id);
     }
   }
-  const lastSortableId = sortableIds[sortableIds.length - 1];
 
   // ── DnD ──
   const sensors = useSensors(
@@ -368,7 +368,73 @@ export function InvestmentsSection({
     }));
   }
 
+  // Each holding row's rect (top/bottom/centre) + its group, snapshotted at
+  // drag-start (the STABLE, untransformed layout — reading rects mid-drag would
+  // include @dnd-kit's gap transforms). The drop handler compares the dragged row's
+  // translated centre to this to decide its insertion index + which group's
+  // children-span it landed in.
+  const dragGeomRef = useRef<
+    {
+      id: string;
+      top: number;
+      bottom: number;
+      center: number;
+      group: string | null;
+    }[]
+  >([]);
+
+  function snapshotDragGeometry() {
+    const rows: typeof dragGeomRef.current = [];
+    if (typeof document !== "undefined") {
+      for (const el of document.querySelectorAll<HTMLElement>(
+        "[data-investment-row-wrapper]",
+      )) {
+        const id = el.getAttribute("data-investment-row-wrapper");
+        if (!id) continue;
+        const r = el.getBoundingClientRect();
+        rows.push({
+          id,
+          top: r.top,
+          bottom: r.bottom,
+          center: r.top + r.height / 2,
+          group: holdings.find((h) => h.id === id)?.group ?? null,
+        });
+      }
+    }
+    dragGeomRef.current = rows;
+  }
+
+  // Decide a holding's drop from geometry (children-span model): insertion index =
+  // how many OTHER rows sit above the dragged centre; target group = the group
+  // whose visible-children span — the full row extent of its members, EXCLUDING the
+  // dragged row — contains the centre, else null (loose). So dropping on a member's
+  // row joins/reorders within that group, while dropping on the header band or
+  // below the last child (outside any member row) lands loose above/below it.
+  function computeHoldingDrop(activeId: string, aMid: number) {
+    const others = dragGeomRef.current.filter((r) => r.id !== activeId);
+    const insertIndex = others.filter((r) => r.center < aMid).length;
+    const spans = new Map<string, { top: number; bottom: number }>();
+    for (const r of others) {
+      if (!r.group) continue;
+      const s = spans.get(r.group);
+      if (!s) spans.set(r.group, { top: r.top, bottom: r.bottom });
+      else {
+        s.top = Math.min(s.top, r.top);
+        s.bottom = Math.max(s.bottom, r.bottom);
+      }
+    }
+    let targetGroup: string | null = null;
+    for (const [g, s] of spans) {
+      if (aMid >= s.top && aMid <= s.bottom) {
+        targetGroup = g;
+        break;
+      }
+    }
+    return { insertIndex, targetGroup };
+  }
+
   function handleDragStart(e: DragStartEvent) {
+    snapshotDragGeometry();
     setActiveId(String(e.active.id));
   }
 
@@ -396,20 +462,11 @@ export function InvestmentsSection({
       return;
     }
 
-    // Direction from the final drop rects (the pure module has no geometry):
-    //   - group block dropped BELOW its anchor lands AFTER it (placeAfter, UAT #6)
-    //   - holding released ABOVE a group header (above its TOP edge) stays loose
-    //     above/between groups instead of joining (asLoose, UAT #5/#7)
-    //   - holding released clearly BELOW the last row (past its bottom edge) lands
-    //     loose at the very end / ungroups (asLooseEnd, UAT #4 — replaces the old
-    //     explicit drop zones). The TOP edge / BOTTOM edge thresholds (not the
-    //     midpoint) keep "drop onto the first/last member" a normal in-group
-    //     reorder, so a 2-item group's items still swap to first/last (UAT #1).
     const aMid = midY(active.rect.current.translated);
     const oMid = midY(over.rect);
-    const oTop = over.rect ? over.rect.top : null;
-    const oBottom = over.rect ? over.rect.top + over.rect.height : null;
 
+    // A GROUP block drag commits via the over target + direction (placeAfter, UAT
+    // #6) — its cohesive overlay already shows the move.
     if (isGroupSortId(aId)) {
       const placeAfter = aMid != null && oMid != null ? aMid > oMid : false;
       const result = resolveDragEnd(holdings, aId, overId, { placeAfter });
@@ -420,17 +477,16 @@ export function InvestmentsSection({
       return;
     }
 
-    const asLoose =
-      isGroupSortId(overId) && aMid != null && oTop != null && aMid < oTop;
-    const asLooseEnd =
-      !isGroupSortId(overId) &&
-      overId === lastSortableId &&
-      aMid != null &&
-      oBottom != null &&
-      aMid > oBottom;
-    const result = isGroupSortId(overId)
-      ? resolveDragEnd(holdings, aId, overId, { asLoose })
-      : resolveDragEnd(holdings, aId, overId, { asLooseEnd });
+    // A HOLDING drag is resolved purely by GEOMETRY (children-span model): where
+    // the dragged row's centre LANDED decides its position + group, independent of
+    // which item @dnd-kit reports as `over`. Dropping on a member's row joins/
+    // reorders within that group; dropping on a header band or below the last child
+    // (outside any member row) lands loose above/below it — so a row can always be
+    // placed loose adjacent to a group and a 2-item group's items still reorder, no
+    // explicit drop zones needed (UAT #1/#2 bugs).
+    if (aMid == null) return;
+    const { insertIndex, targetGroup } = computeHoldingDrop(aId, aMid);
+    const result = resolveHoldingDrop(holdings, aId, insertIndex, targetGroup);
     if (!result) return;
     if (result.groupChange) {
       updateMut.mutate({ holdingId: aId, group: result.groupChange.group });

@@ -17,6 +17,7 @@
  * no-basis groups render "—" in --muted-strong.
  */
 import { useLocale, useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -67,6 +68,21 @@ export function InvestmentGroupHeader({
 }: InvestmentGroupHeaderProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
+
+  // Desktop: a body click toggles the group's children (collapse/expand). Mobile:
+  // the children-toggle is the chevron; a body TAP reveals the group's sum-up
+  // (P/L% + portfolio%) as a second line — the same gesture a holding ROW uses —
+  // since mobile has no room for the desktop columns. matchMedia picks the
+  // behaviour; defaults to mobile until mounted (SSR-safe, test-safe).
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [showSum, setShowSum] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
 
   const amount = centsToBare(String(Math.round(valueBudgetCents)), locale);
   const portfolio = `${portfolioPct.toFixed(1)}%`;
@@ -120,9 +136,8 @@ export function InvestmentGroupHeader({
     >
       {dragHandle}
 
-      {/* The whole group line is the expand/collapse toggle (UAT): tapping
-          anywhere — chevron, name, or columns — toggles its children. The chevron
-          is a visual affordance only. */}
+      {/* Body click: DESKTOP toggles the children (collapse/expand); MOBILE reveals
+          the sum-up second line (the chevron toggles children on mobile). */}
       <div
         role="button"
         tabIndex={0}
@@ -133,32 +148,56 @@ export function InvestmentGroupHeader({
           state: expanded ? t("group.expanded") : t("group.collapsed"),
         })}
         data-testid={`investment-group-toggle-${groupName}`}
-        onClick={onToggle}
+        onClick={() => (isDesktop ? onToggle() : setShowSum((s) => !s))}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            onToggle();
+            isDesktop ? onToggle() : setShowSum((s) => !s);
           }
         }}
         className="flex min-w-0 flex-1 items-center gap-2"
       >
-        {/* w-4 to match the holding row's type-icon footprint so the group name
-            starts at the same x as a holding name (UAT: align arrow→text padding). */}
-        <span
+        {/* Chevron = the children collapse/expand control (its own click so it works
+            on mobile too, where the body tap shows the sum-up instead). w-4 matches
+            the holding row's type-icon footprint so the name x-aligns (UAT). */}
+        <button
+          type="button"
+          aria-label={t("group.headerAria", {
+            name: groupName,
+            pct: portfolio,
+            state: expanded ? t("group.expanded") : t("group.collapsed"),
+          })}
+          data-testid={`investment-group-chevron-${groupName}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
           className="flex h-4 w-4 shrink-0 items-center justify-center text-[var(--muted-foreground)]"
-          aria-hidden="true"
         >
           {expanded ? (
             <ChevronDown className="h-4 w-4" />
           ) : (
             <ChevronRight className="h-4 w-4" />
           )}
-        </span>
-        {/* Left column — gap-0 + leading-tight so the header keeps the row height. */}
+        </button>
+        {/* Left column — gap-0 + leading-tight so the header keeps the row height.
+            On mobile, a tap reveals the sum-up (P/L% + portfolio%) as a 2nd line. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
           <span className="min-w-0 truncate text-body-md text-[var(--body-on-dark)]">
             {groupName}
           </span>
+          {showSum && (
+            <div
+              data-testid={`investment-group-sum-${groupName}`}
+              className="flex items-center gap-2 text-num-sm tabular-nums sm:hidden"
+            >
+              {plNode}
+              {plMoney && <span className={plColor}>{plMoney}</span>}
+              <span className="text-[var(--muted-foreground)]">
+                {t("row.share", { pct: portfolio })}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Desktop columns mirror the holding row (UAT #7): qty · P/L% · P/L amt ·

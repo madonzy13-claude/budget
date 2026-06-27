@@ -13,6 +13,7 @@ import {
   buildInvestmentEntries,
   groupAggregate,
   resolveDragEnd,
+  resolveHoldingDrop,
 } from "../../src/lib/investment-grouping";
 
 function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
@@ -248,5 +249,59 @@ describe("resolveDragEnd", () => {
       expect(r!.groupChange).toEqual({ holdingId: "C", group: "Brokerage" });
       expect(r!.orderedIds).toEqual(["C", "A", "B", "D", "E"]);
     });
+  });
+});
+
+// The HOLDING drag resolver used by the live section: the React island measures
+// where the dragged row's centre landed (insertIndex + the group whose children-
+// span it fell within, or null=loose) and this maps it to a flat order + group
+// change. Children-span model → a row can be placed loose adjacent to ANY group and
+// a 2-item group's items still reorder, without explicit drop zones (UAT #1/#2).
+describe("resolveHoldingDrop (geometry-driven holding placement)", () => {
+  it("reorders within a group (drop on the first member → become first)", () => {
+    // B → index 0, target Brokerage → [B,A,...], stays grouped.
+    const r = resolveHoldingDrop(sample(), "B", 0, "Brokerage");
+    expect(r).not.toBeNull();
+    expect(r!.groupChange).toBeUndefined();
+    expect(r!.orderedIds).toEqual(["B", "A", "C", "D", "E"]);
+  });
+
+  it("ejects a grouped child to loose at the end (target null, last index)", () => {
+    const r = resolveHoldingDrop(sample(), "B", 4, null);
+    expect(r!.groupChange).toEqual({ holdingId: "B", group: null });
+    expect(r!.orderedIds).toEqual(["A", "C", "D", "E", "B"]);
+  });
+
+  it("joins a loose holding into a group at the chosen slot", () => {
+    const r = resolveHoldingDrop(sample(), "C", 1, "Brokerage");
+    expect(r!.groupChange).toEqual({ holdingId: "C", group: "Brokerage" });
+    expect(r!.orderedIds).toEqual(["A", "C", "B", "D", "E"]);
+  });
+
+  it("reorders a loose row to the front, staying loose", () => {
+    const r = resolveHoldingDrop(sample(), "E", 0, null);
+    expect(r!.groupChange).toBeUndefined();
+    expect(r!.orderedIds).toEqual(["E", "A", "B", "C", "D"]);
+  });
+
+  it("ejects from a SINGLE group (no loose rows) — drop below the only member", () => {
+    const onlyGroup = [
+      h({ id: "A", group: "G", sortOrder: 0 }),
+      h({ id: "B", group: "G", sortOrder: 1 }),
+    ];
+    const r = resolveHoldingDrop(onlyGroup, "A", 1, null);
+    expect(r!.groupChange).toEqual({ holdingId: "A", group: null });
+    expect(r!.orderedIds).toEqual(["B", "A"]);
+  });
+
+  it("places a loose row ABOVE a leading group (index 0, target null)", () => {
+    // D (Metals) → loose at the very top, above Brokerage.
+    const r = resolveHoldingDrop(sample(), "D", 0, null);
+    expect(r!.groupChange).toEqual({ holdingId: "D", group: null });
+    expect(r!.orderedIds).toEqual(["D", "A", "B", "C", "E"]);
+  });
+
+  it("is a no-op when nothing changes (same slot, same group)", () => {
+    expect(resolveHoldingDrop(sample(), "A", 0, "Brokerage")).toBeNull();
   });
 });

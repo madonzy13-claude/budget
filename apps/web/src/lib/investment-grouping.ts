@@ -278,3 +278,44 @@ export function resolveDragEnd(
     ? { orderedIds: finalOrder, groupChange }
     : { orderedIds: finalOrder };
 }
+
+/**
+ * Resolve a HOLDING drop from GEOMETRY (the section's drag model). The section
+ * decides, from the dragged row's drop centre:
+ *   - `insertIndex` — its rank among the OTHER holdings (rows whose centre is
+ *     above it), i.e. where it lands in the flat order.
+ *   - `targetGroup` — the group whose VISIBLE-CHILDREN span contains the centre
+ *     (header excluded), or null when the centre is on a header / in a gap / among
+ *     loose rows. "Inside the group's rows → grouped; on the header or below the
+ *     last child → loose" — so a row can be placed loose above/below ANY group and
+ *     a 2-item group's members still reorder (drop onto a child), without the old
+ *     explicit zones.
+ * Pure so the recluster maths is unit-tested; geometry stays in the React island.
+ */
+export function resolveHoldingDrop(
+  holdings: HoldingDto[],
+  activeId: string,
+  insertIndex: number,
+  targetGroup: string | null,
+): DragResult | null {
+  const baseOrder = flattenEntries(buildInvestmentEntries(holdings));
+  const baseGroup = new Map<string, string | null>();
+  for (const h of holdings) baseGroup.set(h.id, h.group ?? null);
+  if (!baseGroup.has(activeId)) return null;
+  const curGroup = baseGroup.get(activeId) ?? null;
+
+  const without = baseOrder.filter((id) => id !== activeId);
+  const idx = Math.max(0, Math.min(insertIndex, without.length));
+  const arranged = [...without.slice(0, idx), activeId, ...without.slice(idx)];
+  const groupOf = (id: string): string | null =>
+    id === activeId ? targetGroup : (baseGroup.get(id) ?? null);
+  const finalOrder = recluster(arranged, groupOf);
+  const groupChange =
+    targetGroup !== curGroup
+      ? { holdingId: activeId, group: targetGroup }
+      : undefined;
+  if (finalOrder.join() === baseOrder.join() && !groupChange) return null;
+  return groupChange
+    ? { orderedIds: finalOrder, groupChange }
+    : { orderedIds: finalOrder };
+}

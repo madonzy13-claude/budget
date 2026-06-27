@@ -4,7 +4,7 @@
  * portfolio% inline; the chevron toggles child collapse; tapping the body toggles
  * the mobile P/L + portfolio% line.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { InvestmentGroupHeader } from "../../src/components/budgeting/wallets-tab/investment-group-header";
 
@@ -107,5 +107,46 @@ describe("InvestmentGroupHeader", () => {
     const { onToggle } = renderHeader();
     fireEvent.click(screen.getByText("Brokerage"));
     expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  // Mobile (no room for the desktop columns): a body TAP reveals the sum-up line
+  // (P/L% + portfolio%) instead of toggling children; the chevron stays the
+  // children toggle. Regression guard — desktop-click-to-toggle had swallowed it.
+  describe("mobile (matchMedia min-width:640px → no match)", () => {
+    const realMM = window.matchMedia;
+    function mobile() {
+      window.matchMedia = ((q: string) => ({
+        matches: false,
+        media: q,
+        onchange: null,
+        addEventListener() {},
+        removeEventListener() {},
+        addListener() {},
+        removeListener() {},
+        dispatchEvent: () => false,
+      })) as unknown as typeof window.matchMedia;
+    }
+    afterEach(() => {
+      window.matchMedia = realMM;
+    });
+
+    it("a body tap reveals the sum-up line, NOT a children toggle", () => {
+      mobile();
+      const { onToggle } = renderHeader();
+      expect(screen.queryByTestId("investment-group-sum-Brokerage")).toBeNull();
+      fireEvent.click(screen.getByText("Brokerage"));
+      expect(
+        screen.getByTestId("investment-group-sum-Brokerage"),
+      ).toBeInTheDocument();
+      expect(onToggle).not.toHaveBeenCalled();
+    });
+
+    it("the chevron still toggles children (and does not open the sum-up)", () => {
+      mobile();
+      const { onToggle } = renderHeader();
+      fireEvent.click(screen.getByTestId("investment-group-chevron-Brokerage"));
+      expect(onToggle).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("investment-group-sum-Brokerage")).toBeNull();
+    });
   });
 });
