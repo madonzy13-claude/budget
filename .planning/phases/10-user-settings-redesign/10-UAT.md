@@ -260,3 +260,67 @@ blocked: 0
   fix: "Nested-row bg token-ised --surface-nested-dark (dark #171b20 = the old color-mix; light #fafafa). Top-level/group stay on the card (#eef1f4), so children read lighter in light + darker in dark."
   commit: d1202b7
   verified: "investment-row tests green. Live (light): nested Microsoft row = #fafafa vs top-level Apple row = #eef1f4. Screenshot."
+
+- truth: "Tapping anywhere on an investment group line expands/collapses it (no name resize)."
+  status: fixed
+  reason: "User: clicking the group line made the name bigger (metrics tap) instead of toggling the group."
+  severity: minor
+  fix: "Folded the chevron into a single body toggle (role=button) calling onToggle; removed the metricsOpen name-size swap + mobile metrics reveal. Whole line toggles."
+  commit: 0db7604
+  verified: "group-header body-toggle test. Live: clicking 'Tech' name collapsed it (MSFT hidden), name stayed 16px."
+
+- truth: "Logged-out pages have a dark/light switcher in the header (default cookie, else dark)."
+  status: fixed
+  reason: "User request: add a theme switcher when not logged in."
+  severity: enhancement
+  fix: "HeaderThemeToggle (applyTheme, no DB persist — no session) on sign-in + sign-up headers and the AuthCardShell (forgot/reset)."
+  commit: 0db7604
+  verified: "Live: reset-password header toggle flips light→dark (body #0b0e11, cookie=dark)."
+
+- truth: "The profile mini-menu lists the theme toggle ABOVE Settings."
+  status: fixed
+  reason: "User request: place light/dark above settings."
+  severity: trivial
+  fix: "Reordered profile-menu items: theme, then Settings."
+  commit: 0db7604
+  verified: "profile-menu test order [theme, settings, install, sign-out]. Live confirmed."
+
+- truth: "The selected theme is saved to the account so it follows the user across devices/browsers."
+  status: fixed
+  reason: "User request: persist theme in DB; use it on other devices."
+  severity: major
+  fix: "users.theme column (migration 0048) + better-auth additionalField + PUT /settings/theme + repo.updateTheme; client persistTheme() on every toggle (settings + mini-menu); (app) layout injects a pre-paint script that seeds data-theme + cookie from the account theme ONLY when the cookie is absent (new device) — mirrors LocaleCookieSync so a stale-session theme never clobbers a live local choice."
+  commit: 0db7604
+  verified: "api settings theme 3/0 (401/200/400); identity/api/web tsc clean. Live: toggle → DB theme=dark then light; clear the cookie (new-device sim) → reload applied LIGHT from DB (not the dark default) + re-seeded the cookie."
+
+- truth: "The set-new-password field has a show/hide (eye) toggle; the 'Request a new link' link is gone from the form."
+  status: fixed
+  reason: "User request: add an eye icon to reveal the typed password; remove the 'Request a new link' link."
+  severity: minor
+  fix: "reset-password: eye button toggles input type password/text; removed the under-form forgot-password link (the expired-token branch keeps its link — the only way out there). password.show/hide i18n in en/pl/uk."
+  commit: 0db7604
+  verified: "reset eye-toggle test. Live: eye flips type to text; 0 'Request a new link' in the form branch."
+
+- truth: "The settings loading skeleton spans the same 1280px width as the real shell."
+  status: fixed
+  reason: "User: settings width is correct but the waiting skeleton is still narrow."
+  severity: trivial
+  fix: "settings loading.tsx max-w-3xl → max-w-[1280px]."
+  commit: 0db7604
+  verified: "Code + tsc; the live shell already caps at 1280 (the skeleton now matches)."
+
+- truth: "The 'Build <id>' footer is gone from settings."
+  status: fixed
+  reason: "User request: remove the build info."
+  severity: trivial
+  fix: "Removed the BuildStamp footer + its getTranslations import from the settings page."
+  commit: 0db7604
+  verified: "Live: no 'Build' text on /settings."
+
+- truth: "The pill count badge numeral is optically centered in its circle."
+  status: fixed
+  reason: "User (screenshot): the red circle's number wasn't well aligned with the label."
+  severity: trivial
+  fix: "The numeral has no descender so flex-centering reads ~1px high — nudged the digit down (relative top-px) in PillBadge."
+  commit: 0db7604
+  verified: "Injected-badge probe (with vs without nudge): the nudged numeral sits centered. Real badge appears when a pill has pending tasks."
