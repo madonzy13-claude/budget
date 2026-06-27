@@ -18,13 +18,14 @@ updated: 2026-06-27T06:24:00Z
 
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 3
-name: Profile — Change Name + Request Email Change
+number: 4
+name: Security — Password Change + Active Sessions
 expected: |
-User ▸ Profile: editing account name + saving persists it; requesting an
-email change sends a confirm link to the CURRENT address; pending badge until
-confirmed; new email works for sign-in (email_hash stays in sync).
-awaiting: user response
+User ▸ Security: "Change password" emails a reset link to your own address
+(set on /reset-password, never inline). Active-sessions list shows your
+sessions with per-row "Sign out this session" + "Sign out all other devices",
+each behind a confirm dialog; confirming revokes.
+awaiting: user response (claude-verified: component 3/0, e2e @settings-security 2/0, live)
 
 ## Tests
 
@@ -41,7 +42,7 @@ result: pass
 ### 3. Profile — Change Name + Request Email Change
 
 expected: In User ▸ Profile, editing the account name and saving persists it. Requesting an email change sends a confirmation link to the CURRENT (old) address; a "pending" badge shows until confirmed; after confirming, the new email works for sign-in (email_hash stays in sync).
-result: [pending]
+result: pass [user double-checked: name + full two-step email change; reworked to Better Auth native flow + 3 follow-up fixes (single verify email, fresh settings, numbered notice). commits ab1a0a3/db32943.]
 
 ### 4. Security — Password Change + Active Sessions
 
@@ -61,9 +62,9 @@ result: [pending]
 ## Summary
 
 total: 6
-passed: 2
+passed: 3
 issues: 0
-pending: 4
+pending: 3
 skipped: 0
 blocked: 0
 
@@ -121,7 +122,7 @@ blocked: 0
   reason: "User double-check of the two-step flow: (1) TWO 'Verify your email' messages arrived at the new address; (2) after finishing, the settings form still showed the OLD email until a manual reload; (3) the confirm-pending notice was one run-on paragraph."
   severity: major
   test: 3
-  root_cause: "(1) sw.ts had navigationPreload:true while the generic nav route ALSO did its own fetch(req) — a /auth/_ navigation hit the server TWICE (browser preload + handler fetch). For a side-effectful auth GET that doubled the new-address email + tripped the spurious &error=USER_NOT_FOUND on the duplicate. (2) /settings RSC was cached in the Router Cache (staleTimes.dynamic 120s) from opening it to START the change, so a return visit rendered the stale email. (3) one-paragraph i18n string."
-  fix: "(1) sw.ts: dedicated /auth/_ navigation route (placed before the generic one) that consumes event.preloadResponse → exactly one network hit, never cached; (2) /email-changed calls router.refresh() on the DONE step → busts the Router Cache so the next /settings refetches; (3) profile-section renders a titled card with a numbered 2-step <ol> (bold addresses via t.rich) + footnote — confirm_pending replaced by confirm_title/step1/step2/note (en/pl/uk)."
+  root*cause: "(1) sw.ts had navigationPreload:true while the generic nav route ALSO did its own fetch(req) — a /auth/* navigation hit the server TWICE (browser preload + handler fetch). For a side-effectful auth GET that doubled the new-address email + tripped the spurious &error=USER*NOT_FOUND on the duplicate. (2) /settings RSC was cached in the Router Cache (staleTimes.dynamic 120s) from opening it to START the change, so a return visit rendered the stale email. (3) one-paragraph i18n string."
+  fix: "(1) sw.ts: dedicated /auth/* navigation route (placed before the generic one) that consumes event.preloadResponse → exactly one network hit, never cached; (2) /email-changed calls router.refresh() on the DONE step → busts the Router Cache so the next /settings refetches; (3) profile-section renders a titled card with a numbered 2-step <ol> (bold addresses via t.rich) + footnote — confirm_pending replaced by confirm_title/step1/step2/note (en/pl/uk)."
   commit: db32943
   verified: "settings vitest 25/0 (t.rich + router.refresh mocks/asserts). Typecheck clean. LIVE with a freshly-activated SW (unregister+clear+reactivate): single confirm-click → EXACTLY 1 verify email to the new address (was 2) AND clean /email-changed URL (no &error=); finish → soft-nav to /settings shows the NEW email with no reload; notice renders as a clean numbered card (screenshot)."
