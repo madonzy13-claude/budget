@@ -126,3 +126,58 @@ blocked: 0
   fix: "(1) sw.ts: dedicated /auth/* navigation route (placed before the generic one) that consumes event.preloadResponse → exactly one network hit, never cached; (2) /email-changed calls router.refresh() on the DONE step → busts the Router Cache so the next /settings refetches; (3) profile-section renders a titled card with a numbered 2-step <ol> (bold addresses via t.rich) + footnote — confirm_pending replaced by confirm_title/step1/step2/note (en/pl/uk)."
   commit: db32943
   verified: "settings vitest 25/0 (t.rich + router.refresh mocks/asserts). Typecheck clean. LIVE with a freshly-activated SW (unregister+clear+reactivate): single confirm-click → EXACTLY 1 verify email to the new address (was 2) AND clean /email-changed URL (no &error=); finish → soft-nav to /settings shows the NEW email with no reload; notice renders as a clean numbered card (screenshot)."
+
+- truth: "Reset-password / change-password actually changes the password (login with the OLD password is rejected, the NEW one works)."
+  status: fixed
+  reason: "User report: provided a new password, but the password hadn't changed (sign-in kept working with the old one)."
+  severity: major
+  test: 4
+  root_cause: "Better Auth's Drizzle adapter ran on appPool() with NO app.current_user_id GUC (reset is an unauthenticated token flow). identity.accounts has FORCED RLS whose UPDATE policy required that GUC → the password UPDATE matched ZERO rows, a silent no-op that still returned {status:true}."
+  fix: "Dedicated betterAuthPool() whose connections carry app.better_auth=on (set at libpq startup via options); accounts/sessions UPDATE+DELETE RLS bypass keyed on that marker. Scoped to Better Auth's own pool so an arbitrary contextless app_role query (e.g. SQLi elsewhere) still cannot write those tables."
+  commit: e149c54
+  verified: "identity auth-write-rls.test.ts 5/0 (marked-pool write succeeds; contextless appPool write blocked = no fail-open; cross-user blocked). Live: reset → sign-in NEW pw 200 / OLD pw 401."
+
+- truth: "Sign out this session / sign out all other devices actually revoke (the DB session rows are deleted)."
+  status: fixed
+  reason: "User report: both revoke actions returned success but the device stayed logged in."
+  severity: major
+  test: 4
+  root_cause: "Same root cause as the reset bug — Better Auth's session DELETE ran with no app.current_user_id GUC against FORCED-RLS identity.sessions, matching zero rows."
+  fix: "Same betterAuthPool marker fix (sessions_owner_modify/delete bypass on app.better_auth='on')."
+  commit: e149c54
+  verified: "auth-write-rls.test.ts #2 (marked-pool DELETE on sessions takes effect). Live earlier: list-sessions count drops + psql confirms the revoked row is gone."
+
+- truth: "The delete-wallet dialog shows the wallet's real name, not the literal {name}; category-created toast interpolates the name too."
+  status: fixed
+  reason: "User report: removing a wallet showed 'Delete wallet {name}?'."
+  severity: minor
+  root_cause: "ICU MessageFormat: a single quote QUOTES the following braces, so en.json's 'Delete wallet '{name}'?' emitted {name} verbatim (pl/uk used the correct doubled ''). A sweep found the same class in budgeting_categories.categories.toast.created across en/pl/uk."
+  fix: "Doubled the quotes (''{name}'') in both keys, all three locales. New real-engine test (next-intl createTranslator over the real message files) guards every quoted-{name} string — the existing wallet-row test mocked next-intl with naive replace and could not catch ICU bugs."
+  commit: 2aaf294
+  verified: "icu-placeholder-escaping 6/0; served bundle ships the doubled form. Live: dialog reads \"Delete wallet 'My Vacation Fund'?\"."
+
+- truth: "Investments desktop listing (holdings AND groups): no edit pen; columns are qty · P/L% · P/L amount · value · weight; clicking a row opens the edit sheet."
+  status: fixed
+  reason: "User request: remove the edit pen, move profit before currency, add P/L money amount, add quantity before profit — same for group rows."
+  severity: enhancement
+  decisions: "User chose: desktop click opens the edit sheet (pen removed); column order qty · P/L% · P/L amt · value · weight (groups: qty blank)."
+  fix: "investment-row + investment-group-header desktop clusters reordered + P/L money added; group P/L money now from a real aggregate (groupAggregate.plCents) instead of the ÷0-prone back-derivation; pen removed, matchMedia-gated desktop click → edit; row action area + group spacer aligned to w-7."
+  commit: 3961881
+  verified: "152 web tests green; tsc clean. Live (desktop): AAPL row = 'AAPL (Apple Inc.) · 10 · +40.0% · +1,200 · USD 4,200 · 68.8%'; row labelled 'Edit …' (click-to-edit, no pen); group header shows +1,100 P/L money."
+
+- truth: "A holding can be dragged OUT of a group even when a single group holds every item (no loose rows)."
+  status: fixed
+  reason: "User report: with one group and no ungrouped items it was impossible to drag an item out; only worked once a loose item existed."
+  severity: major
+  root_cause: "Group membership changed only by dropping onto a LOOSE row; with no loose rows there was no 'outside' drop target. Also closestCenter selected by the dragged row's centre, so even a dropzone wasn't reliably hit."
+  fix: "Added an ungroup dropzone (UNGROUPED_DROP_ID) shown only while a grouped holding is dragged; resolveDragEnd makes the holding loose when dropped there. Custom collisionDetection prioritises the zone via pointerWithin (fallback closestCenter); MeasuringStrategy.Always so the mid-drag-mounted zone registers. i18n en/pl/uk."
+  commit: "3961881, 296dd5e"
+  verified: "investment-grouping ungroup branch 3/0. Live (single group, no loose rows): drag AAPL → zone appears → drop → AAPL becomes a top-level loose row and PERSISTS across reload; the group (now just MSFT) remains."
+
+- truth: "The global User Settings page spans the same desktop width (1280px) as the in-budget Settings tab — header logo→profile span."
+  status: fixed
+  reason: "User request: make global settings desktop width match the BDP settings width."
+  severity: enhancement
+  fix: "user-settings-shell main max-w-3xl → max-w-[1280px] (the BDP Settings TabPane width); all other wrapper classes already matched."
+  commit: be4e78e
+  verified: "shell test asserts the 1280 column. Live: at a 1600px viewport the settings content caps at 1280 (not 768), matching the header span."
