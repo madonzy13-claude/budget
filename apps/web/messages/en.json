@@ -963,7 +963,7 @@
       },
       "overrideBadge": "override",
       "toast": {
-        "created": "Category '{name}' created."
+        "created": "Category ''{name}'' created."
       },
       "delete": {
         "blockedTooltip": "Cannot delete category with existing transactions",
@@ -1143,7 +1143,7 @@
         },
         "confirm": {
           "delete": {
-            "title": "Delete wallet '{name}'?",
+            "title": "Delete wallet ''{name}''?",
             "body": "This can't be undone here.",
             "cta": "Delete",
             "cancel": "Cancel"

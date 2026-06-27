@@ -966,7 +966,7 @@
       },
       "overrideBadge": "nadpisanie",
       "toast": {
-        "created": "Kategoria '{name}' utworzona."
+        "created": "Kategoria ''{name}'' utworzona."
       },
       "delete": {
         "blockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
