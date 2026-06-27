@@ -31,7 +31,7 @@ interface UserSettingsShellProps {
 }
 
 const CONTENT =
-  "bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]";
+  "bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]";
 
 export function UserSettingsShell({
   initialLocale,

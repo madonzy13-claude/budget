@@ -29,7 +29,7 @@ export default function SettingsLoading() {
         <div className="px-6 py-4">
           <div className={`h-5 w-24 ${BAR}`} />
         </div>
-        <div className="space-y-6 bg-[#141920] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]">
+        <div className="space-y-6 bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
           <div className="space-y-2">
             <div className={`h-4 w-28 ${BAR}`} />
             <div className={FIELD} />

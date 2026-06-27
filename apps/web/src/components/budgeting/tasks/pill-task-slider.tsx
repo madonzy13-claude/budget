@@ -22,7 +22,7 @@ import {
  *   - Returns null when filtered list is empty (D-PH3-14 DOM rule, per-pill).
  *   - **Always starts collapsed** — even with one task. User explicitly opens.
  *   - Visual mirrors `SettingsAccordion`: rounded-xl card, hairline border,
- *     `--surface-card-dark` body, `#141920` content panel with inset top shadow
+ *     `--surface-card-dark` body, `--surface-sunken-dark` content panel with inset top shadow
  *     when expanded.
  *   - Header icon: red Info circle (Tailwind/Lucide `Info` icon w/ trading-down
  *     color) — communicates attention, not urgency.
@@ -162,7 +162,7 @@ export function PillTaskSlider({
         {expanded ? (
           <div
             data-testid="pill-task-slider-rows"
-            className="bg-[#141920] shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.45)]"
+            className="bg-[var(--surface-sunken-dark)] shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]"
           >
             {filtered.map((task) => (
               <div

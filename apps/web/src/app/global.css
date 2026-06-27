@@ -139,6 +139,10 @@
     --canvas-dark: #0b0e11;
     --surface-card-dark: #1e2329;
     --surface-elevated-dark: #2b3139;
+    /* Sunken panel — sits a step BELOW the card (accordion content, task
+       slider). Was hardcoded as bg-[#141920] at call sites; token-ised so it
+       flips under the light theme instead of staying black. */
+    --surface-sunken-dark: #141920;
 
     /* Hairlines */
     --hairline-dark: #2b3139;
@@ -193,9 +197,13 @@
   :root[data-theme="light"] {
     color-scheme: light;
     --canvas-dark: #ffffff;
-    --surface-card-dark: #fafafa;
-    --surface-elevated-dark: #f5f5f5;
-    --hairline-dark: #eaecef;
+    /* Card darkened from #fafafa → #eef1f4 so sections read clearly on the
+       white canvas (was near-invisible). Sunken sits a touch deeper, elevated
+       (filled controls/hover) deeper still. */
+    --surface-card-dark: #eef1f4;
+    --surface-sunken-dark: #e7eaef;
+    --surface-elevated-dark: #e2e6ec;
+    --hairline-dark: #dde1e8;
     --hairline-on-dark: var(--hairline-dark);
     --body-on-dark: #181a20;
     --on-dark: #181a20;
