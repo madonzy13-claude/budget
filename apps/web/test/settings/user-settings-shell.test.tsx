@@ -61,4 +61,14 @@ describe("UserSettingsShell — stacked accordion, no pills (Phase 10)", () => {
     expect(screen.getByText("locale.label")).toBeInTheDocument();
     expect(screen.getByText("display_currency.label")).toBeInTheDocument();
   });
+
+  // UAT #10: the global settings column must span the same desktop width as the
+  // in-budget Settings tab (max-w-[1280px] in budget-detail's TabPane), so the
+  // card lines up with the header logo→profile span instead of the narrower 3xl.
+  it("uses the 1280px desktop column to match the BDP Settings tab width", () => {
+    const { container } = render(<UserSettingsShell {...props} />);
+    const main = container.querySelector("main");
+    expect(main?.className).toContain("max-w-[1280px]");
+    expect(main?.className).not.toContain("max-w-3xl");
+  });
 });

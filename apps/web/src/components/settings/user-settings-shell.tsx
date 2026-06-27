@@ -41,7 +41,7 @@ export function UserSettingsShell({
   const tSec = useTranslations("settings.user.sections");
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
+    <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
       <header className="mb-6 space-y-2">
         <p className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
           {tRoot("eyebrow")}
