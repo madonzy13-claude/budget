@@ -5,7 +5,11 @@ import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
-import { appPool, LibsodiumKeyStore, withUserContext } from "@budget/platform";
+import {
+  betterAuthPool,
+  LibsodiumKeyStore,
+  withUserContext,
+} from "@budget/platform";
 import { loadEnv, UserId } from "@budget/shared-kernel";
 import type { EmailLocale, EmailSender } from "@budget/shared-kernel";
 import { users, sessions, accounts, verifications } from "./schema";
@@ -193,7 +197,11 @@ export async function purgeUserData(uid: string): Promise<void> {
 
 export function createAuth(opts: CreateAuthOptions) {
   const env = loadEnv();
-  const db = drizzle(appPool(), { casing: "snake_case" });
+  // betterAuthPool (NOT appPool): every connection carries app.better_auth=on so
+  // the accounts/sessions RLS UPDATE/DELETE bypass is scoped to Better Auth's own
+  // pool — see betterAuthPool() + post-migration.sql. withUserContext (email_hash
+  // recompute, DEK seed) still uses appPool independently.
+  const db = drizzle(betterAuthPool(), { casing: "snake_case" });
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",

@@ -7,21 +7,24 @@
  *   #2 "sign out this session" / "sign out all other devices" returns success but
  *      the revoked device stays logged in.
  *
- * Both share ONE cause. Better Auth's Drizzle adapter runs on appPool() with NO
- * `app.current_user_id` GUC (it's an unauthenticated token flow for reset, and the
- * adapter never sets the GUC for revoke either). identity.accounts / identity.sessions
- * had FORCED RLS whose UPDATE+DELETE policies required that GUC, so Better Auth's
- * writes matched ZERO rows — a silent no-op that still returns {status:true}.
+ * Both share ONE cause. Better Auth's Drizzle adapter writes identity.accounts /
+ * identity.sessions with NO app.current_user_id GUC (reset is an unauthenticated
+ * token flow; revoke never sets it either). Those tables have FORCED RLS whose
+ * UPDATE+DELETE policies required that GUC, so Better Auth's writes matched ZERO
+ * rows — a silent no-op that still returns {status:true}.
  *
- * These tests reproduce EXACTLY what Better Auth does: a contextless app_role
- * UPDATE on the credential row and DELETE on a session row. They are RED on the
- * owner-only policies and GREEN once UPDATE/DELETE also permit the GUC-empty
- * (Better Auth) path. We assert rowCount AND the persisted effect.
+ * The fix scopes a bypass to Better Auth's DEDICATED pool, whose connections carry
+ * `app.better_auth=on` (betterAuthPool). These tests prove:
+ *   - a betterAuthPool connection CAN UPDATE the credential / DELETE the session
+ *     (the bug fix), AND
+ *   - an ordinary contextless app_role connection (no marker, no user GUC) is STILL
+ *     blocked (no fail-open escape hatch for arbitrary queries / SQLi), AND
+ *   - a DIFFERENT user's context still cannot touch my row.
  */
 import { test, expect, beforeAll } from "bun:test";
 import { startTestcontainer } from "@budget/db/test/testcontainer";
 import { StdoutEmailSender } from "@budget/shared-kernel";
-import { LibsodiumKeyStore, appPool } from "@budget/platform";
+import { LibsodiumKeyStore, appPool, betterAuthPool } from "@budget/platform";
 import { createAuth } from "../src/adapters/persistence/better-auth";
 import { signUp } from "../src/application/sign-up";
 
@@ -53,80 +56,96 @@ async function newUser(): Promise<string> {
   return r.value.userId;
 }
 
-// A pooled app_role connection with the user-context GUC explicitly CLEARED —
-// i.e. exactly the state Better Auth's adapter runs in.
-async function contextless<T>(
-  fn: (
-    q: (
-      s: string,
-      p?: unknown[],
-    ) => Promise<{
-      rowCount: number | null;
-      rows: Array<Record<string, unknown>>;
-    }>,
-  ) => Promise<T>,
-): Promise<T> {
-  const client = await appPool().connect();
+test("betterAuthPool connections carry the app.better_auth marker (set at startup)", async () => {
+  const c = await betterAuthPool().connect();
   try {
-    await client.query("SELECT set_config('app.current_user_id', '', false)");
-    return await fn((s, p) => client.query(s, p as never[]) as never);
+    const r = await c.query(
+      "SELECT current_setting('app.better_auth', true) AS m",
+    );
+    expect(r.rows[0]?.m).toBe("on");
   } finally {
-    client.release();
+    c.release();
   }
-}
+});
 
-test("#1 contextless app_role UPDATE on the credential password takes effect (reset/change password)", async () => {
+test("#1 Better Auth (marked pool) UPDATE on the credential password takes effect", async () => {
   const userId = await newUser();
-  await contextless(async (q) => {
-    const res = await q(
+  const c = await betterAuthPool().connect();
+  try {
+    const res = await c.query(
       "UPDATE identity.accounts SET password = $2 WHERE user_id = $1 AND provider_id = 'credential'",
       [userId, "NEW_HASH_VALUE"],
     );
     expect(res.rowCount).toBe(1); // RED on owner-only policy: 0 rows
-    const after = await q(
+    const after = await c.query(
       "SELECT password FROM identity.accounts WHERE user_id = $1 AND provider_id = 'credential'",
       [userId],
     );
     expect(after.rows[0]?.password).toBe("NEW_HASH_VALUE");
-  });
+  } finally {
+    c.release();
+  }
 });
 
-test("#2 contextless app_role DELETE on sessions takes effect (sign out / revoke)", async () => {
+test("#2 Better Auth (marked pool) DELETE on sessions takes effect", async () => {
   const userId = await newUser();
-  await contextless(async (q) => {
-    await q(
+  const c = await betterAuthPool().connect();
+  try {
+    await c.query(
       `INSERT INTO identity.sessions (id, user_id, token, expires_at, created_at, updated_at)
        VALUES ($1, $2, $3, now() + interval '1 day', now(), now())`,
       [crypto.randomUUID(), userId, crypto.randomUUID()],
     );
-    const del = await q("DELETE FROM identity.sessions WHERE user_id = $1", [
-      userId,
-    ]);
+    const del = await c.query(
+      "DELETE FROM identity.sessions WHERE user_id = $1",
+      [userId],
+    );
     expect(del.rowCount ?? 0).toBeGreaterThanOrEqual(1); // RED on owner-only policy: 0
-    const remaining = await q(
+    const remaining = await c.query(
       "SELECT count(*)::int AS c FROM identity.sessions WHERE user_id = $1",
       [userId],
     );
     expect(remaining.rows[0]?.c).toBe(0);
-  });
+  } finally {
+    c.release();
+  }
 });
 
-test("owner-scoping still holds: a DIFFERENT user's context cannot UPDATE my credential", async () => {
+test("SECURITY: an ordinary contextless app_role connection (no marker) CANNOT write the credential", async () => {
+  const userId = await newUser();
+  const c = await appPool().connect();
+  try {
+    await c.query("SELECT set_config('app.current_user_id', '', false)"); // no user context
+    // appPool has NO app.better_auth marker → the bypass must NOT apply.
+    const marker = await c.query(
+      "SELECT current_setting('app.better_auth', true) AS m",
+    );
+    expect(marker.rows[0]?.m === "on").toBe(false);
+    const res = await c.query(
+      "UPDATE identity.accounts SET password = 'HACKED' WHERE user_id = $1 AND provider_id = 'credential'",
+      [userId],
+    );
+    expect(res.rowCount).toBe(0); // blocked — no fail-open escape hatch
+  } finally {
+    c.release();
+  }
+});
+
+test("SECURITY: a DIFFERENT user's context cannot UPDATE my credential", async () => {
   const mine = await newUser();
   const other = await newUser();
-  const client = await appPool().connect();
+  const c = await appPool().connect();
   try {
-    // Impersonate `other` via the GUC — must NOT be able to touch `mine`.
-    await client.query("SELECT set_config('app.current_user_id', $1, false)", [
+    await c.query("SELECT set_config('app.current_user_id', $1, false)", [
       other,
     ]);
-    const res = await client.query(
+    const res = await c.query(
       "UPDATE identity.accounts SET password = 'HACKED' WHERE user_id = $1 AND provider_id = 'credential'",
       [mine],
     );
-    expect(res.rowCount).toBe(0); // RLS still blocks cross-user writes when a GUC is set
+    expect(res.rowCount).toBe(0);
   } finally {
-    await client.query("SELECT set_config('app.current_user_id', '', false)");
-    client.release();
+    await c.query("SELECT set_config('app.current_user_id', '', false)");
+    c.release();
   }
 });
