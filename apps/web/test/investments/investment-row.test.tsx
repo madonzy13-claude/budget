@@ -9,13 +9,33 @@
  * - Delisted row → opacity-50 + "Delisted" chip
  * - NO inline <input> on the row (sheet-only editing, INV-06)
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { InvestmentRow } from "../../src/components/budgeting/wallets-tab/investment-row";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
 // next-intl mock — relative key lookup with param substitution.
 import { vi } from "vitest";
+
+// happy-dom's default viewport reports desktop (min-width:640px matches), which
+// would flip the row into desktop-click-to-edit mode for every test. Pin matchMedia
+// to MOBILE by default so the expand-on-tap tests model a phone; the one desktop
+// test overrides window.matchMedia locally.
+function mockMatchMedia(matches: boolean) {
+  window.matchMedia = ((q: string) => ({
+    matches,
+    media: q,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent() {
+      return false;
+    },
+  })) as unknown as typeof window.matchMedia;
+}
+beforeEach(() => mockMatchMedia(false));
 vi.mock("next-intl", () => ({
   useTranslations:
     (_ns: string) => (key: string, params?: Record<string, unknown>) => {
@@ -180,7 +200,8 @@ describe("InvestmentRow", () => {
     fireEvent.click(screen.getByLabelText("Expand Vintage car"));
     expect(screen.getByText("Share: 13.0%")).toBeInTheDocument();
     // P/L money amount comes straight from the server (+15,000.00), no currency.
-    expect(screen.getByText("+15,000")).toBeInTheDocument();
+    // Renders in both the desktop cluster and the mobile-expanded line (UAT #7).
+    expect(screen.getAllByText("+15,000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("+50.0%").length).toBeGreaterThan(0); // P/L%
   });
 
@@ -201,7 +222,7 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand Silver coin"));
-    expect(screen.getByText("−34,495")).toBeInTheDocument();
+    expect(screen.getAllByText("−34,495").length).toBeGreaterThan(0);
     expect(screen.queryByText("−0")).toBeNull();
   });
 
@@ -244,6 +265,47 @@ describe("InvestmentRow", () => {
     fireEvent.click(screen.getByLabelText("Expand USD Cash"));
     expect(screen.queryByText(/^Qty:/)).toBeNull();
     expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
+  });
+
+  // UAT #7: desktop listing gains a quantity column + the P/L money amount, in
+  // the order qty · P/L% · P/L amt · value · weight. (Desktop cells render with a
+  // `hidden sm:*` class — present in the DOM under happy-dom regardless of CSS.)
+  it("desktop: renders a quantity cell and the P/L money amount inline", () => {
+    render(<InvestmentRow holding={holding()} />);
+    // qty cell shows the holding quantity (testid keeps it unambiguous).
+    expect(screen.getByTestId("holding-qty-AAPL")).toHaveTextContent("10");
+    // P/L money from the server's profitLossCents (120000 → +1,200), no currency.
+    expect(screen.getByText("+1,200")).toBeInTheDocument();
+    expect(screen.getByText("+12.4%")).toBeInTheDocument();
+  });
+
+  it("desktop: the quantity cell is blank for a cash holding (qty meaningless)", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ name: "USD Cash", holdingType: "cash_fx" })}
+      />,
+    );
+    expect(screen.getByTestId("holding-qty-USD Cash")).toHaveTextContent("");
+  });
+
+  // UAT #7: the hover edit pen is removed; editing moves to a desktop row-click.
+  it("desktop: no edit pen button — only the delete/trash hover action remains", () => {
+    render(
+      <InvestmentRow holding={holding()} onEdit={vi.fn()} onDelete={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: "Edit AAPL" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Archive AAPL" }),
+    ).toBeInTheDocument();
+  });
+
+  it("desktop: clicking the row opens the edit sheet (does not toggle expand)", () => {
+    mockMatchMedia(true); // desktop viewport
+    const onEdit = vi.fn();
+    render(<InvestmentRow holding={holding()} onEdit={onEdit} />);
+    // On desktop the body is labelled Edit (not Expand) and a click edits.
+    fireEvent.click(screen.getByLabelText("Edit AAPL"));
+    expect(onEdit).toHaveBeenCalledTimes(1);
   });
 
   it("dims a delisted holding's content but keeps the drag handle full opacity", () => {

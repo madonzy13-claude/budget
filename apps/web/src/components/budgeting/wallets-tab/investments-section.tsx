@@ -25,8 +25,10 @@ import {
   PointerSensor,
   TouchSensor,
   KeyboardSensor,
+  MeasuringStrategy,
   type DragEndEvent,
   type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -52,6 +54,7 @@ import {
   withPersistentGroups,
   groupSortId,
   isGroupSortId,
+  UNGROUPED_DROP_ID,
   type InvestmentEntry,
   type DragResult,
 } from "@/lib/investment-grouping";
@@ -130,6 +133,7 @@ function GroupBlock({
         budgetCurrency={budgetCurrency}
         valueBudgetCents={agg.valueBudgetCents}
         plPct={agg.plPct}
+        plCents={agg.plCents}
         portfolioPct={portfolioPct}
         maxAmountChars={maxAmountChars}
         expanded={expanded}
@@ -161,6 +165,28 @@ function GroupBlock({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** "Remove from group" drop target (UAT #8). Rendered only while a grouped
+ *  holding is being dragged — gives an always-available loose target even when a
+ *  single group holds every item (no loose row to drop onto). */
+function UngroupDropZone() {
+  const t = useTranslations("budget.investments");
+  const { setNodeRef, isOver } = useDroppable({ id: UNGROUPED_DROP_ID });
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid="ungroup-dropzone"
+      className={[
+        "flex min-h-[44px] items-center justify-center rounded-[var(--radius-md)] border border-dashed px-3 text-caption transition-colors",
+        isOver
+          ? "border-[var(--info-ring)] bg-[var(--surface-elevated-dark)]/60 text-[var(--body-on-dark)]"
+          : "border-[var(--hairline-dark)] text-[var(--muted-foreground)]",
+      ].join(" ")}
+    >
+      {t("ungroupZone")}
     </div>
   );
 }
@@ -209,6 +235,9 @@ export function InvestmentsSection({
   const [dragSnapshot, setDragSnapshot] = useState<
     { key: string; group?: string }[] | null
   >(null);
+  // The id currently being dragged (null when idle) → drives the ungroup-zone
+  // visibility so it only appears while a GROUPED holding is in flight (UAT #8).
+  const [activeId, setActiveId] = useState<string | null>(null);
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const archiveMut = useArchiveHolding(budgetId);
@@ -233,7 +262,8 @@ export function InvestmentsSection({
   // What we actually render: `entries`, plus any group emptied mid-drag re-inserted
   // in place (so it stays visible + droppable until the row is dropped elsewhere).
   const displayEntries = useMemo<InvestmentEntry[]>(
-    () => (dragSnapshot ? withPersistentGroups(entries, dragSnapshot) : entries),
+    () =>
+      dragSnapshot ? withPersistentGroups(entries, dragSnapshot) : entries,
     [entries, dragSnapshot],
   );
 
@@ -334,7 +364,8 @@ export function InvestmentsSection({
     }));
   }
 
-  function handleDragStart() {
+  function handleDragStart(e: DragStartEvent) {
+    setActiveId(String(e.active.id));
     setDndHoldings([...holdings]);
     // Snapshot the current entry order so an emptied group can be kept in place.
     setDragSnapshot(
@@ -364,6 +395,7 @@ export function InvestmentsSection({
   }
 
   function handleDragCancel() {
+    setActiveId(null);
     setDndHoldings(null);
     setDragSnapshot(null);
   }
@@ -371,6 +403,7 @@ export function InvestmentsSection({
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     const live = dndHoldings;
+    setActiveId(null);
     setDndHoldings(null);
     setDragSnapshot(null);
     if (!over) return;
@@ -414,6 +447,13 @@ export function InvestmentsSection({
     setSheet({ open: true, mode: "create", holding: null });
   }
 
+  // Show the ungroup zone only while a holding that STARTED in a group is being
+  // dragged — that's the only case where "remove from group" is meaningful.
+  const activeIsGrouped =
+    activeId != null &&
+    !isGroupSortId(activeId) &&
+    (holdings.find((hh) => hh.id === activeId)?.group ?? null) != null;
+
   if (!investmentsEnabled) return null;
 
   return (
@@ -428,6 +468,9 @@ export function InvestmentsSection({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        // Always-measure so the ungroup zone (mounted only mid-drag) is registered
+        // as a drop target the moment it appears (UAT #8).
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -461,6 +504,7 @@ export function InvestmentsSection({
                 />
               ),
             )}
+            {activeIsGrouped && <UngroupDropZone />}
           </div>
         </SortableContext>
       </DndContext>

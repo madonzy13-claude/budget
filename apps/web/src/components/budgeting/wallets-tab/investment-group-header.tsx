@@ -33,6 +33,9 @@ interface InvestmentGroupHeaderProps {
   valueBudgetCents: number;
   /** Cost-basis blended P/L% (null when no child has a basis). */
   plPct: number | null;
+  /** Aggregate P/L money in BUDGET cents (Σvalue − Σcost over children with a
+   *  basis); null when no child has a basis. Shown beside the P/L% (UAT #7). */
+  plCents?: number | null;
   /** group value / total investments value × 100, 1 decimal. */
   portfolioPct: number;
   /** Longest formatted amount in the section → dynamic amount-column width. */
@@ -55,6 +58,7 @@ export function InvestmentGroupHeader({
   budgetCurrency,
   valueBudgetCents,
   plPct,
+  plCents,
   portfolioPct,
   maxAmountChars,
   expanded,
@@ -94,12 +98,13 @@ export function InvestmentGroupHeader({
       </span>
     );
 
-  // Group P/L money amount (budget ccy, no symbol) — same derivation as the row.
+  // Group P/L money amount (budget ccy, no symbol) — the real aggregate from the
+  // parent (Σvalue − Σcost), NOT back-derived from the rounded plPct (which ÷0's
+  // at a −100% total-loss group). null → no money node.
   const plMoney = (() => {
-    if (plPct == null) return null;
-    const amt = valueBudgetCents - valueBudgetCents / (1 + plPct / 100);
-    const sign = amt > 0 ? "+" : amt < 0 ? "−" : "";
-    return `${sign}${centsToBare(String(Math.round(Math.abs(amt))), locale)}`;
+    if (plCents == null) return null;
+    const sign = plCents > 0 ? "+" : plCents < 0 ? "−" : "";
+    return `${sign}${centsToBare(String(Math.round(Math.abs(plCents))), locale)}`;
   })();
 
   return (
@@ -187,6 +192,18 @@ export function InvestmentGroupHeader({
           )}
         </div>
 
+        {/* Desktop columns mirror the holding row (UAT #7): qty · P/L% · P/L amt ·
+            value · weight. A group has no single quantity → the qty cell is an
+            empty spacer purely to keep the columns aligned with the rows. */}
+        <span className="hidden w-20 shrink-0 sm:block" aria-hidden="true" />
+        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
+          {plNode}
+        </span>
+        <span
+          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor}`}
+        >
+          {plMoney ?? ""}
+        </span>
         {/* Currency tight to amount (gap-1). Hidden on mobile-expanded (moves into
             the middle row); shown collapsed + on desktop. */}
         <div
@@ -207,18 +224,15 @@ export function InvestmentGroupHeader({
             </span>
           </div>
         </div>
-        {/* Desktop: P/L% + portfolio% inline. */}
-        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
-          {plNode}
-        </span>
+        {/* Desktop: portfolio weight% last. */}
         <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {portfolio}
         </span>
       </div>
 
-      {/* Desktop trailing spacer — matches the row's hover-action area so the
-          group's right edge aligns with the holding rows' (D-#5). */}
-      <div className="hidden w-[60px] shrink-0 sm:block" aria-hidden="true" />
+      {/* Desktop trailing spacer — matches the row's single-trash hover area (w-7)
+          so the group's right edge aligns with the holding rows' (D-#5). */}
+      <div className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
     </div>
   );
 }

@@ -87,7 +87,11 @@ export function withPersistentGroups(
         break;
       }
     }
-    result.splice(insertAt, 0, { kind: "group", name: snap.group!, holdings: [] });
+    result.splice(insertAt, 0, {
+      kind: "group",
+      name: snap.group!,
+      holdings: [],
+    });
   }
   return result;
 }
@@ -107,6 +111,9 @@ export interface GroupAggregate {
   valueBudgetCents: number;
   /** Cost-basis blended P/L% over children that HAVE a basis, else null. */
   plPct: number | null;
+  /** Aggregate P/L money in budget cents (Σvalue − Σcost over children with a
+   *  basis), else null. The real money figure (not back-derived from plPct). */
+  plCents: number | null;
 }
 
 /**
@@ -131,7 +138,8 @@ export function groupAggregate(holdings: HoldingDto[]): GroupAggregate {
     }
   }
   const plPct = anyBasis && sumC > 0 ? ((sumV - sumC) / sumC) * 100 : null;
-  return { valueBudgetCents, plPct };
+  const plCents = anyBasis && sumC > 0 ? sumV - sumC : null;
+  return { valueBudgetCents, plPct, plCents };
 }
 
 export interface DragResult {
@@ -141,6 +149,12 @@ export interface DragResult {
 }
 
 const GROUP_PREFIX = "group:";
+/**
+ * Droppable id for the "remove from group" zone (UAT #8). Dropping a grouped
+ * holding here makes it loose — the only way to ungroup when there are no loose
+ * rows to drop onto (e.g. a single group holding every item).
+ */
+export const UNGROUPED_DROP_ID = "ungrouped-zone";
 export const groupSortId = (name: string) => `${GROUP_PREFIX}${name}`;
 export const isGroupSortId = (id: string) => id.startsWith(GROUP_PREFIX);
 export const groupNameFromSortId = (id: string) =>
@@ -220,6 +234,19 @@ export function resolveDragEnd(
     id === H ? overrideGroup : (baseGroup.get(id) ?? null);
   let groupChange: DragResult["groupChange"] | undefined;
   let newOrder: string[];
+
+  // ── Dropped on the ungroup zone → make the holding loose, at the end ────────
+  if (overId === UNGROUPED_DROP_ID) {
+    if (curGroup == null) return null; // already loose — nothing to do
+    const without = baseOrder.filter((id) => id !== H);
+    const reclustered = recluster([...without, H], (id) =>
+      id === H ? null : (baseGroup.get(id) ?? null),
+    );
+    return {
+      orderedIds: reclustered,
+      groupChange: { holdingId: H, group: null },
+    };
+  }
 
   if (isGroupSortId(overId)) {
     // Dropped onto a group header → join that group at the TOP of its block.

@@ -13,9 +13,9 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { TrendingUp, TrendingDown, Pencil, Trash2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Trash2 } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { holdingIcon } from "@/lib/investment-icons";
@@ -52,6 +52,23 @@ export function InvestmentRow({
   const locale = useLocale();
   const t = useTranslations("budget.investments");
   const [expanded, setExpanded] = useState(false);
+
+  // Desktop has no hover edit pen anymore (UAT #7) — a desktop row-click opens the
+  // edit sheet instead. On mobile the same click toggles the inline P/L (the pen
+  // lives in the swipe panel). matchMedia drives which behaviour the body click
+  // uses; defaults to mobile until mounted (SSR-safe, test-safe).
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
+  const activate = () => {
+    if (isDesktop) onEdit?.();
+    else setExpanded((e) => !e);
+  };
 
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
   const value = centsToBare(holding.valueCents, locale);
@@ -140,13 +157,17 @@ export function InvestmentRow({
       <div
         role="button"
         tabIndex={0}
-        aria-expanded={expanded}
-        aria-label={t("rowExpandAria", { name: holding.name })}
-        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={isDesktop ? undefined : expanded}
+        aria-label={
+          isDesktop
+            ? t("row.editAria", { name: holding.name })
+            : t("rowExpandAria", { name: holding.name })
+        }
+        onClick={activate}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setExpanded((x) => !x);
+            activate();
           }
         }}
         className={[
@@ -234,6 +255,25 @@ export function InvestmentRow({
           )}
         </div>
 
+        {/* Desktop columns (UAT #7): qty · P/L% · P/L amt · value · weight. All
+            `hidden sm:*` so mobile keeps its collapsed name+currency+value layout. */}
+        {/* Quantity — blank for cash/broker (qty is meaningless) to keep the
+            columns aligned with rows that do have one. */}
+        <span
+          data-testid={`holding-qty-${holding.name}`}
+          className="hidden w-20 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block"
+        >
+          {showQty ? qtyDisplay : ""}
+        </span>
+        {/* P/L% then the P/L money amount (no currency symbol). */}
+        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
+          {plNode}
+        </span>
+        <span
+          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor}`}
+        >
+          {plMoney ?? ""}
+        </span>
         {/* Currency tight to the amount (gap-1, D-#3). On mobile-expanded it's
             re-rendered inside the middle row (P/L or day), so hide it here;
             desktop (sm) + mobile-collapsed keep it on the right. */}
@@ -262,36 +302,24 @@ export function InvestmentRow({
             </span>
           </div>
         </div>
-        {/* Desktop: P/L% + weight% inline. */}
-        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
-          {plNode}
-        </span>
+        {/* Desktop: weight% last. */}
         <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {weight}
         </span>
       </div>
 
-      {/* Desktop hover actions — pen + trash (28×28). Dimmed with the content
-          when delisted; the handle (left) stays full opacity. */}
+      {/* Desktop hover action — trash only (the edit pen was removed in UAT #7;
+          a desktop row-click opens the edit sheet). Dimmed with the content when
+          delisted; the handle (left) stays full opacity. The fixed w-7 matches the
+          group header's trailing spacer so right edges line up. */}
       <div
         className={[
-          "hidden shrink-0 items-center gap-1 sm:flex",
+          "hidden w-7 shrink-0 items-center justify-end sm:flex",
           delisted ? "opacity-50" : "",
         ]
           .filter(Boolean)
           .join(" ")}
       >
-        <button
-          type="button"
-          aria-label={t("row.editAria", { name: holding.name })}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit?.();
-          }}
-          className="invisible flex h-7 w-7 items-center justify-center rounded text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)] group-hover:visible"
-        >
-          <Pencil className="h-4 w-4" aria-hidden="true" />
-        </button>
         <button
           type="button"
           aria-label={t("row.deleteAria", { name: holding.name })}

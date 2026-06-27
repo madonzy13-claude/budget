@@ -14,6 +14,7 @@ import {
   groupAggregate,
   resolveDragEnd,
   withPersistentGroups,
+  UNGROUPED_DROP_ID,
 } from "../../src/lib/investment-grouping";
 
 function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
@@ -194,5 +195,33 @@ describe("resolveDragEnd", () => {
 
   it("returns null for a no-op drop on itself", () => {
     expect(resolveDragEnd(sample(), "A", "A")).toBeNull();
+  });
+
+  // UAT #8: with a SINGLE group and NO loose rows there is no loose drop target,
+  // so a child could never leave the group. The ungroup drop zone fixes that —
+  // dropping a grouped holding on UNGROUPED_DROP_ID makes it loose at the end.
+  describe("ungroup drop zone (UNGROUPED_DROP_ID)", () => {
+    it("moves a grouped child out to loose even when it's the only group", () => {
+      const onlyGroup = [
+        h({ id: "A", group: "G", sortOrder: 0 }),
+        h({ id: "B", group: "G", sortOrder: 1 }),
+      ];
+      const r = resolveDragEnd(onlyGroup, "A", UNGROUPED_DROP_ID);
+      expect(r).not.toBeNull();
+      expect(r!.groupChange).toEqual({ holdingId: "A", group: null });
+      // B stays in G; A becomes loose at the end.
+      expect(r!.orderedIds).toEqual(["B", "A"]);
+    });
+
+    it("ungroups a child from a multi-entry layout, landing it loose at the end", () => {
+      const r = resolveDragEnd(sample(), "B", UNGROUPED_DROP_ID);
+      expect(r!.groupChange).toEqual({ holdingId: "B", group: null });
+      expect(r!.orderedIds).toEqual(["A", "C", "D", "E", "B"]);
+    });
+
+    it("is a no-op when the dragged holding is already loose", () => {
+      // C is loose in sample() → dropping it on the ungroup zone does nothing.
+      expect(resolveDragEnd(sample(), "C", UNGROUPED_DROP_ID)).toBeNull();
+    });
   });
 });

@@ -90,6 +90,19 @@ describe("InvestmentGroupHeader", () => {
     expect(screen.getByTestId("grp-handle")).toBeInTheDocument();
   });
 
+  // UAT #7: groups mirror the row desktop columns — the P/L money amount now
+  // shows inline (sourced from the real aggregate plCents, not back-derived).
+  it("desktop: renders the group P/L money amount from plCents", () => {
+    renderHeader({ plCents: 593000 }); // +5,930 (budget cents, no symbol)
+    expect(screen.getAllByText("+5,930").length).toBeGreaterThan(0);
+  });
+
+  it("desktop: no P/L money when the group has no basis (plCents null)", () => {
+    renderHeader({ plPct: null, plCents: null });
+    // The amount (31,300) still shows; there is no P/L money node.
+    expect(screen.queryByText(/^\+/)).toBeNull();
+  });
+
   it("tapping the body reveals the mobile P/L + portfolio% line", () => {
     renderHeader();
     // desktop-inline copy renders once; tapping the body adds the mobile line.
