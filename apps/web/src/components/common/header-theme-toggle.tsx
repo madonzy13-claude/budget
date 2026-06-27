@@ -38,7 +38,7 @@ export function HeaderThemeToggle() {
       data-testid="header-theme-toggle"
       aria-label={theme === "dark" ? t("theme_light") : t("theme_dark")}
       onClick={toggle}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-transparent text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
     >
       {theme === "dark" ? (
         <Sun className="h-4 w-4" aria-hidden="true" />

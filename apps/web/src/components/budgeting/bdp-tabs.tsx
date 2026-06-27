@@ -133,7 +133,10 @@ export function BdpTabs({
             >
               {label}
             </span>
-            <span className="relative z-10">
+            {/* inline-flex items-center: without it the wrapper keeps the
+                inherited line-height leading, which drops the badge ~1px below
+                the icon/label center (UAT alignment). */}
+            <span className="relative z-10 inline-flex items-center">
               <PillBadge count={countsByPill[slug]} />
             </span>
           </button>

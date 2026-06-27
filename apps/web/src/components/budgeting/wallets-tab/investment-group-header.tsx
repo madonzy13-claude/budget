@@ -154,7 +154,7 @@ export function InvestmentGroupHeader({
         </span>
         {/* Left column — gap-0 + leading-tight so the header keeps the row height. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
-          <span className="min-w-0 truncate text-title-sm text-[var(--body-on-dark)]">
+          <span className="min-w-0 truncate text-body-md text-[var(--body-on-dark)]">
             {groupName}
           </span>
         </div>
