@@ -17,12 +17,15 @@ import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-li
 import { serverError } from "../middleware/server-error";
 import { budgetIdentityRoutesFactory } from "./budget-identity";
 import { registerOverviewCardsRoutes } from "./overview-cards";
+import { registerOverviewPlannedRoutes } from "./overview-planned";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
 
   // Phase 11 (11-03): GET /budgets/:id/overview/cards — the 5-card summary.
   registerOverviewCardsRoutes(r, deps);
+  // Phase 11 (11-04): GET /budgets/:id/overview/planned — the Planned section.
+  registerOverviewPlannedRoutes(r, deps);
 
   const createSchema = z.object({
     name: z.string().min(1).max(100),

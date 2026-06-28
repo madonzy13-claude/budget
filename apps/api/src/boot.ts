@@ -50,6 +50,8 @@ import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
 import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
 import { getOverviewCards } from "@budget/budgeting/src/application/get-overview-cards";
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
+import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
+import { createOverviewRepo } from "@budget/budgeting/src/adapters/persistence/overview-repo";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
 
@@ -94,6 +96,8 @@ export interface BootedDeps {
     getSpendingsSummary: ReturnType<typeof getSpendingsSummary>;
     /** Phase 11 (11-03): 5-card Overview summary (default_currency). */
     getOverviewCards: ReturnType<typeof getOverviewCards>;
+    /** Phase 11 (11-04): Planned section (timeline + planned-avg + recurring). */
+    getOverviewPlanned: ReturnType<typeof getOverviewPlanned>;
   };
   /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
   investments: ReturnType<typeof createInvestmentsModule>;
@@ -342,6 +346,13 @@ export async function boot(): Promise<BootedDeps> {
       fxProvider: baseBudgeting.fxProvider,
       cushionSummary: getCushionSummaryService,
       spendingsSummary: getSpendingsSummaryService,
+    }),
+    // Phase 11 (11-04): Planned section. Multi-month aggregation repo + the same
+    // meta reader + fxProvider (recurring amounts only).
+    getOverviewPlanned: getOverviewPlanned({
+      repo: createOverviewRepo(),
+      metaReader: summaryRepo,
+      fxProvider: baseBudgeting.fxProvider,
     }),
   });
 
