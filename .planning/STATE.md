@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
 status: executing
-stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
-last_updated: "2026-06-28T16:11:38.386Z"
-last_activity: 2026-06-28 -- Phase 11 planning complete
+stopped_at: "Phase 11: execution started (10 plans, 4 waves). Phases 1-10 complete + tested."
+last_updated: "2026-06-28T16:39:17.474Z"
+last_activity: 2026-06-28 -- Phase 11 execution started
 progress:
   total_phases: 11
   completed_phases: 10
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 10 — user-settings-redesign
+**Current focus:** Phase 11 — budget-overview
 
 ## Current Position
 
-Phase: 10 (user-settings-redesign) — ALL 6 PLANS COMPLETE
-Plan: 6 of 6 done (10-01..06). Human checkpoint for 10-06 done (email-gated deletion + SHARED-block + anonymise).
-Next: phase verification/UAT — provider removal, 2-pill carousel, profile name/email, security (password-reset + sessions), forgot/reset pages, GDPR account deletion all landed + live-verified.
-Status: Ready to execute
-Last activity: 2026-06-28 -- Phase 11 planning complete
+Phase: 11 (budget-overview) — EXECUTING
+Plan: 1 of 10
+Next: Wave 1 — 11-01 schema migration (BLOCKING), 11-02 charts, 11-03/04/05 overview services.
+Status: Executing Phase 11 (Phases 1-10 complete + tested)
+Last activity: 2026-06-28 -- Phase 11 execution started
 
 ### Known test-debt (non-CI, non-blocking)
 
