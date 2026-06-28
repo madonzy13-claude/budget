@@ -81,6 +81,8 @@
     "./src/application/list-pending-tasks": "./src/application/list-pending-tasks.ts",
     "./src/application/resolve-task": "./src/application/resolve-task.ts",
     "./src/application/get-cushion-summary": "./src/application/get-cushion-summary.ts",
+    "./src/application/compute-budget-wealth-now": "./src/application/compute-budget-wealth-now.ts",
+    "./src/application/get-overview-cards": "./src/application/get-overview-cards.ts",
     "./src/application/recompute-cushion-task": "./src/application/recompute-cushion-task.ts",
     "./src/application/recompute-reserve-topup-task": "./src/application/recompute-reserve-topup-task.ts",
     "./src/application/get-reserve-positions": "./src/application/get-reserve-positions.ts",
