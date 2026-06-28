@@ -45,6 +45,7 @@
     "next-intl": "^4.13.0",
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
+    "recharts": "3.9.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.78.0",
     "serwist": "^9.5.11",
