@@ -45,8 +45,10 @@ export async function runBudgetWealthSnapshot3h(
   // Scan ALL budgets (no row data) — capitalization is meaningful even with zero
   // investments. worker_role, no RLS needed for the id scan.
   const scan = await withInfraTx(async (tx) => {
+    // v1.1: budget_id === tenant_id — tenancy.budgets has no separate tenant_id
+    // column; the budget id IS the tenant id.
     const r = await (tx as DrizzleTx).execute(sql`
-      SELECT id AS budget_id, tenant_id, default_currency
+      SELECT id AS budget_id, id AS tenant_id, default_currency
         FROM tenancy.budgets
     `);
     return r.rows as Array<{
@@ -71,7 +73,7 @@ export async function runBudgetWealthSnapshot3h(
         TenantId(b.tenant_id),
         UserId(SYSTEM_USER_ID),
         async (tx) => {
-          await (tx as DrizzleTx).execute(sql`
+          const res = await (tx as DrizzleTx).execute(sql`
             INSERT INTO budgeting.budget_wealth_snapshots
               (tenant_id, budget_id, capitalization_cents, investment_value_cents, currency)
             VALUES (
@@ -83,11 +85,13 @@ export async function runBudgetWealthSnapshot3h(
             )
             ON CONFLICT (budget_id, (date_trunc('hour', captured_at AT TIME ZONE 'UTC')))
             DO NOTHING
+            RETURNING id
           `);
+          return res.rows.length; // 0 when the hour-bucket row already existed
         },
       );
       if (writeR.isErr()) throw writeR.error;
-      inserted++;
+      inserted += writeR.value;
     } catch (e) {
       // One budget's failure must not abort the batch (mirrors the daily handler).
       console.error(

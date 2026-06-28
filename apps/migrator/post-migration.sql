@@ -804,10 +804,12 @@ GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO worker_role;
 
 -- Phase 11 (11-01): per-budget wealth snapshots (D-04, T-11-01). FORCE RLS so the
 -- tenant-isolation policy applies even to the table owner; enumerated by the ci-gate
--- tenant-leak suite (force-rls-on-all-tables). Append-only: worker_role (the 3h cron)
--- SELECTs (ON CONFLICT idempotency probe) + INSERTs; app_role (the overview read
--- service 11-06) SELECTs; app_role DELETE covers the budget-deletion FK cascade.
+-- tenant-leak suite (force-rls-on-all-tables). The 3h cron (11-07) writes via
+-- withTenantTx, which uses the app_role pool + the app.tenant_ids GUC (T-11-02) — so
+-- app_role needs INSERT (the actual write path). worker_role keeps INSERT for any
+-- future worker-pool write path. app_role SELECTs (overview read 11-06) + DELETE
+-- (budget-deletion FK cascade). Append-only: no UPDATE granted to either role.
 ALTER TABLE budgeting.budget_wealth_snapshots FORCE ROW LEVEL SECURITY;
 GRANT SELECT ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
-GRANT INSERT ON budgeting.budget_wealth_snapshots TO worker_role;
+GRANT INSERT ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
 GRANT DELETE ON budgeting.budget_wealth_snapshots TO app_role;
