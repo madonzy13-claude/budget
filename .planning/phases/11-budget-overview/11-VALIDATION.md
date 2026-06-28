@@ -36,28 +36,28 @@ created: 2026-06-28
 
 ## Per-Task Verification Map
 
-| Task ID  | Plan | Wave | Requirement               | Threat Ref | Secure Behavior                       | Test Type              | Automated Command              | File Exists | Status     |
-| -------- | ---- | ---- | ------------------------- | ---------- | ------------------------------------- | ---------------------- | ------------------------------ | ----------- | ---------- |
-| 11-01-\* | 01   | 1    | SC8 / D-04                | T-11-01    | new table tenant-isolated (RLS+FORCE) | migration+ci-gate      | `make migrate && make ci-gate` | ❌ W0       | ⬜ pending |
-| 11-02-\* | 02   | 1    | SC9 / D-19                | —          | N/A                                   | component              | `cd apps/web && bun run test`  | ❌ W0       | ⬜ pending |
-| 11-03-\* | 03   | 1    | SC2 / D-07,08,09,11       | T-11-05    | default_ccy, membership+RLS           | tdd unit + integration | `make test`                    | ✅          | ⬜ pending |
-| 11-04-\* | 04   | 1    | SC4 / D-12,13,14,20       | T-11-03,04 | range Zod-validated                   | tdd unit + integration | `make test`                    | ✅          | ⬜ pending |
-| 11-05-\* | 05   | 1    | SC5,SC6 / D-06,10         | T-11-04    | archived-in-history correct           | tdd unit + integration | `make test`                    | ✅          | ⬜ pending |
-| 11-06-\* | 06   | 2    | SC7 / D-04,15,16,17,18,20 | T-11-03    | live-point + bucket math              | tdd unit + integration | `make test`                    | ✅          | ⬜ pending |
-| 11-07-\* | 07   | 2    | SC8 / D-04                | T-11-02    | per-budget GUC, idempotent            | integration            | `make test`                    | ✅          | ⬜ pending |
-| 11-08-\* | 08   | 2    | SC1,SC2                   | T-11-05    | no h-scroll 375px                     | component + E2E        | `cd apps/web && bun run test`  | ✅          | ⬜ pending |
-| 11-09-\* | 09   | 3    | SC3,SC4,SC5,SC7           | —          | N/A                                   | component + E2E        | `cd apps/web && bun run test`  | ✅          | ⬜ pending |
-| 11-10-\* | 10   | 4    | SC9                       | —          | N/A                                   | i18n + E2E             | `make test-e2e`                | ❌ W0       | ⬜ pending |
+| Task ID  | Plan | Wave | Requirement               | Threat Ref | Secure Behavior                       | Test Type              | Automated Command              | File Exists | Status   |
+| -------- | ---- | ---- | ------------------------- | ---------- | ------------------------------------- | ---------------------- | ------------------------------ | ----------- | -------- |
+| 11-01-\* | 01   | 1    | SC8 / D-04                | T-11-01    | new table tenant-isolated (RLS+FORCE) | migration+ci-gate      | `make migrate && make ci-gate` | ❌ W0       | ✅ green |
+| 11-02-\* | 02   | 1    | SC9 / D-19                | —          | N/A                                   | component              | `cd apps/web && bun run test`  | ❌ W0       | ✅ green |
+| 11-03-\* | 03   | 1    | SC2 / D-07,08,09,11       | T-11-05    | default_ccy, membership+RLS           | tdd unit + integration | `make test`                    | ✅          | ✅ green |
+| 11-04-\* | 04   | 1    | SC4 / D-12,13,14,20       | T-11-03,04 | range Zod-validated                   | tdd unit + integration | `make test`                    | ✅          | ✅ green |
+| 11-05-\* | 05   | 1    | SC5,SC6 / D-06,10         | T-11-04    | archived-in-history correct           | tdd unit + integration | `make test`                    | ✅          | ✅ green |
+| 11-06-\* | 06   | 2    | SC7 / D-04,15,16,17,18,20 | T-11-03    | live-point + bucket math              | tdd unit + integration | `make test`                    | ✅          | ✅ green |
+| 11-07-\* | 07   | 2    | SC8 / D-04                | T-11-02    | per-budget GUC, idempotent            | integration            | `make test`                    | ✅          | ✅ green |
+| 11-08-\* | 08   | 2    | SC1,SC2                   | T-11-05    | no h-scroll 375px                     | component + E2E        | `cd apps/web && bun run test`  | ✅          | ✅ green |
+| 11-09-\* | 09   | 3    | SC3,SC4,SC5,SC7           | —          | N/A                                   | component + E2E        | `cd apps/web && bun run test`  | ✅          | ✅ green |
+| 11-10-\* | 10   | 4    | SC9                       | —          | N/A                                   | i18n + E2E             | `make test-e2e`                | ❌ W0       | ✅ green |
 
-_Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky_
+_Status: ✅ green · ✅ green · ❌ red · ⚠️ flaky_
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `recharts@3.9.0` added to `apps/web/package.json` (11-02 first task — no chart wrapper compiles without it).
-- [ ] `budgeting.budget_wealth_snapshots` table applied to live dev DB (11-01 [BLOCKING] migrate — wealth series/cron untestable without it).
-- [ ] `apps/web/e2e/features/overview.feature` + step/page-object scaffold (11-08 stubs golden scenario; 11-10 completes suite).
+- [x] `recharts@3.9.0` added to `apps/web/package.json` (11-02 first task — no chart wrapper compiles without it).
+- [x] `budgeting.budget_wealth_snapshots` table applied to live dev DB (11-01 [BLOCKING] migrate — wealth series/cron untestable without it).
+- [x] `apps/web/e2e/features/overview.feature` + step/page-object scaffold (11-08 stubs golden scenario; 11-10 completes suite).
 - [ ] `packages/budgeting/test/overview/` + `apps/api/test/routes/overview-*.test.ts` test files (created in RED phase of 11-03..06).
 
 _Otherwise existing bun:test / Vitest / Playwright-BDD infrastructure covers all phase requirements._
