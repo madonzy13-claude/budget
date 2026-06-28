@@ -305,19 +305,19 @@ Within Phase 5, the Reserves and Wallets tabs are parallel-eligible at the plan 
 Within Phase 7, the three generator plans (07-04 CONFIRM_DRAFT, 07-05 RESERVE_TOPUP, 07-06 CUSHION_BELOW_TARGET + sweep) are wave-2 parallel-eligible after the wave-1 ports/services land.
 Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan level.
 
-| Phase                                       | Plans Complete | Status    | Completed  |
-| ------------------------------------------- | -------------- | --------- | ---------- |
-| 1. Schema Migration & Rename Foundation     | 4/4            | Complete  | 2026-05-11 |
-| 2. Domain & API Restructure                 | 6/6            | Complete  | 2026-05-12 |
-| 3. Navigation, Home & BDP Frame             | 7/7            | Complete  | 2026-05-13 |
-| 4. Spendings Grid                           | 5/5            | Complete  | 2026-05-13 |
-| 5. Reserves & Wallets Tabs                  | 16/16          | Complete  | 2026-05-17 |
-| 6. Settings, Onboarding & Share UI          | 8/8            | Complete  | 2026-05-22 |
-| 7. Tasks Queue                              | 10/10          | Complete  | 2026-05-31 |
-| 8. PWA, Offline, Push, i18n & E2E Hardening | 7/7            | Complete  | 2026-06-19 |
-| 9. Investments Wallet _(v1.2)_              | 7/7            | Complete  | 2026-06-25 |
-| 10. User Settings Redesign _(v1.2)_         | 6/6            | Complete  | 2026-06-28 |
-| 11. Budget Overview Tab _(v1.2)_            | 0/TBD          | Context'd | -          |
+| Phase                                       | Plans Complete | Status      | Completed  |
+| ------------------------------------------- | -------------- | ----------- | ---------- |
+| 1. Schema Migration & Rename Foundation     | 4/4            | Complete    | 2026-05-11 |
+| 2. Domain & API Restructure                 | 6/6            | Complete    | 2026-05-12 |
+| 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
+| 4. Spendings Grid                           | 5/5            | Complete    | 2026-05-13 |
+| 5. Reserves & Wallets Tabs                  | 16/16          | Complete    | 2026-05-17 |
+| 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
+| 7. Tasks Queue                              | 10/10          | Complete    | 2026-05-31 |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 7/7            | Complete    | 2026-06-19 |
+| 9. Investments Wallet _(v1.2)_              | 7/7            | Complete    | 2026-06-25 |
+| 10. User Settings Redesign _(v1.2)_         | 6/6            | Complete    | 2026-06-28 |
+| 11. Budget Overview Tab _(v1.2)_            | 1/10           | In Progress |            |
 
 ### Phase 10: User Settings Redesign _(v1.2 track)_
 
