@@ -19,6 +19,11 @@
  * island renders entries and dispatches its DragResult to the reorder +
  * group-update mutations. Group amount/P/L/% are aggregated client-side so they
  * track optimistic mutations.
+ *
+ * ⚠️ Before changing ANY drag logic, read ./INVESTMENTS-DND.md — the model, the
+ * join-band geometry, the no-flicker rules, and the don'ts are each a bug we
+ * already paid for, plus the live-verification recipe (@dnd-kit interaction bugs
+ * don't show up in unit tests).
  */
 import {
   DndContext,
