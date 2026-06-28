@@ -8,6 +8,7 @@
  * the viewport at 375px (SC1).
  */
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
+import { OverviewSections } from "@/components/budgeting/overview/overview-sections";
 
 export function OverviewTab({ budgetId }: { budgetId: string }) {
   return (
@@ -16,8 +17,7 @@ export function OverviewTab({ budgetId }: { budgetId: string }) {
       className="flex w-full min-w-0 flex-col gap-4 px-4 pt-4 pb-12 sm:px-6 sm:pb-16"
     >
       <OverviewCards budgetId={budgetId} />
-      {/* Range selector + 4 collapsible sections (Planned · Overspent · Reserves ·
-          Financial Wealth) mount here in 11-09. */}
+      <OverviewSections budgetId={budgetId} />
     </div>
   );
 }

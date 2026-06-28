@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -28,6 +29,7 @@ export function OverviewBarChart({
   height = 240,
   layout = "horizontal",
   formatValue,
+  colorByPoint,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -35,6 +37,9 @@ export function OverviewBarChart({
   height?: number;
   layout?: "horizontal" | "vertical";
   formatValue?: (n: number) => string;
+  /** Single-series only: per-bar color (MoM up/down, per-category colorKey).
+   *  Ignored for grouped (multi-series) bars. */
+  colorByPoint?: (row: Record<string, unknown>) => string;
 }) {
   const vertical = layout === "vertical";
   // Build axes as plain elements (no Fragment) — recharts inspects direct children.
@@ -72,7 +77,7 @@ export function OverviewBarChart({
           {...chartTooltip}
           cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
         />
-        {series.map((s) => (
+        {series.map((s, si) => (
           <Bar
             key={s.key}
             dataKey={s.key}
@@ -80,7 +85,13 @@ export function OverviewBarChart({
             fill={s.color ?? CHART_THEME.accent}
             radius={vertical ? [0, 4, 4, 0] : [4, 4, 0, 0]}
             isAnimationActive={false}
-          />
+          >
+            {colorByPoint && si === 0 && series.length === 1
+              ? data.map((row, ri) => (
+                  <Cell key={ri} fill={colorByPoint(row)} />
+                ))
+              : null}
+          </Bar>
         ))}
       </BarChart>
     </ResponsiveContainer>
