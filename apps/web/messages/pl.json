@@ -1072,6 +1072,64 @@
   "bdp": {
     "tab": {
       "aria": "Zakładki szczegółów budżetu",
+      "overview": {
+        "label": "Przegląd",
+        "title": "Przegląd",
+        "cards": {
+          "availableToSpend": "Dostępne do wydania",
+          "capitalization": "Kapitalizacja",
+          "capitalizationSub": "w tym inwestycje {amount}",
+          "overspent": "Przekroczono w tym miesiącu",
+          "overspentCount": "{count, plural, one {# kategoria} few {# kategorie} many {# kategorii} other {# kategorii}}",
+          "onBudget": "W ramach budżetu",
+          "cushion": "Poduszka",
+          "cushionMonths": "{months} mies.",
+          "cushionOff": "Poduszka wyłączona",
+          "availableReserves": "Dostępne rezerwy",
+          "realMonths": "realne miesiące"
+        },
+        "range": {
+          "month": "Miesiąc",
+          "3m": "3M",
+          "year": "Rok",
+          "all": "Wszystko",
+          "custom": "Niestandardowy",
+          "from": "Od",
+          "to": "Do",
+          "currentConfig": "aktualna konfiguracja",
+          "allTime": "cały okres"
+        },
+        "sections": {
+          "planned": "Zaplanowane",
+          "overspent": "Przekroczenia",
+          "reserves": "Rezerwy",
+          "wealth": "Majątek finansowy"
+        },
+        "planned": {
+          "category": "Kategoria",
+          "allCategories": "Wszystkie kategorie",
+          "real": "Rzeczywiste",
+          "planned": "Zaplanowane",
+          "recurringPerMonth": "Cykliczne wg miesiąca",
+          "recurringPerCategory": "Cykliczne wg kategorii"
+        },
+        "wealth": {
+          "capitalization": "Kapitalizacja",
+          "investments": "Inwestycje",
+          "grow": "Wzrost",
+          "loss": "Strata",
+          "monthlyAvg": "Śr. miesięcznie",
+          "dynamics": "Miesiąc do miesiąca",
+          "pieShare": "{pct}%"
+        },
+        "empty": {
+          "overspent": "Brak przekroczeń w tym zakresie.",
+          "reserves": "Brak rezerw.",
+          "wealth": "Historia majątku zaczyna się gromadzić — wróć wkrótce.",
+          "pie": "Brak inwestycji.",
+          "planned": "Brak aktywności w tym zakresie."
+        }
+      },
       "spendings": {
         "label": "Wydatki",
         "title": "Wydatki",

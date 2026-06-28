@@ -1072,6 +1072,64 @@
   "bdp": {
     "tab": {
       "aria": "Вкладки деталей бюджету",
+      "overview": {
+        "label": "Огляд",
+        "title": "Огляд",
+        "cards": {
+          "availableToSpend": "Доступно для витрат",
+          "capitalization": "Капіталізація",
+          "capitalizationSub": "включно з інвестиціями {amount}",
+          "overspent": "Перевитрата цього місяця",
+          "overspentCount": "{count, plural, one {# категорія} few {# категорії} many {# категорій} other {# категорій}}",
+          "onBudget": "У межах бюджету",
+          "cushion": "Подушка",
+          "cushionMonths": "{months} міс.",
+          "cushionOff": "Подушку вимкнено",
+          "availableReserves": "Доступні резерви",
+          "realMonths": "реальні місяці"
+        },
+        "range": {
+          "month": "Місяць",
+          "3m": "3М",
+          "year": "Рік",
+          "all": "Усе",
+          "custom": "Власний",
+          "from": "Від",
+          "to": "До",
+          "currentConfig": "поточна конфігурація",
+          "allTime": "увесь час"
+        },
+        "sections": {
+          "planned": "Заплановано",
+          "overspent": "Перевитрати",
+          "reserves": "Резерви",
+          "wealth": "Фінансовий капітал"
+        },
+        "planned": {
+          "category": "Категорія",
+          "allCategories": "Усі категорії",
+          "real": "Фактичні",
+          "planned": "Заплановані",
+          "recurringPerMonth": "Регулярні за місяцями",
+          "recurringPerCategory": "Регулярні за категоріями"
+        },
+        "wealth": {
+          "capitalization": "Капіталізація",
+          "investments": "Інвестиції",
+          "grow": "Зростання",
+          "loss": "Збиток",
+          "monthlyAvg": "Сер. за місяць",
+          "dynamics": "Місяць до місяця",
+          "pieShare": "{pct}%"
+        },
+        "empty": {
+          "overspent": "Немає перевитрат у цьому діапазоні.",
+          "reserves": "Поки немає резервів.",
+          "wealth": "Історія капіталу починає накопичуватися — зазирніть пізніше.",
+          "pie": "Поки немає інвестицій.",
+          "planned": "Немає активності в цьому діапазоні."
+        }
+      },
       "spendings": {
         "label": "Витрати",
         "title": "Витрати",
