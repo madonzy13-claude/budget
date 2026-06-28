@@ -84,6 +84,7 @@
     "./src/application/compute-budget-wealth-now": "./src/application/compute-budget-wealth-now.ts",
     "./src/application/get-overview-cards": "./src/application/get-overview-cards.ts",
     "./src/application/get-overview-planned": "./src/application/get-overview-planned.ts",
+    "./src/application/get-overview-overspent": "./src/application/get-overview-overspent.ts",
     "./src/application/recurring-monthly-normalize": "./src/application/recurring-monthly-normalize.ts",
     "./src/adapters/persistence/overview-cards-repo": "./src/adapters/persistence/overview-cards-repo.ts",
     "./src/adapters/persistence/overview-repo": "./src/adapters/persistence/overview-repo.ts",
