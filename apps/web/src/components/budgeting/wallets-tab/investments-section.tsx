@@ -429,15 +429,20 @@ export function InvestmentsSection({
       // header centre, so pivoting "join" there means the indent shows only while
       // the row sits BELOW the header (a child) and clears the instant it crosses
       // above (loose) — UAT #3 — and the header's lower half becomes a reachable
-      // FIRST-child zone from above — UAT #2. Bottom = last member (expanded) or the
-      // header bottom (collapsed → join just under the collapsed header).
+      // FIRST-child zone from above — UAT #2. Bottom = last member (expanded); for a
+      // COLLAPSED group there are no member rows, so the band must reach a full row
+      // BELOW the header — otherwise the only "child" zone is a sliver on the header
+      // and the item shows no indent through its whole below-header travel, reading
+      // as "jumps above" (UAT #3). ponytail: one-row reach (min-h 56 + gap 8); a
+      // loose item resting right under a collapsed group reads as a would-be child.
+      const COLLAPSED_CHILD_REACH = 64;
       for (const name of groupNames) {
         const h = headers.get(name);
         if (!h) continue;
         out.push({
           group: name,
           top: h.center,
-          bottom: memberBottoms.get(name) ?? h.bottom,
+          bottom: memberBottoms.get(name) ?? h.bottom + COLLAPSED_CHILD_REACH,
         });
       }
     }
