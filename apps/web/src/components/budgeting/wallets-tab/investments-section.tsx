@@ -382,11 +382,11 @@ export function InvestmentsSection({
   } | null>(null);
 
   // Layout snapshotted at drag-START (the STABLE, untransformed positions — reading
-  // rects mid-drag would include @dnd-kit's gap transforms). `groupSpans` is the
-  // vertical band each group occupies: its visible MEMBER rows when expanded (the
-  // header is excluded → dropping on the header lands loose above), or the HEADER
-  // rect when collapsed (the only way to target a collapsed group). The dragged
-  // row's translated centre vs these bands decides loose-vs-join (children-span).
+  // rects mid-drag would include @dnd-kit's gap transforms). `groupSpans` is each
+  // group's JOIN band: top = the header's CENTRE (so it aligns with where the list
+  // strategy swaps the dragged row across the header — child below / loose above),
+  // bottom = its last visible member (expanded) or the header bottom (collapsed).
+  // The dragged centre inside a band → join that group; outside → loose.
   const dragGeomRef = useRef<{
     groupSpans: { group: string; top: number; bottom: number }[];
   }>({ groupSpans: [] });
@@ -398,10 +398,22 @@ export function InvestmentsSection({
   const activeStartMidRef = useRef<number | null>(null);
 
   function snapshotDragGeometry() {
-    const memberSpans = new Map<string, { top: number; bottom: number }>();
     const out: { group: string; top: number; bottom: number }[] = [];
     if (typeof document !== "undefined") {
-      // Expanded groups: span = the extent of their visible member rows.
+      // Header rect per group (the root `investment-group-<Name>`, not -toggle/etc).
+      const headers = new Map<string, { center: number; bottom: number }>();
+      for (const el of document.querySelectorAll<HTMLElement>(
+        '[data-testid^="investment-group-"]',
+      )) {
+        const name = (el.getAttribute("data-testid") ?? "").slice(
+          "investment-group-".length,
+        );
+        if (!name || !groupNames.includes(name) || headers.has(name)) continue;
+        const r = el.getBoundingClientRect();
+        headers.set(name, { center: r.top + r.height / 2, bottom: r.bottom });
+      }
+      // Visible member rows → the bottom of each expanded group's band.
+      const memberBottoms = new Map<string, number>();
       for (const el of document.querySelectorAll<HTMLElement>(
         "[data-investment-row-wrapper]",
       )) {
@@ -409,27 +421,24 @@ export function InvestmentsSection({
         if (!id) continue;
         const g = holdings.find((h) => h.id === id)?.group ?? null;
         if (!g) continue;
-        const r = el.getBoundingClientRect();
-        const s = memberSpans.get(g);
-        if (!s) memberSpans.set(g, { top: r.top, bottom: r.bottom });
-        else {
-          s.top = Math.min(s.top, r.top);
-          s.bottom = Math.max(s.bottom, r.bottom);
-        }
+        const b = el.getBoundingClientRect().bottom;
+        memberBottoms.set(g, Math.max(memberBottoms.get(g) ?? b, b));
       }
-      for (const [group, s] of memberSpans)
-        out.push({ group, top: s.top, bottom: s.bottom });
-      // Collapsed groups: no member rows → span = the header band itself.
-      for (const el of document.querySelectorAll<HTMLElement>(
-        '[data-testid^="investment-group-"]',
-      )) {
-        const testid = el.getAttribute("data-testid") ?? "";
-        // Only the header root `investment-group-<Name>` (not -toggle/-chevron/-sum).
-        const name = testid.slice("investment-group-".length);
-        if (!name || !groupNames.includes(name) || memberSpans.has(name))
-          continue;
-        const r = el.getBoundingClientRect();
-        out.push({ group: name, top: r.top, bottom: r.bottom });
+      // Join span TOP = the header's CENTRE (not its top / the first member): the
+      // sortable strategy swaps the dragged row above the header exactly at the
+      // header centre, so pivoting "join" there means the indent shows only while
+      // the row sits BELOW the header (a child) and clears the instant it crosses
+      // above (loose) — UAT #3 — and the header's lower half becomes a reachable
+      // FIRST-child zone from above — UAT #2. Bottom = last member (expanded) or the
+      // header bottom (collapsed → join just under the collapsed header).
+      for (const name of groupNames) {
+        const h = headers.get(name);
+        if (!h) continue;
+        out.push({
+          group: name,
+          top: h.center,
+          bottom: memberBottoms.get(name) ?? h.bottom,
+        });
       }
     }
     dragGeomRef.current = { groupSpans: out };

@@ -183,7 +183,15 @@ export function InvestmentGroupHeader({
         {/* Left column — gap-0 + leading-tight so the header keeps the row height.
             On mobile, a tap reveals the sum-up (P/L% + portfolio%) as a 2nd line. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
-          <span className="min-w-0 truncate text-body-md text-[var(--body-on-dark)]">
+          {/* Shrink to text-num-sm when the sum-up is open so the group name matches
+              a tapped holding row's name (which also shrinks); showSum is only ever
+              true on mobile, so desktop keeps text-body-md. UAT #1. */}
+          <span
+            className={[
+              "min-w-0 truncate text-[var(--body-on-dark)]",
+              showSum ? "text-num-sm" : "text-body-md",
+            ].join(" ")}
+          >
             {groupName}
           </span>
           {showSum && (
