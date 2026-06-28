@@ -41,7 +41,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
@@ -397,7 +397,11 @@ export function InvestmentsSection({
   // (UAT). Used for BOTH the live preview and the drop so they always agree.
   const activeStartMidRef = useRef<number | null>(null);
 
-  function snapshotDragGeometry() {
+  // `activeGroup` = the dragged item's CURRENT group (null for a loose item). The
+  // group the item already belongs to is treated as "ejecting": its band starts at
+  // the header BOTTOM so the indent clears the instant the item rises to cover the
+  // header (UAT: "moving an item out above the group shouldn't keep the indent").
+  function snapshotDragGeometry(activeGroup: string | null) {
     const out: { group: string; top: number; bottom: number }[] = [];
     if (typeof document !== "undefined") {
       // Header rect per group (the root `investment-group-<Name>`, not -toggle/etc).
@@ -424,34 +428,29 @@ export function InvestmentsSection({
         const b = el.getBoundingClientRect().bottom;
         memberBottoms.set(g, Math.max(memberBottoms.get(g) ?? b, b));
       }
-      // EXPANDED group: join band = [header CENTRE, last member bottom]. The
-      // sortable strategy swaps the dragged row across the header at the header
-      // centre, so starting at the centre keeps the indent in step with the row
-      // sitting below the header AND makes the header's lower half a reachable
-      // FIRST-child zone from above (UAT #2).
-      // COLLAPSED group (no member rows): start the band at the header's BOTTOM,
-      // not its centre, and reach a row below it. Otherwise the band covers the
-      // header itself, so an item dragged up that merely OVERLAPS the header still
-      // shows the child indent — which reads as "above the group but still joins"
-      // (UAT #3 follow-up). Starting at the bottom means the indent shows only
-      // while the item is clearly BELOW the header and clears the instant it
-      // reaches/covers it → drop there lands above the group.
-      // ponytail: one-row reach (min-h 56 + gap 8); the item resting directly under
-      // a collapsed group reads as its would-be child.
+      // Band TOP rules (the band is where the dragged centre = child of the group):
+      //  - EXPANDED group the item is JOINING (not its own): top = header CENTRE, so
+      //    the header's lower half is a reachable FIRST-child zone from above (#2).
+      //  - EXPANDED group the item is LEAVING (its own group) OR any COLLAPSED group:
+      //    top = header BOTTOM. The sortable strategy swaps the dragged row across
+      //    the header at the centre, so a centre-start band still covers the header
+      //    itself → an item merely OVERLAPPING the header keeps the child indent,
+      //    reading as "already above the group but still a child". Bottom-start ⇒
+      //    indent shows only while the item is clearly BELOW the header and clears
+      //    the instant it reaches/covers it (UAT: eject-up + collapsed land-above).
+      // Band BOTTOM = last member (expanded) or a one-row reach below (collapsed).
+      // ponytail: one-row reach (min-h 56 + gap 8).
       const COLLAPSED_CHILD_REACH = 64;
       for (const name of groupNames) {
         const h = headers.get(name);
         if (!h) continue;
         const memberBottom = memberBottoms.get(name);
-        out.push(
-          memberBottom != null
-            ? { group: name, top: h.center, bottom: memberBottom }
-            : {
-                group: name,
-                top: h.bottom,
-                bottom: h.bottom + COLLAPSED_CHILD_REACH,
-              },
-        );
+        const joiningFromOutside = memberBottom != null && name !== activeGroup;
+        out.push({
+          group: name,
+          top: joiningFromOutside ? h.center : h.bottom,
+          bottom: memberBottom ?? h.bottom + COLLAPSED_CHILD_REACH,
+        });
       }
     }
     dragGeomRef.current = { groupSpans: out };
@@ -498,8 +497,11 @@ export function InvestmentsSection({
   }
 
   function handleDragStart(e: DragStartEvent) {
-    snapshotDragGeometry();
     const id = String(e.active.id);
+    const activeGroup = isGroupSortId(id)
+      ? null
+      : (holdings.find((h) => h.id === id)?.group ?? null);
+    snapshotDragGeometry(activeGroup);
     setActiveId(id);
     // Capture the dragged row's start centre from its untransformed rect.
     const el = isGroupSortId(id)
@@ -661,43 +663,52 @@ export function InvestmentsSection({
           items={sortableIds}
           strategy={verticalListSortingStrategy}
         >
+          {/* FLAT children — every header and holding is a DIRECT child of this one
+              container (no per-group <Fragment> wrapper). A <Fragment> is a
+              reconciliation boundary: a holding moving in/out of a group's Fragment
+              on drop would unmount at the old spot and remount at the new one, so the
+              row blinked out for a frame ("disappears then reappears", UAT). As a
+              flat list keyed by holding id, React MOVES the row instead → no remount,
+              no flicker. */}
           <div className="flex flex-col gap-2">
-            {entries.map((entry) =>
-              entry.kind === "group" ? (
-                <Fragment key={`group:${entry.name}`}>
-                  <GroupHeaderItem
-                    entry={entry}
-                    budgetCurrency={budgetCurrency}
-                    totalBudgetCents={totalBudgetCents}
-                    maxAmountChars={maxAmountChars}
-                    expanded={isExpanded(entry.name)}
-                    onToggle={() => toggleGroup(entry.name)}
-                  />
-                  {isExpanded(entry.name) &&
-                    entry.holdings.map((h) => (
-                      <InvestmentRowSheet
-                        key={h.id}
-                        holding={h}
-                        nested={rowNested(h.id, true)}
-                        // Dim the children of the group being dragged — the lifted
-                        // copy lives in the DragOverlay (cohesive block, UAT #1).
-                        ghost={activeGroupName === entry.name}
-                        maxAmountChars={maxAmountChars}
-                        onEdit={openEdit}
-                        onArchive={(id) => archiveMut.mutate(id)}
-                      />
-                    ))}
-                </Fragment>
-              ) : (
-                <InvestmentRowSheet
-                  key={entry.holding.id}
-                  holding={entry.holding}
-                  nested={rowNested(entry.holding.id, false)}
-                  maxAmountChars={maxAmountChars}
-                  onEdit={openEdit}
-                  onArchive={(id) => archiveMut.mutate(id)}
-                />
-              ),
+            {entries.flatMap((entry) =>
+              entry.kind === "group"
+                ? [
+                    <GroupHeaderItem
+                      key={`group:${entry.name}`}
+                      entry={entry}
+                      budgetCurrency={budgetCurrency}
+                      totalBudgetCents={totalBudgetCents}
+                      maxAmountChars={maxAmountChars}
+                      expanded={isExpanded(entry.name)}
+                      onToggle={() => toggleGroup(entry.name)}
+                    />,
+                    ...(isExpanded(entry.name)
+                      ? entry.holdings.map((h) => (
+                          <InvestmentRowSheet
+                            key={h.id}
+                            holding={h}
+                            nested={rowNested(h.id, true)}
+                            // Dim the children of the group being dragged — the
+                            // lifted copy lives in the DragOverlay (cohesive block).
+                            ghost={activeGroupName === entry.name}
+                            maxAmountChars={maxAmountChars}
+                            onEdit={openEdit}
+                            onArchive={(id) => archiveMut.mutate(id)}
+                          />
+                        ))
+                      : []),
+                  ]
+                : [
+                    <InvestmentRowSheet
+                      key={entry.holding.id}
+                      holding={entry.holding}
+                      nested={rowNested(entry.holding.id, false)}
+                      maxAmountChars={maxAmountChars}
+                      onEdit={openEdit}
+                      onArchive={(id) => archiveMut.mutate(id)}
+                    />,
+                  ],
             )}
           </div>
         </SortableContext>
