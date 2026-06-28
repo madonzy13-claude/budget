@@ -14,6 +14,8 @@ import {
   groupAggregate,
   resolveDragEnd,
   resolveHoldingDrop,
+  computeJoinBands,
+  type GroupGeom,
 } from "../../src/lib/investment-grouping";
 
 function h(over: Partial<HoldingDto> & { id: string }): HoldingDto {
@@ -303,5 +305,58 @@ describe("resolveHoldingDrop (geometry-driven holding placement)", () => {
 
   it("is a no-op when nothing changes (same slot, same group)", () => {
     expect(resolveHoldingDrop(sample(), "A", 0, "Brokerage")).toBeNull();
+  });
+});
+
+describe("computeJoinBands (drag join geometry)", () => {
+  // One expanded group: header 100..156 (center 128), one member 164..220.
+  const expanded: GroupGeom = {
+    name: "Tech",
+    headerTop: 100,
+    headerCenter: 128,
+    headerBottom: 156,
+    memberBottom: 220,
+  };
+  // One collapsed group: header only, no members rendered.
+  const collapsed: GroupGeom = {
+    name: "Metals",
+    headerTop: 300,
+    headerCenter: 328,
+    headerBottom: 356,
+    memberBottom: null,
+  };
+
+  it("expanded group joined from OUTSIDE: top = headerTop − gap/2 (the swap point), NOT the centre", () => {
+    const [band] = computeJoinBands([expanded], null);
+    // The dead-zone fix: indent must start as soon as the row clears the header
+    // (the swap happens mid-gap above it), not 28px lower at the centre.
+    expect(band.top).toBe(100 - 4);
+    expect(band.bottom).toBe(220);
+  });
+
+  it("an item just below the header (above the centre) IS inside the band → indents + joins", () => {
+    const [band] = computeJoinBands([expanded], null);
+    const justBelowHeader = 110; // below headerTop(100), well above centre(128)
+    expect(justBelowHeader >= band.top && justBelowHeader <= band.bottom).toBe(
+      true,
+    );
+  });
+
+  it("EJECTING (item's own group): top = headerBottom, so the indent clears at the header", () => {
+    const [band] = computeJoinBands([expanded], "Tech");
+    expect(band.top).toBe(156);
+    expect(band.bottom).toBe(220);
+  });
+
+  it("COLLAPSED group: top = headerBottom, bottom = headerBottom + one-row reach", () => {
+    const [band] = computeJoinBands([collapsed], null);
+    expect(band.top).toBe(356);
+    expect(band.bottom).toBe(356 + 64);
+  });
+
+  it("an item ABOVE the swap point is OUTSIDE the band → stays loose", () => {
+    const [band] = computeJoinBands([expanded], null);
+    const aboveSwap = 95; // above headerTop−4 = 96
+    expect(aboveSwap >= band.top).toBe(false);
   });
 });

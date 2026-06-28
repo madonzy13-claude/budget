@@ -57,11 +57,13 @@ import {
   groupAggregate,
   resolveDragEnd,
   resolveHoldingDrop,
+  computeJoinBands,
   groupSortId,
   isGroupSortId,
   groupNameFromSortId,
   type InvestmentEntry,
   type DragResult,
+  type GroupGeom,
 } from "@/lib/investment-grouping";
 import { InvestmentRowSheet } from "./investment-row-sheet";
 import { InvestmentRow } from "./investment-row";
@@ -248,11 +250,25 @@ export function InvestmentsSection({
   const [committed, setCommitted] = useState<HoldingDto[] | null>(null);
   const liveHoldings = committed ?? holdings;
   useEffect(() => {
-    // Fresh holdings arrived (the optimistic reorder, or a refetch) — drop the
-    // post-drop override so we render live data again. Guarded to not fire mid-drag
-    // (holdings is stable during a drag; only a background refetch could land).
-    if (activeId === null) setCommitted(null);
-  }, [holdings]);
+    // Drop the post-drop override only once live data MATCHES it (same id order +
+    // same groups). A GROUP-change drop fires TWO optimistic mutations on the same
+    // cache key — reorder (sortOrder) and group (PATCH) — which land on separate
+    // ticks. Clearing on the FIRST holdings change rendered the half-applied state
+    // (reordered but still the OLD group) for a frame → the drop "flicker" (UAT).
+    // Waiting for a full match bridges to the settled/refetched data with no flash.
+    if (activeId !== null || committed == null) return;
+    const sorted = [...holdings].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+    );
+    const matches =
+      sorted.length === committed.length &&
+      sorted.every(
+        (hh, i) =>
+          hh.id === committed[i].id &&
+          (hh.group ?? null) === (committed[i].group ?? null),
+      );
+    if (matches) setCommitted(null);
+  }, [holdings, activeId, committed]);
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const archiveMut = useArchiveHolding(budgetId);
@@ -402,10 +418,13 @@ export function InvestmentsSection({
   // the header BOTTOM so the indent clears the instant the item rises to cover the
   // header (UAT: "moving an item out above the group shouldn't keep the indent").
   function snapshotDragGeometry(activeGroup: string | null) {
-    const out: { group: string; top: number; bottom: number }[] = [];
+    let geoms: GroupGeom[] = [];
     if (typeof document !== "undefined") {
       // Header rect per group (the root `investment-group-<Name>`, not -toggle/etc).
-      const headers = new Map<string, { center: number; bottom: number }>();
+      const headers = new Map<
+        string,
+        { top: number; center: number; bottom: number }
+      >();
       for (const el of document.querySelectorAll<HTMLElement>(
         '[data-testid^="investment-group-"]',
       )) {
@@ -414,7 +433,11 @@ export function InvestmentsSection({
         );
         if (!name || !groupNames.includes(name) || headers.has(name)) continue;
         const r = el.getBoundingClientRect();
-        headers.set(name, { center: r.top + r.height / 2, bottom: r.bottom });
+        headers.set(name, {
+          top: r.top,
+          center: r.top + r.height / 2,
+          bottom: r.bottom,
+        });
       }
       // Visible member rows → the bottom of each expanded group's band.
       const memberBottoms = new Map<string, number>();
@@ -428,32 +451,25 @@ export function InvestmentsSection({
         const b = el.getBoundingClientRect().bottom;
         memberBottoms.set(g, Math.max(memberBottoms.get(g) ?? b, b));
       }
-      // Band TOP rules (the band is where the dragged centre = child of the group):
-      //  - EXPANDED group the item is JOINING (not its own): top = header CENTRE, so
-      //    the header's lower half is a reachable FIRST-child zone from above (#2).
-      //  - EXPANDED group the item is LEAVING (its own group) OR any COLLAPSED group:
-      //    top = header BOTTOM. The sortable strategy swaps the dragged row across
-      //    the header at the centre, so a centre-start band still covers the header
-      //    itself → an item merely OVERLAPPING the header keeps the child indent,
-      //    reading as "already above the group but still a child". Bottom-start ⇒
-      //    indent shows only while the item is clearly BELOW the header and clears
-      //    the instant it reaches/covers it (UAT: eject-up + collapsed land-above).
-      // Band BOTTOM = last member (expanded) or a one-row reach below (collapsed).
-      // ponytail: one-row reach (min-h 56 + gap 8).
-      const COLLAPSED_CHILD_REACH = 64;
-      for (const name of groupNames) {
+      geoms = groupNames.flatMap((name) => {
         const h = headers.get(name);
-        if (!h) continue;
-        const memberBottom = memberBottoms.get(name);
-        const joiningFromOutside = memberBottom != null && name !== activeGroup;
-        out.push({
-          group: name,
-          top: joiningFromOutside ? h.center : h.bottom,
-          bottom: memberBottom ?? h.bottom + COLLAPSED_CHILD_REACH,
-        });
-      }
+        if (!h) return [];
+        return [
+          {
+            name,
+            headerTop: h.top,
+            headerCenter: h.center,
+            headerBottom: h.bottom,
+            memberBottom: memberBottoms.get(name) ?? null,
+          },
+        ];
+      });
     }
-    dragGeomRef.current = { groupSpans: out };
+    // Band TOP/BOTTOM rules live in the pure `computeJoinBands` (unit-tested): a
+    // group joined from outside starts at headerTop − gap/2 (the swap point, so the
+    // indent turns on the instant the row clears the header — no dead zone), while
+    // ejecting / collapsed groups start at headerBottom.
+    dragGeomRef.current = { groupSpans: computeJoinBands(geoms, activeGroup) };
   }
 
   // Which group (if any) the dragged centre is currently within → join that group;
@@ -715,8 +731,14 @@ export function InvestmentsSection({
 
         {/* Cohesive group drag preview (UAT #1): the whole block follows the
             pointer as one unit while the real block dims in place. Null for a
-            holding drag (those keep their in-place transform). */}
-        <DragOverlay>
+            holding drag (those keep their in-place transform).
+            dropAnimation={null}: with the overlay mounted, @dnd-kit's default drop
+            animation pins the SOURCE row at opacity:0 for ~250ms after pointer-up
+            while it "flies" the overlay home — even for a holding drag (overlay
+            child null) → the dropped row blinks out then back ("flicker", UAT). We
+            already place the row instantly via `committed`, so the animation is
+            pure downside; disabling it makes the drop land with no blink. */}
+        <DragOverlay dropAnimation={null}>
           {activeGroupEntry && activeGroupEntry.kind === "group" ? (
             <GroupBlockPreview
               entry={activeGroupEntry}

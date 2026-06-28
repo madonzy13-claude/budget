@@ -109,6 +109,60 @@ export interface DragResult {
   groupChange?: { holdingId: string; group: string | null };
 }
 
+/** A group's measured geometry at drag-start (the React island reads the rects;
+ *  the band maths stays pure + unit-tested). `memberBottom` is the bottom of the
+ *  group's last VISIBLE child, or null when the group is collapsed (no members
+ *  rendered → no member band to fall into). */
+export interface GroupGeom {
+  name: string;
+  headerTop: number;
+  headerCenter: number;
+  headerBottom: number;
+  memberBottom: number | null;
+}
+
+/** The vertical band in which the dragged centre counts as a CHILD of `group`
+ *  (→ indent preview + join on drop). Outside every band → loose. */
+export interface JoinBand {
+  group: string;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * Compute each group's JOIN band from drag-start geometry. The subtle part is the
+ * TOP edge:
+ *  - A group the dragged item is JOINING from outside (expanded, not its own) →
+ *    top = `headerTop − swapGap`. @dnd-kit's verticalListSortingStrategy swaps the
+ *    dragged row across the header the instant `over` flips to it, which (closest-
+ *    centre, equal-height rows) happens at the MIDDLE OF THE GAP above the header,
+ *    i.e. `headerTop − gap/2`. Pinning the band there makes the indent turn on the
+ *    exact moment the row renders BELOW the header — no dead zone where the item
+ *    sits visually inside the group yet drops back out above it (UAT: "if the item
+ *    is below the header it must indent and drop inside"). Using `headerCenter`
+ *    (the old value) left a ~28px dead zone above the centre.
+ *  - A group the item is LEAVING (its own, ejecting) OR any COLLAPSED group →
+ *    top = `headerBottom`. There the indent must clear the instant the item reaches
+ *    the header (no member rows to be a child of), so the band starts BELOW it.
+ * BOTTOM = last visible member (expanded) or a one-row reach below (collapsed).
+ */
+export function computeJoinBands(
+  geoms: GroupGeom[],
+  activeGroup: string | null,
+  opts: { collapsedReach?: number; swapGap?: number } = {},
+): JoinBand[] {
+  const collapsedReach = opts.collapsedReach ?? 64;
+  const swapGap = opts.swapGap ?? 4;
+  return geoms.map((g) => {
+    const joiningFromOutside = g.memberBottom != null && g.name !== activeGroup;
+    return {
+      group: g.name,
+      top: joiningFromOutside ? g.headerTop - swapGap : g.headerBottom,
+      bottom: g.memberBottom ?? g.headerBottom + collapsedReach,
+    };
+  });
+}
+
 const GROUP_PREFIX = "group:";
 export const groupSortId = (name: string) => `${GROUP_PREFIX}${name}`;
 export const isGroupSortId = (id: string) => id.startsWith(GROUP_PREFIX);
