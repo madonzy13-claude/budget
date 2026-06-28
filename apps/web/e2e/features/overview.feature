@@ -40,6 +40,7 @@ Feature: Budget Overview tab
     Then the Planned category selector shows "Food"
 
   Scenario: Wealth toggle to investments reveals the per-type pie region
+    Given the budget has a wealth snapshot of 1000000 cents
     When I open the BDP for "My E2E Budget"
     And I click the "Overview" tab pill
     And I expand the "wealth" overview section

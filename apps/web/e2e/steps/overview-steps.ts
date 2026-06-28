@@ -7,7 +7,66 @@ import {
   type OverviewSectionSlug,
 } from "../page-objects/OverviewPo";
 
-const { When, Then } = createBdd(test);
+const { Given, When, Then } = createBdd(test);
+
+// Seed helper — wrap pg.Pool with the tenant-id RLS GUC so seeds satisfy the
+// row-level policy. DATABASE_URL_APP host is rewritten @db: → @localhost: so the
+// seed runs from outside the compose network (mirrors reserves.steps).
+async function withTenantClient<T>(
+  budgetId: string,
+  fn: (client: import("pg").PoolClient) => Promise<T>,
+): Promise<T> {
+  const { Pool } = await import("pg");
+  const dbUrl =
+    process.env.DATABASE_URL_APP?.replace("@db:", "@localhost:") ?? "";
+  if (!dbUrl)
+    throw new Error("DATABASE_URL_APP not set — cannot seed overview data");
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // budget_wealth_snapshots' RLS policy casts the GUC directly to uuid[]
+      // (current_setting('app.tenant_ids')::uuid[]), so it must be a PG array
+      // literal — bare uuid trips "malformed array literal".
+      await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${budgetId}}`,
+      ]);
+      const out = await fn(client);
+      await client.query("COMMIT");
+      return out;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+// A single wealth snapshot makes the wealth series non-empty so the section
+// renders its charts (incl. the investments-view pie region) instead of the
+// "history starts collecting" empty state.
+Given(
+  /^the budget has a wealth snapshot of (\d+) cents$/,
+  async ({ freshUser }, cents: string) => {
+    await withTenantClient(freshUser.budgetId, async (client) => {
+      const ccy = await client
+        .query<{
+          default_currency: string;
+        }>(`SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`, [freshUser.budgetId])
+        .then((r) => (r.rows[0]?.default_currency ?? "USD").trim());
+      await client.query(
+        `INSERT INTO budgeting.budget_wealth_snapshots
+           (tenant_id, budget_id, captured_at, capitalization_cents, investment_value_cents, currency)
+         VALUES ($1::uuid, $1::uuid, now(), $2::bigint, $2::bigint, $3)`,
+        [freshUser.budgetId, cents, ccy],
+      );
+    });
+  },
+);
 
 const OVERVIEW_CARDS = [
   "capitalization",
