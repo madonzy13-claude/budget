@@ -13,7 +13,8 @@
  *   - monthly_avg_grow (D-16): simple mean of the non-null dynamics %.
  *   - investments view: per-holding-type pie (Σ value per type, default_ccy) (D-18).
  *
- * No cost-basis / invested metric anywhere (D-17). No FX in this service: snapshots
+ * Value-only series — no purchase-price / contributions metric anywhere (D-17).
+ * No FX in this service: snapshots
  * are stored in the budget currency, the live point + the pie are already
  * default_ccy. Cents are bigint internally; the DTO stringifies at the boundary.
  */

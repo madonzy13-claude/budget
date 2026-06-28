@@ -52,6 +52,9 @@ import { getOverviewCards } from "@budget/budgeting/src/application/get-overview
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
 import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
+import { getOverviewWealth } from "@budget/budgeting/src/application/get-overview-wealth";
+import { computeBudgetWealthNow } from "@budget/budgeting/src/application/compute-budget-wealth-now";
+import { createWealthSnapshotRepo } from "@budget/budgeting/src/adapters/persistence/wealth-snapshot-repo";
 import { createOverviewRepo } from "@budget/budgeting/src/adapters/persistence/overview-repo";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
@@ -101,6 +104,8 @@ export interface BootedDeps {
     getOverviewPlanned: ReturnType<typeof getOverviewPlanned>;
     /** Phase 11 (11-05): Overspent + Reserves section (after-reserves, default_ccy). */
     getOverviewOverspent: ReturnType<typeof getOverviewOverspent>;
+    /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
+    getOverviewWealth: ReturnType<typeof getOverviewWealth>;
   };
   /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
   investments: ReturnType<typeof createInvestmentsModule>;
@@ -365,6 +370,43 @@ export async function boot(): Promise<BootedDeps> {
       overviewRepo: createOverviewRepo(),
       reservePositions: baseBudgeting.reservePositions,
       reservesSummary: baseBudgeting.getReservesSummary,
+      metaReader: summaryRepo,
+    }),
+    // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
+    // current point from computeBudgetWealthNow (same numbers as the cards/cron);
+    // investments-view pie groups investments.listHoldings by holding_type.
+    getOverviewWealth: getOverviewWealth({
+      snapshotRepo: createWealthSnapshotRepo(),
+      computeWealthNow: computeBudgetWealthNow({
+        walletRepo: overviewCardsRepo,
+        holdingsValuation,
+        fxProvider: baseBudgeting.fxProvider,
+      }),
+      holdingsByType: {
+        valueByType: async (input: {
+          tenantId: string;
+          budgetId: string;
+          defaultCurrency: string;
+        }) => {
+          const r = await investments.listHoldings({
+            tenantId: input.tenantId,
+            budgetId: input.budgetId,
+            actorUserId: SYSTEM_USER_UUID,
+            budgetCurrency: input.defaultCurrency,
+          });
+          if (r.isErr()) throw r.error;
+          const byType = new Map<string, bigint>();
+          for (const h of r.value.holdings) {
+            byType.set(
+              h.holdingType,
+              (byType.get(h.holdingType) ?? 0n) + BigInt(h.valueInBudgetCents),
+            );
+          }
+          return Array.from(byType.entries()).map(
+            ([holding_type, value_cents]) => ({ holding_type, value_cents }),
+          );
+        },
+      },
       metaReader: summaryRepo,
     }),
   });
