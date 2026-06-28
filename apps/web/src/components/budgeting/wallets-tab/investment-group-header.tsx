@@ -187,15 +187,28 @@ export function InvestmentGroupHeader({
             {groupName}
           </span>
           {showSum && (
+            // Mirrors the holding row's mobile-expanded block (P/L% + money on the
+            // left, currency + amount on the right), then a "Share: X%" line — just
+            // without the per-holding quantity (a group has none). UAT #1.
             <div
               data-testid={`investment-group-sum-${groupName}`}
-              className="flex items-center gap-2 text-num-sm tabular-nums sm:hidden"
+              className="flex flex-col gap-0 text-num-sm tabular-nums sm:hidden"
             >
-              {plNode}
-              {plMoney && <span className={plColor}>{plMoney}</span>}
-              <span className="text-[var(--muted-foreground)]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-2">
+                  {plNode}
+                  {plMoney && <span className={plColor}>{plMoney}</span>}
+                </span>
+                <span className="flex shrink-0 items-baseline gap-1">
+                  <span className="text-[var(--muted-foreground)]">
+                    {budgetCurrency}
+                  </span>
+                  <span className="text-[var(--body-on-dark)]">{amount}</span>
+                </span>
+              </div>
+              <div className="text-caption text-[var(--muted-foreground)]">
                 {t("row.share", { pct: portfolio })}
-              </span>
+              </div>
             </div>
           )}
         </div>
@@ -212,8 +225,15 @@ export function InvestmentGroupHeader({
         >
           {plMoney ?? ""}
         </span>
-        {/* Currency tight to amount (gap-1) — always shown (collapsed + desktop). */}
-        <div className="flex shrink-0 items-baseline gap-1">
+        {/* Currency tight to amount (gap-1). On mobile the sum-up re-renders it on
+            the right of its first line (mirrors the row), so hide it here when the
+            sum-up is open; desktop + mobile-collapsed keep it on the right (UAT #1). */}
+        <div
+          className={[
+            "shrink-0 items-baseline gap-1",
+            showSum ? "hidden sm:flex" : "flex",
+          ].join(" ")}
+        >
           <span className="text-num-sm text-[var(--muted-foreground)]">
             {budgetCurrency}
           </span>

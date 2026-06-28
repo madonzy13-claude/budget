@@ -31,11 +31,13 @@ import {
   KeyboardSensor,
   MeasuringStrategy,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
   SortableContext,
+  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -368,78 +370,134 @@ export function InvestmentsSection({
     }));
   }
 
-  // Each holding row's rect (top/bottom/centre) + its group, snapshotted at
-  // drag-start (the STABLE, untransformed layout — reading rects mid-drag would
-  // include @dnd-kit's gap transforms). The drop handler compares the dragged row's
-  // translated centre to this to decide its insertion index + which group's
-  // children-span it landed in.
-  const dragGeomRef = useRef<
-    {
-      id: string;
-      top: number;
-      bottom: number;
-      center: number;
-      group: string | null;
-    }[]
-  >([]);
+  // The active holding's live target group during a drag → drives the dragged row's
+  // indentation preview (UAT #5: it adopts the level it will drop into). Null when
+  // idle or dragging a group block.
+  const [dragActive, setDragActive] = useState<{
+    id: string;
+    group: string | null;
+  } | null>(null);
+
+  // Layout snapshotted at drag-START (the STABLE, untransformed positions — reading
+  // rects mid-drag would include @dnd-kit's gap transforms). `groupSpans` is the
+  // vertical band each group occupies: its visible MEMBER rows when expanded (the
+  // header is excluded → dropping on the header lands loose above), or the HEADER
+  // rect when collapsed (the only way to target a collapsed group). The dragged
+  // row's translated centre vs these bands decides loose-vs-join (children-span).
+  const dragGeomRef = useRef<{
+    groupSpans: { group: string; top: number; bottom: number }[];
+  }>({ groupSpans: [] });
 
   function snapshotDragGeometry() {
-    const rows: typeof dragGeomRef.current = [];
+    const memberSpans = new Map<string, { top: number; bottom: number }>();
+    const out: { group: string; top: number; bottom: number }[] = [];
     if (typeof document !== "undefined") {
+      // Expanded groups: span = the extent of their visible member rows.
       for (const el of document.querySelectorAll<HTMLElement>(
         "[data-investment-row-wrapper]",
       )) {
         const id = el.getAttribute("data-investment-row-wrapper");
         if (!id) continue;
+        const g = holdings.find((h) => h.id === id)?.group ?? null;
+        if (!g) continue;
         const r = el.getBoundingClientRect();
-        rows.push({
-          id,
-          top: r.top,
-          bottom: r.bottom,
-          center: r.top + r.height / 2,
-          group: holdings.find((h) => h.id === id)?.group ?? null,
-        });
+        const s = memberSpans.get(g);
+        if (!s) memberSpans.set(g, { top: r.top, bottom: r.bottom });
+        else {
+          s.top = Math.min(s.top, r.top);
+          s.bottom = Math.max(s.bottom, r.bottom);
+        }
+      }
+      for (const [group, s] of memberSpans)
+        out.push({ group, top: s.top, bottom: s.bottom });
+      // Collapsed groups: no member rows → span = the header band itself.
+      for (const el of document.querySelectorAll<HTMLElement>(
+        '[data-testid^="investment-group-"]',
+      )) {
+        const testid = el.getAttribute("data-testid") ?? "";
+        // Only the header root `investment-group-<Name>` (not -toggle/-chevron/-sum).
+        const name = testid.slice("investment-group-".length);
+        if (!name || !groupNames.includes(name) || memberSpans.has(name))
+          continue;
+        const r = el.getBoundingClientRect();
+        out.push({ group: name, top: r.top, bottom: r.bottom });
       }
     }
-    dragGeomRef.current = rows;
+    dragGeomRef.current = { groupSpans: out };
   }
 
-  // Decide a holding's drop from geometry (children-span model): insertion index =
-  // how many OTHER rows sit above the dragged centre; target group = the group
-  // whose visible-children span — the full row extent of its members, EXCLUDING the
-  // dragged row — contains the centre, else null (loose). So dropping on a member's
-  // row joins/reorders within that group, while dropping on the header band or
-  // below the last child (outside any member row) lands loose above/below it.
-  function computeHoldingDrop(activeId: string, aMid: number) {
-    const others = dragGeomRef.current.filter((r) => r.id !== activeId);
-    const insertIndex = others.filter((r) => r.center < aMid).length;
-    const spans = new Map<string, { top: number; bottom: number }>();
-    for (const r of others) {
-      if (!r.group) continue;
-      const s = spans.get(r.group);
-      if (!s) spans.set(r.group, { top: r.top, bottom: r.bottom });
-      else {
-        s.top = Math.min(s.top, r.top);
-        s.bottom = Math.max(s.bottom, r.bottom);
+  // Which group (if any) the dragged centre is currently within → join that group;
+  // null = loose (on a header band of an expanded group, in a gap, or among loose
+  // rows). Pure vertical test, so the indent preview never feeds back into layout.
+  function computeTargetGroup(aMid: number): string | null {
+    for (const s of dragGeomRef.current.groupSpans)
+      if (aMid >= s.top && aMid <= s.bottom) return s.group;
+    return null;
+  }
+
+  // Insertion index in the HOLDINGS order, derived from @dnd-kit's `over` so the
+  // commit matches exactly what the user sees previewed (arrayMove of the visible
+  // sortable items — headers + visible holdings), then collapsed group headers are
+  // expanded back to their members. This is what fixes the "drop jumps back" cases,
+  // incl. reordering relative to a COLLAPSED group (its members aren't rendered, so
+  // the old geometry had no anchor for them). Returns null when unresolvable.
+  function computeInsertIndex(activeId: string, overId: string): number | null {
+    const ai = sortableIds.indexOf(activeId);
+    const oi = sortableIds.indexOf(overId);
+    if (ai === -1 || oi === -1) return null;
+    const moved = ai === oi ? sortableIds : arrayMove(sortableIds, ai, oi);
+    const flat: string[] = [];
+    for (const id of moved) {
+      if (isGroupSortId(id)) {
+        const name = groupNameFromSortId(id);
+        if (!isExpanded(name)) {
+          // Collapsed → its members aren't in `moved`; re-insert them in order.
+          for (const h of holdings
+            .filter((h) => (h.group ?? null) === name && h.id !== activeId)
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)))
+            flat.push(h.id);
+        }
+        // Expanded → members are their own ids in `moved`; skip the header.
+      } else {
+        flat.push(id);
       }
     }
-    let targetGroup: string | null = null;
-    for (const [g, s] of spans) {
-      if (aMid >= s.top && aMid <= s.bottom) {
-        targetGroup = g;
-        break;
-      }
-    }
-    return { insertIndex, targetGroup };
+    const idx = flat.indexOf(activeId);
+    return idx === -1 ? null : idx;
   }
 
   function handleDragStart(e: DragStartEvent) {
     snapshotDragGeometry();
-    setActiveId(String(e.active.id));
+    const id = String(e.active.id);
+    setActiveId(id);
+    if (!isGroupSortId(id))
+      setDragActive({
+        id,
+        group: holdings.find((h) => h.id === id)?.group ?? null,
+      });
+  }
+
+  // Track the dragged holding's live target group so its row previews the indent of
+  // the level it will land in (UAT #5). No array mutation (the list never shrinks)
+  // and we only setState when the group actually changes → no re-measure loop / #185.
+  function handleDragOver(e: DragOverEvent) {
+    const { active, over } = e;
+    if (!over) return;
+    const aId = String(active.id);
+    if (isGroupSortId(aId)) return;
+    const aMid = midY(active.rect.current.translated);
+    if (aMid == null) return;
+    const group = computeTargetGroup(aMid);
+    setDragActive((prev) =>
+      prev && prev.id === aId && prev.group === group
+        ? prev
+        : { id: aId, group },
+    );
   }
 
   function handleDragCancel() {
     setActiveId(null);
+    setDragActive(null);
   }
 
   // No onDragOver live-move: the list is a single flat SortableContext, so
@@ -452,6 +510,7 @@ export function InvestmentsSection({
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
+    setDragActive(null);
     if (!over) return;
     const aId = String(active.id);
     const overId = String(over.id);
@@ -477,15 +536,14 @@ export function InvestmentsSection({
       return;
     }
 
-    // A HOLDING drag is resolved purely by GEOMETRY (children-span model): where
-    // the dragged row's centre LANDED decides its position + group, independent of
-    // which item @dnd-kit reports as `over`. Dropping on a member's row joins/
-    // reorders within that group; dropping on a header band or below the last child
-    // (outside any member row) lands loose above/below it — so a row can always be
-    // placed loose adjacent to a group and a 2-item group's items still reorder, no
-    // explicit drop zones needed (UAT #1/#2 bugs).
+    // A HOLDING drag: POSITION comes from @dnd-kit's `over` (so the commit equals
+    // the previewed gap — no jump-back, and it works against a COLLAPSED group);
+    // GROUP comes from the children-span (dragged centre inside a group's member
+    // band → join; on a header band / gap / loose → loose).
     if (aMid == null) return;
-    const { insertIndex, targetGroup } = computeHoldingDrop(aId, aMid);
+    const insertIndex = computeInsertIndex(aId, overId);
+    if (insertIndex == null) return;
+    const targetGroup = computeTargetGroup(aMid);
     const result = resolveHoldingDrop(holdings, aId, insertIndex, targetGroup);
     if (!result) return;
     if (result.groupChange) {
@@ -512,6 +570,15 @@ export function InvestmentsSection({
     ? entries.find((e) => e.kind === "group" && e.name === activeGroupName)
     : undefined;
 
+  // A holding row is indented when it's a grouped child. WHILE that row is being
+  // dragged, it previews the level it will land in instead (UAT #5: indent appears
+  // when entering a group, disappears when leaving) — `dragActive.group` is the
+  // live target from onDragOver.
+  const rowNested = (holdingId: string, defaultNested: boolean) =>
+    dragActive && dragActive.id === holdingId
+      ? dragActive.group != null
+      : defaultNested;
+
   if (!investmentsEnabled) return null;
 
   return (
@@ -530,6 +597,7 @@ export function InvestmentsSection({
         // during a drag (the dragged rect is compared against live row rects).
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
@@ -554,7 +622,7 @@ export function InvestmentsSection({
                       <InvestmentRowSheet
                         key={h.id}
                         holding={h}
-                        nested
+                        nested={rowNested(h.id, true)}
                         // Dim the children of the group being dragged — the lifted
                         // copy lives in the DragOverlay (cohesive block, UAT #1).
                         ghost={activeGroupName === entry.name}
@@ -568,6 +636,7 @@ export function InvestmentsSection({
                 <InvestmentRowSheet
                   key={entry.holding.id}
                   holding={entry.holding}
+                  nested={rowNested(entry.holding.id, false)}
                   maxAmountChars={maxAmountChars}
                   onEdit={openEdit}
                   onArchive={(id) => archiveMut.mutate(id)}
