@@ -197,11 +197,13 @@ export function InvestmentRowSheet({
         nested
           ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
           : "",
-        // Lift above siblings while dragging (z) / dim when this row's group is
-        // dragged as a block (ghost). The visible lift (ring + shadow + rounded)
+        // Lift above siblings while dragging (z) / HIDE when this row's group is
+        // dragged as a block (ghost → opacity-0). The cohesive copy lives in the
+        // DragOverlay; a dimmed in-place child slid independently of its header and
+        // left a broken remnant (UAT #3). The visible lift (ring + shadow + rounded)
         // lives on the INNER card below — on this wrapper it would enclose the
         // indent padding + rail, drawing the ring left of the actual row (UAT).
-        isDragging ? "z-50" : ghost ? "opacity-40" : "",
+        isDragging ? "z-50" : ghost ? "opacity-0" : "",
       ]
         .filter(Boolean)
         .join(" ")}

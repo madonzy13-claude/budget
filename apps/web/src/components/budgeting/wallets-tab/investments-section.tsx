@@ -31,7 +31,7 @@ import {
   KeyboardSensor,
   MeasuringStrategy,
   type DragEndEvent,
-  type DragOverEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -120,7 +120,10 @@ function GroupHeaderItem({
       style={{
         // While dragging, the lifted copy lives in the DragOverlay (so the whole
         // block — header + children — moves as one cohesive unit, UAT #1). The real
-        // header stays in place and just dims, marking where the block will land.
+        // header is hidden (opacity-0, not dimmed): its children are SEPARATE
+        // sortables that slide independently under the list strategy, so a dimmed
+        // header left a broken/overlapping remnant in place (UAT #3). The open gap
+        // already marks where the block will land.
         transform: isDragging
           ? undefined
           : dndTransform && dndTransform !== "none"
@@ -128,7 +131,7 @@ function GroupHeaderItem({
             : undefined,
         transition,
       }}
-      className={isDragging ? "relative opacity-40" : "relative"}
+      className={isDragging ? "relative opacity-0" : "relative"}
     >
       <InvestmentGroupHeader
         groupName={entry.name}
@@ -388,6 +391,12 @@ export function InvestmentsSection({
     groupSpans: { group: string; top: number; bottom: number }[];
   }>({ groupSpans: [] });
 
+  // The dragged row's CENTRE at drag-start. The live centre = this + dnd-kit's
+  // `delta.y` (the raw pointer displacement) — reliable on every move, unlike
+  // `active.rect.translated` which can lag → the indent preview never updated
+  // (UAT). Used for BOTH the live preview and the drop so they always agree.
+  const activeStartMidRef = useRef<number | null>(null);
+
   function snapshotDragGeometry() {
     const memberSpans = new Map<string, { top: number; bottom: number }>();
     const out: { group: string; top: number; bottom: number }[] = [];
@@ -470,6 +479,20 @@ export function InvestmentsSection({
     snapshotDragGeometry();
     const id = String(e.active.id);
     setActiveId(id);
+    // Capture the dragged row's start centre from its untransformed rect.
+    const el = isGroupSortId(id)
+      ? document.querySelector<HTMLElement>(
+          `[data-testid="investment-group-${groupNameFromSortId(id)}"]`,
+        )
+      : document.querySelector<HTMLElement>(
+          `[data-investment-row-wrapper="${id}"]`,
+        );
+    activeStartMidRef.current = el
+      ? (() => {
+          const r = el.getBoundingClientRect();
+          return r.top + r.height / 2;
+        })()
+      : null;
     if (!isGroupSortId(id))
       setDragActive({
         id,
@@ -477,15 +500,20 @@ export function InvestmentsSection({
       });
   }
 
+  // The dragged centre, live, from the start centre + dnd-kit's pointer delta.
+  function liveMid(deltaY: number): number | null {
+    return activeStartMidRef.current == null
+      ? null
+      : activeStartMidRef.current + deltaY;
+  }
+
   // Track the dragged holding's live target group so its row previews the indent of
-  // the level it will land in (UAT #5). No array mutation (the list never shrinks)
+  // the level it will land in (UAT). Fires on EVERY move (onDragMove, not onDragOver)
   // and we only setState when the group actually changes → no re-measure loop / #185.
-  function handleDragOver(e: DragOverEvent) {
-    const { active, over } = e;
-    if (!over) return;
-    const aId = String(active.id);
+  function handleDragMove(e: DragMoveEvent) {
+    const aId = String(e.active.id);
     if (isGroupSortId(aId)) return;
-    const aMid = midY(active.rect.current.translated);
+    const aMid = liveMid(e.delta.y);
     if (aMid == null) return;
     const group = computeTargetGroup(aMid);
     setDragActive((prev) =>
@@ -521,7 +549,7 @@ export function InvestmentsSection({
       return;
     }
 
-    const aMid = midY(active.rect.current.translated);
+    const aMid = liveMid(e.delta.y);
     const oMid = midY(over.rect);
 
     // A GROUP block drag commits via the over target + direction (placeAfter, UAT
@@ -547,7 +575,13 @@ export function InvestmentsSection({
     const result = resolveHoldingDrop(holdings, aId, insertIndex, targetGroup);
     if (!result) return;
     if (result.groupChange) {
-      updateMut.mutate({ holdingId: aId, group: result.groupChange.group });
+      // Silent: a drag is not a "saved" moment — the reorder already feels done
+      // (UAT: no "Investments updated" toast on sort).
+      updateMut.mutate({
+        holdingId: aId,
+        group: result.groupChange.group,
+        silent: true,
+      });
     }
     setCommitted(applyResult(holdings, result));
     reorderMut.mutate({ orderedIds: result.orderedIds });
@@ -597,7 +631,7 @@ export function InvestmentsSection({
         // during a drag (the dragged rect is compared against live row rects).
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >

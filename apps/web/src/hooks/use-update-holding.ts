@@ -31,6 +31,8 @@ export interface UpdateHoldingInput {
   manualTicker?: string | null;
   /** Web-only optimistic ticker; the server derives the persisted symbol. */
   symbol?: string | null;
+  /** Suppress the "saved" toast — drag-to-group reassignment is silent (UAT). */
+  silent?: boolean;
 }
 
 export function useUpdateHolding(budgetId: string) {
@@ -41,7 +43,10 @@ export function useUpdateHolding(budgetId: string) {
 
   return useMutation({
     mutationFn: async (input: UpdateHoldingInput) => {
+      // `silent` is a client-only toast flag — strip it from the PATCH body.
       const { holdingId, ...rest } = input;
+      const payload: Record<string, unknown> = { ...rest };
+      delete payload.silent;
       const res = await clientApiWrite(
         `/budgets/${budgetId}/investments/${holdingId}`,
         {
@@ -50,7 +55,7 @@ export function useUpdateHolding(budgetId: string) {
             "Content-Type": "application/json",
             "Idempotency-Key": generateIdempotencyKey(),
           },
-          body: JSON.stringify(rest),
+          body: JSON.stringify(payload),
         },
       );
       if (!res.ok) {
@@ -109,7 +114,9 @@ export function useUpdateHolding(budgetId: string) {
       toast.error(t("saveFailed"));
     },
 
-    onSuccess: () => toast.success(t("saved")),
+    onSuccess: (_data, vars) => {
+      if (!vars.silent) toast.success(t("saved"));
+    },
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });
