@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
+  LayoutDashboard,
   LayoutGrid,
   Coins,
   Wallet,
@@ -14,7 +15,7 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 import { motion } from "motion/react";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
-import { pillFor, type Pill } from "@/components/budgeting/tasks/kind-pill-map";
+import { pillFor } from "@/components/budgeting/tasks/kind-pill-map";
 import type { BdpTab } from "@/lib/bdp-tabs";
 
 /**
@@ -39,8 +40,10 @@ interface BdpTabsProps {
   initialTasks?: TaskSummary[];
 }
 
-// UAT-PH5-T2-02: Wallets surfaced first — Wallets → Spendings → Reserves → Settings.
-const TABS: ReadonlyArray<{ slug: Pill; icon: LucideIcon }> = [
+// Phase 11: Overview surfaced first — Overview → Wallets → Spendings → Reserves
+// → Settings (mirrors TAB_ORDER). Overview carries no tasks (badge always 0).
+const TABS: ReadonlyArray<{ slug: BdpTab; icon: LucideIcon }> = [
+  { slug: "overview", icon: LayoutDashboard },
   { slug: "wallets", icon: Wallet },
   { slug: "spendings", icon: LayoutGrid },
   { slug: "reserves", icon: Coins },
@@ -73,7 +76,8 @@ export function BdpTabs({
     refetchIntervalInBackground: false,
   });
 
-  const countsByPill: Record<Pill, number> = {
+  const countsByPill: Record<BdpTab, number> = {
+    overview: 0,
     wallets: 0,
     spendings: 0,
     reserves: 0,

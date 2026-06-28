@@ -47,6 +47,12 @@ export function usePrefetchBudgetTabs(budgetId: string) {
     // at ~16 concurrent requests and inflated each ~4x on the API (260ms → ~1s),
     // so the primary data + RSC didn't land until ~2s → cold/janky first click.
     const priorityJobs: Job[] = [
+      // Phase 11: overview is the FIRST pill — warm its cards before tap (D-05).
+      // Section endpoints (planned/overspent/wealth) stay lazy (collapsed by default).
+      {
+        key: ["budget", budgetId, "overview", "cards"],
+        fn: () => get(`/budgets/${budgetId}/overview/cards`, (j) => j),
+      },
       {
         key: ["budget", budgetId, "wallets"],
         fn: () =>

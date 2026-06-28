@@ -29,6 +29,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { BdpTabs } from "@/components/budgeting/bdp-tabs";
 import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
 import { usePrefetchBudgetTabs } from "@/hooks/use-prefetch-budget-tabs";
+import { OverviewTab } from "@/components/budgeting/overview/overview-tab";
 import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets-sectioned-list";
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
 import { ReservesTableClient } from "@/components/budgeting/reserves-tab/reserves-table-client";
@@ -42,6 +43,12 @@ import { TAB_ORDER, isBdpTab, type BdpTab } from "@/lib/bdp-tabs";
  * centered 1280px column. */
 function TabPane({ tab, budgetId }: { tab: BdpTab; budgetId: string }) {
   switch (tab) {
+    case "overview":
+      return (
+        <div className="mx-auto w-full max-w-[1280px]">
+          <OverviewTab budgetId={budgetId} />
+        </div>
+      );
     case "wallets":
       return (
         <div className="mx-auto w-full max-w-[1280px]">
@@ -151,7 +158,7 @@ export function BudgetDetail({
   useEffect(() => {
     function onPop() {
       const m = window.location.pathname.match(
-        /\/budgets\/[^/]+\/(wallets|spendings|reserves|settings)/,
+        /\/budgets\/[^/]+\/(overview|wallets|spendings|reserves|settings)/,
       );
       const tab = isBdpTab(m?.[1]) ? (m![1] as BdpTab) : "wallets";
       setActiveTab(tab);
@@ -203,14 +210,20 @@ export function BudgetDetail({
               {/* Tasks strip slides WITH the page (first child, as before). Keyed
                   per tab so the always-start-collapsed + deep-link auto-expand
                   mount semantics hold on every switch. */}
-              <PillTaskSlider
-                key={activeTab}
-                budgetId={budgetId}
-                locale={locale}
-                pill={activeTab}
-                initialTasks={initialTasks}
-                focusTaskId={activeTab === initialTab ? focusTaskId : undefined}
-              />
+              {/* Overview has no task strip (no task kind maps to it); the guard
+                  also narrows BdpTab → Pill for the slider's `pill` prop. */}
+              {activeTab !== "overview" && (
+                <PillTaskSlider
+                  key={activeTab}
+                  budgetId={budgetId}
+                  locale={locale}
+                  pill={activeTab}
+                  initialTasks={initialTasks}
+                  focusTaskId={
+                    activeTab === initialTab ? focusTaskId : undefined
+                  }
+                />
+              )}
               <TabPane tab={activeTab} budgetId={budgetId} />
             </motion.div>
           </AnimatePresence>

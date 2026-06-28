@@ -1049,6 +1049,64 @@
   "bdp": {
     "tab": {
       "aria": "Budget detail tabs",
+      "overview": {
+        "label": "Overview",
+        "title": "Overview",
+        "cards": {
+          "availableToSpend": "Available to spend",
+          "capitalization": "Capitalization",
+          "capitalizationSub": "incl. investments {amount}",
+          "overspent": "Overspent this month",
+          "overspentCount": "{count, plural, one {# category} other {# categories}}",
+          "onBudget": "On budget",
+          "cushion": "Cushion",
+          "cushionMonths": "{months} mo",
+          "cushionOff": "Cushion off",
+          "availableReserves": "Available reserves",
+          "realMonths": "real months"
+        },
+        "range": {
+          "month": "Month",
+          "3m": "3M",
+          "year": "Year",
+          "all": "All",
+          "custom": "Custom",
+          "from": "From",
+          "to": "To",
+          "currentConfig": "current config",
+          "allTime": "all time"
+        },
+        "sections": {
+          "planned": "Planned",
+          "overspent": "Overspent",
+          "reserves": "Reserves",
+          "wealth": "Financial Wealth"
+        },
+        "planned": {
+          "category": "Category",
+          "allCategories": "All categories",
+          "real": "Real",
+          "planned": "Planned",
+          "recurringPerMonth": "Recurring by month",
+          "recurringPerCategory": "Recurring by category"
+        },
+        "wealth": {
+          "capitalization": "Capitalization",
+          "investments": "Investments",
+          "grow": "Growth",
+          "loss": "Loss",
+          "monthlyAvg": "Monthly avg",
+          "dynamics": "Month-over-month",
+          "pieShare": "{pct}%"
+        },
+        "empty": {
+          "overspent": "No overspending in this range.",
+          "reserves": "No reserves yet.",
+          "wealth": "Wealth history starts collecting now — check back soon.",
+          "pie": "No investments yet.",
+          "planned": "No activity in this range."
+        }
+      },
       "spendings": {
         "label": "Spendings",
         "title": "Spendings",
