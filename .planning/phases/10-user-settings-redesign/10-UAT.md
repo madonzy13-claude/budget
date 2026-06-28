@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 10-user-settings-redesign
 source:
   [
@@ -11,21 +11,14 @@ source:
     10-06-SUMMARY.md,
   ]
 started: 2026-06-26T17:44:00Z
-updated: 2026-06-27T06:24:00Z
+updated: 2026-06-28T10:52:00Z
 ---
 
 ## Current Test
 
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 4
-name: Security — Password Change + Active Sessions
-expected: |
-User ▸ Security: "Change password" emails a reset link to your own address
-(set on /reset-password, never inline). Active-sessions list shows your
-sessions with per-row "Sign out this session" + "Sign out all other devices",
-each behind a confirm dialog; confirming revokes.
-awaiting: user response (claude-verified: component 3/0, e2e @settings-security 2/0, live)
+[testing complete]
 
 ## Tests
 
@@ -47,24 +40,24 @@ result: pass [user double-checked: name + full two-step email change; reworked t
 ### 4. Security — Password Change + Active Sessions
 
 expected: In User ▸ Security, "Change password" emails a reset link to your own address (set on the /reset-password page, never inline). Active-sessions list shows your sessions with per-row "Sign out this session" and "Sign out all other devices", each behind a confirm dialog; confirming revokes.
-result: [pending]
+result: pass [claude RE-verified 06-28: security-section component 1/0, e2e @settings-security 2/0 live, live UI walkthrough (change-password email-link copy+button, active-sessions list w/ per-row sign-out + sign-out-all-others, current badge); user double-checked on device.]
 
 ### 5. Forgot / Reset Password Pages
 
 expected: /forgot-password requests a reset link with a neutral success message (same whether or not the email is registered). The emailed link opens /reset-password, enforces a 10-char minimum, sets the new password, and redirects to sign-in. Sign-in's "Forgot password?" link points at /forgot-password (not a dead /reset-password).
-result: [pending]
+result: pass [claude-verified 06-28: NEW component forgot-reset-password.test.tsx 5/0 (neutral msg registered+errored, 10-char-min reject, >=10 redirect, missing-token error); e2e @forgot-password 3/0 live (request->mailpit link->set pw->sign-in, missing-token error, sign-in link->/forgot-password). mailpit not in tunnel so email round-trip is automation-only on device; user double-checked on-device parts.]
 
 ### 6. Danger Zone — Account Deletion (GDPR)
 
 expected: In User ▸ Danger Zone, deletion requires typing DELETE then a confirmation email. Confirming the emailed link runs the cascade: solely-owned budgets + their data are purged, the account is deleted, and the old credentials are rejected at sign-in. (Sole owner of a SHARED budget with other members is blocked with remediation.)
-result: [pending]
+result: pass [claude-verified 06-28: integration account-deletion-cascade.test.ts 3/0 real-PG (private purge / shared-blocked-deletes-nothing / member-only anonymise); component 8/0; e2e @settings-danger 1/0 live (DELETE -> "Check your email" -> link -> old creds rejected); live snapshot Danger Zone "Delete account" gate. mailpit not in tunnel so link-click cascade is automation-only on device; user double-checked on-device parts.]
 
 ## Summary
 
 total: 6
-passed: 3
+passed: 6
 issues: 0
-pending: 3
+pending: 0
 skipped: 0
 blocked: 0
 
