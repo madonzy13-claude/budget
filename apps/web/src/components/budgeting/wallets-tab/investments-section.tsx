@@ -424,26 +424,34 @@ export function InvestmentsSection({
         const b = el.getBoundingClientRect().bottom;
         memberBottoms.set(g, Math.max(memberBottoms.get(g) ?? b, b));
       }
-      // Join span TOP = the header's CENTRE (not its top / the first member): the
-      // sortable strategy swaps the dragged row above the header exactly at the
-      // header centre, so pivoting "join" there means the indent shows only while
-      // the row sits BELOW the header (a child) and clears the instant it crosses
-      // above (loose) — UAT #3 — and the header's lower half becomes a reachable
-      // FIRST-child zone from above — UAT #2. Bottom = last member (expanded); for a
-      // COLLAPSED group there are no member rows, so the band must reach a full row
-      // BELOW the header — otherwise the only "child" zone is a sliver on the header
-      // and the item shows no indent through its whole below-header travel, reading
-      // as "jumps above" (UAT #3). ponytail: one-row reach (min-h 56 + gap 8); a
-      // loose item resting right under a collapsed group reads as a would-be child.
+      // EXPANDED group: join band = [header CENTRE, last member bottom]. The
+      // sortable strategy swaps the dragged row across the header at the header
+      // centre, so starting at the centre keeps the indent in step with the row
+      // sitting below the header AND makes the header's lower half a reachable
+      // FIRST-child zone from above (UAT #2).
+      // COLLAPSED group (no member rows): start the band at the header's BOTTOM,
+      // not its centre, and reach a row below it. Otherwise the band covers the
+      // header itself, so an item dragged up that merely OVERLAPS the header still
+      // shows the child indent — which reads as "above the group but still joins"
+      // (UAT #3 follow-up). Starting at the bottom means the indent shows only
+      // while the item is clearly BELOW the header and clears the instant it
+      // reaches/covers it → drop there lands above the group.
+      // ponytail: one-row reach (min-h 56 + gap 8); the item resting directly under
+      // a collapsed group reads as its would-be child.
       const COLLAPSED_CHILD_REACH = 64;
       for (const name of groupNames) {
         const h = headers.get(name);
         if (!h) continue;
-        out.push({
-          group: name,
-          top: h.center,
-          bottom: memberBottoms.get(name) ?? h.bottom + COLLAPSED_CHILD_REACH,
-        });
+        const memberBottom = memberBottoms.get(name);
+        out.push(
+          memberBottom != null
+            ? { group: name, top: h.center, bottom: memberBottom }
+            : {
+                group: name,
+                top: h.bottom,
+                bottom: h.bottom + COLLAPSED_CHILD_REACH,
+              },
+        );
       }
     }
     dragGeomRef.current = { groupSpans: out };
