@@ -178,11 +178,7 @@ export function WealthSection({
                 xKey="label"
                 series={[{ key: "pct", label: t("wealth.dynamics") }]}
                 colorByPoint={(row) =>
-                  row.raw === null
-                    ? NEUTRAL
-                    : Number(row.pct) >= 0
-                      ? UP
-                      : DOWN
+                  row.raw === null ? NEUTRAL : Number(row.pct) >= 0 ? UP : DOWN
                 }
                 formatValue={(n) => `${n.toFixed(1)}%`}
               />
@@ -190,22 +186,27 @@ export function WealthSection({
           )}
 
           {/* Investments view: per-type pie (UI_TYPE_COLOR) */}
-          {view === "investments" &&
-            (data.pie && data.pie.length > 0 ? (
-              <OverviewPieChart
-                data={data.pie.map((p) => ({
-                  holding_type: p.holding_type,
-                  value: Number(p.value_cents),
-                }))}
-                nameKey="holding_type"
-                valueKey="value"
-                colorFor={(ht) => UI_TYPE_COLOR[deriveUiType(null, ht, false)]}
-              />
-            ) : (
-              <p className="text-num-sm text-[var(--muted-foreground)]">
-                {t("empty.pie")}
-              </p>
-            ))}
+          {view === "investments" && (
+            <div data-testid="overview-wealth-pie">
+              {data.pie && data.pie.length > 0 ? (
+                <OverviewPieChart
+                  data={data.pie.map((p) => ({
+                    holding_type: p.holding_type,
+                    value: Number(p.value_cents),
+                  }))}
+                  nameKey="holding_type"
+                  valueKey="value"
+                  colorFor={(ht) =>
+                    UI_TYPE_COLOR[deriveUiType(null, ht, false)]
+                  }
+                />
+              ) : (
+                <p className="text-num-sm text-[var(--muted-foreground)]">
+                  {t("empty.pie")}
+                </p>
+              )}
+            </div>
+          )}
         </>
       )}
     </OverviewSection>

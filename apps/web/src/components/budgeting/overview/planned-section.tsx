@@ -66,6 +66,7 @@ export function PlannedSection({
       <label className="flex items-center gap-2 text-num-sm text-[var(--muted-foreground)]">
         {t("planned.category")}
         <select
+          data-testid="overview-planned-category"
           value={categoryId ?? ""}
           onChange={(e) => setCategoryId(e.target.value || undefined)}
           className="rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-2 py-1 text-[var(--body-on-dark)]"
@@ -150,7 +151,9 @@ export function PlannedSection({
                 planned: Number(m.planned_cents),
               }))}
               xKey="month"
-              series={[{ key: "planned", label: t("planned.recurringPerMonth") }]}
+              series={[
+                { key: "planned", label: t("planned.recurringPerMonth") },
+              ]}
               formatValue={fmtY}
             />
           </div>

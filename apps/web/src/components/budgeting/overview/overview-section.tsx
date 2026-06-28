@@ -43,7 +43,10 @@ export function OverviewSection({
         />
       </button>
       {open && (
-        <div className="flex flex-col gap-6 border-t border-[var(--hairline-dark)] p-4">
+        <div
+          data-testid={testId ? `${testId}-body` : undefined}
+          className="flex flex-col gap-6 border-t border-[var(--hairline-dark)] p-4"
+        >
           {children}
         </div>
       )}
