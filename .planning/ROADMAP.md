@@ -27,7 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
 - [x] **Phase 9: Investments Wallet** _(v1.2 track)_ — Feature-flagged `INVESTMENTS` wallet section (last on the wallets page, hidden when off): per-instrument holdings (name/type/group/buy-price/buy-currency/quantity/current-price) edited in a side `Sheet`; debounced instrument search over a unified universe (equities/ETF/FX/crypto/metals) preselecting type + live price; greenfield `PriceProvider` port + free-API adapters with an hourly cron fetching only held instruments + rate-limited instant fetch; values converted to budget currency for weights; daily price + FX snapshot persisted for future charts (charts NOT built here)
 - [x] **Phase 10: User Settings Redesign** _(v1.2 track)_ — Mobile-first redesign of USER account settings as a 2-pill carousel (reusing the BDP pill/prefetch frame + Settings-tab accordion): **General** (language + display currency) and **User** (Profile: name + email-with-reverify · Security: email-gated password change + active-sessions revoke + sign-out-others · Danger Zone: delete account/GDPR). Removes the AI/voice Provider feature end-to-end (incl. column-drop migration). Builds the missing logged-out forgot/reset-password pages + fixes the dead sign-in link. TDD, EN/PL/UK, E2E Gherkin
-- [ ] **Phase 11: Budget Overview Tab** _(v1.2 track)_ — New first BDP pill (`overview`): 5 always-visible summary cards (available-to-spend, capitalization=net-worth, this-month overspent categories, cushion real-months+amount, available reserves) + four collapsible time-range chart sections (Planned vs Real with category selector · Overspent · Reserves · Financial Wealth). Budget-side metrics **compute-on-read from the append-only ledger** (no snapshot table, no cascade) cached via the app's persisted React-Query SWR. Wealth value-over-time uses a small **per-budget 3h aggregate snapshot** (capitalization + investment value, in budget default-currency) — no per-asset price/FX/quantity history. Financial-Wealth toggle (capitalization default / investments + per-type pie). Introduces the chart lib (recharts). Archived categories kept in historical stats, dropped from current cards. All amounts in budget default_currency. TDD, EN/PL/UK, E2E Gherkin
+- [x] **Phase 11: Budget Overview Tab** _(v1.2 track)_ — New first BDP pill (`overview`): 5 always-visible summary cards (available-to-spend, capitalization=net-worth, this-month overspent categories, cushion real-months+amount, available reserves) + four collapsible time-range chart sections (Planned vs Real with category selector · Overspent · Reserves · Financial Wealth). Budget-side metrics **compute-on-read from the append-only ledger** (no snapshot table, no cascade) cached via the app's persisted React-Query SWR. Wealth value-over-time uses a small **per-budget 3h aggregate snapshot** (capitalization + investment value, in budget default-currency) — no per-asset price/FX/quantity history. Financial-Wealth toggle (capitalization default / investments + per-type pie). Introduces the chart lib (recharts). Archived categories kept in historical stats, dropped from current cards. All amounts in budget default_currency. TDD, EN/PL/UK, E2E Gherkin (completed 2026-06-28)
 
 ## Phase Details
 
@@ -305,19 +305,19 @@ Within Phase 5, the Reserves and Wallets tabs are parallel-eligible at the plan 
 Within Phase 7, the three generator plans (07-04 CONFIRM_DRAFT, 07-05 RESERVE_TOPUP, 07-06 CUSHION_BELOW_TARGET + sweep) are wave-2 parallel-eligible after the wave-1 ports/services land.
 Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan level.
 
-| Phase                                       | Plans Complete | Status      | Completed  |
-| ------------------------------------------- | -------------- | ----------- | ---------- |
-| 1. Schema Migration & Rename Foundation     | 4/4            | Complete    | 2026-05-11 |
-| 2. Domain & API Restructure                 | 6/6            | Complete    | 2026-05-12 |
-| 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
-| 4. Spendings Grid                           | 5/5            | Complete    | 2026-05-13 |
-| 5. Reserves & Wallets Tabs                  | 16/16          | Complete    | 2026-05-17 |
-| 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
-| 7. Tasks Queue                              | 10/10          | Complete    | 2026-05-31 |
-| 8. PWA, Offline, Push, i18n & E2E Hardening | 7/7            | Complete    | 2026-06-19 |
-| 9. Investments Wallet _(v1.2)_              | 7/7            | Complete    | 2026-06-25 |
-| 10. User Settings Redesign _(v1.2)_         | 6/6            | Complete    | 2026-06-28 |
-| 11. Budget Overview Tab _(v1.2)_            | 9/10           | In Progress |            |
+| Phase                                       | Plans Complete | Status   | Completed  |
+| ------------------------------------------- | -------------- | -------- | ---------- |
+| 1. Schema Migration & Rename Foundation     | 4/4            | Complete | 2026-05-11 |
+| 2. Domain & API Restructure                 | 6/6            | Complete | 2026-05-12 |
+| 3. Navigation, Home & BDP Frame             | 7/7            | Complete | 2026-05-13 |
+| 4. Spendings Grid                           | 5/5            | Complete | 2026-05-13 |
+| 5. Reserves & Wallets Tabs                  | 16/16          | Complete | 2026-05-17 |
+| 6. Settings, Onboarding & Share UI          | 8/8            | Complete | 2026-05-22 |
+| 7. Tasks Queue                              | 10/10          | Complete | 2026-05-31 |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 7/7            | Complete | 2026-06-19 |
+| 9. Investments Wallet _(v1.2)_              | 7/7            | Complete | 2026-06-25 |
+| 10. User Settings Redesign _(v1.2)_         | 6/6            | Complete | 2026-06-28 |
+| 11. Budget Overview Tab _(v1.2)_            | 10/10          | Complete | 2026-06-28 |
 
 ### Phase 10: User Settings Redesign _(v1.2 track)_
 
