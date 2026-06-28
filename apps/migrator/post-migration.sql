@@ -801,3 +801,13 @@ GRANT INSERT, UPDATE ON budgeting.instrument_price_cache TO app_role;
 -- worker_role mirrored for defense-in-depth.
 GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO app_role;
 GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO worker_role;
+
+-- Phase 11 (11-01): per-budget wealth snapshots (D-04, T-11-01). FORCE RLS so the
+-- tenant-isolation policy applies even to the table owner; enumerated by the ci-gate
+-- tenant-leak suite (force-rls-on-all-tables). Append-only: worker_role (the 3h cron)
+-- SELECTs (ON CONFLICT idempotency probe) + INSERTs; app_role (the overview read
+-- service 11-06) SELECTs; app_role DELETE covers the budget-deletion FK cascade.
+ALTER TABLE budgeting.budget_wealth_snapshots FORCE ROW LEVEL SECURITY;
+GRANT SELECT ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
+GRANT INSERT ON budgeting.budget_wealth_snapshots TO worker_role;
+GRANT DELETE ON budgeting.budget_wealth_snapshots TO app_role;
