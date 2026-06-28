@@ -18,6 +18,7 @@ import { serverError } from "../middleware/server-error";
 import { budgetIdentityRoutesFactory } from "./budget-identity";
 import { registerOverviewCardsRoutes } from "./overview-cards";
 import { registerOverviewPlannedRoutes } from "./overview-planned";
+import { registerOverviewOverspentRoutes } from "./overview-overspent";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -26,6 +27,8 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
   registerOverviewCardsRoutes(r, deps);
   // Phase 11 (11-04): GET /budgets/:id/overview/planned — the Planned section.
   registerOverviewPlannedRoutes(r, deps);
+  // Phase 11 (11-05): GET /budgets/:id/overview/overspent-reserves.
+  registerOverviewOverspentRoutes(r, deps);
 
   const createSchema = z.object({
     name: z.string().min(1).max(100),
