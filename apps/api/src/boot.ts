@@ -48,6 +48,8 @@ import { reorderCategories } from "@budget/budgeting/src/application/reorder-cat
 import { dismissDraft } from "@budget/budgeting/src/application/dismiss-draft";
 import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
 import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
+import { getOverviewCards } from "@budget/budgeting/src/application/get-overview-cards";
+import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
 
@@ -90,6 +92,8 @@ export interface BootedDeps {
     confirmDraft: ReturnType<typeof confirmDraft>;
     /** GRID-02/15, RSCM-03/04: 5-row spendings header read */
     getSpendingsSummary: ReturnType<typeof getSpendingsSummary>;
+    /** Phase 11 (11-03): 5-card Overview summary (default_currency). */
+    getOverviewCards: ReturnType<typeof getOverviewCards>;
   };
   /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
   investments: ReturnType<typeof createInvestmentsModule>;
@@ -306,6 +310,41 @@ export async function boot(): Promise<BootedDeps> {
     }),
   });
 
+  // Phase 11 (11-03): the 5-card Overview summary. Wired AFTER investments so the
+  // holdings-valuation port can reuse investments.listHoldings (already FX→budget
+  // currency via valueInBudgetCents). metaReader + cushion + spendings are reused
+  // verbatim (no new cushion/overspent math — D-08/D-10).
+  const overviewCardsRepo = createOverviewCardsRepo();
+  const holdingsValuation = {
+    investmentValueCents: async (input: {
+      tenantId: string;
+      budgetId: string;
+      defaultCurrency: string;
+    }): Promise<bigint> => {
+      const r = await investments.listHoldings({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        actorUserId: SYSTEM_USER_UUID,
+        budgetCurrency: input.defaultCurrency,
+      });
+      if (r.isErr()) throw r.error;
+      return r.value.holdings.reduce(
+        (sum, h) => sum + BigInt(h.valueInBudgetCents),
+        0n,
+      );
+    },
+  };
+  const budgetingFinal = Object.assign(budgeting, {
+    getOverviewCards: getOverviewCards({
+      metaReader: summaryRepo,
+      walletRepo: overviewCardsRepo,
+      holdingsValuation,
+      fxProvider: baseBudgeting.fxProvider,
+      cushionSummary: getCushionSummaryService,
+      spendingsSummary: getSpendingsSummaryService,
+    }),
+  });
+
   logger.info({ region: env.REGION }, "apps/api booted");
 
   return {
@@ -315,7 +354,7 @@ export async function boot(): Promise<BootedDeps> {
     emailSender,
     identity,
     tenancy,
-    budgeting,
+    budgeting: budgetingFinal,
     investments,
   };
 }

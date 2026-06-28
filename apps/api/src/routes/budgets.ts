@@ -16,9 +16,13 @@ import { createShareLink } from "@budget/tenancy/src/application/create-share-li
 import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-link";
 import { serverError } from "../middleware/server-error";
 import { budgetIdentityRoutesFactory } from "./budget-identity";
+import { registerOverviewCardsRoutes } from "./overview-cards";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
+
+  // Phase 11 (11-03): GET /budgets/:id/overview/cards — the 5-card summary.
+  registerOverviewCardsRoutes(r, deps);
 
   const createSchema = z.object({
     name: z.string().min(1).max(100),
