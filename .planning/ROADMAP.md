@@ -317,7 +317,7 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 7/7            | Complete    | 2026-06-19 |
 | 9. Investments Wallet _(v1.2)_              | 7/7            | Complete    | 2026-06-25 |
 | 10. User Settings Redesign _(v1.2)_         | 6/6            | Complete    | 2026-06-28 |
-| 11. Budget Overview Tab _(v1.2)_            | 5/10           | In Progress |            |
+| 11. Budget Overview Tab _(v1.2)_            | 6/10           | In Progress |            |
 
 ### Phase 10: User Settings Redesign _(v1.2 track)_
 
