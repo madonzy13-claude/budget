@@ -1,6 +1,11 @@
 import type { Page } from "@playwright/test";
 
-export type BdpTabSlug = "spendings" | "reserves" | "wallets" | "settings";
+export type BdpTabSlug =
+  | "overview"
+  | "spendings"
+  | "reserves"
+  | "wallets"
+  | "settings";
 
 export class BdpPo {
   constructor(private page: Page) {}
@@ -24,6 +29,18 @@ export class BdpPo {
 
   stickyWrapper() {
     return this.page.getByTestId("bdp-sticky-wrapper");
+  }
+
+  /** Phase 11 — the five Overview summary cards (by stable testid). */
+  overviewCard(
+    name:
+      | "capitalization"
+      | "available-to-spend"
+      | "available-reserves"
+      | "overspent"
+      | "cushion",
+  ) {
+    return this.page.getByTestId(`overview-card-${name}`);
   }
 
   /** The pinned [data-shell-header] element (sticky top:0 in browser mode). */
