@@ -104,12 +104,16 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                    ), 'NORMAL') AS mode
               FROM months m
           ),
+          -- NB: do NOT gate on created_at — a limit can be BACKDATED to a month
+          -- before the category row's created_at (UAT round 13). The LATERAL join
+          -- on category_limits.effective_from is the real gate: a month only yields
+          -- a planned row when a limit was actually effective then. Archived gate
+          -- stays (drop the category for months at/after it's archived).
           cat_month AS (
             SELECT c.id AS category_id, m.month, m.month_start
               FROM budgeting.categories c
               CROSS JOIN months m
              WHERE c.tenant_id = ${budgetId}::uuid
-               AND to_char(c.created_at, 'YYYY-MM') <= m.month
                AND (c.archived_from IS NULL OR to_char(c.archived_from, 'YYYY-MM') >= m.month)
           )
           SELECT cm.category_id::text AS category_id,

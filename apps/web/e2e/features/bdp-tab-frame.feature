@@ -1,14 +1,14 @@
 Feature: BDP tab frame
-  # Covers BDP-01 (sticky pills), BDP-02 (tab order + default Wallets per
-  # UAT-PH5-T2-02), BDP-04 (active yellow), BDP-05 (back/forward), and mobile
-  # pill collapse (MAJOR #21).
+  # Covers BDP-01 (sticky pills), BDP-02 (tab order + default Overview per
+  # Phase 11 UAT — opening a budget lands on the Overview snapshot), BDP-04
+  # (active yellow), BDP-05 (back/forward), and mobile pill collapse (MAJOR #21).
 
   Background:
     Given I am signed in as a fresh user
 
-  Scenario: Visiting /budgets/[id] redirects to /wallets
+  Scenario: Visiting /budgets/[id] redirects to /overview
     When I open the BDP for "My E2E Budget"
-    Then the URL ends with "/wallets"
+    Then the URL ends with "/overview"
 
   Scenario: Clicking a pill navigates to its tab route
     When I open the BDP for "My E2E Budget"
@@ -20,8 +20,8 @@ Feature: BDP tab frame
     When I open the BDP for "My E2E Budget"
     And I click the "Spendings" tab pill
     And I press the browser Back button
-    Then the URL ends with "/wallets"
-    And the "Wallets" tab pill has the active state
+    Then the URL ends with "/overview"
+    And the "Overview" tab pill has the active state
 
   Scenario: Deep-link to /spendings paints Spendings as active on first render
     When I open the BDP spendings tab for "My E2E Budget"
@@ -30,7 +30,7 @@ Feature: BDP tab frame
   Scenario: Mobile viewport collapses inactive pill labels to icon-only (MAJOR #21)
     Given I am on a phone-sized viewport
     When I open the BDP for "My E2E Budget"
-    Then the "Wallets" tab pill has the active state
+    Then the "Overview" tab pill has the active state
     And the inactive pill "Spendings" hides its label
     And the inactive pill "Reserves" hides its label
     And the inactive pill "Settings" hides its label

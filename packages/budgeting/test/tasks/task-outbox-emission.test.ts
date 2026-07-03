@@ -253,6 +253,110 @@ describe("task-repo — task.created outbox emission", () => {
     );
   });
 
+  it("resolve() emits a task.resolved outbox row (r31d cross-device badge sync)", async () => {
+    const repo = createTaskRepo();
+    const freshBudget = await seedBudget();
+
+    await withTenantTx(
+      TenantId(freshBudget.budgetId),
+      UserId(freshBudget.userId),
+      async (tx) => {
+        const typedTx = tx as unknown as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        await repo.emitReserveTopup(
+          freshBudget.budgetId,
+          freshBudget.budgetId,
+          {
+            kind: "RESERVE_TOPUP",
+            shortfall_cents: 5000,
+            currency: "EUR",
+          } as unknown as import("@budget/budgeting/src/ports/task-repo").ReserveTopupPayload,
+          typedTx,
+        );
+      },
+    );
+    const taskId = await findPendingTaskId(
+      freshBudget.budgetId,
+      "RESERVE_TOPUP",
+    );
+    expect(taskId).toBeDefined();
+
+    // Close it (own tx) — must add a second outbox row of type task.resolved.
+    await repo.resolve(taskId!, freshBudget.budgetId);
+
+    const rows = await readOutboxRows(taskId!);
+    const types = rows.map((r) => r.event_type);
+    expect(types).toContain("task.created");
+    expect(types).toContain("task.resolved");
+    const resolved = rows.find((r) => r.event_type === "task.resolved")!;
+    expect((resolved.payload as Record<string, unknown>).kind).toBe(
+      "RESERVE_TOPUP",
+    );
+    expect((resolved.payload as Record<string, unknown>).budgetId).toBe(
+      freshBudget.budgetId,
+    );
+  });
+
+  it("resolveConfirmDraftByDraftId emits task.resolved (draft closed on desktop, r31d)", async () => {
+    const repo = createTaskRepo();
+    const fresh = await seedBudget();
+    const draftId = crypto.randomUUID();
+
+    await withTenantTx(
+      TenantId(fresh.budgetId),
+      UserId(fresh.userId),
+      async (tx) => {
+        const typedTx = tx as unknown as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        await repo.emitConfirmDraft(
+          fresh.budgetId,
+          fresh.budgetId,
+          {
+            kind: "CONFIRM_DRAFT",
+            draft_id: draftId,
+            rule_name: "Rent",
+            amount_cents: "1000",
+            currency: "EUR",
+            transaction_date: "2026-06-01",
+            category_id: crypto.randomUUID(),
+          } as unknown as import("@budget/budgeting/src/ports/task-repo").ConfirmDraftPayload,
+          typedTx,
+        );
+      },
+    );
+    const taskId = await findPendingTaskId(fresh.budgetId, "CONFIRM_DRAFT");
+    expect(taskId).toBeDefined();
+
+    // Confirming/dismissing the draft resolves the task via this path — it must
+    // now ALSO emit task.resolved so a phone re-syncs its badge (r31d).
+    await withTenantTx(
+      TenantId(fresh.budgetId),
+      UserId(fresh.userId),
+      async (tx) => {
+        await repo.resolveConfirmDraftByDraftId(
+          fresh.budgetId,
+          draftId,
+          tx as unknown as import("@budget/budgeting/src/ports/task-repo").TenantTx,
+        );
+      },
+    );
+
+    const rows = await readOutboxRows(taskId!);
+    expect(rows.map((r) => r.event_type)).toContain("task.resolved");
+  });
+
+  it("resolve() on an already-resolved / missing task emits NO task.resolved row", async () => {
+    const repo = createTaskRepo();
+    // A random id that matches nothing → the guarded UPDATE affects 0 rows.
+    const ghostId = crypto.randomUUID();
+    const freshBudget = await seedBudget();
+    await repo.resolve(ghostId, freshBudget.budgetId);
+    const rows = await readOutboxRows(ghostId);
+    expect(rows).toHaveLength(0);
+  });
+
   it("idempotent re-emit (same dedup key) does NOT add a second outbox row", async () => {
     const repo = createTaskRepo();
     // Fresh budget to ensure clean slate

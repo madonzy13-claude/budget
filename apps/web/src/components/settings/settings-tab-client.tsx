@@ -32,6 +32,8 @@ interface BudgetApiShape {
   cushion_target_months?: number;
   investmentsEnabled?: boolean;
   investments_enabled?: boolean;
+  reservesEnabled?: boolean;
+  reserves_enabled?: boolean;
   hasTransactions?: boolean;
   has_transactions?: boolean;
   currentUserRole?: "owner" | "member";
@@ -51,6 +53,7 @@ function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
       raw.cushionTargetMonths ?? raw.cushion_target_months ?? 6,
     investmentsEnabled:
       raw.investmentsEnabled ?? raw.investments_enabled ?? false,
+    reservesEnabled: raw.reservesEnabled ?? raw.reserves_enabled ?? true,
     hasTransactions: raw.hasTransactions ?? raw.has_transactions ?? false,
     currentUserRole: raw.currentUserRole ?? raw.current_user_role ?? "member",
   };

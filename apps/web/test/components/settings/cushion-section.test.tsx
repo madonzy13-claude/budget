@@ -128,6 +128,31 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
     });
   });
 
+  // r32: switching the month NORMAL↔CUSHION changes which limit the spendings
+  // grid shows. The grid reads ["spendings-summary", budgetId, month]; if the
+  // toggle doesn't invalidate it, the grid keeps the pre-toggle (normal) limits
+  // on a plain tab-switch to Spendings (the warm carousel pane never refetches).
+  it("toggling cushion mode invalidates the spendings grid", async () => {
+    patchMock.mockResolvedValue({ ok: true });
+    useQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    });
+    const user = userEvent.setup();
+    const { getByLabelText } = renderCushionSection({ cushionEnabled: true });
+    await user.click(getByLabelText("cushion.mode_label"));
+
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith(
+        expect.objectContaining({ json: { cushion_mode_enabled: true } }),
+      ),
+    );
+    expect(invalidateMock).toHaveBeenCalledWith({
+      queryKey: ["spendings-summary", "budget-1"],
+    });
+  });
+
   it("edit + blur with value=0 shows inline error and does NOT PATCH", async () => {
     const user = userEvent.setup();
     renderCushionSection({ initialCushionTargetMonths: 6 });

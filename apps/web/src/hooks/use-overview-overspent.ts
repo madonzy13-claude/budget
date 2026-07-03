@@ -5,7 +5,7 @@
  * Range-scoped overspent + (non-range) reserves-by-category. Fetches only when the
  * section is open (`enabled`); range is part of the query key (D-03).
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
 export interface OverviewOverspentDTO {
@@ -31,6 +31,12 @@ export function useOverviewOverspent(
   return useQuery({
     queryKey: ["budget", budgetId, "overview", "overspent", from, to],
     enabled,
+    // Hold the prior charts while a new range refetches (r27 item 1: no scroll jump).
+    placeholderData: keepPreviousData,
+    // Cache-first paint on (re)mount + background revalidate (symmetric with the
+    // cards hook): a reserve edited in the Reserves tab must show fresh here when
+    // the user returns to Overview, not stale-until-reload (UAT round 8 item 7).
+    refetchOnMount: "always",
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to });
       const res = await clientApiFetch(

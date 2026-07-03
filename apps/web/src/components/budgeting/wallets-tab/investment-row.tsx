@@ -19,6 +19,7 @@ import { TrendingUp, TrendingDown, Trash2 } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { holdingIcon } from "@/lib/investment-icons";
+import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { AssetClassChip } from "./asset-class-chip";
 
@@ -52,7 +53,12 @@ export function InvestmentRow({
 }: InvestmentRowProps) {
   const locale = useLocale();
   const t = useTranslations("budget.investments");
-  const [expanded, setExpanded] = useState(false);
+  // Tapped-open (mobile P/L expand) persists across pill navigation for the BDP's
+  // lifetime (round 18 item 2) — seed from + write to the BDP store by holding id.
+  const bdpStore = useBdpUiStore();
+  const [expanded, setExpanded] = useState(
+    () => bdpStore?.wallets.expandedRows[holding.id] ?? false,
+  );
 
   // Desktop has no hover edit pen anymore (UAT #7) — a desktop row-click opens the
   // edit sheet instead. On mobile the same click toggles the inline P/L (the pen
@@ -68,7 +74,12 @@ export function InvestmentRow({
   }, []);
   const activate = () => {
     if (isDesktop) onEdit?.();
-    else setExpanded((e) => !e);
+    else
+      setExpanded((e) => {
+        const next = !e;
+        if (bdpStore) bdpStore.wallets.expandedRows[holding.id] = next;
+        return next;
+      });
   };
 
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";

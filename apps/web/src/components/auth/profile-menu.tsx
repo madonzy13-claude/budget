@@ -129,6 +129,7 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
     setTheme(next);
     applyTheme(next);
     persistTheme(next);
+    setOpen(false);
   }
 
   // Outside click closes the menu. The check runs on `pointerdown` so a

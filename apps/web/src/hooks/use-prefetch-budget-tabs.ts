@@ -20,12 +20,16 @@ import { Temporal } from "temporal-polyfill";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { fetchSpendingsSummary } from "@/hooks/use-spendings-summary";
 import { mapTxnRowToDTO } from "@/hooks/use-transactions";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 
 export function usePrefetchBudgetTabs(budgetId: string) {
   const qc = useQueryClient();
+  // Same tz as the spendings grid's default month so the prefetched summary/txn
+  // keys match what the grid reads (r31 item 1).
+  const userTz = useUserTimezone();
   useEffect(() => {
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    const month = Temporal.Now.plainDateISO("UTC")
+    const month = Temporal.Now.plainDateISO(userTz)
       .toPlainYearMonth()
       .toString();
 
@@ -218,5 +222,5 @@ export function usePrefetchBudgetTabs(budgetId: string) {
       cancelled = true;
       clearTimeout(timerId);
     };
-  }, [budgetId, qc]);
+  }, [budgetId, qc, userTz]);
 }

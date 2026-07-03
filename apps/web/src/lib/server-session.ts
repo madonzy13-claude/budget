@@ -7,6 +7,9 @@ export interface ServerSessionUser {
   emailVerified: boolean;
   locale?: string;
   displayCurrency?: string;
+  /** IANA zone (e.g. "Europe/Kyiv"). Seeds the current-month rollover so it
+   *  follows the user's local calendar, not UTC (r31 item 1). */
+  timezone?: string;
 }
 
 export interface ServerSession {
@@ -187,6 +190,11 @@ export async function getServerSession(
     // emailVerified / email_verified
     if (u["emailVerified"] === undefined && u["email_verified"] !== undefined) {
       u["emailVerified"] = u["email_verified"];
+    }
+    // timezone / time_zone (defensive — the column is one word, but the adapter
+    // casing mode could still snake it).
+    if (u["timezone"] === undefined && u["time_zone"] !== undefined) {
+      u["timezone"] = u["time_zone"];
     }
   }
   return raw as unknown as ServerSession;

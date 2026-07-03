@@ -134,6 +134,14 @@
     --primary-disabled: #3a3a1f;
     --on-primary: #181a20;
     --primary-foreground: #181a20;
+    /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
+       charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
+       (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
+       primary bar series, --chart-bar-2 the 2nd series in a two-series bar chart
+       (avg real-vs-planned). Blue/teal read on both themes, so no light override. */
+    --chart-accent: var(--primary);
+    --chart-bar-1: #3b82f6;
+    --chart-bar-2: #14b8a6;
 
     /* Canvas + surface */
     --canvas-dark: #0b0e11;
@@ -446,6 +454,18 @@ textarea:focus-visible,
   outline: none !important;
   box-shadow: none !important;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Phase 11 UAT: recharts marks its surface focusable (role="application"),
+   so tapping a chart (e.g. a pie slice) triggered the global :focus-visible
+   blue --info outline around the whole chart. Charts aren't keyboard widgets
+   here, so suppress that outline. */
+.recharts-wrapper:focus,
+.recharts-wrapper:focus-visible,
+.recharts-surface:focus,
+.recharts-surface:focus-visible,
+.recharts-wrapper :focus-visible {
+  outline: none !important;
 }
 
 /* ───────────────────────────────────────────────────────────────────

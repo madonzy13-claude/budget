@@ -48,7 +48,9 @@ async function withTenantClient<T>(
 
 // A single wealth snapshot makes the wealth series non-empty so the section
 // renders its charts (incl. the investments-view pie region) instead of the
-// "history starts collecting" empty state.
+// "history starts collecting" empty state. The snapshot carries investment value,
+// so the budget has the Investments feature ON — otherwise the capitalization/
+// investments toggle is hidden (Phase 11 UAT: toggle gated on investments_enabled).
 Given(
   /^the budget has a wealth snapshot of (\d+) cents$/,
   async ({ freshUser }, cents: string) => {
@@ -56,8 +58,14 @@ Given(
       const ccy = await client
         .query<{
           default_currency: string;
-        }>(`SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`, [freshUser.budgetId])
+        }>(`SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`, [
+          freshUser.budgetId,
+        ])
         .then((r) => (r.rows[0]?.default_currency ?? "USD").trim());
+      await client.query(
+        `UPDATE tenancy.budgets SET investments_enabled = true WHERE id = $1::uuid`,
+        [freshUser.budgetId],
+      );
       await client.query(
         `INSERT INTO budgeting.budget_wealth_snapshots
            (tenant_id, budget_id, captured_at, capitalization_cents, investment_value_cents, currency)

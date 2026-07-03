@@ -35,17 +35,33 @@ export function registerOverviewCardsRoutes(r: Hono, deps: BootedDeps) {
       {
         default_currency: dto.default_currency,
         available_to_spend_cents: dto.available_to_spend_cents.toString(),
+        spendings: {
+          spent_cents: dto.spendings.spent_cents.toString(),
+          left_cents: dto.spendings.left_cents.toString(),
+          wallet_cents: dto.spendings.wallet_cents.toString(),
+          good: dto.spendings.good,
+        },
         capitalization_cents: dto.capitalization_cents.toString(),
         investment_value_cents: dto.investment_value_cents.toString(),
+        retirement_months: dto.retirement_months,
+        retirement_inflation_pct: dto.retirement_inflation_pct,
         available_reserves_cents: dto.available_reserves_cents.toString(),
+        reserves: {
+          required_cents: dto.reserves.required_cents.toString(),
+          wallet_cents: dto.reserves.wallet_cents.toString(),
+          status: dto.reserves.status,
+        },
         cushion: {
           enabled: dto.cushion.enabled,
           real_months: dto.cushion.real_months,
           total_cents: dto.cushion.total_cents.toString(),
+          required_cents: dto.cushion.required_cents.toString(),
+          covered: dto.cushion.covered,
         },
         overspent: {
           count: dto.overspent.count,
           currency: dto.overspent.currency,
+          total_cents: dto.overspent.total_cents.toString(),
           top: dto.overspent.top.map((t) => ({
             category_id: t.category_id,
             name: t.name,

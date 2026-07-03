@@ -1,9 +1,13 @@
 /**
  * instrument-price-hourly handler — Phase 9 (INV-13 / T-9-10).
  * Hourly pg-boss job. Fetches a live price for the DISTINCT set of held, tracked,
- * hourly instruments across ALL tenants in ONE query (no per-tenant iteration) and
- * upserts budgeting.instrument_price_cache. Excludes custom holdings (instrument_id
- * NULL) and metals (refresh_cadence='daily' — Pitfall 3). Returns { fetched, failed }.
+ * auto-priced instruments across ALL tenants in ONE query (no per-tenant iteration)
+ * and upserts budgeting.instrument_price_cache. This covers crypto (coingecko),
+ * US stocks/ETFs (finnhub) AND metals (gold_api) — all carry refresh_cadence='hourly'.
+ * Excludes only: custom holdings (instrument_id NULL), manual-priced instruments
+ * (provider LIKE 'manual%', user-maintained), and any refresh_cadence='daily' rows
+ * (the daily gate is retained but currently unused — no instrument is 'daily').
+ * Returns { fetched, failed }.
  *
  * Reference-data scope: withInfraTx (worker_role). The cross-tenant held-set read is
  * permitted by the investments_worker_cron_scan SELECT policy (post-migration).

@@ -12,6 +12,7 @@ import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { ChartTooltipContent } from "@/components/budgeting/charts/chart-tooltip";
 
 beforeAll(() => {
   // Give ResponsiveContainer a non-zero box in happy-dom.
@@ -117,6 +118,84 @@ describe("Overview charts", () => {
     expect(
       container.querySelector(".recharts-responsive-container"),
     ).toBeTruthy();
+  });
+
+  describe("ChartTooltipContent marker color (r25 item 3)", () => {
+    const payload = [
+      {
+        dataKey: "pct",
+        value: 10,
+        name: "Change",
+        color: "var(--chart-bar-1)", // recharts base fill (blue) — must NOT win
+        payload: { label: "d", pct: 10, raw: 10 },
+      },
+    ];
+
+    it("uses the per-point colorForRow so the marker matches the bar, not the base fill", () => {
+      const { container } = render(
+        <ChartTooltipContent
+          active
+          payload={payload}
+          label="d"
+          series={[{ key: "pct", label: "Change" }]}
+          colorForRow={(row) =>
+            Number(row.pct) >= 0 ? "rgb(14, 203, 129)" : "rgb(246, 70, 93)"
+          }
+        />,
+      );
+      const marker = container.querySelector(
+        "span[aria-hidden]",
+      ) as HTMLElement;
+      expect(marker).toBeTruthy();
+      expect(marker.getAttribute("style") || "").toMatch(/14,\s*203,\s*129/);
+    });
+
+    it("falls back to the series color when no colorForRow is given", () => {
+      const { container } = render(
+        <ChartTooltipContent
+          active
+          payload={payload}
+          label="d"
+          series={[{ key: "pct", label: "Change", color: "rgb(1, 2, 3)" }]}
+        />,
+      );
+      const marker = container.querySelector(
+        "span[aria-hidden]",
+      ) as HTMLElement;
+      expect(marker.getAttribute("style") || "").toMatch(/1,\s*2,\s*3/);
+    });
+
+    it("reports a tap to onDismiss and hides when its label is suppressed (r28 item 3)", () => {
+      let dismissed: unknown = undefined;
+      const { container, rerender } = render(
+        <ChartTooltipContent
+          active
+          payload={payload}
+          label="d"
+          series={[{ key: "pct", label: "Change" }]}
+          onDismiss={(l) => {
+            dismissed = l;
+          }}
+        />,
+      );
+      // visible → tapping the tooltip reports its x-label
+      const root = container.firstElementChild as HTMLElement;
+      expect(root).toBeTruthy();
+      fireEvent.click(root);
+      expect(dismissed).toBe("d");
+      // once that label is suppressed, the tooltip renders nothing
+      rerender(
+        <ChartTooltipContent
+          active
+          payload={payload}
+          label="d"
+          series={[{ key: "pct", label: "Change" }]}
+          suppressedLabel="d"
+          onDismiss={() => {}}
+        />,
+      );
+      expect(container.firstElementChild).toBeNull();
+    });
   });
 
   it("handles a pie slice tap without throwing (active-index path)", () => {

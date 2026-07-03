@@ -205,17 +205,18 @@
     "page_heading": "Налаштування бюджету",
     "error_save": "Не вдалося зберегти — спробуйте ще раз",
     "sections": {
-      "identity": "Ідентифікація бюджету",
+      "identity": "Загальне",
       "cushion": "Подушка",
+      "reserves": "Резерви",
       "investments": "Інвестиції",
-      "recurring": "Регулярні витрати",
+      "recurring": "Повторювані платежі",
       "members": "Учасники",
       "danger": "Небезпечна зона"
     },
     "identity": {
       "name_label": "Назва",
       "name_saved": "Назву бюджету збережено",
-      "currency_label": "Типова валюта",
+      "currency_label": "Валюта",
       "currency_saved": "Валюту оновлено",
       "currency_locked_tooltip": "Валюта заблокована після першої транзакції"
     },
@@ -238,9 +239,9 @@
       "previewError": "Не вдалося завантажити підсумок подушки."
     },
     "recurring": {
-      "add_rule": "Додати правило",
-      "add_rule_title": "Додати регулярне правило",
-      "edit_rule_title": "Редагувати регулярне правило"
+      "add_rule": "Додати платіж",
+      "add_rule_title": "Додати повторюваний платіж",
+      "edit_rule_title": "Редагувати повторюваний платіж"
     },
     "members": {
       "empty": "Інших учасників немає.",
@@ -293,15 +294,43 @@
           "description": "Коли резерв потребує поповнення"
         },
         "CONFIRM_DRAFT": {
-          "label": "Чернетка потребує підтвердження",
-          "description": "Коли повторювана чернетка очікує підтвердження"
+          "label": "Повторюваний платіж потребує підтвердження",
+          "description": "Коли повторюваний платіж очікує підтвердження"
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Подушка нижче цільового рівня",
           "description": "Коли баланс подушки не досягає встановленої мети"
+        },
+        "TASK_COMPLETED": {
+          "label": "Завдання виконано",
+          "description": "Коли інший учасник виконує завдання"
         }
       },
-      "permissionDenied": "Дозвіл на сповіщення відхилено. Увімкніть його в налаштуваннях браузера.",
+      "reminder": {
+        "label": "Нагадувати оновити бюджет",
+        "description": "Вечірнє нагадування у вибрані дні",
+        "day": {
+          "1": "Понеділок",
+          "2": "Вівторок",
+          "3": "Середа",
+          "4": "Четвер",
+          "5": "П'ятниця",
+          "6": "Субота",
+          "7": "Неділя"
+        },
+        "dayShort": {
+          "1": "Пн",
+          "2": "Вт",
+          "3": "Ср",
+          "4": "Чт",
+          "5": "Пт",
+          "6": "Сб",
+          "7": "Нд"
+        }
+      },
+      "permissionDenied": "Сповіщення заблоковано. На iPhone: видаліть застосунок з початкового екрана, додайте його знову, потім дозвольте. На комп'ютері: дозвольте їх у налаштуваннях сайту.",
+      "unsupported": "Push-сповіщення недоступні на цьому пристрої або в цьому браузері. На iPhone спершу додайте застосунок на початковий екран.",
+      "subscribeError": "Не вдалося увімкнути сповіщення. Спробуйте ще раз.",
       "saved": "Налаштування сповіщень збережено."
     },
     "theme": {
@@ -336,7 +365,7 @@
         "shared": "Спільний — запросити родину"
       },
       "currency": {
-        "label": "Типова валюта",
+        "label": "Валюта",
         "helper": "Це постійно — кожен запис у цьому бюджеті розраховується в цій валюті.",
         "placeholder": "Виберіть валюту"
       },
@@ -344,7 +373,7 @@
       "success": "Бюджет \"{name}\" створено.",
       "validation": {
         "name_required": "Назва бюджету є обов'язковою.",
-        "currency_required": "Типова валюта є обов'язковою."
+        "currency_required": "Валюта є обов'язковою."
       }
     },
     "switcher": {
@@ -424,6 +453,13 @@
       "tab": "Налаштування",
       "members_tab": "Учасники",
       "shares_tab": "Частки"
+    },
+    "reserves": {
+      "feature_label": "Резерви",
+      "feature_help_text": "Переносьте невикористаний бюджет категорії в резерв наприкінці місяця. Вимкнення приховує вкладку Резерви та всі елементи резервів в Огляді.",
+      "feature_on_toast": "Резерви увімкнено",
+      "feature_off_toast": "Резерви вимкнено — вкладку Резерви приховано",
+      "error_save": "Не вдалося зберегти — спробуйте ще раз"
     },
     "investments": {
       "feature_label": "Інвестиції",
@@ -535,6 +571,7 @@
       "search": {
         "placeholder": "Пошук інструментів…",
         "loading": "Пошук…",
+        "autoPriced": "Автоматична ціна",
         "noResults": "Немає збігів у каталозі",
         "custom": "Власний — ввести вручну",
         "enterManually": "Ввести вручну",
@@ -564,7 +601,7 @@
         "discard": {
           "title": "Відхилити зміни?",
           "body": "Незбережені зміни буде втрачено.",
-          "cta": "Відхилити",
+          "cta": "Закрити",
           "cancel": "Продовжити редагування"
         }
       },
@@ -672,7 +709,7 @@
         "name_label": "Назва бюджету",
         "name_placeholder": "напр. Сімейний бюджет",
         "name_required": "Назва бюджету є обов'язковою.",
-        "currency_label": "Типова валюта",
+        "currency_label": "Валюта",
         "currency_helper": "Можна змінити, доки ви не додасте першу транзакцію."
       },
       "type": {
@@ -920,7 +957,7 @@
         "weeklyOnDow": "Щотижня · {weekday}",
         "yearlyOn": "Щорічно · {month} {day}",
         "daily": "Щодня",
-        "nextDueLabel": "Далі: {date}",
+        "nextDueLabel": "Найближчий: {date}",
         "editButton": "Редагувати",
         "archiveButton": "Архівувати"
       },
@@ -1077,28 +1114,59 @@
         "title": "Огляд",
         "cards": {
           "availableToSpend": "Доступно для витрат",
+          "spentThisMonth": "Витрачено",
+          "leftToSpend": "Майбутні",
+          "retirementRunway": "Якщо вийти на пенсію зараз, грошей вистачить на",
+          "retirementSub": "за звичайних запланованих витрат",
+          "retirementInflation": "з урахуванням {pct}% річної інфляції",
+          "flipToRetirement": "Капіталізація — торкніться, щоб побачити запас на пенсію",
+          "years": "{count, plural, one {# рік} few {# роки} many {# років} other {# року}}",
+          "months": "{count, plural, one {# місяць} few {# місяці} many {# місяців} other {# місяця}}",
+          "and": "і",
+          "unitY": "р",
+          "unitM": "м",
+          "unitD": "д",
+          "overspentMotivation": "Гарна робота — так тримати!",
+          "spendGood": "Гаманці покривають залишок до витрат",
+          "spendBad": "Гаманці не покривають залишок до витрат",
+          "reservesNeeded": "Потрібно",
+          "reservesOk": "Резерви відповідають потрібній сумі",
+          "reservesShort": "Резерви менші за потрібну суму",
+          "reservesSurplus": "Більше резервів, ніж потрібно",
+          "reservesOkNote": "Потрібно {amount}",
+          "reservesShortNote": "Недостатньо. Потрібно {amount}",
+          "reservesSurplusNote": "Забагато. Потрібно всього {amount}",
           "capitalization": "Капіталізація",
           "capitalizationSub": "включно з інвестиціями {amount}",
-          "overspent": "Перевитрата цього місяця",
+          "sinceLastMonth": "з минулого місяця",
+          "sinceYesterday": "з учора",
+          "overspent": "Перевитрата",
           "overspentCount": "{count, plural, one {# категорія} few {# категорії} many {# категорій} other {# категорій}}",
           "onBudget": "У межах бюджету",
           "cushion": "Подушка",
           "cushionMonths": "{months} міс.",
           "cushionOff": "Подушку вимкнено",
+          "cushionCovered": "Подушка покриває потрібний ліміт",
+          "cushionShort": "Подушка нижча за потрібний ліміт",
+          "cushionSaved": "Зібрано",
+          "cushionNeeded": "Потрібно",
           "availableReserves": "Доступні резерви",
           "realMonths": "реальні місяці"
         },
         "range": {
           "month": "Місяць",
+          "1m": "1М",
           "3m": "3М",
-          "year": "Рік",
+          "6m": "6М",
+          "year": "1Р",
           "all": "Усе",
-          "custom": "Власний",
+          "custom": "Інше",
           "from": "Від",
           "to": "До",
           "currentConfig": "поточна конфігурація",
           "allTime": "увесь час"
         },
+        "total": "Разом",
         "sections": {
           "planned": "Заплановано",
           "overspent": "Перевитрати",
@@ -1111,15 +1179,22 @@
           "real": "Фактичні",
           "planned": "Заплановані",
           "recurringPerMonth": "Регулярні за місяцями",
-          "recurringPerCategory": "Регулярні за категоріями"
+          "recurringPerCategory": "Регулярні за категоріями",
+          "timelineTitle": "План vs факт",
+          "avgByCategory": "Середнє за категоріями"
         },
         "wealth": {
           "capitalization": "Капіталізація",
           "investments": "Інвестиції",
           "grow": "Зростання",
           "loss": "Збиток",
-          "monthlyAvg": "Сер. за місяць",
-          "dynamics": "Місяць до місяця",
+          "monthlyAvg": "Сер. зміна",
+          "dynamicsDaily": "Щоденна зміна",
+          "dynamicsMonthly": "Місячна зміна",
+          "dynamicsYearly": "Річна зміна",
+          "avgForRange": "Сер. зміна ({range})",
+          "growSince": "{preset, select, thisMonth {з початку місяця} last3Months {за останні 3 місяці} last6Months {за останні 6 місяців} thisYear {з початку року} all {за весь час} other {за вибраний період}}",
+          "byType": "За типом",
           "pieShare": "{pct}%"
         },
         "empty": {
@@ -1274,7 +1349,7 @@
       "count": "{count, plural, one {# завдання очікує} few {# завдання очікують} many {# завдань очікують} other {# завдань очікують}}",
       "title": {
         "RESERVE_TOPUP": "Поповніть резерв на {amount}",
-        "CONFIRM_DRAFT": "Підтвердьте {ruleName} — {amount}",
+        "CONFIRM_DRAFT": "{hasCategory, select, yes {Підтвердьте {amount} — {category}} other {Підтвердьте {amount}}}",
         "CUSHION_BELOW_TARGET": "Подушці бракує {shortfall}",
         "RESERVE_TOPUP_withdraw": "Резерв має {amount} надлишку"
       },
@@ -1338,7 +1413,12 @@
         "name": "Назва",
         "planned": "Заплановано на місяць",
         "cushion": "Подушка на місяць",
-        "color": "Колір"
+        "color": "Колір",
+        "needs": "Потреби",
+        "wants": "Бажання",
+        "plannedTotal": "Заплановано",
+        "cushionValue": "Подушка: {amount}",
+        "cushionResult": "Подушка"
       },
       "deleteBlockedTooltip": "Не можна видалити категорію з існуючими транзакціями",
       "deleteConfirmBody": "Це назавжди видалить категорію.",
@@ -1347,6 +1427,12 @@
         "body": "Виберіть, як видалити цю категорію.",
         "keepHistory": "Архівувати (зберегти історію)",
         "everywhere": "Видалити (видалити назавжди)"
+      },
+      "cushionMode": {
+        "none": "Немає",
+        "needs_wants": "Потреби + Бажання",
+        "needs_only": "Лише потреби",
+        "custom": "Власна"
       }
     },
     "expensesTitle": "Витрати",

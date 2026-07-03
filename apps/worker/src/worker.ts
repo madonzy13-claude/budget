@@ -36,6 +36,7 @@ import {
   type InstrumentsDailySeedDeps,
 } from "./handlers/instruments-daily-seed";
 import { registerInvestmentSnapshotDaily } from "./handlers/investment-snapshot-daily";
+import { registerBudgetReminder } from "./handlers/budget-reminder";
 import { registerBudgetWealthSnapshot3h } from "./handlers/budget-wealth-snapshot-3h";
 import { createInvestmentsModule } from "@budget/investments/src/contracts/factory";
 import { DrizzleHoldingRepo } from "@budget/investments/src/adapters/persistence/holding-repo";
@@ -357,6 +358,16 @@ async function main() {
     seedDeps,
   );
 
+  // r32: hourly budget-update reminder. Runs every hour (UTC 5-field cron); the
+  // handler sends only to members whose LOCAL time is ~18:00 on a selected
+  // weekday (tz + days from each member's BUDGET_REMINDER pref). Deep-links to
+  // the Spendings tab.
+  await boss.createQueue("budget-reminder");
+  await boss.schedule("budget-reminder", "0 * * * *");
+  registerBudgetReminder(
+    boss as unknown as Parameters<typeof registerBudgetReminder>[0],
+  );
+
   // Cold-start universe seed (260626): run the daily-seed NOW when the universe is
   // empty (fresh DB / first boot / wiped dev stack) instead of waiting for the
   // 18:00 cron, so investment search works immediately. Logic + guards are unit-
@@ -386,7 +397,7 @@ async function main() {
     fxProvider,
   );
 
-  // Phase 11 (11-07, D-04/SC8): 3h per-budget wealth snapshot. Scheduled AFTER the
+  // Phase 11 (11-07, D-04/SC8): HOURLY per-budget wealth snapshot. Scheduled AFTER the
   // price/fx refresh jobs so the live valuation uses fresh cached prices. Reuses the
   // SAME computeBudgetWealthNow primitive as the API capitalization card + the wealth
   // live point (consistent numbers). holdingsValuation groups the investments module's
@@ -423,8 +434,11 @@ async function main() {
     },
     fxProvider,
   };
+  // NOTE: the queue/handler name keeps the historical "-3h" suffix, but the cadence
+  // is now HOURLY (user request 2026-07-01). Renaming the queue would orphan the old
+  // pg-boss schedule, so only the cron changed: "0 */3 * * *" → "0 * * * *".
   await boss.createQueue("budget-wealth-snapshot-3h");
-  await boss.schedule("budget-wealth-snapshot-3h", "0 */3 * * *", null, {
+  await boss.schedule("budget-wealth-snapshot-3h", "0 * * * *", null, {
     tz: "Europe/Berlin",
   });
   registerBudgetWealthSnapshot3h(

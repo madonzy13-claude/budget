@@ -43,6 +43,9 @@ export function centsToDisplayCompact(
   cents: string | bigint,
   currency: string,
   locale = "en",
+  // narrow=true → the shortest currency sign ("kr", "zł", "₴") instead of the
+  // ISO code Intl falls back to for many currencies ("SEK 700" → "kr 700").
+  narrow = false,
 ): string {
   let big: bigint;
   try {
@@ -59,6 +62,7 @@ export function centsToDisplayCompact(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    currencyDisplay: narrow ? "narrowSymbol" : "symbol",
     minimumFractionDigits: hasFrac ? 2 : 0,
     maximumFractionDigits: 2,
   }).format(neg ? -num : num);

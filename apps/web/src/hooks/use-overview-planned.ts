@@ -6,7 +6,7 @@
  * query key so RQ caches per selection (D-03). Cents stay strings; the component
  * converts to Number for recharts.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
 export interface OverviewPlannedDTO {
@@ -43,6 +43,9 @@ export function useOverviewPlanned(
       categoryId ?? null,
     ],
     enabled,
+    refetchOnMount: "always",
+    // Hold the prior charts while a new range/category refetches (r27 item 1).
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to });
       if (categoryId) qs.set("categoryId", categoryId);

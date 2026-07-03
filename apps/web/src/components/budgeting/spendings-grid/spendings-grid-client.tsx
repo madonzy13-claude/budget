@@ -53,6 +53,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useReorderCategories } from "@/hooks/use-reorder-categories";
 import { useBudget, useCategories } from "@/hooks/use-budget-data";
+import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
+import { restoreScroll } from "@/lib/restore-scroll";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -167,13 +170,13 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // React Query, served instantly from the warm/persisted cache (skeleton only
   // on a genuine cold load).
   //
-  // budgetTz circular-dependency: the month feeds the spendings-summary query
-  // KEY, but budgetTz lives ON that summary (which is keyed BY month) and GET
-  // /budgets/:id carries no timezone. So we never feed a tz back into the month
-  // calc — the URL month is computed in UTC (stable), and the real budgetTz
-  // (read from summary.data once loaded) is used only for display + the
-  // quick-entry "today" resolution.
-  const { monthStr, isCurrentMonth } = useMonthParam("UTC");
+  // The current-month DEFAULT must roll over in the user's timezone (r31 item 1).
+  // The old circular-dependency (budgetTz lived only on the month-keyed summary,
+  // so the default fell back to UTC) is gone: userTz comes from the session-seeded
+  // UserTimezoneProvider — SSR-stable and independent of the month. The prefetch
+  // + offline stale-bar use the same source so the summary query keys still match.
+  const userTz = useUserTimezone();
+  const { monthStr, isCurrentMonth } = useMonthParam(userTz);
   const month = monthStr;
 
   // queryKey contract: must match mutation hooks' invalidate keys (Plan 04-03).
@@ -202,6 +205,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   const cushionEnabled = budgetMeta?.cushionEnabled ?? true;
 
   const qc = useQueryClient();
+  const bdpStore = useBdpUiStore();
   const tDel = useTranslations("grid.deleteCategory");
   const tGrid = useTranslations("grid");
   const offlineToast = useOfflineWriteToast();
@@ -594,6 +598,33 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       }
     };
   }, []);
+
+  // Persist the grid scroll (both axes) across pill navigation (item 4). Restore
+  // polls frames until the columns lay out tall/wide enough to reach the saved
+  // offset (the pane remounts empty, so a one-shot rAF clamps to 0) — and wins
+  // over the scrollTop=1 pull-to-refresh anchor since the target is >1.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || !bdpStore) return;
+    const cancel = restoreScroll(el, {
+      top: bdpStore.spendings.scrollTop ?? 0,
+      left: bdpStore.spendings.scrollLeft ?? 0,
+      // Longer window than the default: the grid's scrollable height only appears
+      // after --grid-max-h is measured AND the columns render, which can lag on a
+      // cold/SW-served remount — a 1.5s poll sometimes timed out at 0.
+      timeoutMs: 4000,
+    });
+    const onScroll = () => {
+      // Ignore the anchor's scrollTop=1 nudge — don't overwrite a real saved pos.
+      if (el.scrollTop > 1) bdpStore.spendings.scrollTop = el.scrollTop;
+      bdpStore.spendings.scrollLeft = el.scrollLeft;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancel();
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [bdpStore]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),

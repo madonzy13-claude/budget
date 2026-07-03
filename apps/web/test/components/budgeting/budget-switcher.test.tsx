@@ -119,7 +119,7 @@ describe.skip("BudgetSwitcher", () => {
     )!;
     await user.click(nonActive);
     expect(pushMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith("/en/budgets/b2/wallets");
+    expect(pushMock).toHaveBeenCalledWith("/en/budgets/b2/overview");
   });
 
   it("does NOT call router.push when the active row is clicked", async () => {

@@ -30,6 +30,32 @@ export function formatBudgetDate(isoDate: string, locale: string): string {
 }
 
 /**
+ * Compact day-first date chip: "13 Jul 2026" (localized short month, trailing
+ * dot stripped — uk "лип.", de "Jul."). Day-first regardless of the locale's
+ * own ordering so list rows read consistently; mirrors the DateInput chip.
+ * Returns the raw input if it isn't a parseable YYYY-MM-DD.
+ */
+export function formatShortDate(isoDate: string, locale: string): string {
+  const [y, m, d] = isoDate.split("-").map((s) => parseInt(s, 10));
+  if (
+    !Number.isFinite(y) ||
+    !Number.isFinite(m) ||
+    !Number.isFinite(d) ||
+    y === undefined ||
+    m === undefined ||
+    d === undefined
+  ) {
+    return isoDate;
+  }
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const monthShort = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    timeZone: "UTC",
+  }).format(date);
+  return `${d} ${monthShort.replace(/\.$/, "")} ${y}`;
+}
+
+/**
  * Format a Date or timestamp for a given locale with time.
  * Returns a short localized date+time string.
  */

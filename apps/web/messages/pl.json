@@ -207,6 +207,7 @@
     "sections": {
       "identity": "Tożsamość budżetu",
       "cushion": "Poduszka",
+      "reserves": "Rezerwy",
       "investments": "Inwestycje",
       "recurring": "Wydatki cykliczne",
       "members": "Członkowie",
@@ -215,7 +216,7 @@
     "identity": {
       "name_label": "Nazwa",
       "name_saved": "Nazwa budżetu zapisana",
-      "currency_label": "Domyślna waluta",
+      "currency_label": "Waluta",
       "currency_saved": "Waluta zaktualizowana",
       "currency_locked_tooltip": "Waluta zablokowana po pierwszej transakcji"
     },
@@ -299,9 +300,37 @@
         "CUSHION_BELOW_TARGET": {
           "label": "Poduszka poniżej celu",
           "description": "Gdy saldo poduszki jest poniżej wyznaczonego celu"
+        },
+        "TASK_COMPLETED": {
+          "label": "Zadanie ukończone",
+          "description": "Gdy inny członek ukończy zadanie"
         }
       },
-      "permissionDenied": "Uprawnienie do powiadomień zostało odrzucone. Włącz je w ustawieniach przeglądarki.",
+      "reminder": {
+        "label": "Przypominaj o aktualizacji budżetu",
+        "description": "Wieczorne przypomnienie w wybrane dni",
+        "day": {
+          "1": "Poniedziałek",
+          "2": "Wtorek",
+          "3": "Środa",
+          "4": "Czwartek",
+          "5": "Piątek",
+          "6": "Sobota",
+          "7": "Niedziela"
+        },
+        "dayShort": {
+          "1": "Pon",
+          "2": "Wt",
+          "3": "Śr",
+          "4": "Czw",
+          "5": "Pt",
+          "6": "Sob",
+          "7": "Nd"
+        }
+      },
+      "permissionDenied": "Powiadomienia są zablokowane. Na iPhonie: usuń aplikację z ekranu początkowego, dodaj ją ponownie, a następnie zezwól. Na komputerze: zezwól na nie w ustawieniach witryny.",
+      "unsupported": "Powiadomienia push nie są dostępne na tym urządzeniu lub w tej przeglądarce. Na iPhonie najpierw dodaj aplikację do ekranu początkowego.",
+      "subscribeError": "Nie udało się włączyć powiadomień. Spróbuj ponownie.",
       "saved": "Preferencje powiadomień zapisane."
     },
     "theme": {
@@ -336,7 +365,7 @@
         "shared": "Wspólny — zaproś rodzinę"
       },
       "currency": {
-        "label": "Domyślna waluta",
+        "label": "Waluta",
         "helper": "To ustawienie jest trwałe — każdy wpis w tym budżecie jest rozliczany w tej walucie.",
         "placeholder": "Wybierz walutę"
       },
@@ -424,6 +453,13 @@
       "tab": "Ustawienia",
       "members_tab": "Członkowie",
       "shares_tab": "Udziały"
+    },
+    "reserves": {
+      "feature_label": "Rezerwy",
+      "feature_help_text": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączenie ukrywa kartę Rezerwy i wszystkie pozycje rezerw w Przeglądzie.",
+      "feature_on_toast": "Rezerwy włączone",
+      "feature_off_toast": "Rezerwy wyłączone — karta Rezerwy ukryta",
+      "error_save": "Nie udało się zapisać — spróbuj ponownie"
     },
     "investments": {
       "feature_label": "Inwestycje",
@@ -535,6 +571,7 @@
       "search": {
         "placeholder": "Szukaj instrumentów…",
         "loading": "Szukanie…",
+        "autoPriced": "Wycena automatyczna",
         "noResults": "Brak dopasowania w katalogu",
         "custom": "Niestandardowy — wpisz ręcznie",
         "enterManually": "Wpisz ręcznie",
@@ -672,7 +709,7 @@
         "name_label": "Nazwa budżetu",
         "name_placeholder": "np. Budżet rodzinny",
         "name_required": "Nazwa budżetu jest wymagana.",
-        "currency_label": "Domyślna waluta",
+        "currency_label": "Waluta",
         "currency_helper": "Możesz to zmienić, dopóki nie dodasz pierwszej transakcji."
       },
       "type": {
@@ -1077,28 +1114,59 @@
         "title": "Przegląd",
         "cards": {
           "availableToSpend": "Dostępne do wydania",
+          "spentThisMonth": "Wydano",
+          "leftToSpend": "Przyszłe",
+          "retirementRunway": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
+          "retirementSub": "przy normalnym planowanym wydatku",
+          "retirementInflation": "z {pct}% roczną inflacją",
+          "flipToRetirement": "Kapitalizacja — dotknij, aby zobaczyć ile starczy na emeryturze",
+          "years": "{count, plural, one {# rok} few {# lata} many {# lat} other {# roku}}",
+          "months": "{count, plural, one {# miesiąc} few {# miesiące} many {# miesięcy} other {# miesiąca}}",
+          "and": "i",
+          "unitY": "l",
+          "unitM": "m",
+          "unitD": "d",
+          "overspentMotivation": "Dobra robota — tak trzymaj!",
+          "spendGood": "Portfele pokrywają to, co zostało do wydania",
+          "spendBad": "Portfele nie pokrywają tego, co zostało do wydania",
+          "reservesNeeded": "Potrzeba",
+          "reservesOk": "Rezerwy zgodne z wymaganą kwotą",
+          "reservesShort": "Rezerwy poniżej wymaganej kwoty",
+          "reservesSurplus": "Więcej rezerw niż potrzeba",
+          "reservesOkNote": "Potrzeba {amount}",
+          "reservesShortNote": "Za mało. Potrzeba {amount}",
+          "reservesSurplusNote": "Za dużo. Potrzeba tylko {amount}",
           "capitalization": "Kapitalizacja",
           "capitalizationSub": "w tym inwestycje {amount}",
-          "overspent": "Przekroczono w tym miesiącu",
+          "sinceLastMonth": "od zeszłego miesiąca",
+          "sinceYesterday": "od wczoraj",
+          "overspent": "Przekroczono",
           "overspentCount": "{count, plural, one {# kategoria} few {# kategorie} many {# kategorii} other {# kategorii}}",
           "onBudget": "W ramach budżetu",
           "cushion": "Poduszka",
           "cushionMonths": "{months} mies.",
           "cushionOff": "Poduszka wyłączona",
+          "cushionCovered": "Poduszka pokrywa wymagany limit",
+          "cushionShort": "Poduszka jest poniżej wymaganego limitu",
+          "cushionSaved": "Zebrano",
+          "cushionNeeded": "Potrzeba",
           "availableReserves": "Dostępne rezerwy",
           "realMonths": "realne miesiące"
         },
         "range": {
           "month": "Miesiąc",
+          "1m": "1M",
           "3m": "3M",
-          "year": "Rok",
-          "all": "Wszystko",
-          "custom": "Niestandardowy",
+          "6m": "6M",
+          "year": "1R",
+          "all": "All",
+          "custom": "Inne",
           "from": "Od",
           "to": "Do",
           "currentConfig": "aktualna konfiguracja",
           "allTime": "cały okres"
         },
+        "total": "Razem",
         "sections": {
           "planned": "Zaplanowane",
           "overspent": "Przekroczenia",
@@ -1111,15 +1179,22 @@
           "real": "Rzeczywiste",
           "planned": "Zaplanowane",
           "recurringPerMonth": "Cykliczne wg miesiąca",
-          "recurringPerCategory": "Cykliczne wg kategorii"
+          "recurringPerCategory": "Cykliczne wg kategorii",
+          "timelineTitle": "Plan vs rzeczywiste",
+          "avgByCategory": "Średnia wg kategorii"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
           "investments": "Inwestycje",
           "grow": "Wzrost",
           "loss": "Strata",
-          "monthlyAvg": "Śr. miesięcznie",
-          "dynamics": "Miesiąc do miesiąca",
+          "monthlyAvg": "Śr. zmiana",
+          "dynamicsDaily": "Zmiana dzienna",
+          "dynamicsMonthly": "Zmiana miesięczna",
+          "dynamicsYearly": "Zmiana roczna",
+          "avgForRange": "Śr. zmiana ({range})",
+          "growSince": "{preset, select, thisMonth {od początku miesiąca} last3Months {za ostatnie 3 miesiące} last6Months {za ostatnie 6 miesięcy} thisYear {od początku roku} all {cały czas} other {w wybranym zakresie}}",
+          "byType": "Wg typu",
           "pieShare": "{pct}%"
         },
         "empty": {
@@ -1274,7 +1349,7 @@
       "count": "{count, plural, one {# zadanie oczekujące} few {# zadania oczekujące} many {# zadań oczekujących} other {# zadań oczekujących}}",
       "title": {
         "RESERVE_TOPUP": "Uzupełnij rezerwę o {amount}",
-        "CONFIRM_DRAFT": "Potwierdź {ruleName} — {amount}",
+        "CONFIRM_DRAFT": "{hasCategory, select, yes {Potwierdź {amount} — {category}} other {Potwierdź {amount}}}",
         "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki",
         "RESERVE_TOPUP_withdraw": "Rezerwa ma {amount} nadwyżki"
       },
@@ -1338,7 +1413,12 @@
         "name": "Nazwa",
         "planned": "Plan miesięczny",
         "cushion": "Poduszka miesięczna",
-        "color": "Kolor"
+        "color": "Kolor",
+        "needs": "Potrzeby",
+        "wants": "Zachcianki",
+        "plannedTotal": "Plan",
+        "cushionValue": "Poduszka: {amount}",
+        "cushionResult": "Poduszka"
       },
       "deleteBlockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
       "deleteConfirmBody": "Ta operacja trwale usunie kategorię.",
@@ -1347,6 +1427,12 @@
         "body": "Wybierz sposób usunięcia tej kategorii.",
         "keepHistory": "Archiwizuj (zachowaj historię)",
         "everywhere": "Usuń (usuń trwale)"
+      },
+      "cushionMode": {
+        "none": "Brak",
+        "needs_wants": "Potrzeby + Zachcianki",
+        "needs_only": "Tylko potrzeby",
+        "custom": "Własna"
       }
     },
     "expensesTitle": "Wydatki",

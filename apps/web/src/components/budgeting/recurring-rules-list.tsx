@@ -14,9 +14,11 @@
  *     in API-decimal form (e.g. "1500.0000"), so we normalize via
  *     `formatAmountForList` before display.
  */
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { centsToDisplayCompact } from "@/lib/cents-format";
+import { formatShortDate } from "@/lib/format-date";
 
 export interface RecurringRuleListItem {
   id: string;
@@ -61,12 +63,35 @@ export function formatAmountForList(raw: string): string {
   return `${sign}${whole}.${frac.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Render a recurring rule's decimal amount with a short currency sign ($, kr,
+ * zł, ₴) instead of the ISO code. Reuses the shared cents formatter (narrow
+ * symbol, drops a `.00`) by lifting the decimal amount to integer cents.
+ */
+export function moneyForList(
+  amount: string,
+  currency: string,
+  locale: string,
+): string {
+  const n = Number(amount);
+  const cents = Number.isFinite(n) ? String(Math.round(n * 100)) : "0";
+  return centsToDisplayCompact(cents, currency, locale, true);
+}
+
+/** Upcoming-first: soonest nextDueDate at the top (YYYY-MM-DD sorts lexically). */
+export function sortRulesByUpcoming<T extends { nextDueDate: string }>(
+  rules: T[],
+): T[] {
+  return [...rules].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
+}
+
 export function RecurringRulesList({
   rules,
   onEdit,
   onArchive,
 }: RecurringRulesListProps) {
   const t = useTranslations("budgeting.recurring");
+  const locale = useLocale();
 
   if (rules.length === 0) {
     return (
@@ -80,7 +105,7 @@ export function RecurringRulesList({
 
   return (
     <ul className="divide-y divide-[var(--border)] rounded-xl bg-[var(--surface-card-dark)]">
-      {rules.map((rule) => {
+      {sortRulesByUpcoming(rules).map((rule) => {
         const cadenceLabel =
           rule.cadence === "MONTHLY"
             ? t("list.monthlyOnDay", { day: rule.cadenceAnchor ?? 1 })
@@ -102,14 +127,16 @@ export function RecurringRulesList({
             <div className="space-y-1 min-w-0">
               <p className="text-sm font-medium">
                 <span className="tabular-nums">
-                  {formatAmountForList(rule.amount)} {rule.currency}
+                  {moneyForList(rule.amount, rule.currency, locale)}
                 </span>{" "}
                 <span className="text-[var(--muted-foreground)]">
                   · {cadenceLabel}
                 </span>
               </p>
               <p className="text-xs text-[var(--muted-foreground)] truncate">
-                {t("list.nextDueLabel", { date: rule.nextDueDate })}
+                {t("list.nextDueLabel", {
+                  date: formatShortDate(rule.nextDueDate, locale),
+                })}
                 {rule.note ? ` — ${rule.note}` : ""}
               </p>
             </div>

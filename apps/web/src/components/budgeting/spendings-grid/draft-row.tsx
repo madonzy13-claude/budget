@@ -113,7 +113,9 @@ export function DraftRow({
       role="row"
       tabIndex={0}
       style={{
-        backgroundColor: "#181c22",
+        // Theme-aware sunken lane (was hardcoded #181c22 → stayed dark in light
+        // theme, round 18 item 8). --surface-sunken-dark flips to #e7eaef in light.
+        backgroundColor: "var(--surface-sunken-dark)",
         boxShadow: topShadow
           ? "inset 0 6px 8px -6px rgba(0,0,0,0.7)"
           : undefined,

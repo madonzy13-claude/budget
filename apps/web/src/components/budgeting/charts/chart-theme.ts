@@ -11,7 +11,9 @@
  * (numbers) type stack.
  */
 export const CHART_THEME = {
-  accent: "var(--primary)", // the single yellow accent — default series (real)
+  accent: "var(--chart-accent)", // LINE/AREA series — brand yellow (round 25 item 1)
+  barAccent: "var(--chart-bar-1)", // primary BAR series — blue (not yellow/brown)
+  barAccent2: "var(--chart-bar-2)", // 2nd BAR series in a two-series bar chart — teal
   up: "var(--trading-up)", // grow / gain
   down: "var(--trading-down)", // loss
   neutral: "var(--muted-foreground)", // planned baseline (rendered dashed)
@@ -34,6 +36,22 @@ export const chartAxis = {
   tickLine: false,
   axisLine: { stroke: CHART_THEME.grid },
 } as const;
+
+/**
+ * Left-aligned Y-axis tick (UAT round 16 item 2): recharts anchors a left YAxis
+ * label to the axis line (right side, next to the plot), which left an indent
+ * between the chart and its section header. Anchor the text to START and shift it
+ * left by ~the axis width so every chart's leftmost label lines up with the header.
+ */
+export const leftAlignedYTick = (width: number) =>
+  ({
+    ...chartAxis.tick,
+    textAnchor: "start" as const,
+    // Shift the label toward the axis's left edge, but keep a safe in-bounds margin
+    // so the first glyph is never clipped by the SVG's left edge — dx=-(width-6)
+    // landed ~3px OUTSIDE and truncated "Groceries" on device (round 17 fix).
+    dx: -(width - 14),
+  }) as const;
 
 /** Shared Tooltip styling — dark card surface, hairline border, themed type. */
 export const chartTooltip = {

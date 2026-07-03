@@ -37,8 +37,18 @@ const prefsSchema = z.object({
     "RESERVE_TOPUP",
     "CONFIRM_DRAFT",
     "CUSHION_BELOW_TARGET",
+    // r32: task-completed toggle + budget-update reminder (with day/tz config).
+    "TASK_COMPLETED",
+    "BUDGET_REMINDER",
   ]),
   enabled: z.boolean(),
+  config: z
+    .object({
+      days: z.array(z.number().int().min(1).max(7)).optional(),
+      tz: z.string().min(1).max(64).optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export function createPushRoute(_deps: BootedDeps) {
@@ -145,6 +155,7 @@ export function createPushRoute(_deps: BootedDeps) {
       budgetId: body.budgetId,
       notificationType: body.notificationType,
       enabled: body.enabled,
+      config: body.config ?? undefined,
     });
     return c.json({ ok: true });
   });

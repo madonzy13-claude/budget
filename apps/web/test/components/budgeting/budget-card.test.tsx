@@ -119,11 +119,11 @@ describe("BudgetCardClient — header + summary", () => {
     expect(minus).toBeGreaterThanOrEqual(2);
   });
 
-  it("wraps the card in exactly one <a> Link to /{locale}/budgets/{id}/wallets", () => {
+  it("wraps the card in exactly one <a> Link to /{locale}/budgets/{id}/overview", () => {
     const { container } = renderCard();
     const anchors = container.querySelectorAll("a");
     expect(anchors.length).toBe(1);
-    expect(anchors[0]?.getAttribute("href")).toBe("/en/budgets/b1/wallets");
+    expect(anchors[0]?.getAttribute("href")).toBe("/en/budgets/b1/overview");
     expect(anchors[0]?.getAttribute("aria-label")).toBe("Open My Budget");
   });
 });

@@ -278,6 +278,35 @@ self.addEventListener("message", (event: any) => {
 // stash `url` in notification.data so the notificationclick handler below can
 // deep-link. `userVisibleOnly` subscriptions REQUIRE a visible notification per
 // push — failing to show one is penalised by the browser.
+/**
+ * Re-sync the OS app-icon badge to the live pending-tasks total (r31d). Runs in the
+ * push handler so a task closed on ANOTHER device is reflected on this phone even
+ * when the app is closed — the only time the SW can move the badge without the app
+ * running. Best-effort: no Badging API / offline / auth-less → silently skip.
+ * SW-initiated fetches bypass the SW fetch handler, so this hits the network fresh.
+ */
+async function syncAppBadgeFromServer(): Promise<void> {
+  try {
+    const nav = self.navigator as unknown as {
+      setAppBadge?: (n: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (typeof nav.setAppBadge !== "function") return;
+    const res = await fetch("/api/budgets/active", { credentials: "include" });
+    if (!res.ok) return;
+    const body = (await res.json()) as {
+      budgets?: { pendingTasksCount?: number }[];
+      workspaces?: { pendingTasksCount?: number }[];
+    };
+    const list = body.budgets ?? body.workspaces ?? [];
+    const total = list.reduce((s, b) => s + (b.pendingTasksCount ?? 0), 0);
+    if (total > 0) await nav.setAppBadge(total);
+    else if (typeof nav.clearAppBadge === "function") await nav.clearAppBadge();
+  } catch {
+    /* best-effort — never let badge sync break the notification */
+  }
+}
+
 self.addEventListener("push", (event: any) => {
   let payload: { title?: string; body?: string; url?: string } = {};
   try {
@@ -287,13 +316,18 @@ self.addEventListener("push", (event: any) => {
   }
   const title = payload.title ?? "Budget";
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: payload.body ?? "",
-      icon: "/icons/icon-192-any.png",
-      badge: "/icons/icon-192-any.png",
-      data: { url: payload.url ?? "/" },
-      tag: payload.url ?? "budget-task",
-    }),
+    Promise.all([
+      self.registration.showNotification(title, {
+        body: payload.body ?? "",
+        icon: "/icons/icon-192-any.png",
+        badge: "/icons/icon-192-any.png",
+        data: { url: payload.url ?? "/" },
+        tag: payload.url ?? "budget-task",
+      }),
+      // Re-sync the app-icon count too (r31d) — a task closed elsewhere ticks the
+      // badge down on the closed phone, not just the +1 create case.
+      syncAppBadgeFromServer(),
+    ]),
   );
 });
 

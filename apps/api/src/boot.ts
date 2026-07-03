@@ -354,6 +354,7 @@ export async function boot(): Promise<BootedDeps> {
       fxProvider: baseBudgeting.fxProvider,
       cushionSummary: getCushionSummaryService,
       spendingsSummary: getSpendingsSummaryService,
+      reservesSummary: baseBudgeting.getReservesSummary,
     }),
     // Phase 11 (11-04): Planned section. Multi-month aggregation repo + the same
     // meta reader + fxProvider (recurring amounts only).

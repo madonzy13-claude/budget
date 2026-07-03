@@ -13,10 +13,10 @@ Feature: Combined home page
     When I open the home page
     Then I see a budget card titled "My E2E Budget"
 
-  Scenario: Card click navigates to /budgets/[id]/wallets
+  Scenario: Card click navigates to /budgets/[id]/overview
     When I open the home page
     And I click the card for "My E2E Budget"
-    Then the URL ends with "/wallets"
+    Then the URL ends with "/overview"
 
   Scenario: Empty home state shows hero CTA when user has no budgets
     Given I am a signed-in user with no budgets

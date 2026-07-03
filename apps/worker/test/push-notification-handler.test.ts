@@ -99,6 +99,88 @@ describe("push-notification-handler (PWAX-05)", () => {
     );
   });
 
+  test("registers a task.resolved subscriber on init (r31d badge sync)", async () => {
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
+    registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
+    expect(mockEventBus.subscribe).toHaveBeenCalledWith(
+      "task.resolved",
+      expect.any(Function),
+    );
+  });
+
+  test("task.resolved — sends a generic push (no financials) to the kind's tab (no ?task)", async () => {
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
+    registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
+
+    const handler = subscribedHandlers.get("task.resolved")!;
+    await handler({
+      tenantId: "tenant-1",
+      aggregateType: "Task",
+      aggregateId: "task-99",
+      eventType: "task.resolved",
+      payload: {
+        kind: "RESERVE_TOPUP",
+        budgetId: "budget-42",
+        taskId: "task-99",
+      },
+    });
+
+    expect(mockSendPush).toHaveBeenCalledTimes(1);
+    const [, payloadStr] = mockSendPush.mock.calls[0] as [unknown, string];
+    const payload = JSON.parse(payloadStr);
+    // The resolved task is gone → link to the tab, not a stale ?task=.
+    expect(payload.url).toBe("/en/budgets/budget-42/reserves");
+    expect(payload.title).toBeTruthy();
+    expect(/\d/.test(payload.body)).toBe(false); // D-15 lock-screen safety
+  });
+
+  test("task.resolved — gated by TASK_COMPLETED + excludes the actor (r32)", async () => {
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
+    registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
+    const handler = subscribedHandlers.get("task.resolved")!;
+    await handler({
+      tenantId: "tenant-1",
+      aggregateType: "Task",
+      aggregateId: "task-99",
+      eventType: "task.resolved",
+      payload: {
+        kind: "CUSHION_BELOW_TARGET",
+        budgetId: "budget-42",
+        taskId: "task-99",
+        actorUserId: "closer-1",
+      },
+    });
+    // Subscriptions fetched under the TASK_COMPLETED toggle, excluding the closer.
+    const call = mockPushRepo.getSubscriptionsForBudget.mock.calls[0];
+    expect(call[2]).toBe("TASK_COMPLETED"); // kind (gating pref)
+    expect(call[4]).toBe("closer-1"); // excludeUserId
+    // URL still deep-links to the resolved kind's tab.
+    const [, payloadStr] = mockSendPush.mock.calls[0] as [unknown, string];
+    expect(JSON.parse(payloadStr).url).toBe("/en/budgets/budget-42/wallets");
+  });
+
+  test("task.resolved — unknown kind is a safe no-op", async () => {
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
+    registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
+    const handler = subscribedHandlers.get("task.resolved")!;
+    await handler({
+      tenantId: "tenant-1",
+      aggregateType: "Task",
+      aggregateId: "t",
+      eventType: "task.resolved",
+      payload: {
+        kind: "INVESTMENT_INSTRUMENT_DELISTED",
+        budgetId: "b",
+        taskId: "t",
+      },
+    });
+    expect(mockSendPush).not.toHaveBeenCalled();
+  });
+
   test("RESERVE_TOPUP — sends push to /budgets/<id>/reserves?task=<id>", async () => {
     const { registerPushNotificationHandler } =
       await import("../src/handlers/push-notification-handler");

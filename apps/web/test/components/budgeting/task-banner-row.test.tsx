@@ -14,12 +14,19 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// useCategories resolves the CONFIRM_DRAFT payload's category_id → name.
+vi.mock("@/hooks/use-budget-data", () => ({
+  useCategories: () => ({ data: [{ id: "cat-1", name: "Groceries" }] }),
+}));
+
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
   useTranslations: () => (key: string, vars?: Record<string, unknown>) => {
     const dict: Record<string, string> = {
       "bdp.tasks.title.RESERVE_TOPUP": "Top up reserve by {amount}",
-      "bdp.tasks.title.CONFIRM_DRAFT": "Confirm {ruleName} — {amount}",
+      // ICU select isn't exercised here (t is mocked); assert the new params
+      // (amount + category, no name) get plumbed through.
+      "bdp.tasks.title.CONFIRM_DRAFT": "Confirm {amount} — {category}",
       "bdp.tasks.title.CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
       "bdp.tasks.detail.RESERVE_TOPUP":
         "Open the Reserves tab and rebalance category amounts.",
@@ -53,6 +60,7 @@ function makeTask(
     CONFIRM_DRAFT: {
       draft_id: "d1",
       rule_name: "Rent",
+      category_id: "cat-1",
       amount_cents: 100000,
       currency: "EUR",
     },
@@ -87,7 +95,8 @@ describe("TaskBannerRow — read-only row", () => {
         locale="en"
       />,
     );
-    expect(screen.getByText(/Confirm Rent — /)).toBeInTheDocument();
+    // fmt now always uses "en" → symbol (€1,000), not the ISO code.
+    expect(screen.getByText(/Confirm €1,000 — Groceries/)).toBeInTheDocument();
   });
 
   it("renders the title interpolated with payload (CUSHION_BELOW_TARGET)", () => {

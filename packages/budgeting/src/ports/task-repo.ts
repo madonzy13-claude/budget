@@ -124,7 +124,18 @@ export interface TaskRepo {
    * matches; cross-tenant attempts silently no-op (0 rows updated). Already
    * RESOLVED rows are not re-resolved.
    */
-  resolve(taskId: string, tenantId: string, tx?: TenantTx): Promise<void>;
+  /**
+   * r32: actorUserId (the human who resolved it) is carried into the
+   * task.resolved event so the push handler can skip the actor's own devices —
+   * you don't need a "task completed" ping for a task you just closed. Omitted
+   * for system/auto-resolve paths (→ notify all members).
+   */
+  resolve(
+    taskId: string,
+    tenantId: string,
+    tx?: TenantTx,
+    actorUserId?: string,
+  ): Promise<void>;
 
   /**
    * Emits a RESERVE_TOPUP task. Idempotent at the DB layer via partial unique
@@ -195,4 +206,17 @@ export interface TaskRepo {
     draftId: string,
     tx: TenantTx,
   ): Promise<void>;
+
+  /**
+   * Resolves PENDING INVESTMENT_INSTRUMENT_DELISTED tasks whose holding is in
+   * `holdingIds` (r31b). Called by the daily seed when an instrument reappears in
+   * the feed (reactivated) so the stale delisted task — and the holding's delisted
+   * chrome — clears instead of lingering. Returns the number resolved. No-op for
+   * an empty list. tenant-scoped (RLS), so run inside withTenantTx.
+   */
+  resolveInvestmentDelistedForHoldings(
+    tenantId: string,
+    holdingIds: string[],
+    tx: TenantTx,
+  ): Promise<number>;
 }

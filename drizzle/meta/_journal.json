@@ -344,6 +344,13 @@
       "when": 1782656400000,
       "tag": "0049_phase11_budget_wealth_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1782660000000,
+      "tag": "0050_notification_prefs_config",
+      "breakpoints": true
     }
   ]
 }

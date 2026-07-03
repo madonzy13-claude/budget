@@ -6,6 +6,7 @@
  * 5-section accordion shell (4 for PRIVATE budgets — Members hidden).
  * Default open: budget-identity.
  */
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Accordion,
@@ -13,9 +14,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { BudgetIdentitySection } from "@/components/settings/budget-identity-section";
 import { CushionSection } from "@/components/settings/cushion-section";
 import { InvestmentsSection } from "@/components/settings/investments-section";
+import { ReservesSection } from "@/components/settings/reserves-section";
 import { RecurringSection } from "@/components/settings/recurring-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
@@ -33,6 +36,8 @@ export interface SettingsBudget {
   cushionTargetMonths?: number;
   /** Phase 9: gates the Investments section on the wallets page. Default off. */
   investmentsEnabled?: boolean;
+  /** D-PH5-R11: gates the Reserves tab + every reserves item on the Overview. */
+  reservesEnabled?: boolean;
   hasTransactions: boolean;
   currentUserRole: "owner" | "member";
 }
@@ -44,11 +49,23 @@ export interface SettingsAccordionProps {
 export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   const t = useTranslations("settings");
   const isOwner = budget.currentUserRole === "owner";
+  // Open sections persist across pill navigation for the BDP's lifetime (round 18
+  // item 2); controlled so a remount restores. Outside the BDP (standalone
+  // /settings) the store is null → falls back to the default open section.
+  const store = useBdpUiStore();
+  const [open, setOpen] = useState<string[]>(
+    () => store?.settings.openSections ?? ["budget-identity"],
+  );
+  const onOpenChange = (v: string[]) => {
+    if (store) store.settings.openSections = v;
+    setOpen(v);
+  };
 
   return (
     <Accordion
       type="multiple"
-      defaultValue={["budget-identity"]}
+      value={open}
+      onValueChange={onOpenChange}
       className="overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]"
     >
       {/* When an item is open we lift it to the elevated surface so the
@@ -88,7 +105,20 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
         </AccordionContent>
       </AccordionItem>
 
-      {/* 3. Investments (feature flag toggle — Phase 9) */}
+      {/* 3. Reserves (feature flag toggle — D-PH5-R11) */}
+      <AccordionItem value="reserves">
+        <AccordionTrigger className="px-6">
+          {t("sections.reserves")}
+        </AccordionTrigger>
+        <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
+          <ReservesSection
+            budgetId={budget.id}
+            reservesEnabled={budget.reservesEnabled ?? true}
+          />
+        </AccordionContent>
+      </AccordionItem>
+
+      {/* 4. Investments (feature flag toggle — Phase 9) */}
       <AccordionItem value="investments">
         <AccordionTrigger className="px-6">
           {t("sections.investments")}

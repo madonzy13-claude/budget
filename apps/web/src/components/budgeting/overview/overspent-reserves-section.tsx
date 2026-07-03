@@ -8,27 +8,29 @@
  * By-category bars use each category's colorKey. Charts via 11-02 wrappers; string
  * cents → Number here.
  */
-import { useState } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
+import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
 import { useCategories } from "@/hooks/use-budget-data";
-import { centsToDisplay, centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToDisplayCompact } from "@/lib/cents-format";
+import { chartCompactCents } from "@/lib/chart-format";
 import { hexForColorKey } from "@/lib/category-colors";
 import type { OverviewRange } from "@/lib/overview-range";
 
 export function OverspentReservesSection({
   budgetId,
   range,
+  reservesEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
+  reservesEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
-  const locale = useLocale();
-  const [overspentOpen, setOverspentOpen] = useState(false);
-  const [reservesOpen, setReservesOpen] = useState(false);
+  const [overspentOpen, toggleOverspent] = usePersistedSectionOpen("overspent");
+  const [reservesOpen, toggleReserves] = usePersistedSectionOpen("reserves");
 
   const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewOverspent(budgetId, {
@@ -38,12 +40,19 @@ export function OverspentReservesSection({
   });
 
   const ccy = data?.currency ?? "USD";
-  const fmtY = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, locale);
-  const colorOf = (id: string): string =>
+  // Chart AXIS: bare + compact, no currency (r24 5/7). TOOLTIP: full $ (r25 #2).
+  const fmtY = chartCompactCents;
+  const fmtTooltip = (n: number) =>
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en");
+  // Per-category bars use each category's colorKey; the FALLBACK (no colorKey)
+  // alternates blue/teal per chart so neither is yellow and adjacent charts differ
+  // (r25 item 2). overspent → teal, reserves → blue.
+  const colorOf = (id: string, fallback: string): string =>
     hexForColorKey(
       categories.find((c) => c.id === id)?.colorKey as string | undefined,
-    ) ?? "var(--primary)";
+    ) ?? fallback;
+  const BAR_BLUE = "var(--chart-bar-1)";
+  const BAR_TEAL = "var(--chart-bar-2)";
 
   const loading = isPending && (overspentOpen || reservesOpen);
   const failed = isError || !data;
@@ -54,7 +63,7 @@ export function OverspentReservesSection({
         testId="overview-section-overspent"
         title={t("sections.overspent")}
         open={overspentOpen}
-        onToggle={() => setOverspentOpen((o) => !o)}
+        onToggle={toggleOverspent}
       >
         {loading ? (
           <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
@@ -64,9 +73,18 @@ export function OverspentReservesSection({
           </p>
         ) : (
           <>
-            <p className="num text-display-sm text-[var(--trading-down)]">
-              {centsToDisplay(data.overspent_total_cents, ccy, locale)}
-            </p>
+            {/* Total as a Financial-Wealth-style metric — caption label above,
+                num-md value below, centered (round 18 item 4). */}
+            <div className="flex flex-wrap items-start justify-center gap-6">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-caption text-[var(--muted-foreground)]">
+                  {t("total")}
+                </p>
+                <span className="num text-num-md text-[var(--trading-down)]">
+                  {centsToDisplayCompact(data.overspent_total_cents, ccy, "en")}
+                </span>
+              </div>
+            </div>
             <OverviewBarChart
               layout="vertical"
               data={data.overspent_by_category.map((c) => ({
@@ -76,49 +94,53 @@ export function OverspentReservesSection({
               }))}
               xKey="name"
               series={[{ key: "overspent", label: t("sections.overspent") }]}
-              colorByPoint={(row) => colorOf(String(row.category_id))}
+              colorByPoint={(row) => colorOf(String(row.category_id), BAR_TEAL)}
               formatValue={fmtY}
+              formatTooltip={fmtTooltip}
             />
           </>
         )}
       </OverviewSection>
 
-      <OverviewSection
-        testId="overview-section-reserves"
-        title={t("sections.reserves")}
-        open={reservesOpen}
-        onToggle={() => setReservesOpen((o) => !o)}
-      >
-        {loading ? (
-          <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
-        ) : failed ||
-          data.reserves_by_category.filter((r) => Number(r.reserve_cents) > 0)
-            .length === 0 ? (
-          <p className="text-num-sm text-[var(--muted-foreground)]">
-            {t("empty.reserves")}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <p className="text-caption text-[var(--muted-foreground)]">
-              {t("range.currentConfig")}
+      {/* Reserves collapsible — hidden entirely when the reserves feature flag
+          is off (mirrors the hidden Reserves pill + the dropped reserves card).
+          When ON, every category is shown even at a zero reserve so the family
+          can see the full set (UAT: "zero reserves must be visible"); the empty
+          state only appears when there are no categories at all. */}
+      {reservesEnabled && (
+        <OverviewSection
+          testId="overview-section-reserves"
+          title={t("sections.reserves")}
+          open={reservesOpen}
+          onToggle={toggleReserves}
+        >
+          {loading ? (
+            <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
+          ) : failed || data.reserves_by_category.length === 0 ? (
+            <p className="text-num-sm text-[var(--muted-foreground)]">
+              {t("empty.reserves")}
             </p>
-            <OverviewBarChart
-              layout="vertical"
-              data={data.reserves_by_category
-                .filter((r) => Number(r.reserve_cents) > 0)
-                .map((r) => ({
+          ) : (
+            <div className="flex flex-col gap-2">
+              <OverviewBarChart
+                layout="vertical"
+                data={data.reserves_by_category.map((r) => ({
                   name: r.name,
                   category_id: r.category_id,
                   reserve: Number(r.reserve_cents),
                 }))}
-              xKey="name"
-              series={[{ key: "reserve", label: t("sections.reserves") }]}
-              colorByPoint={(row) => colorOf(String(row.category_id))}
-              formatValue={fmtY}
-            />
-          </div>
-        )}
-      </OverviewSection>
+                xKey="name"
+                series={[{ key: "reserve", label: t("sections.reserves") }]}
+                colorByPoint={(row) =>
+                  colorOf(String(row.category_id), BAR_BLUE)
+                }
+                formatValue={fmtY}
+                formatTooltip={fmtTooltip}
+              />
+            </div>
+          )}
+        </OverviewSection>
+      )}
     </>
   );
 }

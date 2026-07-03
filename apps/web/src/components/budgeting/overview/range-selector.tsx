@@ -7,20 +7,28 @@
  * the range-scoped sections only — the recurring charts + reserves bar ignore it.
  * Emits a resolved {preset, from, to} so callers key their RQ fetch off it.
  */
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { DateInput } from "@/components/budgeting/fields/date-input";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import {
   type OverviewRange,
   type RangePreset,
   makeRange,
 } from "@/lib/overview-range";
 
-const PRESETS: { preset: Exclude<RangePreset, "custom">; key: string }[] = [
-  { preset: "thisMonth", key: "month" },
-  { preset: "last3Months", key: "3m" },
-  { preset: "thisYear", key: "year" },
-  { preset: "all", key: "all" },
+// 1M/3M/6M are literal everywhere; 1Y ("1R"/"1Р"), All and Custom are translated
+// (UAT round 10 item 3 + round 11 item 1) via their i18n keys.
+const PRESETS: {
+  preset: Exclude<RangePreset, "custom">;
+  label?: string;
+  i18nKey?: string;
+}[] = [
+  { preset: "thisMonth", label: "1M" },
+  { preset: "last3Months", label: "3M" },
+  { preset: "last6Months", label: "6M" },
+  { preset: "thisYear", i18nKey: "year" },
+  { preset: "all", i18nKey: "all" },
 ];
 
 export function RangeSelector({
@@ -31,6 +39,7 @@ export function RangeSelector({
   onChange: (r: OverviewRange) => void;
 }) {
   const t = useTranslations("bdp.tab.overview.range");
+  const tz = useUserTimezone();
   const isCustom = value.preset === "custom";
 
   const pill = (label: string, active: boolean, onClick: () => void) => (
@@ -54,47 +63,46 @@ export function RangeSelector({
       <div
         role="group"
         aria-label={t("month")}
-        className="flex items-center gap-1 overflow-x-auto"
+        className="flex items-center justify-center gap-1 overflow-x-auto"
         data-testid="overview-range-selector"
       >
         {PRESETS.map((p) =>
-          pill(t(p.key), value.preset === p.preset && !isCustom, () =>
-            onChange(makeRange(p.preset)),
+          pill(
+            p.label ?? t(p.i18nKey as string),
+            value.preset === p.preset && !isCustom,
+            () => onChange(makeRange(p.preset, tz)),
           ),
         )}
         {pill(t("custom"), isCustom, () =>
-          onChange(makeRange("custom", { from: value.from, to: value.to })),
+          onChange(makeRange("custom", tz, { from: value.from, to: value.to })),
         )}
       </div>
 
       {isCustom && (
-        <div className="flex flex-wrap items-center gap-2 text-num-sm">
+        <div className="flex flex-wrap items-center justify-center gap-2 text-num-sm">
+          {/* Localized calendar — reuses the shared DateInput from the recurring
+              rules form (overlay-formatted, dark calendar) instead of a bare
+              native input (UAT item 8). */}
           <label className="flex items-center gap-1 text-[var(--muted-foreground)]">
             {t("from")}
-            <input
-              type="date"
+            <DateInput
               value={value.from}
               max={value.to}
-              onChange={(e) =>
-                onChange(
-                  makeRange("custom", { from: e.target.value, to: value.to }),
-                )
+              onChange={(next) =>
+                onChange(makeRange("custom", tz, { from: next, to: value.to }))
               }
-              className="rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-2 py-1 text-[var(--body-on-dark)]"
             />
           </label>
           <label className="flex items-center gap-1 text-[var(--muted-foreground)]">
             {t("to")}
-            <input
-              type="date"
+            <DateInput
               value={value.to}
               min={value.from}
-              onChange={(e) =>
+              onChange={(next) =>
                 onChange(
-                  makeRange("custom", { from: value.from, to: e.target.value }),
+                  makeRange("custom", tz, { from: value.from, to: next }),
                 )
               }
-              className="rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-2 py-1 text-[var(--body-on-dark)]"
             />
           </label>
         </div>

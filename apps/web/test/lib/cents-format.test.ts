@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { centsToBare } from "../../src/lib/cents-format";
+import { centsToBare, centsToDisplayCompact } from "../../src/lib/cents-format";
+
+describe("centsToDisplayCompact narrow currency symbol", () => {
+  it("uses the narrow symbol (kr, zł, ₴) not the ISO code when narrow=true", () => {
+    expect(centsToDisplayCompact("70000", "SEK", "en", true)).toContain("kr");
+    expect(centsToDisplayCompact("70000", "SEK", "en", true)).not.toContain(
+      "SEK",
+    );
+    expect(centsToDisplayCompact("70000", "PLN", "en", true)).toContain("zł");
+    expect(centsToDisplayCompact("70000", "UAH", "en", true)).toContain("₴");
+    expect(centsToDisplayCompact("70000", "USD", "en", true)).toContain("$");
+  });
+
+  it("drops the .00 fraction but keeps a non-zero fraction", () => {
+    expect(centsToDisplayCompact("70000", "USD", "en", true)).toBe("$700");
+    expect(centsToDisplayCompact("1750", "USD", "en", true)).toBe("$17.50");
+  });
+});
 
 describe("centsToBare", () => {
   it("drops the .00 fraction for whole amounts", () => {

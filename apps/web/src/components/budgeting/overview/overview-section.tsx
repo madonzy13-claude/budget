@@ -31,7 +31,7 @@ export function OverviewSection({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-h-[44px] w-full items-center justify-between px-4 py-3 text-title-sm text-[var(--body-on-dark)]"
+        className="flex min-h-[44px] w-full items-center justify-between px-2 py-3 text-title-sm text-[var(--body-on-dark)]"
       >
         <span>{title}</span>
         <ChevronDown
@@ -45,7 +45,7 @@ export function OverviewSection({
       {open && (
         <div
           data-testid={testId ? `${testId}-body` : undefined}
-          className="flex flex-col gap-6 border-t border-[var(--hairline-dark)] p-4"
+          className="flex flex-col gap-6 border-t border-[var(--hairline-dark)] px-2 py-4"
         >
           {children}
         </div>

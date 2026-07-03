@@ -85,7 +85,7 @@ export function BudgetSwitcher({
     (id: string) => {
       setOpen(false);
       if (id === activeBudgetId) return;
-      router.push(`/${locale}/budgets/${id}/wallets`);
+      router.push(`/${locale}/budgets/${id}/overview`);
     },
     [router, locale, activeBudgetId],
   );

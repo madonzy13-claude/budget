@@ -31,6 +31,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 import { useCacheAge } from "@/hooks/use-cache-age";
 import { useConnectivity } from "@/components/common/connectivity-provider";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 
 /**
  * Refresh cadence for the relative cache age, by current age:
@@ -49,6 +50,9 @@ function usePrimaryKeys(budgetId: string | null): (readonly unknown[])[] {
   const pathname = usePathname() ?? "";
   const sp = useSearchParams();
   const monthRaw = sp?.get("month") ?? null;
+  // Default month must match the spendings grid's (user tz, not UTC) so the
+  // freshness check keys the same summary query (r31 item 1).
+  const userTz = useUserTimezone();
   return useMemo(() => {
     const inBudget = /\/budgets\/[0-9a-fA-F-]{8,}/.test(pathname);
     if (inBudget && budgetId) {
@@ -56,7 +60,7 @@ function usePrimaryKeys(budgetId: string | null): (readonly unknown[])[] {
         const month =
           monthRaw && /^\d{4}-\d{2}$/.test(monthRaw)
             ? monthRaw
-            : Temporal.Now.plainDateISO("UTC").toPlainYearMonth().toString();
+            : Temporal.Now.plainDateISO(userTz).toPlainYearMonth().toString();
         return [["spendings-summary", budgetId, month]];
       }
       if (pathname.endsWith("/wallets"))
@@ -70,7 +74,7 @@ function usePrimaryKeys(budgetId: string | null): (readonly unknown[])[] {
     // Home / non-budget routes → the budget list is the on-screen data.
     if (!inBudget) return [["active-budgets"]];
     return [];
-  }, [pathname, budgetId, monthRaw]);
+  }, [pathname, budgetId, monthRaw, userTz]);
 }
 
 export function OfflineStaleBar({ budgetId }: { budgetId: string | null }) {

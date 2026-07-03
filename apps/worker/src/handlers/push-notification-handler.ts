@@ -25,6 +25,7 @@ export interface PushHandlerDeps {
       budgetId: string,
       kind: NotificationKind,
       callerUserId: string,
+      excludeUserId?: string,
     ) => Promise<PushSubscriptionRow[]>;
     deleteSubscription: (
       endpoint: string,
@@ -110,79 +111,155 @@ export const NOTIFICATION_TYPES: Record<
   },
 };
 
+// Generic "a task closed elsewhere" message (r31d). No kind-specific copy and no
+// financials (D-15) — its only job is to nudge the phone so the SW re-syncs the
+// app-icon badge after a task is resolved on another device.
+const RESOLVED_TITLE: Record<LocaleKey, string> = {
+  en: "Tasks updated",
+  pl: "Zadania zaktualizowane",
+  uk: "Завдання оновлено",
+};
+const RESOLVED_BODY: Record<LocaleKey, string> = {
+  en: "A task was completed",
+  pl: "Zadanie zostało zakończone",
+  uk: "Завдання виконано",
+};
+
 // ---------------------------------------------------------------------------
 // System caller ID used for RLS context in getSubscriptionsForBudget
 // ---------------------------------------------------------------------------
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
+
+/**
+ * Fetch the budget's enabled subscriptions for `kind` and send each one a push
+ * whose {title, body, url} is built per-subscription-locale. Stale (410/404)
+ * endpoints are deleted. Shared by the created + resolved handlers.
+ */
+async function dispatchToBudget(
+  deps: PushHandlerDeps,
+  input: {
+    tenantId: string;
+    budgetId: string;
+    kind: NotificationKind;
+    excludeUserId?: string;
+  },
+  build: (locale: string) => { title: string; body: string; url: string },
+): Promise<void> {
+  let subs: PushSubscriptionRow[];
+  try {
+    subs = await deps.pushRepo.getSubscriptionsForBudget(
+      input.tenantId,
+      input.budgetId,
+      input.kind,
+      SYSTEM_USER_ID,
+      input.excludeUserId,
+    );
+  } catch (e) {
+    console.error("[push-handler] failed to fetch subscriptions", e);
+    return;
+  }
+
+  console.info(
+    `[push-handler] dispatch budget=${input.budgetId} kind=${input.kind} subs=${subs.length}`,
+  );
+  let sent = 0;
+  for (const sub of subs) {
+    const { title, body, url } = build(sub.locale ?? "en");
+    try {
+      await sendPushNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth },
+        },
+        JSON.stringify({ title, body, url }),
+      );
+      sent += 1;
+    } catch (e: unknown) {
+      const err = e as { statusCode?: number };
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        try {
+          await deps.pushRepo.deleteSubscription(
+            sub.endpoint,
+            sub.tenantId,
+            sub.userId,
+          );
+        } catch (deleteErr) {
+          console.error(
+            "[push-handler] failed to delete stale subscription",
+            deleteErr,
+          );
+        }
+      } else {
+        console.error("[push-handler] sendNotification failed", e);
+      }
+    }
+  }
+  console.info(
+    `[push-handler] sent=${sent}/${subs.length} budget=${input.budgetId} kind=${input.kind}`,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Handler registration
 // ---------------------------------------------------------------------------
 
 export function registerPushNotificationHandler(deps: PushHandlerDeps): void {
+  // A NEW task → the per-kind actionable notification, deep-linking to the task.
   eventBus.subscribe("task.created", async (evt) => {
     const { kind, budgetId, taskId } = evt.payload as {
       kind: string;
       budgetId: string;
       taskId: string;
     };
-
     // D-11: unknown kind → safe skip, no throw
     const notifType = NOTIFICATION_TYPES[kind];
     if (!notifType) return;
 
-    let subs: PushSubscriptionRow[];
-    try {
-      subs = await deps.pushRepo.getSubscriptionsForBudget(
-        evt.tenantId,
+    await dispatchToBudget(
+      deps,
+      { tenantId: evt.tenantId, budgetId, kind: kind as NotificationKind },
+      (locale) => ({
+        title: notifType.title(locale),
+        body: notifType.body(locale),
+        // 260618: the deep-link MUST carry the locale prefix — every app route is
+        // `/<locale>/budgets/...`; a locale-less path is rewritten to the budget
+        // list by next-intl. Per-sub locale.
+        url: `/${locale}/budgets/${budgetId}/${notifType.tab}?task=${taskId}`,
+      }),
+    );
+  });
+
+  // A task COMPLETED (r32) → a "task completed" nudge (also re-syncs the closed
+  // phone's app-icon badge). Gated by the dedicated TASK_COMPLETED toggle — NOT
+  // the per-kind created toggles — and EXCLUDES the member who closed it (they
+  // already know). No ?task= (the task is gone; link to its tab). Auto-resolve
+  // (no actorUserId) notifies everyone.
+  eventBus.subscribe("task.resolved", async (evt) => {
+    const { kind, budgetId, actorUserId } = evt.payload as {
+      kind: string;
+      budgetId: string;
+      taskId: string;
+      actorUserId?: string;
+    };
+    const notifType = NOTIFICATION_TYPES[kind];
+    if (!notifType) return; // e.g. INVESTMENT_INSTRUMENT_DELISTED — not user-facing
+
+    await dispatchToBudget(
+      deps,
+      {
+        tenantId: evt.tenantId,
         budgetId,
-        kind as NotificationKind,
-        SYSTEM_USER_ID,
-      );
-    } catch (e) {
-      console.error("[push-handler] failed to fetch subscriptions", e);
-      return;
-    }
-
-    for (const sub of subs) {
-      const locale = sub.locale ?? "en";
-      const title = notifType.title(locale);
-      const body = notifType.body(locale);
-      // 260618: the deep-link MUST carry the locale prefix — every app route is
-      // `/<locale>/budgets/...`. A locale-less `/budgets/...` is rewritten by the
-      // next-intl middleware to the home/budgets-list page, so tapping the push
-      // landed on the budget list instead of the target tab. Per-sub locale.
-      const url = `/${locale}/budgets/${budgetId}/${notifType.tab}?task=${taskId}`;
-
-      try {
-        await sendPushNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          JSON.stringify({ title, body, url }),
-        );
-      } catch (e: unknown) {
-        const err = e as { statusCode?: number };
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          // T-08-05-03: stale subscription — delete so dead endpoints don't accumulate
-          try {
-            await deps.pushRepo.deleteSubscription(
-              sub.endpoint,
-              sub.tenantId,
-              sub.userId,
-            );
-          } catch (deleteErr) {
-            console.error(
-              "[push-handler] failed to delete stale subscription",
-              deleteErr,
-            );
-          }
-        } else {
-          // Other errors: log + continue (don't block remaining subs)
-          console.error("[push-handler] sendNotification failed", e);
-        }
-      }
-    }
+        kind: "TASK_COMPLETED",
+        excludeUserId: actorUserId,
+      },
+      (locale) => {
+        const l = (locale as LocaleKey) ?? "en";
+        return {
+          title: RESOLVED_TITLE[l] ?? RESOLVED_TITLE.en,
+          body: RESOLVED_BODY[l] ?? RESOLVED_BODY.en,
+          url: `/${locale}/budgets/${budgetId}/${notifType.tab}`,
+        };
+      },
+    );
   });
 }

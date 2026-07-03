@@ -42,8 +42,9 @@ export default async function BdpPage({ params, searchParams }: BdpPageProps) {
   const { locale, id, tab } = await params;
   const seg = tab?.[0];
 
-  // Canonical URL: bare /budgets/[id] (or an unknown tab) → /wallets.
-  if (!isBdpTab(seg)) redirect(`/${locale}/budgets/${id}/wallets`);
+  // Canonical URL: bare /budgets/[id] (or an unknown tab) → /overview (the first
+  // pill — opening a budget lands on the Overview snapshot, Phase 11 UAT).
+  if (!isBdpTab(seg)) redirect(`/${locale}/budgets/${id}/overview`);
 
   // Membership gate + reservesEnabled + initial task summaries.
   const [activeRes, budgetRes, initialTasks] = await Promise.all([

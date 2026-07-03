@@ -210,6 +210,26 @@ async function buildApp(opts: { userId: string; allowedTenantIds: string[] }) {
         { budgetCurrency: string; categories: never[] },
         Error
       >,
+    // Fake: no reserve requirement (reserve engine is unit-tested elsewhere).
+    reservesSummary: async () =>
+      ok({
+        totals: {
+          internalCents: "0",
+          userDefinedCents: "0",
+          direction: "NONE" as const,
+          disabled: false,
+        },
+      }) as Result<
+        {
+          totals: {
+            internalCents: string;
+            userDefinedCents: string;
+            direction: "NONE";
+            disabled: boolean;
+          };
+        },
+        Error
+      >,
   });
 
   const deps = {
@@ -259,20 +279,56 @@ describe("GET /budgets/:id/overview/cards", () => {
     const body = (await res.json()) as {
       default_currency: string;
       available_to_spend_cents: string;
+      spendings: {
+        spent_cents: string;
+        left_cents: string;
+        wallet_cents: string;
+        good: boolean;
+      };
       capitalization_cents: string;
       investment_value_cents: string;
+      retirement_months: number | null;
+      retirement_inflation_pct: number;
       available_reserves_cents: string;
-      cushion: { enabled: boolean; real_months: number; total_cents: string };
-      overspent: { count: number; currency: string; top: unknown[] };
+      reserves: {
+        required_cents: string;
+        wallet_cents: string;
+        status: "ok" | "short" | "surplus";
+      };
+      cushion: {
+        enabled: boolean;
+        real_months: number;
+        total_cents: string;
+        required_cents: string;
+        covered: boolean;
+      };
+      overspent: {
+        count: number;
+        currency: string;
+        total_cents: string;
+        top: unknown[];
+      };
     };
     expect(body.default_currency).toBe("USD");
     expect(body.available_to_spend_cents).toBe("10000"); // SPENDINGS only
     expect(body.available_reserves_cents).toBe("5000"); // RESERVE only
     expect(body.capitalization_cents).toBe("18000"); // all wallets (100+50+30), no holdings
     expect(body.investment_value_cents).toBe("0");
+    expect(body.retirement_months).toBeNull(); // no categories → no planned spend
+    expect(body.retirement_inflation_pct).toBe(4.5);
+    expect(body.overspent.total_cents).toBe("0");
     expect(body.cushion.enabled).toBe(true);
     expect(body.cushion.real_months).toBeCloseTo(0.3, 5);
     expect(body.cushion.total_cents).toBe("3000");
+    expect(body.cushion.covered).toBe(false); // actual far below required
+    // spendings breakdown (item 1): no categories seeded → spent/left 0, wallet = avail.
+    expect(body.spendings.spent_cents).toBe("0");
+    expect(body.spendings.left_cents).toBe("0");
+    expect(body.spendings.wallet_cents).toBe("10000");
+    expect(body.spendings.good).toBe(true);
+    // reserves health (item 3): no requirement → status ok.
+    expect(body.reserves.required_cents).toBe("0");
+    expect(body.reserves.status).toBe("ok");
     expect(body.overspent.count).toBe(0);
     expect(body.overspent.currency).toBe("USD");
     expect(body.overspent.top).toEqual([]);

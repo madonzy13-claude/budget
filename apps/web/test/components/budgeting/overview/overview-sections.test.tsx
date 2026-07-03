@@ -50,6 +50,10 @@ vi.mock("@/components/budgeting/charts/pie-chart", () => ({
 
 import { OverviewSections } from "@/components/budgeting/overview/overview-sections";
 
+function renderSections() {
+  return render(<OverviewSections budgetId="b1" />);
+}
+
 const PLANNED = {
   currency: "USD",
   bucket: "monthly",
@@ -89,7 +93,12 @@ beforeEach(() => {
     isError: false,
   });
   overspentMock.mockReturnValue({
-    data: { currency: "USD", overspent_total_cents: "0", overspent_by_category: [], reserves_by_category: [] },
+    data: {
+      currency: "USD",
+      overspent_total_cents: "0",
+      overspent_by_category: [],
+      reserves_by_category: [],
+    },
     isPending: false,
     isError: false,
   });
@@ -111,11 +120,19 @@ function lastOpts(mock: ReturnType<typeof vi.fn>) {
 
 describe("OverviewSections", () => {
   it("renders four sections collapsed by default (no chart mounted)", () => {
-    render(<OverviewSections budgetId="b1" />);
-    expect(screen.getByRole("button", { name: "sections.planned" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "sections.overspent" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "sections.reserves" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "sections.wealth" })).toBeTruthy();
+    renderSections();
+    expect(
+      screen.getByRole("button", { name: "sections.planned" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "sections.overspent" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "sections.reserves" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "sections.wealth" }),
+    ).toBeTruthy();
     // collapsed → no chart bodies, and the section hooks are disabled
     expect(screen.queryByTestId("line-chart")).toBeNull();
     expect(lastOpts(plannedMock).enabled).toBe(false);
@@ -123,7 +140,7 @@ describe("OverviewSections", () => {
 
   it("expanding Planned enables its fetch and mounts the timeline chart", async () => {
     const user = userEvent.setup();
-    render(<OverviewSections budgetId="b1" />);
+    renderSections();
     await user.click(screen.getByRole("button", { name: "sections.planned" }));
     expect(lastOpts(plannedMock).enabled).toBe(true);
     expect(screen.getAllByTestId("line-chart").length).toBeGreaterThan(0);
@@ -131,17 +148,17 @@ describe("OverviewSections", () => {
 
   it("changing the range re-keys the Planned fetch with a new from", async () => {
     const user = userEvent.setup();
-    render(<OverviewSections budgetId="b1" />);
+    renderSections();
     await user.click(screen.getByRole("button", { name: "sections.planned" }));
     const before = lastOpts(plannedMock).from;
-    await user.click(screen.getByRole("button", { name: "3m" })); // last3Months
+    await user.click(screen.getByRole("button", { name: "3M" })); // last3Months
     const after = lastOpts(plannedMock).from;
     expect(after).not.toBe(before);
   });
 
   it("toggling Wealth to investments switches the view and shows the pie", async () => {
     const user = userEvent.setup();
-    render(<OverviewSections budgetId="b1" />);
+    renderSections();
     await user.click(screen.getByRole("button", { name: "sections.wealth" }));
     await user.click(
       screen.getByRole("button", { name: "wealth.investments" }),

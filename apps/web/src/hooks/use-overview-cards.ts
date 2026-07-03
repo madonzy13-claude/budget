@@ -13,13 +13,33 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 export interface OverviewCardsDTO {
   default_currency: string;
   available_to_spend_cents: string;
+  spendings: {
+    spent_cents: string;
+    left_cents: string;
+    wallet_cents: string;
+    good: boolean;
+  };
   capitalization_cents: string;
   investment_value_cents: string;
+  retirement_months: number | null;
+  retirement_inflation_pct: number;
   available_reserves_cents: string;
-  cushion: { enabled: boolean; real_months: number; total_cents: string };
+  reserves: {
+    required_cents: string;
+    wallet_cents: string;
+    status: "ok" | "short" | "surplus";
+  };
+  cushion: {
+    enabled: boolean;
+    real_months: number;
+    total_cents: string;
+    required_cents: string;
+    covered: boolean;
+  };
   overspent: {
     count: number;
     currency: string;
+    total_cents: string;
     top: { category_id: string; name: string; over_amount_cents: string }[];
   };
 }

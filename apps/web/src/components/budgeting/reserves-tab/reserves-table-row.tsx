@@ -32,6 +32,7 @@ import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
+import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { hexForColorKey } from "@/lib/category-colors";
 import type { ReservesSummaryRow } from "@/hooks/use-reserves-summary";
 
@@ -90,7 +91,11 @@ export function ReservesTableRow({
   // UAT round 7: bumped from 88 → 120 so longer localized swipe labels
   // ("Виключити" / "Відновити" — 9 chars in UK, "Wykluczyć" / "Przywrócić"
   // in PL) fit inside the action cell without truncation on mobile.
-  const ACTION_W = 120;
+  // Row slides ACTION_W; the button occupies only the right-most 120 px of that
+  // (w-[112px] + right-2). Slide 8 px FURTHER than the button footprint so a real
+  // gap opens between the row's right edge and the button — the old 120/120 match
+  // left them flush (round 24 item 8).
+  const ACTION_W = 128;
   const [offset, setOffset] = React.useState(0);
   const [swiping, setSwiping] = React.useState(false);
   const wrapperRef = React.useRef<HTMLDivElement>(null);
@@ -195,11 +200,11 @@ export function ReservesTableRow({
     "relative overflow-hidden",
     "flex min-h-[48px] items-center gap-3 rounded-[var(--radius-md)]",
     "px-3 sm:min-h-[48px] min-h-[56px]",
-    // UAT round 10/11: excluded rows use a darker surface (#14181D) plus a
-    // muted #7A7C7F text/icon color so the row reads as visually muted
-    // while every glyph stays fully legible.
+    // Excluded rows read "inactive": a sunken surface + muted text/icon. Uses the
+    // theme-aware tokens (was hardcoded #14181D/#7A7C7F → a dark block + wrong text
+    // in the light theme, round 23 item 8).
     isExcluded
-      ? "bg-[#14181D] text-[#7A7C7F] [&_svg]:text-[#7A7C7F]"
+      ? "bg-[var(--surface-sunken-dark)] text-[var(--muted-foreground)] [&_svg]:text-[var(--muted-foreground)]"
       : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
   ]
     .filter(Boolean)
@@ -213,6 +218,16 @@ export function ReservesTableRow({
     dndTransform && dndTransform !== ""
       ? `${dndTransform} ${swipeTransform}`
       : swipeTransform;
+
+  // r25 item 6: tween the Available value when cached data is replaced by fresh
+  // (row.reserveCents changes) — a smooth roll instead of a jump. During a
+  // cover-reveal the override already drives an external count-down, so defer to
+  // it then; the hook runs unconditionally (hook rules) but its output is unused.
+  const animatedReserveCents = useAnimatedNumber(Number(row.reserveCents));
+  const shownReserveCents =
+    displayReserveCentsOverride != null
+      ? displayReserveCentsOverride
+      : BigInt(Math.round(animatedReserveCents));
 
   const swipeCta = isExcluded ? t("swipeRestoreCta") : t("swipeExcludeCta");
   const swipeAria = isExcluded
@@ -243,11 +258,9 @@ export function ReservesTableRow({
           transition: swiping ? "none" : "opacity 200ms ease-out",
         }}
         className={[
-          // UAT round 9: button now offset 8 px from the right edge so a
-          // visible gap appears between the swiped row's right edge and the
-          // action button's left edge. The row still slides ACTION_W=120
-          // pixels, but the button itself occupies only the right-most
-          // 112 px of that range (right-2 + w-[112px]). Net = 8 px gap.
+          // FULL row height (top-0/bottom-0) per r25 item 5; separated from the row
+          // by the 8 px horizontal gap (ACTION_W 128 > 120 px button footprint) +
+          // right-2 off the screen edge.
           "absolute right-2 top-0 bottom-0 flex w-[112px] items-center justify-center px-2",
           "rounded-[var(--radius-md)]",
           isExcluded
@@ -306,10 +319,11 @@ export function ReservesTableRow({
         <div
           className={[
             "min-w-0 flex-1 truncate text-sm",
-            // UAT round 12: excluded rows render the category name in the
-            // muted neutral #7A7C7F so it reads as visually inactive while
-            // still legible. Active rows keep --foreground.
-            isExcluded ? "text-[#7A7C7F]" : "text-[var(--foreground)]",
+            // Excluded rows render the name muted (theme-aware) so it reads
+            // inactive but legible; active rows keep --foreground.
+            isExcluded
+              ? "text-[var(--muted-foreground)]"
+              : "text-[var(--foreground)]",
           ].join(" ")}
         >
           <span className="inline-flex items-center gap-2">
@@ -353,12 +367,7 @@ export function ReservesTableRow({
               testId={`reserves-balance-${row.categoryId}`}
               render={() => (
                 <span className="text-num-md text-[var(--foreground)]">
-                  {centsToBare(
-                    displayReserveCentsOverride != null
-                      ? displayReserveCentsOverride.toString()
-                      : row.reserveCents,
-                    locale,
-                  )}
+                  {centsToBare(shownReserveCents, locale)}
                 </span>
               )}
               renderEditor={(draft, onChange, _onCommit, onCancel) => (

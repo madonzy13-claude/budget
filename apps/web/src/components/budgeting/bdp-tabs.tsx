@@ -95,7 +95,7 @@ export function BdpTabs({
   return (
     <nav
       aria-label={t("aria")}
-      className="flex h-12 items-center justify-center gap-2 px-4 sm:px-6"
+      className="flex h-12 items-center justify-center gap-1.5 overflow-x-auto px-4 sm:px-6"
     >
       {visibleTabs.map(({ slug, icon: Icon }) => {
         const active = slug === activeTab;
@@ -109,7 +109,7 @@ export function BdpTabs({
             aria-current={active ? "page" : undefined}
             aria-label={label}
             className={cn(
-              "relative inline-flex h-9 items-center gap-2 rounded-[var(--radius-pill)] px-4 transition-colors",
+              "relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-pill)] px-3 transition-colors",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]",
               "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
               active
@@ -128,21 +128,34 @@ export function BdpTabs({
                 transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
               />
             )}
-            <Icon className="relative z-10 size-[18px]" aria-hidden="true" />
+            <Icon
+              className="relative z-10 size-5 shrink-0"
+              aria-hidden="true"
+            />
             <span
               className={cn(
                 "relative z-10",
-                active ? "inline" : "hidden sm:inline",
+                // Settings is icon-only on mobile even when active — its long
+                // label (e.g. UK "Налаштування") overflowed the pill row and got
+                // clipped (round 18 item 1). Desktop (sm+) still shows it.
+                slug === "settings"
+                  ? "hidden sm:inline"
+                  : active
+                    ? "inline"
+                    : "hidden sm:inline",
               )}
             >
               {label}
             </span>
-            {/* inline-flex items-center: without it the wrapper keeps the
-                inherited line-height leading, which drops the badge ~1px below
-                the icon/label center (UAT alignment). */}
-            <span className="relative z-10 inline-flex items-center">
-              <PillBadge count={countsByPill[slug]} />
-            </span>
+            {/* Badge only when there's a count — an always-present empty span left
+                the `gap-1.5` in play, shoving the icon off-center on an icon-only
+                pill (round 19 item 1: the settings circle). inline-flex items-center
+                keeps the badge centered against the icon (was ~1px low otherwise). */}
+            {countsByPill[slug] > 0 && (
+              <span className="relative z-10 inline-flex items-center">
+                <PillBadge count={countsByPill[slug]} />
+              </span>
+            )}
           </button>
         );
       })}

@@ -24,6 +24,13 @@ export interface WealthSnapshotRepo {
     from: string,
     to: string,
   ): Promise<WealthSnapshotRow[]>;
+  /** The most recent snapshot STRICTLY BEFORE `from` — the "opening value" the
+   *  chart carries forward across the leading gap so a range that starts before
+   *  the first in-range tick shows last month's value, not 0 (round 24 item 2). */
+  openingBefore(
+    budgetId: string,
+    from: string,
+  ): Promise<WealthSnapshotRow | null>;
 }
 
 export function createWealthSnapshotRepo(): WealthSnapshotRepo {
@@ -51,6 +58,37 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
               row.investment_value_cents as string,
             ),
           }));
+        },
+      );
+      if (r.isErr()) throw r.error;
+      return r.value;
+    },
+
+    async openingBefore(budgetId, from): Promise<WealthSnapshotRow | null> {
+      const r = await withTenantTx(
+        TenantId(budgetId),
+        UserId(SYSTEM_USER_ID),
+        async (tx) => {
+          const res = await (tx as DrizzleTx).execute(sql`
+            SELECT captured_at,
+                   capitalization_cents::text AS capitalization_cents,
+                   investment_value_cents::text AS investment_value_cents
+              FROM budgeting.budget_wealth_snapshots
+             WHERE budget_id = ${budgetId}::uuid
+               AND tenant_id = ${budgetId}::uuid
+               AND captured_at < ${from}::date
+             ORDER BY captured_at DESC
+             LIMIT 1
+          `);
+          const row = res.rows[0];
+          if (!row) return null;
+          return {
+            captured_at: new Date(row.captured_at as string),
+            capitalization_cents: BigInt(row.capitalization_cents as string),
+            investment_value_cents: BigInt(
+              row.investment_value_cents as string,
+            ),
+          } satisfies WealthSnapshotRow;
         },
       );
       if (r.isErr()) throw r.error;

@@ -151,6 +151,10 @@ export class DrizzleBudgetRepo implements BudgetRepo {
             FROM budgeting.tasks t
            WHERE t.budget_id = w.id
              AND t.status = 'PENDING'
+             -- INVESTMENT_INSTRUMENT_DELISTED is informational (flagged inline on
+             -- the holding, maps to no pill) — not an actionable queue item, so it
+             -- must not inflate the badge over the visible pills (r31b).
+             AND t.kind <> 'INVESTMENT_INSTRUMENT_DELISTED'
              AND (
                t.kind <> 'CONFIRM_DRAFT'
                OR EXISTS (

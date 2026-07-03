@@ -11,9 +11,10 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { isAutoPriced } from "@/lib/investment-types";
 
 /** Short, human label for a suggestion's listing venue. Manual instruments carry
  *  the exchange MIC in the provider (`manual:XWAR`); US is Finnhub; crypto/metals
@@ -200,6 +201,17 @@ export function InstrumentSearchInput({
                     setOpen(false);
                   }}
                 >
+                  {/* Auto-price marker: a yellow bolt on rows we can price live
+                      (US equities/ETF, crypto, metals) so they stand out from the
+                      manual foreign listings. Reserved slot keeps symbols aligned. */}
+                  <span className="flex w-4 shrink-0 justify-center">
+                    {isAutoPriced(r.provider) && (
+                      <Zap
+                        className="size-3.5 fill-[var(--primary)] text-[var(--primary)]"
+                        aria-label={t("autoPriced")}
+                      />
+                    )}
+                  </span>
                   <span className="text-num-sm text-[var(--muted-foreground)]">
                     {r.symbol}
                   </span>

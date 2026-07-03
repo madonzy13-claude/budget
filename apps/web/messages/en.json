@@ -207,6 +207,7 @@
     "sections": {
       "identity": "Budget Identity",
       "cushion": "Cushion",
+      "reserves": "Reserves",
       "investments": "Investments",
       "recurring": "Recurring Expenses",
       "members": "Members",
@@ -215,7 +216,7 @@
     "identity": {
       "name_label": "Name",
       "name_saved": "Budget name saved",
-      "currency_label": "Default currency",
+      "currency_label": "Currency",
       "currency_saved": "Currency updated",
       "currency_locked_tooltip": "Currency locked after first transaction"
     },
@@ -272,9 +273,37 @@
         "CUSHION_BELOW_TARGET": {
           "label": "Cushion below target",
           "description": "When the cushion balance falls short of the goal"
+        },
+        "TASK_COMPLETED": {
+          "label": "Task completed",
+          "description": "When another member completes a task"
         }
       },
-      "permissionDenied": "Notification permission denied. Enable it in your browser settings.",
+      "reminder": {
+        "label": "Remind me to update the budget",
+        "description": "An evening nudge on the days you choose",
+        "day": {
+          "1": "Monday",
+          "2": "Tuesday",
+          "3": "Wednesday",
+          "4": "Thursday",
+          "5": "Friday",
+          "6": "Saturday",
+          "7": "Sunday"
+        },
+        "dayShort": {
+          "1": "Mon",
+          "2": "Tue",
+          "3": "Wed",
+          "4": "Thu",
+          "5": "Fri",
+          "6": "Sat",
+          "7": "Sun"
+        }
+      },
+      "permissionDenied": "Notifications are blocked. On iPhone: remove the app from your Home Screen, add it again, then allow. On desktop: allow them in the site settings.",
+      "unsupported": "Push notifications aren't available on this device or browser. On iPhone, add the app to your Home Screen first.",
+      "subscribeError": "Couldn't enable notifications. Please try again.",
       "saved": "Notification preferences saved."
     },
     "danger": {
@@ -336,7 +365,7 @@
         "shared": "Shared — invite family"
       },
       "currency": {
-        "label": "Default currency",
+        "label": "Currency",
         "helper": "This is permanent — every entry in this budget settles in this currency.",
         "placeholder": "Select currency"
       },
@@ -424,6 +453,13 @@
       "tab": "Settings",
       "members_tab": "Members",
       "shares_tab": "Shares"
+    },
+    "reserves": {
+      "feature_label": "Reserves",
+      "feature_help_text": "Roll unused category budget into a per-category reserve at month-end. Turning this off hides the Reserves tab and every reserves item on the Overview.",
+      "feature_on_toast": "Reserves enabled",
+      "feature_off_toast": "Reserves disabled — Reserves tab hidden",
+      "error_save": "Failed to save — try again"
     },
     "investments": {
       "feature_label": "Investments",
@@ -535,6 +571,7 @@
       "search": {
         "placeholder": "Search instruments…",
         "loading": "Searching…",
+        "autoPriced": "Priced automatically",
         "noResults": "No match in the catalog",
         "custom": "Custom — enter manually",
         "enterManually": "Enter manually",
@@ -672,7 +709,7 @@
         "name_label": "Budget name",
         "name_placeholder": "ex. Family Budget",
         "name_required": "Budget name is required.",
-        "currency_label": "Default currency",
+        "currency_label": "Currency",
         "currency_helper": "You can change this later until you add your first transaction."
       },
       "type": {
@@ -1054,21 +1091,51 @@
         "title": "Overview",
         "cards": {
           "availableToSpend": "Available to spend",
+          "spentThisMonth": "Spent",
+          "leftToSpend": "Upcoming",
+          "retirementRunway": "If you retire now, your money will last for",
+          "retirementSub": "at your normal planned spending",
+          "retirementInflation": "incl. {pct}% annual inflation",
+          "flipToRetirement": "Capitalization — tap to see your retirement runway",
+          "years": "{count, plural, one {# year} other {# years}}",
+          "months": "{count, plural, one {# month} other {# months}}",
+          "and": "and",
+          "unitY": "y",
+          "unitM": "m",
+          "unitD": "d",
+          "overspentMotivation": "Good job — keep it up!",
+          "spendGood": "Wallets cover what's left to spend",
+          "spendBad": "Wallets don't cover what's left to spend",
+          "reservesNeeded": "Needed",
+          "reservesOk": "Reserves match the required amount",
+          "reservesShort": "Reserves below the required amount",
+          "reservesSurplus": "More reserves than needed",
+          "reservesOkNote": "Needed {amount}",
+          "reservesShortNote": "Not enough. {amount} needed",
+          "reservesSurplusNote": "Too much. Only {amount} needed",
           "capitalization": "Capitalization",
           "capitalizationSub": "incl. investments {amount}",
-          "overspent": "Overspent this month",
+          "sinceLastMonth": "since last month",
+          "sinceYesterday": "since yesterday",
+          "overspent": "Overspent",
           "overspentCount": "{count, plural, one {# category} other {# categories}}",
           "onBudget": "On budget",
           "cushion": "Cushion",
           "cushionMonths": "{months} mo",
           "cushionOff": "Cushion off",
+          "cushionCovered": "Cushion covers the required limit",
+          "cushionShort": "Cushion is below the required limit",
+          "cushionSaved": "Saved",
+          "cushionNeeded": "Needed",
           "availableReserves": "Available reserves",
           "realMonths": "real months"
         },
         "range": {
           "month": "Month",
+          "1m": "1M",
           "3m": "3M",
-          "year": "Year",
+          "6m": "6M",
+          "year": "1Y",
           "all": "All",
           "custom": "Custom",
           "from": "From",
@@ -1076,6 +1143,7 @@
           "currentConfig": "current config",
           "allTime": "all time"
         },
+        "total": "Total",
         "sections": {
           "planned": "Planned",
           "overspent": "Overspent",
@@ -1088,15 +1156,22 @@
           "real": "Real",
           "planned": "Planned",
           "recurringPerMonth": "Recurring by month",
-          "recurringPerCategory": "Recurring by category"
+          "recurringPerCategory": "Recurring by category",
+          "timelineTitle": "Planned vs Real",
+          "avgByCategory": "Average by category"
         },
         "wealth": {
           "capitalization": "Capitalization",
           "investments": "Investments",
           "grow": "Growth",
           "loss": "Loss",
-          "monthlyAvg": "Monthly avg",
-          "dynamics": "Month-over-month",
+          "monthlyAvg": "Avg change",
+          "dynamicsDaily": "Daily change",
+          "dynamicsMonthly": "Monthly change",
+          "dynamicsYearly": "Yearly change",
+          "avgForRange": "Avg change ({range})",
+          "growSince": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} thisYear {since year start} all {all time} other {over the selected range}}",
+          "byType": "By type",
           "pieShare": "{pct}%"
         },
         "empty": {
@@ -1251,7 +1326,7 @@
       "count": "{count, plural, one {# task pending} other {# tasks pending}}",
       "title": {
         "RESERVE_TOPUP": "Top up reserve by {amount}",
-        "CONFIRM_DRAFT": "Confirm {ruleName} — {amount}",
+        "CONFIRM_DRAFT": "{hasCategory, select, yes {Confirm {amount} — {category}} other {Confirm {amount}}}",
         "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
         "RESERVE_TOPUP_withdraw": "Reserve has {amount} extra"
       },
@@ -1315,7 +1390,12 @@
         "name": "Name",
         "planned": "Planned monthly",
         "cushion": "Cushion monthly",
-        "color": "Color"
+        "color": "Color",
+        "needs": "Needs",
+        "wants": "Wants",
+        "plannedTotal": "Planned",
+        "cushionValue": "Cushion: {amount}",
+        "cushionResult": "Cushion"
       },
       "deleteBlockedTooltip": "Cannot delete category with existing transactions",
       "deleteConfirmBody": "This will permanently delete the category.",
@@ -1324,6 +1404,12 @@
         "body": "Choose how to remove this category.",
         "keepHistory": "Archive (keep past history)",
         "everywhere": "Remove (remove permanently)"
+      },
+      "cushionMode": {
+        "none": "None",
+        "needs_wants": "Needs + Wants",
+        "needs_only": "Needs only",
+        "custom": "Custom"
       }
     },
     "expensesTitle": "Expenses",
