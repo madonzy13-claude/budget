@@ -124,20 +124,20 @@ export function RecurringRulesList({
             key={rule.id}
             className="flex items-center justify-between px-4 py-3"
           >
-            <div className="space-y-1 min-w-0">
-              <p className="text-sm font-medium">
+            <div className="space-y-0.5 min-w-0">
+              <p className="text-sm font-medium text-[var(--body-on-dark)] truncate">
+                {rule.note?.trim() || t("list.untitled")}
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)]">
                 <span className="tabular-nums">
                   {moneyForList(rule.amount, rule.currency, locale)}
                 </span>{" "}
-                <span className="text-[var(--muted-foreground)]">
-                  · {cadenceLabel}
-                </span>
+                · {cadenceLabel}
               </p>
               <p className="text-xs text-[var(--muted-foreground)] truncate">
                 {t("list.nextDueLabel", {
                   date: formatShortDate(rule.nextDueDate, locale),
                 })}
-                {rule.note ? ` — ${rule.note}` : ""}
               </p>
             </div>
             <div className="flex shrink-0 gap-1">

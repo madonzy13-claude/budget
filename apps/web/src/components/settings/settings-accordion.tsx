@@ -20,6 +20,7 @@ import { CushionSection } from "@/components/settings/cushion-section";
 import { InvestmentsSection } from "@/components/settings/investments-section";
 import { ReservesSection } from "@/components/settings/reserves-section";
 import { RecurringSection } from "@/components/settings/recurring-section";
+import { IncomeSection } from "@/components/settings/income-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
 import { PushPrefsSection } from "@/components/settings/push-prefs-section";
@@ -138,6 +139,19 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
         </AccordionTrigger>
         <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
           <RecurringSection
+            budgetId={budget.id}
+            defaultCurrency={budget.defaultCurrency}
+          />
+        </AccordionContent>
+      </AccordionItem>
+
+      {/* 5. Income (r32) */}
+      <AccordionItem value="income">
+        <AccordionTrigger className="px-6">
+          {t("sections.income")}
+        </AccordionTrigger>
+        <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
+          <IncomeSection
             budgetId={budget.id}
             defaultCurrency={budget.defaultCurrency}
           />

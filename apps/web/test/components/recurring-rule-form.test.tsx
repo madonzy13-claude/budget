@@ -131,7 +131,7 @@ describe("RecurringRuleForm — applyToFuture is forced on (UAT-7 retest)", () =
           yearlyMonth: null,
           firstDueDate: "2026-06-01",
           categoryId: null,
-          note: null,
+          note: "My rule",
         }}
         fetchImpl={fetchMock as unknown as typeof fetch}
       />,
@@ -371,7 +371,7 @@ describe("RecurringRuleForm — Category dropdown (UAT-7 retest)", () => {
           yearlyMonth: null,
           firstDueDate: "2026-05-15",
           categoryId: "cat-a",
-          note: null,
+          note: "Rent",
         }}
         fetchImpl={fetchMock as unknown as typeof fetch}
       />,

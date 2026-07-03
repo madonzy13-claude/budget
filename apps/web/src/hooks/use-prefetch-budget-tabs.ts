@@ -144,6 +144,15 @@ export function usePrefetchBudgetTabs(budgetId: string) {
           ),
       },
       {
+        // settings income-section reads ["incomes", budgetId].
+        key: ["incomes", budgetId],
+        fn: () =>
+          get(
+            `/budgets/${budgetId}/incomes`,
+            (j) => (j as { incomes?: unknown[] }).incomes ?? [],
+          ),
+      },
+      {
         // settings recurring-section reads ["categories-lite"]. Same data + shape
         // as the priority ["budget", id, "categories"] fetch — REUSE that cached
         // value (it has resolved by the time this idle tier runs) instead of

@@ -24,6 +24,7 @@
     "./src/application/set-wallet-balance": "./src/application/set-wallet-balance.ts",
     "./src/application/list-wallets": "./src/application/list-wallets.ts",
     "./src/application/find-wallet-by-id": "./src/application/find-wallet-by-id.ts",
+    "./src/adapters/persistence/income-repo": "./src/adapters/persistence/income-repo.ts",
     "./src/adapters/persistence/category-repo": "./src/adapters/persistence/category-repo.ts",
     "./src/adapters/persistence/category-limit-repo": "./src/adapters/persistence/category-limit-repo.ts",
     "./src/adapters/persistence/budget-template-repo": "./src/adapters/persistence/budget-template-repo.ts",
