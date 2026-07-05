@@ -5,7 +5,45 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const Select = SelectPrimitive.Root;
+/**
+ * Select — Radix Root wrapped with a REOPEN GUARD (r33). Tapping an OPEN trigger
+ * should close it, but on iOS Safari a tap fires pointerdown (Radix closes) AND a
+ * synthesized click ~300ms later (Radix reopens) → the dropdown reopened instead
+ * of closing. We control `open` and ignore any open that arrives within 350ms of
+ * a close, which cancels that phantom reopen. Uncontrolled callers keep working
+ * (we manage the state); controlled callers (open prop) are respected as-is.
+ */
+const Select = ({
+  open: openProp,
+  onOpenChange,
+  defaultOpen,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Root>) => {
+  const isControlled = openProp !== undefined;
+  const [openState, setOpenState] = React.useState<boolean>(
+    defaultOpen ?? false,
+  );
+  const lastClosedAt = React.useRef(0);
+  const open = isControlled ? openProp : openState;
+
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      if (next && Date.now() - lastClosedAt.current < 350) return; // phantom reopen
+      if (!next) lastClosedAt.current = Date.now();
+      if (!isControlled) setOpenState(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange],
+  );
+
+  return (
+    <SelectPrimitive.Root
+      open={open}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  );
+};
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
 

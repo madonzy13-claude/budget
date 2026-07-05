@@ -56,13 +56,71 @@ export function OverviewSections({
     setRange(r);
   };
   const [pinned, setPinned] = useState(false);
+  // Sticky top offset. Inner-scroll (standalone): pins to the box top → 0. Page-
+  // scroll (browser): no inner overflow ancestor, so the range must pin BELOW the
+  // sticky header + pills band (its measured bottom) instead of at document top:0,
+  // where the z-40 band would cover it.
+  const [stickyTop, setStickyTop] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = ref.current;
-    const scroller = scrollParentOf(el);
-    if (!el || !scroller) return;
+    if (!el) return;
+    // Match OverviewTab's scroll-ownership split deterministically (not via the
+    // ambiguous overflow computed-value): standalone → the box is the scroller;
+    // browser → page-scroll, pin below the band.
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as { standalone?: boolean }).standalone === true;
+    const scroller = standalone ? scrollParentOf(el) : null;
     let raf = 0;
+
+    if (!scroller) {
+      // Page-scroll mode: track the pills band's bottom (it's sticky, and the iOS
+      // bar collapse shifts it), pin the range there, and mark pinned once the row
+      // reaches that offset.
+      const band = document.querySelector<HTMLElement>("[data-bdp-tabs]");
+      const header = document.querySelector<HTMLElement>("[data-shell-header]");
+      const measure = () => {
+        raf = 0;
+        // The range pins at the band's STUCK bottom = sticky header height + band
+        // height. Both are scroll-independent (unlike band.rect.bottom, which the
+        // in-flow install banner and page scroll shift → stale offset). ResizeObserver
+        // catches late layout (banner mount, font swap).
+        const headerH = header
+          ? Math.round(header.getBoundingClientRect().height)
+          : 0;
+        const bandH = band
+          ? Math.round(band.getBoundingClientRect().height)
+          : 0;
+        const stuckBottom = headerH + bandH;
+        setStickyTop(stuckBottom);
+        setPinned(el.getBoundingClientRect().top <= stuckBottom + 1);
+      };
+      const onScroll = () => {
+        if (!raf) raf = requestAnimationFrame(measure);
+      };
+      measure();
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+      const vv = window.visualViewport;
+      vv?.addEventListener("resize", onScroll, { passive: true });
+      vv?.addEventListener("scroll", onScroll, { passive: true });
+      // Re-measure the stuck offset when the header/band resize (banner mount,
+      // font swap) — those don't fire scroll/resize.
+      const ro = new ResizeObserver(onScroll);
+      if (header) ro.observe(header);
+      if (band) ro.observe(band);
+      return () => {
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onScroll);
+        vv?.removeEventListener("resize", onScroll);
+        vv?.removeEventListener("scroll", onScroll);
+        ro.disconnect();
+        if (raf) cancelAnimationFrame(raf);
+      };
+    }
+
     const measure = () => {
       raf = 0;
       setPinned(
@@ -89,7 +147,7 @@ export function OverviewSections({
         ref={ref}
         data-overview-range-sticky
         data-pinned={pinned ? "true" : "false"}
-        style={{ position: "sticky", top: 0, zIndex: 30 }}
+        style={{ position: "sticky", top: stickyTop, zIndex: 30 }}
         className={cn(
           "-mx-4 bg-[var(--canvas-dark)] px-4 py-2",
           // Desktop/tablet: full-bleed to the pane edges so the pinned border spans

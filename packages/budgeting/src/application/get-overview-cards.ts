@@ -238,16 +238,20 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         if (c.archived) continue;
         spentThisMonth += BigInt(c.spentCents);
         activeBudget += BigInt(c.activeBudgetCents);
-        monthlyPlanned += BigInt(c.plannedCents);
+        // Retirement spend EXCLUDES the Investments category: once retired there's
+        // no income, so you stop investing — its planned amount isn't a cost.
+        if (!c.isInvestment) monthlyPlanned += BigInt(c.plannedCents);
       }
       const leftToSpend =
         activeBudget - spentThisMonth > 0n ? activeBudget - spentThisMonth : 0n;
 
-      // Retirement runway: how many months the capitalization lasts at the normal
+      // Retirement runway: how many months the FULL capitalization (incl.
+      // investments — everything is available if you retire) lasts at the normal
       // monthly planned spend, with spending GROWING at RETIREMENT_INFLATION_PCT/yr
       // (item 8). Closed-form for a geometric (inflating) drawdown:
       //   N = ln(1 + W·r/s) / ln(1+r),  r = monthly inflation, W = wealth, s = spend.
-      // No planned spend → lasts forever (null).
+      // s already excludes the Investments category above (no investing in
+      // retirement). No planned spend → lasts forever (null).
       const retirementMonths = (() => {
         if (monthlyPlanned <= 0n) return null;
         const W = Number(wealth.capitalization_cents);

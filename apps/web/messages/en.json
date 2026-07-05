@@ -468,6 +468,13 @@
       "feature_on_toast": "Investments enabled",
       "feature_off_toast": "Investments disabled",
       "error_save": "Failed to save — try again",
+      "smart_category": {
+        "label": "Investments category",
+        "help_text": "Add a special \"Investments\" category to the spendings grid to track how much you actually invest. Pinned first, can't be deleted from the grid.",
+        "default_name": "Investments",
+        "on_toast": "Investments category added to the spendings grid",
+        "off_toast": "Investments category removed from the spendings grid"
+      },
       "section": {
         "title": "INVESTMENTS"
       },
@@ -1560,10 +1567,12 @@
     "header": {
       "row2": {
         "planned": "planned",
-        "cushion": "cushion"
+        "cushion": "cushion",
+        "plannedCushion": "planned (cushion)"
       },
       "row3": {
-        "overspent": "overspent"
+        "overspent": "overspent",
+        "overinvested": "overinvested"
       },
       "row4": {
         "reservesUsed": "reserves used"
@@ -1572,6 +1581,23 @@
         "balance": "left"
       },
       "archived": "archived"
+    },
+    "investCat": {
+      "header": "Edit Investments",
+      "nameLabel": "Name",
+      "limitLabel": "Investment limit",
+      "mode": {
+        "smart": "Smart limit",
+        "manual": "Manual"
+      },
+      "manualAmountLabel": "Amount",
+      "smartExplainer": "Smart limit = total income minus everything planned in your other categories. It updates automatically.",
+      "smartRequiresIncome": "Smart limit needs at least one income. Add one in Settings › Income.",
+      "colorLabel": "Color",
+      "save": "Save",
+      "error": {
+        "save": "Couldn't save — try again"
+      }
     }
   },
   "share": {

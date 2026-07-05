@@ -33,6 +33,9 @@ export interface SpendingsSummaryDTO {
     archived?: boolean;
     overspentCents: string;
     balanceCents: string;
+    /** r33: THE Investments category — green overinvested row + smart/manual edit. */
+    isInvestment?: boolean;
+    investmentLimitMode?: string | null;
   }>;
 }
 

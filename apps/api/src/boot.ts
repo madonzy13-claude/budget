@@ -40,6 +40,7 @@ import { getCushionSummary } from "@budget/budgeting/src/application/get-cushion
 import { recomputeCushionTask } from "@budget/budgeting/src/application/recompute-cushion-task";
 import { withTenantTx } from "@budget/platform";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
+import { DrizzleIncomeRepo } from "@budget/budgeting/src/adapters/persistence/income-repo";
 import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
 import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
 import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
@@ -278,6 +279,9 @@ export async function boot(): Promise<BootedDeps> {
     // engine cells via the replay orchestrator — the SAME engine-derived reserve
     // per category the reserves tab reads. No reserve_actual fallback.
     reservePositions: baseBudgeting.reservePositions,
+    // r33: income + FX drive the smart Investments limit (income − Σ other planned).
+    incomeRepo: new DrizzleIncomeRepo(),
+    fxProvider: baseBudgeting.fxProvider,
   });
 
   const budgeting = Object.assign(baseBudgeting, {

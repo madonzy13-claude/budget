@@ -229,7 +229,8 @@ describe("Overview cards", () => {
 
   test("retirement_months = inflation-adjusted drawdown of capitalization (items 5+8)", async () => {
     const dto = (await getOverviewCards(deps())(input))._unsafeUnwrap();
-    // planned 10000 + 8000 = 18000; cap 28000; spending grows at 4.5%/yr →
+    // planned 10000 + 8000 = 18000; runway uses the FULL capitalization 28000
+    // (wallets + investments), spending grows at 4.5%/yr →
     // N = ln(1 + W·r/s)/ln(1+r), r = monthly inflation.
     const r = Math.pow(1.045, 1 / 12) - 1;
     const expected = Math.log(1 + (28000 * r) / 18000) / Math.log(1 + r);

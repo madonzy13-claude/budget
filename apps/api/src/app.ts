@@ -32,6 +32,7 @@ import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createRecurringRulesRoute } from "./routes/recurring-rules";
 import { createIncomesRoute } from "./routes/incomes";
+import { createInvestmentCategoryRoute } from "./routes/investment-category";
 import { createTasksRoute } from "./routes/tasks";
 import { createInvestmentsRoute } from "./routes/investments";
 import { createPushRoute } from "./routes/push";
@@ -115,6 +116,8 @@ export function createApp(deps: BootedDeps) {
   app.use("/budgets/:budgetId/categories/*", requireWorkspace);
   app.use("/budgets/:budgetId/recurring-rules/*", requireWorkspace);
   app.use("/budgets/:budgetId/incomes/*", requireWorkspace);
+  app.use("/budgets/:budgetId/investment-category", requireWorkspace);
+  app.use("/budgets/:budgetId/investment-category/*", requireWorkspace);
   app.use("/budgets/:budgetId/transactions/*", requireWorkspace);
 
   app.route(
@@ -131,6 +134,10 @@ export function createApp(deps: BootedDeps) {
     createRecurringRulesRoute(deps),
   );
   app.route("/budgets/:budgetId/incomes", createIncomesRoute());
+  app.route(
+    "/budgets/:budgetId/investment-category",
+    createInvestmentCategoryRoute(),
+  );
   // UAT Defect 1: transactions were only mounted at /transactions (cross-budget root),
   // not under /budgets/:budgetId/transactions. Phase 4 hooks call the nested path.
   app.route("/budgets/:budgetId/transactions", createTransactionsRoute(deps));

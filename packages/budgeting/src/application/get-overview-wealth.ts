@@ -272,10 +272,17 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
       const nonNull = dynamics
         .map((d) => d.pct)
         .filter((p): p is number => p !== null);
-      const monthly_avg_grow_pct =
-        nonNull.length === 0
-          ? null
-          : nonNull.reduce((a, b) => a + b, 0) / nonNull.length;
+      // Average PERIOD growth is the GEOMETRIC mean of the per-period returns —
+      // (∏(1 + rᵢ))^(1/n) − 1 — NOT the arithmetic mean, because growth compounds.
+      // For contiguous periods this telescopes to (last/first)^(1/n) − 1, so e.g.
+      // a total ×2.75 over 7 periods averages 2.75^(1/7) − 1 per period, not the
+      // (overstated) simple average of the step %s.
+      const monthly_avg_grow_pct = ((): number | null => {
+        if (nonNull.length === 0) return null;
+        const product = nonNull.reduce((acc, p) => acc * (1 + p / 100), 1);
+        if (product < 0) return null; // a ≤ −100% period → geometric mean undefined
+        return (Math.pow(product, 1 / nonNull.length) - 1) * 100;
+      })();
 
       // per-type pie — investments view only (D-18); null otherwise.
       let pie: OverviewWealthDTO["pie"] = null;

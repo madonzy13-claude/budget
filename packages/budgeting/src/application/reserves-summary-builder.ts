@@ -28,6 +28,8 @@ export interface ReservesSummaryCategory {
   reserveExcluded: boolean;
   /** 260613-v1p: per-category color key, threaded onto the row for the accent bar. */
   colorKey: string | null;
+  /** r33: THE Investments category — dropped from the reserves tab entirely. */
+  isInvestment?: boolean;
 }
 
 export function buildReservesSummaryDto(args: {
@@ -37,7 +39,13 @@ export function buildReservesSummaryDto(args: {
   budgetCurrency: string;
   disabled: boolean;
 }): ReservesSummaryDto {
-  const { positions, categories, budgetCurrency, disabled } = args;
+  const { positions, budgetCurrency, disabled } = args;
+  // r33: the Investments category never appears on the reserves tab — not as an
+  // active row, an excluded row, or in the totals. Drop it up front.
+  const categories = args.categories.filter((c) => !c.isInvestment);
+  const investmentIds = new Set(
+    args.categories.filter((c) => c.isInvestment).map((c) => c.id),
+  );
 
   const rowFor = (c: ReservesSummaryCategory): ReservesSummaryRow => {
     const p = positions.positions.get(c.id);
@@ -83,7 +91,7 @@ export function buildReservesSummaryDto(args: {
   let usedAllTime = 0n;
   let usedThisMonth = 0n;
   for (const [id, p] of positions.positions) {
-    if (excludedIds.has(id)) continue;
+    if (excludedIds.has(id) || investmentIds.has(id)) continue;
     usedAllTime += p.usedCents;
     usedThisMonth += p.byMonth.get(positions.openMonth)?.usedCents ?? 0n;
   }

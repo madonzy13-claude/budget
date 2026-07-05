@@ -19,6 +19,8 @@ export interface CategoryRow {
   sortIndex?: number;
   /** 260613-v1p: per-category color key (null = no color → no reserves-row bar). */
   colorKey: string | null;
+  /** r33: THE Investments category — excluded entirely from the reserves tab. */
+  isInvestment?: boolean;
 }
 
 export interface CategoriesRepo {

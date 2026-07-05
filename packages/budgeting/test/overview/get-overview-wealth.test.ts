@@ -139,7 +139,11 @@ describe("getOverviewWealth", () => {
     expect(dto.dynamics.map((d) => d.label)).toEqual(["2026-02", "2026-03"]);
     expect(dto.dynamics[0]!.pct).toBeCloseTo(10.0, 5); // Jan 100000 → Feb 110000
     expect(dto.dynamics[1]!.pct).toBeCloseTo(-1.818181, 4); // Feb 110000 → Mar live 108000
-    expect(dto.monthly_avg_grow_pct).toBeCloseTo((10 + -1.818181) / 2, 4);
+    // GEOMETRIC mean of the two step returns (compounding): ×1.10 then ×0.98182
+    // over 2 periods → (1.10 · 0.98182)^(1/2) − 1 = √1.08 − 1 ≈ 3.923% (NOT 4.09%).
+    const geom =
+      (Math.pow((1 + 10 / 100) * (1 + -1.818181 / 100), 1 / 2) - 1) * 100;
+    expect(dto.monthly_avg_grow_pct).toBeCloseTo(geom, 3);
   });
 
   test("zero-start: delta_pct null and the 0→x step is skipped from the mean", async () => {

@@ -99,4 +99,31 @@ describe("Category domain", () => {
       expect(result.isErr()).toBe(true);
     });
   });
+
+  describe("investment category (r33)", () => {
+    test("normal category defaults to non-investment, null mode", () => {
+      const cat = makeCategory();
+      expect(cat.isInvestment).toBe(false);
+      expect(cat.investmentLimitMode).toBeNull();
+    });
+
+    test("setInvestmentLimitMode flips manual/smart", () => {
+      const cat = new Category(
+        "cat-inv",
+        "tenant-001",
+        "Investments",
+        null,
+        null,
+        new Date("2026-01-01"),
+        "user-001",
+        "green",
+        true, // isInvestment
+        "smart",
+      );
+      expect(cat.isInvestment).toBe(true);
+      expect(cat.investmentLimitMode).toBe("smart");
+      cat.setInvestmentLimitMode("manual");
+      expect(cat.investmentLimitMode).toBe("manual");
+    });
+  });
 });

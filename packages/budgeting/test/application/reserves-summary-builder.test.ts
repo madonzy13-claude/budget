@@ -165,6 +165,51 @@ describe("buildReservesSummaryDto", () => {
     expect(totalKeys).not.toContain("totalReserveWalletAmountCents");
   });
 
+  it("r33: the Investments category is dropped entirely (no active/excluded row, not in totals)", () => {
+    const pos = positions();
+    // Investment cat has a position with used draw — it must NOT count in totals.
+    pos.positions.set("INV", {
+      categoryId: "INV",
+      reserveCents: 0n,
+      usedCents: 9999n,
+      overspentCents: 0n,
+      byMonth: new Map([
+        [
+          "2026-06",
+          {
+            usedCents: 9999n,
+            overspentCents: 0n,
+            overageCents: 0n,
+            leftCents: 0n,
+            endReserveCents: 0n,
+          },
+        ],
+      ]),
+    } as any);
+    const dto = buildReservesSummaryDto({
+      positions: pos,
+      categories: [
+        ...cats,
+        // reserveExcluded is true on the real row, but isInvestment must win →
+        // it is NOT in the excluded section either.
+        {
+          id: "INV",
+          name: "Investments",
+          reserveExcluded: true,
+          colorKey: "green",
+          isInvestment: true,
+        },
+      ],
+      budgetCurrency: "EUR",
+      disabled: false,
+    });
+    expect(dto.rows.find((r) => r.categoryId === "INV")).toBeUndefined();
+    expect(dto.excludedRows.find((r) => r.categoryId === "INV")).toBeUndefined();
+    // Totals unchanged from the no-INV case (9999 not added).
+    expect(dto.totals.usedCents).toBe("200000"); // 140000 + 60000
+    expect(dto.totals.usedThisMonthCents).toBe("20000");
+  });
+
   it("missing position for a listed category → zeroed row (no throw)", () => {
     const dto = buildReservesSummaryDto({
       positions: {

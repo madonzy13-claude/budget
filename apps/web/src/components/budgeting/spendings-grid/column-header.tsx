@@ -32,6 +32,8 @@ export interface ColumnHeaderProps {
     reserveExcluded?: boolean;
     overspentCents: string;
     balanceCents: string;
+    /** r33: THE Investments category — greens the "overinvested" row + dashes reserve. */
+    isInvestment?: boolean;
   };
   cushionModeEnabled: boolean;
   dragGripProps?: DraggableSyntheticListeners;
@@ -69,6 +71,13 @@ export function ColumnHeader({
   const reserveUsedCents = BigInt(summary.reserveUsedCents);
   // When the category is excluded from reserves NOW, the "available" side is a dash.
   const reserveExcluded = summary.reserveExcluded ?? false;
+  // r33: THE Investments category — overspend reads "overinvested" (green, good),
+  // and the reserve section is always a single dash (no reserves for investments).
+  const isInvestment = summary.isInvestment ?? false;
+  // In cushion mode every category (incl. Investments, whose cushion is 0) shows
+  // the cushion figure under a "planned (cushion)" label. Investments therefore
+  // reads 0 in cushion mode — you don't invest on the tighter cushion budget.
+  const showCushionValue = cushionModeEnabled;
   // "Left" never shows negative — overspend is surfaced by the overspent row.
   const displayBalanceCents = balanceCents < 0n ? 0n : balanceCents;
 
@@ -229,11 +238,16 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {cushionModeEnabled ? t("row2.cushion") : t("row2.planned")}
+            {/* In cushion mode the row reads "planned (cushion)"; Investments
+                shows 0 there (no cushion) — outside cushion mode, its smart limit. */}
+            {showCushionValue ? t("row2.plannedCushion") : t("row2.planned")}
           </span>
-          <span className="text-sm font-medium tabular-nums text-[var(--body-on-dark)]">
+          <span
+            data-testid={`column-header-${category.name.toLowerCase()}-planned`}
+            className="text-sm font-medium tabular-nums text-[var(--body-on-dark)]"
+          >
             {centsToBare(
-              cushionModeEnabled ? summary.cushionCents : summary.plannedCents,
+              showCushionValue ? summary.cushionCents : summary.plannedCents,
               locale,
             )}
           </span>
@@ -246,14 +260,19 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {t("row3.overspent")}
+            {isInvestment ? t("row3.overinvested") : t("row3.overspent")}
           </span>
           <span
-            data-testid={`column-header-${category.name.toLowerCase()}-overspent`}
+            data-testid={`column-header-${category.name.toLowerCase()}-${
+              isInvestment ? "overinvested" : "overspent"
+            }`}
             className={cn(
               "text-sm tabular-nums",
               overspentCents > 0n
-                ? "text-[var(--destructive)]"
+                ? // Overinvesting is GOOD → green; overspending is bad → red.
+                  isInvestment
+                  ? "text-[var(--trading-up,#26a69a)]"
+                  : "text-[var(--destructive)]"
                 : "text-[var(--muted-foreground)]",
             )}
           >
@@ -276,7 +295,7 @@ export function ColumnHeader({
               category is excluded NOW: available is a dash (—); if it also used no
               reserve this month, the whole cell is a single dash. */}
             <span className="text-sm tabular-nums whitespace-nowrap">
-              {reserveExcluded && reserveUsedCents === 0n ? (
+              {isInvestment || (reserveExcluded && reserveUsedCents === 0n) ? (
                 <span
                   data-testid={`column-header-${category.name.toLowerCase()}-reserves-used`}
                   className="text-[var(--muted-foreground)]"

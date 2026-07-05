@@ -230,6 +230,16 @@
     border-color: var(--border);
   }
 
+  /* Hide scrollbars app-wide (mobile-first dark PWA — Binance-style chrome-less
+     scroll). Scrolling still works; only the visual bar is removed. WebKit/Blink
+     via the pseudo-element, Firefox via scrollbar-width. */
+  * {
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
   html,
   body {
     background-color: var(--canvas-dark);
@@ -803,6 +813,24 @@ html.is-server-down
   .slide-in-forward,
   .slide-in-back {
     animation: none;
+  }
+}
+
+/* Sonner toast (r33). Keep the toaster container transparent — only the toast
+   pill paints. The pill uses the ELEVATED surface (see sonner.tsx). */
+[data-sonner-toaster] {
+  background: transparent !important;
+}
+/* iOS Safari has a floating bottom toolbar whose FROSTED material samples the
+   content directly behind it. A toast at the default 16px offset sits right in
+   that zone, so Safari frosts the grey toast pill → the toolbar tints grey WHILE
+   the toast is up (and goes dark again when it dismisses — the "grey section that
+   appears/hides with the toast"). In a browser we lift the toast clear of the
+   toolbar so it frosts the dark canvas BELOW the toast instead. Standalone PWA
+   has no such toolbar, so it keeps the tight 16px offset. */
+@media (display-mode: browser) and (max-width: 600px) {
+  [data-sonner-toaster] {
+    --mobile-offset-bottom: 60px !important;
   }
 }
 

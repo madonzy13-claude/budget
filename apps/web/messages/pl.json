@@ -468,6 +468,13 @@
       "feature_on_toast": "Inwestycje włączone",
       "feature_off_toast": "Inwestycje wyłączone",
       "error_save": "Nie udało się zapisać — spróbuj ponownie",
+      "smart_category": {
+        "label": "Kategoria Inwestycje",
+        "help_text": "Dodaj specjalną kategorię „Inwestycje” do siatki wydatków, aby śledzić, ile faktycznie inwestujesz. Przypięta na początku, nie można jej usunąć z siatki.",
+        "default_name": "Inwestycje",
+        "on_toast": "Dodano kategorię Inwestycje do siatki wydatków",
+        "off_toast": "Usunięto kategorię Inwestycje z siatki wydatków"
+      },
       "section": {
         "title": "INWESTYCJE"
       },
@@ -1583,10 +1590,12 @@
     "header": {
       "row2": {
         "planned": "plan",
-        "cushion": "poduszka"
+        "cushion": "poduszka",
+        "plannedCushion": "plan (poduszka)"
       },
       "row3": {
-        "overspent": "przekroczenie"
+        "overspent": "przekroczenie",
+        "overinvested": "nadwyżka inwestycji"
       },
       "row4": {
         "reservesUsed": "rezerwy użyte"
@@ -1595,6 +1604,23 @@
         "balance": "pozostało"
       },
       "archived": "zarchiwizowano"
+    },
+    "investCat": {
+      "header": "Edytuj Inwestycje",
+      "nameLabel": "Nazwa",
+      "limitLabel": "Limit inwestycji",
+      "mode": {
+        "smart": "Limit inteligentny",
+        "manual": "Ręcznie"
+      },
+      "manualAmountLabel": "Kwota",
+      "smartExplainer": "Limit inteligentny = całkowity dochód minus wszystko zaplanowane w pozostałych kategoriach. Aktualizuje się automatycznie.",
+      "smartRequiresIncome": "Limit inteligentny wymaga co najmniej jednego dochodu. Dodaj go w Ustawienia › Dochód.",
+      "colorLabel": "Kolor",
+      "save": "Zapisz",
+      "error": {
+        "save": "Nie udało się zapisać — spróbuj ponownie"
+      }
     }
   },
   "errors": {
