@@ -10,6 +10,7 @@ import type { CategoryLimitRepo } from "../ports/category-limit-repo";
 import type { CategoryLimitDto, SetCategoryLimitInput } from "../contracts/api";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { recomputeCushionTask } from "./recompute-cushion-task";
+import { recomputeIncomeUnderPlannedTask } from "./recompute-income-under-planned-task";
 import {
   recomputeReserveTopupTask,
   type RecomputeReserveTopupTaskDeps,
@@ -120,6 +121,26 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
         console.error(
           "[set-category-limit] cushion recompute failed:",
           recomputeR.error,
+        );
+      }
+
+      // r33: INCOME_UNDER_PLANNED recompute. A planned (normal_amount) change
+      // moves the income-vs-planned gap. Idempotent, best-effort own-tx.
+      const incomeR = await withTenantTx(
+        TenantId(input.tenantId),
+        UserId(input.actorUserId),
+        async (tx) => {
+          await recomputeIncomeUnderPlannedTask(
+            tx as unknown as TenantTx,
+            { tenantId: input.tenantId, budgetId: input.tenantId },
+            { taskRepo, fxProvider },
+          );
+        },
+      );
+      if (incomeR.isErr()) {
+        console.error(
+          "[set-category-limit] income-under-planned recompute failed:",
+          incomeR.error,
         );
       }
     }

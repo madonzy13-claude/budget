@@ -38,6 +38,7 @@ import { listPendingTasks } from "@budget/budgeting/src/application/list-pending
 import { resolveTask } from "@budget/budgeting/src/application/resolve-task";
 import { getCushionSummary } from "@budget/budgeting/src/application/get-cushion-summary";
 import { recomputeCushionTask } from "@budget/budgeting/src/application/recompute-cushion-task";
+import { makeRecomputeIncomeUnderPlannedTask } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 import { withTenantTx } from "@budget/platform";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
 import { DrizzleIncomeRepo } from "@budget/budgeting/src/adapters/persistence/income-repo";
@@ -87,6 +88,12 @@ export interface BootedDeps {
      * Wired into the PATCH /budgets/:id route on cushion-affecting bodies
      * (cushion_target_months / cushion_enabled).
      */
+    /** r33: own-tx runner for the INCOME_UNDER_PLANNED task ("review your
+     * spendings"). Wired into income CRUD + set-category-limit. */
+    recomputeIncomeUnderPlannedRunner: (input: {
+      tenantId: string;
+      budgetId: string;
+    }) => Promise<void>;
     recomputeCushionTaskRunner: (input: {
       tenantId: string;
       budgetId: string;
@@ -246,6 +253,16 @@ export async function boot(): Promise<BootedDeps> {
     }
   };
 
+  // r33: own-tx runner for the INCOME_UNDER_PLANNED task. Wired into the incomes
+  // route (income CRUD) + set-category-limit (planned change). Best-effort —
+  // failure is logged, never fails the request; the hourly sweep is the backstop.
+  const recomputeIncomeUnderPlannedRunner = makeRecomputeIncomeUnderPlannedTask(
+    {
+      taskRepo,
+      fxProvider: baseBudgeting.fxProvider,
+    },
+  );
+
   // Phase 4 repos + services
   const categoryRepo = new DrizzleCategoryRepo();
   const categoryLimitRepo = new DrizzleCategoryLimitRepo();
@@ -290,6 +307,7 @@ export async function boot(): Promise<BootedDeps> {
     resolveTask: resolveTaskService,
     getCushionSummary: getCushionSummaryService,
     recomputeCushionTaskRunner,
+    recomputeIncomeUnderPlannedRunner,
     reorderCategories: reorderCategoriesService,
     dismissDraft: dismissDraftService,
     confirmDraft: confirmDraftService,

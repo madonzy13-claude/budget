@@ -32,7 +32,8 @@ import {
 export type TaskKind =
   | "RESERVE_TOPUP"
   | "CONFIRM_DRAFT"
-  | "CUSHION_BELOW_TARGET";
+  | "CUSHION_BELOW_TARGET"
+  | "INCOME_UNDER_PLANNED";
 
 export interface TaskSummary {
   id: string;
@@ -100,6 +101,12 @@ function buildTitleParams(
     }
     case "CUSHION_BELOW_TARGET":
       return { shortfall: fmt(payload.shortfall_cents) };
+    case "INCOME_UNDER_PLANNED":
+      return {
+        shortfall: fmt(payload.shortfall_cents),
+        income: fmt(payload.income_cents),
+        planned: fmt(payload.planned_cents),
+      };
   }
 }
 

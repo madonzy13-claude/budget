@@ -30,6 +30,7 @@ import { BdpTabs } from "@/components/budgeting/bdp-tabs";
 import { BdpUiStateProvider } from "@/components/budgeting/bdp-ui-state";
 import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
 import { usePrefetchBudgetTabs } from "@/hooks/use-prefetch-budget-tabs";
+import { rememberLastBudget } from "@/lib/last-budget";
 import { useBudget } from "@/hooks/use-budget-data";
 import { OverviewTab } from "@/components/budgeting/overview/overview-tab";
 import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets-sectioned-list";
@@ -162,6 +163,11 @@ export function BudgetDetail({
   // Warm every tab's data on budget open (tiered prefetch). With client tabs
   // there is no RSC to prefetch, so the whole connection serves the data.
   usePrefetchBudgetTabs(budgetId);
+
+  // r35: remember this budget so a plain home landing (app reopen) reopens it.
+  useEffect(() => {
+    rememberLastBudget(budgetId);
+  }, [budgetId]);
 
   // reservesEnabled arrives as a server prop (initial paint). The Settings →
   // Reserves toggle PATCHes the flag + invalidates ["budget", id, "detail"], so

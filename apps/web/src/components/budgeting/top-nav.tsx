@@ -44,8 +44,10 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
   ]);
   return (
     <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-2 px-4 sm:px-8">
-      {/* Brand — fixed width, never shrinks. */}
-      <BrandMark href={`/${locale}`} />
+      {/* Brand — fixed width, never shrinks. r35: ?list=1 forces the budget
+          LISTING (bypasses the last-budget auto-open) when there's >1 budget; a
+          single-budget user still lands on that budget's overview. */}
+      <BrandMark href={`/${locale}?list=1`} />
       {/* Switcher takes the slack and TRUNCATES so the offline pill + avatar on
           the right are never pushed off-screen (min-w-0 lets the flex child
           shrink below its content width). */}

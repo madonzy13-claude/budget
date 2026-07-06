@@ -82,6 +82,10 @@ export function IncomeSection({
     setSheetOpen(false);
     setEditId(null);
     qc.invalidateQueries({ queryKey: ["incomes", budgetId] });
+    // r33: income drives the INCOME_UNDER_PLANNED task + the smart Investments
+    // limit — refresh both so the task badge + grid update without a reload.
+    qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
   };
 
   const confirmDelete = async () => {
@@ -101,6 +105,8 @@ export function IncomeSection({
         return;
       }
       qc.invalidateQueries({ queryKey: ["incomes", budgetId] });
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+      qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
       setPendingDeleteId(null);
     } catch (err) {
       if (isOfflineWriteError(err)) {

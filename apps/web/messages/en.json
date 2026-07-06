@@ -205,7 +205,7 @@
     "page_heading": "Budget Settings",
     "error_save": "Failed to save — try again",
     "sections": {
-      "identity": "Budget Identity",
+      "identity": "General",
       "cushion": "Cushion",
       "reserves": "Reserves",
       "investments": "Investments",
@@ -213,6 +213,32 @@
       "income": "Income",
       "members": "Members",
       "danger": "Danger Zone"
+    },
+    "progress": {
+      "title": "Budget setup",
+      "viewChecklist": "See what's left",
+      "checklistTitle": "Finish setting up",
+      "checklistSubtitle": "{done} of {total} done",
+      "msg": {
+        "start": "Let's set up your budget — each step you complete builds a clearer picture.",
+        "low": "Good start! Keep going — a few more steps and your budget really comes to life.",
+        "mid": "Halfway there. Finish the rest so your budget, reserves and cushion work together.",
+        "high": "Almost done — just a couple of steps left to complete your setup.",
+        "done": "All set! Your budget is fully configured. 🎉"
+      },
+      "items": {
+        "identity": "Name your budget",
+        "transaction": "Add your first transaction",
+        "cushionEnabled": "Turn on Cushion",
+        "cushionWallet": "Add a cushion wallet",
+        "reservesEnabled": "Turn on Reserves",
+        "reserveWallet": "Add a reserve wallet",
+        "investmentsEnabled": "Turn on Investments",
+        "investment": "Add an investment",
+        "recurring": "Add a recurring expense",
+        "income": "Add an income",
+        "category": "Create a category"
+      }
     },
     "identity": {
       "name_label": "Name",
@@ -274,6 +300,10 @@
         "CUSHION_BELOW_TARGET": {
           "label": "Cushion below target",
           "description": "When the cushion balance falls short of the goal"
+        },
+        "INCOME_UNDER_PLANNED": {
+          "label": "Spending over income",
+          "description": "When your total planned spending is more than your income"
         },
         "TASK_COMPLETED": {
           "label": "Task completed",
@@ -457,14 +487,14 @@
     },
     "reserves": {
       "feature_label": "Reserves",
-      "feature_help_text": "Roll unused category budget into a per-category reserve at month-end. Turning this off hides the Reserves tab and every reserves item on the Overview.",
+      "feature_help_text": "Roll unused category budget into a per-category reserve at month-end.",
       "feature_on_toast": "Reserves enabled",
       "feature_off_toast": "Reserves disabled — Reserves tab hidden",
       "error_save": "Failed to save — try again"
     },
     "investments": {
       "feature_label": "Investments",
-      "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
+      "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section.",
       "feature_on_toast": "Investments enabled",
       "feature_off_toast": "Investments disabled",
       "error_save": "Failed to save — try again",
@@ -735,13 +765,13 @@
         "cushion_label": "Cushion",
         "cushion_help": "Plan a small financial cushion alongside each category so a bad month doesn't tip the main budget over. Turn off if you don't want any cushion at all.",
         "reserves_label": "Reserves",
-        "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
+        "reserves_help": "Roll unused category budget into a per-category reserve at month-end.",
         "investments_label": "Investments",
-        "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
+        "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section.",
         "targetMonthsLabel": "Target months",
         "targetMonthsError": "Months must be a whole number between 1 and 60.",
         "push_label": "Enable push notifications",
-        "push_help": "Get alerted when tasks need your attention — works even when the app is closed. You can change this later in Settings."
+        "push_help": "Get alerted when tasks need your attention — works even when the app is closed."
       },
       "review": {
         "heading": "Ready to go?",
@@ -1400,12 +1430,14 @@
         "RESERVE_TOPUP": "Top up reserve by {amount}",
         "CONFIRM_DRAFT": "{hasCategory, select, yes {Confirm {amount} — {category}} other {Confirm {amount}}}",
         "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
+        "INCOME_UNDER_PLANNED": "Planned spending over income by {shortfall}",
         "RESERVE_TOPUP_withdraw": "Reserve has {amount} extra"
       },
       "kind": {
         "RESERVE_TOPUP": "Reserve",
         "CONFIRM_DRAFT": "Draft",
-        "CUSHION_BELOW_TARGET": "Cushion"
+        "CUSHION_BELOW_TARGET": "Cushion",
+        "INCOME_UNDER_PLANNED": "Spending"
       },
       "action": {
         "RESERVE_TOPUP": {
@@ -1426,6 +1458,7 @@
         "RESERVE_TOPUP": "Your reserve wallets hold {amount} less than the sum allocated across reserve categories. You have two options: top up a reserve wallet (move money in) to match the category sum, or reduce some category reserve amounts so the sum drops back to the wallet balance.",
         "CONFIRM_DRAFT": "A recurring rule has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
         "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. You have three options: transfer money into a cushion-type wallet to cover the gap, lower the cushion target months in Settings → Cushion (smaller runway = smaller required cushion), or reduce some category limits so the average monthly spend drops.",
+        "INCOME_UNDER_PLANNED": "Your total planned spending is {planned}, but your monthly income is only {income} — that's {shortfall} more than you earn. Open the Spendings tab and lower some category limits (or a manual Investments amount) until your plan fits your income.",
         "RESERVE_TOPUP_withdraw": "Your reserve wallets hold {amount} more than the sum allocated across reserve categories. You have two options: withdraw the surplus from a reserve wallet, or redistribute the extra into category reserves (increase one or more category amounts so they add up to the wallet sum)."
       }
     }
@@ -1648,7 +1681,9 @@
         "ariaLabel": "Install Budget app",
         "body": "Install Budget for faster access and offline use",
         "learnMore": "Learn more",
-        "cta": "Install app",
+        "title": "Install the app",
+        "tagline": "Faster access, works offline",
+        "cta": "Install",
         "dismiss": "Dismiss install banner"
       },
       "dialog": {

@@ -37,6 +37,8 @@ const prefsSchema = z.object({
     "RESERVE_TOPUP",
     "CONFIRM_DRAFT",
     "CUSHION_BELOW_TARGET",
+    // r33: income < total planned spending — "review your spendings".
+    "INCOME_UNDER_PLANNED",
     // r32: task-completed toggle + budget-update reminder (with day/tz config).
     "TASK_COMPLETED",
     "BUDGET_REMINDER",

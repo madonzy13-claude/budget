@@ -15,15 +15,19 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 export const REMINDER_HOUR = 18; // 6pm local
 
 type LocaleKey = "en" | "pl" | "uk";
+// Shared nudge title (mirrors GREETING in push-notification-handler.ts). iOS
+// renders it as "<title> from <app>", so all pushes lead with the same line and
+// the specifics live in the body. Kept inline — importing the handler would
+// pull @budget/platform statically and break this file's test-mock isolation.
 const TITLE: Record<LocaleKey, string> = {
-  en: "Time to update your budget",
-  pl: "Czas zaktualizować budżet",
-  uk: "Час оновити бюджет",
+  en: "🔔 Your attention needed",
+  pl: "🔔 Potrzebna Twoja uwaga",
+  uk: "🔔 Потрібна ваша увага",
 };
 const BODY: Record<LocaleKey, string> = {
-  en: "Log today's spending to stay on track.",
-  pl: "Zapisz dzisiejsze wydatki, aby trzymać się planu.",
-  uk: "Запишіть сьогоднішні витрати, щоб не збитися з плану.",
+  en: "Time to update your budget — log today's spending",
+  pl: "Czas zaktualizować budżet — zapisz dzisiejsze wydatki",
+  uk: "Час оновити бюджет — запишіть сьогоднішні витрати",
 };
 
 /**

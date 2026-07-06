@@ -92,6 +92,7 @@
     "./src/adapters/persistence/overview-cards-repo": "./src/adapters/persistence/overview-cards-repo.ts",
     "./src/adapters/persistence/overview-repo": "./src/adapters/persistence/overview-repo.ts",
     "./src/application/recompute-cushion-task": "./src/application/recompute-cushion-task.ts",
+    "./src/application/recompute-income-under-planned-task": "./src/application/recompute-income-under-planned-task.ts",
     "./src/application/recompute-reserve-topup-task": "./src/application/recompute-reserve-topup-task.ts",
     "./src/application/get-reserve-positions": "./src/application/get-reserve-positions.ts",
     "./src/adapters/persistence/reserve-event-loader-repo": "./src/adapters/persistence/reserve-event-loader-repo.ts",

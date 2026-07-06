@@ -135,10 +135,11 @@ export function BdpTabs({
             <span
               className={cn(
                 "relative z-10",
-                // Settings is icon-only on mobile even when active — its long
-                // label (e.g. UK "Налаштування") overflowed the pill row and got
-                // clipped (round 18 item 1). Desktop (sm+) still shows it.
-                slug === "settings"
+                // Settings label overflowed the mobile pill row with all pills
+                // present, so it's icon-only on mobile — BUT only while Reserves
+                // is on. With Reserves off (one fewer pill = extra space) the
+                // active Settings pill has room to show its label like the others.
+                slug === "settings" && reservesEnabled
                   ? "hidden sm:inline"
                   : active
                     ? "inline"

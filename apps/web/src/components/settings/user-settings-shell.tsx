@@ -44,10 +44,7 @@ export function UserSettingsShell({
 
   return (
     <main className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-12 sm:px-6 sm:pb-16">
-      <header className="mb-6 space-y-2">
-        <p className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
-          {tRoot("eyebrow")}
-        </p>
+      <header className="mb-6">
         <h1 className="text-display-sm text-[var(--on-dark)]">
           {tRoot("heading")}
         </h1>

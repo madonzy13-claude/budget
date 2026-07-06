@@ -365,6 +365,13 @@
       "when": 1782667200000,
       "tag": "0052_investment_category",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1782670800000,
+      "tag": "0053_income_under_planned_task",
+      "breakpoints": true
     }
   ]
 }

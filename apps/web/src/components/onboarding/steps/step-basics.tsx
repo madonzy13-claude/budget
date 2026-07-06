@@ -78,10 +78,9 @@ export function StepBasics({
           onSelect={onChangeCurrency}
           aria-label={t("currency_label")}
           variant="field"
+          richLabel
+          desktopDropdown
         />
-        <p className="text-xs text-[var(--muted-foreground)]">
-          {t("currency_helper")}
-        </p>
       </div>
     </div>
   );

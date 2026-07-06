@@ -205,7 +205,7 @@
     "page_heading": "Ustawienia budżetu",
     "error_save": "Nie udało się zapisać — spróbuj ponownie",
     "sections": {
-      "identity": "Tożsamość budżetu",
+      "identity": "Ogólne",
       "cushion": "Poduszka",
       "reserves": "Rezerwy",
       "investments": "Inwestycje",
@@ -213,6 +213,32 @@
       "income": "Dochód",
       "members": "Członkowie",
       "danger": "Strefa niebezpieczna"
+    },
+    "progress": {
+      "title": "Konfiguracja budżetu",
+      "viewChecklist": "Zobacz, co zostało",
+      "checklistTitle": "Dokończ konfigurację",
+      "checklistSubtitle": "Ukończono {done} z {total}",
+      "msg": {
+        "start": "Skonfigurujmy Twój budżet — każdy ukończony krok buduje pełniejszy obraz.",
+        "low": "Dobry początek! Jeszcze kilka kroków i Twój budżet naprawdę ożyje.",
+        "mid": "Połowa za Tobą. Dokończ resztę, aby budżet, rezerwy i poduszka działały razem.",
+        "high": "Prawie gotowe — zostało jeszcze tylko kilka kroków.",
+        "done": "Gotowe! Twój budżet jest w pełni skonfigurowany. 🎉"
+      },
+      "items": {
+        "identity": "Nazwij swój budżet",
+        "transaction": "Dodaj pierwszą transakcję",
+        "cushionEnabled": "Włącz Poduszkę",
+        "cushionWallet": "Dodaj portfel poduszki",
+        "reservesEnabled": "Włącz Rezerwy",
+        "reserveWallet": "Dodaj portfel rezerw",
+        "investmentsEnabled": "Włącz Inwestycje",
+        "investment": "Dodaj inwestycję",
+        "recurring": "Dodaj wydatek cykliczny",
+        "income": "Dodaj dochód",
+        "category": "Utwórz kategorię"
+      }
     },
     "identity": {
       "name_label": "Nazwa",
@@ -301,6 +327,10 @@
         "CUSHION_BELOW_TARGET": {
           "label": "Poduszka poniżej celu",
           "description": "Gdy saldo poduszki jest poniżej wyznaczonego celu"
+        },
+        "INCOME_UNDER_PLANNED": {
+          "label": "Wydatki większe niż dochód",
+          "description": "Gdy łączne zaplanowane wydatki przewyższają Twój dochód"
         },
         "TASK_COMPLETED": {
           "label": "Zadanie ukończone",
@@ -457,14 +487,14 @@
     },
     "reserves": {
       "feature_label": "Rezerwy",
-      "feature_help_text": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączenie ukrywa kartę Rezerwy i wszystkie pozycje rezerw w Przeglądzie.",
+      "feature_help_text": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca.",
       "feature_on_toast": "Rezerwy włączone",
       "feature_off_toast": "Rezerwy wyłączone — karta Rezerwy ukryta",
       "error_save": "Nie udało się zapisać — spróbuj ponownie"
     },
     "investments": {
       "feature_label": "Inwestycje",
-      "feature_help_text": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli. Domyślnie wyłączone.",
+      "feature_help_text": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli.",
       "feature_on_toast": "Inwestycje włączone",
       "feature_off_toast": "Inwestycje wyłączone",
       "error_save": "Nie udało się zapisać — spróbuj ponownie",
@@ -735,13 +765,13 @@
         "cushion_label": "Poduszka",
         "cushion_help": "Zaplanuj niewielką rezerwę finansową obok każdej kategorii, aby zły miesiąc nie wywrócił głównego budżetu. Wyłącz, jeśli nie chcesz żadnej poduszki.",
         "reserves_label": "Rezerwy",
-        "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca. Wyłączone ukrywa zakładkę Rezerwy.",
+        "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca.",
         "investments_label": "Inwestycje",
-        "investments_help": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli. Domyślnie wyłączone.",
+        "investments_help": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli.",
         "targetMonthsLabel": "Docelowe miesiące",
         "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
         "push_label": "Włącz powiadomienia push",
-        "push_help": "Otrzymuj alerty, gdy zadania wymagają Twojej uwagi — nawet gdy aplikacja jest zamknięta. Możesz to zmienić później w Ustawieniach."
+        "push_help": "Otrzymuj alerty, gdy zadania wymagają Twojej uwagi — nawet gdy aplikacja jest zamknięta."
       },
       "review": {
         "heading": "Gotowy?",
@@ -1423,12 +1453,14 @@
         "RESERVE_TOPUP": "Uzupełnij rezerwę o {amount}",
         "CONFIRM_DRAFT": "{hasCategory, select, yes {Potwierdź {amount} — {category}} other {Potwierdź {amount}}}",
         "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki",
+        "INCOME_UNDER_PLANNED": "Zaplanowane wydatki przewyższają dochód o {shortfall}",
         "RESERVE_TOPUP_withdraw": "Rezerwa ma {amount} nadwyżki"
       },
       "kind": {
         "RESERVE_TOPUP": "Rezerwa",
         "CONFIRM_DRAFT": "Szkic",
-        "CUSHION_BELOW_TARGET": "Poduszka"
+        "CUSHION_BELOW_TARGET": "Poduszka",
+        "INCOME_UNDER_PLANNED": "Wydatki"
       },
       "action": {
         "RESERVE_TOPUP": {
@@ -1449,6 +1481,7 @@
         "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli.",
         "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
         "CUSHION_BELOW_TARGET": "Twoja poduszka finansowa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Masz trzy opcje: przelej środki do portfela typu Poduszka, obniż liczbę miesięcy w Ustawienia → Poduszka (mniejszy zapas = mniejsza wymagana poduszka), albo zmniejsz limity niektórych kategorii, żeby spadły średnie miesięczne wydatki.",
+        "INCOME_UNDER_PLANNED": "Twoje łączne zaplanowane wydatki to {planned}, ale Twój miesięczny dochód wynosi tylko {income} — to o {shortfall} więcej, niż zarabiasz. Otwórz zakładkę Wydatki i zmniejsz limity niektórych kategorii (lub ręczną kwotę Inwestycji), aż plan zmieści się w dochodzie.",
         "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli)."
       }
     }
@@ -1649,7 +1682,9 @@
         "ariaLabel": "Zainstaluj aplikację Budget",
         "body": "Zainstaluj Budget dla szybszego dostępu i korzystania offline",
         "learnMore": "Dowiedz się więcej",
-        "cta": "Zainstaluj aplikację",
+        "title": "Zainstaluj aplikację",
+        "tagline": "Szybszy dostęp, działa offline",
+        "cta": "Zainstaluj",
         "dismiss": "Odrzuć baner instalacji"
       },
       "dialog": {

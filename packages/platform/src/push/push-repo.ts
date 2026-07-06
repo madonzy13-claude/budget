@@ -29,6 +29,8 @@ export type NotificationKind =
   | "RESERVE_TOPUP"
   | "CONFIRM_DRAFT"
   | "CUSHION_BELOW_TARGET"
+  // r33: income < total planned spending — "review your spendings".
+  | "INCOME_UNDER_PLANNED"
   // r32: a task was completed (by another member) — gated separately from the
   // per-kind created toggles.
   | "TASK_COMPLETED"
@@ -40,6 +42,7 @@ export const NOTIFICATION_KINDS: NotificationKind[] = [
   "RESERVE_TOPUP",
   "CONFIRM_DRAFT",
   "CUSHION_BELOW_TARGET",
+  "INCOME_UNDER_PLANNED",
   "TASK_COMPLETED",
   "BUDGET_REMINDER",
 ];

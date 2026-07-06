@@ -37,6 +37,7 @@ import type {
   ConfirmDraftPayload,
   CushionBelowTargetPayload,
   InvestmentDelistedPayload,
+  IncomeUnderPlannedPayload,
 } from "../../ports/task-repo";
 
 /**
@@ -368,6 +369,38 @@ export function createTaskRepo(): TaskRepo {
         tenantId,
         budgetId,
         "INVESTMENT_INSTRUMENT_DELISTED",
+      );
+    },
+
+    async emitIncomeUnderPlanned(
+      tenantId,
+      budgetId,
+      payload: IncomeUnderPlannedPayload,
+      tx,
+    ) {
+      // r33: like RESERVE_TOPUP / CUSHION_BELOW_TARGET, the shortfall must track
+      // the live income-vs-planned gap — DO UPDATE refreshes the payload so an
+      // already-pending task never shows a stale amount after an income/limit
+      // edit. Targets the partial unique index tasks_income_under_planned_dedup_idx
+      // (budget_id WHERE kind='INCOME_UNDER_PLANNED' AND status='PENDING').
+      const drizzleTx = tx as DrizzleTx;
+      const payloadJson = JSON.stringify(payload);
+      const res = await drizzleTx.execute(sql`
+        INSERT INTO budgeting.tasks
+          (id, tenant_id, budget_id, kind, payload_json, status, created_at)
+        VALUES
+          (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid,
+           'INCOME_UNDER_PLANNED', ${payloadJson}::jsonb, 'PENDING', now())
+        ON CONFLICT (budget_id) WHERE (kind = 'INCOME_UNDER_PLANNED' AND status = 'PENDING')
+        DO UPDATE SET payload_json = EXCLUDED.payload_json
+        RETURNING id, (xmax = 0) AS inserted
+      `);
+      await emitTaskCreatedIfInserted(
+        tx,
+        res,
+        tenantId,
+        budgetId,
+        "INCOME_UNDER_PLANNED",
       );
     },
 

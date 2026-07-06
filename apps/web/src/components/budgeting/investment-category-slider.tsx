@@ -55,7 +55,9 @@ function centsToDecimal(cents: string): string {
   const abs = Math.abs(n);
   const whole = Math.floor(abs / 100);
   const frac = abs % 100;
-  return frac === 0 ? String(whole) : `${whole}.${String(frac).padStart(2, "0")}`;
+  return frac === 0
+    ? String(whole)
+    : `${whole}.${String(frac).padStart(2, "0")}`;
 }
 function amountToCents(decimal: string): number {
   const n = parseFloat(decimal);
@@ -114,7 +116,11 @@ export function InvestmentCategorySlider({
       (initial.investmentLimitMode as Mode) ??
       "smart";
     setMode(authMode);
-  }, [open, initial.categoryId, statusQuery.data?.category?.investmentLimitMode]);
+  }, [
+    open,
+    initial.categoryId,
+    statusQuery.data?.category?.investmentLimitMode,
+  ]);
 
   // Smart with no income is not allowed — fall back to manual in the UI.
   const effectiveMode: Mode = mode === "smart" && !hasIncome ? "manual" : mode;
@@ -190,6 +196,9 @@ export function InvestmentCategorySlider({
       qc.invalidateQueries({ queryKey: ["investment-category", budgetId] });
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
+      // r33: a MANUAL investment amount counts toward planned → refresh the
+      // INCOME_UNDER_PLANNED task badge without a reload.
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     } catch (err) {
       if (isOfflineWriteError(err)) {
         offlineToast();

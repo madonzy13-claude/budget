@@ -8,6 +8,7 @@
  * preceding Features step).
  */
 import { useTranslations } from "next-intl";
+import { TOP_CURRENCIES } from "@/components/common/currency-picker";
 
 interface StepReviewProps {
   name: string;
@@ -25,7 +26,21 @@ export function StepReview({
   reservesEnabled,
 }: StepReviewProps) {
   const t = useTranslations("onboarding.wizard.review");
+  const tc = useTranslations("currency");
   const placeholder = t("placeholder_value");
+  // Show the currency as "USD US Dollar $" (code + full name + symbol) to match the
+  // rich picker on the Basics step.
+  const currencyDisplay = (() => {
+    if (!currency) return placeholder;
+    const c = TOP_CURRENCIES.find((x) => x.code === currency);
+    let name = currency;
+    try {
+      name = tc(`names.${currency}`);
+    } catch {
+      name = currency;
+    }
+    return `${currency} ${name}${c?.symbol ? ` ${c.symbol}` : ""}`;
+  })();
   return (
     <div className="space-y-5">
       <div>
@@ -47,7 +62,7 @@ export function StepReview({
         />
         <ReviewRow
           label={t("label_currency")}
-          value={currency || placeholder}
+          value={currencyDisplay}
           testId="wizard-review-currency"
         />
         <ReviewRow

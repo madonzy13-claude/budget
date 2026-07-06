@@ -8,20 +8,62 @@
  * renders instantly from the warm React Query cache (no (app)/loading flash);
  * the per-card skeletons cover a genuine cold load.
  */
+import { useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
+import { LAST_BUDGET_KEY } from "@/lib/last-budget";
 import { BudgetCardClient } from "@/components/budgeting/budget-card-client";
 import { BudgetCardSkeleton } from "@/components/budgeting/budget-card-skeleton";
 import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
 
 export function HomeBudgetsClient({ locale }: { locale: string }) {
   const t = useTranslations("home");
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const q = useActiveBudgets();
   const budgets = q.data ?? [];
+
+  // r35: auto-open a budget instead of the listing.
+  //  - exactly 1 budget → ALWAYS its overview (there's always a route to it).
+  //  - >1 budgets on a plain landing (app reopen, no ?list) → the last-visited
+  //    budget's overview. The logo links here with ?list=1 to FORCE the listing
+  //    when there's more than one budget.
+  const wantsList = searchParams.get("list") === "1";
+  const redirectTo = useMemo(() => {
+    if (!q.isSuccess || budgets.length === 0) return null;
+    if (budgets.length === 1) {
+      return `/${locale}/budgets/${budgets[0]!.id}/overview`;
+    }
+    if (wantsList || typeof window === "undefined") return null;
+    const last = window.localStorage.getItem(LAST_BUDGET_KEY);
+    return last && budgets.some((b) => b.id === last)
+      ? `/${locale}/budgets/${last}/overview`
+      : null;
+  }, [q.isSuccess, budgets, wantsList, locale]);
+
+  useEffect(() => {
+    if (redirectTo) router.replace(redirectTo);
+  }, [redirectTo, router]);
 
   // Resolved with no budgets → full-bleed empty hero (matches the old page).
   if (q.isSuccess && budgets.length === 0) {
     return <HomeEmptyHero locale={locale} />;
+  }
+
+  // Are we (probably) about to soft-redirect into a budget? True once confirmed,
+  // OR — before the budget list even loads — when a last-budget candidate exists in
+  // localStorage (the common reopen). In that case render NOTHING (a neutral blank)
+  // instead of the listing skeleton, so the listing never flashes on the way to the
+  // budget. The redirect is a client soft-nav → the shell stays mounted → no iOS
+  // safe-area top-inset re-jump on the destination.
+  const lastCandidate =
+    typeof window !== "undefined" && !wantsList
+      ? window.localStorage.getItem(LAST_BUDGET_KEY)
+      : null;
+  const redirecting = redirectTo !== null || (!!lastCandidate && !q.isSuccess);
+  if (redirecting) {
+    return <div aria-hidden className="min-h-[50dvh]" />;
   }
 
   // No data yet (cold load OR a transient offline error before the persisted

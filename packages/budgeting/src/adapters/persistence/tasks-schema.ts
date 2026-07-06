@@ -38,7 +38,7 @@ export const tasks = budgeting.table(
   (t) => [
     check(
       "tasks_kind_chk",
-      sql`${t.kind} IN ('RESERVE_TOPUP','CONFIRM_DRAFT','CUSHION_BELOW_TARGET','INVESTMENT_INSTRUMENT_DELISTED')`,
+      sql`${t.kind} IN ('RESERVE_TOPUP','CONFIRM_DRAFT','CUSHION_BELOW_TARGET','INVESTMENT_INSTRUMENT_DELISTED','INCOME_UNDER_PLANNED')`,
     ),
     check("tasks_status_chk", sql`${t.status} IN ('PENDING','RESOLVED')`),
     pgPolicy("tasks_tenant_isolation", {

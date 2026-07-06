@@ -10,7 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
+import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
 import { cn } from "@/lib/utils";
 
 export interface BudgetSummary {
@@ -123,7 +123,7 @@ export function BudgetSwitcher({
               header collapses to a bare chevron on the home page. */}
           {triggerLabel && (
             <span
-              className="text-title-sm inline-block max-w-[14ch] truncate align-middle sm:max-w-[20ch]"
+              className="text-title-sm inline-block max-w-[20ch] truncate align-middle sm:max-w-[28ch]"
               title={triggerLabel}
             >
               {triggerLabel}
@@ -276,9 +276,9 @@ function BudgetGroup({
             <span className="flex-1 truncate text-body-md text-[var(--on-dark)]">
               {b.name}
             </span>
-            <Badge variant="outline" className="num text-[11px]">
-              {b.default_currency}
-            </Badge>
+            {/* r35: pending-task count badge (red) instead of the currency —
+                hidden when 0 (PillBadge returns null for count ≤ 0). */}
+            <PillBadge count={b.pendingTasksCount} />
           </button>
         );
       })}

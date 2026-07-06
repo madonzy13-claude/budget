@@ -73,9 +73,18 @@ interface IncomeDto {
   yearlyMonth: number | null;
 }
 
-export function createIncomesRoute() {
+export function createIncomesRoute(deps?: {
+  /** r33: refresh the INCOME_UNDER_PLANNED task after an income change (own tx). */
+  recomputeIncomeUnderPlanned?: (input: {
+    tenantId: string;
+    budgetId: string;
+  }) => Promise<void>;
+}) {
   const app = new Hono<{ Variables: Record<string, unknown> }>();
   const repo = new DrizzleIncomeRepo();
+  // v1.1 invariant budgetId === tenantId; income is tenant-scoped.
+  const refreshTask = (tenantId: string) =>
+    deps?.recomputeIncomeUnderPlanned?.({ tenantId, budgetId: tenantId });
 
   function ctx(c: { get: (k: string) => unknown }): {
     tenantId: string;
@@ -113,6 +122,7 @@ export function createIncomesRoute() {
         ...anchors(d),
         actorUserId: userId,
       });
+      await refreshTask(tenantId);
       const dto: IncomeDto = {
         id,
         name: d.name,
@@ -178,6 +188,7 @@ export function createIncomesRoute() {
         actorUserId: userId,
       });
       if (!updated) return c.json({ error: "not_found" }, 404);
+      await refreshTask(tenantId);
       const dto: IncomeDto = {
         id,
         name: d.name,
@@ -201,6 +212,7 @@ export function createIncomesRoute() {
     if (!tenantId) return c.json({ error: "no active workspace" }, 403);
     try {
       await repo.deactivate(tenantId, id, userId);
+      await refreshTask(tenantId);
       return c.body(null, 204);
     } catch (e) {
       console.error("[incomes] delete failed", e);

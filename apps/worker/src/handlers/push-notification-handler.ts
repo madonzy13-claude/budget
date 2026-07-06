@@ -42,39 +42,37 @@ export interface PushHandlerDeps {
 
 type LocaleKey = "en" | "pl" | "uk";
 
-const TITLES: Record<string, Record<LocaleKey, string>> = {
-  RESERVE_TOPUP: {
-    en: "Reserve needs attention",
-    pl: "Rezerwa wymaga uwagi",
-    uk: "Резерв потребує уваги",
-  },
-  CONFIRM_DRAFT: {
-    en: "A draft needs confirming",
-    pl: "Projekt wymaga potwierdzenia",
-    uk: "Чернетка потребує підтвердження",
-  },
-  CUSHION_BELOW_TARGET: {
-    en: "Cushion below target",
-    pl: "Poduszka poniżej celu",
-    uk: "Подушка нижче цілі",
-  },
+// r36: iOS shows the notification title as "<title> from <app>" and we can't
+// suppress the " from <app>" — so lean in. Every push shares one short nudge
+// title; the actual message moves to the body.
+const GREETING: Record<LocaleKey, string> = {
+  en: "🔔 Your attention needed",
+  pl: "🔔 Potrzebna Twoja uwaga",
+  uk: "🔔 Потрібна ваша увага",
 };
+const greeting = (l: string): string =>
+  GREETING[(l as LocaleKey) ?? "en"] ?? GREETING.en;
 
 const BODIES: Record<string, Record<LocaleKey, string>> = {
   RESERVE_TOPUP: {
-    en: "Go to Reserves tab",
-    pl: "Przejdź do zakładki Rezerwy",
-    uk: "Перейдіть до вкладки Резерви",
+    en: "Your reserve needs a top-up",
+    pl: "Twoja rezerwa wymaga uzupełnienia",
+    uk: "Ваш резерв потребує поповнення",
   },
   CONFIRM_DRAFT: {
-    en: "Go to Spendings tab",
-    pl: "Przejdź do zakładki Wydatki",
-    uk: "Перейдіть до вкладки Витрати",
+    en: "You have a draft to confirm",
+    pl: "Masz szkic do potwierdzenia",
+    uk: "У вас є чернетка для підтвердження",
   },
   CUSHION_BELOW_TARGET: {
-    en: "Go to Wallets tab",
-    pl: "Przejdź do zakładki Portfele",
-    uk: "Перейдіть до вкладки Гаманці",
+    en: "Cushion is below the target",
+    pl: "Poduszka jest poniżej celu",
+    uk: "Подушка нижче цілі",
+  },
+  INCOME_UNDER_PLANNED: {
+    en: "Time to review your spendings",
+    pl: "Czas przejrzeć swoje wydatki",
+    uk: "Час переглянути свої витрати",
   },
 };
 
@@ -87,38 +85,36 @@ export const NOTIFICATION_TYPES: Record<
   }
 > = {
   RESERVE_TOPUP: {
-    title: (l) =>
-      TITLES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? TITLES.RESERVE_TOPUP.en,
+    title: greeting,
     body: (l) =>
       BODIES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? BODIES.RESERVE_TOPUP.en,
     tab: "reserves",
   },
   CONFIRM_DRAFT: {
-    title: (l) =>
-      TITLES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? TITLES.CONFIRM_DRAFT.en,
+    title: greeting,
     body: (l) =>
       BODIES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? BODIES.CONFIRM_DRAFT.en,
     tab: "spendings",
   },
   CUSHION_BELOW_TARGET: {
-    title: (l) =>
-      TITLES.CUSHION_BELOW_TARGET[(l as LocaleKey) ?? "en"] ??
-      TITLES.CUSHION_BELOW_TARGET.en,
+    title: greeting,
     body: (l) =>
       BODIES.CUSHION_BELOW_TARGET[(l as LocaleKey) ?? "en"] ??
       BODIES.CUSHION_BELOW_TARGET.en,
     tab: "wallets",
+  },
+  INCOME_UNDER_PLANNED: {
+    title: greeting,
+    body: (l) =>
+      BODIES.INCOME_UNDER_PLANNED[(l as LocaleKey) ?? "en"] ??
+      BODIES.INCOME_UNDER_PLANNED.en,
+    tab: "spendings",
   },
 };
 
 // Generic "a task closed elsewhere" message (r31d). No kind-specific copy and no
 // financials (D-15) — its only job is to nudge the phone so the SW re-syncs the
 // app-icon badge after a task is resolved on another device.
-const RESOLVED_TITLE: Record<LocaleKey, string> = {
-  en: "Tasks updated",
-  pl: "Zadania zaktualizowane",
-  uk: "Завдання оновлено",
-};
 const RESOLVED_BODY: Record<LocaleKey, string> = {
   en: "A task was completed",
   pl: "Zadanie zostało zakończone",
@@ -255,7 +251,7 @@ export function registerPushNotificationHandler(deps: PushHandlerDeps): void {
       (locale) => {
         const l = (locale as LocaleKey) ?? "en";
         return {
-          title: RESOLVED_TITLE[l] ?? RESOLVED_TITLE.en,
+          title: greeting(locale),
           body: RESOLVED_BODY[l] ?? RESOLVED_BODY.en,
           url: `/${locale}/budgets/${budgetId}/${notifType.tab}`,
         };

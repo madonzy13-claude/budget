@@ -65,21 +65,27 @@ function SettingsSkeleton() {
     // it first — no skeleton-scaffold flash on warm/offline nav (260617). Only
     // while the one-shot IDB restore is bridging (260620): after it's done, a
     // cold list = network wait, so render at once (no blank pane under the band).
-    <div
-      className={cn(
-        "overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]",
-        !isRestoreComplete() && "reveal-delayed",
-      )}
-    >
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center justify-between border-b border-[var(--hairline-on-dark)] px-6 py-5 last:border-b-0"
-        >
+    <div className={cn(!isRestoreComplete() && "reveal-delayed")}>
+      {/* r34: configuration-progress header card (matches SettingsConfigProgress:
+          title + % + bar; the whole card is tappable). */}
+      <div className="mb-4 rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)] px-5 py-3">
+        <div className="flex items-center justify-between">
           <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-5 w-12" />
         </div>
-      ))}
+        <Skeleton className="mt-2 h-2 w-full rounded-full" />
+      </div>
+      <div className="overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)]">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between border-b border-[var(--hairline-on-dark)] px-6 py-5 last:border-b-0"
+          >
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-4 rounded" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

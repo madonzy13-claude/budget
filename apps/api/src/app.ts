@@ -133,7 +133,13 @@ export function createApp(deps: BootedDeps) {
     "/budgets/:budgetId/recurring-rules",
     createRecurringRulesRoute(deps),
   );
-  app.route("/budgets/:budgetId/incomes", createIncomesRoute());
+  app.route(
+    "/budgets/:budgetId/incomes",
+    createIncomesRoute({
+      recomputeIncomeUnderPlanned:
+        deps.budgeting.recomputeIncomeUnderPlannedRunner,
+    }),
+  );
   app.route(
     "/budgets/:budgetId/investment-category",
     createInvestmentCategoryRoute(),
@@ -170,7 +176,13 @@ export function createApp(deps: BootedDeps) {
   app.route("/budget-settings", createBudgetSettingsRoute(deps));
   app.route("/transactions", createTransactionsRoute(deps));
   app.route("/recurring-rules", createRecurringRulesRoute(deps));
-  app.route("/incomes", createIncomesRoute());
+  app.route(
+    "/incomes",
+    createIncomesRoute({
+      recomputeIncomeUnderPlanned:
+        deps.budgeting.recomputeIncomeUnderPlannedRunner,
+    }),
+  );
 
   return app;
 }

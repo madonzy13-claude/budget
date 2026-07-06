@@ -269,7 +269,11 @@ export function OverviewCards({
                     {hasInvestments && (
                       <p className="text-caption text-[var(--muted-foreground)]">
                         {t("cards.capitalizationSub", {
-                          amount: money(data.investment_value_cents),
+                          // No cents — match the hero capitalization number.
+                          amount: centsToRounded(
+                            data.investment_value_cents,
+                            ccy,
+                          ),
                         })}
                       </p>
                     )}
