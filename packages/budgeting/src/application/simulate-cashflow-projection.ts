@@ -43,8 +43,15 @@ export interface DayCell {
   date: string;
   color: DayColor;
   availableCents: bigint; // cash end-of-day
+  /** Reserve drawn per category, CUMULATIVE within this day's month (so a
+   *  reserve-tapped category keeps showing for the rest of the month, explaining
+   *  the sticky-yellow days, not just the single draw day). Resets each month. */
   drewReserve: DayReserveDraw[];
+  /** Uncovered overspend per category, cumulative within the month. */
   shortfall: DayReserveDraw[];
+  /** Reserve bridging a negative-cash (liquidity) day — how much reserve is
+   *  keeping you afloat today. 0 when cash ≥ 0. */
+  reserveCoverCents: bigint;
   incomeCents: bigint; // income landing that day
   billCents: bigint; // dated bills landing that day
 }
@@ -157,6 +164,11 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   );
   let monthReserveTapped = false;
   let monthShort = false;
+  // Cumulative-this-month reserve draw / uncovered shortfall per category, so the
+  // tooltip can explain every sticky-yellow/red day (not just the draw day). Reset
+  // at each month boundary.
+  const reserveDrawnCum = new Map<string, bigint>();
+  const shortfallCum = new Map<string, bigint>();
   let curYearMonth = startYearMonth;
 
   const days: DayCell[] = [];
@@ -191,15 +203,14 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       }
       monthReserveTapped = false;
       monthShort = false;
+      reserveDrawnCum.clear();
+      shortfallCum.clear();
       curYearMonth = ym;
     }
 
     // Income lands.
     const incomeToday = incomeByDate.get(iso) ?? 0n;
     cash += incomeToday;
-
-    const drew: DayReserveDraw[] = [];
-    const short: DayReserveDraw[] = [];
 
     const applyOutflow = (catId: string, amt: bigint) => {
       if (amt <= 0n) return;
@@ -224,20 +235,12 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
           reserve.set(catId, r - draw);
           reservePool -= draw;
           monthReserveTapped = true;
-          drew.push({
-            categoryId: catId,
-            name: nameById.get(catId) ?? "",
-            amountCents: draw,
-          });
+          reserveDrawnCum.set(catId, (reserveDrawnCum.get(catId) ?? 0n) + draw);
         }
         const s = newlyOver - draw;
         if (s > 0n) {
           monthShort = true;
-          short.push({
-            categoryId: catId,
-            name: nameById.get(catId) ?? "",
-            amountCents: s,
-          });
+          shortfallCum.set(catId, (shortfallCum.get(catId) ?? 0n) + s);
         }
       }
     };
@@ -252,6 +255,18 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       applyOutflow(c.id, burn);
     }
 
+    // Snapshot cumulative-this-month reserve draw / shortfall for the tooltip.
+    const toRows = (m: Map<string, bigint>): DayReserveDraw[] =>
+      [...m]
+        .filter(([, v]) => v > 0n)
+        .map(([categoryId, amountCents]) => ({
+          categoryId,
+          name: nameById.get(categoryId) ?? "",
+          amountCents,
+        }));
+    const drew = toRows(reserveDrawnCum);
+    const short = toRows(shortfallCum);
+
     // Colour: worst of liquidity and budget lenses.
     const liquidity: DayColor =
       cash >= 0n ? "green" : cash + reservePool >= 0n ? "yellow" : "red";
@@ -261,6 +276,14 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
         ? "yellow"
         : "green";
     const color = worse(liquidity, budgetLens);
+
+    // Reserve bridging a negative-cash day (liquidity lens).
+    const reserveCoverCents =
+      cash < 0n && reservePool > 0n
+        ? reservePool < -cash
+          ? reservePool
+          : -cash
+        : 0n;
 
     if (color === "yellow" && !firstYellowDate) firstYellowDate = iso;
     if (color === "red" && !firstRedDate) firstRedDate = iso;
@@ -273,6 +296,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       availableCents: cash,
       drewReserve: drew,
       shortfall: short,
+      reserveCoverCents,
       incomeCents: incomeToday,
       billCents: billTotalByDate.get(iso) ?? 0n,
     });

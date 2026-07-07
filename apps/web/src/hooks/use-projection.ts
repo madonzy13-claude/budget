@@ -10,6 +10,7 @@ export interface ProjectionDay {
   date: string;
   color: "green" | "yellow" | "red";
   available_cents: string;
+  reserve_cover_cents: string;
   income_cents: string;
   bill_cents: string;
   drew_reserve: { category_id: string; name: string; amount_cents: string }[];

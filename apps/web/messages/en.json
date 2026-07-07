@@ -1291,6 +1291,7 @@
           "empty": "Add income or recurring rules to see your forecast",
           "available": "Available",
           "reserveShrinking": "Reserve shrinking",
+          "reserveCovering": "Reserve covering",
           "cantCover": "Can't cover",
           "income": "Income",
           "bill": "Bill"

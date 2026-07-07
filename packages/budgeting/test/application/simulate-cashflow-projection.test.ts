@@ -192,4 +192,57 @@ describe("simulateCashflow", () => {
     const p = simulateCashflow(base({ categories: [], startCashCents: 0n }));
     expect(p.days.every((d) => d.color === "green")).toBe(true);
   });
+
+  test("reserve draw persists cumulatively for the rest of the month, resets next month", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 1_000_000n, // cash never the problem
+        categories: [
+          {
+            id: "c",
+            name: "Food",
+            budgetThisMonthCents: 10_000n,
+            budgetNextMonthCents: 10_000n,
+            spentSoFarCents: 0n,
+            reserveCents: 100_000n,
+          },
+        ],
+        bills: [
+          { date: "2026-07-20", name: "Feast", categoryId: "c", amountCents: 40_000n },
+        ],
+      }),
+    );
+    // Draw is on the 20th; the cumulative drain shows every day after, this month
+    // (this is what explains the sticky-yellow days in the tooltip).
+    const d20 = p.days.find((d) => d.date === "2026-07-20")!;
+    const d31 = p.days.find((d) => d.date === "2026-07-31")!;
+    expect(d20.drewReserve.find((r) => r.categoryId === "c")?.amountCents).toBe(30_000n);
+    expect(d31.drewReserve.find((r) => r.categoryId === "c")?.amountCents).toBe(30_000n);
+    // Resets at the month boundary.
+    expect(p.days.find((d) => d.date === "2026-08-05")!.drewReserve).toHaveLength(0);
+  });
+
+  test("reserveCover reports how much reserve bridges a negative-cash day", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        categories: [
+          {
+            id: "c",
+            name: "Rent",
+            budgetThisMonthCents: 0n, // no plan → pure liquidity case
+            budgetNextMonthCents: 0n,
+            spentSoFarCents: 0n,
+            reserveCents: 100_000n,
+          },
+        ],
+        bills: [
+          { date: "2026-07-20", name: "Rent", categoryId: "c", amountCents: 50_000n },
+        ],
+      }),
+    );
+    const d20 = p.days.find((d) => d.date === "2026-07-20")!;
+    expect(d20.color).toBe("yellow"); // cash −50k, 100k reserve pool covers it
+    expect(d20.reserveCoverCents).toBe(50_000n);
+  });
 });

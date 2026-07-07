@@ -1314,6 +1314,7 @@
           "empty": "Dodaj dochód lub reguły cykliczne, aby zobaczyć prognozę",
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",
+          "reserveCovering": "Rezerwa pokrywa",
           "cantCover": "Nie starcza na",
           "income": "Dochód",
           "bill": "Rachunek"
