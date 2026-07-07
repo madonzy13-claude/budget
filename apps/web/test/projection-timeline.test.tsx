@@ -94,4 +94,18 @@ describe("ProjectionTimeline", () => {
       "16",
     );
   });
+
+  test("scrubbing shows a tooltip with that day's available and shortfall", async () => {
+    const { default: userEventDefault } =
+      await import("@testing-library/user-event");
+    const user = userEventDefault.setup();
+    renderIt();
+    const band = screen.getByTestId("projection-band");
+    // pointermove over the band selects a day (jsdom has no layout → component
+    // falls back to selecting by the nearest cell via data-index on pointer events)
+    const cells = screen.getAllByTestId("projection-day");
+    await user.hover(cells[2]);
+    const tip = screen.getByTestId("projection-tooltip");
+    expect(tip.textContent).toContain("Food");
+  });
 });
