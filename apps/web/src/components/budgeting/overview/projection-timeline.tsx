@@ -9,7 +9,7 @@
  * the header is a single-line title.
  */
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { formatShortDate } from "@/lib/format-date";
@@ -30,6 +30,7 @@ const clamp = (n: number, lo: number, hi: number) =>
 
 export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   const t = useTranslations("bdp.tab.overview.projection");
+  const locale = useLocale();
   const { data, isLoading, isError } = useProjection(budgetId);
   const [active, setActive] = useState<number | null>(null);
 
@@ -69,11 +70,11 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     if (!firstTrouble) {
       const last = data.days.at(-1);
       return last
-        ? t("onTrackThrough", { date: formatShortDate(last.date, "en") })
+        ? t("onTrackThrough", { date: formatShortDate(last.date, locale) })
         : "";
     }
     const around = t("tightAround", {
-      date: formatShortDate(firstTrouble, "en"),
+      date: formatShortDate(firstTrouble, locale),
     });
     if (first_red_date && Number(worst_shortfall_cents) > 0) {
       return `${around} · ${t("shortBy", {
@@ -85,7 +86,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
       })}`;
     }
     return around;
-  }, [data, t]);
+  }, [data, t, locale]);
 
   if (isLoading) {
     return <div className={cn(CARD, "h-[104px] animate-pulse")} aria-hidden />;
@@ -205,6 +206,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             )}
             leftPct={clamp(activePct, 12, 88)}
             currency={data.currency}
+            locale={locale}
             t={t}
           />
         )}
@@ -227,6 +229,7 @@ function ProjectionTooltip({
   incomes,
   leftPct,
   currency,
+  locale,
   t,
 }: {
   day: ProjectionDay;
@@ -234,6 +237,7 @@ function ProjectionTooltip({
   incomes: { name: string; amount_cents: string }[];
   leftPct: number;
   currency: string;
+  locale: string;
   t: ReturnType<typeof useTranslations>;
 }) {
   const money = (c: string) => centsToDisplayCompact(c, currency, "en");
@@ -301,7 +305,7 @@ function ProjectionTooltip({
           style={{ background: dot }}
         />
         <span className="font-medium text-[var(--body-on-dark)]">
-          {formatShortDate(day.date, "en")}
+          {formatShortDate(day.date, locale)}
         </span>
       </div>
 
