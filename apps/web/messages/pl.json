@@ -1307,9 +1307,9 @@
           "planned": "Brak aktywności w tym zakresie."
         },
         "projection": {
-          "title": "Prognoza przepływu",
-          "onTrackThrough": "Wszystko gra do {date}",
-          "tightAround": "Najciaśniej około {date}",
+          "title": "Jak Twój budżet wygląda dalej",
+          "allFine": "Wszystko wygląda dobrze",
+          "mightRunShort": "Może zabraknąć około {date}",
           "shortBy": "brakuje {amount}",
           "empty": "Dodaj dochód lub reguły cykliczne, aby zobaczyć prognozę",
           "available": "Dostępne",

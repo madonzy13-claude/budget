@@ -1284,9 +1284,9 @@
           "planned": "No activity in this range."
         },
         "projection": {
-          "title": "Cash-flow forecast",
-          "onTrackThrough": "On track through {date}",
-          "tightAround": "Tightest around {date}",
+          "title": "How your money holds up ahead",
+          "allFine": "Everything looks fine",
+          "mightRunShort": "Might run short around {date}",
           "shortBy": "short {amount}",
           "empty": "Add income or recurring rules to see your forecast",
           "available": "Available",

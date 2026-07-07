@@ -10,9 +10,9 @@ const messages = {
     tab: {
       overview: {
         projection: {
-          title: "Cash-flow forecast",
-          onTrackThrough: "On track through {date}",
-          tightAround: "Tightest around {date}",
+          title: "How your money holds up ahead",
+          allFine: "Everything looks fine",
+          mightRunShort: "Might run short around {date}",
           shortBy: "short {amount}",
           empty: "Add income or recurring rules to forecast",
           available: "Available",
@@ -92,11 +92,12 @@ describe("ProjectionTimeline", () => {
     expect(cells[2].getAttribute("data-color")).toBe("red");
   });
 
-  test("headline names the first trouble date", () => {
+  test("headline names the first RED date (yellow doesn't count)", () => {
     renderIt();
-    expect(screen.getByTestId("projection-headline").textContent).toContain(
-      "16",
-    );
+    // first_red_date is 2026-07-17 (the yellow 07-16 must NOT drive it)
+    const text = screen.getByTestId("projection-headline").textContent!;
+    expect(text).toContain("17");
+    expect(text).not.toContain("16");
   });
 
   test("scrubbing shows a tooltip with that day's available and shortfall", async () => {

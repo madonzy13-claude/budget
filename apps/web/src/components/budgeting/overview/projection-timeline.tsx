@@ -28,6 +28,10 @@ const COLOR_VAR: Record<ProjectionDay["color"], string> = {
 const clamp = (n: number, lo: number, hi: number) =>
   n < lo ? lo : n > hi ? hi : n;
 
+/** Round cents to whole units so amounts render without decimals. */
+const roundToUnit = (cents: string): string =>
+  String(Math.round(Number(cents) / 100) * 100);
+
 export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   const t = useTranslations("bdp.tab.overview.projection");
   const locale = useLocale();
@@ -64,22 +68,16 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
 
   const headline = useMemo(() => {
     if (!data) return "";
-    const { first_yellow_date, first_red_date, worst_shortfall_cents } =
-      data.summary;
-    const firstTrouble = first_yellow_date ?? first_red_date;
-    if (!firstTrouble) {
-      const last = data.days.at(-1);
-      return last
-        ? t("onTrackThrough", { date: formatShortDate(last.date, locale) })
-        : "";
-    }
-    const around = t("tightAround", {
-      date: formatShortDate(firstTrouble, locale),
+    const { first_red_date, worst_shortfall_cents } = data.summary;
+    // Only RED days count as a problem; yellow (dipping into reserve) is fine.
+    if (!first_red_date) return t("allFine");
+    const around = t("mightRunShort", {
+      date: formatShortDate(first_red_date, locale),
     });
-    if (first_red_date && Number(worst_shortfall_cents) > 0) {
+    if (Number(worst_shortfall_cents) > 0) {
       return `${around} · ${t("shortBy", {
         amount: centsToDisplayCompact(
-          worst_shortfall_cents,
+          roundToUnit(worst_shortfall_cents),
           data.currency,
           "en",
         ),
@@ -113,7 +111,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
 
   return (
     <div className={CARD} data-testid="projection-timeline">
-      <h3 className="mb-3 truncate text-sm font-medium text-[var(--body-on-dark)]">
+      <h3 className="mb-3 truncate text-caption text-[var(--muted-foreground)]">
         {t("title")}
       </h3>
 
@@ -204,7 +202,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             incomes={data.income_points.filter(
               (p) => p.date === data.days[active]!.date,
             )}
-            leftPct={clamp(activePct, 12, 88)}
+            leftPct={activePct}
             currency={data.currency}
             locale={locale}
             t={t}
@@ -240,8 +238,12 @@ function ProjectionTooltip({
   locale: string;
   t: ReturnType<typeof useTranslations>;
 }) {
-  const money = (c: string) => centsToDisplayCompact(c, currency, "en");
+  const money = (c: string) =>
+    centsToDisplayCompact(roundToUnit(c), currency, "en");
   const available = Number(day.available_cents);
+  // Anchor the tooltip so it never clips the card edge: pin its LEFT edge to the
+  // cursor near the start, its RIGHT edge near the end, else centre it.
+  const shiftPct = leftPct < 22 ? 0 : leftPct > 78 ? -100 : -50;
   const dot =
     day.color === "red"
       ? "var(--trading-down)"
@@ -293,9 +295,9 @@ function ProjectionTooltip({
     <div
       data-testid="projection-tooltip"
       // ABOVE the line (bottom-full) so a finger never covers it; follows the
-      // active day's x, clamped inside the card.
-      style={{ left: `${leftPct}%` }}
-      className="pointer-events-none absolute bottom-full z-10 mb-2 w-max min-w-[168px] max-w-[264px] -translate-x-1/2 rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] p-3 text-xs shadow-lg"
+      // active day's x, edge-anchored so it never clips out of the card.
+      style={{ left: `${leftPct}%`, transform: `translateX(${shiftPct}%)` }}
+      className="pointer-events-none absolute bottom-full z-10 mb-2 w-max min-w-[168px] max-w-[264px] rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] p-3 text-xs shadow-lg"
     >
       {/* Header: status dot + date */}
       <div className="flex items-center gap-2">
