@@ -99,8 +99,6 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     const startMonth = today.with({ day: 1 });
     const nextMonthStart = startMonth.add({ months: 1 });
     const windowEnd = nextMonthStart.with({ day: nextMonthStart.daysInMonth });
-    const thisYm = `${today.year}-${String(today.month).padStart(2, "0")}`;
-    const nextYm = `${nextMonthStart.year}-${String(nextMonthStart.month).padStart(2, "0")}`;
     const thisMonthStartStr = startMonth.toString();
     const thisMonthEndStr = startMonth
       .with({ day: startMonth.daysInMonth })
@@ -299,9 +297,6 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         });
       }
     }
-
-    void thisYm;
-    void nextYm; // reserved for future per-month labels
 
     return simulateCashflow({
       today: today.toString(),
