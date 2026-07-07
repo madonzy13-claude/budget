@@ -190,6 +190,10 @@ export function CushionSection({
       queryClient.invalidateQueries({
         queryKey: ["tasks", budgetId, "pending"],
       });
+      // Cash-flow projection inputs changed — refresh the banner.
+      queryClient.invalidateQueries({
+        queryKey: ["budget", budgetId, "projection"],
+      });
     } catch {
       toast.error(t("error_save"));
     }
@@ -240,6 +244,10 @@ export function CushionSection({
     });
     queryClient.invalidateQueries({
       queryKey: ["budget", budgetId, "overview"],
+    });
+    // Cash-flow projection inputs changed — refresh the banner.
+    queryClient.invalidateQueries({
+      queryKey: ["budget", budgetId, "projection"],
     });
   }
 

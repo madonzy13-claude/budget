@@ -127,6 +127,8 @@ export function RecurringSection({
     setSheetOpen(false);
     setEditRuleId(null);
     qc.invalidateQueries({ queryKey: ["recurring-rules", budgetId] });
+    // Cash-flow projection inputs changed — refresh the banner.
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
   };
 
   const handleArchive = (id: string) => {
@@ -150,6 +152,8 @@ export function RecurringSection({
         return;
       }
       qc.invalidateQueries({ queryKey: ["recurring-rules", budgetId] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
       setPendingDeleteId(null);
     } catch (err) {
       // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.

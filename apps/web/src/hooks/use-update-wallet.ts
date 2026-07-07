@@ -177,6 +177,8 @@ export function useUpdateWallet(budgetId: string) {
       // line (actual / required / shortfall) updates the moment a cushion
       // wallet balance moves.
       qc.invalidateQueries({ queryKey: ["cushion-summary", budgetId] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     },
   });
 }

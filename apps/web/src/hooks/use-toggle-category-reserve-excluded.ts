@@ -137,6 +137,8 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
       // spendings-summary so it refetches in the background (cached-first), so
       // Reserves → Spendings shows fresh data without a full reload.
       qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     },
   });
 }

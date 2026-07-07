@@ -41,6 +41,8 @@ export function ReservesSection({
       // BdpTabs + the Overview read reservesEnabled from the budget-detail query;
       // invalidate it so the pill/cards/section appear/disappear WITHOUT a reload.
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
       toast.success(checked ? t("feature_on_toast") : t("feature_off_toast"));
     } catch {
       setEnabled(!checked);

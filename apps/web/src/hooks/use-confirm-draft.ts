@@ -67,6 +67,8 @@ export function useConfirmDraft(budgetId: string, month: string) {
       // task server-side. Invalidate the per-budget tasks query so the
       // badge / slider drop the row within ~1 tick (no 60 s wait).
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     },
   });
 }

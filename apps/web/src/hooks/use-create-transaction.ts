@@ -257,6 +257,8 @@ export function useCreateTransaction(
       // Overview cards/planned/overspent/wealth all derive from transactions —
       // refresh them live (partial key → every range/category variant).
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     },
   });
 }

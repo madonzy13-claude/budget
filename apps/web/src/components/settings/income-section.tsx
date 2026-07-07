@@ -86,6 +86,8 @@ export function IncomeSection({
     // limit — refresh both so the task badge + grid update without a reload.
     qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
     qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+    // Cash-flow projection inputs changed — refresh the banner.
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
   };
 
   const confirmDelete = async () => {
@@ -107,6 +109,8 @@ export function IncomeSection({
       qc.invalidateQueries({ queryKey: ["incomes", budgetId] });
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
       qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
       setPendingDeleteId(null);
     } catch (err) {
       if (isOfflineWriteError(err)) {
