@@ -6,6 +6,7 @@ import {
   OverviewPo,
   type OverviewSectionSlug,
 } from "../page-objects/OverviewPo";
+import { ProjectionTimelinePo } from "../page-objects/ProjectionTimelinePo";
 
 const { Given, When, Then } = createBdd(test);
 
@@ -187,4 +188,27 @@ Then("the wealth view {string} is active", async ({ page }, label: string) => {
 
 Then("the wealth pie region is visible", async ({ page }) => {
   await expect(new OverviewPo(page).pieRegion()).toBeVisible();
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Projection timeline (tasks-redesign)
+// ───────────────────────────────────────────────────────────────────────────
+
+Then("I see the cash-flow projection banner", async ({ page }) => {
+  await new ProjectionTimelinePo(page).expectVisible();
+});
+
+Then(
+  "the projection band has at least {int} day cells",
+  async ({ page }, n: number) => {
+    await new ProjectionTimelinePo(page).expectAtLeastDays(n);
+  },
+);
+
+When("I hover the last day of the projection band", async ({ page }) => {
+  await new ProjectionTimelinePo(page).hoverLastDay();
+});
+
+Then("I see the projection tooltip", async ({ page }) => {
+  await new ProjectionTimelinePo(page).expectTooltip();
 });

@@ -13,6 +13,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
+import { ProjectionTimeline } from "@/components/budgeting/overview/projection-timeline";
 import { OverviewSections } from "@/components/budgeting/overview/overview-sections";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useViewportFillHeight } from "@/hooks/use-viewport-fill-height";
@@ -91,6 +92,7 @@ export function OverviewTab({
           reservesEnabled={reservesEnabled}
           investmentsEnabled={investmentsEnabled}
         />
+        <ProjectionTimeline budgetId={budgetId} />
         <OverviewSections
           budgetId={budgetId}
           reservesEnabled={reservesEnabled}
