@@ -43,25 +43,6 @@ function dynamicsLabelKey(b: "daily" | "monthly" | "yearly"): string {
       : "wealth.dynamicsYearly";
 }
 
-/** i18n key for the range pill ("1M"/"3M"/…) so the avg metric can name the
- *  SELECTED RANGE it averages over, not the internal bucket (r27b item). */
-function rangePillKey(preset: OverviewRange["preset"]): string {
-  switch (preset) {
-    case "thisMonth":
-      return "range.1m";
-    case "last3Months":
-      return "range.3m";
-    case "last6Months":
-      return "range.6m";
-    case "thisYear":
-      return "range.year";
-    case "all":
-      return "range.all";
-    default:
-      return "range.custom";
-  }
-}
-
 function PctStat({ label, pct }: { label: string; pct: number | null }) {
   const up = pct !== null && pct >= 0;
   const down = pct !== null && pct < 0;
@@ -226,9 +207,7 @@ export function WealthSection({
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap items-start justify-center gap-6">
                     <PctStat
-                      label={t("wealth.avgForRange", {
-                        range: t(rangePillKey(range.preset)),
-                      })}
+                      label={t("wealth.monthlyAvg")}
                       pct={data.monthly_avg_grow_pct}
                     />
                   </div>

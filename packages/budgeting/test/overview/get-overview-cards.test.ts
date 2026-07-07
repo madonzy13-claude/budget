@@ -148,6 +148,7 @@ function deps(): GetOverviewCardsDeps {
       ok(spendingsDto) as Result<typeof spendingsDto, Error>,
     reservesSummary: async () =>
       ok(reservesDto) as Result<typeof reservesDto, Error>,
+    upcomingByCategory: async () => new Map<string, bigint>(),
     now: () => new Date("2026-06-15T00:00:00Z"),
   };
 }
@@ -162,6 +163,18 @@ describe("Overview cards", () => {
     expect(r._unsafeUnwrap().default_currency).toBe("USD");
   });
 
+  test("available-to-spend adds CUSHION wallets when cushion mode is on (r36)", async () => {
+    const d = deps();
+    d.metaReader = {
+      async getBudgetMeta() {
+        return { default_currency: "USD", cushion_mode_enabled: true };
+      },
+    };
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    // SPENDINGS 10000 + CUSHION 3000 (mode on) = 13000; RESERVE still excluded.
+    expect(dto.available_to_spend_cents).toBe(13000n);
+  });
+
   test("available-reserves sums only RESERVE wallets", async () => {
     const r = await getOverviewCards(deps())(input);
     expect(r._unsafeUnwrap().available_reserves_cents).toBe(5000n);
@@ -169,11 +182,28 @@ describe("Overview cards", () => {
 
   test("spendings breakdown: spent + budget-left + wallet + good flag (item 1)", async () => {
     const dto = (await getOverviewCards(deps())(input))._unsafeUnwrap();
-    // non-archived: spent 12000+5000, activeBudget 10000+8000 → left 1000.
+    // r36: left_cents is PER-CATEGORY max(leftover, upcoming), NOT the net.
+    // a: leftover 10000−12000 = −2000 → 0; b: 8000−5000 = 3000; no upcoming → 3000.
+    // (Old netting cancelled b's 3000 against a's −2000 → 1000; that hid money.)
     expect(dto.spendings.spent_cents).toBe(17000n);
-    expect(dto.spendings.left_cents).toBe(1000n);
+    expect(dto.spendings.left_cents).toBe(3000n);
     expect(dto.spendings.wallet_cents).toBe(10000n);
-    expect(dto.spendings.good).toBe(true); // 10000 ≥ 1000
+    expect(dto.spendings.good).toBe(true); // 10000 ≥ 3000
+  });
+
+  test("left_cents = Σ per-category max(leftover, upcoming) incl. uncategorised (r36)", async () => {
+    const d = deps();
+    // a leftover 0 (overspent), upcoming 1500 → 1500 (upcoming wins).
+    // b leftover 3000, upcoming 1000 → 3000 (leftover wins, no double count).
+    // uncategorised upcoming 700 → added directly.
+    d.upcomingByCategory = async () =>
+      new Map<string, bigint>([
+        ["a", 1500n],
+        ["b", 1000n],
+        ["__none__", 700n],
+      ]);
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    expect(dto.spendings.left_cents).toBe(5200n); // 1500 + 3000 + 700
   });
 
   test("spendings.good is false when wallets can't cover what's left", async () => {
@@ -191,7 +221,7 @@ describe("Overview cards", () => {
     };
     const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
     expect(dto.spendings.wallet_cents).toBe(500n);
-    expect(dto.spendings.good).toBe(false); // 500 < 1000 left
+    expect(dto.spendings.good).toBe(false); // 500 < 3000 left
   });
 
   test("reserves health: required vs wallet + status (item 3)", async () => {

@@ -6,7 +6,8 @@
  * through the service; the route stringifies at the boundary.
  *
  * Cards:
- *   - available_to_spend = Σ SPENDINGS wallets (D-09)
+ *   - available_to_spend = Σ SPENDINGS wallets (+ CUSHION when the month is in
+ *                          cushion mode — that cash is spendable then, r36) (D-09)
  *   - available_reserves = Σ RESERVE wallets (D-09)
  *   - capitalization     = Σ ALL wallets + investment value (D-07) via computeBudgetWealthNow
  *   - cushion            = real_months + total from get-cushion-summary (no new math, D-08)
@@ -21,6 +22,7 @@ import {
   type OverviewWalletReader,
   type HoldingsValuationPort,
 } from "./compute-budget-wealth-now";
+import { NONE_CATEGORY_KEY } from "./compute-upcoming-by-category";
 
 /** Subset of get-cushion-summary's DTO this service consumes (cents as strings). */
 interface CushionSummaryLike {
@@ -56,6 +58,8 @@ interface SpendingsCategoryLike {
   activeBudgetCents: string;
   /** Normal planned amount (NOT cushion) — retirement-runway burn rate (item 5). */
   plannedCents: string;
+  /** THE Investments category — excluded from the retirement burn rate. */
+  isInvestment: boolean;
 }
 interface SpendingsSummaryLike {
   budgetCurrency: string;
@@ -63,9 +67,7 @@ interface SpendingsSummaryLike {
 }
 
 export interface OverviewMetaReader {
-  getBudgetMeta(
-    budgetId: string,
-  ): Promise<{
+  getBudgetMeta(budgetId: string): Promise<{
     default_currency: string;
     cushion_mode_enabled: boolean;
   } | null>;
@@ -89,6 +91,14 @@ export interface GetOverviewCardsDeps {
     budgetId: string;
     month: string;
   }) => Promise<Result<SpendingsSummaryLike, Error>>;
+  /** r36: per-category upcoming outflows (drafts + projected recurring), budget
+   *  ccy cents. Keyed by categoryId; NONE_CATEGORY_KEY holds uncategorised items. */
+  upcomingByCategory: (input: {
+    tenantId: string;
+    budgetId: string;
+    month: string;
+    currency: string;
+  }) => Promise<Map<string, bigint>>;
   /** Clock; defaults to new Date(). */
   now?: () => Date;
 }
@@ -172,7 +182,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       const defaultCcy = meta.default_currency;
       const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 
-      const [wealth, wallets, cushionRes, spendingsRes, reservesRes] =
+      const [wealth, wallets, cushionRes, spendingsRes, reservesRes, upcoming] =
         await Promise.all([
           wealthNow({
             budgetId: input.budgetId,
@@ -194,6 +204,12 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
             tenantId: input.tenantId,
             budgetId: input.budgetId,
           }),
+          deps.upcomingByCategory({
+            tenantId: input.tenantId,
+            budgetId: input.budgetId,
+            month,
+            currency: defaultCcy,
+          }),
         ]);
 
       if (cushionRes.isErr()) return err(cushionRes.error);
@@ -203,10 +219,15 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       const spendings = spendingsRes.value;
       const reserves = reservesRes.value;
 
-      // SPENDINGS / RESERVE partial sums (FX→default_ccy).
+      // SPENDINGS / RESERVE partial sums (FX→default_ccy). r36: when the current
+      // month is in cushion mode, cushion wallets are spendable too — fold them
+      // into "available to spend" (mirrors the income-vs-planned available rule).
+      const spendableTypes = meta.cushion_mode_enabled
+        ? ["SPENDINGS", "CUSHION"]
+        : ["SPENDINGS"];
       const [availableToSpend, availableReserves] = await Promise.all([
         sumWalletsToCurrency(
-          wallets.filter((w) => w.wallet_type === "SPENDINGS"),
+          wallets.filter((w) => spendableTypes.includes(w.wallet_type)),
           defaultCcy,
           deps.fxProvider,
           now,
@@ -228,22 +249,31 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
           : Number(actualCents) /
             (Number(requiredCents) / cushion.target_months);
 
-      // Available-to-spend breakdown (item 1). Spent this month + budget left
-      // (Σ active limit − Σ spent, clamped ≥0) over non-archived categories;
-      // wallet cash = availableToSpend. "good" = wallets cover what's left.
+      // Available-to-spend breakdown (item 1). Spent this month + "upcoming" (what
+      // you still expect to pay). Per category (r36, user's "max per category"
+      // rule): the LARGER of its leftover budget (activeBudget − spent, ≥0) or its
+      // upcoming outflows (unconfirmed drafts + projected recurring this month) —
+      // so a recurring bill already inside a category's leftover isn't double
+      // counted. Netting was per-SUM before, so overspend in one category wiped out
+      // another's leftover → 0 even with money still to spend. wallet cash =
+      // availableToSpend. "good" = wallets cover what's left.
       let spentThisMonth = 0n;
-      let activeBudget = 0n;
       let monthlyPlanned = 0n;
+      let leftToSpend = 0n;
       for (const c of spendings.categories) {
         if (c.archived) continue;
         spentThisMonth += BigInt(c.spentCents);
-        activeBudget += BigInt(c.activeBudgetCents);
         // Retirement spend EXCLUDES the Investments category: once retired there's
         // no income, so you stop investing — its planned amount isn't a cost.
         if (!c.isInvestment) monthlyPlanned += BigInt(c.plannedCents);
+        const leftover = BigInt(c.activeBudgetCents) - BigInt(c.spentCents);
+        const leftoverPos = leftover > 0n ? leftover : 0n;
+        const catUpcoming = upcoming.get(c.categoryId) ?? 0n;
+        leftToSpend += leftoverPos > catUpcoming ? leftoverPos : catUpcoming;
       }
-      const leftToSpend =
-        activeBudget - spentThisMonth > 0n ? activeBudget - spentThisMonth : 0n;
+      // Uncategorised upcoming (drafts/recurring with no category) has no budget to
+      // max against — add it directly.
+      leftToSpend += upcoming.get(NONE_CATEGORY_KEY) ?? 0n;
 
       // Retirement runway: how many months the FULL capitalization (incl.
       // investments — everything is available if you retire) lasts at the normal

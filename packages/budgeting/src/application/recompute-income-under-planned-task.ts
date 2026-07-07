@@ -2,9 +2,16 @@
  * recompute-income-under-planned-task.ts — create-or-resolve helper for the
  * INCOME_UNDER_PLANNED task kind (r33).
  *
- * Fires when a budget HAS income and the total monthly income (FX→budget ccy) is
- * LESS than the total planned spending (Σ category planned) — a "your plan
- * outspends your income, review your spendings" nudge. Planned counts EVERY
+ * Fires when the AVAILABLE money (all FX→budget ccy) is LESS than the total planned
+ * spending (Σ category planned) — a "your plan outspends what you have, review your
+ * spendings" nudge. NO income gate: a budget with no income configured but a plan it
+ * can't cover still fires. Available =
+ *   + UPCOMING income — payments still to arrive THIS month (pay-day not yet passed;
+ *     already-received income sits in a wallet and is counted there, no double count)
+ *   + Σ SPENDINGS wallet balances
+ *   + Σ CUSHION wallet balances — ONLY when the month is in cushion mode
+ *     (cushion_mode_enabled); RESERVE wallets are NOT counted (earmarked buffer).
+ * Planned counts EVERY
  * category INCLUDING a MANUAL Investments amount (planning to invest more than you
  * earn IS overcommitment — you can't invest money you don't have). The only
  * exclusion is a SMART Investments category: its planned is `income − needs − wants`
@@ -34,7 +41,7 @@ import type { FxProvider } from "@budget/shared-kernel";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
-import { normalizeIncomesToMonthlyItems } from "./investment-smart-limit";
+import { recurringMonthlyNormalize } from "./recurring-monthly-normalize";
 import type { TaskRepo, IncomeUnderPlannedPayload } from "../ports/task-repo";
 
 /** System user for own-tx recomputes (no human actor on the trigger path). */
@@ -46,33 +53,83 @@ type TenantTx = {
 };
 
 /**
- * Pure emit-or-resolve decision. Fires ONLY when the budget has income AND the
- * monthly income is strictly below the planned spend. Equal → no fire (nothing
- * left to invest, but no overspend either).
+ * Pure emit-or-resolve decision. Fires when AVAILABLE money is strictly below the
+ * planned spend. NO income gate — a budget with no income configured but a plan it
+ * can't cover still fires. Available = upcoming income (payments still to arrive
+ * this month) + spendings [+ cushion in cushion mode] wallet balances. Equal → no
+ * fire.
  */
 export function decideIncomeUnderPlanned(input: {
-  hasIncome: boolean;
-  monthlyIncomeCents: bigint;
+  availableCents: bigint;
   plannedCents: bigint;
 }): { emit: boolean; shortfallCents: bigint } {
-  if (!input.hasIncome) return { emit: false, shortfallCents: 0n };
-  const shortfall = input.plannedCents - input.monthlyIncomeCents;
+  const shortfall = input.plannedCents - input.availableCents;
   return shortfall > 0n
     ? { emit: true, shortfallCents: shortfall }
     : { emit: false, shortfallCents: 0n };
 }
 
 export interface IncomeVsPlanned {
-  hasIncome: boolean;
-  monthlyIncomeCents: bigint;
+  /** Upcoming income this month (pay-day not yet passed), FX→budget ccy. */
+  upcomingIncomeCents: bigint;
+  /** Σ spendable wallet balances (spendings [+ cushion in cushion mode]), FX→budget ccy. */
+  walletCents: bigint;
+  /** upcomingIncomeCents + walletCents — the money compared against planned. */
+  availableCents: bigint;
   plannedCents: bigint;
   currency: string;
 }
 
+/** Raw income row shape for the upcoming-income projection. */
+interface IncomeRow {
+  amount_cents: string;
+  currency: string;
+  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence_anchor: number | null;
+  yearly_month: number | null;
+}
+
 /**
- * Read active incomes + total planned (non-investment, non-archived, effective
- * today) for a budget and return the two comparable monthly figures in budget
- * currency. Raw SQL over the open tx so it sees the trigger mutation's writes.
+ * "Upcoming income" = money expected to arrive later THIS month, so it's spendable
+ * toward the plan but not yet sitting in a wallet. A MONTHLY/YEARLY income counts
+ * only while its pay-day this month is still in the FUTURE — once the pay-day has
+ * passed the money has arrived and is now counted in a wallet, so we drop it here
+ * (no double count). DAILY/WEEKLY income has no single pay-day → treated as
+ * continuously upcoming (monthly-normalized). Amounts stay in their own currency;
+ * the caller FX-sums to the budget currency.
+ */
+export function upcomingIncomeItems(
+  rows: IncomeRow[],
+  today: Temporal.PlainDate,
+): { amount_cents: bigint; currency: string }[] {
+  const out: { amount_cents: bigint; currency: string }[] = [];
+  const dim = today.daysInMonth;
+  for (const r of rows) {
+    const cents = BigInt(r.amount_cents);
+    if (cents === 0n) continue;
+    if (r.cadence === "MONTHLY" || r.cadence === "YEARLY") {
+      // YEARLY only pays in its configured month.
+      if (r.cadence === "YEARLY" && r.yearly_month !== today.month) continue;
+      const payDay = Math.min(r.cadence_anchor ?? dim, dim);
+      if (today.day < payDay) {
+        out.push({ amount_cents: cents, currency: r.currency });
+      }
+    } else {
+      // DAILY / WEEKLY — no fixed pay-day; treat as continuously upcoming.
+      out.push({
+        amount_cents: recurringMonthlyNormalize(cents, r.cadence),
+        currency: r.currency,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Read active incomes + wallet balances + total planned (non-investment,
+ * non-archived, effective today) for a budget and return the comparable monthly
+ * figures in budget currency. Raw SQL over the open tx so it sees the trigger
+ * mutation's writes.
  */
 export async function computeIncomeVsPlanned(
   tx: TenantTx,
@@ -84,7 +141,7 @@ export async function computeIncomeVsPlanned(
   },
 ): Promise<IncomeVsPlanned> {
   const budgetRow = await tx.execute(sql`
-    SELECT default_currency
+    SELECT default_currency, cushion_mode_enabled
       FROM tenancy.budgets
      WHERE id = ${input.budgetId}::uuid
   `);
@@ -93,29 +150,70 @@ export async function computeIncomeVsPlanned(
   }
   const currency = (budgetRow.rows[0] as { default_currency: string })
     .default_currency;
+  // Cushion wallets count toward available money ONLY when the CURRENT MONTH is in
+  // cushion mode (cushion_mode_enabled) — that's when the cushion buffer is being
+  // spent against. Off = the cushion is an untouchable buffer, not available.
+  const cushionModeEnabled = Boolean(
+    (budgetRow.rows[0] as { cushion_mode_enabled: boolean })
+      .cushion_mode_enabled,
+  );
 
-  // Active incomes (own currency + cadence) → monthly-equivalent items → FX sum.
+  const asOf = (input.now ?? (() => new Date()))();
+  const today = Temporal.Now.plainDateISO();
+
+  // Active incomes → keep only the payments still UPCOMING this month (pay-day not
+  // yet passed) → FX sum. Income already received this month sits in a wallet and
+  // is counted there instead.
   const incomeRows = await tx.execute(sql`
-    SELECT amount::text AS amount, currency, cadence
+    SELECT (amount * 100)::bigint::text AS amount_cents,
+           currency, cadence, cadence_anchor, yearly_month
       FROM budgeting.incomes
      WHERE tenant_id = ${input.tenantId}::uuid
        AND active = true
   `);
-  const incomes = incomeRows.rows as Array<{
-    amount: string;
-    currency: string;
-    cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
-  }>;
-  const hasIncome = incomes.length > 0;
-  const asOf = (input.now ?? (() => new Date()))();
-  const monthlyIncomeCents = hasIncome
-    ? await sumWalletsToCurrency(
-        normalizeIncomesToMonthlyItems(incomes),
-        currency,
-        input.fxProvider,
-        asOf,
-      )
-    : 0n;
+  const upcomingItems = upcomingIncomeItems(
+    incomeRows.rows as unknown as IncomeRow[],
+    today,
+  );
+  const upcomingIncomeCents =
+    upcomingItems.length > 0
+      ? await sumWalletsToCurrency(
+          upcomingItems,
+          currency,
+          input.fxProvider,
+          asOf,
+        )
+      : 0n;
+
+  // Spendable wallet balances toward the plan: SPENDINGS always, CUSHION only in
+  // cushion mode (see above). RESERVE is NOT spendable here (earmarked buffer).
+  // (current_balance * 100)::bigint mirrors overview-cards-repo. FX→budget ccy.
+  const walletRows = await tx.execute(sql`
+    SELECT (current_balance * 100)::bigint::text AS amount_cents,
+           currency,
+           wallet_type
+      FROM budgeting.wallets
+     WHERE tenant_id = ${input.tenantId}::uuid
+       AND archived_at IS NULL
+       AND wallet_type IN (
+         'SPENDINGS'${cushionModeEnabled ? sql`, 'CUSHION'` : sql``}
+       )
+  `);
+  const walletItems = walletRows.rows.map((r) => ({
+    amount_cents: BigInt((r as { amount_cents: string }).amount_cents),
+    currency: (r as { currency: string }).currency,
+  }));
+  const walletCents =
+    walletItems.length > 0
+      ? await sumWalletsToCurrency(
+          walletItems,
+          currency,
+          input.fxProvider,
+          asOf,
+        )
+      : 0n;
+
+  const availableCents = upcomingIncomeCents + walletCents;
 
   // Total planned = Σ normal_amount over effective (today) category_limits for
   // NON-archived categories, INCLUDING a manual Investments amount, EXCLUDING only
@@ -135,7 +233,13 @@ export async function computeIncomeVsPlanned(
   `);
   const plannedCents = BigInt((plannedRow.rows[0] as { total: string }).total);
 
-  return { hasIncome, monthlyIncomeCents, plannedCents, currency };
+  return {
+    upcomingIncomeCents,
+    walletCents,
+    availableCents,
+    plannedCents,
+    currency,
+  };
 }
 
 export interface RecomputeIncomeUnderPlannedDeps {
@@ -161,8 +265,7 @@ export async function recomputeIncomeUnderPlannedTask(
   });
 
   const decision = decideIncomeUnderPlanned({
-    hasIncome: vp.hasIncome,
-    monthlyIncomeCents: vp.monthlyIncomeCents,
+    availableCents: vp.availableCents,
     plannedCents: vp.plannedCents,
   });
 
@@ -177,7 +280,8 @@ export async function recomputeIncomeUnderPlannedTask(
   }
 
   const payload: IncomeUnderPlannedPayload = {
-    income_cents: vp.monthlyIncomeCents.toString(),
+    income_cents: vp.upcomingIncomeCents.toString(),
+    available_cents: vp.availableCents.toString(),
     planned_cents: vp.plannedCents.toString(),
     shortfall_cents: decision.shortfallCents.toString(),
     currency: vp.currency,

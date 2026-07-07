@@ -25,9 +25,9 @@ const TITLE: Record<LocaleKey, string> = {
   uk: "🔔 Потрібна ваша увага",
 };
 const BODY: Record<LocaleKey, string> = {
-  en: "Time to update your budget — log today's spending",
-  pl: "Czas zaktualizować budżet — zapisz dzisiejsze wydatki",
-  uk: "Час оновити бюджет — запишіть сьогоднішні витрати",
+  en: "A quick minute to log today's spending keeps you on track.",
+  pl: "Chwila na zapisanie dzisiejszych wydatków utrzyma Cię na kursie.",
+  uk: "Хвилинка, щоб записати сьогоднішні витрати, тримає вас у курсі.",
 };
 
 /**

@@ -105,6 +105,7 @@ function buildTitleParams(
       return {
         shortfall: fmt(payload.shortfall_cents),
         income: fmt(payload.income_cents),
+        available: fmt(payload.available_cents),
         planned: fmt(payload.planned_cents),
       };
   }

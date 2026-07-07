@@ -232,6 +232,15 @@ export function CushionSection({
     queryClient.invalidateQueries({
       queryKey: ["spendings-summary", budgetId],
     });
+    // r36: switching cushion mode flips whether cushion wallets count toward the
+    // income-vs-planned "available" total (and the overview available-to-spend),
+    // so refresh the tasks list + overview.
+    queryClient.invalidateQueries({
+      queryKey: ["tasks", budgetId, "pending"],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["budget", budgetId, "overview"],
+    });
   }
 
   const renderPreview = () => {

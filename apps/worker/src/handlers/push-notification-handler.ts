@@ -55,24 +55,24 @@ const greeting = (l: string): string =>
 
 const BODIES: Record<string, Record<LocaleKey, string>> = {
   RESERVE_TOPUP: {
-    en: "Your reserve needs a top-up",
-    pl: "Twoja rezerwa wymaga uzupełnienia",
-    uk: "Ваш резерв потребує поповнення",
+    en: "One of your reserves is running low — tap to top it up.",
+    pl: "Jedna z Twoich rezerw się kończy — dotknij, aby ją uzupełnić.",
+    uk: "Один із ваших резервів закінчується — торкніться, щоб поповнити.",
   },
   CONFIRM_DRAFT: {
-    en: "You have a draft to confirm",
-    pl: "Masz szkic do potwierdzenia",
-    uk: "У вас є чернетка для підтвердження",
+    en: "A recurring expense is waiting — confirm or skip it.",
+    pl: "Cykliczny wydatek czeka — potwierdź lub pomiń.",
+    uk: "Регулярна витрата очікує — підтвердіть або пропустіть.",
   },
   CUSHION_BELOW_TARGET: {
-    en: "Cushion is below the target",
-    pl: "Poduszka jest poniżej celu",
-    uk: "Подушка нижче цілі",
+    en: "Your safety cushion slipped below its goal — tap to top it up.",
+    pl: "Twoja poduszka spadła poniżej celu — dotknij, aby ją uzupełnić.",
+    uk: "Ваша подушка впала нижче цілі — торкніться, щоб поповнити.",
   },
   INCOME_UNDER_PLANNED: {
-    en: "Time to review your spendings",
-    pl: "Czas przejrzeć swoje wydatki",
-    uk: "Час переглянути свої витрати",
+    en: "You've planned to spend more than you have — tap to review.",
+    pl: "Zaplanowano więcej, niż masz — dotknij, aby przejrzeć.",
+    uk: "Ви запланували витратити більше, ніж маєте — торкніться, щоб переглянути.",
   },
 };
 
@@ -110,15 +110,6 @@ export const NOTIFICATION_TYPES: Record<
       BODIES.INCOME_UNDER_PLANNED.en,
     tab: "spendings",
   },
-};
-
-// Generic "a task closed elsewhere" message (r31d). No kind-specific copy and no
-// financials (D-15) — its only job is to nudge the phone so the SW re-syncs the
-// app-icon badge after a task is resolved on another device.
-const RESOLVED_BODY: Record<LocaleKey, string> = {
-  en: "A task was completed",
-  pl: "Zadanie zostało zakończone",
-  uk: "Завдання виконано",
 };
 
 // ---------------------------------------------------------------------------
@@ -225,37 +216,6 @@ export function registerPushNotificationHandler(deps: PushHandlerDeps): void {
     );
   });
 
-  // A task COMPLETED (r32) → a "task completed" nudge (also re-syncs the closed
-  // phone's app-icon badge). Gated by the dedicated TASK_COMPLETED toggle — NOT
-  // the per-kind created toggles — and EXCLUDES the member who closed it (they
-  // already know). No ?task= (the task is gone; link to its tab). Auto-resolve
-  // (no actorUserId) notifies everyone.
-  eventBus.subscribe("task.resolved", async (evt) => {
-    const { kind, budgetId, actorUserId } = evt.payload as {
-      kind: string;
-      budgetId: string;
-      taskId: string;
-      actorUserId?: string;
-    };
-    const notifType = NOTIFICATION_TYPES[kind];
-    if (!notifType) return; // e.g. INVESTMENT_INSTRUMENT_DELISTED — not user-facing
-
-    await dispatchToBudget(
-      deps,
-      {
-        tenantId: evt.tenantId,
-        budgetId,
-        kind: "TASK_COMPLETED",
-        excludeUserId: actorUserId,
-      },
-      (locale) => {
-        const l = (locale as LocaleKey) ?? "en";
-        return {
-          title: greeting(locale),
-          body: RESOLVED_BODY[l] ?? RESOLVED_BODY.en,
-          url: `/${locale}/budgets/${budgetId}/${notifType.tab}`,
-        };
-      },
-    );
-  });
+  // r36: the "a task was completed" push (task.resolved → TASK_COMPLETED) was
+  // removed at the user's request — task resolutions no longer send a notification.
 }

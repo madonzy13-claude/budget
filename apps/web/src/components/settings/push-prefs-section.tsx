@@ -29,8 +29,7 @@ const NOTIFICATION_KINDS = [
   "CUSHION_BELOW_TARGET",
   // r33: income < total planned spending — "review your spendings".
   "INCOME_UNDER_PLANNED",
-  // r32: completion nudge (fires only for OTHER members' completions).
-  "TASK_COMPLETED",
+  // r36: TASK_COMPLETED removed — task-completed push no longer sent.
 ] as const;
 
 type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -106,7 +105,6 @@ export function PushPrefsSection({
       CONFIRM_DRAFT: true,
       CUSHION_BELOW_TARGET: true,
       INCOME_UNDER_PLANNED: true,
-      TASK_COMPLETED: true,
     };
     for (const pref of prefsQuery.data?.preferences ?? []) {
       if (

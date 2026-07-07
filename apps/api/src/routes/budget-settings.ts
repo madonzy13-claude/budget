@@ -43,6 +43,12 @@ export function createBudgetSettingsRoute(deps: BootedDeps) {
     });
 
     if (r.isErr()) return c.json({ error: r.error.message }, 422);
+    // r36: switching cushion mode flips whether cushion wallets count toward the
+    // income-vs-planned "available" total → recompute the task. Own-tx, never throws.
+    await deps.budgeting.recomputeIncomeUnderPlannedRunner({
+      tenantId,
+      budgetId: tenantId,
+    });
     return c.json(r.value);
   });
 

@@ -51,6 +51,7 @@ import { dismissDraft } from "@budget/budgeting/src/application/dismiss-draft";
 import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
 import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
 import { getOverviewCards } from "@budget/budgeting/src/application/get-overview-cards";
+import { computeUpcomingByCategory } from "@budget/budgeting/src/application/compute-upcoming-by-category";
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
 import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
@@ -377,6 +378,9 @@ export async function boot(): Promise<BootedDeps> {
       cushionSummary: getCushionSummaryService,
       spendingsSummary: getSpendingsSummaryService,
       reservesSummary: baseBudgeting.getReservesSummary,
+      upcomingByCategory: computeUpcomingByCategory({
+        fxProvider: baseBudgeting.fxProvider,
+      }),
     }),
     // Phase 11 (11-04): Planned section. Multi-month aggregation repo + the same
     // meta reader + fxProvider (recurring amounts only).

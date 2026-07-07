@@ -112,9 +112,11 @@ export interface InvestmentDelistedPayload {
 export interface IncomeUnderPlannedPayload {
   /** Total monthly income (FX→budget ccy). */
   income_cents: string;
+  /** income + counted wallet balances (spendings + reserve [+ cushion if enabled]), FX→budget ccy. */
+  available_cents: string;
   /** Total planned spending (Σ category planned; smart Investments excluded). */
   planned_cents: string;
-  /** planned − income (> 0). */
+  /** planned − available (> 0). */
   shortfall_cents: string;
   currency: string;
 }
