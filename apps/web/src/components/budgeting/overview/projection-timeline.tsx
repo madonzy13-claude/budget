@@ -45,7 +45,7 @@ export function ProjectionTimeline({
     const around = t("tightAround", {
       date: formatShortDate(firstTrouble, "en"),
     });
-    if (first_red_date && worst_shortfall_cents !== "0") {
+    if (first_red_date && Number(worst_shortfall_cents) > 0) {
       return `${around} · ${t("shortBy", {
         amount: centsToDisplayCompact(
           worst_shortfall_cents,
@@ -83,8 +83,21 @@ export function ProjectionTimeline({
       </div>
       <div
         data-testid="projection-band"
-        className="relative"
+        className="relative touch-none"
         onPointerLeave={() => setActive(null)}
+        // Touch finger-slide: a touch pointer is implicitly captured by the cell it
+        // started on, so per-cell onPointerEnter never fires on the siblings the
+        // finger drags over. Resolve the day under the pointer by hit-testing
+        // instead. onPointerEnter (below) still drives desktop hover + the initial
+        // tap (and keeps this behaviour unit-testable — happy-dom's elementFromPoint
+        // returns null, so this handler is a no-op there).
+        onPointerMove={(e) => {
+          const idx = document
+            .elementFromPoint(e.clientX, e.clientY)
+            ?.closest("[data-index]")
+            ?.getAttribute("data-index");
+          if (idx != null) setActive(Number(idx));
+        }}
       >
         <div className="flex h-8 w-full min-w-0 gap-px overflow-hidden rounded-[var(--radius-md)]">
           {data.days.map((d, i) => (

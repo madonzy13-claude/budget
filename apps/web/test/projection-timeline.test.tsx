@@ -44,7 +44,7 @@ const dto: ProjectionDTO = {
       available_cents: "-2000",
       income_cents: "0",
       bill_cents: "0",
-      drew_reserve: [],
+      drew_reserve: [{ category_id: "r", name: "Transport", amount_cents: "2000" }],
       shortfall: [],
     },
     {
@@ -107,5 +107,17 @@ describe("ProjectionTimeline", () => {
     await user.hover(cells[2]);
     const tip = screen.getByTestId("projection-tooltip");
     expect(tip.textContent).toContain("Food");
+  });
+
+  test("scrubbing a reserve-shrink day shows the reserve-shrinking detail", async () => {
+    const { default: userEventDefault } =
+      await import("@testing-library/user-event");
+    const user = userEventDefault.setup();
+    renderIt();
+    const cells = screen.getAllByTestId("projection-day");
+    await user.hover(cells[1]);
+    const tip = screen.getByTestId("projection-tooltip");
+    expect(tip.textContent).toContain("Reserve shrinking");
+    expect(tip.textContent).toContain("Transport");
   });
 });
