@@ -106,7 +106,6 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       .with({ day: startMonth.daysInMonth })
       .toString();
     const nextMonthStartStr = nextMonthStart.toString();
-    const nextMonthEndStr = windowEnd.toString();
 
     // One read tx for all budget rows (read-only; no atomicity needed).
     const loaded = await withTenantTx(
@@ -132,7 +131,14 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
              AND archived_at IS NULL
              AND wallet_type IN ('SPENDINGS'${cushionMode ? sql`, 'CUSHION'` : sql``})`);
 
-        // Categories + this-month + next-month effective limits (active = cushion vs normal).
+        // Categories + this-month + next-month active limits (cushion vs normal).
+        // POINT-IN-TIME predicates (limit effective ON a single date), NOT a
+        // month range: SCD-2 keeps category_limits non-overlapping at any instant,
+        // so an equality-at-a-date join returns exactly ONE row per category. A
+        // range predicate (effective_from <= monthEnd AND effective_to > monthStart)
+        // matches BOTH sides of a mid-month limit change → duplicate category rows
+        // → doubled budget. `tl` = limit effective today; `nl` = limit effective at
+        // the first of next month. Mirrors get-income-vs-planned's effective-today.
         const cats = await tx.execute(sql`
           SELECT c.id::text AS id, c.name AS name,
                  COALESCE(tl.normal_amount, 0)::text AS this_normal,
@@ -142,11 +148,11 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
             FROM budgeting.categories c
             LEFT JOIN budgeting.category_limits tl
               ON tl.category_id = c.id
-             AND tl.effective_from <= ${thisMonthEndStr}::date
-             AND (tl.effective_to IS NULL OR tl.effective_to > ${thisMonthStartStr}::date)
+             AND tl.effective_from <= ${today.toString()}::date
+             AND (tl.effective_to IS NULL OR tl.effective_to > ${today.toString()}::date)
             LEFT JOIN budgeting.category_limits nl
               ON nl.category_id = c.id
-             AND nl.effective_from <= ${nextMonthEndStr}::date
+             AND nl.effective_from <= ${nextMonthStartStr}::date
              AND (nl.effective_to IS NULL OR nl.effective_to > ${nextMonthStartStr}::date)
            WHERE c.tenant_id = ${input.tenantId}::uuid
              AND c.archived_at IS NULL`);
