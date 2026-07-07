@@ -43,11 +43,10 @@ export interface DayCell {
   date: string;
   color: DayColor;
   availableCents: bigint; // cash end-of-day
-  /** Reserve drawn per category, CUMULATIVE within this day's month (so a
-   *  reserve-tapped category keeps showing for the rest of the month, explaining
-   *  the sticky-yellow days, not just the single draw day). Resets each month. */
+  /** Reserve drawn per category ON THIS DAY (per-day, not cumulative — only the
+   *  day the reserve is actually used shows a value). */
   drewReserve: DayReserveDraw[];
-  /** Uncovered overspend per category, cumulative within the month. */
+  /** Uncovered overspend per category ON THIS DAY. */
   shortfall: DayReserveDraw[];
   /** Reserve bridging a negative-cash (liquidity) day — how much reserve is
    *  keeping you afloat today. 0 when cash ≥ 0. */
@@ -162,13 +161,6 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   const budgetNow = new Map(
     input.categories.map((c) => [c.id, c.budgetThisMonthCents]),
   );
-  let monthReserveTapped = false;
-  let monthShort = false;
-  // Cumulative-this-month reserve draw / uncovered shortfall per category, so the
-  // tooltip can explain every sticky-yellow/red day (not just the draw day). Reset
-  // at each month boundary.
-  const reserveDrawnCum = new Map<string, bigint>();
-  const shortfallCum = new Map<string, bigint>();
   let curYearMonth = startYearMonth;
 
   const days: DayCell[] = [];
@@ -201,16 +193,15 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
         prevOver.set(c.id, 0n);
         budgetNow.set(c.id, c.budgetNextMonthCents);
       }
-      monthReserveTapped = false;
-      monthShort = false;
-      reserveDrawnCum.clear();
-      shortfallCum.clear();
       curYearMonth = ym;
     }
 
     // Income lands.
     const incomeToday = incomeByDate.get(iso) ?? 0n;
     cash += incomeToday;
+
+    const drew: DayReserveDraw[] = [];
+    const short: DayReserveDraw[] = [];
 
     const applyOutflow = (catId: string, amt: bigint) => {
       if (amt <= 0n) return;
@@ -234,13 +225,19 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
         if (draw > 0n) {
           reserve.set(catId, r - draw);
           reservePool -= draw;
-          monthReserveTapped = true;
-          reserveDrawnCum.set(catId, (reserveDrawnCum.get(catId) ?? 0n) + draw);
+          drew.push({
+            categoryId: catId,
+            name: nameById.get(catId) ?? "",
+            amountCents: draw,
+          });
         }
         const s = newlyOver - draw;
         if (s > 0n) {
-          monthShort = true;
-          shortfallCum.set(catId, (shortfallCum.get(catId) ?? 0n) + s);
+          short.push({
+            categoryId: catId,
+            name: nameById.get(catId) ?? "",
+            amountCents: s,
+          });
         }
       }
     };
@@ -255,26 +252,14 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       applyOutflow(c.id, burn);
     }
 
-    // Snapshot cumulative-this-month reserve draw / shortfall for the tooltip.
-    const toRows = (m: Map<string, bigint>): DayReserveDraw[] =>
-      [...m]
-        .filter(([, v]) => v > 0n)
-        .map(([categoryId, amountCents]) => ({
-          categoryId,
-          name: nameById.get(categoryId) ?? "",
-          amountCents,
-        }));
-    const drew = toRows(reserveDrawnCum);
-    const short = toRows(shortfallCum);
-
-    // Colour: worst of liquidity and budget lenses.
+    // Colour: worst of liquidity and budget lenses. Per-day — a day is flagged
+    // only for what happens THAT day (no month-long stickiness): reserve drawn
+    // today → yellow, uncovered shortfall today → red, else green. Liquidity is
+    // naturally per-day (it tracks the real running cash balance).
     const liquidity: DayColor =
       cash >= 0n ? "green" : cash + reservePool >= 0n ? "yellow" : "red";
-    const budgetLens: DayColor = monthShort
-      ? "red"
-      : monthReserveTapped
-        ? "yellow"
-        : "green";
+    const budgetLens: DayColor =
+      short.length > 0 ? "red" : drew.length > 0 ? "yellow" : "green";
     const color = worse(liquidity, budgetLens);
 
     // Reserve bridging a negative-cash day (liquidity lens).

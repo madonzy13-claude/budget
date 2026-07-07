@@ -94,7 +94,7 @@ describe("simulateCashflow", () => {
     expect(colorOn(p, "2026-07-26")).toBe("green"); // salary landed
   });
 
-  test("overspend a category, reserve absorbs it → yellow, sticky within month, resets next month", () => {
+  test("overspend a category, reserve absorbs it → yellow ONLY on the draw day (per-day, no stickiness)", () => {
     const p = simulateCashflow(
       base({
         startCashCents: 1_000_000n, // cash never the problem
@@ -120,11 +120,15 @@ describe("simulateCashflow", () => {
       }),
     );
     expect(colorOn(p, "2026-07-19")).toBe("green");
-    expect(colorOn(p, "2026-07-20")).toBe("yellow"); // reserve tapped
-    expect(colorOn(p, "2026-07-31")).toBe("yellow"); // sticky rest of month
-    expect(colorOn(p, "2026-08-01")).toBe("green"); // budget lens resets
+    expect(colorOn(p, "2026-07-20")).toBe("yellow"); // reserve tapped THIS day
+    expect(colorOn(p, "2026-07-31")).toBe("green"); // nothing happens after → green
+    expect(colorOn(p, "2026-08-01")).toBe("green");
     const d20 = p.days.find((d) => d.date === "2026-07-20")!;
     expect(d20.drewReserve.some((r) => r.categoryId === "c")).toBe(true);
+    // per-day: a later day with no draw carries no reserve line
+    expect(
+      p.days.find((d) => d.date === "2026-07-31")!.drewReserve,
+    ).toHaveLength(0);
   });
 
   test("overspend beyond reserve → red with per-category shortfall", () => {
@@ -193,7 +197,7 @@ describe("simulateCashflow", () => {
     expect(p.days.every((d) => d.color === "green")).toBe(true);
   });
 
-  test("reserve draw persists cumulatively for the rest of the month, resets next month", () => {
+  test("reserve draw is reported ONLY on the day it happens (per-day, not cumulative)", () => {
     const p = simulateCashflow(
       base({
         startCashCents: 1_000_000n, // cash never the problem
@@ -212,13 +216,11 @@ describe("simulateCashflow", () => {
         ],
       }),
     );
-    // Draw is on the 20th; the cumulative drain shows every day after, this month
-    // (this is what explains the sticky-yellow days in the tooltip).
+    // The $30k over-plan draws reserve ONLY on the 20th; later days show nothing
+    // (no reserve is used on them).
     const d20 = p.days.find((d) => d.date === "2026-07-20")!;
-    const d31 = p.days.find((d) => d.date === "2026-07-31")!;
     expect(d20.drewReserve.find((r) => r.categoryId === "c")?.amountCents).toBe(30_000n);
-    expect(d31.drewReserve.find((r) => r.categoryId === "c")?.amountCents).toBe(30_000n);
-    // Resets at the month boundary.
+    expect(p.days.find((d) => d.date === "2026-07-31")!.drewReserve).toHaveLength(0);
     expect(p.days.find((d) => d.date === "2026-08-05")!.drewReserve).toHaveLength(0);
   });
 
