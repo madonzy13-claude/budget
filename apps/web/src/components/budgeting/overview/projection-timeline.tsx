@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
 import { centsToDisplayCompact } from "@/lib/cents-format";
-import { formatShortDate } from "@/lib/format-date";
+import { formatShortDate, formatDayMonth } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 const CARD =
@@ -68,22 +68,11 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
 
   const headline = useMemo(() => {
     if (!data) return "";
-    const { first_red_date, worst_shortfall_cents } = data.summary;
     // Only RED days count as a problem; yellow (dipping into reserve) is fine.
-    if (!first_red_date) return t("allFine");
-    const around = t("mightRunShort", {
-      date: formatShortDate(first_red_date, locale),
-    });
-    if (Number(worst_shortfall_cents) > 0) {
-      return `${around} · ${t("shortBy", {
-        amount: centsToDisplayCompact(
-          roundToUnit(worst_shortfall_cents),
-          data.currency,
-          "en",
-        ),
-      })}`;
-    }
-    return around;
+    const firstRed = data.summary.first_red_date;
+    return firstRed
+      ? t("mightRunShort", { date: formatDayMonth(firstRed, locale) })
+      : t("allFine");
   }, [data, t, locale]);
 
   if (isLoading) {

@@ -1284,9 +1284,9 @@
           "planned": "No activity in this range."
         },
         "projection": {
-          "title": "How your money holds up ahead",
+          "title": "Money forecast to the end of next month",
           "allFine": "Everything looks fine",
-          "mightRunShort": "Might run short around {date}",
+          "mightRunShort": "Money may run short as early as {date}",
           "shortBy": "short {amount}",
           "empty": "Add income or recurring rules to see your forecast",
           "available": "Available",
