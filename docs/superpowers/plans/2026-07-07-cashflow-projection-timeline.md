@@ -984,7 +984,11 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       };
     });
 
-    // Income payment dates (strictly future within window), amount FX'd once each.
+    // Income pay-dates strictly after today within the window. nextOccurrence
+    // advances a FULL period from `prev`, so seeding at `today` would SKIP this
+    // month's pay-day (nextOccurrence(MONTHLY anchor 25, Jul-15) → Aug-25). Seed
+    // MONTHLY/YEARLY at the current period's anchor via incomeSeedDate (below);
+    // DAILY/WEEKLY walk forward from today with no skip risk.
     const incomePayments: CashflowEvent[] = [];
     for (const raw of L.incomeRows) {
       const r = raw as CadenceRow & { name: string };
@@ -992,7 +996,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       if (cents === 0n) continue;
       const amt = await fxOne(cents, r.currency);
       for (const date of enumerateOccurrences(specOf(r), {
-        seed: today,
+        seed: incomeSeedDate(r, today),
         afterExclusive: today,
         end: windowEnd,
       })) {
@@ -1041,6 +1045,104 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
   };
 }
 ```
+
+Also add this exported, module-scope helper to `compute-cashflow-projection.ts` (the loader above calls it; export so it is unit-testable — income timing is the feature's core):
+
+```ts
+/**
+ * Seed date for enumerating an income's pay-dates. nextOccurrence advances a FULL
+ * period from `prev`, so seeding at `today` would skip this month's pay-day. Seed
+ * MONTHLY/YEARLY at the current period's anchor (may be ≤ today — enumerateOccurrences
+ * then drops it and advances); DAILY/WEEKLY walk forward from today with no skip risk.
+ */
+export function incomeSeedDate(
+  r: {
+    cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+    cadence_anchor: number | null;
+    yearly_month: number | null;
+  },
+  today: Temporal.PlainDate,
+): Temporal.PlainDate {
+  if (r.cadence === "MONTHLY") {
+    return today.with({
+      day: Math.min(r.cadence_anchor ?? today.day, today.daysInMonth),
+    });
+  }
+  if (r.cadence === "YEARLY") {
+    const month = r.yearly_month ?? today.month;
+    const dim = Temporal.PlainDate.from({
+      year: today.year,
+      month,
+      day: 1,
+    }).daysInMonth;
+    return Temporal.PlainDate.from({
+      year: today.year,
+      month,
+      day: Math.min(r.cadence_anchor ?? 1, dim),
+    });
+  }
+  return today; // DAILY / WEEKLY
+}
+```
+
+- [ ] **Step 3b: Test `incomeSeedDate` (append to `enumerate-occurrences.test.ts`)**
+
+```ts
+import { incomeSeedDate } from "@budget/budgeting/src/application/compute-cashflow-projection";
+
+describe("incomeSeedDate", () => {
+  const today = Temporal.PlainDate.from("2026-07-15");
+  test("MONTHLY anchor still ahead → this month's pay-day, caught by enumerate", () => {
+    const seed = incomeSeedDate(
+      { cadence: "MONTHLY", cadence_anchor: 25, yearly_month: null },
+      today,
+    );
+    expect(seed.toString()).toBe("2026-07-25");
+    const dates = enumerateOccurrences(
+      { cadence: "MONTHLY", anchorDay: 25 },
+      {
+        seed,
+        afterExclusive: today,
+        end: Temporal.PlainDate.from("2026-08-31"),
+      },
+    );
+    expect(dates).toEqual(["2026-07-25", "2026-08-25"]);
+  });
+  test("MONTHLY anchor already passed this month → dropped, next month caught", () => {
+    const seed = incomeSeedDate(
+      { cadence: "MONTHLY", cadence_anchor: 5, yearly_month: null },
+      today,
+    );
+    expect(seed.toString()).toBe("2026-07-05");
+    const dates = enumerateOccurrences(
+      { cadence: "MONTHLY", anchorDay: 5 },
+      {
+        seed,
+        afterExclusive: today,
+        end: Temporal.PlainDate.from("2026-08-31"),
+      },
+    );
+    expect(dates).toEqual(["2026-08-05"]);
+  });
+  test("YEARLY seeds its configured month this year", () => {
+    const seed = incomeSeedDate(
+      { cadence: "YEARLY", cadence_anchor: 10, yearly_month: 12 },
+      today,
+    );
+    expect(seed.toString()).toBe("2026-12-10");
+  });
+  test("DAILY/WEEKLY seed at today", () => {
+    expect(
+      incomeSeedDate(
+        { cadence: "DAILY", cadence_anchor: null, yearly_month: null },
+        today,
+      ).toString(),
+    ).toBe("2026-07-15");
+  });
+});
+```
+
+Run: `cd /home/claude/budget && bun test packages/budgeting/test/application/enumerate-occurrences.test.ts` — expect the new `incomeSeedDate` describe block green alongside the existing 4.
 
 - [ ] **Step 4: Export the subpaths in `packages/budgeting/package.json`**
 
