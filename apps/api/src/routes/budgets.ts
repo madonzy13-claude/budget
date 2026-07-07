@@ -20,6 +20,7 @@ import { registerOverviewCardsRoutes } from "./overview-cards";
 import { registerOverviewPlannedRoutes } from "./overview-planned";
 import { registerOverviewOverspentRoutes } from "./overview-overspent";
 import { registerOverviewWealthRoutes } from "./overview-wealth";
+import { registerOverviewProjectionRoutes } from "./overview-projection";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -32,6 +33,8 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
   registerOverviewOverspentRoutes(r, deps);
   // Phase 11 (11-06): GET /budgets/:id/overview/wealth.
   registerOverviewWealthRoutes(r, deps);
+  // Overview cash-flow projection timeline: GET /budgets/:id/overview/projection.
+  registerOverviewProjectionRoutes(r, deps);
 
   const createSchema = z.object({
     name: z.string().min(1).max(100),

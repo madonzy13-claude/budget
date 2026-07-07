@@ -52,6 +52,7 @@ import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
 import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
 import { getOverviewCards } from "@budget/budgeting/src/application/get-overview-cards";
 import { computeUpcomingByCategory } from "@budget/budgeting/src/application/compute-upcoming-by-category";
+import { computeCashflowProjection } from "@budget/budgeting/src/application/compute-cashflow-projection";
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
 import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
@@ -115,6 +116,8 @@ export interface BootedDeps {
     getOverviewOverspent: ReturnType<typeof getOverviewOverspent>;
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
+    /** Overview projection timeline (today → end of next month). */
+    getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
   };
   /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
   investments: ReturnType<typeof createInvestmentsModule>;
@@ -435,6 +438,11 @@ export async function boot(): Promise<BootedDeps> {
         },
       },
       metaReader: summaryRepo,
+    }),
+    // Overview cash-flow projection timeline (today → end of next month).
+    getCashflowProjection: computeCashflowProjection({
+      fxProvider: baseBudgeting.fxProvider,
+      reservePositions: baseBudgeting.reservePositions,
     }),
   });
 
