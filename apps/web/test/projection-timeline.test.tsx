@@ -73,7 +73,7 @@ vi.mock("@/hooks/use-projection", () => ({
 const renderIt = () =>
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <ProjectionTimeline budgetId="b1" currency="USD" />
+      <ProjectionTimeline budgetId="b1" />
     </NextIntlClientProvider>,
   );
 
@@ -100,9 +100,8 @@ describe("ProjectionTimeline", () => {
       await import("@testing-library/user-event");
     const user = userEventDefault.setup();
     renderIt();
-    const band = screen.getByTestId("projection-band");
-    // pointermove over the band selects a day (jsdom has no layout → component
-    // falls back to selecting by the nearest cell via data-index on pointer events)
+    // happy-dom has no layout, so the wrapper's elementFromPoint hit-test is a
+    // no-op here; per-cell onPointerEnter (hover/tap) drives selection in the test.
     const cells = screen.getAllByTestId("projection-day");
     await user.hover(cells[2]);
     const tip = screen.getByTestId("projection-tooltip");

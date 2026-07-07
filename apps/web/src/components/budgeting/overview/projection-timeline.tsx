@@ -20,13 +20,7 @@ const COLOR_BG: Record<ProjectionDay["color"], string> = {
   red: "bg-[var(--trading-down)]",
 };
 
-export function ProjectionTimeline({
-  budgetId,
-  currency = "USD",
-}: {
-  budgetId: string;
-  currency?: string;
-}) {
+export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   const t = useTranslations("bdp.tab.overview.projection");
   const { data, isLoading, isError } = useProjection(budgetId);
   const [active, setActive] = useState<number | null>(null);
