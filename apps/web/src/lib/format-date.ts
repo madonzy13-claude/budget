@@ -56,19 +56,21 @@ export function formatShortDate(isoDate: string, locale: string): string {
 }
 
 /**
- * Day-first date WITHOUT the year, full month name: "28 July" (uk "28 липня").
- * For inline sentences where the year is redundant. Returns the raw input if it
- * isn't a parseable YYYY-MM-DD.
+ * Date without the year, full month name — e.g. "28 July", uk "28 липня",
+ * pl "28 lipca". Formats day+month TOGETHER via Intl (NOT month alone + manual
+ * concat) so inflected languages get the correct genitive case after the day
+ * (uk "липня" not nominative "липень") and each locale's own day/month ordering.
+ * Returns the raw input if it isn't a parseable YYYY-MM-DD.
  */
 export function formatDayMonth(isoDate: string, locale: string): string {
   const [y, m, d] = isoDate.split("-").map((s) => parseInt(s, 10));
   if (![y, m, d].every((n) => Number.isFinite(n))) return isoDate;
   const date = new Date(Date.UTC(y!, m! - 1, d!));
-  const monthLong = new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
     month: "long",
     timeZone: "UTC",
   }).format(date);
-  return `${d} ${monthLong}`;
 }
 
 /**

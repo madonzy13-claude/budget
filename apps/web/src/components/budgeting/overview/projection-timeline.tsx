@@ -133,7 +133,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
                 left: `${pct}%`,
                 borderLeft: "5px solid transparent",
                 borderRight: "5px solid transparent",
-                borderTop: "7px solid var(--primary)",
+                borderTop: "7px solid var(--muted-foreground)",
               }}
             />
           );
@@ -253,7 +253,7 @@ function ProjectionTooltip({
     },
     {
       label: t("bill"),
-      color: "var(--primary)",
+      color: "var(--muted-foreground)",
       rows: bills.map((b, i) => ({
         key: `b${i}`,
         name: b.name || t("bill"),
