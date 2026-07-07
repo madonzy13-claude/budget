@@ -209,7 +209,7 @@
       "cushion": "Cushion",
       "reserves": "Reserves",
       "investments": "Investments",
-      "recurring": "Recurring Expenses",
+      "recurring": "Recurring payments",
       "income": "Income",
       "members": "Members",
       "danger": "Danger Zone"
@@ -235,7 +235,7 @@
         "reserveWallet": "Add a reserve wallet",
         "investmentsEnabled": "Turn on Investments",
         "investment": "Add an investment",
-        "recurring": "Add a recurring expense",
+        "recurring": "Add a recurring payment",
         "income": "Add an income",
         "category": "Create a category"
       }
@@ -680,7 +680,7 @@
     "budget": "Budget",
     "wallets": "Wallets",
     "transactions": "Transactions",
-    "recurring": "Recurring",
+    "recurring": "Recurring payments",
     "budgetSwitcher": {
       "trigger": {
         "aria": "Switch budget"
@@ -974,8 +974,8 @@
       }
     },
     "recurring": {
-      "title": "Recurring",
-      "addRuleButton": "Add recurring rule",
+      "title": "Recurring payments",
+      "addRuleButton": "Add recurring payment",
       "rule": {
         "title": "New recurring rule",
         "editTitle": "Edit recurring rule",
@@ -1029,7 +1029,7 @@
         "categoryPlaceholder": "Select category…"
       },
       "list": {
-        "title": "Recurring rules",
+        "title": "Recurring payments",
         "empty": "No recurring expenses yet.",
         "untitled": "Untitled",
         "monthlyOnDay": "Monthly · {day}",
@@ -1295,7 +1295,7 @@
           "reserveUsed": "Reserve used",
           "cantCover": "Can't cover",
           "income": "Income",
-          "bill": "Planned spending"
+          "bill": "Recurring payments"
         }
       },
       "spendings": {

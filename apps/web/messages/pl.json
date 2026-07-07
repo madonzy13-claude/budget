@@ -209,7 +209,7 @@
       "cushion": "Poduszka",
       "reserves": "Rezerwy",
       "investments": "Inwestycje",
-      "recurring": "Wydatki cykliczne",
+      "recurring": "Płatności cykliczne",
       "income": "Dochód",
       "members": "Członkowie",
       "danger": "Strefa niebezpieczna"
@@ -680,7 +680,7 @@
     "budget": "Budżet",
     "wallets": "Portfele",
     "transactions": "Transakcje",
-    "recurring": "Cykliczne",
+    "recurring": "Płatności cykliczne",
     "budgetSwitcher": {
       "trigger": {
         "aria": "Przełącz budżet"
@@ -997,8 +997,8 @@
       }
     },
     "recurring": {
-      "title": "Cykliczne",
-      "addRuleButton": "Dodaj regułę cykliczną",
+      "title": "Płatności cykliczne",
+      "addRuleButton": "Dodaj płatność cykliczną",
       "rule": {
         "title": "Nowa reguła cykliczna",
         "editTitle": "Edytuj regułę cykliczną",
@@ -1052,7 +1052,7 @@
         "categoryPlaceholder": "Wybierz kategorię…"
       },
       "list": {
-        "title": "Wydatki cykliczne",
+        "title": "Płatności cykliczne",
         "empty": "Brak reguł cyklicznych.",
         "untitled": "Bez nazwy",
         "monthlyOnDay": "Miesięcznie · {day}",
@@ -1318,7 +1318,7 @@
           "reserveUsed": "Użyto rezerwy",
           "cantCover": "Nie starcza na",
           "income": "Dochód",
-          "bill": "Zaplanowane wydatki"
+          "bill": "Płatności cykliczne"
         }
       },
       "spendings": {
