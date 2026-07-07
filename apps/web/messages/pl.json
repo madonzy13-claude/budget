@@ -1307,7 +1307,7 @@
           "planned": "Brak aktywności w tym zakresie."
         },
         "projection": {
-          "title": "Prognoza przepływu środków",
+          "title": "Prognoza przepływu",
           "onTrackThrough": "Wszystko gra do {date}",
           "tightAround": "Najciaśniej około {date}",
           "shortBy": "brakuje {amount}",

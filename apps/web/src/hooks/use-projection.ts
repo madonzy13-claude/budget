@@ -45,6 +45,13 @@ export function useProjection(budgetId: string) {
   return useQuery({
     queryKey: ["budget", budgetId, "projection"] as const,
     queryFn: () => fetchProjection(budgetId),
-    staleTime: 60_000,
+    // The projection depends on wallets, reserves, income, recurring rules and
+    // spend, changed from many surfaces (often other tabs). Cache-first but always
+    // revalidate on return to the tab / focus so a budget change is reflected
+    // without threading invalidation through every mutation. Mutation hooks also
+    // invalidate ["budget", id, "projection"] for same-tab live updates.
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
