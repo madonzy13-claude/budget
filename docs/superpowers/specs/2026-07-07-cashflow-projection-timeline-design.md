@@ -144,6 +144,10 @@ via `sumWalletsToCurrency`.
 - Malformed cadence → bounded by `MAX_PROJECTION_STEPS = 400`.
 - Reserves feature disabled → budget lens degrades to "green until over plan, then red"
   (no reserve buffer); liquidity lens unaffected.
+- Category with active budget = 0 → means NO plan is set (the loader's
+  `COALESCE(limit, 0)` on an unset limit row), not a "spend exactly zero" plan. The
+  budget lens does not judge such a category (you cannot overspend a plan that does not
+  exist); its outflow still hits the cash pool, so the liquidity lens covers it.
 
 ## Testing (TDD, red → green)
 

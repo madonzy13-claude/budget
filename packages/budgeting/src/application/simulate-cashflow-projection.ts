@@ -171,7 +171,10 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   ) {
     const iso = d.toString();
     const ym = `${d.year}-${d.month}`;
-    const inStartMonth = d.month === startMonth;
+    // Compare year+month, not month alone: a Dec→Jan window repeats no month
+    // number today, but keying on the bare month would misroute burn if the
+    // window ever widened past two months.
+    const inStartMonth = ym === startYearMonth;
 
     // Month boundary: accrue leftover into reserve, reset, switch to next budget.
     if (ym !== curYearMonth) {
@@ -204,7 +207,11 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       const spent = (monthSpend.get(catId) ?? 0n) + amt;
       monthSpend.set(catId, spent);
       const budget = budgetNow.get(catId) ?? 0n;
-      // ponytail: zero budget = unconstrained / pass-through; only cash lens applies
+      // Product decision (design spec, Edge cases): an active budget of 0 means
+      // NO plan is set for this category (the loader's COALESCE(limit, 0) — an
+      // unset limit row), not a "spend exactly zero" plan. A category with no
+      // plan cannot violate a plan, so the budget lens does not judge it; its
+      // outflow still hits cash, so the liquidity lens covers it.
       if (budget === 0n) return;
       const over = spent > budget ? spent - budget : 0n;
       const prev = prevOver.get(catId) ?? 0n;
