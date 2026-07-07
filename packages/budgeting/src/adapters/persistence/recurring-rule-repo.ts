@@ -114,6 +114,20 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
     const activeClause = edits.active !== undefined
       ? sqlTag`active = ${edits.active},`
       : sqlTag``;
+    // Cadence-field clauses. next_due_date is recomputed separately by the
+    // update-recurring-rule use case (it holds the merged spec + today).
+    const cadenceClause = edits.cadence !== undefined
+      ? sqlTag`cadence = ${edits.cadence},`
+      : sqlTag``;
+    const cadenceAnchorClause = edits.cadenceAnchor !== undefined
+      ? sqlTag`cadence_anchor = ${edits.cadenceAnchor},`
+      : sqlTag``;
+    const weeklyDowClause = edits.weeklyDow !== undefined
+      ? sqlTag`weekly_dow = ${edits.weeklyDow},`
+      : sqlTag``;
+    const yearlyMonthClause = edits.yearlyMonth !== undefined
+      ? sqlTag`yearly_month = ${edits.yearlyMonth},`
+      : sqlTag``;
 
     await drizzleTx.execute(sqlTag`
       UPDATE budgeting.recurring_rules
@@ -122,6 +136,10 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
              ${categoryClause}
              ${noteClause}
              ${activeClause}
+             ${cadenceClause}
+             ${cadenceAnchorClause}
+             ${weeklyDowClause}
+             ${yearlyMonthClause}
              updated_at = now()
        WHERE id = ${ruleId}::uuid AND tenant_id = ${tenantId}::uuid
     `);

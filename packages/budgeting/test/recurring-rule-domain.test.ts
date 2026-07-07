@@ -7,6 +7,7 @@
 import { describe, test, expect } from "bun:test";
 import { Temporal } from "temporal-polyfill";
 import { RecurringRule } from "../src/domain/recurring-rule";
+import { nextDueDateAfter } from "../src/domain/cadence";
 
 describe("RecurringRule domain", () => {
   describe("computeNextDueDate — MONTHLY", () => {
@@ -240,6 +241,65 @@ describe("RecurringRule domain", () => {
         "actor-1",
       );
       expect(rule.canEdit().isOk()).toBe(true);
+    });
+  });
+
+  // next_due_date seed on a cadence/day change: first occurrence STRICTLY
+  // after `today`, landing within the current period when the anchor is
+  // still ahead (unlike nextOccurrence, which always steps a full period).
+  describe("nextDueDateAfter", () => {
+    const today = Temporal.PlainDate.from("2026-07-07");
+
+    test("MONTHLY anchor ahead this month → same month", () => {
+      expect(
+        nextDueDateAfter({ cadence: "MONTHLY", anchorDay: 20 }, today).toString(),
+      ).toBe("2026-07-20");
+    });
+
+    test("MONTHLY anchor already passed → next month", () => {
+      expect(
+        nextDueDateAfter({ cadence: "MONTHLY", anchorDay: 3 }, today).toString(),
+      ).toBe("2026-08-03");
+    });
+
+    test("MONTHLY anchor == today → next month (strictly after)", () => {
+      expect(
+        nextDueDateAfter({ cadence: "MONTHLY", anchorDay: 7 }, today).toString(),
+      ).toBe("2026-08-07");
+    });
+
+    test("MONTHLY anchor 31 clamps to short month length", () => {
+      expect(
+        nextDueDateAfter(
+          { cadence: "MONTHLY", anchorDay: 31 },
+          Temporal.PlainDate.from("2026-02-10"),
+        ).toString(),
+      ).toBe("2026-02-28");
+    });
+
+    test("WEEKLY next matching weekday strictly after today", () => {
+      // 2026-07-07 is a Tuesday (dayOfWeek 2). Next Wednesday (dow=3) = 07-08.
+      expect(
+        nextDueDateAfter({ cadence: "WEEKLY", weeklyDow: 3 }, today).toString(),
+      ).toBe("2026-07-08");
+    });
+
+    test("YEARLY month ahead this year → this year", () => {
+      expect(
+        nextDueDateAfter(
+          { cadence: "YEARLY", yearlyMonth: 12, anchorDay: 25 },
+          today,
+        ).toString(),
+      ).toBe("2026-12-25");
+    });
+
+    test("YEARLY month already passed → next year", () => {
+      expect(
+        nextDueDateAfter(
+          { cadence: "YEARLY", yearlyMonth: 3, anchorDay: 1 },
+          today,
+        ).toString(),
+      ).toBe("2027-03-01");
     });
   });
 });

@@ -71,6 +71,12 @@ const updateRuleEditsSchema = z
     categoryId: z.string().uuid().nullable().optional(),
     note: z.string().max(500).nullable().optional(),
     active: z.boolean().optional(),
+    // Cadence edits (camelCase, matching categoryId). The application layer
+    // merges these over the existing row + recomputes next_due_date.
+    cadence: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
+    cadenceAnchor: z.number().int().min(1).max(31).nullable().optional(),
+    weeklyDow: z.number().int().min(0).max(6).nullable().optional(),
+    yearlyMonth: z.number().int().min(1).max(12).nullable().optional(),
   })
   .strict();
 
