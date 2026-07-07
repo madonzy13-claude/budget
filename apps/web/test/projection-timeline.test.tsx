@@ -57,8 +57,10 @@ const dto: ProjectionDTO = {
       shortfall: [{ category_id: "c", name: "Food", amount_cents: "9000" }],
     },
   ],
-  income_points: [],
-  bill_points: [],
+  income_points: [{ date: "2026-07-16", name: "Salary", amount_cents: "100000" }],
+  bill_points: [
+    { date: "2026-07-17", name: "Rent", category_id: "c", amount_cents: "50000" },
+  ],
   summary: {
     first_yellow_date: "2026-07-16",
     first_red_date: "2026-07-17",
@@ -106,6 +108,12 @@ describe("ProjectionTimeline", () => {
     await user.hover(cells[2]);
     const tip = screen.getByTestId("projection-tooltip");
     expect(tip.textContent).toContain("Food");
+  });
+
+  test("renders income (▲) and recurring-bill (▼) markers on the timeline", () => {
+    renderIt();
+    expect(screen.getAllByTestId("projection-bill-marker")).toHaveLength(1);
+    expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(1);
   });
 
   test("scrubbing a reserve-shrink day shows the reserve-shrinking detail", async () => {

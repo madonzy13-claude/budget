@@ -129,30 +129,44 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
           style={{ background: gradient }}
         />
 
-        {/* Recurring-bill markers (● on the line). */}
+        {/* Recurring-bill markers (money OUT): red ▼ above the line, pointing at
+            it. Inline-styled colour so a Tailwind arbitrary-value ambiguity can't
+            drop it. */}
         {data.bill_points.map((b, i) => {
           const pct = pctFor(b.date);
           if (pct === null) return null;
           return (
             <span
               key={`bill-${i}`}
+              data-testid="projection-bill-marker"
               aria-hidden
-              className="absolute top-1/2 z-[1] size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--surface-card-dark)] bg-[var(--body-on-dark)]"
-              style={{ left: `${pct}%` }}
+              className="absolute top-0 z-[2] size-0 -translate-x-1/2"
+              style={{
+                left: `${pct}%`,
+                borderLeft: "5px solid transparent",
+                borderRight: "5px solid transparent",
+                borderTop: "7px solid var(--trading-down)",
+              }}
             />
           );
         })}
 
-        {/* Income markers (▲ below the line). */}
+        {/* Income markers (money IN): green ▲ below the line, pointing up. */}
         {data.income_points.map((p, i) => {
           const pct = pctFor(p.date);
           if (pct === null) return null;
           return (
             <span
               key={`inc-${i}`}
+              data-testid="projection-income-marker"
               aria-hidden
-              className="absolute bottom-0 z-[1] size-0 -translate-x-1/2 border-x-4 border-b-[6px] border-x-transparent border-b-[var(--primary)]"
-              style={{ left: `${pct}%` }}
+              className="absolute bottom-0 z-[2] size-0 -translate-x-1/2"
+              style={{
+                left: `${pct}%`,
+                borderLeft: "5px solid transparent",
+                borderRight: "5px solid transparent",
+                borderBottom: "7px solid var(--trading-up)",
+              }}
             />
           );
         })}
