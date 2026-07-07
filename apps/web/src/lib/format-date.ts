@@ -56,19 +56,19 @@ export function formatShortDate(isoDate: string, locale: string): string {
 }
 
 /**
- * Compact day-first date WITHOUT the year: "28 Jul" (localized short month,
- * trailing dot stripped — uk "лип", pl "lip"). For inline sentences where the
- * year is redundant. Returns the raw input if it isn't a parseable YYYY-MM-DD.
+ * Day-first date WITHOUT the year, full month name: "28 July" (uk "28 липня").
+ * For inline sentences where the year is redundant. Returns the raw input if it
+ * isn't a parseable YYYY-MM-DD.
  */
 export function formatDayMonth(isoDate: string, locale: string): string {
   const [y, m, d] = isoDate.split("-").map((s) => parseInt(s, 10));
   if (![y, m, d].every((n) => Number.isFinite(n))) return isoDate;
   const date = new Date(Date.UTC(y!, m! - 1, d!));
-  const monthShort = new Intl.DateTimeFormat(locale, {
-    month: "short",
+  const monthLong = new Intl.DateTimeFormat(locale, {
+    month: "long",
     timeZone: "UTC",
   }).format(date);
-  return `${d} ${monthShort.replace(/\.$/, "")}`;
+  return `${d} ${monthLong}`;
 }
 
 /**

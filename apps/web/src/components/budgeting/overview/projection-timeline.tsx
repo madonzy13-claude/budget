@@ -133,7 +133,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
                 left: `${pct}%`,
                 borderLeft: "5px solid transparent",
                 borderRight: "5px solid transparent",
-                borderTop: "7px solid var(--trading-down)",
+                borderTop: "7px solid var(--info)",
               }}
             />
           );
@@ -199,6 +199,34 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
         )}
       </div>
 
+      {/* Legend — what the ▲ / ▼ markers on the line mean. */}
+      <div className="mt-2 flex items-center gap-4 text-[11px] text-[var(--muted-foreground)]">
+        <span className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="size-0"
+            style={{
+              borderLeft: "4px solid transparent",
+              borderRight: "4px solid transparent",
+              borderBottom: "6px solid var(--trading-up)",
+            }}
+          />
+          {t("income")}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="size-0"
+            style={{
+              borderLeft: "4px solid transparent",
+              borderRight: "4px solid transparent",
+              borderTop: "6px solid var(--info)",
+            }}
+          />
+          {t("bill")}
+        </span>
+      </div>
+
       {/* Danger-date summary caption (one line, under the line). */}
       <p
         data-testid="projection-headline"
@@ -253,7 +281,7 @@ function ProjectionTooltip({
     },
     {
       label: t("bill"),
-      color: "var(--muted-foreground)",
+      color: "var(--info)",
       rows: bills.map((b, i) => ({
         key: `b${i}`,
         name: b.name || t("bill"),
