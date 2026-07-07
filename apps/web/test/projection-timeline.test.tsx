@@ -18,6 +18,7 @@ const messages = {
           available: "Available",
           reserveShrinking: "Reserve shrinking",
           reserveCovering: "Reserve covering",
+          reserveUsed: "Reserve used",
           cantCover: "Can't cover",
           income: "Income",
           bill: "Bill",
@@ -34,7 +35,6 @@ const dto: ProjectionDTO = {
       date: "2026-07-15",
       color: "green",
       available_cents: "100000",
-      reserve_cover_cents: "0",
       income_cents: "0",
       bill_cents: "0",
       drew_reserve: [],
@@ -44,7 +44,6 @@ const dto: ProjectionDTO = {
       date: "2026-07-16",
       color: "yellow",
       available_cents: "-2000",
-      reserve_cover_cents: "2000",
       income_cents: "0",
       bill_cents: "0",
       drew_reserve: [{ category_id: "r", name: "Transport", amount_cents: "2000" }],
@@ -54,7 +53,6 @@ const dto: ProjectionDTO = {
       date: "2026-07-17",
       color: "red",
       available_cents: "-9000",
-      reserve_cover_cents: "0",
       income_cents: "0",
       bill_cents: "0",
       drew_reserve: [],
@@ -122,7 +120,7 @@ describe("ProjectionTimeline", () => {
     expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(1);
   });
 
-  test("scrubbing a reserve-shrink day shows the reserve-shrinking detail", async () => {
+  test("scrubbing a reserve-using day shows which category used reserve", async () => {
     const { default: userEventDefault } =
       await import("@testing-library/user-event");
     const user = userEventDefault.setup();
@@ -130,10 +128,8 @@ describe("ProjectionTimeline", () => {
     const cells = screen.getAllByTestId("projection-day");
     await user.hover(cells[1]);
     const tip = screen.getByTestId("projection-tooltip");
-    expect(tip.textContent).toContain("Reserve shrinking");
+    expect(tip.textContent).toContain("Reserve used");
     expect(tip.textContent).toContain("Transport");
-    // liquidity reserve bridging the negative-cash day is surfaced too
-    expect(tip.textContent).toContain("Reserve covering");
     // the day's income is itemised by name
     expect(tip.textContent).toContain("Salary");
   });

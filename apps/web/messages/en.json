@@ -1292,6 +1292,7 @@
           "available": "Available",
           "reserveShrinking": "Reserve shrinking",
           "reserveCovering": "Reserve covering",
+          "reserveUsed": "Reserve used",
           "cantCover": "Can't cover",
           "income": "Income",
           "bill": "Bill"

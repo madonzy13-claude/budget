@@ -32,7 +32,6 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             date: d.date,
             color: d.color,
             available_cents: d.availableCents.toString(),
-            reserve_cover_cents: d.reserveCoverCents.toString(),
             income_cents: d.incomeCents.toString(),
             bill_cents: d.billCents.toString(),
             drew_reserve: d.drewReserve.map((x) => ({

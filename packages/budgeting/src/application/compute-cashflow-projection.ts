@@ -83,9 +83,7 @@ export interface ComputeCashflowProjectionDeps {
   reservePositions: (input: {
     tenantId: string;
     budgetId: string;
-  }) => Promise<
-    Result<{ positions: Map<string, { reserveCents: bigint }> }, Error>
-  >;
+  }) => Promise<Result<{ userDefinedCents: bigint }, Error>>;
   now?: () => Date;
 }
 
@@ -195,14 +193,14 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     const L = loaded.value;
     const currency = L.currency;
 
-    // Reserve R[c] from the existing seam.
+    // Emergency reserve pot = total RESERVE-wallet money (userDefined reserve —
+    // what the user sees as "available reserves"), NOT the engine's internal
+    // per-category R (which can far exceed the actual wallet money).
     const rp = await deps.reservePositions({
       tenantId: input.tenantId,
       budgetId: input.budgetId,
     });
-    const reserveByCat = rp.isOk()
-      ? rp.value.positions
-      : new Map<string, { reserveCents: bigint }>();
+    const reservePoolCents = rp.isOk() ? rp.value.userDefinedCents : 0n;
 
     // Start cash = spendable wallets, FX→ccy.
     const walletItems = L.walletRows.map((r) => ({
@@ -248,7 +246,6 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         budgetThisMonthCents: thisBudget,
         budgetNextMonthCents: nextBudget,
         spentSoFarCents: spentById.get(r.id) ?? 0n,
-        reserveCents: reserveByCat.get(r.id)?.reserveCents ?? 0n,
       };
     });
 
@@ -303,6 +300,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       windowEnd: windowEnd.toString(),
       currency,
       startCashCents,
+      reservePoolCents,
       categories,
       incomePayments,
       bills,

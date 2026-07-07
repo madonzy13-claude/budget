@@ -1315,6 +1315,7 @@
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",
           "reserveCovering": "Rezerwa pokrywa",
+          "reserveUsed": "Użyto rezerwy",
           "cantCover": "Nie starcza na",
           "income": "Dochód",
           "bill": "Rachunek"

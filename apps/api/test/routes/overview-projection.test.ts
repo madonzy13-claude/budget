@@ -68,7 +68,7 @@ async function buildApp(opts: { userId: string; allowedTenantIds: string[] }) {
   // REAL loader (real SQL over the seeded budget); FAKE reserve seam + FX stub.
   const getCashflowProjection = computeCashflowProjection({
     fxProvider: { rateAsOf: async () => ({ rate: "1" }) },
-    reservePositions: async () => ok({ positions: new Map() }),
+    reservePositions: async () => ok({ userDefinedCents: 0n }),
   } as never);
 
   const deps = { budgeting: { getCashflowProjection } } as never;

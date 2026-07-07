@@ -276,15 +276,9 @@ function ProjectionTooltip({
           ))}
         </div>
       )}
-      {Number(day.reserve_cover_cents) > 0 && (
-        <div className="mt-1 flex justify-between gap-4">
-          <span className="text-[var(--primary)]">{t("reserveCovering")}</span>
-          <span>{money(day.reserve_cover_cents)}</span>
-        </div>
-      )}
       {day.drew_reserve.length > 0 && (
         <div className="mt-1">
-          <div className="text-[var(--primary)]">{t("reserveShrinking")}</div>
+          <div className="text-[var(--primary)]">{t("reserveUsed")}</div>
           {day.drew_reserve.map((r) => (
             <div key={r.category_id} className="flex justify-between gap-4">
               <span>{r.name}</span>

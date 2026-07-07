@@ -1315,6 +1315,7 @@
           "available": "Доступно",
           "reserveShrinking": "Резерв зменшується",
           "reserveCovering": "Резерв покриває",
+          "reserveUsed": "Використано резерв",
           "cantCover": "Не вистачає на",
           "income": "Дохід",
           "bill": "Рахунок"

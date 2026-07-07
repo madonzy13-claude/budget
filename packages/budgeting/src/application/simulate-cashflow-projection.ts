@@ -3,10 +3,13 @@
  * Overview projection timeline. No IO, no FX, no `Temporal.Now`: `today` and all
  * amounts (already FX'd to the budget currency by the loader) are passed in, so the
  * whole thing is golden-fixture testable. Walks each day from `today` to
- * `windowEnd`, draining a single cash pool by dated bills + an even discretionary
- * burn, refilling on income, and tapping per-category reserve when a category's
- * cumulative month spend passes its plan. Each day is coloured by the WORSE of two
- * lenses: liquidity (cash vs reserve pool) and budget (per-category plan vs reserve).
+ * `windowEnd`, refilling cash on income and paying dated bills + an even
+ * discretionary burn from it. CASH-BASED reserve model: spending is paid from
+ * cash first; only what cash can't cover dips into the reserve pot (attributed to
+ * the category whose spending needed it), which depletes as used; when the reserve
+ * is exhausted too, cash goes negative (uncovered). A day is red when available
+ * (cash) is negative, yellow when reserve was used that day (cash still ≥ 0), else
+ * green. Reserve-covered spending never reduces available.
  * See docs/superpowers/specs/2026-07-07-cashflow-projection-timeline-design.md.
  */
 import { Temporal } from "temporal-polyfill";
@@ -22,8 +25,6 @@ export interface CashflowCategoryInput {
   budgetNextMonthCents: bigint;
   /** Confirmed spend so far this month (before today). */
   spentSoFarCents: bigint;
-  /** Available per-category reserve R now. */
-  reserveCents: bigint;
 }
 
 export interface CashflowEvent {
@@ -43,14 +44,11 @@ export interface DayCell {
   date: string;
   color: DayColor;
   availableCents: bigint; // cash end-of-day
-  /** Reserve drawn per category ON THIS DAY (per-day, not cumulative — only the
-   *  day the reserve is actually used shows a value). */
+  /** Reserve used per category ON THIS DAY — the spending that day that cash
+   *  couldn't cover, funded from the reserve pot (per-day, not cumulative). */
   drewReserve: DayReserveDraw[];
-  /** Uncovered overspend per category ON THIS DAY. */
+  /** Spending per category ON THIS DAY that neither cash nor reserve could cover. */
   shortfall: DayReserveDraw[];
-  /** Reserve bridging a negative-cash (liquidity) day — how much reserve is
-   *  keeping you afloat today. 0 when cash ≥ 0. */
-  reserveCoverCents: bigint;
   incomeCents: bigint; // income landing that day
   billCents: bigint; // dated bills landing that day
 }
@@ -77,14 +75,14 @@ export interface CashflowSimInput {
   windowEnd: string;
   currency: string;
   startCashCents: bigint;
+  /** The reserve pot = total RESERVE-wallet money (userDefined reserve — what the
+   *  user sees as "available reserves"), the emergency money that funds spending
+   *  cash can't cover. NOT the engine's per-category internal R. */
+  reservePoolCents: bigint;
   categories: CashflowCategoryInput[];
   incomePayments: CashflowEvent[];
   bills: CashflowEvent[];
 }
-
-const rank: Record<DayColor, number> = { green: 0, yellow: 1, red: 2 };
-const worse = (a: DayColor, b: DayColor): DayColor =>
-  rank[a] >= rank[b] ? a : b;
 
 export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   const start = Temporal.PlainDate.from(input.today);
@@ -145,23 +143,11 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
 
   // Mutable running state.
   let cash = input.startCashCents;
-  let reservePool = input.categories.reduce((s, c) => s + c.reserveCents, 0n);
-  const reserve = new Map(input.categories.map((c) => [c.id, c.reserveCents]));
-  const monthSpend = new Map(
-    input.categories.map((c) => [c.id, c.spentSoFarCents]),
-  );
-  const prevOver = new Map(
-    input.categories.map((c) => [
-      c.id,
-      c.spentSoFarCents > c.budgetThisMonthCents
-        ? c.spentSoFarCents - c.budgetThisMonthCents
-        : 0n,
-    ]),
-  );
-  const budgetNow = new Map(
-    input.categories.map((c) => [c.id, c.budgetThisMonthCents]),
-  );
-  let curYearMonth = startYearMonth;
+  // Reserve = one pot of emergency money (Σ per-category reserve, funded by the
+  // RESERVE wallets). Cash-based model: spending is paid from cash; only what
+  // cash can't cover dips into this pot, and it depletes as used (it does not
+  // grow back from unspent budget). When it's gone too, spending is uncovered.
+  let reservePool = input.reservePoolCents;
 
   const days: DayCell[] = [];
   let firstYellowDate: string | null = null;
@@ -174,114 +160,81 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     d = d.add({ days: 1 })
   ) {
     const iso = d.toString();
-    const ym = `${d.year}-${d.month}`;
-    // Compare year+month, not month alone: a Dec→Jan window repeats no month
-    // number today, but keying on the bare month would misroute burn if the
-    // window ever widened past two months.
-    const inStartMonth = ym === startYearMonth;
-
-    // Month boundary: accrue leftover into reserve, reset, switch to next budget.
-    if (ym !== curYearMonth) {
-      for (const c of input.categories) {
-        const leftover =
-          (budgetNow.get(c.id) ?? 0n) - (monthSpend.get(c.id) ?? 0n);
-        if (leftover > 0n) {
-          reserve.set(c.id, (reserve.get(c.id) ?? 0n) + leftover);
-          reservePool += leftover;
-        }
-        monthSpend.set(c.id, 0n);
-        prevOver.set(c.id, 0n);
-        budgetNow.set(c.id, c.budgetNextMonthCents);
-      }
-      curYearMonth = ym;
-    }
+    // Compare year+month, not the bare month, so the burn switches to next
+    // month's rate at the boundary (a 2-month window never repeats a month).
+    const inStartMonth = `${d.year}-${d.month}` === startYearMonth;
 
     // Income lands.
     const incomeToday = incomeByDate.get(iso) ?? 0n;
     cash += incomeToday;
 
-    const drew: DayReserveDraw[] = [];
-    const short: DayReserveDraw[] = [];
+    // Per-day, per-category reserve used / uncovered shortfall.
+    const reserveUsedMap = new Map<string, bigint>();
+    const shortMap = new Map<string, bigint>();
 
     const applyOutflow = (catId: string, amt: bigint) => {
       if (amt <= 0n) return;
-      cash -= amt;
-      const spent = (monthSpend.get(catId) ?? 0n) + amt;
-      monthSpend.set(catId, spent);
-      const budget = budgetNow.get(catId) ?? 0n;
-      // Product decision (design spec, Edge cases): an active budget of 0 means
-      // NO plan is set for this category (the loader's COALESCE(limit, 0) — an
-      // unset limit row), not a "spend exactly zero" plan. A category with no
-      // plan cannot violate a plan, so the budget lens does not judge it; its
-      // outflow still hits cash, so the liquidity lens covers it.
-      if (budget === 0n) return;
-      const over = spent > budget ? spent - budget : 0n;
-      const prev = prevOver.get(catId) ?? 0n;
-      const newlyOver = over - prev;
-      prevOver.set(catId, over);
-      if (newlyOver > 0n) {
-        const r = reserve.get(catId) ?? 0n;
-        const draw = newlyOver < r ? newlyOver : r;
-        if (draw > 0n) {
-          reserve.set(catId, r - draw);
-          reservePool -= draw;
-          drew.push({
-            categoryId: catId,
-            name: nameById.get(catId) ?? "",
-            amountCents: draw,
-          });
-        }
-        const s = newlyOver - draw;
-        if (s > 0n) {
-          short.push({
-            categoryId: catId,
-            name: nameById.get(catId) ?? "",
-            amountCents: s,
-          });
-        }
+      // Pay from cash first (cash never funds below 0)...
+      const fromCash = amt < cash ? amt : cash > 0n ? cash : 0n;
+      cash -= fromCash;
+      let deficit = amt - fromCash;
+      if (deficit <= 0n) return;
+      // ...then dip into the reserve pot, attributed to the category whose
+      // spending needed it (reserve-covered spending does NOT reduce cash)...
+      const fromReserve =
+        deficit < reservePool ? deficit : reservePool > 0n ? reservePool : 0n;
+      if (fromReserve > 0n) {
+        reservePool -= fromReserve;
+        reserveUsedMap.set(
+          catId,
+          (reserveUsedMap.get(catId) ?? 0n) + fromReserve,
+        );
+        deficit -= fromReserve;
+      }
+      // ...and if the reserve is exhausted too, it's truly uncovered: cash goes
+      // negative (available < 0) and the category is short.
+      if (deficit > 0n) {
+        cash -= deficit;
+        shortMap.set(catId, (shortMap.get(catId) ?? 0n) + deficit);
       }
     };
 
     // Dated bills first, then even discretionary burn.
     for (const b of billsByDate.get(iso) ?? []) {
-      if (b.categoryId) applyOutflow(b.categoryId, b.amountCents);
-      else cash -= b.amountCents; // uncategorised bill: cash only
+      applyOutflow(b.categoryId ?? "", b.amountCents);
     }
     for (const c of input.categories) {
-      const burn = (inStartMonth ? burnThis : burnNext).get(c.id) ?? 0n;
-      applyOutflow(c.id, burn);
+      applyOutflow(c.id, (inStartMonth ? burnThis : burnNext).get(c.id) ?? 0n);
     }
 
-    // Colour: worst of liquidity and budget lenses. Per-day — a day is flagged
-    // only for what happens THAT day (no month-long stickiness): reserve drawn
-    // today → yellow, uncovered shortfall today → red, else green. Liquidity is
-    // naturally per-day (it tracks the real running cash balance).
-    const liquidity: DayColor =
-      cash >= 0n ? "green" : cash + reservePool >= 0n ? "yellow" : "red";
-    const budgetLens: DayColor =
-      short.length > 0 ? "red" : drew.length > 0 ? "yellow" : "green";
-    const color = worse(liquidity, budgetLens);
+    const toRows = (m: Map<string, bigint>): DayReserveDraw[] =>
+      [...m]
+        .filter(([, v]) => v > 0n)
+        .map(([categoryId, amountCents]) => ({
+          categoryId,
+          name: nameById.get(categoryId) ?? "",
+          amountCents,
+        }));
+    const reserveUsed = toRows(reserveUsedMap);
+    const short = toRows(shortMap);
 
-    // Reserve bridging a negative-cash day (liquidity lens).
-    const reserveCoverCents =
-      cash < 0n && reservePool > 0n
-        ? reservePool < -cash
-          ? reservePool
-          : -cash
-        : 0n;
+    // Single cash-based lens: available (cash) negative → reserve is exhausted,
+    // you're truly short → red; reserve used today (cash still ≥ 0) → yellow;
+    // else green. Red reflects the real underwater state (can persist across days
+    // until income lands); yellow is per-day (only the day reserve is used).
+    const color: DayColor =
+      cash < 0n ? "red" : reserveUsed.length > 0 ? "yellow" : "green";
 
     if (color === "yellow" && !firstYellowDate) firstYellowDate = iso;
     if (color === "red" && !firstRedDate) firstRedDate = iso;
-    const deficit = cash + reservePool;
-    if (deficit < 0n && -deficit > worstShortfall) worstShortfall = -deficit;
+    if (cash < 0n && -cash > worstShortfall) worstShortfall = -cash;
 
     days.push({
       date: iso,
       color,
       availableCents: cash,
-      drewReserve: drew,
+      drewReserve: reserveUsed,
       shortfall: short,
-      reserveCoverCents,
       incomeCents: incomeToday,
       billCents: billTotalByDate.get(iso) ?? 0n,
     });
