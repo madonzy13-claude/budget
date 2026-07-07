@@ -197,6 +197,12 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
         {active !== null && data.days[active] && (
           <ProjectionTooltip
             day={data.days[active]}
+            bills={data.bill_points.filter(
+              (b) => b.date === data.days[active]!.date,
+            )}
+            incomes={data.income_points.filter(
+              (p) => p.date === data.days[active]!.date,
+            )}
             leftPct={clamp(activePct, 12, 88)}
             currency={data.currency}
             t={t}
@@ -217,11 +223,15 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
 
 function ProjectionTooltip({
   day,
+  bills,
+  incomes,
   leftPct,
   currency,
   t,
 }: {
   day: ProjectionDay;
+  bills: { name: string; category_id: string | null; amount_cents: string }[];
+  incomes: { name: string; amount_cents: string }[];
   leftPct: number;
   currency: string;
   t: ReturnType<typeof useTranslations>;
@@ -244,16 +254,26 @@ function ProjectionTooltip({
           {money(day.available_cents)}
         </span>
       </div>
-      {Number(day.income_cents) > 0 && (
-        <div className="flex justify-between gap-4">
-          <span className="text-[var(--primary)]">{t("income")}</span>
-          <span>{money(day.income_cents)}</span>
+      {incomes.length > 0 && (
+        <div className="mt-1">
+          <div className="text-[var(--trading-up)]">{t("income")}</div>
+          {incomes.map((p, i) => (
+            <div key={`i-${i}`} className="flex justify-between gap-4">
+              <span>{p.name || t("income")}</span>
+              <span>{money(p.amount_cents)}</span>
+            </div>
+          ))}
         </div>
       )}
-      {Number(day.bill_cents) > 0 && (
-        <div className="flex justify-between gap-4">
-          <span className="text-[var(--muted-foreground)]">{t("bill")}</span>
-          <span>{money(day.bill_cents)}</span>
+      {bills.length > 0 && (
+        <div className="mt-1">
+          <div className="text-[var(--muted-foreground)]">{t("bill")}</div>
+          {bills.map((b, i) => (
+            <div key={`b-${i}`} className="flex justify-between gap-4">
+              <span>{b.name || t("bill")}</span>
+              <span>{money(b.amount_cents)}</span>
+            </div>
+          ))}
         </div>
       )}
       {Number(day.reserve_cover_cents) > 0 && (

@@ -112,6 +112,8 @@ describe("ProjectionTimeline", () => {
     await user.hover(cells[2]);
     const tip = screen.getByTestId("projection-tooltip");
     expect(tip.textContent).toContain("Food");
+    // the day's recurring bill is itemised by name, not just a total
+    expect(tip.textContent).toContain("Rent");
   });
 
   test("renders income (▲) and recurring-bill (▼) markers on the timeline", () => {
@@ -132,5 +134,7 @@ describe("ProjectionTimeline", () => {
     expect(tip.textContent).toContain("Transport");
     // liquidity reserve bridging the negative-cash day is surfaced too
     expect(tip.textContent).toContain("Reserve covering");
+    // the day's income is itemised by name
+    expect(tip.textContent).toContain("Salary");
   });
 });
