@@ -1305,6 +1305,18 @@
           "wealth": "Historia majątku zaczyna się gromadzić — wróć wkrótce.",
           "pie": "Brak inwestycji.",
           "planned": "Brak aktywności w tym zakresie."
+        },
+        "projection": {
+          "title": "Prognoza przepływu środków",
+          "onTrackThrough": "Wszystko gra do {date}",
+          "tightAround": "Najciaśniej około {date}",
+          "shortBy": "brakuje {amount}",
+          "empty": "Dodaj dochód lub reguły cykliczne, aby zobaczyć prognozę",
+          "available": "Dostępne",
+          "reserveShrinking": "Kurczy się rezerwa",
+          "cantCover": "Nie starcza na",
+          "income": "Dochód",
+          "bill": "Rachunek"
         }
       },
       "spendings": {

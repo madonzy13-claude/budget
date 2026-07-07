@@ -1282,6 +1282,18 @@
           "wealth": "Wealth history starts collecting now — check back soon.",
           "pie": "No investments yet.",
           "planned": "No activity in this range."
+        },
+        "projection": {
+          "title": "Cash-flow forecast",
+          "onTrackThrough": "On track through {date}",
+          "tightAround": "Tightest around {date}",
+          "shortBy": "short {amount}",
+          "empty": "Add income or recurring rules to see your forecast",
+          "available": "Available",
+          "reserveShrinking": "Reserve shrinking",
+          "cantCover": "Can't cover",
+          "income": "Income",
+          "bill": "Bill"
         }
       },
       "spendings": {
