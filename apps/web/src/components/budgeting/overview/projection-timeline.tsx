@@ -237,67 +237,113 @@ function ProjectionTooltip({
   t: ReturnType<typeof useTranslations>;
 }) {
   const money = (c: string) => centsToDisplayCompact(c, currency, "en");
+  const available = Number(day.available_cents);
+  const dot =
+    day.color === "red"
+      ? "var(--trading-down)"
+      : day.color === "yellow"
+        ? "var(--primary)"
+        : "var(--trading-up)";
+
+  // Grouped rows, in reading order: money in, money out, reserve used, uncovered.
+  const sections = [
+    {
+      label: t("income"),
+      color: "var(--trading-up)",
+      rows: incomes.map((p, i) => ({
+        key: `i${i}`,
+        name: p.name || t("income"),
+        amount: p.amount_cents,
+      })),
+    },
+    {
+      label: t("bill"),
+      color: "var(--muted-foreground)",
+      rows: bills.map((b, i) => ({
+        key: `b${i}`,
+        name: b.name || t("bill"),
+        amount: b.amount_cents,
+      })),
+    },
+    {
+      label: t("reserveUsed"),
+      color: "var(--primary)",
+      rows: day.drew_reserve.map((r, i) => ({
+        key: `d${i}`,
+        name: r.name || t("bill"),
+        amount: r.amount_cents,
+      })),
+    },
+    {
+      label: t("cantCover"),
+      color: "var(--trading-down)",
+      rows: day.shortfall.map((s, i) => ({
+        key: `s${i}`,
+        name: s.name || t("bill"),
+        amount: s.amount_cents,
+      })),
+    },
+  ].filter((s) => s.rows.length > 0);
+
   return (
     <div
       data-testid="projection-tooltip"
       // ABOVE the line (bottom-full) so a finger never covers it; follows the
       // active day's x, clamped inside the card.
       style={{ left: `${leftPct}%` }}
-      className="pointer-events-none absolute bottom-full z-10 mb-2 w-max max-w-[240px] -translate-x-1/2 rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] p-3 text-xs shadow-lg"
+      className="pointer-events-none absolute bottom-full z-10 mb-2 w-max min-w-[168px] max-w-[264px] -translate-x-1/2 rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] p-3 text-xs shadow-lg"
     >
-      <div className="mb-1 font-medium text-[var(--body-on-dark)]">
-        {formatShortDate(day.date, "en")}
+      {/* Header: status dot + date */}
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full"
+          style={{ background: dot }}
+        />
+        <span className="font-medium text-[var(--body-on-dark)]">
+          {formatShortDate(day.date, "en")}
+        </span>
       </div>
-      <div className="flex justify-between gap-4">
+
+      {/* Available — the headline figure */}
+      <div className="mt-2 flex items-baseline justify-between gap-4">
         <span className="text-[var(--muted-foreground)]">{t("available")}</span>
-        <span className="text-[var(--body-on-dark)]">
+        <span
+          className="shrink-0 text-sm font-semibold tabular-nums"
+          style={{
+            color: available < 0 ? "var(--trading-down)" : "var(--body-on-dark)",
+          }}
+        >
           {money(day.available_cents)}
         </span>
       </div>
-      {incomes.length > 0 && (
-        <div className="mt-1">
-          <div className="text-[var(--trading-up)]">{t("income")}</div>
-          {incomes.map((p, i) => (
-            <div key={`i-${i}`} className="flex justify-between gap-4">
-              <span>{p.name || t("income")}</span>
-              <span>{money(p.amount_cents)}</span>
+
+      {sections.map((sec) => (
+        <div
+          key={sec.label}
+          className="mt-2 border-t border-[var(--hairline-dark)] pt-2"
+        >
+          <div
+            className="mb-1 text-[10px] font-semibold uppercase tracking-wide"
+            style={{ color: sec.color }}
+          >
+            {sec.label}
+          </div>
+          {sec.rows.map((r) => (
+            <div
+              key={r.key}
+              className="flex items-baseline justify-between gap-3 py-px"
+            >
+              <span className="min-w-0 truncate text-[var(--body-on-dark)]">
+                {r.name}
+              </span>
+              <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">
+                {money(r.amount)}
+              </span>
             </div>
           ))}
         </div>
-      )}
-      {bills.length > 0 && (
-        <div className="mt-1">
-          <div className="text-[var(--muted-foreground)]">{t("bill")}</div>
-          {bills.map((b, i) => (
-            <div key={`b-${i}`} className="flex justify-between gap-4">
-              <span>{b.name || t("bill")}</span>
-              <span>{money(b.amount_cents)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {day.drew_reserve.length > 0 && (
-        <div className="mt-1">
-          <div className="text-[var(--primary)]">{t("reserveUsed")}</div>
-          {day.drew_reserve.map((r) => (
-            <div key={r.category_id} className="flex justify-between gap-4">
-              <span>{r.name}</span>
-              <span>{money(r.amount_cents)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {day.shortfall.length > 0 && (
-        <div className="mt-1">
-          <div className="text-[var(--trading-down)]">{t("cantCover")}</div>
-          {day.shortfall.map((s) => (
-            <div key={s.category_id} className="flex justify-between gap-4">
-              <span>{s.name}</span>
-              <span>{money(s.amount_cents)}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      ))}
     </div>
   );
 }
