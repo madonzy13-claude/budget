@@ -153,6 +153,31 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
     });
   });
 
+  // Bug: enabling the master cushion flag left the target preview ("Have X of Y
+  // — target met") hidden, because the enabled-gated cushion-summary query had
+  // fetched the OLD (feature-off, required=0) summary before the PATCH landed and
+  // was never re-checked. Enabling must invalidate cushion-summary so it refetches.
+  it("enabling the master cushion flag invalidates cushion-summary so the preview refreshes", async () => {
+    patchMock.mockResolvedValue({ ok: true });
+    useQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    });
+    const user = userEvent.setup();
+    const { getByLabelText } = renderCushionSection({ cushionEnabled: false });
+    await user.click(getByLabelText("cushion.feature_label"));
+
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith(
+        expect.objectContaining({ json: { cushion_enabled: true } }),
+      ),
+    );
+    expect(invalidateMock).toHaveBeenCalledWith({
+      queryKey: ["cushion-summary", "budget-1"],
+    });
+  });
+
   it("edit + blur with value=0 shows inline error and does NOT PATCH", async () => {
     const user = userEvent.setup();
     renderCushionSection({ initialCushionTargetMonths: 6 });

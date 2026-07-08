@@ -233,6 +233,13 @@ export function CushionSection({
       queryKey: ["budget", budgetId, "reserves"],
     });
     queryClient.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
+    // The live target preview: enabling the master flag flips whether a cushion
+    // requirement exists, and the enabled-gated query may have fetched the OLD
+    // (feature-off, required=0) summary before the PATCH landed → refetch so the
+    // "Have X of Y — target met" tip appears once the feature is on.
+    queryClient.invalidateQueries({
+      queryKey: ["cushion-summary", budgetId],
+    });
     queryClient.invalidateQueries({
       queryKey: ["spendings-summary", budgetId],
     });
