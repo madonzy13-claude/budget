@@ -51,12 +51,14 @@ const repo: GetOverviewPlannedDeps["repo"] = {
         name: "Groceries",
         created_month: "2025-06",
         archived_month: null,
+        is_investment: false,
       },
       {
         category_id: "Y",
         name: "Daycare",
         created_month: "2026-02",
         archived_month: null,
+        is_investment: false,
       },
     ];
   },
@@ -206,5 +208,70 @@ describe("getOverviewPlanned", () => {
     );
     expect(perCat.get("A")).toBe("10000");
     expect(perCat.get("B")).toBe("10000"); // 120000/12
+  });
+
+  test("smart Investments category: planned = income − Σ other planned (r33)", async () => {
+    // Minimal repo: one normal category N (planned 30000) + a smart investment
+    // category I (no planned/spend). Income 100000/mo → I planned = 100000−30000.
+    const smartRepo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [{ category_id: "N", month: "2026-01", planned_cents: 30000n }];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+          {
+            category_id: "I",
+            name: "Investments",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: true,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const smartDeps: GetOverviewPlannedDeps = {
+      repo: smartRepo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      incomeRepo: {
+        async listActive() {
+          return [{ amount: "1000.00", currency: "USD", cadence: "MONTHLY" }];
+        },
+      },
+    };
+    const dto = (
+      await getOverviewPlanned(smartDeps)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-01-31",
+      })
+    )._unsafeUnwrap();
+    const n = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
+    const i = dto.plannedAvgVsReal.find((c) => c.category_id === "I")!;
+    expect(n.planned_avg_cents).toBe("30000");
+    // 100000 monthly income − 30000 other planned = 70000 smart limit.
+    expect(i.planned_avg_cents).toBe("70000");
+    expect(i.real_avg_cents).toBe("0");
   });
 });

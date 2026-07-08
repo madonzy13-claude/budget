@@ -391,6 +391,8 @@ export async function boot(): Promise<BootedDeps> {
       repo: createOverviewRepo(),
       metaReader: summaryRepo,
       fxProvider: baseBudgeting.fxProvider,
+      // r33: smart Investments limit (income − Σ other planned) as its planned.
+      incomeRepo: new DrizzleIncomeRepo(),
     }),
     // Phase 11 (11-05): Overspent + Reserves section. After-reserves overspent
     // reuses the overview-repo monthly aggregation + the reserve engine seam

@@ -205,7 +205,6 @@ export function PlannedSection({
                     {
                       label: t("planned.difference"),
                       value: `${sign}${fmtTooltip(Math.abs(diff))} · ${pctSign}${Math.abs(Math.round(pct))}%`,
-                      color: overspendHeat(pct),
                     },
                   ];
                 }}

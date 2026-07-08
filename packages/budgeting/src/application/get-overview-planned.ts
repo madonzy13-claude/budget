@@ -15,6 +15,11 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import type { FxProvider } from "@budget/shared-kernel";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import {
+  computeInvestmentSmartLimit,
+  normalizeIncomesToMonthlyItems,
+  type IncomeForNormalize,
+} from "./investment-smart-limit";
+import {
   recurringMonthlyNormalize,
   type Cadence,
 } from "./recurring-monthly-normalize";
@@ -34,6 +39,7 @@ export interface CategoryWindow {
   name: string;
   created_month: string; // YYYY-MM
   archived_month: string | null; // YYYY-MM, null = active
+  is_investment: boolean;
 }
 export interface DailySpendRow {
   day: string; // YYYY-MM-DD
@@ -77,6 +83,14 @@ export interface GetOverviewPlannedDeps {
     ): Promise<{ default_currency: string } | null>;
   };
   fxProvider: FxProvider;
+  /**
+   * r33: active incomes + FX, used ONLY to compute the smart Investments limit
+   * (income − Σ other planned) as its plannedAvgVsReal value. Optional — a budget
+   * with no Investments category never touches them.
+   */
+  incomeRepo?: {
+    listActive(tenantId: string): Promise<IncomeForNormalize[]>;
+  };
 }
 
 export interface GetOverviewPlannedInput {
@@ -290,6 +304,37 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           });
         }
       });
+
+      // r33: the smart Investments category has no stored category_limits row, so
+      // it lands in plannedAvgVsReal with planned_avg 0. Override its planned with
+      // the computed smart limit (monthly income − Σ other planned), matching the
+      // spendings grid. real_avg stays 0 (contributions aren't ledger spend).
+      const invWindow = windows.find((w) => w.is_investment);
+      if (invWindow && deps.incomeRepo && deps.fxProvider) {
+        const invRow = plannedAvgVsReal.find(
+          (r) => r.category_id === invWindow.category_id,
+        );
+        if (invRow) {
+          const otherPlannedCents = plannedAvgVsReal.reduce(
+            (sum, r) =>
+              r.category_id === invWindow.category_id
+                ? sum
+                : sum + BigInt(r.planned_avg_cents),
+            0n,
+          );
+          const incomes = await deps.incomeRepo.listActive(input.tenantId);
+          const monthlyIncomeCents = await sumWalletsToCurrency(
+            normalizeIncomesToMonthlyItems(incomes),
+            ccy,
+            deps.fxProvider,
+            asOf,
+          );
+          invRow.planned_avg_cents = computeInvestmentSmartLimit({
+            monthlyIncomeCents,
+            otherPlannedCents,
+          }).toString();
+        }
+      }
 
       return ok({
         currency: ccy,
