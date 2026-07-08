@@ -106,7 +106,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
 
       <div
         data-testid="projection-band"
-        className="relative h-9 touch-none select-none"
+        className="relative h-11 touch-none select-none"
         onPointerLeave={() => setActive(null)}
         onPointerMove={(e) => selectFromClientX(e.clientX, e.currentTarget)}
         onPointerDown={(e) => selectFromClientX(e.clientX, e.currentTarget)}
@@ -128,9 +128,10 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
               key={`bill-${i}`}
               data-testid="projection-bill-marker"
               aria-hidden
-              className="absolute top-0 z-[2] size-0 -translate-x-1/2"
+              className="absolute z-[2] size-0 -translate-x-1/2"
               style={{
                 left: `${pct}%`,
+                bottom: "calc(50% + 10px)",
                 borderLeft: "5px solid transparent",
                 borderRight: "5px solid transparent",
                 borderTop: "7px solid var(--muted-foreground)",
@@ -148,8 +149,12 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
               key={`inc-${i}`}
               data-testid="projection-income-marker"
               aria-hidden
-              className="absolute bottom-0 z-[2] -translate-x-1/2 text-[11px] font-bold leading-none"
-              style={{ left: `${pct}%`, color: "var(--trading-up)" }}
+              className="absolute z-[2] -translate-x-1/2 text-[11px] font-bold leading-none"
+              style={{
+                left: `${pct}%`,
+                top: "calc(50% + 10px)",
+                color: "var(--trading-up)",
+              }}
             >
               $
             </span>
