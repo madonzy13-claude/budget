@@ -71,32 +71,35 @@ export function WizardLayout({
         {/* Step content */}
         <div className="mb-8">{children}</div>
 
-        {/* Action row */}
-        <div className="flex items-center gap-3">
-          {/* Back — left, hidden on step 1 */}
+        {/* Action row. Mobile: full-width stacked buttons (primary on top via
+            flex-col-reverse, Back below) so a long localized primary label +
+            spinner can NEVER overflow the card. sm+: the original row with the
+            primary as a right-aligned pill. The old single-row layout let the
+            whitespace-nowrap primary (e.g. "Створити бюджет" + spinner) grow past
+            the card's right edge on narrow screens. */}
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+          {/* Back — hidden on step 1; full-width on mobile, auto on sm. */}
           {showBack ? (
             <Button
               type="button"
               variant="ghost"
               onClick={onBack}
               disabled={isLoading}
-              className="text-[var(--body-on-dark)] hover:text-[var(--body-on-dark)]"
+              className="w-full sm:w-auto text-[var(--body-on-dark)] hover:text-[var(--body-on-dark)]"
             >
               {t("back")}
             </Button>
-          ) : (
-            <div className="flex-1" />
-          )}
+          ) : null}
 
-          {/* Spacer to push Next to the right */}
-          <div className="flex-1" />
+          {/* Spacer pushes the primary right — sm+ only (mobile is stacked). */}
+          <div className="hidden sm:block sm:flex-1" />
 
-          {/* Next / Create budget — yellow filled, NEVER for Back */}
+          {/* Next / Create budget — yellow filled, NEVER for Back. */}
           <Button
             type="button"
             onClick={onNext}
             disabled={isLoading}
-            className="bg-[var(--primary)] text-[#181a20] hover:bg-[var(--primary-active)] disabled:bg-[var(--primary-disabled)] disabled:text-[var(--muted)]"
+            className="w-full sm:w-auto bg-[var(--primary)] text-[#181a20] hover:bg-[var(--primary-active)] disabled:bg-[var(--primary-disabled)] disabled:text-[var(--muted)]"
           >
             {isLoading ? (
               <>
