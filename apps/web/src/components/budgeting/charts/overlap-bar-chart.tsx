@@ -1,20 +1,20 @@
 "use client";
 
 /**
- * composed-chart.tsx — themed vertical Composed chart (Bar + Line).
+ * overlap-bar-chart.tsx — themed vertical "bar-in-bar" chart.
  *
- * A recharts VerticalComposedChart: categories on the Y axis, value on X, one
- * horizontal Bar series overlaid with a Line series across the same categories
- * (e.g. real-average bars + planned-average line). Shares the chart theme,
- * tooltip, and the bar chart's hover/tap-to-toggle interaction so it behaves
- * identically to <OverviewBarChart> on mobile.
+ * Two horizontal bar series drawn OVERLAID on the same category line (not grouped
+ * side-by-side) so you can read how much they overlap: the `overlay` series sits
+ * on top of `base` with a bit of transparency, so the shared region blends and
+ * whichever bar is longer shows past the other. Used for planned-avg vs real-avg
+ * by category. Shares the chart theme, tooltip, and the hover/tap-to-toggle
+ * interaction of <OverviewBarChart>.
  */
 import { useRef, useState } from "react";
 import {
   ResponsiveContainer,
-  ComposedChart,
+  BarChart,
   Bar,
-  Line,
   Cell,
   XAxis,
   YAxis,
@@ -29,11 +29,14 @@ import {
 } from "./chart-theme";
 import { ChartTooltipContent } from "./chart-tooltip";
 
-export function OverviewComposedChart({
+const BAR_SIZE = 16;
+
+export function OverviewOverlapBarChart({
   data,
   xKey,
-  bar,
-  line,
+  base,
+  overlay,
+  overlayOpacity = 0.55,
   height = 240,
   formatValue,
   formatTooltip,
@@ -42,17 +45,18 @@ export function OverviewComposedChart({
   data: Array<Record<string, unknown>>;
   /** Category key — the Y axis (vertical layout). */
   xKey: string;
-  /** The horizontal Bar series. */
-  bar: ChartSeries;
-  /** The overlaid Line series. */
-  line: ChartSeries;
+  /** The solid bottom bar. */
+  base: ChartSeries;
+  /** The semi-transparent bar drawn on top of `base`. */
+  overlay: ChartSeries;
+  /** Fill opacity of the top (overlay) bar so the overlap shows through. */
+  overlayOpacity?: number;
   height?: number;
   formatValue?: (n: number) => string;
   formatTooltip?: (n: number) => string;
   labelFormat?: (label: string | number) => string;
 }) {
-  // Hover/tap state — mirrors bar-chart.tsx: hover/touch shows + follows; a re-tap
-  // of the already-open row dismisses; non-active bars dim to 0.3.
+  // Hover/tap state — mirrors bar-chart.tsx.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeRef = useRef<number | null>(null);
   const pressStart = useRef<number | null>(null);
@@ -67,14 +71,19 @@ export function OverviewComposedChart({
     return Number.isFinite(n) ? n : null;
   };
 
-  const barFill = bar.color ?? CHART_THEME.barAccent;
-  const lineStroke = line.color ?? CHART_THEME.barAccent2;
+  const baseFill = base.color ?? CHART_THEME.barAccent;
+  const overlayFill = overlay.color ?? CHART_THEME.barAccent2;
+  const dim = (ri: number, full: number) =>
+    activeIndex === null || activeIndex === ri ? full : full * 0.3;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ComposedChart
+      <BarChart
         data={data}
         layout="vertical"
+        // Negative barGap = the two series' bars collapse onto the same category
+        // line instead of sitting side-by-side → overlaid (bar-in-bar).
+        barGap={-BAR_SIZE}
         margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
         onMouseDown={() => {
           pressStart.current = activeRef.current;
@@ -110,36 +119,42 @@ export function OverviewComposedChart({
           content={
             <ChartTooltipContent
               formatY={formatTooltip ?? formatValue}
-              series={[bar, line]}
+              series={[base, overlay]}
               labelFormat={labelFormat}
             />
           }
         />
+        {/* Bottom: solid base bar. */}
         <Bar
-          dataKey={bar.key}
-          name={bar.label}
-          fill={barFill}
+          dataKey={base.key}
+          name={base.label}
+          fill={baseFill}
+          barSize={BAR_SIZE}
           radius={[0, 4, 4, 0]}
-          barSize={14}
+          isAnimationActive={false}
+        >
+          {data.map((_, ri) => (
+            <Cell key={ri} fill={baseFill} fillOpacity={dim(ri, 1)} />
+          ))}
+        </Bar>
+        {/* Top: semi-transparent overlay bar so the overlap shows through. */}
+        <Bar
+          dataKey={overlay.key}
+          name={overlay.label}
+          fill={overlayFill}
+          barSize={BAR_SIZE}
+          radius={[0, 4, 4, 0]}
           isAnimationActive={false}
         >
           {data.map((_, ri) => (
             <Cell
               key={ri}
-              fill={barFill}
-              fillOpacity={activeIndex === null || activeIndex === ri ? 1 : 0.3}
+              fill={overlayFill}
+              fillOpacity={dim(ri, overlayOpacity)}
             />
           ))}
         </Bar>
-        <Line
-          dataKey={line.key}
-          name={line.label}
-          stroke={lineStroke}
-          strokeWidth={2}
-          dot={{ r: 3, fill: lineStroke, strokeWidth: 0 }}
-          isAnimationActive={false}
-        />
-      </ComposedChart>
+      </BarChart>
     </ResponsiveContainer>
   );
 }

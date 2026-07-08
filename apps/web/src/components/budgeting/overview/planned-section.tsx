@@ -15,7 +15,7 @@ import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
 import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
-import { OverviewComposedChart } from "@/components/budgeting/charts/composed-chart";
+import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToDisplayCompact } from "@/lib/cents-format";
@@ -161,22 +161,22 @@ export function PlannedSection({
             )}
           </div>
 
-          {/* Planned-avg vs Real-avg by category — vertical Composed chart:
-              real-average as horizontal bars (blue) + planned-average as a grey
-              line across the same categories. */}
+          {/* Planned-avg vs Real-avg by category — overlaid "bar-in-bar":
+              real-average as solid blue bars with the planned-average bar drawn
+              semi-transparent on top, so the overlap between them is visible. */}
           {data.plannedAvgVsReal.length > 0 && (
             <div className="flex flex-col gap-2">
               <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
-              <OverviewComposedChart
+              <OverviewOverlapBarChart
                 data={data.plannedAvgVsReal.map((c) => ({
                   name: c.name,
                   real: Number(c.real_avg_cents),
                   planned: Number(c.planned_avg_cents),
                 }))}
                 xKey="name"
-                bar={{ key: "real", label: t("planned.real") }}
-                // Planned = grey line (r25 item 1); real = blue bars.
-                line={{
+                base={{ key: "real", label: t("planned.real") }}
+                // Planned = grey (r25 item 1), drawn on top with transparency.
+                overlay={{
                   key: "planned",
                   label: t("planned.planned"),
                   color: NEUTRAL,
