@@ -212,6 +212,10 @@ export function CategorySlider({
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
     qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+    // A category's planned/cushion limit feeds the Overview charts (planned-avg
+    // vs real-avg, overspent-by-category, the cards), so refresh the whole
+    // overview subtree — otherwise the chart stays stale until a hard reload.
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
     // A limit change can resolve/raise the CUSHION_BELOW_TARGET task server-side
     // (cushion target vs actual), so refresh the pending-tasks query → the pill
     // badge updates in the background instead of going stale until a reload.

@@ -24,6 +24,7 @@ export function ChartTooltipContent({
   series,
   labelFormat,
   colorForRow,
+  extra,
   suppressedLabel,
   onDismiss,
 }: {
@@ -41,6 +42,11 @@ export function ChartTooltipContent({
     row: Record<string, unknown>,
     dataKey?: string | number,
   ) => string | undefined;
+  /** Extra summary rows (e.g. the difference amount + percent) rendered below the
+   *  series, computed from the hovered data row. */
+  extra?: (
+    row: Record<string, unknown>,
+  ) => Array<{ label: string; value: string; color?: string }>;
   /** The x-label the user tapped to DISMISS — this tooltip hides for it (r28 item 3). */
   suppressedLabel?: string | null;
   /** Tapping the tooltip calls this with its x-label to dismiss it. */
@@ -115,6 +121,41 @@ export function ChartTooltipContent({
           </div>
         );
       })}
+      {/* Extra summary rows (e.g. difference amount + percent), separated by a
+          hairline from the series rows above. */}
+      {extra && payload[0]?.payload
+        ? extra(payload[0].payload).map((row, i) => (
+            <div
+              key={`extra-${i}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: CHART_THEME.text,
+                padding: "1px 0",
+                marginTop: i === 0 ? 4 : 0,
+                borderTop:
+                  i === 0 ? `1px solid ${CHART_THEME.tooltipBorder}` : undefined,
+                paddingTop: i === 0 ? 5 : 1,
+              }}
+            >
+              {row.color && (
+                <span
+                  aria-hidden
+                  style={{
+                    width: 18,
+                    flexShrink: 0,
+                    borderTop: `3px solid ${row.color}`,
+                  }}
+                />
+              )}
+              <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
+              <span style={{ marginLeft: "auto", fontWeight: 600 }}>
+                {row.value}
+              </span>
+            </div>
+          ))
+        : null}
     </div>
   );
 }

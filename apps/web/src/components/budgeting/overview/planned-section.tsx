@@ -13,7 +13,7 @@ import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
-import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
+import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
 import { overspendHeat } from "@/lib/overspend-heat";
@@ -128,7 +128,7 @@ export function PlannedSection({
                 {t("empty.planned")}
               </p>
             ) : (
-              <OverviewLineChart
+              <OverviewAreaChart
                 data={withDayStartBaseline(
                   trimLeadingEmpty(
                     data.timeline.map((p) => ({
@@ -164,8 +164,9 @@ export function PlannedSection({
 
           {/* Overspend by category — overlaid "bar-in-bar": planned-average as a
               grey reference bar with the real-average drawn on top, heat-coloured
-              by how far real is OVER planned (green→red). Sorted most-overspent
-              first so the critical categories sit at the top. */}
+              by the real-vs-planned variance (>+10% red, <−10% yellow, else green).
+              Sorted most-overspent first so the critical categories sit at top;
+              the tooltip adds the difference amount + percent. */}
           {data.plannedAvgVsReal.length > 0 && (
             <div className="flex flex-col gap-2">
               <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
@@ -195,6 +196,19 @@ export function PlannedSection({
                 overlay={{ key: "real", label: t("planned.real") }}
                 overlayOpacity={0.72}
                 overlayColorByPoint={(row) => overspendHeat(Number(row.pct))}
+                tooltipExtra={(row) => {
+                  const diff = Number(row.real) - Number(row.planned);
+                  const pct = Number(row.pct);
+                  const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
+                  const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
+                  return [
+                    {
+                      label: t("planned.difference"),
+                      value: `${sign}${fmtTooltip(Math.abs(diff))} · ${pctSign}${Math.abs(Math.round(pct))}%`,
+                      color: overspendHeat(pct),
+                    },
+                  ];
+                }}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
               />

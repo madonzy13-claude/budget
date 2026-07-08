@@ -1283,7 +1283,8 @@
           "recurringPerMonth": "Регулярні за місяцями",
           "recurringPerCategory": "Регулярні за категоріями",
           "timelineTitle": "План vs факт",
-          "avgByCategory": "Середнє за категоріями"
+          "avgByCategory": "Середнє за категоріями",
+          "difference": "Різниця"
         },
         "wealth": {
           "capitalization": "Капіталізація",

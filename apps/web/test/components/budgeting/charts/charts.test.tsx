@@ -234,6 +234,29 @@ describe("Overview charts", () => {
       expect(marker.getAttribute("style") || "").toMatch(/1,\s*2,\s*3/);
     });
 
+    it("renders extra summary rows (difference amount + percent) below the series", () => {
+      const { getByText } = render(
+        <ChartTooltipContent
+          active
+          payload={[
+            {
+              dataKey: "real",
+              value: 258800,
+              name: "Real",
+              payload: { real: 258800, planned: 20000, pct: 1194 },
+            },
+          ]}
+          label="Dining"
+          series={[{ key: "real", label: "Real" }]}
+          extra={() => [
+            { label: "Difference", value: "+$2,388 · +1194%", color: "rgb(1, 2, 3)" },
+          ]}
+        />,
+      );
+      expect(getByText("Difference")).toBeTruthy();
+      expect(getByText("+$2,388 · +1194%")).toBeTruthy();
+    });
+
     it("reports a tap to onDismiss and hides when its label is suppressed (r28 item 3)", () => {
       let dismissed: unknown = undefined;
       const { container, rerender } = render(

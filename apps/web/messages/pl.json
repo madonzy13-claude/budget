@@ -1283,7 +1283,8 @@
           "recurringPerMonth": "Cykliczne wg miesiąca",
           "recurringPerCategory": "Cykliczne wg kategorii",
           "timelineTitle": "Plan vs rzeczywiste",
-          "avgByCategory": "Średnia wg kategorii"
+          "avgByCategory": "Średnia wg kategorii",
+          "difference": "Różnica"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

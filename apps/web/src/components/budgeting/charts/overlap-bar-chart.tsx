@@ -38,6 +38,7 @@ export function OverviewOverlapBarChart({
   overlay,
   overlayOpacity = 0.55,
   overlayColorByPoint,
+  tooltipExtra,
   height = 240,
   formatValue,
   formatTooltip,
@@ -55,6 +56,10 @@ export function OverviewOverlapBarChart({
   /** Per-category fill for the overlay bar (a heat map by e.g. overspend %).
    *  Falls back to overlay.color / the theme accent when omitted. */
   overlayColorByPoint?: (row: Record<string, unknown>) => string;
+  /** Extra tooltip summary rows (e.g. the difference amount + percent). */
+  tooltipExtra?: (
+    row: Record<string, unknown>,
+  ) => Array<{ label: string; value: string; color?: string }>;
   height?: number;
   formatValue?: (n: number) => string;
   formatTooltip?: (n: number) => string;
@@ -133,6 +138,7 @@ export function OverviewOverlapBarChart({
                       key === overlay.key ? overlayColorByPoint(row) : undefined
                   : undefined
               }
+              extra={tooltipExtra}
             />
           }
         />

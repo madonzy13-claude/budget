@@ -1260,7 +1260,8 @@
           "recurringPerMonth": "Recurring by month",
           "recurringPerCategory": "Recurring by category",
           "timelineTitle": "Planned vs Real",
-          "avgByCategory": "Average by category"
+          "avgByCategory": "Average by category",
+          "difference": "Difference"
         },
         "wealth": {
           "capitalization": "Capitalization",
