@@ -219,6 +219,12 @@ ALTER TABLE tenancy.budget_members FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenancy.shared_budget_member_shares FORCE ROW LEVEL SECURITY;
 -- budget_invitations: token-keyed lookup; NO RLS (status column controls visibility).
 
+-- kind-removal: private/shared is no longer a stored concept — it's derived at
+-- display time from member_count (1 = private, >1 = shared). New budgets insert
+-- NULL kind (createOrganization stops passing it), so the column must be nullable.
+-- Idempotent: DROP NOT NULL is a no-op if already nullable.
+ALTER TABLE tenancy.budgets ALTER COLUMN kind DROP NOT NULL;
+
 -- Phase 6 (ONBD-07): onboarding_progress — USER-SCOPED (app.current_user_id), FORCE RLS.
 GRANT SELECT, INSERT, UPDATE, DELETE ON tenancy.onboarding_progress TO app_role;
 GRANT SELECT ON tenancy.onboarding_progress TO worker_role;
@@ -419,28 +425,11 @@ CREATE POLICY wallets_worker_cron_scan ON budgeting.wallets
 
 -- D-04/TENT-11 currency lock is enforced in the app layer (budget-identity route + workspaceRepo.hasTransactions); the old DB trigger was over-broad (blocked zero-tx) and was removed in migration 0035.
 
--- PC-11 (TENT-10, D-02): TOCTOU race-free PRIVATE-cap guard. Postgres unique partial indexes
--- cannot reference subqueries, so we use a BEFORE INSERT trigger that runs in the same tx
--- as the INSERT — count read + insert decision are atomic from any concurrent transaction's
--- perspective (row-level lock on budgets.id picked up by SELECT FOR KEY SHARE).
-CREATE OR REPLACE FUNCTION tenancy.budget_members_private_guard() RETURNS trigger AS $$
-DECLARE
-  ws_kind text;
-  live_count int;
-BEGIN
-  SELECT kind INTO ws_kind FROM tenancy.budgets WHERE id = NEW.budget_id FOR KEY SHARE;
-  IF ws_kind = 'PRIVATE' THEN
-    SELECT count(*)::int INTO live_count FROM tenancy.budget_members WHERE budget_id = NEW.budget_id;
-    IF live_count >= 1 THEN
-      RAISE EXCEPTION 'PRIVATE budgets accept only the owner. Convert to SHARED first. (TENT-10, D-02, PC-11)';
-    END IF;
-  END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql;
+-- kind-removal: the PRIVATE-cap guard (PC-11, TENT-10, D-02) is GONE. Any budget
+-- can now accept members; private-vs-shared is a display derivation from
+-- member_count, not an invite gate. Idempotently drop the old trigger + function.
 DROP TRIGGER IF EXISTS budget_members_private_cap ON tenancy.budget_members;
-CREATE TRIGGER budget_members_private_cap
-  BEFORE INSERT ON tenancy.budget_members
-  FOR EACH ROW EXECUTE FUNCTION tenancy.budget_members_private_guard();
+DROP FUNCTION IF EXISTS tenancy.budget_members_private_guard();
 
 -- D-06 / TENT-13: shares sum = 100 per budget, deferred constraint trigger.
 CREATE OR REPLACE FUNCTION tenancy.shares_sum_check() RETURNS trigger AS $$
