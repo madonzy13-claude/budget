@@ -16,6 +16,7 @@ import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
 import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
+import { overspendHeat } from "@/lib/overspend-heat";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToDisplayCompact } from "@/lib/cents-format";
@@ -161,26 +162,39 @@ export function PlannedSection({
             )}
           </div>
 
-          {/* Planned-avg vs Real-avg by category — overlaid "bar-in-bar":
-              real-average as solid blue bars with the planned-average bar drawn
-              semi-transparent on top, so the overlap between them is visible. */}
+          {/* Overspend by category — overlaid "bar-in-bar": planned-average as a
+              grey reference bar with the real-average drawn on top, heat-coloured
+              by how far real is OVER planned (green→red). Sorted most-overspent
+              first so the critical categories sit at the top. */}
           {data.plannedAvgVsReal.length > 0 && (
             <div className="flex flex-col gap-2">
               <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
               <OverviewOverlapBarChart
-                data={data.plannedAvgVsReal.map((c) => ({
-                  name: c.name,
-                  real: Number(c.real_avg_cents),
-                  planned: Number(c.planned_avg_cents),
-                }))}
+                data={data.plannedAvgVsReal
+                  .map((c) => {
+                    const real = Number(c.real_avg_cents);
+                    const planned = Number(c.planned_avg_cents);
+                    const pct =
+                      planned > 0
+                        ? ((real - planned) / planned) * 100
+                        : real > 0
+                          ? 100
+                          : 0;
+                    return { name: c.name, real, planned, pct };
+                  })
+                  // Most overspent first → recharts renders it at the TOP.
+                  .sort((a, b) => b.pct - a.pct)}
                 xKey="name"
-                base={{ key: "real", label: t("planned.real") }}
-                // Planned = grey (r25 item 1), drawn on top with transparency.
-                overlay={{
+                // Planned = grey reference (bottom); real = heat-coloured overspend
+                // indicator on top.
+                base={{
                   key: "planned",
                   label: t("planned.planned"),
                   color: NEUTRAL,
                 }}
+                overlay={{ key: "real", label: t("planned.real") }}
+                overlayOpacity={0.72}
+                overlayColorByPoint={(row) => overspendHeat(Number(row.pct))}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
               />

@@ -37,6 +37,7 @@ export function OverviewOverlapBarChart({
   base,
   overlay,
   overlayOpacity = 0.55,
+  overlayColorByPoint,
   height = 240,
   formatValue,
   formatTooltip,
@@ -51,6 +52,9 @@ export function OverviewOverlapBarChart({
   overlay: ChartSeries;
   /** Fill opacity of the top (overlay) bar so the overlap shows through. */
   overlayOpacity?: number;
+  /** Per-category fill for the overlay bar (a heat map by e.g. overspend %).
+   *  Falls back to overlay.color / the theme accent when omitted. */
+  overlayColorByPoint?: (row: Record<string, unknown>) => string;
   height?: number;
   formatValue?: (n: number) => string;
   formatTooltip?: (n: number) => string;
@@ -137,7 +141,8 @@ export function OverviewOverlapBarChart({
             <Cell key={ri} fill={baseFill} fillOpacity={dim(ri, 1)} />
           ))}
         </Bar>
-        {/* Top: semi-transparent overlay bar so the overlap shows through. */}
+        {/* Top: semi-transparent overlay bar so the overlap shows through.
+            Per-category heat fill when overlayColorByPoint is supplied. */}
         <Bar
           dataKey={overlay.key}
           name={overlay.label}
@@ -146,10 +151,10 @@ export function OverviewOverlapBarChart({
           radius={[0, 4, 4, 0]}
           isAnimationActive={false}
         >
-          {data.map((_, ri) => (
+          {data.map((row, ri) => (
             <Cell
               key={ri}
-              fill={overlayFill}
+              fill={overlayColorByPoint ? overlayColorByPoint(row) : overlayFill}
               fillOpacity={dim(ri, overlayOpacity)}
             />
           ))}
