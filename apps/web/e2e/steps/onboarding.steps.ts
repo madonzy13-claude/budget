@@ -66,14 +66,13 @@ When(
   /^I advance through the wizard basics step with name "(.+?)"$/,
   async ({ page }, budgetName: string) => {
     const onboarding = new OnboardingPo(page);
-    // Step order (260618): 0 Welcome, 1 Type, 2 Basics, 3 Features (incl. the
-    // push opt-in), 4 Review. No standalone Push step, no Skip button.
-    await onboarding.clickNext(); // 0 Welcome ("Get started") → 1 Type
-    await onboarding.clickNext(); // 1 Type (default PRIVATE) → 2 Basics
+    // Step order (kind-removal): 0 Welcome, 1 Basics, 2 Features (incl. the
+    // push opt-in), 3 Review. No Type step, no standalone Push step, no Skip.
+    await onboarding.clickNext(); // 0 Welcome ("Get started") → 1 Basics
     const nameInput = page.getByTestId("wizard-step1-name");
     await nameInput.waitFor({ state: "visible", timeout: 8000 });
     await nameInput.fill(budgetName);
-    await onboarding.clickNext(); // 2 Basics → 3 Features
+    await onboarding.clickNext(); // 1 Basics → 2 Features
   },
 );
 

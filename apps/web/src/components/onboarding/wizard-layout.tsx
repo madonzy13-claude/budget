@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface WizardLayoutProps {
-  // Step 0 = welcome screen (no stepper progress); 1..4 = real wizard steps.
-  currentStep: 0 | 1 | 2 | 3 | 4;
+  // Step 0 = welcome screen (no stepper progress); 1..3 = real wizard steps.
+  currentStep: 0 | 1 | 2 | 3;
   children: React.ReactNode;
   onBack?: () => void;
   onNext: () => void;
@@ -26,7 +26,7 @@ interface WizardLayoutProps {
    * to the same setStep used by Back. The stepper only fires it for
    * completed segments, so we don't need extra guards in the parent.
    */
-  onStepJump?: (step: 1 | 2 | 3 | 4) => void;
+  onStepJump?: (step: 1 | 2 | 3) => void;
   isLoading?: boolean;
   nextLabel?: string;
   className?: string;
@@ -43,7 +43,7 @@ export function WizardLayout({
   className,
 }: WizardLayoutProps) {
   const t = useTranslations("onboarding.wizard.actions");
-  const isLastStep = currentStep === 4;
+  const isLastStep = currentStep === 3;
   const showBack = currentStep > 1;
 
   const primaryLabel =

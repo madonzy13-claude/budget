@@ -13,7 +13,6 @@ import { TOP_CURRENCIES } from "@/components/common/currency-picker";
 interface StepReviewProps {
   name: string;
   currency: string;
-  kind: "PRIVATE" | "SHARED";
   cushionEnabled: boolean;
   reservesEnabled: boolean;
 }
@@ -21,7 +20,6 @@ interface StepReviewProps {
 export function StepReview({
   name,
   currency,
-  kind,
   cushionEnabled,
   reservesEnabled,
 }: StepReviewProps) {
@@ -64,11 +62,6 @@ export function StepReview({
           label={t("label_currency")}
           value={currencyDisplay}
           testId="wizard-review-currency"
-        />
-        <ReviewRow
-          label={t("label_type")}
-          value={kind === "PRIVATE" ? t("value_personal") : t("value_shared")}
-          testId="wizard-review-type"
         />
         <ReviewRow
           label={t("label_cushion")}
