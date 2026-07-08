@@ -15,7 +15,6 @@ type BetterAuthApi = {
 
 export interface CreateBudgetInput {
   name: string;
-  kind: "PRIVATE" | "SHARED";
   default_currency: string;
   ownerUserId: string;
 }
@@ -30,7 +29,6 @@ export async function createBudget(
       body: {
         name: input.name,
         slug,
-        kind: input.kind,
         default_currency: input.default_currency,
         userId: input.ownerUserId,
       },

@@ -65,7 +65,10 @@ export function createOrganizationPlugin(deps: OrgDeps) {
       organization: {
         modelName: "budgets",
         additionalFields: {
-          kind: { type: "string", input: true, required: true }, // D-02 TENT-10
+          // kind-removal: no longer written on create (column is now nullable).
+          // Kept in the schema (input:false, not required) so Better Auth still
+          // maps the column for reads of legacy rows; new budgets insert NULL.
+          kind: { type: "string", input: false, required: false }, // D-02 TENT-10 (retired)
           default_currency: { type: "string", input: true, required: true }, // D-04 TENT-11
           slug: { type: "string", input: true, required: true }, // public-facing nanoid
           // Injected via beforeCreateOrganization hook — `input: false` means callers
@@ -90,50 +93,9 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         };
       },
 
-      // D-02: PRIVATE budgets refuse invitations at creation time (the row should
-      // never exist). The PC-11 BEFORE INSERT trigger on budget_members is the
-      // race-free wall; this hook stops the invitation up front so we don't generate
-      // an email for an invitation that can never be accepted.
-      beforeCreateInvitation: async ({ organization }) => {
-        const org = organization as unknown as { kind?: "PRIVATE" | "SHARED" };
-        if (org.kind === "PRIVATE") {
-          throw new Error(
-            "PRIVATE budgets accept only the owner. Convert to SHARED first.",
-          );
-        }
-      },
-
-      // D-02: PRIVATE rejects invites (app-layer defense in depth; PC-11 trigger is race-free wall)
-      beforeAddMember: async ({ member, organization }) => {
-        const org = organization as unknown as {
-          id: string;
-          kind: "PRIVATE" | "SHARED";
-        };
-        const actorUserId =
-          (member as { user_id?: string; userId?: string }).user_id ??
-          (member as { userId?: string }).userId ??
-          "";
-        // PC-03: use withTenantTx(budgetId, userId, fn) — never raw pool connects
-        const result = await withTenantTx(
-          TenantId(org.id),
-          UserId(actorUserId),
-          async (tx) => {
-            const r = await tx.execute(
-              // Better Auth org plugin contract: app-facing field is `organizationId`.
-              // SQL column is `budget_id` (post-Phase-1 rename). DO NOT rename the JS field
-              // — it's referenced by Better Auth plugin code in node_modules.
-              sql`SELECT count(*)::int AS c FROM tenancy.budget_members WHERE budget_id = ${org.id}`,
-            );
-            return (r.rows?.[0] as { c: number } | undefined)?.c ?? 0;
-          },
-        );
-        if (result.isErr()) throw result.error;
-        if (org.kind === "PRIVATE" && result.value >= 1) {
-          throw new Error(
-            "PRIVATE budgets accept only the owner. Convert to SHARED first.",
-          );
-        }
-      },
+      // kind-removal: the beforeCreateInvitation + beforeAddMember PRIVATE-cap
+      // hooks are GONE. Any budget can be invited to / add members; the DB
+      // private-cap trigger was dropped in the same change.
 
       // D-04/TENT-11: default_currency locked only AFTER the first transaction (matches app guard).
       // quick-260613-nkb: the PATCH /budgets/:id route bypasses Better Auth (it calls
@@ -173,15 +135,14 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         await assertCurrencyChangeAllowed({ orgId, actorUserId });
       },
 
-      // D-06: SHARED budget gains member → insert 0% share row.
+      // Budget gains member → insert 0% share row (kind-removal: every budget,
+      // not just SHARED — a budget becomes "shared" simply by having >1 member).
       // PC-03: use withTenantTx(budgetId, userId, fn) — extended signature sets BOTH
       // app.tenant_ids AND app.current_user_id GUCs in same SET LOCAL pair.
       afterAddMember: async ({ member, organization }) => {
         const org = organization as unknown as {
           id: string;
-          kind: "PRIVATE" | "SHARED";
         };
-        if (org.kind !== "SHARED") return;
         const memberUserId =
           (member as { user_id?: string; userId?: string }).user_id ??
           (member as { userId?: string }).userId ??

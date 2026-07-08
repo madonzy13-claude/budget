@@ -36,9 +36,11 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
   // Overview cash-flow projection timeline: GET /budgets/:id/overview/projection.
   registerOverviewProjectionRoutes(r, deps);
 
+  // kind-removal: no `kind` — private/shared is derived from member_count at
+  // display time. Unknown keys (a stale client still sending `kind`) are
+  // stripped by zod's default object parsing, so old callers don't break.
   const createSchema = z.object({
     name: z.string().min(1).max(100),
-    kind: z.enum(["PRIVATE", "SHARED"]),
     default_currency: z.string().regex(/^[A-Z]{3}$/),
   });
 
@@ -82,7 +84,6 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
         body: {
           name: body.name,
           slug,
-          kind: body.kind,
           default_currency: body.default_currency,
           userId: session.user.id,
         },
@@ -212,16 +213,14 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       UserId(session.user.id),
       async (tx) => {
         const result = await tx.execute(sql`
-          SELECT bm.role::text AS role, b.kind::text AS kind, b.name AS name
+          SELECT bm.role::text AS role, b.name AS name
             FROM tenancy.budget_members bm
             JOIN tenancy.budgets b ON b.id = bm.budget_id
            WHERE bm.budget_id = ${budgetId}::uuid
              AND bm.user_id = ${session.user.id}::uuid
            LIMIT 1
         `);
-        return result.rows[0] as
-          | { role: string; kind: string; name: string }
-          | undefined;
+        return result.rows[0] as { role: string; name: string } | undefined;
       },
     );
 
@@ -235,15 +234,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     if (lookup.value.role !== "owner") {
       return c.json({ error: "forbidden" }, 403);
     }
-    if (lookup.value.kind === "PRIVATE") {
-      return c.json(
-        {
-          error:
-            "PRIVATE budgets accept only the owner. Convert to SHARED first.",
-        },
-        409,
-      );
-    }
+    // kind-removal: no PRIVATE gate — any budget an owner controls can be invited to.
 
     const invitationId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
