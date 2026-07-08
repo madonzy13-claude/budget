@@ -225,20 +225,18 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* 4. Members (SHARED only) */}
-        {budget.kind === "SHARED" && (
-          <AccordionItem value="members">
-            <AccordionTrigger className="px-6">
-              {t("sections.members")}
-            </AccordionTrigger>
-            <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-              <MembersSection
-                budgetId={budget.id}
-                currentUserRole={budget.currentUserRole}
-              />
-            </AccordionContent>
-          </AccordionItem>
-        )}
+        {/* 4. Members — kind-removal: always available; any budget can invite. */}
+        <AccordionItem value="members">
+          <AccordionTrigger className="px-6">
+            {t("sections.members")}
+          </AccordionTrigger>
+          <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
+            <MembersSection
+              budgetId={budget.id}
+              currentUserRole={budget.currentUserRole}
+            />
+          </AccordionContent>
+        </AccordionItem>
 
         {/* 5. Notifications (push prefs) */}
         <AccordionItem value="notifications">

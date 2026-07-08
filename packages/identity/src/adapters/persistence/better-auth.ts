@@ -127,20 +127,18 @@ export async function purgeUserData(uid: string): Promise<void> {
     }
 
     const owned = await tx.execute(
-      sql`SELECT b.id, b.kind,
+      sql`SELECT b.id,
             (SELECT count(*) FROM tenancy.budget_members m WHERE m.budget_id = b.id) AS member_count
           FROM tenancy.budgets b
           WHERE b.owner_user_id = ${uid}::uuid`,
     );
     const ownedRows = owned.rows as Array<{
       id: string;
-      kind: string;
       member_count: number | string;
     }>;
 
-    const blocked = ownedRows.find(
-      (b) => b.kind === "SHARED" && Number(b.member_count) > 1,
-    );
+    // kind-removal: a budget is "shared" purely by having more than one member.
+    const blocked = ownedRows.find((b) => Number(b.member_count) > 1);
     if (blocked) {
       throw new APIError("BAD_REQUEST", {
         message:
