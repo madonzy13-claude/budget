@@ -5,8 +5,6 @@ Feature: Onboarding Wizard — 4-step deferred-create flow (ONBD-01..09)
     Given I am a fresh user with no prior budget
     When I navigate to the onboarding wizard
     And I click Get started
-    And I pick the budget type "personal"
-    And I click Next
     And I fill in the budget name "Family Budget"
     And I pick the currency "EUR"
     And I click Next
@@ -20,8 +18,6 @@ Feature: Onboarding Wizard — 4-step deferred-create flow (ONBD-01..09)
     Given I am a fresh user with no prior budget
     When I navigate to the onboarding wizard
     And I click Get started
-    And I pick the budget type "personal"
-    And I click Next
     And I fill in the budget name "Cushion Budget"
     And I pick the currency "USD"
     And I click Next
@@ -37,8 +33,6 @@ Feature: Onboarding Wizard — 4-step deferred-create flow (ONBD-01..09)
     Given I am a fresh user with no prior budget
     When I navigate to the onboarding wizard
     And I click Get started
-    And I pick the budget type "personal"
-    And I click Next
     And I fill in the budget name "Resumable Budget"
     And I reload the page
     Then the wizard is on the welcome step
