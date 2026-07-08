@@ -148,14 +148,11 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
               key={`inc-${i}`}
               data-testid="projection-income-marker"
               aria-hidden
-              className="absolute bottom-0 z-[2] size-0 -translate-x-1/2"
-              style={{
-                left: `${pct}%`,
-                borderLeft: "5px solid transparent",
-                borderRight: "5px solid transparent",
-                borderBottom: "7px solid var(--trading-up)",
-              }}
-            />
+              className="absolute bottom-0 z-[2] -translate-x-1/2 text-[11px] font-bold leading-none"
+              style={{ left: `${pct}%`, color: "var(--trading-up)" }}
+            >
+              $
+            </span>
           );
         })}
 
