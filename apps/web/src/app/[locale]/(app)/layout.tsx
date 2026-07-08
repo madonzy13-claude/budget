@@ -13,6 +13,7 @@ import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
 import { ViewportDebug } from "@/components/common/viewport-debug";
 import { OfflineResilience } from "@/components/common/offline-resilience";
+import { SafeAreaTopSync } from "@/components/common/safe-area-top-sync";
 import { AppBadge } from "@/components/common/app-badge";
 import { UserTimezoneProvider } from "@/components/common/user-timezone-provider";
 import { OfflineStaleBar } from "@/components/common/offline-stale-bar";
@@ -261,6 +262,9 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               installed PWA on SW update). Client leaf inside the app-wide
               QueryClientProvider. */}
             <OfflineResilience />
+            {/* Persists the resolved iOS top safe-area inset so the header padding
+              is stable from frame 1 on the next cold launch (no top-drop jump). */}
+            <SafeAreaTopSync />
             {/* PWA app-icon badge = Σ pending tasks across all budgets (Badging API,
               no-op where unsupported). Reuses the active-budgets query cache. */}
             <AppBadge />
@@ -279,13 +283,19 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               is down so the banner + read-only show immediately (instead of
               waiting for the first client query to fail). */}
             {degradedServerDown && <ServerDownSeed />}
-            {/* pt-[env(safe-area-inset-top)]: with viewport-fit=cover the page
-              extends under the status bar in standalone mode — the header
-              absorbs the inset so the nav stays below the clock/notch.
-              Resolves to 0 in browser tabs. */}
+            {/* padding-top = the top safe-area inset: with viewport-fit=cover the
+              page extends under the status bar in standalone mode — the header
+              absorbs the inset so the nav stays below the clock/notch. iOS reports
+              env(safe-area-inset-top) as 0 on the first frame of a PWA cold launch
+              then resolves it (a downward drop), so we prefer the pre-paint
+              --safe-top persisted by SafeAreaTopSync and fall back to env() (also
+              the browser-tab value, 0). */}
             <header
               data-shell-header
-              className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 pt-[env(safe-area-inset-top)] backdrop-blur"
+              className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur"
+              style={{
+                paddingTop: "var(--safe-top, env(safe-area-inset-top))",
+              }}
             >
               <TopNav locale={locale} activeBudgetId={activeBudgetId} />
             </header>
