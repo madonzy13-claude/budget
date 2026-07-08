@@ -21,15 +21,10 @@ import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
-import { hexForColorKey } from "@/lib/category-colors";
 import { formatChartDate } from "@/lib/chart-date-format";
 import type { OverviewRange } from "@/lib/overview-range";
 
 const NEUTRAL = "var(--muted-foreground)";
-// Bar palette — alternates DOWN the page so adjacent bar charts differ and none is
-// yellow (yellow is reserved for line/area). r25 item 1: planned bars are grey.
-const BAR_BLUE = "var(--chart-bar-1)";
-const BAR_TEAL = "var(--chart-bar-2)";
 
 /** Drop leading points where every value key is 0 — so the "All" range starts at
  * the first recorded data, not the far-back range start (UAT round 15 item 1). */
@@ -83,10 +78,6 @@ export function PlannedSection({
   const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
     centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en");
-  const colorOf = (id: string): string =>
-    hexForColorKey(
-      categories.find((c) => c.id === id)?.colorKey as string | undefined,
-    ) ?? BAR_BLUE;
 
   return (
     <OverviewSection
@@ -214,45 +205,47 @@ export function PlannedSection({
             </div>
           )}
 
-          {/* Recurring per month — current config (NOT range-scoped, D-14) */}
+          {/* Recurring per month — current config (NOT range-scoped, D-14).
+              Simple area chart (single series). */}
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.recurringPerMonth")}</ChartLabel>
-            <OverviewBarChart
+            <OverviewAreaChart
               data={data.recurringPerMonth.map((m) => ({
                 month: String(m.month),
                 planned: Number(m.planned_cents),
               }))}
               xKey="month"
               series={[
-                {
-                  key: "planned",
-                  label: t("planned.recurringPerMonth"),
-                  color: BAR_TEAL, // teal — alternates against the blue above/below
-                },
+                { key: "planned", label: t("planned.recurringPerMonth") },
               ]}
-              formatValue={fmtY}
+              formatY={fmtY}
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}
               labelFormat={monthName}
             />
           </div>
 
-          {/* Recurring per category — current config, bars in category colorKey */}
+          {/* Recurring per category — current config. Grey bars, sorted
+              highest→lowest (recharts vertical renders first row at the top). */}
           {data.recurringPerCategory.length > 0 && (
             <div className="flex flex-col gap-2">
               <ChartLabel>{t("planned.recurringPerCategory")}</ChartLabel>
               <OverviewBarChart
                 layout="vertical"
-                data={data.recurringPerCategory.map((c) => ({
-                  name: c.name,
-                  category_id: c.category_id,
-                  planned: Number(c.planned_cents),
-                }))}
+                data={data.recurringPerCategory
+                  .map((c) => ({
+                    name: c.name,
+                    planned: Number(c.planned_cents),
+                  }))
+                  .sort((a, b) => b.planned - a.planned)}
                 xKey="name"
                 series={[
-                  { key: "planned", label: t("planned.recurringPerCategory") },
+                  {
+                    key: "planned",
+                    label: t("planned.recurringPerCategory"),
+                    color: NEUTRAL, // grey
+                  },
                 ]}
-                colorByPoint={(row) => colorOf(String(row.category_id))}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
               />

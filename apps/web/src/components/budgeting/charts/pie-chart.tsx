@@ -20,18 +20,53 @@ import {
 } from "recharts";
 import { CHART_THEME, chartTooltip } from "./chart-theme";
 
+const RAD = Math.PI / 180;
+
+/** Customized label: draws "<name> <pct>%" just outside each slice. */
+function renderTypePercentLabel(p: {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  outerRadius?: number;
+  percent?: number;
+  name?: string | number;
+}) {
+  const cx = Number(p.cx) || 0;
+  const cy = Number(p.cy) || 0;
+  const mid = Number(p.midAngle) || 0;
+  const r = (Number(p.outerRadius) || 0) + 14;
+  const x = cx + r * Math.cos(-mid * RAD);
+  const y = cy + r * Math.sin(-mid * RAD);
+  const pct = Math.round((Number(p.percent) || 0) * 100);
+  return (
+    <text
+      x={x}
+      y={y}
+      fill={CHART_THEME.neutral}
+      fontSize={11}
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+    >
+      {`${p.name} ${pct}%`}
+    </text>
+  );
+}
+
 export function OverviewPieChart({
   data,
   nameKey,
   valueKey,
   colorFor,
   height = 240,
+  labeled = false,
 }: {
   data: Array<Record<string, unknown>>;
   nameKey: string;
   valueKey: string;
   colorFor: (name: string) => string;
   height?: number;
+  /** Show a customized label ("<type> <pct>%") outside each slice. */
+  labeled?: boolean;
 }) {
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
   const total =
@@ -45,10 +80,12 @@ export function OverviewPieChart({
           dataKey={valueKey}
           nameKey={nameKey}
           innerRadius="55%"
-          outerRadius="80%"
+          outerRadius={labeled ? "70%" : "80%"}
           paddingAngle={2}
           stroke={CHART_THEME.tooltipBg}
           isAnimationActive={false}
+          label={labeled ? renderTypePercentLabel : undefined}
+          labelLine={labeled ? { stroke: CHART_THEME.grid } : false}
           // hover enlarge (native, desktop)
           activeShape={(props: { outerRadius?: number }) => (
             <Sector

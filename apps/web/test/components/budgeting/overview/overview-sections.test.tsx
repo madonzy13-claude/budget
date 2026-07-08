@@ -143,7 +143,8 @@ describe("OverviewSections", () => {
     renderSections();
     await user.click(screen.getByRole("button", { name: "sections.planned" }));
     expect(lastOpts(plannedMock).enabled).toBe(true);
-    expect(screen.getAllByTestId("line-chart").length).toBeGreaterThan(0);
+    // Timeline (Planned vs Real) + Recurring-by-month are now Simple Area charts.
+    expect(screen.getAllByTestId("area-chart").length).toBeGreaterThan(0);
   });
 
   it("changing the range re-keys the Planned fetch with a new from", async () => {

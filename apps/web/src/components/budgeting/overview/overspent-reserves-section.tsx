@@ -87,11 +87,14 @@ export function OverspentReservesSection({
             </div>
             <OverviewBarChart
               layout="vertical"
-              data={data.overspent_by_category.map((c) => ({
-                name: c.name,
-                category_id: c.category_id,
-                overspent: Number(c.overspent_cents),
-              }))}
+              data={data.overspent_by_category
+                .map((c) => ({
+                  name: c.name,
+                  category_id: c.category_id,
+                  overspent: Number(c.overspent_cents),
+                }))
+                // Most overspent first (recharts vertical renders it at the top).
+                .sort((a, b) => b.overspent - a.overspent)}
               xKey="name"
               series={[{ key: "overspent", label: t("sections.overspent") }]}
               colorByPoint={(row) => colorOf(String(row.category_id), BAR_TEAL)}
@@ -124,11 +127,14 @@ export function OverspentReservesSection({
             <div className="flex flex-col gap-2">
               <OverviewBarChart
                 layout="vertical"
-                data={data.reserves_by_category.map((r) => ({
-                  name: r.name,
-                  category_id: r.category_id,
-                  reserve: Number(r.reserve_cents),
-                }))}
+                data={data.reserves_by_category
+                  .map((r) => ({
+                    name: r.name,
+                    category_id: r.category_id,
+                    reserve: Number(r.reserve_cents),
+                  }))
+                  // Highest reserve first (recharts vertical renders it at the top).
+                  .sort((a, b) => b.reserve - a.reserve)}
                 xKey="name"
                 series={[{ key: "reserve", label: t("sections.reserves") }]}
                 colorByPoint={(row) =>

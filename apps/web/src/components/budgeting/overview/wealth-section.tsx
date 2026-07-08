@@ -259,6 +259,7 @@ export function WealthSection({
                       colorFor={(ht) =>
                         UI_TYPE_COLOR[deriveUiType(null, ht, false)]
                       }
+                      labeled
                     />
                   ) : (
                     <p className="text-num-sm text-[var(--muted-foreground)]">
