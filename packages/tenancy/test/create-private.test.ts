@@ -15,7 +15,7 @@ beforeAll(async () => {
   await startTestcontainer();
 }, 120_000);
 
-test("createWorkspace PRIVATE has kind=PRIVATE, memberCount=1 (TENT-01, TENT-10)", async () => {
+test("createWorkspace creates a budget with the owner as sole member (TENT-01)", async () => {
   const sender = new StdoutEmailSender();
   const tenancy = createTenancyModule({
     emailSender: sender,
@@ -53,9 +53,11 @@ test("createWorkspace PRIVATE has kind=PRIVATE, memberCount=1 (TENT-01, TENT-10)
   expect(w.isOk()).toBe(true);
   if (!w.isOk()) return;
 
-  // Read back via repo
+  // Read back via repo. kind-removal: `kind` is no longer written on create
+  // (column is nullable), so it reads back NULL — private/shared is derived
+  // from member_count at display time. Assert ownership + single seat instead.
   const ws = await tenancy.workspaceRepo.findById(w.value.workspaceId);
   expect(ws).not.toBeNull();
-  expect(ws?.kind).toBe("PRIVATE");
   expect(ws?.ownerUserId).toBe(u.value.userId);
+  expect(ws?.memberCount).toBe(1);
 });

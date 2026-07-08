@@ -8,7 +8,9 @@ import { Membership } from "../src/domain/membership";
 import { validateShares } from "../src/domain/share";
 
 describe("Workspace.canAcceptMember", () => {
-  test("PRIVATE with 0 members can accept", () => {
+  // kind-removal: any budget always accepts members. Private-vs-shared is a
+  // display derivation from member_count, not an invite gate.
+  test("0 members can accept", () => {
     const ws = new Workspace(
       "id",
       "slug",
@@ -22,8 +24,8 @@ describe("Workspace.canAcceptMember", () => {
     expect(ws.canAcceptMember().isOk()).toBe(true);
   });
 
-  test("PRIVATE with 1 member cannot accept (D-02)", () => {
-    const ws = new Workspace(
+  test("1-member budget CAN accept regardless of kind (kind-removal)", () => {
+    const priv = new Workspace(
       "id",
       "slug",
       "Mine",
@@ -33,12 +35,22 @@ describe("Workspace.canAcceptMember", () => {
       1,
       new Date(),
     );
-    const r = ws.canAcceptMember();
-    expect(r.isErr()).toBe(true);
-    if (r.isErr()) expect(r.error.message).toMatch(/PRIVATE/);
+    expect(priv.canAcceptMember().isOk()).toBe(true);
+
+    const shared = new Workspace(
+      "id",
+      "slug",
+      "Shared",
+      "SHARED",
+      "USD",
+      "owner1",
+      1,
+      new Date(),
+    );
+    expect(shared.canAcceptMember().isOk()).toBe(true);
   });
 
-  test("SHARED with many members can accept", () => {
+  test("many members can accept", () => {
     const ws = new Workspace(
       "id",
       "slug",

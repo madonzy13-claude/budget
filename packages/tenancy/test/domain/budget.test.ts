@@ -47,19 +47,21 @@ function makeBudget(
 }
 
 describe("Budget.canAcceptMember", () => {
-  test("PRIVATE with 0 members can accept", () => {
+  // kind-removal: any budget always accepts members. Private-vs-shared is a
+  // display derivation from member_count, not an invite gate.
+  test("0 members can accept", () => {
     const bud = makeBudget({ memberCount: 0 });
     expect(bud.canAcceptMember().isOk()).toBe(true);
   });
 
-  test("PRIVATE with 1 member cannot accept (D-02)", () => {
-    const bud = makeBudget({ memberCount: 1 });
-    const r = bud.canAcceptMember();
-    expect(r.isErr()).toBe(true);
-    if (r.isErr()) expect(r.error.message).toMatch(/PRIVATE/);
+  test("1-member budget CAN accept regardless of kind (kind-removal)", () => {
+    expect(makeBudget({ memberCount: 1 }).canAcceptMember().isOk()).toBe(true);
+    expect(
+      makeBudget({ kind: "SHARED", memberCount: 1 }).canAcceptMember().isOk(),
+    ).toBe(true);
   });
 
-  test("SHARED with many members can accept", () => {
+  test("many members can accept", () => {
     const bud = makeBudget({ kind: "SHARED", memberCount: 5 });
     expect(bud.canAcceptMember().isOk()).toBe(true);
   });
