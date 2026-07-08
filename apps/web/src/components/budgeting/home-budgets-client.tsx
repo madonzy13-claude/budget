@@ -15,6 +15,7 @@ import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { LAST_BUDGET_KEY } from "@/lib/last-budget";
 import { BudgetCardClient } from "@/components/budgeting/budget-card-client";
 import { BudgetCardSkeleton } from "@/components/budgeting/budget-card-skeleton";
+import { BdpOverviewSkeleton } from "@/components/budgeting/bdp-overview-skeleton";
 import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
 
 export function HomeBudgetsClient({ locale }: { locale: string }) {
@@ -51,19 +52,18 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
     return <HomeEmptyHero locale={locale} />;
   }
 
-  // Are we (probably) about to soft-redirect into a budget? True once confirmed,
-  // OR — before the budget list even loads — when a last-budget candidate exists in
-  // localStorage (the common reopen). In that case render NOTHING (a neutral blank)
-  // instead of the listing skeleton, so the listing never flashes on the way to the
-  // budget. The redirect is a client soft-nav → the shell stays mounted → no iOS
-  // safe-area top-inset re-jump on the destination.
-  const lastCandidate =
-    typeof window !== "undefined" && !wantsList
-      ? window.localStorage.getItem(LAST_BUDGET_KEY)
-      : null;
-  const redirecting = redirectTo !== null || (!!lastCandidate && !q.isSuccess);
-  if (redirecting) {
-    return <div aria-hidden className="min-h-[50dvh]" />;
+  // Auto-open path: render the SAME Overview skeleton the BDP loading.tsx shows,
+  // so home→budget is ONE continuous skeleton and the budget LIST never flashes on
+  // the way in. We take this whenever we're heading into a budget:
+  //   - a confirmed redirect (redirectTo resolved), OR
+  //   - a plain landing (no ?list) still resolving — the default outcome is
+  //     auto-open (1 budget always routes; >1 reopens the last-visited budget).
+  // The listing only wins on an explicit ?list=1 or a RESOLVED multi-budget landing
+  // with no last-visited memory. The redirect is a client soft-nav → the shell
+  // stays mounted → no iOS safe-area top-inset re-jump on the destination.
+  const headingToBudget = redirectTo !== null || (!wantsList && !q.isSuccess);
+  if (headingToBudget) {
+    return <BdpOverviewSkeleton />;
   }
 
   // No data yet (cold load OR a transient offline error before the persisted
