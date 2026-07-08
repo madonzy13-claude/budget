@@ -12,6 +12,7 @@ import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { OverviewComposedChart } from "@/components/budgeting/charts/composed-chart";
 import { ChartTooltipContent } from "@/components/budgeting/charts/chart-tooltip";
 
 beforeAll(() => {
@@ -103,6 +104,27 @@ describe("Overview charts", () => {
     expect(
       container.querySelector(".recharts-responsive-container"),
     ).toBeTruthy();
+  });
+
+  it("renders a vertical composed (bar + line) chart without throwing", () => {
+    const { container } = box(
+      <OverviewComposedChart
+        data={[
+          { name: "Groceries", real: 42000, planned: 38000 },
+          { name: "Transport", real: 18000, planned: 20000 },
+          { name: "Rent", real: 130000, planned: 130000 },
+        ]}
+        xKey="name"
+        bar={{ key: "real", label: "Real" }}
+        line={{ key: "planned", label: "Planned" }}
+      />,
+    );
+    expect(
+      container.querySelector(".recharts-responsive-container"),
+    ).toBeTruthy();
+    // Composed = both a Bar series and a Line series render.
+    expect(container.querySelector(".recharts-bar")).toBeTruthy();
+    expect(container.querySelector(".recharts-line")).toBeTruthy();
   });
 
   it("renders a pie chart without throwing", () => {
