@@ -125,6 +125,14 @@ export function OverviewOverlapBarChart({
               formatY={formatTooltip ?? formatValue}
               series={[base, overlay]}
               labelFormat={labelFormat}
+              // Overlay row's marker uses the SAME per-category heat colour as its
+              // bar; the base row falls back to its series colour.
+              colorForRow={
+                overlayColorByPoint
+                  ? (row, key) =>
+                      key === overlay.key ? overlayColorByPoint(row) : undefined
+                  : undefined
+              }
             />
           }
         />

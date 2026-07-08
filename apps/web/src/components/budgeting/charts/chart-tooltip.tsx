@@ -33,9 +33,14 @@ export function ChartTooltipContent({
   formatY?: (n: number) => string;
   series?: ChartSeries[];
   labelFormat?: (label: string | number) => string;
-  /** Per-POINT color (e.g. up/down or a category colorKey) so the marker matches
-   *  the actual bar, not the series base fill (r25 item 3). */
-  colorForRow?: (row: Record<string, unknown>) => string;
+  /** Per-POINT color (e.g. up/down, a category colorKey, or a heat map) so the
+   *  marker matches the actual bar, not the series base fill (r25 item 3). The
+   *  dataKey lets it colour only a specific series (return undefined for the rest,
+   *  which then falls back to the series colour). */
+  colorForRow?: (
+    row: Record<string, unknown>,
+    dataKey?: string | number,
+  ) => string | undefined;
   /** The x-label the user tapped to DISMISS — this tooltip hides for it (r28 item 3). */
   suppressedLabel?: string | null;
   /** Tapping the tooltip calls this with its x-label to dismiss it. */
@@ -74,7 +79,9 @@ export function ChartTooltipContent({
         // Per-point color wins (up/down or category colorKey) so the marker matches
         // the rendered bar; else the series color, else the recharts payload color.
         const color =
-          (colorForRow && p.payload ? colorForRow(p.payload) : undefined) ??
+          (colorForRow && p.payload
+            ? colorForRow(p.payload, p.dataKey)
+            : undefined) ??
           s?.color ??
           p.color ??
           CHART_THEME.accent;

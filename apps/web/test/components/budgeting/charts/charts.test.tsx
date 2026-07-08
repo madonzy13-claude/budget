@@ -171,6 +171,54 @@ describe("Overview charts", () => {
       expect(marker.getAttribute("style") || "").toMatch(/14,\s*203,\s*129/);
     });
 
+    it("colorForRow can target ONE series by dataKey (heat overlay), leaving the other at its series color", () => {
+      const twoRows = [
+        {
+          dataKey: "planned",
+          value: 20000,
+          name: "Planned",
+          color: "teal",
+          payload: { pct: 1194 },
+        },
+        {
+          dataKey: "real",
+          value: 258800,
+          name: "Real",
+          color: "teal",
+          payload: { pct: 1194 },
+        },
+      ];
+      const { container } = render(
+        <ChartTooltipContent
+          active
+          payload={twoRows}
+          label="Dining"
+          series={[
+            { key: "planned", label: "Planned", color: "rgb(9, 9, 9)" },
+            { key: "real", label: "Real" },
+          ]}
+          // Only the "real" row gets the heat colour; "planned" returns undefined
+          // → falls back to its grey series colour.
+          colorForRow={(row, key) =>
+            key === "real"
+              ? Number(row.pct) > 25
+                ? "rgb(246, 70, 93)"
+                : "rgb(14, 203, 129)"
+              : undefined
+          }
+        />,
+      );
+      const markers = container.querySelectorAll("span[aria-hidden]");
+      expect(markers.length).toBe(2);
+      // planned marker → grey series color; real marker → red heat color.
+      expect((markers[0] as HTMLElement).getAttribute("style") || "").toMatch(
+        /9,\s*9,\s*9/,
+      );
+      expect((markers[1] as HTMLElement).getAttribute("style") || "").toMatch(
+        /246,\s*70,\s*93/,
+      );
+    });
+
     it("falls back to the series color when no colorForRow is given", () => {
       const { container } = render(
         <ChartTooltipContent
