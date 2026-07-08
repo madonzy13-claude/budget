@@ -57,6 +57,17 @@ vi.mock("@tanstack/react-query", () => ({
   QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// entity hooks the accordion reads for the config checklist — return arrays so
+// wallets.some/categories.some don't blow up (the blanket useQuery mock returns
+// {members:[]} for MembersSection's own query).
+vi.mock("@/hooks/use-wallets", () => ({ useWallets: () => ({ data: [] }) }));
+vi.mock("@/hooks/use-investments", () => ({
+  useInvestments: () => ({ data: [] }),
+}));
+vi.mock("@/hooks/use-budget-data", () => ({
+  useCategories: () => ({ data: [] }),
+}));
+
 const sharedBudget = {
   id: "budget-1",
   name: "Family Budget",
@@ -87,12 +98,13 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     expect(screen.getByText("sections.danger")).toBeInTheDocument();
   });
 
-  it("renders only 4 sections for a PRIVATE budget (no Members)", () => {
+  it("renders Members for ANY budget (kind-removal: invite always available)", () => {
     render(<SettingsAccordion budget={privateBudget} />);
     expect(screen.getByText("sections.identity")).toBeInTheDocument();
     expect(screen.getByText("sections.cushion")).toBeInTheDocument();
     expect(screen.getByText("sections.recurring")).toBeInTheDocument();
-    expect(screen.queryByText("sections.members")).not.toBeInTheDocument();
+    // Members section is now shown regardless of former private/shared kind.
+    expect(screen.getByText("sections.members")).toBeInTheDocument();
     expect(screen.getByText("sections.danger")).toBeInTheDocument();
   });
 
