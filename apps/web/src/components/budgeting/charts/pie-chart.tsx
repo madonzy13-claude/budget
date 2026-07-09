@@ -3,47 +3,14 @@
 /**
  * pie-chart.tsx — themed, responsive Pie wrapper (11-02).
  *
- * Static: no tap highlight, no tooltip — the customized "<name> <pct>%" labels carry
- * the read-out. Colors come from the caller via `colorFor` (Phase-9 UI_TYPE_COLOR-
- * based); the wrapper never imports the palette itself.
+ * Static: no tap highlight, no tooltip. When `labeled`, every slice is named in a
+ * LEGEND below the ring ("<swatch> <name> <pct>%") — a legend (not on-slice
+ * labels) so a few tiny adjacent slices never overlap and NO label is skipped.
+ * Colors come from the caller via `colorFor`; the wrapper never imports the
+ * palette itself.
  */
 import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { CHART_THEME } from "./chart-theme";
-
-const RAD = Math.PI / 180;
-
-/** Customized label: draws "<name> <pct>%" just outside each slice. Slices under
- *  3% get NO label — their leader lines would otherwise stack and overlap when a
- *  few tiny slices sit next to each other (the colour arc still shows in the ring). */
-function renderTypePercentLabel(p: {
-  cx?: number;
-  cy?: number;
-  midAngle?: number;
-  outerRadius?: number;
-  percent?: number;
-  name?: string | number;
-}) {
-  const pct = Math.round((Number(p.percent) || 0) * 100);
-  if (pct < 3) return null;
-  const cx = Number(p.cx) || 0;
-  const cy = Number(p.cy) || 0;
-  const mid = Number(p.midAngle) || 0;
-  const r = (Number(p.outerRadius) || 0) + 14;
-  const x = cx + r * Math.cos(-mid * RAD);
-  const y = cy + r * Math.sin(-mid * RAD);
-  return (
-    <text
-      x={x}
-      y={y}
-      fill={CHART_THEME.neutral}
-      fontSize={11}
-      textAnchor={x > cx ? "start" : "end"}
-      dominantBaseline="central"
-    >
-      {`${p.name} ${pct}%`}
-    </text>
-  );
-}
 
 export function OverviewPieChart({
   data,
@@ -58,9 +25,12 @@ export function OverviewPieChart({
   valueKey: string;
   colorFor: (name: string) => string;
   height?: number;
-  /** Show a customized label ("<type> <pct>%") outside each slice. */
+  /** Show a legend (swatch + "<name> <pct>%") for every slice below the ring. */
   labeled?: boolean;
 }) {
+  const total =
+    data.reduce((sum, d) => sum + (Number(d[valueKey]) || 0), 0) || 1;
+
   return (
     // Static pie: no interactivity, so suppress the browser focus ring / tap
     // highlight that recharts' sectors otherwise show on tap (the blue border).
@@ -75,13 +45,13 @@ export function OverviewPieChart({
             dataKey={valueKey}
             nameKey={nameKey}
             innerRadius="55%"
-            outerRadius={labeled ? "70%" : "80%"}
+            outerRadius="80%"
             paddingAngle={2}
             stroke={CHART_THEME.tooltipBg}
             isAnimationActive={false}
             rootTabIndex={-1}
-            label={labeled ? renderTypePercentLabel : undefined}
-            labelLine={labeled ? { stroke: CHART_THEME.grid } : false}
+            label={false}
+            labelLine={false}
           >
             {data.map((d, i) => (
               <Cell key={i} fill={colorFor(String(d[nameKey]))} tabIndex={-1} />
@@ -89,6 +59,28 @@ export function OverviewPieChart({
           </Pie>
         </PieChart>
       </ResponsiveContainer>
+
+      {labeled && (
+        <ul className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+          {data.map((d, i) => {
+            const name = String(d[nameKey]);
+            const pct = Math.round(((Number(d[valueKey]) || 0) / total) * 100);
+            return (
+              <li
+                key={i}
+                className="inline-flex items-center gap-1.5 text-caption text-[var(--muted-foreground)]"
+              >
+                <span
+                  aria-hidden
+                  className="size-2.5 shrink-0 rounded-[3px]"
+                  style={{ background: colorFor(name) }}
+                />
+                {`${name} ${pct}%`}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
