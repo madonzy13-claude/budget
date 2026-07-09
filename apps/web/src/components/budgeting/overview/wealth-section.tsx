@@ -39,7 +39,7 @@ const NEUTRAL = "var(--muted-foreground)";
 const BUCKET_INVEST = "var(--chart-bar-1)"; // blue
 const BUCKET_SPEND = "var(--primary)"; // yellow
 const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
-const BUCKET_CUSHION = "var(--trading-up)"; // green
+const BUCKET_CUSHION = "var(--chart-bar-3)"; // purple (distinct from teal)
 
 /** i18n key for the % CHANGE chart title/series, by its (coarser) bucket. */
 function dynamicsLabelKey(b: "daily" | "monthly" | "yearly"): string {
