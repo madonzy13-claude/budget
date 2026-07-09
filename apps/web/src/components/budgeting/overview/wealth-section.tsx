@@ -293,6 +293,7 @@ export function WealthSection({
                     nameKey="name"
                     valueKey="value"
                     colorFor={(n) => capColorMap[n] ?? NEUTRAL}
+                    formatValue={fmtTooltip}
                   />
                 </div>
               )}
@@ -317,6 +318,7 @@ export function WealthSection({
                       colorFor={(ht) =>
                         UI_TYPE_COLOR[deriveUiType(null, ht, false)]
                       }
+                      formatValue={fmtTooltip}
                     />
                   ) : (
                     <p className="text-num-sm text-[var(--muted-foreground)]">
