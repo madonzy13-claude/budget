@@ -112,7 +112,10 @@ export function formatTimestamp(
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    // hourCycle "h23" (00–23), NOT hour12:false — the latter is ambiguous
+    // between h23/h24 across ICU/Bun versions, so midnight rendered as "24:30"
+    // on the CI runner while local showed "00:30". h23 pins it everywhere.
+    hourCycle: "h23",
     ...(timeZone ? { timeZone } : {}),
   }).format(date);
 }
