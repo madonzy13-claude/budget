@@ -293,7 +293,6 @@ export function WealthSection({
                     nameKey="name"
                     valueKey="value"
                     colorFor={(n) => capColorMap[n] ?? NEUTRAL}
-                    labeled
                   />
                 </div>
               )}
@@ -318,7 +317,6 @@ export function WealthSection({
                       colorFor={(ht) =>
                         UI_TYPE_COLOR[deriveUiType(null, ht, false)]
                       }
-                      labeled
                     />
                   ) : (
                     <p className="text-num-sm text-[var(--muted-foreground)]">
