@@ -1269,6 +1269,8 @@
           "allTime": "увесь час"
         },
         "total": "Разом",
+        "overspentByCategory": "Сума перевитрати за категоріями",
+        "reservesByCategory": "Залишок резервів за категоріями",
         "sections": {
           "planned": "Заплановано",
           "overspent": "Перевитрати",
@@ -1280,10 +1282,10 @@
           "allCategories": "Усі категорії",
           "real": "Фактичні",
           "planned": "Заплановані",
-          "recurringPerMonth": "Регулярні за місяцями",
-          "recurringPerCategory": "Регулярні за категоріями",
-          "timelineTitle": "План vs факт",
-          "avgByCategory": "Середнє за категоріями",
+          "recurringPerMonth": "Регулярні платежі за місяцями",
+          "recurringPerCategory": "Регулярні платежі за категоріями",
+          "timelineTitle": "Планові та фактичні витрати за час",
+          "avgByCategory": "Перевитрата / економія за категоріями",
           "difference": "Різниця"
         },
         "wealth": {
@@ -1297,7 +1299,7 @@
           "dynamicsYearly": "Річна зміна",
           "avgForRange": "Сер. зміна ({range})",
           "growSince": "{preset, select, thisMonth {з початку місяця} last3Months {за останні 3 місяці} last6Months {за останні 6 місяців} thisYear {з початку року} all {за весь час} other {за вибраний період}}",
-          "byType": "За типом",
+          "byType": "Інвестиції за типом активу",
           "pieShare": "{pct}%"
         },
         "empty": {

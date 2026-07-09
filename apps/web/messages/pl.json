@@ -1269,6 +1269,8 @@
           "allTime": "cały okres"
         },
         "total": "Razem",
+        "overspentByCategory": "Kwota przekroczenia wg kategorii",
+        "reservesByCategory": "Saldo rezerw wg kategorii",
         "sections": {
           "planned": "Zaplanowane",
           "overspent": "Przekroczenia",
@@ -1280,10 +1282,10 @@
           "allCategories": "Wszystkie kategorie",
           "real": "Rzeczywiste",
           "planned": "Zaplanowane",
-          "recurringPerMonth": "Cykliczne wg miesiąca",
-          "recurringPerCategory": "Cykliczne wg kategorii",
-          "timelineTitle": "Plan vs rzeczywiste",
-          "avgByCategory": "Średnia wg kategorii",
+          "recurringPerMonth": "Płatności cykliczne wg miesięcy",
+          "recurringPerCategory": "Płatności cykliczne wg kategorii",
+          "timelineTitle": "Plan a rzeczywiste wydatki w czasie",
+          "avgByCategory": "Przekroczenie / oszczędność wg kategorii",
           "difference": "Różnica"
         },
         "wealth": {
@@ -1297,7 +1299,7 @@
           "dynamicsYearly": "Zmiana roczna",
           "avgForRange": "Śr. zmiana ({range})",
           "growSince": "{preset, select, thisMonth {od początku miesiąca} last3Months {za ostatnie 3 miesiące} last6Months {za ostatnie 6 miesięcy} thisYear {od początku roku} all {cały czas} other {w wybranym zakresie}}",
-          "byType": "Wg typu",
+          "byType": "Inwestycje wg typu aktywów",
           "pieShare": "{pct}%"
         },
         "empty": {

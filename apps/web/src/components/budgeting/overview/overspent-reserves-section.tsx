@@ -85,6 +85,9 @@ export function OverspentReservesSection({
                 </span>
               </div>
             </div>
+            <p className="text-caption text-[var(--muted-foreground)]">
+              {t("overspentByCategory")}
+            </p>
             <OverviewBarChart
               layout="vertical"
               data={data.overspent_by_category
@@ -125,6 +128,9 @@ export function OverspentReservesSection({
             </p>
           ) : (
             <div className="flex flex-col gap-2">
+              <p className="text-caption text-[var(--muted-foreground)]">
+                {t("reservesByCategory")}
+              </p>
               <OverviewBarChart
                 layout="vertical"
                 data={data.reserves_by_category

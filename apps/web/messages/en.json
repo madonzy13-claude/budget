@@ -1246,6 +1246,8 @@
           "allTime": "all time"
         },
         "total": "Total",
+        "overspentByCategory": "Amount over budget, by category",
+        "reservesByCategory": "Reserve balance, by category",
         "sections": {
           "planned": "Planned",
           "overspent": "Overspent",
@@ -1257,10 +1259,10 @@
           "allCategories": "All categories",
           "real": "Real",
           "planned": "Planned",
-          "recurringPerMonth": "Recurring by month",
-          "recurringPerCategory": "Recurring by category",
-          "timelineTitle": "Planned vs Real",
-          "avgByCategory": "Average by category",
+          "recurringPerMonth": "Recurring bills, by month",
+          "recurringPerCategory": "Recurring bills, by category",
+          "timelineTitle": "Planned vs actual spending, over time",
+          "avgByCategory": "Over / under budget, by category",
           "difference": "Difference"
         },
         "wealth": {
@@ -1274,7 +1276,7 @@
           "dynamicsYearly": "Yearly change",
           "avgForRange": "Avg change ({range})",
           "growSince": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} thisYear {since year start} all {all time} other {over the selected range}}",
-          "byType": "By type",
+          "byType": "Investments by asset type",
           "pieShare": "{pct}%"
         },
         "empty": {
