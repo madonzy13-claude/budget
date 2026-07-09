@@ -13,12 +13,15 @@ export interface RenderedEmail {
 export type TemplateName =
   | "verify-email"
   | "reset-password"
+  | "change-email"
+  | "delete-account"
   | "workspace-invite";
 
 export interface TemplateVars {
   url?: string;
   workspace?: string;
   inviter?: string;
+  newEmail?: string;
   [key: string]: unknown;
 }
 
@@ -64,9 +67,20 @@ interface InviteBlock {
   footer: string;
 }
 
+interface ChangeEmailBlock {
+  subject: string;
+  heading: string;
+  body: (newEmail: string) => string;
+  cta: string;
+  pasteHint: string;
+  footer: string;
+}
+
 interface Strings {
   verify: CommonBlock;
   reset: CommonBlock;
+  changeEmail: ChangeEmailBlock;
+  deleteAccount: CommonBlock;
   invite: InviteBlock;
 }
 
@@ -88,6 +102,25 @@ const STRINGS: Record<EmailLocale, Strings> = {
       pasteHint: "Or paste this URL into your browser:",
       footer:
         "If you did not request a password reset, ignore this email — your password will remain unchanged.",
+    },
+    changeEmail: {
+      subject: "Confirm your email change — Budget",
+      heading: "Confirm your email change",
+      body: (newEmail) =>
+        `We received a request to change your Budget email address to ${newEmail}. Click the button below to confirm. After confirming, you'll get a verification link at the new address.`,
+      cta: "Confirm email change",
+      pasteHint: "Or paste this URL into your browser:",
+      footer:
+        "If you did not request this change, ignore this email — your email address will remain unchanged.",
+    },
+    deleteAccount: {
+      subject: "Confirm account deletion — Budget",
+      heading: "Confirm account deletion",
+      body: "We received a request to permanently delete your Budget account and all of its data. This cannot be undone. Click the button below to confirm.",
+      cta: "Delete my account",
+      pasteHint: "Or paste this URL into your browser:",
+      footer:
+        "If you did not request this, ignore this email — your account will remain unchanged.",
     },
     invite: {
       subject: (ws) => `Join "${ws}" on Budget`,
@@ -118,6 +151,25 @@ const STRINGS: Record<EmailLocale, Strings> = {
       footer:
         "Jeśli to nie Ty prosiłeś/aś o reset hasła, zignoruj tę wiadomość — Twoje hasło pozostanie bez zmian.",
     },
+    changeEmail: {
+      subject: "Potwierdź zmianę adresu e-mail — Budget",
+      heading: "Potwierdź zmianę adresu e-mail",
+      body: (newEmail) =>
+        `Otrzymaliśmy prośbę o zmianę adresu e-mail konta Budget na ${newEmail}. Kliknij przycisk poniżej, aby potwierdzić. Po potwierdzeniu otrzymasz link weryfikacyjny na nowy adres.`,
+      cta: "Potwierdź zmianę adresu",
+      pasteHint: "Lub wklej ten adres URL do przeglądarki:",
+      footer:
+        "Jeśli to nie Ty prosiłeś/aś o tę zmianę, zignoruj tę wiadomość — Twój adres e-mail pozostanie bez zmian.",
+    },
+    deleteAccount: {
+      subject: "Potwierdź usunięcie konta — Budget",
+      heading: "Potwierdź usunięcie konta",
+      body: "Otrzymaliśmy prośbę o trwałe usunięcie Twojego konta Budget i wszystkich jego danych. Tej operacji nie można cofnąć. Kliknij przycisk poniżej, aby potwierdzić.",
+      cta: "Usuń moje konto",
+      pasteHint: "Lub wklej ten adres URL do przeglądarki:",
+      footer:
+        "Jeśli to nie Ty, zignoruj tę wiadomość — Twoje konto pozostanie bez zmian.",
+    },
     invite: {
       subject: (ws) => `Dołącz do "${ws}" na Budget`,
       heading: (ws) => `Otrzymałeś/aś zaproszenie do "${ws}"`,
@@ -146,6 +198,25 @@ const STRINGS: Record<EmailLocale, Strings> = {
       pasteHint: "Або вставте це посилання у браузер:",
       footer:
         "Якщо ви не запитували скидання пароля, проігноруйте цей лист — ваш пароль залишиться без змін.",
+    },
+    changeEmail: {
+      subject: "Підтвердьте зміну електронної адреси — Budget",
+      heading: "Підтвердьте зміну електронної адреси",
+      body: (newEmail) =>
+        `Ми отримали запит на зміну електронної адреси облікового запису Budget на ${newEmail}. Натисніть кнопку нижче, щоб підтвердити. Після підтвердження ви отримаєте посилання для підтвердження на нову адресу.`,
+      cta: "Підтвердити зміну адреси",
+      pasteHint: "Або вставте це посилання у браузер:",
+      footer:
+        "Якщо ви не запитували цю зміну, проігноруйте цей лист — ваша електронна адреса залишиться без змін.",
+    },
+    deleteAccount: {
+      subject: "Підтвердьте видалення облікового запису — Budget",
+      heading: "Підтвердьте видалення облікового запису",
+      body: "Ми отримали запит на остаточне видалення вашого облікового запису Budget та всіх його даних. Цю дію не можна скасувати. Натисніть кнопку нижче, щоб підтвердити.",
+      cta: "Видалити мій обліковий запис",
+      pasteHint: "Або вставте це посилання у браузер:",
+      footer:
+        "Якщо ви не робили цього запиту, проігноруйте цей лист — ваш обліковий запис залишиться без змін.",
     },
     invite: {
       subject: (ws) => `Приєднайтесь до "${ws}" в Budget`,
@@ -256,6 +327,34 @@ function renderResetPassword(
   };
 }
 
+function renderChangeEmail(
+  vars: TemplateVars,
+  locale: EmailLocale,
+): RenderedEmail {
+  const url = String(vars.url ?? "");
+  const newEmail = String(vars.newEmail ?? "");
+  const s = STRINGS[locale].changeEmail;
+  const body = s.body(newEmail);
+  return {
+    subject: s.subject,
+    html: htmlShell(s.heading, body, s.cta, url, s.pasteHint, s.footer),
+    text: textShell(s.heading, body, url, s.pasteHint, s.footer),
+  };
+}
+
+function renderDeleteAccount(
+  vars: TemplateVars,
+  locale: EmailLocale,
+): RenderedEmail {
+  const url = String(vars.url ?? "");
+  const s = STRINGS[locale].deleteAccount;
+  return {
+    subject: s.subject,
+    html: htmlShell(s.heading, s.body, s.cta, url, s.pasteHint, s.footer),
+    text: textShell(s.heading, s.body, url, s.pasteHint, s.footer),
+  };
+}
+
 function renderWorkspaceInvite(
   vars: TemplateVars,
   locale: EmailLocale,
@@ -290,6 +389,8 @@ const RENDERERS: Record<
 > = {
   "verify-email": renderVerifyEmail,
   "reset-password": renderResetPassword,
+  "change-email": renderChangeEmail,
+  "delete-account": renderDeleteAccount,
   "workspace-invite": renderWorkspaceInvite,
 };
 

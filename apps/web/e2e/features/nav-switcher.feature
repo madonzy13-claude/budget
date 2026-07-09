@@ -34,8 +34,8 @@ Feature: Budget switcher in top nav
     And I click the "Create budget" row in the switcher dropdown
     Then the URL contains "/budgets/new"
 
-  Scenario: Selecting a budget routes to its wallets tab
+  Scenario: Selecting a budget routes to its overview tab
     When I open the home page
     And I open the budget switcher
     And I click the row for "My E2E Budget"
-    Then the URL contains "/budgets/" followed by the budget id and "/wallets"
+    Then the URL contains "/budgets/" followed by the budget id and "/overview"

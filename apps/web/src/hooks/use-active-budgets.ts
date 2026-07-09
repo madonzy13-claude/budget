@@ -27,5 +27,8 @@ export function useActiveBudgets() {
       return body.budgets ?? body.workspaces ?? [];
     },
     staleTime: 30_000,
+    // Reflect background task changes (added/removed while away) when the user
+    // returns to the app — feeds the app-icon badge (r31 item 2).
+    refetchOnWindowFocus: true,
   });
 }

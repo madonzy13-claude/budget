@@ -4,7 +4,7 @@
  * portfolio% inline; the chevron toggles child collapse; tapping the body toggles
  * the mobile P/L + portfolio% line.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { InvestmentGroupHeader } from "../../src/components/budgeting/wallets-tab/investment-group-header";
 
@@ -90,13 +90,63 @@ describe("InvestmentGroupHeader", () => {
     expect(screen.getByTestId("grp-handle")).toBeInTheDocument();
   });
 
-  it("tapping the body reveals the mobile P/L + portfolio% line", () => {
-    renderHeader();
-    // desktop-inline copy renders once; tapping the body adds the mobile line.
-    const before = screen.getAllByText("+23.4%").length;
-    fireEvent.click(
-      screen.getByLabelText("Show Brokerage P/L and portfolio percentage."),
-    );
-    expect(screen.getAllByText("+23.4%").length).toBe(before + 1);
+  // UAT #7: groups mirror the row desktop columns — the P/L money amount now
+  // shows inline (sourced from the real aggregate plCents, not back-derived).
+  it("desktop: renders the group P/L money amount from plCents", () => {
+    renderHeader({ plCents: 593000 }); // +5,930 (budget cents, no symbol)
+    expect(screen.getAllByText("+5,930").length).toBeGreaterThan(0);
+  });
+
+  it("desktop: no P/L money when the group has no basis (plCents null)", () => {
+    renderHeader({ plPct: null, plCents: null });
+    // The amount (31,300) still shows; there is no P/L money node.
+    expect(screen.queryByText(/^\+/)).toBeNull();
+  });
+
+  it("tapping the group line (name) toggles its children — the whole row is the toggle", () => {
+    const { onToggle } = renderHeader();
+    fireEvent.click(screen.getByText("Brokerage"));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  // Mobile (no room for the desktop columns): a body TAP reveals the sum-up line
+  // (P/L% + portfolio%) instead of toggling children; the chevron stays the
+  // children toggle. Regression guard — desktop-click-to-toggle had swallowed it.
+  describe("mobile (matchMedia min-width:640px → no match)", () => {
+    const realMM = window.matchMedia;
+    function mobile() {
+      window.matchMedia = ((q: string) => ({
+        matches: false,
+        media: q,
+        onchange: null,
+        addEventListener() {},
+        removeEventListener() {},
+        addListener() {},
+        removeListener() {},
+        dispatchEvent: () => false,
+      })) as unknown as typeof window.matchMedia;
+    }
+    afterEach(() => {
+      window.matchMedia = realMM;
+    });
+
+    it("a body tap reveals the sum-up line, NOT a children toggle", () => {
+      mobile();
+      const { onToggle } = renderHeader();
+      expect(screen.queryByTestId("investment-group-sum-Brokerage")).toBeNull();
+      fireEvent.click(screen.getByText("Brokerage"));
+      expect(
+        screen.getByTestId("investment-group-sum-Brokerage"),
+      ).toBeInTheDocument();
+      expect(onToggle).not.toHaveBeenCalled();
+    });
+
+    it("the chevron still toggles children (and does not open the sum-up)", () => {
+      mobile();
+      const { onToggle } = renderHeader();
+      fireEvent.click(screen.getByTestId("investment-group-chevron-Brokerage"));
+      expect(onToggle).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("investment-group-sum-Brokerage")).toBeNull();
+    });
   });
 });

@@ -144,13 +144,25 @@ DROP POLICY IF EXISTS sessions_owner_delete ON identity.sessions;
 CREATE POLICY sessions_owner_select ON identity.sessions
   FOR SELECT TO app_role, worker_role
   USING (true);
+-- Phase 10 UAT bug #2: "sign out this session" / "sign out all other devices"
+-- returned success but never revoked. Better Auth's revoke endpoints DELETE the
+-- session row through its Drizzle adapter with NO app.current_user_id GUC, so the
+-- strict owner check matched 0 rows — a silent no-op. Permit the write when the
+-- connection is Better Auth's dedicated pool (app.better_auth=on, set at connection
+-- startup — see betterAuthPool()); when a GUC IS set (ordinary app-layer write) the
+-- row must still be owner-matched so no user can revoke another user's session.
+-- NOT a bare GUC-empty escape hatch: an arbitrary contextless app_role query
+-- (no marker, no user GUC) is still blocked.
 CREATE POLICY sessions_owner_modify ON identity.sessions
   FOR UPDATE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid)
-  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR current_setting('app.better_auth', true) = 'on')
+  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR current_setting('app.better_auth', true) = 'on');
 CREATE POLICY sessions_owner_delete ON identity.sessions
   FOR DELETE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR current_setting('app.better_auth', true) = 'on');
 
 -- identity.accounts: same Phase 1 trade-off. Better Auth reads accounts during
 -- sign-in to verify the password hash; runs without GUC. The provider/account_id
@@ -162,13 +174,23 @@ DROP POLICY IF EXISTS accounts_owner_delete ON identity.accounts;
 CREATE POLICY accounts_owner_select ON identity.accounts
   FOR SELECT TO app_role, worker_role
   USING (true);
+-- Phase 10 UAT bug #1: reset-password / change-password returned success but the
+-- password never changed. Better Auth's reset flow is an UNAUTHENTICATED token
+-- flow — it UPDATEs the credential row with no app.current_user_id GUC, so the
+-- strict owner check matched 0 rows (silent no-op, login kept the old password).
+-- Permit the write when the connection is Better Auth's dedicated pool
+-- (app.better_auth=on); a GUC-set app-layer write must still be owner-matched, and
+-- an arbitrary contextless app_role query (no marker) is still blocked.
 CREATE POLICY accounts_owner_modify ON identity.accounts
   FOR UPDATE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid)
-  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR current_setting('app.better_auth', true) = 'on')
+  WITH CHECK (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR current_setting('app.better_auth', true) = 'on');
 CREATE POLICY accounts_owner_delete ON identity.accounts
   FOR DELETE TO app_role, worker_role
-  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid);
+  USING (user_id = (NULLIF(current_setting('app.current_user_id', true), ''))::uuid
+         OR current_setting('app.better_auth', true) = 'on');
 
 -- Plan 02-03: idempotency_keys (two-policy RLS — no separate cleanup role)
 -- Policy 1 (idempotency_keys_tenant_isolation) is declared in Drizzle schema (pgPolicy).
@@ -196,6 +218,12 @@ ALTER TABLE tenancy.budgets FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenancy.budget_members FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenancy.shared_budget_member_shares FORCE ROW LEVEL SECURITY;
 -- budget_invitations: token-keyed lookup; NO RLS (status column controls visibility).
+
+-- kind-removal: private/shared is no longer a stored concept — it's derived at
+-- display time from member_count (1 = private, >1 = shared). New budgets insert
+-- NULL kind (createOrganization stops passing it), so the column must be nullable.
+-- Idempotent: DROP NOT NULL is a no-op if already nullable.
+ALTER TABLE tenancy.budgets ALTER COLUMN kind DROP NOT NULL;
 
 -- Phase 6 (ONBD-07): onboarding_progress — USER-SCOPED (app.current_user_id), FORCE RLS.
 GRANT SELECT, INSERT, UPDATE, DELETE ON tenancy.onboarding_progress TO app_role;
@@ -397,28 +425,11 @@ CREATE POLICY wallets_worker_cron_scan ON budgeting.wallets
 
 -- D-04/TENT-11 currency lock is enforced in the app layer (budget-identity route + workspaceRepo.hasTransactions); the old DB trigger was over-broad (blocked zero-tx) and was removed in migration 0035.
 
--- PC-11 (TENT-10, D-02): TOCTOU race-free PRIVATE-cap guard. Postgres unique partial indexes
--- cannot reference subqueries, so we use a BEFORE INSERT trigger that runs in the same tx
--- as the INSERT — count read + insert decision are atomic from any concurrent transaction's
--- perspective (row-level lock on budgets.id picked up by SELECT FOR KEY SHARE).
-CREATE OR REPLACE FUNCTION tenancy.budget_members_private_guard() RETURNS trigger AS $$
-DECLARE
-  ws_kind text;
-  live_count int;
-BEGIN
-  SELECT kind INTO ws_kind FROM tenancy.budgets WHERE id = NEW.budget_id FOR KEY SHARE;
-  IF ws_kind = 'PRIVATE' THEN
-    SELECT count(*)::int INTO live_count FROM tenancy.budget_members WHERE budget_id = NEW.budget_id;
-    IF live_count >= 1 THEN
-      RAISE EXCEPTION 'PRIVATE budgets accept only the owner. Convert to SHARED first. (TENT-10, D-02, PC-11)';
-    END IF;
-  END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql;
+-- kind-removal: the PRIVATE-cap guard (PC-11, TENT-10, D-02) is GONE. Any budget
+-- can now accept members; private-vs-shared is a display derivation from
+-- member_count, not an invite gate. Idempotently drop the old trigger + function.
 DROP TRIGGER IF EXISTS budget_members_private_cap ON tenancy.budget_members;
-CREATE TRIGGER budget_members_private_cap
-  BEFORE INSERT ON tenancy.budget_members
-  FOR EACH ROW EXECUTE FUNCTION tenancy.budget_members_private_guard();
+DROP FUNCTION IF EXISTS tenancy.budget_members_private_guard();
 
 -- D-06 / TENT-13: shares sum = 100 per budget, deferred constraint trigger.
 CREATE OR REPLACE FUNCTION tenancy.shares_sum_check() RETURNS trigger AS $$
@@ -711,6 +722,11 @@ ALTER TABLE budgeting.category_reserve_adjustments FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON budgeting.category_reserve_adjustments TO app_role, worker_role;
 REVOKE UPDATE, DELETE ON budgeting.category_reserve_adjustments FROM app_role, worker_role;
 GRANT DELETE ON budgeting.category_reserve_adjustments TO app_role;
+-- Phase 10-06 (USET-06): the account-deletion cascade ANONYMISES adjustments the
+-- leaving user authored in OTHER members' budgets (created_by -> NULL), keeping the
+-- household's data. Column-scoped UPDATE on ONLY created_by — every other column
+-- stays append-only.
+GRANT UPDATE (created_by) ON budgeting.category_reserve_adjustments TO app_role;
 
 -- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
 GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;
@@ -774,3 +790,15 @@ GRANT INSERT, UPDATE ON budgeting.instrument_price_cache TO app_role;
 -- worker_role mirrored for defense-in-depth.
 GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO app_role;
 GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO worker_role;
+
+-- Phase 11 (11-01): per-budget wealth snapshots (D-04, T-11-01). FORCE RLS so the
+-- tenant-isolation policy applies even to the table owner; enumerated by the ci-gate
+-- tenant-leak suite (force-rls-on-all-tables). The 3h cron (11-07) writes via
+-- withTenantTx, which uses the app_role pool + the app.tenant_ids GUC (T-11-02) — so
+-- app_role needs INSERT (the actual write path). worker_role keeps INSERT for any
+-- future worker-pool write path. app_role SELECTs (overview read 11-06) + DELETE
+-- (budget-deletion FK cascade). Append-only: no UPDATE granted to either role.
+ALTER TABLE budgeting.budget_wealth_snapshots FORCE ROW LEVEL SECURITY;
+GRANT SELECT ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
+GRANT INSERT ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
+GRANT DELETE ON budgeting.budget_wealth_snapshots TO app_role;

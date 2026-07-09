@@ -96,4 +96,31 @@ describe("useUpdateTransaction", () => {
     expect(row.amount_converted_cents).toBeUndefined();
     expect(row.category_id).toBeUndefined();
   });
+
+  it("onSettled invalidates the overview queries so the Overview tab refreshes live (UAT round 16)", async () => {
+    // Regression: editing a transaction did NOT refresh Overview → Planned/cards
+    // until the category dropdown changed (query-key change). The mutation must
+    // invalidate the ["budget", id, "overview"] key like it does reserves/tasks.
+    const qc = makeClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ transaction: { id: "txn-1", date: "2026-05-10" } }),
+      text: async () => "",
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useUpdateTransaction(BUDGET, MONTH), {
+      wrapper,
+    });
+
+    result.current.mutate({ txId: "txn-1", date: "2026-05-07" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ["budget", BUDGET, "overview"],
+    });
+  });
 });

@@ -13,6 +13,9 @@ import { PullToRefresh } from "@/components/common/pull-to-refresh";
 import { InstallBanner } from "@/components/common/install-banner";
 import { ViewportDebug } from "@/components/common/viewport-debug";
 import { OfflineResilience } from "@/components/common/offline-resilience";
+import { SafeAreaTopSync } from "@/components/common/safe-area-top-sync";
+import { AppBadge } from "@/components/common/app-badge";
+import { UserTimezoneProvider } from "@/components/common/user-timezone-provider";
 import { OfflineStaleBar } from "@/components/common/offline-stale-bar";
 import { NavCacheWarmer } from "@/components/common/nav-cache-warmer";
 import { OfflineNavGuard } from "@/components/common/offline-nav-guard";
@@ -182,6 +185,19 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     (await cookies()).get("budget-locale")?.value ??
     "en";
 
+  // Cross-device theme: seed the budget-theme cookie + <html data-theme> from the
+  // account's saved theme on a device that has no cookie yet (a fresh browser).
+  // Only-when-absent (like LocaleCookieSync): a present cookie is the live choice
+  // and the Better Auth session caches a STALE theme right after a toggle, so we
+  // must not clobber it. Injected pre-paint so the new device has no flash.
+  const accountTheme = (session?.user as { theme?: string } | undefined)?.theme;
+  const themeSeedScript =
+    accountTheme === "light" || accountTheme === "dark"
+      ? "(function(){try{if(!/(?:^|; )budget-theme=/.test(document.cookie)){var t=" +
+        JSON.stringify(accountTheme) +
+        ";document.documentElement.setAttribute('data-theme',t);document.cookie='budget-theme='+t+'; path=/; max-age=31536000; samesite=lax';}}catch(e){}})();"
+      : null;
+
   return (
     /* global.css locks html + body to height:100% + overflow:hidden (anti
        rubber-band guard for iOS). The (app) shell must therefore own the
@@ -193,21 +209,25 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
        wraps the route children so they blur during the dead-zone between the
        click and the new RSC commit. The header sits OUTSIDE the overlay so
        the user can re-orient (and re-navigate) while the swap settles. */
-    <NavPendingProvider>
-      <div
-        data-shell-root
-        className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]"
-      >
-        <LocaleCookieSync accountLocale={accountLocale} />
-        {/* PullToRefresh is mounted once at the shell level so every
+    <UserTimezoneProvider tz={session?.user.timezone ?? "UTC"}>
+      <NavPendingProvider>
+        <div
+          data-shell-root
+          className="flex h-lvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]"
+        >
+          {themeSeedScript && (
+            <script dangerouslySetInnerHTML={{ __html: themeSeedScript }} />
+          )}
+          <LocaleCookieSync accountLocale={accountLocale} />
+          {/* PullToRefresh is mounted once at the shell level so every
             authenticated route inherits the gesture automatically.
             It lives OUTSIDE the blurred subtree below so the indicator
             stays crisp while the rest of the shell (header + main)
             softens during the pull. Nested-scroll safety is built in —
             see pull-to-refresh.tsx (the gesture bails when any inner
             scroll container has scrolled past the top). */}
-        <PullToRefresh />
-        {/* Blur target spans header + main so the top nav also blurs
+          <PullToRefresh />
+          {/* Blur target spans header + main so the top nav also blurs
             during the pull-to-refresh gesture. PullToRefresh drives
             `--ptr-blur` on the root element; the filter interpolates
             0 → 8px during the gesture and holds at peak while the
@@ -216,58 +236,70 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
             threshold. Toaster + LocaleCookieSync sit outside the blur
             wrap so sonner overlays and the locale-sync side-effect
             are unaffected. */}
-        <div
-          data-ptr-blur-target
-          className="flex flex-1 min-h-0 flex-col"
-          style={{
-            // UAT round 17: drive filter via `--ptr-filter` so the
-            // default value is the keyword `none` (not `blur(0px)`).
-            // `blur(0)` is still a non-`none` filter and creates a
-            // containing block for `position: fixed` children per CSS
-            // spec — that broke dnd-kit's <DragOverlay> ghost
-            // positioning on the Wallets page (ghost rendered offset
-            // below the cursor instead of under it). With `none` no
-            // containing block is established at rest.
-            filter: "var(--ptr-filter, none)",
-            transition: "filter 150ms ease-out",
-          }}
-        >
-          <InstallBanner />
-          {/* UAT-08 device diagnostics — renders only with ?vpdbg=1. */}
-          <ViewportDebug />
-          {/* Offline indicator moved INTO the TopNav header (260614-rwt): a
+          <div
+            data-ptr-blur-target
+            className="flex flex-1 min-h-0 flex-col"
+            style={{
+              // UAT round 17: drive filter via `--ptr-filter` so the
+              // default value is the keyword `none` (not `blur(0px)`).
+              // `blur(0)` is still a non-`none` filter and creates a
+              // containing block for `position: fixed` children per CSS
+              // spec — that broke dnd-kit's <DragOverlay> ghost
+              // positioning on the Wallets page (ghost rendered offset
+              // below the cursor instead of under it). With `none` no
+              // containing block is established at rest.
+              filter: "var(--ptr-filter, none)",
+              transition: "filter 150ms ease-out",
+            }}
+          >
+            <InstallBanner />
+            {/* UAT-08 device diagnostics — renders only with ?vpdbg=1. */}
+            <ViewportDebug />
+            {/* Offline indicator moved INTO the TopNav header (260614-rwt): a
               zero-height inline pill in the header right cluster, no layout
               shift. See components/budgeting/top-nav.tsx. */}
-          {/* Offline resilience island: mounts SwUpdateReloader (auto-reload
+            {/* Offline resilience island: mounts SwUpdateReloader (auto-reload
               installed PWA on SW update). Client leaf inside the app-wide
               QueryClientProvider. */}
-          <OfflineResilience />
-          {/* Warms the SW nav-doc cache (home + current route) while online so a
+            <OfflineResilience />
+            {/* Persists the resolved iOS top safe-area inset so the header padding
+              is stable from frame 1 on the next cold launch (no top-drop jump). */}
+            <SafeAreaTopSync />
+            {/* PWA app-icon badge = Σ pending tasks across all budgets (Badging API,
+              no-op where unsupported). Reuses the active-budgets query cache. */}
+            <AppBadge />
+            {/* Warms the SW nav-doc cache (home + current route) while online so a
               cold offline open / reload serves the real cached page. */}
-          <NavCacheWarmer locale={locale} />
-          {/* Offline, forces hard navigation for in-app links — Next's soft-nav
+            <NavCacheWarmer locale={locale} />
+            {/* Offline, forces hard navigation for in-app links — Next's soft-nav
               hangs forever on a hanging RSC fetch offline. */}
-          <OfflineNavGuard />
-          {/* Global read-only enforcement while offline: blocks every write
+            <OfflineNavGuard />
+            {/* Global read-only enforcement while offline: blocks every write
               control (fields/toggles/selects/submit/delete) + bottom toast;
               navigation + viewing stay live. The per-mutation clientApiWrite
               guard remains the backstop for the iOS lying-true case. */}
-          <OfflineReadOnly />
-          {/* Cold-reload server-down seed: tells ConnectivityProvider the API
+            <OfflineReadOnly />
+            {/* Cold-reload server-down seed: tells ConnectivityProvider the API
               is down so the banner + read-only show immediately (instead of
               waiting for the first client query to fail). */}
-          {degradedServerDown && <ServerDownSeed />}
-          {/* pt-[env(safe-area-inset-top)]: with viewport-fit=cover the page
-              extends under the status bar in standalone mode — the header
-              absorbs the inset so the nav stays below the clock/notch.
-              Resolves to 0 in browser tabs. */}
-          <header
-            data-shell-header
-            className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 pt-[env(safe-area-inset-top)] backdrop-blur"
-          >
-            <TopNav locale={locale} activeBudgetId={activeBudgetId} />
-          </header>
-          {/* Offline staleness banner (260615-e8s round 3): a narrow full-width
+            {degradedServerDown && <ServerDownSeed />}
+            {/* padding-top = the top safe-area inset: with viewport-fit=cover the
+              page extends under the status bar in standalone mode — the header
+              absorbs the inset so the nav stays below the clock/notch. iOS reports
+              env(safe-area-inset-top) as 0 on the first frame of a PWA cold launch
+              then resolves it (a downward drop), so we prefer the pre-paint
+              --safe-top persisted by SafeAreaTopSync and fall back to env() (also
+              the browser-tab value, 0). */}
+            <header
+              data-shell-header
+              className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur"
+              style={{
+                paddingTop: "var(--safe-top, env(safe-area-inset-top))",
+              }}
+            >
+              <TopNav locale={locale} activeBudgetId={activeBudgetId} />
+            </header>
+            {/* Offline staleness banner (260615-e8s round 3): a narrow full-width
               red bar JUST BELOW the header. Renders null online (zero height);
               offline it warns the shown data is cached + how long ago it synced.
               Replaces the old in-header offline icon.
@@ -278,10 +310,10 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               from frame 1 via `html.is-offline [data-offline-bar-slot]` (the
               inline marker in the root layout sets `is-offline` PRE-paint), so
               the bar fills already-reserved space — no reflow, no jump. */}
-          <div data-offline-bar-slot>
-            <OfflineStaleBar budgetId={activeBudgetId} />
-          </div>
-          {/* overscroll-y-none mirrors the global.css rule on html+body.
+            <div data-offline-bar-slot>
+              <OfflineStaleBar budgetId={activeBudgetId} />
+            </div>
+            {/* overscroll-y-none mirrors the global.css rule on html+body.
               <main> is the real scroll surface (body is locked
               overflow:hidden), so without this class iOS rubber-bands
               the page when content overflows — visibly stretching the
@@ -294,21 +326,24 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               SiteFooter removed (UAT-Phase6-Test7 retest #2): the
               in-app shell no longer carries the marketing-style
               footer — the page is the product. */}
-          {/* data-shell-scroll: global.css pads this surface with
+            {/* data-shell-scroll: global.css pads this surface with
               env(safe-area-inset-bottom) so the last rows clear iOS
               Safari's floating bottom bar — and zeroes the padding in
               display-mode standalone, where the same inset rendered as a
               dead band above the home indicator (UAT-08 regression). */}
-          <main
-            data-shell-scroll
-            className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none"
-          >
-            <NavPendingOverlay className="flex-1">{children}</NavPendingOverlay>
-          </main>
+            <main
+              data-shell-scroll
+              className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-y-none"
+            >
+              <NavPendingOverlay className="flex-1">
+                {children}
+              </NavPendingOverlay>
+            </main>
+          </div>
+          <Toaster />
         </div>
-        <Toaster />
-      </div>
-    </NavPendingProvider>
+      </NavPendingProvider>
+    </UserTimezoneProvider>
   );
 }
 

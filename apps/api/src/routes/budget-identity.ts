@@ -49,6 +49,12 @@ export function budgetIdentityRoutesFactory(
         tenantId: string;
         budgetId: string;
       }) => Promise<void>;
+      // r36: income-vs-planned recompute — cushion_mode/currency change moves the
+      // "available" total. Optional (best-effort; hourly sweep is the backstop).
+      recomputeIncomeUnderPlannedRunner?: (input: {
+        tenantId: string;
+        budgetId: string;
+      }) => Promise<void>;
     };
   },
 ) {
@@ -225,6 +231,26 @@ export function budgetIdentityRoutesFactory(
       } catch (e) {
         console.error("[budget-identity] cushion recompute failed:", e);
         // Do not fail the PATCH — hourly sweep catches missed recomputes.
+      }
+    }
+
+    // r36: cushion_mode_enabled (whether cushion wallets count as spendable) and
+    // default_currency (income FX baseline) both move the income-vs-planned
+    // "available" total → recompute INCOME_UNDER_PLANNED. Best-effort.
+    const isIncomeAvailAffecting =
+      body.cushion_mode_enabled !== undefined ||
+      body.default_currency !== undefined;
+    if (
+      isIncomeAvailAffecting &&
+      deps.budgeting?.recomputeIncomeUnderPlannedRunner
+    ) {
+      try {
+        await deps.budgeting.recomputeIncomeUnderPlannedRunner({
+          tenantId: budgetId,
+          budgetId,
+        });
+      } catch (e) {
+        console.error("[budget-identity] income recompute failed:", e);
       }
     }
 

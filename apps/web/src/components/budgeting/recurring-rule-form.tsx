@@ -268,6 +268,19 @@ export function RecurringRuleForm({
         const editUrl = budgetId
           ? `/api/budgets/${budgetId}/recurring-rules/${ruleId}`
           : `/api/recurring-rules/${ruleId}`;
+        // Cadence discriminator (camelCase — the edits schema mirrors
+        // `categoryId`). The backend persists these AND recomputes
+        // next_due_date so a changed day fires on the new schedule.
+        const editCadencePart: Record<string, unknown> =
+          cadence === "WEEKLY"
+            ? { cadence: "WEEKLY", weeklyDow }
+            : cadence === "MONTHLY"
+              ? { cadence: "MONTHLY", cadenceAnchor }
+              : {
+                  cadence: "YEARLY",
+                  yearlyMonth,
+                  cadenceAnchor,
+                };
         const res = await doFetch(editUrl, {
           method: "PATCH",
           headers: {
@@ -281,6 +294,7 @@ export function RecurringRuleForm({
               currency,
               categoryId,
               note: note || null,
+              ...editCadencePart,
             },
             applyToFuture,
           }),
@@ -336,6 +350,20 @@ export function RecurringRuleForm({
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col min-h-0">
           <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+            {/* Name — first + mandatory. Stored in the `note` column (it already
+                serves as the rule's label / task ruleName), so no schema change. */}
+            <div>
+              <Label htmlFor="rr-name">{t("rule.nameLabel")}</Label>
+              <Input
+                id="rr-name"
+                type="text"
+                value={note ?? ""}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={t("rule.namePlaceholder")}
+                required
+              />
+            </div>
+
             {/* Amount + currency share a row, mirroring the transaction
                 slider's amount-and-currency line. */}
             <div className="grid grid-cols-[1fr_auto] gap-3">
@@ -394,10 +422,10 @@ export function RecurringRuleForm({
             {/* Cadence + anchor + first-due fields render in both
                 create AND edit modes (UAT-Phase6-Test7 retest: edit
                 used to hide everything below the amount/currency row).
-                Edit reuses the same state — the PATCH body still only
-                sends amount/currency/note + applyToFuture per the v1.1
-                contract, so changing cadence here is purely informational
-                until the backend exposes cadence on PATCH. */}
+                Edit reuses the same state — the PATCH body now carries the
+                cadence discriminator (cadence + cadenceAnchor / weeklyDow /
+                yearlyMonth), so changing the day persists and the backend
+                recomputes next_due_date to fire on the new schedule. */}
             <>
               {/* Cadence picker: weekly / monthly / yearly tiles.
                     The transfer/income kind toggle was dropped — all
@@ -535,16 +563,6 @@ export function RecurringRuleForm({
               </div>
             </>
 
-            <div>
-              <Label htmlFor="rr-note">{t("rule.noteLabel")}</Label>
-              <Input
-                id="rr-note"
-                type="text"
-                value={note ?? ""}
-                onChange={(e) => setNote(e.target.value)}
-              />
-            </div>
-
             {/* `Also apply to future occurrences` checkbox removed per
                 UAT-Phase6-Test7 retest — it's always true. */}
           </div>
@@ -566,7 +584,9 @@ export function RecurringRuleForm({
             <Button
               type="submit"
               disabled={
-                saving || (categories && categories.length > 0 && !categoryId)
+                saving ||
+                !note?.trim() ||
+                (categories && categories.length > 0 && !categoryId)
               }
               className="h-14 text-base w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
             >

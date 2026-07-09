@@ -53,7 +53,7 @@ export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
   broker: "other",
 };
 
-export const metalSchema = z.enum(["gold", "silver", "platinum"]);
+export const metalSchema = z.enum(["gold", "silver", "platinum", "palladium"]);
 export const metalKindSchema = z.enum(["coin", "bar", "other"]);
 export const uomSchema = z.enum(["g", "oz", "kg"]);
 
@@ -62,6 +62,7 @@ export const METAL_TO_SYMBOL: Record<z.infer<typeof metalSchema>, string> = {
   gold: "XAU/USD",
   silver: "XAG/USD",
   platinum: "XPT/USD",
+  palladium: "XPD/USD",
 };
 
 const currencyCode = z.string().regex(/^[A-Z0-9]{3,5}$/);
@@ -91,6 +92,9 @@ export const createHoldingSchema = z.object({
   metal: metalSchema.nullish(),
   metalKind: metalKindSchema.nullish(),
   unitOfMeasure: uomSchema.nullish(),
+  /** Bullion premium over spot as a percent ("20" = +20%); metals only. Applied to
+   *  the current (resale) value; null/"" = melt/spot value. */
+  premiumPct: numericString.nullish(),
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
@@ -115,6 +119,8 @@ export interface EnrichedHoldingDto {
   metal: string | null;
   metalKind: string | null;
   unitOfMeasure: string | null;
+  /** Precious-metals bullion premium over spot (percent string); null = none. */
+  premiumPct: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
   /** Tracked-instrument price provider; 'manual' = user-priced (editable in the
@@ -133,6 +139,10 @@ export interface EnrichedHoldingDto {
   valueInBudgetCents: string;
   /** signed P/L %, 1 decimal; null for cash / no-basis. */
   profitLossPct: number | null;
+  /** signed absolute P/L in cents (buy-currency basis); null for cash / no-basis.
+   *  Computed server-side from the real cost basis so a near-total loss stays a
+   *  real number (the client must NOT back-derive it from value + rounded pct). */
+  profitLossCents: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;

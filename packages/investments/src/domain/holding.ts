@@ -81,6 +81,11 @@ export class Holding {
      *  cache override puts the price in the source currency (metals: USD); the
      *  read use-case FX-converts the price back into this. */
     public readonly displayCurrency: string | null = null,
+    /** Precious-metals only: bullion premium over spot as a PERCENT string (e.g.
+     *  "20" = +20%). Applied to the CURRENT (resale) value only — the buy price
+     *  already carries the user's acquisition premium. null/"" = no premium
+     *  (melt/spot value). big.js-precision string. */
+    public premiumPct: string | null = null,
   ) {}
 
   /** cash_fx holdings are valued by amount (no quantity x price) and have no P/L. */

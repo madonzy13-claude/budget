@@ -29,7 +29,10 @@ function fmtCurrency(locale: string, cents: string, currency: string): string {
 
 export function BudgetCardClient({ budget, locale }: BudgetCardClientProps) {
   const t = useTranslations("home");
-  const Icon = budget.kind === "PRIVATE" ? Lock : Users;
+  const tNav = useTranslations("nav.switcher");
+  // kind-removal: private/shared is derived from member count, not a stored kind.
+  const isShared = (budget.memberCount ?? 1) > 1;
+  const Icon = isShared ? Users : Lock;
 
   const q = useHomeSummary(budget.id);
   const summary = q.data ?? null;
@@ -37,7 +40,7 @@ export function BudgetCardClient({ budget, locale }: BudgetCardClientProps) {
 
   return (
     <NavLink
-      href={`/${locale}/budgets/${budget.id}/wallets`}
+      href={`/${locale}/budgets/${budget.id}/overview`}
       aria-label={t("card.openAria", { budgetName: budget.name })}
       className="relative group block rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-transparent transition-all hover:border-[var(--primary)] hover:scale-[1.01] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--info-ring)] focus-visible:outline-offset-2"
     >
@@ -60,7 +63,7 @@ export function BudgetCardClient({ budget, locale }: BudgetCardClientProps) {
           {budget.name}
         </h3>
         <Badge variant="secondary" className="text-caption uppercase">
-          {budget.kind}
+          {tNav(isShared ? "shared" : "personal")}
         </Badge>
       </div>
       <div className="h-px bg-[var(--hairline-dark)]" />

@@ -25,6 +25,9 @@ interface InvestmentRowSheetProps {
   holding: HoldingDto;
   /** A grouped child — renders a touch darker (D-#7). */
   nested?: boolean;
+  /** Dim in place — this row's group is being dragged as a block; the lifted copy
+   *  lives in the section's DragOverlay (UAT #1). */
+  ghost?: boolean;
   /** Longest formatted amount in the section → dynamic amount-column width. */
   maxAmountChars?: number;
   onEdit: (holding: HoldingDto) => void;
@@ -38,6 +41,7 @@ const ACTION_W = 136;
 export function InvestmentRowSheet({
   holding,
   nested,
+  ghost,
   maxAmountChars,
   onEdit,
   onArchive,
@@ -183,12 +187,23 @@ export function InvestmentRowSheet({
       }}
       className={[
         "relative",
-        // NO DragOverlay: the active row moves inline via its own transform and
-        // animates to its final slot on drop, so it lands exactly where dropped.
-        // Lift it (shadow + ring + above siblings) while dragging.
-        isDragging
-          ? "z-50 rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]"
+        // Grouped child: indent + a continuous left rail. The flat list has no
+        // nested container to carry a `border-l`, so each child draws its own 1px
+        // rail via a ::before that extends up into the gap-2 above it (−top-2),
+        // joining the header's rail through to the last child (D-#flat-rail). Kept
+        // while dragging too: a grouped child reordered in place must keep its
+        // indent (matching its slot geometry) or the in-group reorder gap can't
+        // animate and the row reads as un-nested (UAT).
+        nested
+          ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
           : "",
+        // Lift above siblings while dragging (z) / HIDE when this row's group is
+        // dragged as a block (ghost → opacity-0). The cohesive copy lives in the
+        // DragOverlay; a dimmed in-place child slid independently of its header and
+        // left a broken remnant (UAT #3). The visible lift (ring + shadow + rounded)
+        // lives on the INNER card below — on this wrapper it would enclose the
+        // indent padding + rail, drawing the ring left of the actual row (UAT).
+        isDragging ? "z-50" : ghost ? "opacity-0" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -239,6 +254,11 @@ export function InvestmentRowSheet({
       </div>
 
       <div
+        className={
+          isDragging
+            ? "rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]"
+            : ""
+        }
         style={{
           transform: swipeTransform,
           transition: swiping ? "none" : undefined,

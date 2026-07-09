@@ -108,6 +108,11 @@ export function useUpdateTransaction(budgetId: string, month: string) {
       // shifts the RESERVE_TOPUP mismatch — refresh reserves tab + pill badge.
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+      // Overview cards/planned/overspent/wealth all derive from transactions —
+      // refresh them live (partial key → every range/category variant).
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     },
   });
 }

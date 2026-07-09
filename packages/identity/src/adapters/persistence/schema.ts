@@ -24,7 +24,7 @@ const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
 
 /**
  * Better Auth manages this table; additionalFields appended:
- *   locale, display_currency, preferred_llm_provider, preferred_stt_provider
+ *   locale, display_currency
  * D-16 PII at rest: email_hash + email_encrypted + email_nonce columns.
  * Phase 1 keeps Better Auth's plain `email` text column for compatibility;
  * Phase 6 TODO: drop plain email, route lookups exclusively via email_hash.
@@ -43,9 +43,18 @@ export const users = identity.table(
     nameNonce: bytea("name_nonce"),
     image: text("image"),
     locale: text("locale").notNull().default("en"),
-    displayCurrency: text("display_currency").notNull().default("USD"),
-    preferredLlmProvider: text("preferred_llm_provider"),
-    preferredSttProvider: text("preferred_stt_provider"),
+    // Nullable + no default: a fresh user starts UNSET (NULL). The budget-create
+    // path seeds it to the first budget's currency (setDisplayCurrencyIfUnset);
+    // findById coalesces NULL -> "USD" so the UserDTO contract stays a string.
+    displayCurrency: text("display_currency"),
+    // IANA timezone (e.g. "Europe/Warsaw"). Nullable: seeded at sign-up from the
+    // browser's resolved zone; a NULL reads back as "UTC" at the repo boundary so
+    // every date renders in a definite zone.
+    timezone: text("timezone"),
+    // UI theme ("dark" | "light"). Nullable: a NULL reads back as "dark" at the
+    // repo boundary (the app default). Persisted so the choice follows the user
+    // across devices/browsers (Phase 10 UAT).
+    theme: text("theme"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -95,6 +104,9 @@ export const sessions = identity.table(
       to: [appRole, workerRole],
       withCheck: sql`true`,
     }),
+    // NOTE: the canonical sessions SELECT/UPDATE/DELETE policies are (re)defined in
+    // apps/migrator/post-migration.sql (single source of truth). This FOR ALL policy
+    // is created by 0001 and then dropped+replaced there.
     pgPolicy("sessions_owner_only", {
       as: "permissive",
       for: "all",
@@ -137,6 +149,10 @@ export const accounts = identity.table(
       to: [appRole, workerRole],
       withCheck: sql`true`,
     }),
+    // NOTE: the canonical accounts SELECT/UPDATE/DELETE policies are (re)defined in
+    // apps/migrator/post-migration.sql (it runs AFTER drizzle migrations and is the
+    // single source of truth for these Better-Auth-owned identity tables). This
+    // FOR ALL policy is created by 0001 and then dropped+replaced there.
     pgPolicy("accounts_owner_only", {
       as: "permissive",
       for: "all",

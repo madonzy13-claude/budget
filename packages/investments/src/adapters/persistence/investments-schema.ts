@@ -38,9 +38,12 @@ export const investments = budgeting.table(
     // → both 'bond'; collectibles → 'other'). Drives the dynamic form on edit.
     uiType: text("ui_type"),
     // Precious-metals attributes (NULL for every other type).
-    metal: text("metal"), // gold | silver | platinum
+    metal: text("metal"), // gold | silver | platinum | palladium
     metalKind: text("metal_kind"), // coin | bar | other (descriptive)
     unitOfMeasure: text("unit_of_measure"), // g | oz | kg
+    // Bullion premium over spot as a percent (e.g. 20.000 = +20%); metals only,
+    // applied to the CURRENT (resale) value. NULL = no premium (melt/spot value).
+    premiumPct: numeric("premium_pct", { precision: 6, scale: 3 }),
     // Optional user-defined grouping label within the Investments section.
     groupName: text("group_name"),
     buyPriceCents: bigint("buy_price_cents", { mode: "bigint" }),
@@ -65,7 +68,7 @@ export const investments = budgeting.table(
     ),
     check(
       "investments_metal_chk",
-      sql`${t.metal} IS NULL OR ${t.metal} IN ('gold','silver','platinum')`,
+      sql`${t.metal} IS NULL OR ${t.metal} IN ('gold','silver','platinum','palladium')`,
     ),
     check(
       "investments_metal_kind_chk",

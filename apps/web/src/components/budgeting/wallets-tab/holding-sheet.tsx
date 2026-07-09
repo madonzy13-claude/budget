@@ -15,7 +15,7 @@
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
 import { useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   Sheet,
@@ -44,6 +44,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { centsToBare } from "@/lib/cents-format";
 import { useCreateHolding } from "@/hooks/use-create-holding";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import type { HoldingDto, HoldingType } from "@/hooks/use-investments";
@@ -57,11 +58,16 @@ import {
   OZ_PER_UNIT,
   deriveUiType,
   isAutoPriced,
+  usesUserChosenCurrency,
   type UiType,
   type Metal,
   type MetalKind,
   type Uom,
 } from "@/lib/investment-types";
+import {
+  computeHoldingPreview,
+  type HoldingPreview,
+} from "@/lib/holding-preview";
 import { GroupCombobox } from "./group-combobox";
 import { PriceBlockedBanner } from "./price-blocked-banner";
 import {
@@ -89,6 +95,11 @@ function centsToDecimal(cents: string | null): string {
   if (cents == null) return "";
   const n = Number(cents);
   return Number.isFinite(n) ? String(n / 100) : "";
+}
+/** Drop trailing zeros from a numeric(28,8) string: "1.13000000" → "1.13",
+ *  "1.00000000" → "1". Leaves a non-decimal string untouched. */
+function trimQty(q: string): string {
+  return q.includes(".") ? q.replace(/0+$/, "").replace(/\.$/, "") : q;
 }
 
 export function HoldingSheet({
@@ -144,7 +155,7 @@ export function HoldingSheet({
   const [buyCurrency, setBuyCurrency] = useState(
     holding?.buyCurrency ?? budgetCurrency,
   );
-  const [quantity, setQuantity] = useState(holding?.quantity ?? "1");
+  const [quantity, setQuantity] = useState(trimQty(holding?.quantity ?? "1"));
   const [currentPrice, setCurrentPrice] = useState(
     centsToDecimal(holding?.currentPriceCents ?? null),
   );
@@ -159,6 +170,12 @@ export function HoldingSheet({
     (holding?.metalKind as MetalKind) ?? "coin",
   );
   const [uom, setUom] = useState<Uom>((holding?.unitOfMeasure as Uom) ?? "g");
+  // Bullion premium over spot (percent string), metals only. Applied to the
+  // current (resale) value; empty = melt/spot value. Kept as a string so the
+  // field can hold a transient empty/decimal state.
+  const [premiumPct, setPremiumPct] = useState<string>(
+    trimQty(holding?.premiumPct ?? ""),
+  );
   const [dirty, setDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [priceBlocked, setPriceBlocked] = useState(false);
@@ -189,10 +206,13 @@ export function HoldingSheet({
       (instrumentId != null && !isAutoPriced(instrumentProvider)));
   // Currency comes FROM a selected instrument, so hide the picker once one is
   // chosen; show it only when the user supplies the value by hand (manual / cash /
-  // broker / manual-entry tracked with no instrument). Metals are the exception:
-  // the spot is USD but the user picks the currency to value the coins in (the
-  // fetched price is FX-converted to it).
-  const showBuyCurrency = instrumentId == null || behavior === "metals";
+  // broker / manual-entry tracked with no instrument). Two exceptions value an
+  // upstream-USD quote in a user-chosen currency, so they KEEP the picker even
+  // with an instrument: metals (spot/oz) and crypto (CoinGecko USD) — the fetched
+  // price is FX-converted to the chosen currency.
+  const userChosenCurrency = usesUserChosenCurrency(uiType);
+  const showBuyCurrency =
+    instrumentId == null || behavior === "metals" || userChosenCurrency;
   const markDirty = () => {
     if (!dirty) setDirty(true);
   };
@@ -207,7 +227,9 @@ export function HoldingSheet({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           // Metals: ask for the price in the user's chosen currency (USD → ccy).
-          body: JSON.stringify(targetCurrency ? { currency: targetCurrency } : {}),
+          body: JSON.stringify(
+            targetCurrency ? { currency: targetCurrency } : {},
+          ),
         },
       );
       if (!res.ok) {
@@ -286,7 +308,11 @@ export function HoldingSheet({
     setInstrumentProvider(inst.provider ?? null);
     setSymbol(inst.symbol);
     setName(inst.displayName);
-    if (inst.quoteCurrency) {
+    // Crypto values its USD quote in the user's chosen currency, so DON'T lock to
+    // the instrument's quote currency — keep what the user picked (default = budget
+    // currency) and fetch the price converted into it (below). Everything else
+    // adopts the instrument's quote currency.
+    if (inst.quoteCurrency && !userChosenCurrency) {
       setBuyCurrency(inst.quoteCurrency);
       setCurrentPriceCurrency(inst.quoteCurrency);
     }
@@ -294,7 +320,8 @@ export function HoldingSheet({
     // never call the price endpoint (it would 422 → spurious blocked banner).
     if (isAutoPriced(inst.provider)) {
       setCurrentPrice("");
-      void fetchPrice(inst.id);
+      // Crypto: ask for the price FX-converted into the chosen currency.
+      void fetchPrice(inst.id, userChosenCurrency ? buyCurrency : undefined);
     } else {
       setCurrentPrice("");
       setPriceBlocked(false);
@@ -313,7 +340,9 @@ export function HoldingSheet({
     setCurrentPrice("");
   }
 
-  // Read-only current-price preview (metals: spot/oz converted to the UoM).
+  // Read-only current-price preview (metals: spot/oz converted to the UoM). This is
+  // the RAW market price per unit — the bullion premium is shown + applied below in
+  // the Preview sum-up, not folded into this field.
   const currentPricePreview = useMemo(() => {
     if (!currentPrice) return "";
     if (behavior === "metals") {
@@ -322,6 +351,31 @@ export function HoldingSheet({
     }
     return currentPrice;
   }, [currentPrice, behavior, uom]);
+
+  // Live "what will be created" sum-up (all types) — buy/current totals, premium,
+  // P/L. buy + current currency are kept lock-step in this form, so it is single-
+  // currency and the P/L is exact (no FX in the preview).
+  const preview = useMemo(
+    () =>
+      computeHoldingPreview({
+        behavior,
+        currency: currentPriceCurrency,
+        quantity,
+        buyPrice,
+        currentPrice,
+        uom,
+        premiumPct,
+      }),
+    [
+      behavior,
+      currentPriceCurrency,
+      quantity,
+      buyPrice,
+      currentPrice,
+      uom,
+      premiumPct,
+    ],
+  );
 
   const canSave = useMemo(() => {
     if (!uiType) return false; // no type chosen yet
@@ -403,6 +457,8 @@ export function HoldingSheet({
         metal,
         metalKind,
         unitOfMeasure: uom,
+        // Premium over spot (resale value). Empty → null (melt/spot value).
+        premiumPct: premiumPct.trim() ? premiumPct.replace(",", ".") : null,
         quantity,
         buyPriceCents: toCents(buyPrice),
         buyCurrency,
@@ -730,14 +786,18 @@ export function HoldingSheet({
               {showBuyCurrency && (
                 <Field
                   label={
-                    behavior === "metals"
+                    behavior === "metals" || userChosenCurrency
                       ? t("field.currency")
                       : t("field.buyCurrency")
                   }
                 >
                   <CurrencyPicker
                     variant="field"
-                    value={behavior === "metals" ? currentPriceCurrency : buyCurrency}
+                    value={
+                      behavior === "metals" || userChosenCurrency
+                        ? currentPriceCurrency
+                        : buyCurrency
+                    }
                     onSelect={(v) => {
                       markDirty();
                       setBuyCurrency(v);
@@ -746,6 +806,9 @@ export function HoldingSheet({
                       setCurrentPriceCurrency(v);
                       // Metals: re-fetch the spot converted into the new currency.
                       if (behavior === "metals") void resolveMetal(metal, v);
+                      // Crypto: re-fetch the instrument's USD quote converted to it.
+                      else if (userChosenCurrency && instrumentId != null)
+                        void fetchPrice(instrumentId, v);
                     }}
                     aria-label={t("field.currency")}
                   />
@@ -795,20 +858,39 @@ export function HoldingSheet({
                   />
                 ) : (
                   <div className="space-y-1">
-                    <p
+                    {/* Auto-fetched price: a real (disabled) field, not editable. */}
+                    <Input
                       data-testid="holding-sheet-current-price"
-                      className="text-num-md text-[var(--body-on-dark)]"
-                    >
-                      {currentPricePreview
-                        ? `${currentPricePreview} ${currentPriceCurrency}`
-                        : "—"}
-                    </p>
+                      disabled
+                      readOnly
+                      // Currency is conveyed by the field label (tracked) / the
+                      // currency picker (metals / crypto) + the Preview — so the
+                      // value itself is just the number.
+                      value={currentPricePreview || "—"}
+                      className="text-num-md tabular-nums"
+                    />
+                    {/* When the price was fetched. */}
                     <p className="text-caption text-[var(--muted-foreground)]">
                       {t("field.lastUpdated", { relativeTime: t("field.now") })}
                     </p>
                   </div>
                 )}
               </Field>
+              {/* Bullion premium — metals only, BELOW the (raw) current price; the
+                  Preview sum-up applies it to the resale value. */}
+              {behavior === "metals" && (
+                <Field label={t("field.premium")}>
+                  <NumericInput
+                    testId="holding-sheet-premium"
+                    value={premiumPct}
+                    onChange={(v) => {
+                      markDirty();
+                      setPremiumPct(v);
+                    }}
+                    placeholder="0"
+                  />
+                </Field>
+              )}
             </>
           ) : null}
 
@@ -826,6 +908,11 @@ export function HoldingSheet({
                 aria-label={t("field.group")}
               />
             </Field>
+          )}
+
+          {/* 8. Preview — "what will be created" sum-up (all types). */}
+          {preview && (
+            <HoldingPreviewBlock preview={preview} behavior={behavior} />
           )}
         </div>
 
@@ -868,6 +955,148 @@ export function HoldingSheet({
         </AlertDialogContent>
       </AlertDialog>
     </Sheet>
+  );
+}
+
+/** "What will be created" sum-up. Type-aware rows: buy total, current value,
+ *  (metals: + premium = with-premium), and P/L. Single-currency (the form keeps
+ *  buy + current currency in lock-step). */
+function HoldingPreviewBlock({
+  preview,
+  behavior,
+}: {
+  preview: HoldingPreview;
+  behavior: string | null;
+}) {
+  const t = useTranslations("budget.investments");
+  const locale = useLocale();
+  // Same number rule as the rest of the app (centsToBare): whole → no decimals,
+  // fractional → exactly 2 (100 → "100", 100.5 → "100.50", 100.34 → "100.34").
+  const fmt = (n: number) => centsToBare(String(Math.round(n * 100)), locale);
+  const money = (n: number) => `${fmt(n)} ${preview.currency}`;
+  const trim = (n: number) => {
+    const s = String(n);
+    return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
+  };
+  const qtyStr = preview.showQty ? ` × ${trim(preview.qty)}` : "";
+
+  type Row = {
+    key: string;
+    label: string;
+    sub?: string;
+    value: string;
+    pl?: boolean;
+  };
+  const rows: Row[] = [];
+  if (behavior === "cash") {
+    rows.push({
+      key: "amount",
+      label: t("preview.amount"),
+      value: money(preview.actualTotal),
+    });
+  } else if (behavior === "broker") {
+    if (preview.buyTotal != null)
+      rows.push({
+        key: "dep",
+        label: t("preview.deposited"),
+        value: money(preview.buyTotal),
+      });
+    rows.push({
+      key: "cur",
+      label: t("preview.currentValue"),
+      value: money(preview.actualTotal),
+    });
+  } else {
+    if (preview.buyTotal != null)
+      rows.push({
+        key: "buy",
+        label: t("preview.buyTotal"),
+        sub: `${fmt(preview.buyUnit ?? 0)}${qtyStr}`,
+        value: money(preview.buyTotal),
+      });
+    rows.push({
+      key: "cur",
+      label: t("preview.currentValue"),
+      sub: `${fmt(preview.actualUnit)}${qtyStr}`,
+      value: money(preview.actualBase),
+    });
+    if (preview.premiumPct > 0) {
+      rows.push({
+        key: "prem",
+        label: t("preview.premium"),
+        sub: `${trim(preview.premiumPct)}%`,
+        value: `+ ${money(preview.premiumAmount)}`,
+      });
+      rows.push({
+        key: "withprem",
+        label: t("preview.withPremium"),
+        value: money(preview.actualTotal),
+      });
+    }
+  }
+  if (preview.pl != null) {
+    const sign = preview.pl > 0 ? "+" : preview.pl < 0 ? "−" : "";
+    const pct =
+      preview.plPct != null
+        ? ` (${preview.plPct >= 0 ? "+" : "−"}${Math.abs(preview.plPct).toFixed(1)}%)`
+        : "";
+    rows.push({
+      key: "pl",
+      label: t("preview.pl"),
+      value: `${sign}${money(Math.abs(preview.pl))}${pct}`,
+      pl: true,
+    });
+  }
+
+  const plColor =
+    preview.pl != null && preview.pl < 0
+      ? "text-[var(--trading-down)]"
+      : preview.pl != null && preview.pl > 0
+        ? "text-[var(--trading-up)]"
+        : "text-[var(--body-on-dark)]";
+
+  return (
+    <div
+      data-testid="holding-sheet-preview"
+      className="mt-2 rounded-[var(--radius-md)] border border-[var(--input)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] p-3"
+    >
+      <p className="mb-3 border-b border-[var(--hairline-dark)] pb-2 text-caption font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+        {t("preview.title")}
+      </p>
+      <div className="space-y-2.5">
+        {rows.map((r) => (
+          <div
+            key={r.key}
+            className={[
+              // label + its formula stack on the LEFT (so the formula never
+              // competes with the amount → no wrap); the amount stays on one line.
+              "flex items-center justify-between gap-4",
+              // Separate the concluding P/L row with a divider.
+              r.pl ? "mt-1 border-t border-[var(--hairline-dark)] pt-2.5" : "",
+            ].join(" ")}
+          >
+            <span className="flex min-w-0 flex-col">
+              <span className="text-body-sm text-[var(--muted-foreground)]">
+                {r.label}
+              </span>
+              {r.sub && (
+                <span className="text-caption tabular-nums text-[var(--muted-strong)]">
+                  {r.sub}
+                </span>
+              )}
+            </span>
+            <span
+              className={[
+                "shrink-0 whitespace-nowrap text-num-sm font-medium tabular-nums",
+                r.pl ? plColor : "text-[var(--body-on-dark)]",
+              ].join(" ")}
+            >
+              {r.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

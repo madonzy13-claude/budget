@@ -59,6 +59,78 @@ describe("Email Templates", () => {
     });
   });
 
+  describe("change-email", () => {
+    test("renders English with the confirm url and the new address", () => {
+      const url = "http://x/auth/verify-email?token=ce";
+      const out = renderEmail(
+        "change-email",
+        { url, newEmail: "new@example.com" },
+        "en",
+      );
+      expect(out.subject).toContain("Budget");
+      expect(out.html).toContain(url);
+      expect(out.text).toContain(url);
+      expect(out.text).toContain("new@example.com");
+      expect(out.html).toContain("new@example.com");
+    });
+
+    test("renders Polish with the new address", () => {
+      const out = renderEmail(
+        "change-email",
+        { url: "http://x", newEmail: "new@example.com" },
+        "pl",
+      );
+      expect(out.subject).toContain("Budget");
+      expect(out.text).toContain("new@example.com");
+    });
+
+    test("renders Ukrainian with the new address", () => {
+      const out = renderEmail(
+        "change-email",
+        { url: "http://x", newEmail: "new@example.com" },
+        "uk",
+      );
+      expect(out.subject).toContain("Budget");
+      expect(out.text).toContain("new@example.com");
+    });
+
+    test("escapes an HTML-unsafe new email", () => {
+      const out = renderEmail(
+        "change-email",
+        { url: "http://x", newEmail: "<script>@x.com" },
+        "en",
+      );
+      expect(out.html).not.toContain("<script>");
+    });
+  });
+
+  describe("delete-account", () => {
+    test("renders English with the confirm url", () => {
+      const url = "http://x/auth/delete-user/callback?token=da";
+      const out = renderEmail("delete-account", { url }, "en");
+      expect(out.subject).toContain("Budget");
+      expect(out.html).toContain(url);
+      expect(out.text).toContain(url);
+    });
+
+    test("renders Polish + Ukrainian", () => {
+      for (const loc of ["pl", "uk"] as const) {
+        const out = renderEmail("delete-account", { url: "http://x" }, loc);
+        expect(out.subject).toContain("Budget");
+        expect(out.text).toContain("http://x");
+      }
+    });
+
+    test("escapes an HTML-unsafe url", () => {
+      const out = renderEmail(
+        "delete-account",
+        { url: 'http://x/?q="><script>alert(1)</script>' },
+        "en",
+      );
+      expect(out.html).not.toContain("<script>");
+    });
+  });
+
   test("throws on unknown template name", () => {
     expect(() => renderEmail("unknown", {})).toThrow(/Unknown email template/);
   });

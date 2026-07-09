@@ -53,6 +53,9 @@ export function DisplayCurrencyPicker({
           onSelect={handleSelect}
           aria-label={t("label")}
           disabled={isSaving}
+          variant="field"
+          richLabel
+          desktopDropdown
         />
         {isSaving && (
           <Loader2 className="h-4 w-4 animate-spin text-[var(--muted-foreground)]" />

@@ -92,6 +92,7 @@ export function createTasksRoute(deps: BootedDeps) {
         tenantId,
         budgetId,
         taskId,
+        actorUserId: (session as { user: { id: string } }).user.id,
       });
       if (result.isErr()) {
         console.error("[resolve-task] failed:", result.error);

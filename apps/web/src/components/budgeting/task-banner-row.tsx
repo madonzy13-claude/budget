@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { centsToDisplayCompact } from "@/lib/cents-format";
+import { useCategories } from "@/hooks/use-budget-data";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +32,8 @@ import {
 export type TaskKind =
   | "RESERVE_TOPUP"
   | "CONFIRM_DRAFT"
-  | "CUSHION_BELOW_TARGET";
+  | "CUSHION_BELOW_TARGET"
+  | "INCOME_UNDER_PLANNED";
 
 export interface TaskSummary {
   id: string;
@@ -58,15 +60,15 @@ export interface TaskBannerRowProps {
 function buildTitleParams(
   task: TaskSummary,
   locale: string,
+  categoryName?: string,
 ): Record<string, string> {
   const payload = task.payload ?? {};
   const currency = (payload.currency as string) ?? "EUR";
 
-  // UAT round 5: `centsToDisplayCompact` mirrors the spendings-grid bare-
-  // amount rule (drop `.00` for whole-unit amounts, pad to 2 digits for
-  // non-zero fractions: 2000c EUR → "€20", 1750c EUR → "€17.50") while
-  // keeping the currency symbol so task rows are unambiguous on surfaces
-  // not already scoped to a single currency.
+  // Always format with the EN locale so the currency SYMBOL ($, €, £) shows —
+  // not the ISO code. Intl in PL/UK renders USD as "563 USD"; "en" gives "$563"
+  // (round 23 item 6; mirrors the overview cards). Compact: drops `.00` on whole
+  // units, keeps 2 digits on fractions.
   function fmt(cents: unknown): string {
     if (cents === undefined || cents === null || cents === "") return "";
     try {
@@ -76,7 +78,7 @@ function buildTitleParams(
       const asNumber = Number(raw);
       if (!Number.isFinite(asNumber)) return "";
       const intStr = Math.trunc(asNumber).toString();
-      return centsToDisplayCompact(intStr, currency, locale);
+      return centsToDisplayCompact(intStr, currency, "en");
     } catch {
       return "";
     }
@@ -85,19 +87,43 @@ function buildTitleParams(
   switch (task.kind) {
     case "RESERVE_TOPUP":
       return { amount: fmt(payload.shortfall_cents) };
-    case "CONFIRM_DRAFT":
+    case "CONFIRM_DRAFT": {
+      // Title: `Confirm {amount} — {category}` (amount first, NEVER the rule note —
+      // round 23 item 7). Drops the "— {category}" tail when the category can't be
+      // resolved (hasCategory drives the ICU select).
+      const category = categoryName ?? "";
       return {
-        ruleName: (payload.rule_name as string) ?? "",
+        ruleName: (payload.rule_name as string) ?? "", // detail text only
+        category,
+        hasCategory: category ? "yes" : "no",
         amount: fmt(payload.amount_cents),
       };
+    }
     case "CUSHION_BELOW_TARGET":
       return { shortfall: fmt(payload.shortfall_cents) };
+    case "INCOME_UNDER_PLANNED":
+      return {
+        shortfall: fmt(payload.shortfall_cents),
+        income: fmt(payload.income_cents),
+        available: fmt(payload.available_cents),
+        planned: fmt(payload.planned_cents),
+      };
   }
 }
 
-export function TaskBannerRow({ task }: TaskBannerRowProps) {
+export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
   const t = useTranslations();
   const locale = useLocale();
+
+  // Resolve the draft's category NAME from the budget's categories (the task
+  // payload only carries category_id) so the CONFIRM_DRAFT title can read
+  // "…in {category}". Works for existing tasks too (no re-emit).
+  const categories = useCategories(budgetId).data ?? [];
+  const categoryName =
+    task.kind === "CONFIRM_DRAFT"
+      ? categories.find((c) => c.id === (task.payload?.category_id as string))
+          ?.name
+      : undefined;
 
   // RESERVE_TOPUP carries a `direction` of "TOPUP" or "WITHDRAW" in payload
   // (recompute-reserve-topup-task.ts:125). The WITHDRAW direction needs a
@@ -109,7 +135,7 @@ export function TaskBannerRow({ task }: TaskBannerRowProps) {
       : "";
   const titleKey = `bdp.tasks.title.${task.kind}${directionSuffix}` as const;
   const detailKey = `bdp.tasks.detail.${task.kind}${directionSuffix}` as const;
-  const titleParams = buildTitleParams(task, locale);
+  const titleParams = buildTitleParams(task, locale, categoryName);
   const title = t(titleKey, titleParams);
 
   return (

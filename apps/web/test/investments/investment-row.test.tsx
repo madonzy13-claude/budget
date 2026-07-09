@@ -9,13 +9,33 @@
  * - Delisted row → opacity-50 + "Delisted" chip
  * - NO inline <input> on the row (sheet-only editing, INV-06)
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { InvestmentRow } from "../../src/components/budgeting/wallets-tab/investment-row";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
 // next-intl mock — relative key lookup with param substitution.
 import { vi } from "vitest";
+
+// happy-dom's default viewport reports desktop (min-width:640px matches), which
+// would flip the row into desktop-click-to-edit mode for every test. Pin matchMedia
+// to MOBILE by default so the expand-on-tap tests model a phone; the one desktop
+// test overrides window.matchMedia locally.
+function mockMatchMedia(matches: boolean) {
+  window.matchMedia = ((q: string) => ({
+    matches,
+    media: q,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent() {
+      return false;
+    },
+  })) as unknown as typeof window.matchMedia;
+}
+beforeEach(() => mockMatchMedia(false));
 vi.mock("next-intl", () => ({
   useTranslations:
     (_ns: string) => (key: string, params?: Record<string, unknown>) => {
@@ -24,6 +44,7 @@ vi.mock("next-intl", () => ({
         "row.editAria": "Edit {name}",
         "row.deleteAria": "Archive {name}",
         "uitype.cash": "Cash",
+        "row.qty": "Qty: {qty}",
         "row.share": "Share: {pct}",
         rowExpandAria: "Expand {name}",
         plAria: "{value} profit/loss",
@@ -50,6 +71,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    premiumPct: null,
     symbol: null,
     isCustom: false,
     isDelisted: false,
@@ -61,6 +83,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     valueCents: "420000",
     valueInBudgetCents: "420000",
     profitLossPct: 12.4,
+    profitLossCents: "120000",
     weightPct: 18,
     sortOrder: 1,
     createdAt: "2026-06-21T00:00:00Z",
@@ -167,6 +190,7 @@ describe("InvestmentRow", () => {
           name: "Vintage car",
           symbol: null,
           profitLossPct: 50,
+          profitLossCents: "1500000",
           weightPct: 13,
           valueCents: "4500000",
           currentPriceCurrency: "USD",
@@ -175,9 +199,113 @@ describe("InvestmentRow", () => {
     );
     fireEvent.click(screen.getByLabelText("Expand Vintage car"));
     expect(screen.getByText("Share: 13.0%")).toBeInTheDocument();
-    // P/L money amount (value 45,000 @ +50% → cost 30,000 → +15,000), no currency.
-    expect(screen.getByText("+15,000")).toBeInTheDocument();
+    // P/L money amount comes straight from the server (+15,000.00), no currency.
+    // Renders in both the desktop cluster and the mobile-expanded line (UAT #7).
+    expect(screen.getAllByText("+15,000").length).toBeGreaterThan(0);
     expect(screen.getAllByText("+50.0%").length).toBeGreaterThan(0); // P/L%
+  });
+
+  // 260626 regression: the old plMoney back-derived cost as value/(1+pct/100);
+  // at a near-total loss pct rounds to -100.0 → ÷0 → the amount collapsed to "-0".
+  // The row now renders the server's profitLossCents, a real number.
+  it("expanded P/L money uses server profitLossCents — a near-total loss is real, not '−0'", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Silver coin",
+          symbol: null,
+          profitLossPct: -100,
+          profitLossCents: "-3449500", // −34,495.00
+          valueCents: "161",
+          currentPriceCurrency: "EUR",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand Silver coin"));
+    expect(screen.getAllByText("−34,495").length).toBeGreaterThan(0);
+    expect(screen.queryByText("−0")).toBeNull();
+  });
+
+  // 260626: mobile-expanded third row shows Qty before Share for holdings with a
+  // real quantity (tracked/metals); cash/broker (qty 1) omit it.
+  it("mobile expand shows 'Qty: <n>' before Share for a metals holding", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Bullion",
+          symbol: null,
+          uiType: "precious_metals",
+          holdingType: "commodity",
+          quantity: "0.98563280",
+          weightPct: 100,
+          valueCents: "161",
+          profitLossPct: -100,
+          profitLossCents: "-3449500",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand Bullion"));
+    // trailing zeros trimmed for display.
+    expect(screen.getByText("Qty: 0.9856328")).toBeInTheDocument();
+    expect(screen.getByText("Share: 100.0%")).toBeInTheDocument();
+  });
+
+  it("mobile expand omits Qty for a cash holding (qty is meaningless)", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "USD Cash",
+          holdingType: "cash_fx",
+          profitLossPct: null,
+          weightPct: 5,
+          valueCents: "1000000",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand USD Cash"));
+    expect(screen.queryByText(/^Qty:/)).toBeNull();
+    expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
+  });
+
+  // UAT #7: desktop listing gains a quantity column + the P/L money amount, in
+  // the order qty · P/L% · P/L amt · value · weight. (Desktop cells render with a
+  // `hidden sm:*` class — present in the DOM under happy-dom regardless of CSS.)
+  it("desktop: renders a quantity cell and the P/L money amount inline", () => {
+    render(<InvestmentRow holding={holding()} />);
+    // qty cell shows the holding quantity (testid keeps it unambiguous).
+    expect(screen.getByTestId("holding-qty-AAPL")).toHaveTextContent("10");
+    // P/L money from the server's profitLossCents (120000 → +1,200), no currency.
+    expect(screen.getByText("+1,200")).toBeInTheDocument();
+    expect(screen.getByText("+12.4%")).toBeInTheDocument();
+  });
+
+  it("desktop: the quantity cell is blank for a cash holding (qty meaningless)", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ name: "USD Cash", holdingType: "cash_fx" })}
+      />,
+    );
+    expect(screen.getByTestId("holding-qty-USD Cash")).toHaveTextContent("");
+  });
+
+  // UAT #7: the hover edit pen is removed; editing moves to a desktop row-click.
+  it("desktop: no edit pen button — only the delete/trash hover action remains", () => {
+    render(
+      <InvestmentRow holding={holding()} onEdit={vi.fn()} onDelete={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: "Edit AAPL" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Archive AAPL" }),
+    ).toBeInTheDocument();
+  });
+
+  it("desktop: clicking the row opens the edit sheet (does not toggle expand)", () => {
+    mockMatchMedia(true); // desktop viewport
+    const onEdit = vi.fn();
+    render(<InvestmentRow holding={holding()} onEdit={onEdit} />);
+    // On desktop the body is labelled Edit (not Expand) and a click edits.
+    fireEvent.click(screen.getByLabelText("Edit AAPL"));
+    expect(onEdit).toHaveBeenCalledTimes(1);
   });
 
   it("dims a delisted holding's content but keeps the drag handle full opacity", () => {
@@ -189,7 +317,11 @@ describe("InvestmentRow", () => {
     );
     // The grip (handle slot) must NOT sit inside any opacity-50 element — a
     // parent's opacity caps its children, so the handle stays usable (09-07-PLAN).
-    for (let el = screen.getByTestId("grip").parentElement; el; el = el.parentElement) {
+    for (
+      let el = screen.getByTestId("grip").parentElement;
+      el;
+      el = el.parentElement
+    ) {
       expect(el.className ?? "").not.toContain("opacity-50");
     }
     // The row content (the tap-to-expand region) IS dimmed; chip still shows.

@@ -58,7 +58,14 @@ const SheetContent = React.forwardRef<
     <SheetOverlay />
     <SheetPrimitive.Content
       ref={ref}
-      className={cn(sheetVariants({ side }), className)}
+      // !pointer-events-auto: a nested modal Radix Select/Popover sets an INLINE
+      // `pointer-events: none` on this content while open (its DismissableLayer
+      // inertizes outer layers), making the very trigger you clicked dead — the
+      // close-tap then falls through to the Dialog overlay and reopens the Select.
+      // Inline style beats a plain class, so force it with `!important` to keep the
+      // sheet subtree interactive → the trigger closes natively, no reopen
+      // (root-caused + validated live, r33 dropdown fix).
+      className={cn(sheetVariants({ side }), "!pointer-events-auto", className)}
       data-sheet-content
       {...props}
     >

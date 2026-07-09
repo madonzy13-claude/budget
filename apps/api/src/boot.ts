@@ -38,8 +38,10 @@ import { listPendingTasks } from "@budget/budgeting/src/application/list-pending
 import { resolveTask } from "@budget/budgeting/src/application/resolve-task";
 import { getCushionSummary } from "@budget/budgeting/src/application/get-cushion-summary";
 import { recomputeCushionTask } from "@budget/budgeting/src/application/recompute-cushion-task";
+import { makeRecomputeIncomeUnderPlannedTask } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 import { withTenantTx } from "@budget/platform";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
+import { DrizzleIncomeRepo } from "@budget/budgeting/src/adapters/persistence/income-repo";
 import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
 import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
 import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
@@ -48,6 +50,16 @@ import { reorderCategories } from "@budget/budgeting/src/application/reorder-cat
 import { dismissDraft } from "@budget/budgeting/src/application/dismiss-draft";
 import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
 import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
+import { getOverviewCards } from "@budget/budgeting/src/application/get-overview-cards";
+import { computeUpcomingByCategory } from "@budget/budgeting/src/application/compute-upcoming-by-category";
+import { computeCashflowProjection } from "@budget/budgeting/src/application/compute-cashflow-projection";
+import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
+import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
+import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
+import { getOverviewWealth } from "@budget/budgeting/src/application/get-overview-wealth";
+import { computeBudgetWealthNow } from "@budget/budgeting/src/application/compute-budget-wealth-now";
+import { createWealthSnapshotRepo } from "@budget/budgeting/src/adapters/persistence/wealth-snapshot-repo";
+import { createOverviewRepo } from "@budget/budgeting/src/adapters/persistence/overview-repo";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import pino, { type BaseLogger } from "pino";
 
@@ -78,6 +90,12 @@ export interface BootedDeps {
      * Wired into the PATCH /budgets/:id route on cushion-affecting bodies
      * (cushion_target_months / cushion_enabled).
      */
+    /** r33: own-tx runner for the INCOME_UNDER_PLANNED task ("review your
+     * spendings"). Wired into income CRUD + set-category-limit. */
+    recomputeIncomeUnderPlannedRunner: (input: {
+      tenantId: string;
+      budgetId: string;
+    }) => Promise<void>;
     recomputeCushionTaskRunner: (input: {
       tenantId: string;
       budgetId: string;
@@ -90,6 +108,16 @@ export interface BootedDeps {
     confirmDraft: ReturnType<typeof confirmDraft>;
     /** GRID-02/15, RSCM-03/04: 5-row spendings header read */
     getSpendingsSummary: ReturnType<typeof getSpendingsSummary>;
+    /** Phase 11 (11-03): 5-card Overview summary (default_currency). */
+    getOverviewCards: ReturnType<typeof getOverviewCards>;
+    /** Phase 11 (11-04): Planned section (timeline + planned-avg + recurring). */
+    getOverviewPlanned: ReturnType<typeof getOverviewPlanned>;
+    /** Phase 11 (11-05): Overspent + Reserves section (after-reserves, default_ccy). */
+    getOverviewOverspent: ReturnType<typeof getOverviewOverspent>;
+    /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
+    getOverviewWealth: ReturnType<typeof getOverviewWealth>;
+    /** Overview projection timeline (today → end of next month). */
+    getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
   };
   /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
   investments: ReturnType<typeof createInvestmentsModule>;
@@ -229,6 +257,16 @@ export async function boot(): Promise<BootedDeps> {
     }
   };
 
+  // r33: own-tx runner for the INCOME_UNDER_PLANNED task. Wired into the incomes
+  // route (income CRUD) + set-category-limit (planned change). Best-effort —
+  // failure is logged, never fails the request; the hourly sweep is the backstop.
+  const recomputeIncomeUnderPlannedRunner = makeRecomputeIncomeUnderPlannedTask(
+    {
+      taskRepo,
+      fxProvider: baseBudgeting.fxProvider,
+    },
+  );
+
   // Phase 4 repos + services
   const categoryRepo = new DrizzleCategoryRepo();
   const categoryLimitRepo = new DrizzleCategoryLimitRepo();
@@ -262,6 +300,9 @@ export async function boot(): Promise<BootedDeps> {
     // engine cells via the replay orchestrator — the SAME engine-derived reserve
     // per category the reserves tab reads. No reserve_actual fallback.
     reservePositions: baseBudgeting.reservePositions,
+    // r33: income + FX drive the smart Investments limit (income − Σ other planned).
+    incomeRepo: new DrizzleIncomeRepo(),
+    fxProvider: baseBudgeting.fxProvider,
   });
 
   const budgeting = Object.assign(baseBudgeting, {
@@ -270,6 +311,7 @@ export async function boot(): Promise<BootedDeps> {
     resolveTask: resolveTaskService,
     getCushionSummary: getCushionSummaryService,
     recomputeCushionTaskRunner,
+    recomputeIncomeUnderPlannedRunner,
     reorderCategories: reorderCategoriesService,
     dismissDraft: dismissDraftService,
     confirmDraft: confirmDraftService,
@@ -306,6 +348,106 @@ export async function boot(): Promise<BootedDeps> {
     }),
   });
 
+  // Phase 11 (11-03): the 5-card Overview summary. Wired AFTER investments so the
+  // holdings-valuation port can reuse investments.listHoldings (already FX→budget
+  // currency via valueInBudgetCents). metaReader + cushion + spendings are reused
+  // verbatim (no new cushion/overspent math — D-08/D-10).
+  const overviewCardsRepo = createOverviewCardsRepo();
+  const holdingsValuation = {
+    investmentValueCents: async (input: {
+      tenantId: string;
+      budgetId: string;
+      defaultCurrency: string;
+    }): Promise<bigint> => {
+      const r = await investments.listHoldings({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        actorUserId: SYSTEM_USER_UUID,
+        budgetCurrency: input.defaultCurrency,
+      });
+      if (r.isErr()) throw r.error;
+      return r.value.holdings.reduce(
+        (sum, h) => sum + BigInt(h.valueInBudgetCents),
+        0n,
+      );
+    },
+  };
+  const budgetingFinal = Object.assign(budgeting, {
+    getOverviewCards: getOverviewCards({
+      metaReader: summaryRepo,
+      walletRepo: overviewCardsRepo,
+      holdingsValuation,
+      fxProvider: baseBudgeting.fxProvider,
+      cushionSummary: getCushionSummaryService,
+      spendingsSummary: getSpendingsSummaryService,
+      reservesSummary: baseBudgeting.getReservesSummary,
+      upcomingByCategory: computeUpcomingByCategory({
+        fxProvider: baseBudgeting.fxProvider,
+      }),
+    }),
+    // Phase 11 (11-04): Planned section. Multi-month aggregation repo + the same
+    // meta reader + fxProvider (recurring amounts only).
+    getOverviewPlanned: getOverviewPlanned({
+      repo: createOverviewRepo(),
+      metaReader: summaryRepo,
+      fxProvider: baseBudgeting.fxProvider,
+      // r33: smart Investments limit (income − Σ other planned) as its planned.
+      incomeRepo: new DrizzleIncomeRepo(),
+    }),
+    // Phase 11 (11-05): Overspent + Reserves section. After-reserves overspent
+    // reuses the overview-repo monthly aggregation + the reserve engine seam
+    // (reservePositions) for reserve_used per month; reserves-by-category reuses
+    // get-reserves-summary. All default_ccy — no FX (D-10/D-06).
+    getOverviewOverspent: getOverviewOverspent({
+      overviewRepo: createOverviewRepo(),
+      reservePositions: baseBudgeting.reservePositions,
+      reservesSummary: baseBudgeting.getReservesSummary,
+      metaReader: summaryRepo,
+    }),
+    // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
+    // current point from computeBudgetWealthNow (same numbers as the cards/cron);
+    // investments-view pie groups investments.listHoldings by holding_type.
+    getOverviewWealth: getOverviewWealth({
+      snapshotRepo: createWealthSnapshotRepo(),
+      computeWealthNow: computeBudgetWealthNow({
+        walletRepo: overviewCardsRepo,
+        holdingsValuation,
+        fxProvider: baseBudgeting.fxProvider,
+      }),
+      holdingsByType: {
+        valueByType: async (input: {
+          tenantId: string;
+          budgetId: string;
+          defaultCurrency: string;
+        }) => {
+          const r = await investments.listHoldings({
+            tenantId: input.tenantId,
+            budgetId: input.budgetId,
+            actorUserId: SYSTEM_USER_UUID,
+            budgetCurrency: input.defaultCurrency,
+          });
+          if (r.isErr()) throw r.error;
+          const byType = new Map<string, bigint>();
+          for (const h of r.value.holdings) {
+            byType.set(
+              h.holdingType,
+              (byType.get(h.holdingType) ?? 0n) + BigInt(h.valueInBudgetCents),
+            );
+          }
+          return Array.from(byType.entries()).map(
+            ([holding_type, value_cents]) => ({ holding_type, value_cents }),
+          );
+        },
+      },
+      metaReader: summaryRepo,
+    }),
+    // Overview cash-flow projection timeline (today → end of next month).
+    getCashflowProjection: computeCashflowProjection({
+      fxProvider: baseBudgeting.fxProvider,
+      reservePositions: baseBudgeting.reservePositions,
+    }),
+  });
+
   logger.info({ region: env.REGION }, "apps/api booted");
 
   return {
@@ -315,7 +457,7 @@ export async function boot(): Promise<BootedDeps> {
     emailSender,
     identity,
     tenancy,
-    budgeting,
+    budgeting: budgetingFinal,
     investments,
   };
 }

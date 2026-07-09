@@ -5,6 +5,7 @@
  * function can't be invoked from the server, so they live here (no "use client").
  */
 export const TAB_ORDER = [
+  "overview",
   "wallets",
   "spendings",
   "reserves",

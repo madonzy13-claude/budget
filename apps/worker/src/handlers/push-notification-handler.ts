@@ -25,6 +25,7 @@ export interface PushHandlerDeps {
       budgetId: string,
       kind: NotificationKind,
       callerUserId: string,
+      excludeUserId?: string,
     ) => Promise<PushSubscriptionRow[]>;
     deleteSubscription: (
       endpoint: string,
@@ -41,39 +42,37 @@ export interface PushHandlerDeps {
 
 type LocaleKey = "en" | "pl" | "uk";
 
-const TITLES: Record<string, Record<LocaleKey, string>> = {
-  RESERVE_TOPUP: {
-    en: "Reserve needs attention",
-    pl: "Rezerwa wymaga uwagi",
-    uk: "Резерв потребує уваги",
-  },
-  CONFIRM_DRAFT: {
-    en: "A draft needs confirming",
-    pl: "Projekt wymaga potwierdzenia",
-    uk: "Чернетка потребує підтвердження",
-  },
-  CUSHION_BELOW_TARGET: {
-    en: "Cushion below target",
-    pl: "Poduszka poniżej celu",
-    uk: "Подушка нижче цілі",
-  },
+// r36: iOS shows the notification title as "<title> from <app>" and we can't
+// suppress the " from <app>" — so lean in. Every push shares one short nudge
+// title; the actual message moves to the body.
+const GREETING: Record<LocaleKey, string> = {
+  en: "🔔 Your attention needed",
+  pl: "🔔 Potrzebna Twoja uwaga",
+  uk: "🔔 Потрібна ваша увага",
 };
+const greeting = (l: string): string =>
+  GREETING[(l as LocaleKey) ?? "en"] ?? GREETING.en;
 
 const BODIES: Record<string, Record<LocaleKey, string>> = {
   RESERVE_TOPUP: {
-    en: "Go to Reserves tab",
-    pl: "Przejdź do zakładki Rezerwy",
-    uk: "Перейдіть до вкладки Резерви",
+    en: "One of your reserves is running low — tap to top it up.",
+    pl: "Jedna z Twoich rezerw się kończy — dotknij, aby ją uzupełnić.",
+    uk: "Один із ваших резервів закінчується — торкніться, щоб поповнити.",
   },
   CONFIRM_DRAFT: {
-    en: "Go to Spendings tab",
-    pl: "Przejdź do zakładki Wydatki",
-    uk: "Перейдіть до вкладки Витрати",
+    en: "A recurring expense is waiting — confirm or skip it.",
+    pl: "Cykliczny wydatek czeka — potwierdź lub pomiń.",
+    uk: "Регулярна витрата очікує — підтвердіть або пропустіть.",
   },
   CUSHION_BELOW_TARGET: {
-    en: "Go to Wallets tab",
-    pl: "Przejdź do zakładki Portfele",
-    uk: "Перейдіть до вкладки Гаманці",
+    en: "Your safety cushion slipped below its goal — tap to top it up.",
+    pl: "Twoja poduszka spadła poniżej celu — dotknij, aby ją uzupełnić.",
+    uk: "Ваша подушка впала нижче цілі — торкніться, щоб поповнити.",
+  },
+  INCOME_UNDER_PLANNED: {
+    en: "You've planned to spend more than you have — tap to review.",
+    pl: "Zaplanowano więcej, niż masz — dotknij, aby przejrzeć.",
+    uk: "Ви запланували витратити більше, ніж маєте — торкніться, щоб переглянути.",
   },
 };
 
@@ -86,27 +85,30 @@ export const NOTIFICATION_TYPES: Record<
   }
 > = {
   RESERVE_TOPUP: {
-    title: (l) =>
-      TITLES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? TITLES.RESERVE_TOPUP.en,
+    title: greeting,
     body: (l) =>
       BODIES.RESERVE_TOPUP[(l as LocaleKey) ?? "en"] ?? BODIES.RESERVE_TOPUP.en,
     tab: "reserves",
   },
   CONFIRM_DRAFT: {
-    title: (l) =>
-      TITLES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? TITLES.CONFIRM_DRAFT.en,
+    title: greeting,
     body: (l) =>
       BODIES.CONFIRM_DRAFT[(l as LocaleKey) ?? "en"] ?? BODIES.CONFIRM_DRAFT.en,
     tab: "spendings",
   },
   CUSHION_BELOW_TARGET: {
-    title: (l) =>
-      TITLES.CUSHION_BELOW_TARGET[(l as LocaleKey) ?? "en"] ??
-      TITLES.CUSHION_BELOW_TARGET.en,
+    title: greeting,
     body: (l) =>
       BODIES.CUSHION_BELOW_TARGET[(l as LocaleKey) ?? "en"] ??
       BODIES.CUSHION_BELOW_TARGET.en,
     tab: "wallets",
+  },
+  INCOME_UNDER_PLANNED: {
+    title: greeting,
+    body: (l) =>
+      BODIES.INCOME_UNDER_PLANNED[(l as LocaleKey) ?? "en"] ??
+      BODIES.INCOME_UNDER_PLANNED.en,
+    tab: "spendings",
   },
 };
 
@@ -115,74 +117,105 @@ export const NOTIFICATION_TYPES: Record<
 // ---------------------------------------------------------------------------
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
+/**
+ * Fetch the budget's enabled subscriptions for `kind` and send each one a push
+ * whose {title, body, url} is built per-subscription-locale. Stale (410/404)
+ * endpoints are deleted. Shared by the created + resolved handlers.
+ */
+async function dispatchToBudget(
+  deps: PushHandlerDeps,
+  input: {
+    tenantId: string;
+    budgetId: string;
+    kind: NotificationKind;
+    excludeUserId?: string;
+  },
+  build: (locale: string) => { title: string; body: string; url: string },
+): Promise<void> {
+  let subs: PushSubscriptionRow[];
+  try {
+    subs = await deps.pushRepo.getSubscriptionsForBudget(
+      input.tenantId,
+      input.budgetId,
+      input.kind,
+      SYSTEM_USER_ID,
+      input.excludeUserId,
+    );
+  } catch (e) {
+    console.error("[push-handler] failed to fetch subscriptions", e);
+    return;
+  }
+
+  console.info(
+    `[push-handler] dispatch budget=${input.budgetId} kind=${input.kind} subs=${subs.length}`,
+  );
+  let sent = 0;
+  for (const sub of subs) {
+    const { title, body, url } = build(sub.locale ?? "en");
+    try {
+      await sendPushNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth },
+        },
+        JSON.stringify({ title, body, url }),
+      );
+      sent += 1;
+    } catch (e: unknown) {
+      const err = e as { statusCode?: number };
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        try {
+          await deps.pushRepo.deleteSubscription(
+            sub.endpoint,
+            sub.tenantId,
+            sub.userId,
+          );
+        } catch (deleteErr) {
+          console.error(
+            "[push-handler] failed to delete stale subscription",
+            deleteErr,
+          );
+        }
+      } else {
+        console.error("[push-handler] sendNotification failed", e);
+      }
+    }
+  }
+  console.info(
+    `[push-handler] sent=${sent}/${subs.length} budget=${input.budgetId} kind=${input.kind}`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Handler registration
 // ---------------------------------------------------------------------------
 
 export function registerPushNotificationHandler(deps: PushHandlerDeps): void {
+  // A NEW task → the per-kind actionable notification, deep-linking to the task.
   eventBus.subscribe("task.created", async (evt) => {
     const { kind, budgetId, taskId } = evt.payload as {
       kind: string;
       budgetId: string;
       taskId: string;
     };
-
     // D-11: unknown kind → safe skip, no throw
     const notifType = NOTIFICATION_TYPES[kind];
     if (!notifType) return;
 
-    let subs: PushSubscriptionRow[];
-    try {
-      subs = await deps.pushRepo.getSubscriptionsForBudget(
-        evt.tenantId,
-        budgetId,
-        kind as NotificationKind,
-        SYSTEM_USER_ID,
-      );
-    } catch (e) {
-      console.error("[push-handler] failed to fetch subscriptions", e);
-      return;
-    }
-
-    for (const sub of subs) {
-      const locale = sub.locale ?? "en";
-      const title = notifType.title(locale);
-      const body = notifType.body(locale);
-      // 260618: the deep-link MUST carry the locale prefix — every app route is
-      // `/<locale>/budgets/...`. A locale-less `/budgets/...` is rewritten by the
-      // next-intl middleware to the home/budgets-list page, so tapping the push
-      // landed on the budget list instead of the target tab. Per-sub locale.
-      const url = `/${locale}/budgets/${budgetId}/${notifType.tab}?task=${taskId}`;
-
-      try {
-        await sendPushNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          JSON.stringify({ title, body, url }),
-        );
-      } catch (e: unknown) {
-        const err = e as { statusCode?: number };
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          // T-08-05-03: stale subscription — delete so dead endpoints don't accumulate
-          try {
-            await deps.pushRepo.deleteSubscription(
-              sub.endpoint,
-              sub.tenantId,
-              sub.userId,
-            );
-          } catch (deleteErr) {
-            console.error(
-              "[push-handler] failed to delete stale subscription",
-              deleteErr,
-            );
-          }
-        } else {
-          // Other errors: log + continue (don't block remaining subs)
-          console.error("[push-handler] sendNotification failed", e);
-        }
-      }
-    }
+    await dispatchToBudget(
+      deps,
+      { tenantId: evt.tenantId, budgetId, kind: kind as NotificationKind },
+      (locale) => ({
+        title: notifType.title(locale),
+        body: notifType.body(locale),
+        // 260618: the deep-link MUST carry the locale prefix — every app route is
+        // `/<locale>/budgets/...`; a locale-less path is rewritten to the budget
+        // list by next-intl. Per-sub locale.
+        url: `/${locale}/budgets/${budgetId}/${notifType.tab}?task=${taskId}`,
+      }),
+    );
   });
+
+  // r36: the "a task was completed" push (task.resolved → TASK_COMPLETED) was
+  // removed at the user's request — task resolutions no longer send a notification.
 }

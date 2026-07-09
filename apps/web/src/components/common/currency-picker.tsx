@@ -55,6 +55,20 @@ interface CurrencyPickerProps {
    *     including iPhone (UAT-Phase6-Test7 retest #6).
    */
   variant?: "inline" | "field";
+  /**
+   * When true, the trigger (and the native <select> options) show the currency
+   * SYMBOL + full localized name (e.g. "$ US Dollar") instead of the bare 3-letter
+   * code. For wide field-variant pickers (global settings, onboarding) where the
+   * extra width is fine; leave off for compact inline cells.
+   */
+  richLabel?: boolean;
+  /**
+   * Force the desktop Radix dropdown (the styled list of code + full name + symbol)
+   * on ALL devices instead of the native <select> that touch normally gets. Used
+   * by the global-settings + onboarding currency pickers so mobile gets the same
+   * rich list as desktop.
+   */
+  desktopDropdown?: boolean;
 }
 
 /**
@@ -72,6 +86,8 @@ export function CurrencyPicker({
   "aria-label": ariaLabel,
   options,
   variant = "inline",
+  richLabel = false,
+  desktopDropdown = false,
 }: CurrencyPickerProps) {
   const t = useTranslations("currency");
   const effectivePlaceholder = placeholder ?? t("picker.placeholder");
@@ -85,6 +101,20 @@ export function CurrencyPicker({
         symbol: c.symbol,
         kind: "FIAT",
       }));
+
+  // Localized full name for a currency (falls back to its label/code).
+  const nameFor = (item: CurrencyOption): string => {
+    if (options) return item.label;
+    try {
+      return t(`names.${item.value}`);
+    } catch {
+      return item.label;
+    }
+  };
+  // "USD US Dollar $" — code + full name + symbol (native <select> option text).
+  const richTextFor = (item: CurrencyOption): string =>
+    `${item.value} ${nameFor(item)}${item.symbol ? ` ${item.symbol}` : ""}`;
+  const selectedItem = value ? items.find((i) => i.value === value) : undefined;
 
   // UAT-PH5-T3-40: render a native <select> on touch devices. Radix
   // Select uses a portaled custom popover that does not reliably open
@@ -105,7 +135,7 @@ export function CurrencyPicker({
     );
   });
 
-  if (isTouch) {
+  if (isTouch && !desktopDropdown) {
     const fieldClass =
       variant === "field"
         ? // Match SelectTrigger's styling 1:1 (h-10, border, padded bg)
@@ -163,7 +193,7 @@ export function CurrencyPicker({
             value={item.value}
             data-testid={`currency-option-${item.value}`}
           >
-            {item.value}
+            {richLabel ? richTextFor(item) : item.value}
           </option>
         ))}
       </select>
@@ -176,13 +206,40 @@ export function CurrencyPicker({
       onValueChange={onSelect}
       disabled={disabled}
     >
-      <SelectTrigger aria-label={ariaLabel ?? t("picker.aria_label")}>
+      <SelectTrigger
+        aria-label={ariaLabel ?? t("picker.aria_label")}
+        // The base trigger clamps its value span with line-clamp-1
+        // (display:-webkit-box). On iOS WebKit that mis-sizes our nested
+        // code+name+symbol flex row and ellipsises the FIRST token ("USD"→"U…").
+        // Force the value span back to a normal flex box so only the NAME
+        // truncates (it has its own `truncate`); the code + symbol stay whole.
+        className="[&>span]:!flex [&>span]:!min-w-0"
+      >
         {/* Trigger displays only the 3-letter code so it stays compact even in
             narrow form fields. Dropdown items keep the full code + name + symbol
             for selection clarity. */}
         <SelectValue placeholder={effectivePlaceholder}>
           {value ? (
-            <span className="num text-[var(--primary)]">{value}</span>
+            richLabel && selectedItem ? (
+              // Mirror the dropdown option exactly: code + full name + symbol.
+              // min-w-0 + only the NAME truncates → the code + symbol never clip
+              // (a long localized name like "Долар США" won't chop the "USD").
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="num shrink-0 text-[var(--foreground)]">
+                  {selectedItem.value}
+                </span>
+                <span className="truncate text-[var(--muted-foreground)]">
+                  {nameFor(selectedItem)}
+                </span>
+                {selectedItem.symbol && (
+                  <span className="num shrink-0 text-sm text-[var(--muted-foreground)]">
+                    {selectedItem.symbol}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="num text-[var(--primary)]">{value}</span>
+            )
           ) : null}
         </SelectValue>
       </SelectTrigger>
@@ -205,7 +262,9 @@ export function CurrencyPicker({
               data-testid={`currency-option-${item.value}`}
             >
               <span className="flex items-center gap-2">
-                <span className="num text-[var(--primary)]">{item.value}</span>
+                <span className="num text-[var(--foreground)]">
+                  {item.value}
+                </span>
                 <span className="text-[var(--muted-foreground)]">
                   {localizedName}
                 </span>

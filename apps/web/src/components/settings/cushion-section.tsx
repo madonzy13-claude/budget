@@ -190,6 +190,10 @@ export function CushionSection({
       queryClient.invalidateQueries({
         queryKey: ["tasks", budgetId, "pending"],
       });
+      // Cash-flow projection inputs changed — refresh the banner.
+      queryClient.invalidateQueries({
+        queryKey: ["budget", budgetId, "projection"],
+      });
     } catch {
       toast.error(t("error_save"));
     }
@@ -217,20 +221,41 @@ export function CushionSection({
 
   /**
    * Cross-tab refresh after a cushion master/mode toggle. The toggle recomputes
-   * reserve availability (and the cushionModeEnabled flag the grid reads) for the
-   * affected months server-side, but the BDP carousel reuses the warm cache on
-   * tab switch — the Reserves tab would show the pre-toggle value. Mark reserves
-   * + budget detail stale; both tabs are INACTIVE while we're on Settings, so
-   * this only flags them (default refetchType) and they revalidate on the next
-   * tab switch (Reserves remounts → refetchOnMount). Spendings is intentionally
-   * NOT invalidated here: useSpendingsSummary already revalidates every month nav
-   * (staleTime:0), and invalidating it from Settings races that path.
+   * reserve availability AND flips which limit (normal vs cushion) the spendings
+   * grid shows for the affected month, but the BDP carousel reuses the warm cache
+   * on tab switch — the Reserves + Spendings tabs would show the pre-toggle value.
+   * Mark reserves, budget detail AND the spendings summary stale so all of them
+   * revalidate (r32: spendings was previously skipped, so switching to CUSHION
+   * left the grid on the old normal limits until a manual month nav / reload).
    */
   function invalidateCushionAffected() {
     queryClient.invalidateQueries({
       queryKey: ["budget", budgetId, "reserves"],
     });
     queryClient.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
+    // The live target preview: enabling the master flag flips whether a cushion
+    // requirement exists, and the enabled-gated query may have fetched the OLD
+    // (feature-off, required=0) summary before the PATCH landed → refetch so the
+    // "Have X of Y — target met" tip appears once the feature is on.
+    queryClient.invalidateQueries({
+      queryKey: ["cushion-summary", budgetId],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["spendings-summary", budgetId],
+    });
+    // r36: switching cushion mode flips whether cushion wallets count toward the
+    // income-vs-planned "available" total (and the overview available-to-spend),
+    // so refresh the tasks list + overview.
+    queryClient.invalidateQueries({
+      queryKey: ["tasks", budgetId, "pending"],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["budget", budgetId, "overview"],
+    });
+    // Cash-flow projection inputs changed — refresh the banner.
+    queryClient.invalidateQueries({
+      queryKey: ["budget", budgetId, "projection"],
+    });
   }
 
   const renderPreview = () => {

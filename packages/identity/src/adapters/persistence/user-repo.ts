@@ -1,16 +1,11 @@
 // This file MUST NOT be imported directly by domain/application/ports layers.
 // Domain/application code accesses this only through the UserRepo port interface.
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { appPool, withUserContext } from "@budget/platform";
 import type { UserId } from "@budget/shared-kernel";
 import type { UserRepo } from "../../ports/user-repo";
-import type {
-  Locale,
-  LLMProviderName,
-  STTProviderName,
-  UserDTO,
-} from "../../contracts/api";
+import type { Locale, UserDTO } from "../../contracts/api";
 import { users } from "./schema";
 import { userPreferences } from "./user-preferences";
 
@@ -35,11 +30,12 @@ export class DrizzleUserRepo implements UserRepo {
       name: row.name,
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
-      display_currency: row.displayCurrency,
-      preferred_llm_provider:
-        row.preferredLlmProvider as LLMProviderName | null,
-      preferred_stt_provider:
-        row.preferredSttProvider as STTProviderName | null,
+      // NULL = never set; surface "USD" so the DTO contract stays a string.
+      display_currency: row.displayCurrency ?? "USD",
+      // NULL = never set; surface "UTC" so dates always render in a definite zone.
+      timezone: row.timezone ?? "UTC",
+      // NULL = never set; surface "dark" (the app default theme).
+      theme: row.theme ?? "dark",
     };
   }
 
@@ -56,11 +52,9 @@ export class DrizzleUserRepo implements UserRepo {
       name: row.name,
       emailVerified: row.emailVerified,
       locale: row.locale as Locale,
-      display_currency: row.displayCurrency,
-      preferred_llm_provider:
-        row.preferredLlmProvider as LLMProviderName | null,
-      preferred_stt_provider:
-        row.preferredSttProvider as STTProviderName | null,
+      display_currency: row.displayCurrency ?? "USD",
+      timezone: row.timezone ?? "UTC",
+      theme: row.theme ?? "dark",
     };
   }
 
@@ -84,23 +78,37 @@ export class DrizzleUserRepo implements UserRepo {
     if (r.isErr()) throw r.error;
   }
 
-  async updateProviderPrefs(
-    id: UserId,
-    prefs: { llm?: LLMProviderName | null; stt?: STTProviderName | null },
-  ): Promise<void> {
-    const updates: Partial<{
-      preferredLlmProvider: string | null;
-      preferredSttProvider: string | null;
-      updatedAt: Date;
-    }> = { updatedAt: new Date() };
-    if (prefs.llm !== undefined) updates.preferredLlmProvider = prefs.llm;
-    if (prefs.stt !== undefined) updates.preferredSttProvider = prefs.stt;
-
+  async updateTimezone(id: UserId, timezone: string): Promise<void> {
     const r = await withUserContext(id, async (tx) => {
       await tx
         .update(users)
-        .set(updates)
+        .set({ timezone, updatedAt: new Date() })
         .where(eq(users.id, id as string));
+    });
+    if (r.isErr()) throw r.error;
+  }
+
+  async updateTheme(id: UserId, theme: string): Promise<void> {
+    const r = await withUserContext(id, async (tx) => {
+      await tx
+        .update(users)
+        .set({ theme, updatedAt: new Date() })
+        .where(eq(users.id, id as string));
+    });
+    if (r.isErr()) throw r.error;
+  }
+
+  /**
+   * Seed display_currency ONLY when it is still unset (NULL). The WHERE clause
+   * makes this atomic + idempotent: the first budget seeds the currency, while a
+   * later budget or a deliberate manual pick (non-NULL) is never clobbered.
+   */
+  async setDisplayCurrencyIfUnset(id: UserId, currency: string): Promise<void> {
+    const r = await withUserContext(id, async (tx) => {
+      await tx
+        .update(users)
+        .set({ displayCurrency: currency, updatedAt: new Date() })
+        .where(and(eq(users.id, id as string), isNull(users.displayCurrency)));
     });
     if (r.isErr()) throw r.error;
   }

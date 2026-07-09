@@ -57,41 +57,6 @@ export function buildInvestmentEntries(
   return entries;
 }
 
-export const entryKeyOf = (e: InvestmentEntry): string =>
-  e.kind === "group" ? `group:${e.name}` : `loose:${e.holding.id}`;
-
-/**
- * Keep a group visible during a drag even after its last member is pulled out.
- * `snapshot` is the entry order captured at drag-start; any snapshot GROUP that's
- * no longer in `entries` is re-inserted as an EMPTY block right after its nearest
- * preceding snapshot entry that's still present (so it stays put and droppable).
- * Pure so the placement maths is unit-tested; the section calls it while dragging.
- */
-export function withPersistentGroups(
-  entries: InvestmentEntry[],
-  snapshot: { key: string; group?: string }[],
-): InvestmentEntry[] {
-  const present = new Set(entries.map(entryKeyOf));
-  const missing = snapshot.filter(
-    (s) => s.group !== undefined && !present.has(s.key),
-  );
-  if (missing.length === 0) return entries;
-  const result = [...entries];
-  for (const snap of missing) {
-    const snapIdx = snapshot.findIndex((s) => s.key === snap.key);
-    let insertAt = 0;
-    for (let i = snapIdx - 1; i >= 0; i--) {
-      const idx = result.findIndex((e) => entryKeyOf(e) === snapshot[i].key);
-      if (idx >= 0) {
-        insertAt = idx + 1;
-        break;
-      }
-    }
-    result.splice(insertAt, 0, { kind: "group", name: snap.group!, holdings: [] });
-  }
-  return result;
-}
-
 /** Flatten entries back to a holding-id order (groups expanded as blocks). */
 export function flattenEntries(entries: InvestmentEntry[]): string[] {
   const ids: string[] = [];
@@ -107,6 +72,9 @@ export interface GroupAggregate {
   valueBudgetCents: number;
   /** Cost-basis blended P/L% over children that HAVE a basis, else null. */
   plPct: number | null;
+  /** Aggregate P/L money in budget cents (Σvalue − Σcost over children with a
+   *  basis), else null. The real money figure (not back-derived from plPct). */
+  plCents: number | null;
 }
 
 /**
@@ -131,13 +99,68 @@ export function groupAggregate(holdings: HoldingDto[]): GroupAggregate {
     }
   }
   const plPct = anyBasis && sumC > 0 ? ((sumV - sumC) / sumC) * 100 : null;
-  return { valueBudgetCents, plPct };
+  const plCents = anyBasis && sumC > 0 ? sumV - sumC : null;
+  return { valueBudgetCents, plPct, plCents };
 }
 
 export interface DragResult {
   orderedIds: string[];
   /** Present only when the drag changed a holding's group. */
   groupChange?: { holdingId: string; group: string | null };
+}
+
+/** A group's measured geometry at drag-start (the React island reads the rects;
+ *  the band maths stays pure + unit-tested). `memberBottom` is the bottom of the
+ *  group's last VISIBLE child, or null when the group is collapsed (no members
+ *  rendered → no member band to fall into). */
+export interface GroupGeom {
+  name: string;
+  headerTop: number;
+  headerCenter: number;
+  headerBottom: number;
+  memberBottom: number | null;
+}
+
+/** The vertical band in which the dragged centre counts as a CHILD of `group`
+ *  (→ indent preview + join on drop). Outside every band → loose. */
+export interface JoinBand {
+  group: string;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * Compute each group's JOIN band from drag-start geometry. The subtle part is the
+ * TOP edge:
+ *  - A group the dragged item is JOINING from outside (expanded, not its own) →
+ *    top = `headerTop − swapGap`. @dnd-kit's verticalListSortingStrategy swaps the
+ *    dragged row across the header the instant `over` flips to it, which (closest-
+ *    centre, equal-height rows) happens at the MIDDLE OF THE GAP above the header,
+ *    i.e. `headerTop − gap/2`. Pinning the band there makes the indent turn on the
+ *    exact moment the row renders BELOW the header — no dead zone where the item
+ *    sits visually inside the group yet drops back out above it (UAT: "if the item
+ *    is below the header it must indent and drop inside"). Using `headerCenter`
+ *    (the old value) left a ~28px dead zone above the centre.
+ *  - A group the item is LEAVING (its own, ejecting) OR any COLLAPSED group →
+ *    top = `headerBottom`. There the indent must clear the instant the item reaches
+ *    the header (no member rows to be a child of), so the band starts BELOW it.
+ * BOTTOM = last visible member (expanded) or a one-row reach below (collapsed).
+ */
+export function computeJoinBands(
+  geoms: GroupGeom[],
+  activeGroup: string | null,
+  opts: { collapsedReach?: number; swapGap?: number } = {},
+): JoinBand[] {
+  const collapsedReach = opts.collapsedReach ?? 64;
+  const swapGap = opts.swapGap ?? 4;
+  return geoms.map((g) => {
+    const joiningFromOutside = g.memberBottom != null && g.name !== activeGroup;
+    return {
+      group: g.name,
+      top: joiningFromOutside ? g.headerTop - swapGap : g.headerBottom,
+      bottom: g.memberBottom ?? g.headerBottom + collapsedReach,
+    };
+  });
 }
 
 const GROUP_PREFIX = "group:";
@@ -171,6 +194,22 @@ function recluster(
 }
 
 /**
+ * Direction hints, set by the section from the dragged row's midpoint relative to
+ * the target's midpoint (the pure module has no rects):
+ *   - placeAfter: a group block dragged DOWNWARD lands AFTER the anchor, not
+ *     before it (UAT #6 — otherwise a group can never become the last entry).
+ *   - asLoose: a holding dragged ABOVE a group header stays LOOSE above the group
+ *     instead of joining it (UAT #5 / #7 — a top group no longer swallows items).
+ *   - asLooseEnd: a holding dropped clearly BELOW the last (trailing) group's last
+ *     member lands LOOSE at the very end (replaces the old explicit ungroup zone).
+ */
+export interface DragOpts {
+  placeAfter?: boolean;
+  asLoose?: boolean;
+  asLooseEnd?: boolean;
+}
+
+/**
  * Resolve a drag-end into a new flat order (+ optional group change). Returns
  * null for a no-op (drop on self, drop on own group header, or unresolvable
  * target). Cross-section rejection is handled by the caller before this runs.
@@ -179,6 +218,7 @@ export function resolveDragEnd(
   holdings: HoldingDto[],
   activeId: string,
   overId: string,
+  opts: DragOpts = {},
 ): DragResult | null {
   if (activeId === overId) return null;
 
@@ -193,16 +233,25 @@ export function resolveDragEnd(
     if (block.length === 0) return null;
     const rest = baseOrder.filter((id) => baseGroup.get(id) !== groupName);
 
-    let anchorId: string | undefined;
+    // Anchor = the over target's slot in `rest`. For an over-group, the block
+    // spans first..last member; placeAfter inserts after the last member (so a
+    // group dragged down can land past the anchor → become last, UAT #6).
+    let anchorFirst: string | undefined;
+    let anchorLast: string | undefined;
     if (isGroupSortId(overId)) {
       const overName = groupNameFromSortId(overId);
-      anchorId = baseOrder.find((id) => baseGroup.get(id) === overName);
+      const members = rest.filter((id) => baseGroup.get(id) === overName);
+      anchorFirst = members[0];
+      anchorLast = members[members.length - 1];
     } else {
-      anchorId = overId;
+      anchorFirst = overId;
+      anchorLast = overId;
     }
-    if (!anchorId) return null;
-    let at = rest.indexOf(anchorId);
-    if (at === -1) at = rest.length;
+    if (!anchorFirst) return null;
+    let at = opts.placeAfter
+      ? rest.indexOf(anchorLast!) + 1
+      : rest.indexOf(anchorFirst);
+    if (at < 0) at = rest.length;
     const newOrder = [...rest.slice(0, at), ...block, ...rest.slice(at)];
     const finalOrder = recluster(newOrder, (id) => baseGroup.get(id) ?? null);
     if (finalOrder.join() === baseOrder.join()) return null;
@@ -221,8 +270,27 @@ export function resolveDragEnd(
   let groupChange: DragResult["groupChange"] | undefined;
   let newOrder: string[];
 
+  // ── Dropped clearly BELOW the trailing group → loose at the very end ─────────
+  // (asLooseEnd; the section sets it when the over row is the last holding and the
+  // dragged midpoint is past its bottom edge.) The symmetric "loose at the top /
+  // between groups" is handled by asLoose on the group header below.
+  if (opts.asLooseEnd) {
+    const without = baseOrder.filter((id) => id !== H);
+    const arranged = [...without, H];
+    const reclustered = recluster(arranged, (id) =>
+      id === H ? null : (baseGroup.get(id) ?? null),
+    );
+    const change = curGroup != null ? { holdingId: H, group: null } : undefined;
+    if (reclustered.join() === baseOrder.join() && !change) return null;
+    return change
+      ? { orderedIds: reclustered, groupChange: change }
+      : { orderedIds: reclustered };
+  }
+
   if (isGroupSortId(overId)) {
-    // Dropped onto a group header → join that group at the TOP of its block.
+    // Over a group header. Default → JOIN at the TOP of its block. But when the
+    // dragged row's midpoint is ABOVE the header (asLoose), land it LOOSE just
+    // above the group block instead of joining (UAT #5 / #7).
     const targetGroup = groupNameFromSortId(overId);
     const without = baseOrder.filter((id) => id !== H);
     const firstIdx = without.findIndex(
@@ -230,7 +298,12 @@ export function resolveDragEnd(
     );
     const at = firstIdx === -1 ? without.length : firstIdx;
     newOrder = [...without.slice(0, at), H, ...without.slice(at)];
-    if (targetGroup !== curGroup) {
+    if (opts.asLoose) {
+      if (curGroup != null) {
+        overrideGroup = null;
+        groupChange = { holdingId: H, group: null };
+      }
+    } else if (targetGroup !== curGroup) {
       overrideGroup = targetGroup;
       groupChange = { holdingId: H, group: targetGroup };
     }
@@ -254,6 +327,47 @@ export function resolveDragEnd(
   }
 
   const finalOrder = recluster(newOrder, groupOf);
+  if (finalOrder.join() === baseOrder.join() && !groupChange) return null;
+  return groupChange
+    ? { orderedIds: finalOrder, groupChange }
+    : { orderedIds: finalOrder };
+}
+
+/**
+ * Resolve a HOLDING drop from GEOMETRY (the section's drag model). The section
+ * decides, from the dragged row's drop centre:
+ *   - `insertIndex` — its rank among the OTHER holdings (rows whose centre is
+ *     above it), i.e. where it lands in the flat order.
+ *   - `targetGroup` — the group whose VISIBLE-CHILDREN span contains the centre
+ *     (header excluded), or null when the centre is on a header / in a gap / among
+ *     loose rows. "Inside the group's rows → grouped; on the header or below the
+ *     last child → loose" — so a row can be placed loose above/below ANY group and
+ *     a 2-item group's members still reorder (drop onto a child), without the old
+ *     explicit zones.
+ * Pure so the recluster maths is unit-tested; geometry stays in the React island.
+ */
+export function resolveHoldingDrop(
+  holdings: HoldingDto[],
+  activeId: string,
+  insertIndex: number,
+  targetGroup: string | null,
+): DragResult | null {
+  const baseOrder = flattenEntries(buildInvestmentEntries(holdings));
+  const baseGroup = new Map<string, string | null>();
+  for (const h of holdings) baseGroup.set(h.id, h.group ?? null);
+  if (!baseGroup.has(activeId)) return null;
+  const curGroup = baseGroup.get(activeId) ?? null;
+
+  const without = baseOrder.filter((id) => id !== activeId);
+  const idx = Math.max(0, Math.min(insertIndex, without.length));
+  const arranged = [...without.slice(0, idx), activeId, ...without.slice(idx)];
+  const groupOf = (id: string): string | null =>
+    id === activeId ? targetGroup : (baseGroup.get(id) ?? null);
+  const finalOrder = recluster(arranged, groupOf);
+  const groupChange =
+    targetGroup !== curGroup
+      ? { holdingId: activeId, group: targetGroup }
+      : undefined;
   if (finalOrder.join() === baseOrder.join() && !groupChange) return null;
   return groupChange
     ? { orderedIds: finalOrder, groupChange }

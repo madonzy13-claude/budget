@@ -70,6 +70,8 @@ export function useArchiveWallet(budgetId: string) {
       // UAT round 6: archiving a cushion wallet changes the actual cushion
       // sum — refresh the Settings preview.
       qc.invalidateQueries({ queryKey: ["cushion-summary", budgetId] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     },
   });
 }

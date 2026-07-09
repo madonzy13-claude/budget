@@ -153,11 +153,3 @@ Then("the Delete forever button is enabled", async ({ page }) => {
   const settings = new BudgetSettingsPage(page);
   await expect(settings.deleteForeverButton()).toBeEnabled({ timeout: 5000 });
 });
-
-Then("the Members accordion section is not visible", async ({ page }) => {
-  // PRIVATE budgets don't render the Members accordion trigger at all
-  await expect(page.getByRole("button", { name: /^members$/i })).toHaveCount(
-    0,
-    { timeout: 10000 },
-  );
-});

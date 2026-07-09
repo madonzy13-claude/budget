@@ -59,6 +59,9 @@ export function SignUpForm({ defaultLocale }: SignUpFormProps) {
       name: values.name,
       // additionalFields on user — drives email locale and UI default
       locale: values.locale,
+      // Seed the timezone from the browser's resolved IANA zone (accurate +
+      // dependency-free vs IP geolocation); editable later in General settings.
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     } as Parameters<typeof signUp.email>[0]);
 
     if (result.error) {

@@ -10,6 +10,8 @@
 import { type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
+import { Temporal } from "temporal-polyfill";
+import { nextDueDateAfter, type Cadence } from "../domain/cadence";
 import type {
   RecurringRuleRepo,
   RecurringRuleEdits,
@@ -68,6 +70,36 @@ export function updateRecurringRule(deps: {
           input.edits,
         );
 
+        // Cadence/day change → recompute next_due_date from the MERGED spec
+        // (edits over the existing row) so the next draft fires on the new
+        // schedule. Mirrors the create/engine seed: first occurrence strictly
+        // after today.
+        const cadenceChanged =
+          input.edits.cadence !== undefined ||
+          input.edits.cadenceAnchor !== undefined ||
+          input.edits.weeklyDow !== undefined ||
+          input.edits.yearlyMonth !== undefined;
+        if (cadenceChanged) {
+          const merged = {
+            cadence: (input.edits.cadence ?? before.cadence) as Cadence,
+            anchorDay:
+              (input.edits.cadenceAnchor ??
+                (before.cadence_anchor as number | null)) ?? undefined,
+            weeklyDow:
+              (input.edits.weeklyDow ??
+                (before.weekly_dow as number | null)) ?? undefined,
+            yearlyMonth:
+              (input.edits.yearlyMonth ??
+                (before.yearly_month as number | null)) ?? undefined,
+          };
+          const nextDue = nextDueDateAfter(merged, Temporal.Now.plainDateISO());
+          await deps.ruleRepo.advanceNextDueDate(
+            tx,
+            input.ruleId,
+            nextDue.toString(),
+          );
+        }
+
         // Build draft edits (subset of rule edits applicable to expense_ledger drafts)
         const draftEdits: Parameters<
           RecurringDraftRepo["regenerateFuturePending"]
@@ -87,13 +119,26 @@ export function updateRecurringRule(deps: {
         let affectedPendingDraftIds: string[] = [];
 
         if (input.applyToFuture) {
-          // UPDATE future PENDING drafts in place (NOT delete-and-recreate — preserves draft.id)
-          affectedPendingDraftIds =
-            await deps.draftRepo.regenerateFuturePending(
+          if (cadenceChanged) {
+            // Schedule moved: the future PENDING drafts are stale-dated and
+            // can't be updated in place (their transaction_date no longer
+            // matches the cadence). Soft-delete them; the generation engine
+            // recreates drafts from the recomputed next_due_date on the new
+            // schedule (amount/category/note edits ride along because the
+            // engine reads the just-updated rule).
+            affectedPendingDraftIds = await deps.draftRepo.deleteFuturePending(
               tx,
               input.ruleId,
-              draftEdits,
             );
+          } else {
+            // UPDATE future PENDING drafts in place (NOT delete-and-recreate — preserves draft.id)
+            affectedPendingDraftIds =
+              await deps.draftRepo.regenerateFuturePending(
+                tx,
+                input.ruleId,
+                draftEdits,
+              );
+          }
         }
         // If applyToFuture === false: leave drafts untouched (D-01-d)
 

@@ -14,6 +14,7 @@ export const KIND_TO_PILL = {
   RESERVE_TOPUP: "reserves",
   CUSHION_BELOW_TARGET: "wallets",
   CONFIRM_DRAFT: "spendings",
+  INCOME_UNDER_PLANNED: "spendings",
 } as const satisfies Record<TaskKind, Pill>;
 
 export function pillFor(kind: TaskKind): Pill {

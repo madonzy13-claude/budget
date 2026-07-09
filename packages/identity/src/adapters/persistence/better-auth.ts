@@ -1,10 +1,15 @@
 // This file MUST NOT be imported directly by domain/application/ports layers.
 // Apps use createIdentityModule() from contracts/factory.ts (PC-02, PC-15).
 import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
-import { appPool, LibsodiumKeyStore, withUserContext } from "@budget/platform";
+import {
+  betterAuthPool,
+  LibsodiumKeyStore,
+  withUserContext,
+} from "@budget/platform";
 import { loadEnv, UserId } from "@budget/shared-kernel";
 import type { EmailLocale, EmailSender } from "@budget/shared-kernel";
 import { users, sessions, accounts, verifications } from "./schema";
@@ -34,9 +39,167 @@ export function buildTrustedOrigins(
   ];
 }
 
+/**
+ * Recompute identity.users.email_hash from the plain email.
+ *
+ * email_hash is a deterministic BLAKE2b(email) backing the users_email_hash_uq
+ * UNIQUE index. Better Auth writes only the PLAIN email column on create AND on
+ * changeEmail-confirm — so both the create-after and update-after hooks call this
+ * to keep the hash in sync. Without it, an email change leaves a stale hash
+ * (broken uniqueness + lookup). Runs inside withUserContext so RLS permits the
+ * self-row UPDATE (PC-03).
+ */
+export async function recomputeEmailHash(
+  keyStore: LibsodiumKeyStore,
+  userId: UserId,
+  email: string,
+): Promise<void> {
+  const hash = await keyStore.emailHash(email);
+  const r = await withUserContext(userId, async (tx) => {
+    await tx.execute(
+      sql`UPDATE identity.users SET email_hash = ${Buffer.from(hash)} WHERE id = ${userId as string}::uuid`,
+    );
+  });
+  if (r.isErr()) throw r.error;
+}
+
+/**
+ * Tenant-scoped tables (have a `tenant_id` column) purged per solely-owned budget
+ * during account deletion. Enumerated from the live DB (information_schema), NOT
+ * guessed — a missed table leaves orphaned PII. `category_reserve_adjustments` is
+ * deleted FIRST (FK → categories is NO ACTION) so it is omitted from this list.
+ *
+ * Three tenant-scoped tables are deliberately NOT listed:
+ *  - tenancy.budget_share_links — ON DELETE CASCADE from budgets (auto-purged), and
+ *    app_role has no DELETE grant on it anyway.
+ *  - shared_kernel.audit_history + shared_kernel.outbox — app_role has no DELETE
+ *    grant (audit is append-only, outbox is infra-transient). Their sensitive
+ *    content is DEK-encrypted, so destroying the user's DEK below (crypto-shred)
+ *    renders it undecryptable — GDPR-erased without a row delete.
+ */
+const TENANT_TABLES = [
+  "budgeting.budget_mode_history",
+  "budgeting.budget_template_items",
+  "budgeting.budget_templates",
+  "budgeting.categories",
+  "budgeting.category_limits",
+  "budgeting.category_share_overrides",
+  "budgeting.expense_ledger",
+  "budgeting.investments",
+  "budgeting.recurring_rules",
+  "budgeting.spending_by_category_month",
+  "budgeting.tasks",
+  "budgeting.wallets",
+  "shared_kernel.idempotency_keys",
+  "shared_kernel.notification_prefs",
+  "shared_kernel.push_subscriptions",
+] as const;
+
+/**
+ * USET-06 GDPR right-to-delete cascade. tenancy/shared_kernel have NO DB FK to
+ * identity.users, so deleting a user cascades nothing — this is the application
+ * cascade run from user.deleteUser.beforeDelete (so it executes only when the
+ * emailed confirmation link is consumed). All work is in ONE withUserContext tx
+ * so a partial cascade can't leave orphans; app role has no BYPASSRLS.
+ *
+ * Steps: (1) read the user's memberships via the budget_members_self policy and
+ * widen app.tenant_ids to those budgets; (2) BLOCK if the user solely owns a
+ * SHARED budget that still has other members (T-10-10 — no cross-member loss);
+ * (3) purge each solely-owned budget + all its tenant data (T-10-09); (4) at the
+ * user level, anonymise reserve adjustments the user authored in OTHER budgets
+ * (created_by → NULL — keep the household's data), then drop remaining
+ * memberships, sent invitations, and the DEK. Better Auth removes the user +
+ * sessions + accounts AFTER this returns.
+ */
+export async function purgeUserData(uid: string): Promise<void> {
+  const r = await withUserContext(UserId(uid), async (tx) => {
+    const mem = await tx.execute(
+      sql`SELECT budget_id FROM tenancy.budget_members WHERE user_id = ${uid}::uuid`,
+    );
+    const budgetIds = (mem.rows as Array<{ budget_id: string }>).map(
+      (m) => m.budget_id,
+    );
+    if (budgetIds.length > 0) {
+      // UUIDs from the DB — safe to inline (SET LOCAL takes no parameters).
+      await tx.execute(
+        sql.raw(`SET LOCAL app.tenant_ids = '{${budgetIds.join(",")}}'`),
+      );
+    }
+
+    const owned = await tx.execute(
+      sql`SELECT b.id,
+            (SELECT count(*) FROM tenancy.budget_members m WHERE m.budget_id = b.id) AS member_count
+          FROM tenancy.budgets b
+          WHERE b.owner_user_id = ${uid}::uuid`,
+    );
+    const ownedRows = owned.rows as Array<{
+      id: string;
+      member_count: number | string;
+    }>;
+
+    // kind-removal: a budget is "shared" purely by having more than one member.
+    const blocked = ownedRows.find((b) => Number(b.member_count) > 1);
+    if (blocked) {
+      throw new APIError("BAD_REQUEST", {
+        message:
+          "Transfer ownership or remove the other members from your shared budget before deleting your account.",
+      });
+    }
+
+    for (const b of ownedRows) {
+      const bid = b.id;
+      // FK → categories is NO ACTION, so adjustments must go before categories.
+      await tx.execute(
+        sql`DELETE FROM budgeting.category_reserve_adjustments WHERE tenant_id = ${bid}::uuid`,
+      );
+      for (const tbl of TENANT_TABLES) {
+        await tx.execute(
+          sql.raw(`DELETE FROM ${tbl} WHERE tenant_id = '${bid}'`),
+        );
+      }
+      // Membership/invitation/share rows (NO ACTION FKs to budgets) before the budget.
+      await tx.execute(
+        sql`DELETE FROM tenancy.shared_budget_member_shares WHERE budget_id = ${bid}::uuid`,
+      );
+      await tx.execute(
+        sql`DELETE FROM tenancy.budget_invitations WHERE budget_id = ${bid}::uuid`,
+      );
+      await tx.execute(
+        sql`DELETE FROM tenancy.budget_members WHERE budget_id = ${bid}::uuid`,
+      );
+      await tx.execute(
+        sql`DELETE FROM tenancy.budgets WHERE id = ${bid}::uuid`,
+      );
+    }
+
+    await tx.execute(
+      sql`UPDATE budgeting.category_reserve_adjustments SET created_by = NULL WHERE created_by = ${uid}::uuid`,
+    );
+    await tx.execute(
+      sql`DELETE FROM tenancy.budget_invitations WHERE inviter_id = ${uid}::uuid`,
+    );
+    await tx.execute(
+      sql`DELETE FROM tenancy.budget_members WHERE user_id = ${uid}::uuid`,
+    );
+    // Crypto-shred the user's DEK (app_role has UPDATE, not DELETE, on user_keys —
+    // the design erases by destroying key material, not row deletion). Any DEK-
+    // encrypted PII left anywhere becomes undecryptable (T-10-09).
+    await tx.execute(
+      sql`UPDATE shared_kernel.user_keys
+          SET cipher_dek = ''::bytea, nonce = ''::bytea, destroyed_at = now()
+          WHERE user_id = ${uid}::uuid AND destroyed_at IS NULL`,
+    );
+  });
+  if (r.isErr()) throw r.error;
+}
+
 export function createAuth(opts: CreateAuthOptions) {
   const env = loadEnv();
-  const db = drizzle(appPool(), { casing: "snake_case" });
+  // betterAuthPool (NOT appPool): every connection carries app.better_auth=on so
+  // the accounts/sessions RLS UPDATE/DELETE bypass is scoped to Better Auth's own
+  // pool — see betterAuthPool() + post-migration.sql. withUserContext (email_hash
+  // recompute, DEK seed) still uses appPool independently.
+  const db = drizzle(betterAuthPool(), { casing: "snake_case" });
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -140,21 +303,79 @@ export function createAuth(opts: CreateAuthOptions) {
           required: true,
           defaultValue: "en",
         },
+        // Optional + no default: a fresh signup leaves display_currency NULL so
+        // the first budget's currency can seed it (Phase 10 UAT). A null/unset
+        // value reads back as "USD" at the repo boundary.
         displayCurrency: {
           type: "string",
           input: true,
-          required: true,
-          defaultValue: "USD",
+          required: false,
         },
-        preferredLlmProvider: {
+        // Optional + no default: seeded at sign-up from the browser's resolved
+        // IANA zone (sign-up form sends it). NULL reads back as "UTC" at the repo
+        // boundary so dates always render in a definite zone.
+        timezone: {
           type: "string",
           input: true,
           required: false,
         },
-        preferredSttProvider: {
+        // Optional + no default: UI theme ("dark" | "light"). NULL reads back as
+        // "dark" at the repo boundary. Persisted so it follows the user across
+        // devices (Phase 10 UAT). Included in the session so SSR can pre-seed it.
+        theme: {
           type: "string",
           input: true,
           required: false,
+        },
+      },
+      // USET-04: let a signed-in user change their login email. Because the
+      // current email is verified (requireEmailVerification), Better Auth first
+      // sends a confirm link to the OLD address; on click the plain email column
+      // updates, email_verified flips false, and the existing
+      // emailVerification.sendVerificationEmail re-verifies the NEW address.
+      changeEmail: {
+        enabled: true,
+        sendChangeEmailConfirmation: async ({
+          user,
+          newEmail,
+          url,
+        }: {
+          user: { email: string; locale?: string };
+          newEmail: string;
+          url: string;
+        }) => {
+          await opts.emailSender.send({
+            to: user.email, // OLD address — the confirm link
+            template: "change-email",
+            vars: { url, newEmail },
+            locale: pickLocale(user.locale),
+          });
+        },
+        updateEmailWithoutVerification: false,
+      },
+      // USET-06: GDPR right-to-delete. Email-gated (checkpoint decision): the
+      // request emails a confirmation link; beforeDelete runs the app-level
+      // cascade (purgeUserData) only when that link is consumed, then Better Auth
+      // removes the user + sessions + accounts. A beforeDelete throw (sole owner
+      // of a SHARED budget with other members) aborts the whole deletion.
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: async ({
+          user,
+          url,
+        }: {
+          user: { email: string; locale?: string };
+          url: string;
+        }) => {
+          await opts.emailSender.send({
+            to: user.email,
+            template: "delete-account",
+            vars: { url },
+            locale: pickLocale(user.locale),
+          });
+        },
+        beforeDelete: async (user: { id: string }) => {
+          await purgeUserData(user.id);
         },
       },
     },
@@ -178,16 +399,24 @@ export function createAuth(opts: CreateAuthOptions) {
           // PC-09: best-effort write; user row commits before this hook fires. A reconciliation
           // worker (Phase 6) detects users with no user_keys row and back-fills.
           after: async (user) => {
-            const [hash, wrapped] = await Promise.all([
-              opts.keyStore.emailHash(user.email as string),
-              opts.keyStore.generateUserDek(user.id as never),
-            ]);
+            // email_hash seed via the shared helper (same path update.after uses).
+            await recomputeEmailHash(
+              opts.keyStore,
+              UserId(user.id as string),
+              user.email as string,
+            ).catch((e) =>
+              console.error(
+                "[identity] email_hash seed failed for user",
+                user.id,
+                e,
+              ),
+            );
+            const wrapped = await opts.keyStore.generateUserDek(
+              user.id as never,
+            );
             const r = await withUserContext(
               UserId(user.id as string),
               async (tx) => {
-                await tx.execute(sql`
-                  UPDATE identity.users SET email_hash = ${Buffer.from(hash)} WHERE id = ${user.id}::uuid
-                `);
                 await tx.execute(sql`
                   INSERT INTO shared_kernel.user_keys (user_id, cipher_dek, nonce)
                   VALUES (${user.id}, ${Buffer.from(wrapped.cipherDek)}, ${Buffer.from(wrapped.nonce)})
@@ -211,6 +440,29 @@ export function createAuth(opts: CreateAuthOptions) {
                 r.error,
               );
             }
+          },
+        },
+        update: {
+          // USET-04: keep email_hash in sync after any user update (Better Auth
+          // fires update.after for any field change, incl. the changeEmail-verify
+          // step that writes the new plain email). Raw SQL UPDATE, so it does NOT
+          // re-trigger this hook. Without it the hash would stale and break the
+          // users_email_hash_uq uniqueness + lookups. We do NOT revoke sessions
+          // here: Better Auth's change-email flow re-issues a session cookie for
+          // the new address on the verify step (auto-login), so the user stays
+          // signed in as the new email — the library's intended behaviour.
+          after: async (user: { id: string; email: string }) => {
+            await recomputeEmailHash(
+              opts.keyStore,
+              UserId(user.id),
+              user.email,
+            ).catch((e) =>
+              console.error(
+                "[identity] email_hash recompute failed for user",
+                user.id,
+                e,
+              ),
+            );
           },
         },
       },

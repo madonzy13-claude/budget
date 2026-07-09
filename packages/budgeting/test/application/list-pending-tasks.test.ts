@@ -29,6 +29,7 @@ function makeRepo(impl: Partial<TaskRepo> = {}): TaskRepo {
     emitInvestmentDelisted: async () => {},
     resolveByKindAndBudget: async () => {},
     resolveConfirmDraftByDraftId: async () => {},
+    resolveInvestmentDelistedForHoldings: async () => 0,
     ...impl,
   };
 }

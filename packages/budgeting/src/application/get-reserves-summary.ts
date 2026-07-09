@@ -116,6 +116,7 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
             name: c.name,
             reserveExcluded: c.reserveExcluded ?? false,
             colorKey: c.colorKey ?? null,
+            isInvestment: c.isInvestment ?? false,
           })),
           budgetCurrency,
           disabled: false,

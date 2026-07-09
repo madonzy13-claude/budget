@@ -1,6 +1,8 @@
 /**
- * budgeting-reconciliation.test.ts — Integration test for hourly reconciliation handler.
- * Verifies per-tenant scan, drift auto-repair vs alert, multi-tenant aggregation.
+ * budgeting-reconciliation.test.ts — Integration test for the hourly reconciliation
+ * handler. Verifies the per-tenant scan runs cleanly (the ENGR-14 projection
+ * drift-check was removed — see the handler header — so there are no repair/alert
+ * counters any more; the sweeps run only when sweepDeps are wired in prod).
  */
 import { describe, test, expect } from "bun:test";
 import { Pool } from "pg";
@@ -78,89 +80,26 @@ async function seed(label: string): Promise<ReconFx> {
   return { userId, tenantId, accountId, categoryId };
 }
 
-async function buildUseCases() {
-  const { createBudgetingModule } =
-    await import("@budget/budgeting/src/contracts/factory");
-  const { DrizzleFxRateCacheRepo } =
-    await import("@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo");
-  const { workerPool } = await import("@budget/platform");
-  const fxCache = new DrizzleFxRateCacheRepo(workerPool());
-  return createBudgetingModule({ fxCache });
-}
-
-async function corruptProjection(
-  tenantId: string,
-  categoryId: string,
-  monthStart: string,
-  value: string,
-) {
-  const pool = new Pool({ connectionString: DB_URL });
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
-    );
-    await client.query(
-      `UPDATE budgeting.spending_by_category_month
-          SET normal_amount = $1::numeric
-        WHERE tenant_id = $2 AND category_id = $3 AND month_start_date = $4::date`,
-      [value, tenantId, categoryId, monthStart],
-    );
-    await client.query("COMMIT");
-  } finally {
-    client.release();
-    await pool.end();
-  }
-}
-
 describe("budgeting-reconciliation handler", () => {
   test(
-    "aggregates repaired+alerted across multiple tenants",
+    "scans all tenants without error (projection drift-check removed)",
     { timeout: 30000 },
     async () => {
-      const fxA = await seed("HandlerA");
-      const fxB = await seed("HandlerB");
-      const useCases = await buildUseCases();
+      // Two seeded tenants (each seed() inserts a wallet → appears in the scan).
+      await seed("HandlerA");
+      await seed("HandlerB");
 
-      const today = new Date();
-      const txDate = today.toISOString().slice(0, 10);
-      const monthStart = txDate.slice(0, 8) + "01";
-
-      // Tenant A: small drift (auto-repair)
-      await useCases.createTransaction({
-        kind: "EXPENSE",
-        amountOrig: "100.00",
-        currencyOrig: "EUR",
-        transactionDate: txDate,
-        accountId: fxA.accountId,
-        categoryId: fxA.categoryId,
-        tenantId: fxA.tenantId,
-        actorUserId: fxA.userId,
-      });
-      await corruptProjection(fxA.tenantId, fxA.categoryId, monthStart, "99.7");
-
-      // Tenant B: large drift (alert)
-      await useCases.createTransaction({
-        kind: "EXPENSE",
-        amountOrig: "200.00",
-        currencyOrig: "EUR",
-        transactionDate: txDate,
-        accountId: fxB.accountId,
-        categoryId: fxB.categoryId,
-        tenantId: fxB.tenantId,
-        actorUserId: fxB.userId,
-      });
-      await corruptProjection(fxB.tenantId, fxB.categoryId, monthStart, "150");
-
-      const r = await runBudgetingReconciliation(txDate);
+      // No sweepDeps → the run just scans tenants. The point of this test post-
+      // ENGR-14-removal: it no longer errors on the dead spending_by_category_month
+      // projection (which referenced the pre-migration column set).
+      const r = await runBudgetingReconciliation();
       expect(r.isOk()).toBe(true);
       const out = r.value!;
-      // Both tenants scanned (along with all other test tenants in this DB; assert >= our 2)
+      // Both seeded tenants (plus any others in the shared DB) appear in the scan.
       expect(out.tenantsScanned).toBeGreaterThanOrEqual(2);
-      // At least 1 repaired (fxA) and 1 alerted (fxB)
-      expect(out.totalRepaired).toBeGreaterThanOrEqual(1);
-      expect(out.totalAlerted).toBeGreaterThanOrEqual(1);
+      // Sweeps only run when sweepDeps are wired (prod); not in this scan-only test.
+      expect(out.reserveTopupsSwept).toBe(0);
+      expect(out.cushionTasksSwept).toBe(0);
     },
   );
 });

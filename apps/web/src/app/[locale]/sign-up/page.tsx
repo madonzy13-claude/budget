@@ -10,6 +10,7 @@ import {
 import { SignUpForm } from "@/components/auth/sign-up-form";
 import { BrandMark } from "@/components/common/brand-mark";
 import { PublicLocaleSwitcher } from "@/components/common/public-locale-switcher";
+import { HeaderThemeToggle } from "@/components/common/header-theme-toggle";
 import { SiteFooter } from "@/components/common/site-footer";
 
 interface SignUpPageProps {
@@ -31,7 +32,10 @@ export default async function SignUpPage({ params }: SignUpPageProps) {
       <header className="border-b border-[var(--hairline-dark)]">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <BrandMark href={`/${locale}`} />
-          <PublicLocaleSwitcher current={locale} />
+          <div className="flex items-center gap-2">
+            <PublicLocaleSwitcher current={locale} />
+            <HeaderThemeToggle />
+          </div>
         </div>
       </header>
 

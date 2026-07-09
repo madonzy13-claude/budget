@@ -16,7 +16,7 @@
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { X, Download, WifiOff, Zap, Bell } from "lucide-react";
+import { X, Smartphone, WifiOff, Zap, Bell } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -156,30 +156,38 @@ export function InstallBanner() {
         data-testid="install-banner"
         role="banner"
         aria-label={t("banner.ariaLabel")}
-        className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--primary)_15%,var(--surface-card-dark))] px-4 py-2.5 text-sm sm:hidden"
+        className="flex items-center gap-2.5 border-b border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)] px-4 py-2 text-sm sm:hidden"
       >
-        <Download
-          className="h-4 w-4 shrink-0 text-[var(--primary)]"
-          aria-hidden="true"
-        />
-        <span className="flex-1 text-[var(--body-on-dark)]">
-          {t("banner.body")}
-        </span>
-
+        {/* Tapping the icon + text opens the benefits dialog (was a separate
+            "Learn more" link that crowded the row and squeezed the copy into a
+            6-line column on narrow uk/pl screens). */}
         <button
           type="button"
           data-testid="install-banner-learn-more"
           onClick={() => setLearnMoreOpen(true)}
-          className="shrink-0 text-[var(--primary)] underline-offset-2 hover:underline"
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         >
-          {t("banner.learnMore")}
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_18%,transparent)]">
+            <Smartphone
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </span>
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate font-semibold text-[var(--body-on-dark)]">
+              {t("banner.title")}
+            </span>
+            <span className="block truncate text-xs text-[var(--muted-foreground)]">
+              {t("banner.tagline")}
+            </span>
+          </span>
         </button>
 
         <button
           type="button"
           data-testid="install-banner-cta"
           onClick={handleInstall}
-          className="shrink-0 rounded bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90"
+          className="shrink-0 rounded-full bg-[var(--primary)] px-4 py-1.5 text-xs font-semibold text-[var(--primary-foreground)] active:opacity-90"
         >
           {t("banner.cta")}
         </button>
@@ -189,7 +197,7 @@ export function InstallBanner() {
           data-testid="install-banner-dismiss"
           aria-label={t("banner.dismiss")}
           onClick={handleDismiss}
-          className="shrink-0 rounded p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
+          className="shrink-0 rounded-full p-1 text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

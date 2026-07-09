@@ -58,6 +58,8 @@ export function useDismissDraft(budgetId: string, month: string) {
       // task server-side. Invalidate tasks so the badge / slider drop the
       // row within ~1 tick.
       qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     },
   });
 }

@@ -68,15 +68,17 @@ function renderCard(
 }
 
 describe("BudgetCardClient — header + summary", () => {
-  it("renders header with budget name and PRIVATE badge", () => {
-    renderCard();
+  it("renders header with name + 'personal' badge + Lock icon (1 member)", () => {
+    // kind-removal: private/shared derives from member_count; 1 member → personal.
+    const { container } = renderCard({ ...baseBudget, memberCount: 1 });
     expect(screen.getByText("My Budget")).toBeTruthy();
-    expect(screen.getByText("PRIVATE")).toBeTruthy();
+    expect(screen.getByText("personal")).toBeTruthy();
+    expect(container.querySelector("svg.lucide-lock")).toBeTruthy();
   });
 
-  it("renders SHARED badge + Users icon when kind=SHARED", () => {
-    const { container } = renderCard({ ...baseBudget, kind: "SHARED" });
-    expect(screen.getByText("SHARED")).toBeTruthy();
+  it("renders 'shared' badge + Users icon when member_count > 1", () => {
+    const { container } = renderCard({ ...baseBudget, memberCount: 2 });
+    expect(screen.getByText("shared")).toBeTruthy();
     expect(container.querySelector("svg.lucide-users")).toBeTruthy();
     expect(container.querySelector("svg.lucide-lock")).toBeNull();
   });
@@ -119,11 +121,11 @@ describe("BudgetCardClient — header + summary", () => {
     expect(minus).toBeGreaterThanOrEqual(2);
   });
 
-  it("wraps the card in exactly one <a> Link to /{locale}/budgets/{id}/wallets", () => {
+  it("wraps the card in exactly one <a> Link to /{locale}/budgets/{id}/overview", () => {
     const { container } = renderCard();
     const anchors = container.querySelectorAll("a");
     expect(anchors.length).toBe(1);
-    expect(anchors[0]?.getAttribute("href")).toBe("/en/budgets/b1/wallets");
+    expect(anchors[0]?.getAttribute("href")).toBe("/en/budgets/b1/overview");
     expect(anchors[0]?.getAttribute("aria-label")).toBe("Open My Budget");
   });
 });

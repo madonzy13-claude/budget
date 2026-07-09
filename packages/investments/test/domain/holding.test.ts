@@ -25,6 +25,7 @@ interface Init {
   metal?: string | null;
   metalKind?: string | null;
   unitOfMeasure?: string | null;
+  premiumPct?: string | null;
 }
 
 // NOTE: nullable fields use `=== undefined` (not `??`) so an explicit `null`
@@ -49,6 +50,11 @@ export const mk = (o: Init = {}): Holding =>
     o.metal === undefined ? null : o.metal,
     o.metalKind === undefined ? null : o.metalKind,
     o.unitOfMeasure === undefined ? null : o.unitOfMeasure,
+    undefined, // symbol
+    undefined, // provider
+    undefined, // manualTicker
+    undefined, // displayCurrency
+    o.premiumPct === undefined ? null : o.premiumPct,
   );
 
 describe("Holding entity", () => {

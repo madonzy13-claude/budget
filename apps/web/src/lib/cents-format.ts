@@ -43,6 +43,9 @@ export function centsToDisplayCompact(
   cents: string | bigint,
   currency: string,
   locale = "en",
+  // narrow=true → the shortest currency sign ("kr", "zł", "₴") instead of the
+  // ISO code Intl falls back to for many currencies ("SEK 700" → "kr 700").
+  narrow = false,
 ): string {
   let big: bigint;
   try {
@@ -59,6 +62,7 @@ export function centsToDisplayCompact(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    currencyDisplay: narrow ? "narrowSymbol" : "symbol",
     minimumFractionDigits: hasFrac ? 2 : 0,
     maximumFractionDigits: 2,
   }).format(neg ? -num : num);
@@ -92,4 +96,34 @@ export function centsToBare(cents: string | bigint, locale = "en"): string {
     maximumFractionDigits: 2,
   }).format(num);
   return neg ? `-${formatted}` : formatted;
+}
+
+/**
+ * Currency rounded to whole units (no cents) — for hero/summary numbers that
+ * can be large (millions); cents add width without value. Currency symbol,
+ * bigint-safe, rounds half-up on the cents (`$17.50 → $18`). Distinct from
+ * `centsToDisplayCompact`, which keeps non-zero fractions. Lives here (not in a
+ * component) so every currency formatter stays in this one file — see
+ * money-format-guard.test.ts.
+ */
+export function centsToRounded(
+  cents: string | bigint,
+  currency: string,
+  locale = "en",
+): string {
+  let big: bigint;
+  try {
+    big = typeof cents === "string" ? BigInt(cents) : cents;
+  } catch {
+    big = 0n;
+  }
+  const neg = big < 0n;
+  const abs = neg ? -big : big;
+  let units = abs / 100n;
+  if (abs % 100n >= 50n) units += 1n;
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(Number(neg ? -units : units));
 }

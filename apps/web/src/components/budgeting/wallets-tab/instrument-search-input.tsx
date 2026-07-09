@@ -11,9 +11,10 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { isAutoPriced } from "@/lib/investment-types";
 
 /** Short, human label for a suggestion's listing venue. Manual instruments carry
  *  the exchange MIC in the provider (`manual:XWAR`); US is Finnhub; crypto/metals
@@ -83,7 +84,13 @@ export function InstrumentSearchInput({
   // typed). Selecting sets the name to the instrument's display name, which would
   // otherwise re-trigger the debounced search and re-open the dropdown. Suppress
   // that one reopen; a real keystroke clears the flag.
-  const justSelectedRef = useRef(false);
+  //
+  // 260626: seed it from a PRE-FILLED name too. In edit mode the sheet opens with
+  // the holding's asset name already set — that is the already-selected
+  // instrument, so the debounced mount effect must NOT fire a search and "activate"
+  // the field (open the dropdown / show the spinner) before the user changes
+  // anything. The first real keystroke clears the flag and search resumes.
+  const justSelectedRef = useRef(name.trim().length > 0);
 
   async function runSearch(q: string) {
     const query = q.trim();
@@ -194,6 +201,17 @@ export function InstrumentSearchInput({
                     setOpen(false);
                   }}
                 >
+                  {/* Auto-price marker: a yellow bolt on rows we can price live
+                      (US equities/ETF, crypto, metals) so they stand out from the
+                      manual foreign listings. Reserved slot keeps symbols aligned. */}
+                  <span className="flex w-4 shrink-0 justify-center">
+                    {isAutoPriced(r.provider) && (
+                      <Zap
+                        className="size-3.5 fill-[var(--primary)] text-[var(--primary)]"
+                        aria-label={t("autoPriced")}
+                      />
+                    )}
+                  </span>
                   <span className="text-num-sm text-[var(--muted-foreground)]">
                     {r.symbol}
                   </span>
@@ -201,25 +219,36 @@ export function InstrumentSearchInput({
                     {r.displayName}
                   </span>
                   {/* Exchange + currency so cross-listings of the same ticker
-                      (e.g. SPCX on NASDAQ/SIX/TSX) are distinguishable. */}
+                      (e.g. SPCX on NASDAQ/SIX/TSX) are distinguishable. Crypto
+                      has no meaningful venue and one global quote, so the
+                      currency just adds noise — omit it (UAT). */}
                   <span className="shrink-0 whitespace-nowrap text-num-sm text-[var(--muted-foreground)]">
-                    {[exchangeLabel(r.provider), r.quoteCurrency]
+                    {[
+                      exchangeLabel(r.provider),
+                      r.assetClass === "crypto" ? "" : r.quoteCurrency,
+                    ]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>
                 </button>
               </li>
             ))}
-          {!loading && searched && results.length === 0 && !allowManualEntry && (
-            <li className="px-3 py-2 text-body-md text-[var(--muted-foreground)]">
-              {t("noResults")}
-            </li>
-          )}
+          {!loading &&
+            searched &&
+            results.length === 0 &&
+            !allowManualEntry && (
+              <li className="px-3 py-2 text-body-md text-[var(--muted-foreground)]">
+                {t("noResults")}
+              </li>
+            )}
           {/* "Enter manually" — ALWAYS the last item (even with suggestions), set
               off by a divider + accent so it reads as a distinct action (add a
               ticker the catalog doesn't list), not just another suggestion. */}
           {!loading && searched && allowManualEntry && (
-            <li role="option" className="mt-1 border-t border-[var(--hairline-dark)]">
+            <li
+              role="option"
+              className="mt-1 border-t border-[var(--hairline-dark)]"
+            >
               <button
                 type="button"
                 data-testid="instrument-manual-entry-option"

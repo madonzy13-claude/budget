@@ -58,7 +58,7 @@ export function DateInput({
   const locale = useLocale();
   const display = formatDisplayDate(value, locale);
   return (
-    <div className="relative date-input-overlay-host">
+    <div className="relative date-input-overlay-host min-w-[7.5rem]">
       <Input
         type="date"
         value={value}
@@ -68,7 +68,7 @@ export function DateInput({
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 flex items-center px-3 text-base sm:text-sm text-[var(--body-on-dark)]"
+        className="pointer-events-none absolute inset-0 flex items-center whitespace-nowrap px-3 text-base sm:text-sm text-[var(--body-on-dark)]"
       >
         {display ||
           (placeholder ? (

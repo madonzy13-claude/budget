@@ -138,6 +138,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     metal: null,
     metalKind: null,
     unitOfMeasure: null,
+    premiumPct: null,
     instrumentProvider: "finnhub",
     isCustom: false,
     isDelisted: false,
@@ -149,6 +150,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     valueCents: "12000",
     valueInBudgetCents: "12000",
     profitLossPct: 20,
+    profitLossCents: "2000",
     weightPct: 100,
     sortOrder: 1,
     createdAt: "2026-06-21T00:00:00Z",
@@ -214,6 +216,110 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.getByTestId("holding-sheet-uom")).toBeInTheDocument();
   });
 
+  // 260626: bullion premium — metals only, seeded from the holding.
+  it("precious metals show the premium field, seeded from the holding", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "commodity",
+          uiType: "precious_metals",
+          metal: "gold",
+          metalKind: "coin",
+          unitOfMeasure: "g",
+          name: "Krugerrand",
+          premiumPct: "20",
+        })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-premium")).toHaveValue("20");
+  });
+
+  it("non-metals do NOT show the premium field", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    expect(screen.queryByTestId("holding-sheet-premium")).toBeNull();
+  });
+
+  // 260626: auto-fetched price is a DISABLED field (not an editable input).
+  it("auto-fetched current price renders a disabled field", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    expect(screen.getByTestId("holding-sheet-current-price")).toBeDisabled();
+  });
+
+  // 260626: the quantity field drops numeric(28,8) trailing zeros.
+  it("quantity field trims trailing zeros (1.13000000 → 1.13, 1.00000000 → 1)", () => {
+    const { unmount } = render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({ quantity: "1.13000000" })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-quantity")).toHaveValue("1.13");
+    unmount();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({ quantity: "1.00000000" })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-quantity")).toHaveValue("1");
+  });
+
+  // 260626: bottom Preview sum-up across types.
+  it("preview sum-up (metals): buy total, current value, premium, P/L", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        budgetCurrency="EUR"
+        mode="edit"
+        holding={holding({
+          holdingType: "commodity",
+          uiType: "precious_metals",
+          metal: "gold",
+          unitOfMeasure: "g",
+          name: "Bar",
+          instrumentProvider: "gold_api",
+          buyPriceCents: "6000", // 60.00/g
+          buyCurrency: "EUR",
+          currentPriceCents: "200000", // 2000.00/oz spot
+          currentPriceCurrency: "EUR",
+          quantity: "100",
+          premiumPct: "20",
+        })}
+      />,
+    );
+    const p = screen.getByTestId("holding-sheet-preview");
+    expect(p.textContent).toMatch(/6,000 EUR/); // buy total 60 × 100
+    expect(p.textContent).toMatch(/6,430\.15 EUR/); // current base 64.30 × 100
+    expect(p.textContent).toMatch(/1,286\.03 EUR/); // +20% premium
+    expect(p.textContent).toMatch(/7,716\.1[78] EUR/); // with premium
+    expect(p.textContent).toMatch(/1,716\.1[78] EUR/); // P/L
+  });
+
+  it("preview sum-up (cash): amount only, no P/L", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        budgetCurrency="EUR"
+        mode="edit"
+        holding={holding({
+          holdingType: "cash_fx",
+          uiType: "cash",
+          instrumentId: null,
+          name: "EUR Cash",
+          currentPriceCents: "50000",
+          currentPriceCurrency: "EUR",
+        })}
+      />,
+    );
+    const p = screen.getByTestId("holding-sheet-preview");
+    expect(p.textContent).toMatch(/500 EUR/);
+    expect(p.textContent).not.toMatch(/preview\.pl/); // no P/L row for cash
+  });
+
   it("create mode preselects no type → no Asset/Name field, Save disabled", () => {
     render(<HoldingSheet {...baseProps} mode="create" holding={null} />);
     expect(screen.queryByTestId("holding-sheet-name")).toBeNull();
@@ -266,7 +372,9 @@ describe("HoldingSheet — type-first", () => {
     fireEvent.click(screen.getByTestId("pick-manual-instrument"));
 
     // Editable current-price input appears (no read-only preview / banner).
-    expect(await screen.findByTestId("holding-sheet-amount")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("holding-sheet-amount"),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("price-blocked-banner")).toBeNull();
     // The price endpoint is NEVER called for a manual instrument.
     expect(clientApiFetch).not.toHaveBeenCalled();
@@ -309,6 +417,57 @@ describe("HoldingSheet — type-first", () => {
     // so the picker is hidden and the price label carries the currency.
     expect(screen.queryByTestId("currency-stub")).toBeNull();
     expect(screen.getByText(/field\.currentPrice \(USD\)/)).toBeInTheDocument();
+  });
+
+  // 260626: crypto is quoted in USD (CoinGecko) but the user values it in a
+  // currency of their choice — like precious metals. So unlike equity/ETF, a
+  // crypto holding with an instrument selected must STILL show the currency
+  // picker (manual currency), and the read-only price is FX-converted to it.
+  it("crypto: keeps the currency picker visible WITH an instrument (manual currency, unlike equity)", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "crypto",
+          uiType: "crypto",
+          instrumentProvider: "coingecko",
+          name: "Bitcoin",
+          buyCurrency: "EUR",
+          currentPriceCurrency: "EUR",
+        })}
+      />,
+    );
+    expect(screen.getByTestId("currency-stub")).toBeInTheDocument();
+  });
+
+  it("crypto: changing the currency re-fetches the price converted to that currency", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "1800000", currency: "EUR" }),
+    } as unknown as Response);
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "crypto",
+          uiType: "crypto",
+          instrumentProvider: "coingecko",
+          name: "Bitcoin",
+        })}
+      />,
+    );
+    vi.mocked(clientApiFetch).mockClear();
+    fireEvent.change(screen.getByTestId("currency-stub"), {
+      target: { value: "EUR" },
+    });
+    await waitFor(() => expect(clientApiFetch).toHaveBeenCalled());
+    const call = vi.mocked(clientApiFetch).mock.calls.at(-1);
+    expect(String(call?.[0])).toContain("/investments/price/i1");
+    expect(JSON.parse((call?.[1] as RequestInit).body as string)).toMatchObject(
+      { currency: "EUR" },
+    );
   });
 
   it("'enter manually' (no catalog match) shows an editable price + the currency picker", async () => {

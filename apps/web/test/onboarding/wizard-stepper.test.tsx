@@ -18,10 +18,10 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("WizardStepper — 4 word-labeled stepper states", () => {
-  it("renders 4 segments with word labels", () => {
+  it("renders 3 segments with word labels (kind-removal: no Type)", () => {
     render(<WizardStepper currentStep={1} />);
     expect(screen.getByText("basics")).toBeInTheDocument();
-    expect(screen.getByText("type")).toBeInTheDocument();
+    expect(screen.queryByText("type")).toBeNull();
     expect(screen.getByText("features")).toBeInTheDocument();
     expect(screen.getByText("review")).toBeInTheDocument();
   });
@@ -48,13 +48,13 @@ describe("WizardStepper — 4 word-labeled stepper states", () => {
   it("upcoming steps carry data-upcoming", () => {
     const { container } = render(<WizardStepper currentStep={2} />);
     const upcoming = container.querySelectorAll('[data-upcoming="true"]');
-    expect(upcoming.length).toBe(2); // steps 3 (features), 4 (review)
+    expect(upcoming.length).toBe(1); // step 3 (review); basics done, features current
   });
 
-  it("welcome (step 0) renders all four segments as upcoming", () => {
+  it("welcome (step 0) renders all three segments as upcoming", () => {
     const { container } = render(<WizardStepper currentStep={0} />);
     const upcoming = container.querySelectorAll('[data-upcoming="true"]');
-    expect(upcoming.length).toBe(4);
+    expect(upcoming.length).toBe(3);
     expect(container.querySelector('[data-current="true"]')).toBeNull();
     expect(container.querySelector('[data-completed="true"]')).toBeNull();
   });

@@ -9,14 +9,18 @@ Feature: Combined home page
   Background:
     Given I am signed in as a fresh user
 
+  # r35: one budget auto-opens its overview, so the card listing only renders for
+  # >1 budget (or ?list=1). Seed a 2nd budget so the listing is exercised.
   Scenario: Home renders one BudgetCard per accessible budget
-    When I open the home page
+    Given I also have a budget named "Second E2E Budget"
+    When I open the home budget listing
     Then I see a budget card titled "My E2E Budget"
 
-  Scenario: Card click navigates to /budgets/[id]/wallets
-    When I open the home page
+  Scenario: Card click navigates to /budgets/[id]/overview
+    Given I also have a budget named "Second E2E Budget"
+    When I open the home budget listing
     And I click the card for "My E2E Budget"
-    Then the URL ends with "/wallets"
+    Then the URL ends with "/overview"
 
   Scenario: Empty home state shows hero CTA when user has no budgets
     Given I am a signed-in user with no budgets

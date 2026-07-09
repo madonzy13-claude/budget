@@ -15,6 +15,7 @@ vi.mock("next-intl", () => ({
   useTranslations: (_ns: string) => (key: string) => {
     const map: Record<string, string> = {
       aria: "Budget detail tabs",
+      "overview.label": "Overview",
       "spendings.label": "Spendings",
       "reserves.label": "Reserves",
       "wallets.label": "Wallets",
@@ -54,12 +55,18 @@ function renderTabs(
 }
 
 describe("BdpTabs", () => {
-  it("renders 4 pill buttons in order: Wallets, Spendings, Reserves, Settings", () => {
-    renderTabs({ activeTab: "wallets" });
+  it("renders 5 pill buttons in order: Overview, Wallets, Spendings, Reserves, Settings", () => {
+    renderTabs({ activeTab: "overview" });
     const pills = screen.getAllByRole("button");
-    expect(pills.length).toBe(4);
+    expect(pills.length).toBe(5);
     const labels = pills.map((p) => p.getAttribute("aria-label"));
-    expect(labels).toEqual(["Wallets", "Spendings", "Reserves", "Settings"]);
+    expect(labels).toEqual([
+      "Overview",
+      "Wallets",
+      "Spendings",
+      "Reserves",
+      "Settings",
+    ]);
   });
 
   it("each pill is a <button>, not an anchor", () => {
@@ -115,23 +122,24 @@ describe("BdpTabs", () => {
   });
 
   describe("reservesEnabled cascading-hide (D-PH5-R11 surface 1)", () => {
-    it("no prop (undefined) → defaults to true → 4 pills incl. Reserves", () => {
+    it("no prop (undefined) → defaults to true → 5 pills incl. Reserves", () => {
       renderTabs({ activeTab: "spendings" });
-      expect(screen.getAllByRole("button").length).toBe(4);
+      expect(screen.getAllByRole("button").length).toBe(5);
       expect(screen.getByRole("button", { name: "Reserves" })).toBeTruthy();
     });
 
-    it("reservesEnabled={true} → 4 pills incl. Reserves", () => {
+    it("reservesEnabled={true} → 5 pills incl. Reserves", () => {
       renderTabs({ activeTab: "spendings", reservesEnabled: true });
-      expect(screen.getAllByRole("button").length).toBe(4);
+      expect(screen.getAllByRole("button").length).toBe(5);
       expect(screen.getByRole("button", { name: "Reserves" })).toBeTruthy();
     });
 
-    it("reservesEnabled={false} → 3 pills: Wallets, Spendings, Settings", () => {
+    it("reservesEnabled={false} → 4 pills: Overview, Wallets, Spendings, Settings", () => {
       renderTabs({ activeTab: "spendings", reservesEnabled: false });
       const pills = screen.getAllByRole("button");
-      expect(pills.length).toBe(3);
+      expect(pills.length).toBe(4);
       expect(pills.map((p) => p.getAttribute("aria-label"))).toEqual([
+        "Overview",
         "Wallets",
         "Spendings",
         "Settings",

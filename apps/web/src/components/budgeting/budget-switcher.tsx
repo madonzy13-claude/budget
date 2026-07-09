@@ -10,16 +10,27 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
+import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
 import { cn } from "@/lib/utils";
 
 export interface BudgetSummary {
   id: string;
   name: string;
-  kind: "PRIVATE" | "SHARED";
+  /**
+   * kind-removal: `kind` is no longer a stored concept (may be null on new
+   * budgets). Private/shared is derived from `memberCount` (1 = private,
+   * >1 = shared). Kept optional so legacy payloads still type-check.
+   */
+  kind?: "PRIVATE" | "SHARED" | null;
+  memberCount?: number;
   default_currency: string;
   /** Pending task count for this budget. Sourced from GET /budgets/active. */
   pendingTasksCount: number;
+}
+
+/** kind-removal: a budget is "shared" purely by having more than one member. */
+function isSharedBudget(b: BudgetSummary): boolean {
+  return (b.memberCount ?? 1) > 1;
 }
 
 export interface BudgetSwitcherProps {
@@ -71,8 +82,8 @@ export function BudgetSwitcher({
     return extractActiveBudgetIdFromPath(pathname);
   }, [pathname, activeBudgetIdProp]);
   const active = budgets.find((b) => b.id === activeBudgetId) ?? null;
-  const privateB = budgets.filter((b) => b.kind === "PRIVATE");
-  const sharedB = budgets.filter((b) => b.kind === "SHARED");
+  const privateB = budgets.filter((b) => !isSharedBudget(b));
+  const sharedB = budgets.filter(isSharedBudget);
   const isEmpty = budgets.length === 0;
 
   // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
@@ -85,7 +96,7 @@ export function BudgetSwitcher({
     (id: string) => {
       setOpen(false);
       if (id === activeBudgetId) return;
-      router.push(`/${locale}/budgets/${id}/wallets`);
+      router.push(`/${locale}/budgets/${id}/overview`);
     },
     [router, locale, activeBudgetId],
   );
@@ -106,24 +117,24 @@ export function BudgetSwitcher({
               SHARED. Both glyphs ride at --muted-foreground so the
               active budget name carries the visual weight — the icon is
               a quick-scan kind cue, not a competing element. */}
-          {active && active.kind === "PRIVATE" && (
-            <User
-              className="size-4 text-[var(--muted-foreground)]"
-              aria-hidden="true"
-            />
-          )}
-          {active && active.kind === "SHARED" && (
-            <Users
-              className="size-4 text-[var(--muted-foreground)]"
-              aria-hidden="true"
-            />
-          )}
+          {active &&
+            (isSharedBudget(active) ? (
+              <Users
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
+            ) : (
+              <User
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
+            ))}
           {/* UAT-PH5-T3-13: show up to 20 characters with no truncation. The
               label is omitted entirely when there is no active budget so the
               header collapses to a bare chevron on the home page. */}
           {triggerLabel && (
             <span
-              className="text-title-sm inline-block max-w-[14ch] truncate align-middle sm:max-w-[20ch]"
+              className="text-title-sm inline-block max-w-[20ch] truncate align-middle sm:max-w-[28ch]"
               title={triggerLabel}
             >
               {triggerLabel}
@@ -258,17 +269,16 @@ function BudgetGroup({
                 aria-hidden="true"
               />
             )}
-            {/* Per-row kind glyph: single User for PRIVATE, Users
-                (couple) for SHARED. Both glyphs are 16px and muted so
-                they read as metadata, not as a competing icon row. */}
-            {b.kind === "PRIVATE" && (
-              <User
+            {/* Per-row glyph: single User for private (1 member), Users
+                (couple) for shared (>1 member). Both glyphs are 16px and
+                muted so they read as metadata, not a competing icon row. */}
+            {isSharedBudget(b) ? (
+              <Users
                 className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
               />
-            )}
-            {b.kind === "SHARED" && (
-              <Users
+            ) : (
+              <User
                 className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
               />
@@ -276,9 +286,9 @@ function BudgetGroup({
             <span className="flex-1 truncate text-body-md text-[var(--on-dark)]">
               {b.name}
             </span>
-            <Badge variant="outline" className="num text-[11px]">
-              {b.default_currency}
-            </Badge>
+            {/* r35: pending-task count badge (red) instead of the currency —
+                hidden when 0 (PillBadge returns null for count ≤ 0). */}
+            <PillBadge count={b.pendingTasksCount} />
           </button>
         );
       })}

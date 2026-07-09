@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test";
 import {
   holdingValue,
   profitLossPct,
+  profitLossCents,
 } from "../../src/domain/portfolio-metrics";
 import { mk } from "./holding.test";
 
@@ -130,5 +131,140 @@ describe("broker holding (deposited vs actual, qty=1)", () => {
       currentPriceCurrency: "PLN",
     });
     expect(profitLossPct(h)).toBe(12.5);
+  });
+});
+
+describe("bullion premium (metals: current/resale value = spot × (1 + premium%))", () => {
+  test("gold (g) with +20% premium: value = melt × 1.20", () => {
+    const h = mk({
+      holdingType: "commodity",
+      uiType: "precious_metals",
+      metal: "gold",
+      unitOfMeasure: "g",
+      quantity: "100",
+      currentPriceCents: 200000n,
+      premiumPct: "20",
+    });
+    // melt = 200000*0.03215074656862*100 = 643014.9314; ×1.20 = 771617.9177
+    expect(holdingValue(h).toFixed(2)).toBe("771617.92");
+  });
+
+  test("no premium (null) keeps the melt/spot value", () => {
+    const h = mk({
+      holdingType: "commodity",
+      uiType: "precious_metals",
+      metal: "gold",
+      unitOfMeasure: "g",
+      quantity: "100",
+      currentPriceCents: 200000n,
+      premiumPct: null,
+    });
+    expect(holdingValue(h).toFixed(2)).toBe("643014.93");
+  });
+
+  test("premium lifts profitLossCents (resale value > melt)", () => {
+    const h = mk({
+      holdingType: "commodity",
+      uiType: "precious_metals",
+      metal: "gold",
+      unitOfMeasure: "g",
+      buyPriceCents: 6000n,
+      buyCurrency: "USD",
+      currentPriceCents: 200000n,
+      currentPriceCurrency: "USD",
+      quantity: "100",
+      premiumPct: "20",
+    });
+    // per-g current = 6430.149*1.20 = 7716.179; (7716.179 - 6000)*100
+    expect(Number(profitLossCents(h))).toBeCloseTo(171617.9, 0);
+  });
+
+  test("premium is ignored for non-metals (equity unaffected)", () => {
+    const h = mk({
+      quantity: "10",
+      currentPriceCents: 42000n,
+      premiumPct: "20",
+    });
+    expect(holdingValue(h).toString()).toBe("420000");
+  });
+});
+
+describe("profitLossCents (absolute P/L, cents, FX-converted, quantity-scaled)", () => {
+  test("same currency, gain: buy 100.00, current 112.40, qty 1 => +1240c", () => {
+    const h = mk({
+      buyPriceCents: 10000n,
+      buyCurrency: "USD",
+      currentPriceCents: 11240n,
+      currentPriceCurrency: "USD",
+      quantity: "1",
+    });
+    expect(profitLossCents(h)).toBe("1240");
+  });
+
+  // 260626 regression: a near-total loss rounds the PERCENT to -100.0, which broke
+  // the client's old value/(1+pct/100) back-derivation (÷0 → "-0"). The absolute
+  // P/L must stay a real, large negative number.
+  test("near-total loss does NOT collapse to 0: buy 100.00, current 0.01, qty 1 => -9999c", () => {
+    const h = mk({
+      buyPriceCents: 10000n,
+      buyCurrency: "EUR",
+      currentPriceCents: 1n,
+      currentPriceCurrency: "EUR",
+      quantity: "1",
+    });
+    expect(profitLossPct(h)).toBe(-100); // the rounding that broke the old hack
+    expect(profitLossCents(h)).toBe("-9999"); // but the absolute is correct
+  });
+
+  test("quantity scales the absolute P/L: buy 100, current 110, qty 10 => +10000c", () => {
+    const h = mk({
+      buyPriceCents: 10000n,
+      buyCurrency: "USD",
+      currentPriceCents: 11000n,
+      currentPriceCurrency: "USD",
+      quantity: "10",
+    });
+    expect(profitLossCents(h)).toBe("10000");
+  });
+
+  test("precious metals (g): per-g buy vs spot/oz converted, x quantity", () => {
+    const h = mk({
+      holdingType: "commodity",
+      uiType: "precious_metals",
+      metal: "gold",
+      unitOfMeasure: "g",
+      buyPriceCents: 6000n, // 60.00/g (cents), comparable to the per-g spot below
+      buyCurrency: "USD",
+      currentPriceCents: 200000n, // 2000.00/oz spot
+      currentPriceCurrency: "USD",
+      quantity: "100",
+    });
+    // per-g current = 200000*0.03215074656862 = 6430.149c; (6430.149-6000)*100
+    expect(Number(profitLossCents(h))).toBeCloseTo(43014.93, 0);
+  });
+
+  test("FX-converted (current ccy -> buy ccy via rate): buy 100 USD, current 120 EUR @0.9 => +800c", () => {
+    const h = mk({
+      buyPriceCents: 10000n,
+      buyCurrency: "USD",
+      currentPriceCents: 12000n,
+      currentPriceCurrency: "EUR",
+      quantity: "1",
+    });
+    expect(profitLossCents(h, "0.9")).toBe("800");
+  });
+
+  test("cash => null", () => {
+    const h = mk({
+      holdingType: "cash_fx",
+      quantity: "1",
+      currentPriceCents: 50000n,
+    });
+    expect(profitLossCents(h)).toBeNull();
+  });
+
+  test("missing buy price => null", () => {
+    const h = mk({ buyPriceCents: null });
+    expect(profitLossCents(h)).toBeNull();
   });
 });

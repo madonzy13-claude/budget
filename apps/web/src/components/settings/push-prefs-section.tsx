@@ -27,12 +27,24 @@ const NOTIFICATION_KINDS = [
   "RESERVE_TOPUP",
   "CONFIRM_DRAFT",
   "CUSHION_BELOW_TARGET",
+  // r33: income < total planned spending — "review your spendings".
+  "INCOME_UNDER_PLANNED",
+  // r36: TASK_COMPLETED removed — task-completed push no longer sent.
 ] as const;
 
 type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
+// r32: ISO weekday order for the reminder day-picker (1=Mon..7=Sun).
+const REMINDER_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
+
+interface PrefRow {
+  notificationType: string;
+  enabled: boolean;
+  config?: { days?: number[]; tz?: string } | null;
+}
+
 interface PushPreferencesData {
-  preferences: Array<{ notificationType: string; enabled: boolean }>;
+  preferences: PrefRow[];
 }
 
 /** Cache keys — shared (by shape) with use-prefetch-budget-tabs + query-persist. */
@@ -92,6 +104,7 @@ export function PushPrefsSection({
       RESERVE_TOPUP: true,
       CONFIRM_DRAFT: true,
       CUSHION_BELOW_TARGET: true,
+      INCOME_UNDER_PLANNED: true,
     };
     for (const pref of prefsQuery.data?.preferences ?? []) {
       if (
@@ -117,6 +130,69 @@ export function PushPrefsSection({
       else prefs.push({ notificationType: kind, enabled });
       return { preferences: prefs };
     });
+  }
+
+  // r32: budget-update reminder — enabled + selected weekdays (default all 7).
+  const reminder = useMemo(() => {
+    const p = prefsQuery.data?.preferences.find(
+      (x) => x.notificationType === "BUDGET_REMINDER",
+    );
+    return {
+      enabled: p ? p.enabled : true,
+      days: p?.config?.days ?? [1, 2, 3, 4, 5, 6, 7],
+    };
+  }, [prefsQuery.data]);
+
+  function setReminderCache(enabled: boolean, days: number[]) {
+    qc.setQueryData<PushPreferencesData>(pushPrefsKey(budgetId), (old) => {
+      const prefs = (old?.preferences ?? []).slice();
+      const idx = prefs.findIndex(
+        (p) => p.notificationType === "BUDGET_REMINDER",
+      );
+      const row: PrefRow = {
+        notificationType: "BUDGET_REMINDER",
+        enabled,
+        // Only the weekdays are stored; the reminder always fires at 18:00 in the
+        // member's live identity timezone (geo-seeded at sign-up), so we don't
+        // snapshot a tz here — that would go stale if the user moves.
+        config: { days },
+      };
+      if (idx >= 0) prefs[idx] = row;
+      else prefs.push(row);
+      return { preferences: prefs };
+    });
+  }
+
+  async function patchReminder(enabled: boolean, days: number[]) {
+    const prevEnabled = reminder.enabled;
+    const prevDays = reminder.days;
+    setReminderCache(enabled, days);
+    try {
+      const res = await api.push.preferences.$patch({
+        json: {
+          budgetId,
+          notificationType: "BUDGET_REMINDER",
+          enabled,
+          config: { days },
+        },
+      });
+      if (!res.ok) throw new Error("Patch failed");
+      toast.success(t("saved"));
+    } catch {
+      setReminderCache(prevEnabled, prevDays);
+      toast.error(t("subscribeError"));
+    }
+  }
+
+  function handleReminderToggle(checked: boolean) {
+    void patchReminder(checked, reminder.days);
+  }
+
+  function handleDayToggle(day: number) {
+    const next = reminder.days.includes(day)
+      ? reminder.days.filter((d) => d !== day)
+      : [...reminder.days, day].sort((a, b) => a - b);
+    void patchReminder(reminder.enabled, next);
   }
 
   async function handleMasterToggle(checked: boolean) {
@@ -152,7 +228,17 @@ export function PushPrefsSection({
         toast.success(t("saved"));
       } else {
         setMasterCache(false);
-        toast.error(t("permissionDenied"));
+        // Distinct causes: an explicit permission block vs. push not available on
+        // this device (no VAPID key / not installed) vs. a transient failure. The
+        // old code showed "permission denied" for all three, which hid a missing
+        // NEXT_PUBLIC_VAPID_PUBLIC_KEY as a fake permission problem (r31e).
+        toast.error(
+          result === "denied"
+            ? t("permissionDenied")
+            : result === "unsupported"
+              ? t("unsupported")
+              : t("subscribeError"),
+        );
       }
     } finally {
       setIsLoading(false);
@@ -226,6 +312,54 @@ export function PushPrefsSection({
               />
             </div>
           ))}
+
+          {/* r32: budget-update reminder — toggle + weekday picker. */}
+          <div className="space-y-3 border-t border-[var(--hairline-on-dark)] pt-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <p className="text-sm text-[var(--body-on-dark)]">
+                  {t("reminder.label")}
+                </p>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  {t("reminder.description")}
+                </p>
+              </div>
+              <Switch
+                data-testid="push-reminder-switch"
+                checked={reminder.enabled}
+                onCheckedChange={handleReminderToggle}
+                aria-label={t("reminder.label")}
+              />
+            </div>
+            {reminder.enabled && (
+              <div
+                className="flex flex-wrap gap-1.5"
+                data-testid="push-reminder-days"
+              >
+                {REMINDER_DAYS.map((day) => {
+                  const on = reminder.days.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      data-testid={`push-reminder-day-${day}`}
+                      aria-pressed={on}
+                      aria-label={t(`reminder.day.${day}`)}
+                      onClick={() => handleDayToggle(day)}
+                      className={
+                        "h-9 min-w-9 rounded-[var(--radius-md)] px-2 text-xs font-medium transition-colors " +
+                        (on
+                          ? "bg-[var(--primary)] text-[var(--on-primary)]"
+                          : "bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]")
+                      }
+                    >
+                      {t(`reminder.dayShort.${day}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

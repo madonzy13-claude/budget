@@ -61,4 +61,15 @@ export interface RecurringDraftRepo {
     ruleId: string,
     edits: DraftEdits,
   ): Promise<string[]>;
+
+  /**
+   * Soft-delete future PENDING drafts for a rule (transaction_date >= CURRENT_DATE,
+   * confirmed_at IS NULL, not already deleted). Used when a rule's cadence/day
+   * changes: the stale-dated drafts can't be updated in-place (their dates no
+   * longer match the schedule), so they're removed and the generation engine
+   * recreates them from the recomputed next_due_date. CONFIRMED drafts and
+   * past (< today) pending drafts are left untouched.
+   * Returns array of removed draft ids for the outbox payload. Caller owns the tx.
+   */
+  deleteFuturePending(tx: unknown, ruleId: string): Promise<string[]>;
 }

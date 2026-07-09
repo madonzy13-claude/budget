@@ -301,7 +301,7 @@ export function CategoryColumn({
             </div>
             <div
               className="flex flex-1 flex-col"
-              style={{ backgroundColor: "#181c22" }}
+              style={{ backgroundColor: "var(--surface-sunken-dark)" }}
             >
               {[...drafts]
                 .sort((a, b) =>

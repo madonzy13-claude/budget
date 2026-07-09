@@ -295,6 +295,83 @@
       "when": 1782220000000,
       "tag": "0042_investments_manual_ticker",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1782230000000,
+      "tag": "0043_investments_palladium_metal",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1782240000000,
+      "tag": "0044_investments_bullion_premium",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1782250000000,
+      "tag": "0045_phase10_drop_provider_prefs",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1782260000000,
+      "tag": "0046_phase10_display_currency_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1782560000000,
+      "tag": "0047_phase10_user_timezone",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1782570000000,
+      "tag": "0048_phase10_user_theme",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1782656400000,
+      "tag": "0049_phase11_budget_wealth_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1782660000000,
+      "tag": "0050_notification_prefs_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1782663600000,
+      "tag": "0051_incomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1782667200000,
+      "tag": "0052_investment_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1782670800000,
+      "tag": "0053_income_under_planned_task",
+      "breakpoints": true
     }
   ]
 }

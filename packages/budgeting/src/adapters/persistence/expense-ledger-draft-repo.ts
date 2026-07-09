@@ -155,4 +155,22 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
     `);
     return result.rows.map((r) => (r as Record<string, unknown>).id as string);
   }
+
+  async deleteFuturePending(tx: unknown, ruleId: string): Promise<string[]> {
+    const drizzleTx = tx as DrizzleTx;
+    // Soft-delete (deleted_at) matches markSkipped + the UNIQUE index's
+    // `deleted_at IS NULL` predicate, so the engine can re-insert on the new
+    // schedule without a unique-collision.
+    const result = await drizzleTx.execute(sql`
+      UPDATE budgeting.expense_ledger
+         SET deleted_at = now(),
+             updated_at = now()
+       WHERE recurring_rule_id = ${ruleId}::uuid
+         AND confirmed_at IS NULL
+         AND deleted_at IS NULL
+         AND transaction_date >= CURRENT_DATE
+      RETURNING id
+    `);
+    return result.rows.map((r) => (r as Record<string, unknown>).id as string);
+  }
 }

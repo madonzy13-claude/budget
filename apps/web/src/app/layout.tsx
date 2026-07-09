@@ -72,6 +72,29 @@ export default function RootLayout({
               "(function(){try{var d=document.documentElement;function s(){d.classList.toggle('is-offline',navigator.onLine===false);}s();addEventListener('online',s);addEventListener('offline',s);}catch(e){}})();",
           }}
         />
+        {/* PRE-PAINT safe-area-top marker. iOS reports env(safe-area-inset-top)
+            as 0 on the first frame of an installed-PWA cold launch, then resolves
+            it — dropping the whole shell a beat after paint. safe-area-top-sync.tsx
+            persists the resolved inset; this reads it (standalone only) and sets
+            `--safe-top` on <html> so the header padding is correct from frame 1.
+            Not set in browser tabs (inset 0 → env() fallback). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(matchMedia('(display-mode: standalone)').matches||navigator.standalone===true){var v=localStorage.getItem('sat');if(v)document.documentElement.style.setProperty('--safe-top',v+'px');}}catch(e){}})();",
+          }}
+        />
+        {/* PRE-PAINT theme marker. Reads the `budget-theme` cookie and sets
+            html[data-theme] BEFORE first paint so the light/dark palette in
+            global.css applies in frame 1 (no flash). Default is dark (current
+            behaviour for users with no preference). suppressHydrationWarning on
+            <html> covers the attribute this sets. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var m=document.cookie.match(/(?:^|; )budget-theme=([^;]+)/);var t=m&&m[1]==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();",
+          }}
+        />
       </head>
       <body
         className={`${inter.variable} ${plex.variable} font-sans antialiased`}

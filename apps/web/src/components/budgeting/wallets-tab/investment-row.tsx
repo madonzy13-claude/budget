@@ -13,12 +13,13 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { TrendingUp, TrendingDown, Pencil, Trash2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Trash2 } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { holdingIcon } from "@/lib/investment-icons";
+import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { AssetClassChip } from "./asset-class-chip";
 
@@ -26,7 +27,8 @@ interface InvestmentRowProps {
   holding: HoldingDto;
   /** Drag handle slot (injected by InvestmentRowSheet; omitted in unit tests). */
   dragHandle?: React.ReactNode;
-  /** A grouped child — renders a touch darker to read as a nested level (D-#7). */
+  /** A grouped child — distinct surface (darker in dark mode, lighter in light)
+   *  so it reads as a nested level (D-#7). */
   nested?: boolean;
   /** Longest formatted amount in the section → dynamic amount-column width so
    *  the currency codes line up in a column (mirrors wallet-row). */
@@ -51,7 +53,34 @@ export function InvestmentRow({
 }: InvestmentRowProps) {
   const locale = useLocale();
   const t = useTranslations("budget.investments");
-  const [expanded, setExpanded] = useState(false);
+  // Tapped-open (mobile P/L expand) persists across pill navigation for the BDP's
+  // lifetime (round 18 item 2) — seed from + write to the BDP store by holding id.
+  const bdpStore = useBdpUiStore();
+  const [expanded, setExpanded] = useState(
+    () => bdpStore?.wallets.expandedRows[holding.id] ?? false,
+  );
+
+  // Desktop has no hover edit pen anymore (UAT #7) — a desktop row-click opens the
+  // edit sheet instead. On mobile the same click toggles the inline P/L (the pen
+  // lives in the swipe panel). matchMedia drives which behaviour the body click
+  // uses; defaults to mobile until mounted (SSR-safe, test-safe).
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
+  const activate = () => {
+    if (isDesktop) onEdit?.();
+    else
+      setExpanded((e) => {
+        const next = !e;
+        if (bdpStore) bdpStore.wallets.expandedRows[holding.id] = next;
+        return next;
+      });
+  };
 
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
   const value = centsToBare(holding.valueCents, locale);
@@ -63,6 +92,14 @@ export function InvestmentRow({
   // instruments show TICKER / "TICKER (Name)"; everything else the stored name.
   const isCash = holding.holdingType === "cash_fx";
   const cashLabel = t("uitype.cash");
+
+  // Quantity for the mobile-expanded row — only for holdings where it's meaningful
+  // (tracked / metals). Cash + broker are single-unit (qty 1), so omit it. Trim
+  // trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
+  const showQty = !isCash && holding.uiType !== "broker";
+  const qtyDisplay = holding.quantity.includes(".")
+    ? holding.quantity.replace(/0+$/, "").replace(/\.$/, "")
+    : holding.quantity;
   const desktopName = isCash ? cashLabel : desktopLabel(holding);
   const mobileName = isCash ? cashLabel : mobileLabel(holding, expanded);
 
@@ -79,13 +116,15 @@ export function InvestmentRow({
           ? "text-[var(--trading-down)]"
           : "text-[var(--muted-foreground)]";
 
-  // P/L money amount (real gain/loss in the value currency, NO currency symbol)
-  // derived from value + P/L%: cost = value / (1 + pl/100), amount = value − cost.
+  // P/L money amount (real gain/loss, NO currency symbol). Read straight from the
+  // SERVER's profitLossCents (computed from the real cost basis). It must NOT be
+  // back-derived as value/(1 + pl/100): pl is rounded to 1 decimal, so a near-total
+  // loss rounds to -100.0 → ÷0 → the amount collapsed to "-0" (260626 bug).
   // Shown beside the P/L% in the mobile expanded stack (D-#plmoney).
   const plMoney = (() => {
-    if (pct == null) return null;
-    const vc = Number(holding.valueCents || 0);
-    const amt = vc - vc / (1 + pct / 100); // cents
+    if (pct == null || holding.profitLossCents == null) return null;
+    const amt = Number(holding.profitLossCents); // cents
+    if (!Number.isFinite(amt)) return null;
     const sign = amt > 0 ? "+" : amt < 0 ? "−" : "";
     return `${sign}${centsToBare(String(Math.round(Math.abs(amt))), locale)}`;
   })();
@@ -115,7 +154,7 @@ export function InvestmentRow({
       className={[
         "group flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
         nested
-          ? "bg-[color-mix(in_srgb,var(--surface-card-dark),#000_22%)] hover:bg-[var(--surface-card-dark)]"
+          ? "bg-[var(--surface-nested-dark)] hover:bg-[var(--surface-card-dark)]"
           : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
       ]
         .filter(Boolean)
@@ -130,13 +169,17 @@ export function InvestmentRow({
       <div
         role="button"
         tabIndex={0}
-        aria-expanded={expanded}
-        aria-label={t("rowExpandAria", { name: holding.name })}
-        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={isDesktop ? undefined : expanded}
+        aria-label={
+          isDesktop
+            ? t("row.editAria", { name: holding.name })
+            : t("rowExpandAria", { name: holding.name })
+        }
+        onClick={activate}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setExpanded((x) => !x);
+            activate();
           }
         }}
         className={[
@@ -212,12 +255,37 @@ export function InvestmentRow({
                 </span>
               </div>
               <div className="text-caption text-[var(--muted-foreground)] tabular-nums">
-                {t("row.share", { pct: weight })}
+                {showQty && (
+                  <>
+                    <span>{t("row.qty", { qty: qtyDisplay })}</span>
+                    <span aria-hidden="true"> · </span>
+                  </>
+                )}
+                <span>{t("row.share", { pct: weight })}</span>
               </div>
             </div>
           )}
         </div>
 
+        {/* Desktop columns (UAT #7): qty · P/L% · P/L amt · value · weight. All
+            `hidden sm:*` so mobile keeps its collapsed name+currency+value layout. */}
+        {/* Quantity — blank for cash/broker (qty is meaningless) to keep the
+            columns aligned with rows that do have one. */}
+        <span
+          data-testid={`holding-qty-${holding.name}`}
+          className="hidden w-20 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block"
+        >
+          {showQty ? qtyDisplay : ""}
+        </span>
+        {/* P/L% then the P/L money amount (no currency symbol). */}
+        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
+          {plNode}
+        </span>
+        <span
+          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor}`}
+        >
+          {plMoney ?? ""}
+        </span>
         {/* Currency tight to the amount (gap-1, D-#3). On mobile-expanded it's
             re-rendered inside the middle row (P/L or day), so hide it here;
             desktop (sm) + mobile-collapsed keep it on the right. */}
@@ -246,36 +314,24 @@ export function InvestmentRow({
             </span>
           </div>
         </div>
-        {/* Desktop: P/L% + weight% inline. */}
-        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
-          {plNode}
-        </span>
+        {/* Desktop: weight% last. */}
         <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {weight}
         </span>
       </div>
 
-      {/* Desktop hover actions — pen + trash (28×28). Dimmed with the content
-          when delisted; the handle (left) stays full opacity. */}
+      {/* Desktop hover action — trash only (the edit pen was removed in UAT #7;
+          a desktop row-click opens the edit sheet). Dimmed with the content when
+          delisted; the handle (left) stays full opacity. The fixed w-7 matches the
+          group header's trailing spacer so right edges line up. */}
       <div
         className={[
-          "hidden shrink-0 items-center gap-1 sm:flex",
+          "hidden w-7 shrink-0 items-center justify-end sm:flex",
           delisted ? "opacity-50" : "",
         ]
           .filter(Boolean)
           .join(" ")}
       >
-        <button
-          type="button"
-          aria-label={t("row.editAria", { name: holding.name })}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit?.();
-          }}
-          className="invisible flex h-7 w-7 items-center justify-center rounded text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)] group-hover:visible"
-        >
-          <Pencil className="h-4 w-4" aria-hidden="true" />
-        </button>
         <button
           type="button"
           aria-label={t("row.deleteAria", { name: holding.name })}

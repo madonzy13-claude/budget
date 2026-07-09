@@ -22,13 +22,14 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface WizardStepperProps {
-  /** 0 = welcome screen (no segment active); 1..4 = real wizard steps. */
-  currentStep: 0 | 1 | 2 | 3 | 4;
-  onStepJump?: (step: 1 | 2 | 3 | 4) => void;
+  /** 0 = welcome screen (no segment active); 1..3 = real wizard steps. */
+  currentStep: 0 | 1 | 2 | 3;
+  onStepJump?: (step: 1 | 2 | 3) => void;
   className?: string;
 }
 
-const STEP_KEYS = ["type", "basics", "features", "review"] as const;
+// kind-removal: no "type" step.
+const STEP_KEYS = ["basics", "features", "review"] as const;
 
 export function WizardStepper({
   currentStep,
@@ -45,7 +46,7 @@ export function WizardStepper({
       className={cn("flex items-center gap-1.5", className)}
     >
       {STEP_KEYS.map((key, idx) => {
-        const n = (idx + 1) as 1 | 2 | 3 | 4;
+        const n = (idx + 1) as 1 | 2 | 3;
         const label = t(key);
         const isCompleted = n < currentStep;
         const isCurrent = n === currentStep;

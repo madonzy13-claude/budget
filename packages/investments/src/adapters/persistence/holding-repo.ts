@@ -47,6 +47,7 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.provider as string | null) ?? null,
     (row.manual_ticker as string | null) ?? null,
     (row.display_currency as string | null) ?? null,
+    (row.premium_pct as string | null) ?? null,
   );
 }
 
@@ -67,7 +68,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type,
              group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
              current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
-             sort_order, created_at)
+             premium_pct, sort_order, created_at)
           VALUES
             (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
              ${input.name}, ${input.holdingType}, ${input.uiType},
@@ -76,7 +77,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
              ${input.quantity}::numeric, ${b8(input.currentPriceCents)}::bigint,
              ${input.currentPriceCurrency},
              ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
-             ${input.manualTicker},
+             ${input.manualTicker}, ${input.premiumPct ?? null}::numeric,
              COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
                         WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
              now())
@@ -86,7 +87,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
                     current_price_currency, metal, metal_kind, unit_of_measure,
-                    manual_ticker, manual_ticker AS symbol,
+                    manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
                     sort_order, archived_at, created_at
         `);
         return mapRow(res.rows[0]);
@@ -122,7 +123,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             metal = ${input.metal},
             metal_kind = ${input.metalKind},
             unit_of_measure = ${input.unitOfMeasure},
-            manual_ticker = ${input.manualTicker}
+            manual_ticker = ${input.manualTicker},
+            premium_pct = ${input.premiumPct ?? null}::numeric
           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid AND archived_at IS NULL
           RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
                     ui_type, group_name, instrument_id::text AS instrument_id,
@@ -130,7 +132,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
                     current_price_currency, metal, metal_kind, unit_of_measure,
-                    manual_ticker, manual_ticker AS symbol,
+                    manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
                     sort_order, archived_at, created_at
         `);
         return res.rows.length ? mapRow(res.rows[0]) : null;
@@ -169,6 +171,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
           SELECT inv.id::text AS id, inv.tenant_id::text AS tenant_id, inv.name,
                  inv.holding_type, inv.ui_type, inv.group_name,
                  inv.metal, inv.metal_kind, inv.unit_of_measure,
+                 inv.premium_pct::text AS premium_pct,
                  inv.instrument_id::text AS instrument_id,
                  inv.buy_price_cents::text AS buy_price_cents, inv.buy_currency,
                  inv.quantity::text AS quantity,
@@ -236,6 +239,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const res = await dt.execute(sql`
           SELECT id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
                  ui_type, group_name, metal, metal_kind, unit_of_measure,
+                 premium_pct::text AS premium_pct,
                  instrument_id::text AS instrument_id, manual_ticker,
                  manual_ticker AS symbol,
                  buy_price_cents::text AS buy_price_cents, buy_currency,

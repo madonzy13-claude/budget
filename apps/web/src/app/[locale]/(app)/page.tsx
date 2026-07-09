@@ -26,5 +26,9 @@ interface HomePageProps {
 
 export default async function HomePage({ params }: HomePageProps) {
   const { locale } = await params;
+  // r35: the last-budget auto-open is a CLIENT soft-nav (HomeBudgetsClient) — a
+  // server redirect here would hard-navigate the overview, and iOS resolves the
+  // safe-area top inset 0→final on a hard load, dropping content down (a jump). A
+  // soft-nav keeps the shell mounted so the inset never re-settles.
   return <HomeBudgetsClient locale={locale} />;
 }

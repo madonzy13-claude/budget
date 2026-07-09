@@ -42,7 +42,10 @@
         "heading": "Choose a new password",
         "cta": "Reset password"
       },
-      "expired": "This reset link has expired. Request a new one — they're valid for 30 minutes."
+      "expired": "This reset link has expired. Request a new one — they're valid for 30 minutes.",
+      "min_length": "Password must be at least 10 characters.",
+      "back_to_signin": "Back to sign in",
+      "request_new_link": "Request a new link"
     },
     "verify": {
       "banner": {
@@ -58,7 +61,9 @@
     },
     "password": {
       "label": "Password",
-      "new_label": "New password"
+      "new_label": "New password",
+      "show": "Show password",
+      "hide": "Hide password"
     },
     "name": {
       "label": "Full name",
@@ -76,7 +81,16 @@
     "no_account": "Don't have an account?",
     "have_account": "Already have an account?",
     "signup_link": "Sign up",
-    "signin_link": "Sign in"
+    "signin_link": "Sign in",
+    "emailChanged": {
+      "checking": "Checking your email change…",
+      "pending_title": "Confirmation received",
+      "pending_body": "Almost there — open the verification link we just emailed to {email} to finish changing your address. You can keep using Budget here in the meantime.",
+      "done_title": "Email updated",
+      "done_body": "Your account email is now {email} and verified. You're signed in with your new address.",
+      "back_to_settings": "Back to settings",
+      "continue": "Continue"
+    }
   },
   "settings": {
     "eyebrow": "Account",
@@ -104,8 +118,19 @@
           "cancel": "Cancel"
         }
       },
+      "sign_out_others": {
+        "label": "Sign out all other devices",
+        "confirm": {
+          "title": "Sign out all other devices?",
+          "body": "Every other signed-in device will be signed out. This device stays signed in.",
+          "cta": "Sign out others"
+        }
+      },
       "success_revoke": "Session signed out.",
-      "error_revoke": "Failed to sign out session. Try again."
+      "error_revoke": "Failed to sign out session. Try again.",
+      "success_revoke_others": "Signed out all other devices.",
+      "error_revoke_others": "Failed to sign out other devices. Try again.",
+      "device_label": "{browser} on {os}"
     },
     "display_currency": {
       "label": "Display currency",
@@ -119,34 +144,106 @@
       "tab": "Language",
       "error_save": "Failed to save language. Try again."
     },
-    "providers": {
-      "tab": "Providers",
-      "llm": {
-        "label": "AI assistant",
-        "helper": "Used for the budget setup wizard and insights."
+    "general": {
+      "title": "General"
+    },
+    "user": {
+      "title": "User",
+      "sections": {
+        "general": "General",
+        "profile": "Profile",
+        "security": "Security",
+        "danger": "Danger Zone"
+      }
+    },
+    "profile": {
+      "name": {
+        "label": "Name",
+        "save": "Save",
+        "saved": "Name updated"
       },
-      "stt": {
-        "label": "Voice input",
-        "helper": "Used for voice-to-text expense capture."
+      "email": {
+        "label": "Email",
+        "pending": "Pending",
+        "placeholder": "new@email.com",
+        "change": "Change",
+        "sent": "Confirmation sent — check your current inbox",
+        "confirm_title": "Finish changing your email",
+        "confirm_step1": "Open the confirmation link we sent to <strong>{current}</strong>.",
+        "confirm_step2": "Then open the verification link we'll send to <strong>{next}</strong>.",
+        "confirm_note": "Your email changes only after step 2.",
+        "helper": "We'll email a confirmation link to your current address before switching."
       },
-      "footnote": "Phase 1 wires the picker only. STT and LLM adapters connect in Phase 5."
+      "error": "Something went wrong. Try again."
+    },
+    "security": {
+      "change_password": {
+        "label": "Change password",
+        "description": "We'll email a secure link to your account address. Your password changes only after you open that link.",
+        "sent": "Check your email — we sent a link to set a new password.",
+        "error": "Couldn't send the reset link. Try again."
+      },
+      "sessions_heading": "Active sessions",
+      "sessions_loading": "Loading sessions…"
+    },
+    "accountDanger": {
+      "title": "Delete account",
+      "warning": "Permanently delete your account and every budget you solely own, with all their data. This can't be undone.",
+      "delete_button": "Delete account",
+      "confirm": {
+        "title": "Delete your account?",
+        "body": "This permanently deletes your account and every budget you solely own, with all their data. We'll email you a link to confirm.",
+        "type_label": "Type {word} to confirm",
+        "cancel": "Cancel",
+        "cta": "Delete account"
+      },
+      "sent": "Check your email — we sent a link to confirm deletion.",
+      "error": "Couldn't start account deletion. Try again."
     },
     "save": "Save changes",
     "save_success": "Settings saved.",
     "page_heading": "Budget Settings",
     "error_save": "Failed to save — try again",
     "sections": {
-      "identity": "Budget Identity",
+      "identity": "General",
       "cushion": "Cushion",
+      "reserves": "Reserves",
       "investments": "Investments",
-      "recurring": "Recurring Expenses",
+      "recurring": "Recurring payments",
+      "income": "Income",
       "members": "Members",
       "danger": "Danger Zone"
+    },
+    "progress": {
+      "title": "Budget setup",
+      "viewChecklist": "See what's left",
+      "checklistTitle": "Finish setting up",
+      "checklistSubtitle": "{done} of {total} done",
+      "msg": {
+        "start": "Let's set up your budget — each step you complete builds a clearer picture.",
+        "low": "Good start! Keep going — a few more steps and your budget really comes to life.",
+        "mid": "Halfway there. Finish the rest so your budget, reserves and cushion work together.",
+        "high": "Almost done — just a couple of steps left to complete your setup.",
+        "done": "All set! Your budget is fully configured. 🎉"
+      },
+      "items": {
+        "identity": "Name your budget",
+        "transaction": "Add your first transaction",
+        "cushionEnabled": "Turn on Cushion",
+        "cushionWallet": "Add a cushion wallet",
+        "reservesEnabled": "Turn on Reserves",
+        "reserveWallet": "Add a reserve wallet",
+        "investmentsEnabled": "Turn on Investments",
+        "investment": "Add an investment",
+        "recurring": "Add a recurring payment",
+        "income": "Add an income",
+        "category": "Create a category"
+      }
     },
     "identity": {
       "name_label": "Name",
       "name_saved": "Budget name saved",
-      "currency_label": "Default currency",
+      "currency_label": "Currency",
       "currency_saved": "Currency updated",
       "currency_locked_tooltip": "Currency locked after first transaction"
     },
@@ -203,9 +300,41 @@
         "CUSHION_BELOW_TARGET": {
           "label": "Cushion below target",
           "description": "When the cushion balance falls short of the goal"
+        },
+        "INCOME_UNDER_PLANNED": {
+          "label": "Planned over available money",
+          "description": "When your planned spending exceeds your income plus available wallet funds"
+        },
+        "TASK_COMPLETED": {
+          "label": "Task completed",
+          "description": "When another member completes a task"
         }
       },
-      "permissionDenied": "Notification permission denied. Enable it in your browser settings.",
+      "reminder": {
+        "label": "Remind me to update the budget",
+        "description": "An evening nudge on the days you choose",
+        "day": {
+          "1": "Monday",
+          "2": "Tuesday",
+          "3": "Wednesday",
+          "4": "Thursday",
+          "5": "Friday",
+          "6": "Saturday",
+          "7": "Sunday"
+        },
+        "dayShort": {
+          "1": "Mon",
+          "2": "Tue",
+          "3": "Wed",
+          "4": "Thu",
+          "5": "Fri",
+          "6": "Sat",
+          "7": "Sun"
+        }
+      },
+      "permissionDenied": "Notifications are blocked. On iPhone: remove the app from your Home Screen, add it again, then allow. On desktop: allow them in the site settings.",
+      "unsupported": "Push notifications aren't available on this device or browser. On iPhone, add the app to your Home Screen first.",
+      "subscribeError": "Couldn't enable notifications. Please try again.",
       "saved": "Notification preferences saved."
     },
     "danger": {
@@ -234,6 +363,18 @@
       "left_toast": "You have left the budget.",
       "leave_error": "Failed to leave budget. Try again.",
       "last_owner_tooltip": "You're the last owner. Delete the budget instead."
+    },
+    "theme": {
+      "label": "Appearance",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    },
+    "timezone": {
+      "label": "Timezone",
+      "helper": "Dates and times are shown in this timezone.",
+      "search": "Search timezone…",
+      "no_results": "No matching timezone"
     }
   },
   "budgets": {
@@ -255,7 +396,7 @@
         "shared": "Shared — invite family"
       },
       "currency": {
-        "label": "Default currency",
+        "label": "Currency",
         "helper": "This is permanent — every entry in this budget settles in this currency.",
         "placeholder": "Select currency"
       },
@@ -344,12 +485,26 @@
       "members_tab": "Members",
       "shares_tab": "Shares"
     },
+    "reserves": {
+      "feature_label": "Reserves",
+      "feature_help_text": "Roll unused category budget into a per-category reserve at month-end.",
+      "feature_on_toast": "Reserves enabled",
+      "feature_off_toast": "Reserves disabled — Reserves tab hidden",
+      "error_save": "Failed to save — try again"
+    },
     "investments": {
       "feature_label": "Investments",
-      "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
+      "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section.",
       "feature_on_toast": "Investments enabled",
       "feature_off_toast": "Investments disabled",
       "error_save": "Failed to save — try again",
+      "smart_category": {
+        "label": "Investments category",
+        "help_text": "Add a special \"Investments\" category to the spendings grid to track how much you actually invest. Pinned first, can't be deleted from the grid.",
+        "default_name": "Investments",
+        "on_toast": "Investments category added to the spendings grid",
+        "off_toast": "Investments category removed from the spendings grid"
+      },
       "section": {
         "title": "INVESTMENTS"
       },
@@ -382,6 +537,7 @@
         "metal": "Metal",
         "kind": "Kind",
         "uom": "Unit",
+        "premium": "Premium %",
         "depositedValue": "Deposited value",
         "actualValue": "Actual value",
         "ticker": "Ticker",
@@ -404,7 +560,8 @@
       "metalOption": {
         "gold": "Gold",
         "silver": "Silver",
-        "platinum": "Platinum"
+        "platinum": "Platinum",
+        "palladium": "Palladium"
       },
       "kindOption": {
         "coin": "Coin",
@@ -442,13 +599,17 @@
         "editAria": "Edit {name}.",
         "deleteAria": "Remove {name}.",
         "dragAria": "Drag to reorder {name}.",
+        "qty": "Qty: {qty}",
         "share": "Share: {pct}"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
+      "ungroupZone": "Drop here to remove from group",
+      "looseZone": "Drop here to keep it separate",
       "search": {
         "placeholder": "Search instruments…",
         "loading": "Searching…",
+        "autoPriced": "Priced automatically",
         "noResults": "No match in the catalog",
         "custom": "Custom — enter manually",
         "enterManually": "Enter manually",
@@ -481,6 +642,16 @@
           "cta": "Discard",
           "cancel": "Keep editing"
         }
+      },
+      "preview": {
+        "title": "Preview",
+        "buyTotal": "Buy total",
+        "deposited": "Deposited",
+        "amount": "Amount",
+        "currentValue": "Current value",
+        "premium": "Premium",
+        "withPremium": "With premium",
+        "pl": "P/L"
       }
     }
   },
@@ -504,10 +675,12 @@
     "sign_out": "Sign out",
     "profile": "Profile",
     "profile_menu_aria": "Open profile menu",
+    "theme_light": "Light mode",
+    "theme_dark": "Dark mode",
     "budget": "Budget",
     "wallets": "Wallets",
     "transactions": "Transactions",
-    "recurring": "Recurring",
+    "recurring": "Recurring payments",
     "budgetSwitcher": {
       "trigger": {
         "aria": "Switch budget"
@@ -574,7 +747,7 @@
         "name_label": "Budget name",
         "name_placeholder": "ex. Family Budget",
         "name_required": "Budget name is required.",
-        "currency_label": "Default currency",
+        "currency_label": "Currency",
         "currency_helper": "You can change this later until you add your first transaction."
       },
       "type": {
@@ -592,13 +765,13 @@
         "cushion_label": "Cushion",
         "cushion_help": "Plan a small financial cushion alongside each category so a bad month doesn't tip the main budget over. Turn off if you don't want any cushion at all.",
         "reserves_label": "Reserves",
-        "reserves_help": "Roll unused category budget into a per-category reserve at month-end. Off hides the Reserves tab.",
+        "reserves_help": "Roll unused category budget into a per-category reserve at month-end.",
         "investments_label": "Investments",
-        "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section. Off by default.",
+        "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section.",
         "targetMonthsLabel": "Target months",
         "targetMonthsError": "Months must be a whole number between 1 and 60.",
         "push_label": "Enable push notifications",
-        "push_help": "Get alerted when tasks need your attention — works even when the app is closed. You can change this later in Settings."
+        "push_help": "Get alerted when tasks need your attention — works even when the app is closed."
       },
       "review": {
         "heading": "Ready to go?",
@@ -739,12 +912,75 @@
       "stale409Title": "Rate has changed",
       "stale409Body": "The exchange rate updated while the form was open. The new rate is {rate}. Save with the new rate?"
     },
+    "income": {
+      "addButton": "Add income",
+      "form": {
+        "title": "New income",
+        "editTitle": "Edit income",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Salary",
+        "amountLabel": "Amount",
+        "currencyLabel": "Currency",
+        "cadenceLabel": "Frequency",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "yearly": "Yearly",
+        "weekdayLabel": "On",
+        "anchorDayLabel": "On day",
+        "yearlyMonthLabel": "Month",
+        "weekdays": {
+          "0": "Sunday",
+          "1": "Monday",
+          "2": "Tuesday",
+          "3": "Wednesday",
+          "4": "Thursday",
+          "5": "Friday",
+          "6": "Saturday"
+        },
+        "months": {
+          "1": "January",
+          "2": "February",
+          "3": "March",
+          "4": "April",
+          "5": "May",
+          "6": "June",
+          "7": "July",
+          "8": "August",
+          "9": "September",
+          "10": "October",
+          "11": "November",
+          "12": "December"
+        },
+        "saveButton": "Save income"
+      },
+      "list": {
+        "empty": "No incomes yet.",
+        "monthlyOnDay": "Monthly · {day}",
+        "weeklyOnDow": "Weekly · {weekday}",
+        "yearlyOn": "Yearly · {month} {day}",
+        "daily": "Daily",
+        "editButton": "Edit"
+      },
+      "delete": {
+        "title": "Delete income?",
+        "body": "This removes the income from the budget.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      },
+      "errors": {
+        "create": "Failed to create income",
+        "update": "Failed to update income",
+        "delete": "Failed to delete income"
+      }
+    },
     "recurring": {
-      "title": "Recurring",
-      "addRuleButton": "Add recurring rule",
+      "title": "Recurring payments",
+      "addRuleButton": "Add recurring payment",
       "rule": {
         "title": "New recurring rule",
         "editTitle": "Edit recurring rule",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Rent",
         "saveButton": "Save rule",
         "cancelButton": "Cancel",
         "amountLabel": "Amount",
@@ -793,8 +1029,9 @@
         "categoryPlaceholder": "Select category…"
       },
       "list": {
-        "title": "Recurring rules",
+        "title": "Recurring payments",
         "empty": "No recurring expenses yet.",
+        "untitled": "Untitled",
         "monthlyOnDay": "Monthly · {day}",
         "weeklyOnDow": "Weekly · {weekday}",
         "yearlyOn": "Yearly · {month} {day}",
@@ -884,7 +1121,7 @@
       },
       "overrideBadge": "override",
       "toast": {
-        "created": "Category '{name}' created."
+        "created": "Category ''{name}'' created."
       },
       "delete": {
         "blockedTooltip": "Cannot delete category with existing transactions",
@@ -951,6 +1188,124 @@
   "bdp": {
     "tab": {
       "aria": "Budget detail tabs",
+      "overview": {
+        "label": "Overview",
+        "title": "Overview",
+        "cards": {
+          "availableToSpend": "Available to spend",
+          "spentThisMonth": "Spent",
+          "leftToSpend": "Upcoming",
+          "retirementRunway": "If you retire now, your money will last for",
+          "retirementSub": "at your normal planned spending",
+          "retirementInflation": "incl. {pct}% annual inflation",
+          "flipToRetirement": "Capitalization — tap to see your retirement runway",
+          "years": "{count, plural, one {# year} other {# years}}",
+          "months": "{count, plural, one {# month} other {# months}}",
+          "and": "and",
+          "unitY": "y",
+          "unitM": "m",
+          "unitD": "d",
+          "overspentMotivation": "Good job — keep it up!",
+          "spendGood": "Wallets cover what's left to spend",
+          "spendBad": "Wallets don't cover what's left to spend",
+          "reservesNeeded": "Needed",
+          "reservesOk": "Reserves match the required amount",
+          "reservesShort": "Reserves below the required amount",
+          "reservesSurplus": "More reserves than needed",
+          "reservesOkNote": "Needed {amount}",
+          "reservesShortNote": "Not enough. {amount} needed",
+          "reservesSurplusNote": "Too much. Only {amount} needed",
+          "capitalization": "Capitalization",
+          "capitalizationSub": "incl. investments {amount}",
+          "sinceLastMonth": "since last month",
+          "sinceYesterday": "since yesterday",
+          "overspent": "Overspent",
+          "overspentCount": "{count, plural, one {# category} other {# categories}}",
+          "onBudget": "On budget",
+          "cushion": "Cushion",
+          "cushionMonths": "{months} mo",
+          "cushionOff": "Cushion off",
+          "cushionCovered": "Cushion covers the required limit",
+          "cushionShort": "Cushion is below the required limit",
+          "cushionSaved": "Saved",
+          "cushionNeeded": "Needed",
+          "availableReserves": "Available reserves",
+          "realMonths": "real months"
+        },
+        "range": {
+          "month": "Month",
+          "1m": "1M",
+          "3m": "3M",
+          "6m": "6M",
+          "year": "1Y",
+          "all": "All",
+          "custom": "Custom",
+          "from": "From",
+          "to": "To",
+          "currentConfig": "current config",
+          "allTime": "all time"
+        },
+        "total": "Total",
+        "overspentByCategory": "Amount over budget, by category",
+        "reservesByCategory": "Reserve balance, by category",
+        "sections": {
+          "planned": "Planned",
+          "overspent": "Overspent",
+          "reserves": "Reserves",
+          "wealth": "Financial Wealth"
+        },
+        "planned": {
+          "category": "Category",
+          "allCategories": "All categories",
+          "real": "Real",
+          "planned": "Planned",
+          "recurringPerMonth": "Recurring bills, by month",
+          "recurringPerCategory": "Recurring bills, by category",
+          "timelineTitle": "Planned vs actual spending, over time",
+          "avgByCategory": "Over / under budget, by category",
+          "difference": "Difference"
+        },
+        "wealth": {
+          "capitalization": "Capitalization",
+          "investments": "Investments",
+          "grow": "Growth",
+          "loss": "Loss",
+          "monthlyAvg": "Avg change",
+          "dynamicsDaily": "Daily change",
+          "dynamicsMonthly": "Monthly change",
+          "dynamicsYearly": "Yearly change",
+          "avgForRange": "Avg change ({range})",
+          "growSince": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} thisYear {since year start} all {all time} other {over the selected range}}",
+          "byType": "Investments by asset type",
+          "byBucket": "Where your money is",
+          "capInvestments": "Investments",
+          "capSpendings": "Spendings",
+          "capReserves": "Reserves",
+          "capCushion": "Cushion",
+          "pieShare": "{pct}%"
+        },
+        "empty": {
+          "overspent": "No overspending in this range.",
+          "reserves": "No reserves yet.",
+          "wealth": "Wealth history starts collecting now — check back soon.",
+          "pie": "No investments yet.",
+          "planned": "No activity in this range."
+        },
+        "projection": {
+          "title": "Money forecast to the end of next month",
+          "allFine": "Everything looks fine",
+          "mightRunShort": "Money may run short as early as {date}",
+          "shortBy": "short {amount}",
+          "empty": "Add income or recurring rules to see your forecast",
+          "available": "Available",
+          "reserveShrinking": "Reserve shrinking",
+          "reserveCovering": "Reserve covering",
+          "reserveUsed": "Reserve used",
+          "cantCover": "Can't cover",
+          "income": "Income",
+          "bill": "Recurring payments"
+        }
+      },
       "spendings": {
         "label": "Spendings",
         "title": "Spendings",
@@ -1064,7 +1419,7 @@
         },
         "confirm": {
           "delete": {
-            "title": "Delete wallet '{name}'?",
+            "title": "Delete wallet ''{name}''?",
             "body": "This can't be undone here.",
             "cta": "Delete",
             "cancel": "Cancel"
@@ -1095,14 +1450,16 @@
       "count": "{count, plural, one {# task pending} other {# tasks pending}}",
       "title": {
         "RESERVE_TOPUP": "Top up reserve by {amount}",
-        "CONFIRM_DRAFT": "Confirm {ruleName} — {amount}",
+        "CONFIRM_DRAFT": "{hasCategory, select, yes {Confirm {amount} — {category}} other {Confirm {amount}}}",
         "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
+        "INCOME_UNDER_PLANNED": "Planned spending exceeds your funds by {shortfall}",
         "RESERVE_TOPUP_withdraw": "Reserve has {amount} extra"
       },
       "kind": {
         "RESERVE_TOPUP": "Reserve",
         "CONFIRM_DRAFT": "Draft",
-        "CUSHION_BELOW_TARGET": "Cushion"
+        "CUSHION_BELOW_TARGET": "Cushion",
+        "INCOME_UNDER_PLANNED": "Spending"
       },
       "action": {
         "RESERVE_TOPUP": {
@@ -1123,6 +1480,7 @@
         "RESERVE_TOPUP": "Your reserve wallets hold {amount} less than the sum allocated across reserve categories. You have two options: top up a reserve wallet (move money in) to match the category sum, or reduce some category reserve amounts so the sum drops back to the wallet balance.",
         "CONFIRM_DRAFT": "A recurring rule has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
         "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. You have three options: transfer money into a cushion-type wallet to cover the gap, lower the cushion target months in Settings → Cushion (smaller runway = smaller required cushion), or reduce some category limits so the average monthly spend drops.",
+        "INCOME_UNDER_PLANNED": "Your total planned spending is {planned}, but you only have {available} available — that's your income plus your wallet balances, and it's {shortfall} short. Open the Spendings tab and lower some category limits (or a manual Investments amount) until your plan fits what you have.",
         "RESERVE_TOPUP_withdraw": "Your reserve wallets hold {amount} more than the sum allocated across reserve categories. You have two options: withdraw the surplus from a reserve wallet, or redistribute the extra into category reserves (increase one or more category amounts so they add up to the wallet sum)."
       }
     }
@@ -1159,7 +1517,12 @@
         "name": "Name",
         "planned": "Planned monthly",
         "cushion": "Cushion monthly",
-        "color": "Color"
+        "color": "Color",
+        "needs": "Needs",
+        "wants": "Wants",
+        "plannedTotal": "Planned",
+        "cushionValue": "Cushion: {amount}",
+        "cushionResult": "Cushion"
       },
       "deleteBlockedTooltip": "Cannot delete category with existing transactions",
       "deleteConfirmBody": "This will permanently delete the category.",
@@ -1168,6 +1531,12 @@
         "body": "Choose how to remove this category.",
         "keepHistory": "Archive (keep past history)",
         "everywhere": "Remove (remove permanently)"
+      },
+      "cushionMode": {
+        "none": "None",
+        "needs_wants": "Needs + Wants",
+        "needs_only": "Needs only",
+        "custom": "Custom"
       }
     },
     "expensesTitle": "Expenses",
@@ -1253,10 +1622,12 @@
     "header": {
       "row2": {
         "planned": "planned",
-        "cushion": "cushion"
+        "cushion": "cushion",
+        "plannedCushion": "planned (cushion)"
       },
       "row3": {
-        "overspent": "overspent"
+        "overspent": "overspent",
+        "overinvested": "overinvested"
       },
       "row4": {
         "reservesUsed": "reserves used"
@@ -1265,6 +1636,23 @@
         "balance": "left"
       },
       "archived": "archived"
+    },
+    "investCat": {
+      "header": "Edit Investments",
+      "nameLabel": "Name",
+      "limitLabel": "Investment limit",
+      "mode": {
+        "smart": "Smart limit",
+        "manual": "Manual"
+      },
+      "manualAmountLabel": "Amount",
+      "smartExplainer": "Smart limit = total income minus everything planned in your other categories. It updates automatically.",
+      "smartRequiresIncome": "Smart limit needs at least one income. Add one in Settings › Income.",
+      "colorLabel": "Color",
+      "save": "Save",
+      "error": {
+        "save": "Couldn't save — try again"
+      }
     }
   },
   "share": {
@@ -1315,7 +1703,9 @@
         "ariaLabel": "Install Budget app",
         "body": "Install Budget for faster access and offline use",
         "learnMore": "Learn more",
-        "cta": "Install app",
+        "title": "Install the app",
+        "tagline": "Faster access, works offline",
+        "cta": "Install",
         "dismiss": "Dismiss install banner"
       },
       "dialog": {

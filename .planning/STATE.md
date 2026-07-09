@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: milestone_complete
-stopped_at: "Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context."
-last_updated: "2026-06-21T10:54:15.639Z"
-last_activity: 2026-06-21
+status: complete
+stopped_at: "Phase 11 complete: all 10 plans executed + verified (backend 27+14 tests, FE 73 Vitest, 10 @overview E2E green on dev host)."
+last_updated: "2026-06-28T19:10:00.000Z"
+last_activity: 2026-06-28 -- Phase 11 complete (Budget Overview tab shipped + E2E-verified)
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 70
-  completed_plans: 74
+  total_phases: 11
+  completed_phases: 11
+  total_plans: 86
+  completed_plans: 86
   percent: 100
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 09 — investments-wallet
+**Current focus:** Phase 11 — budget-overview
 
 ## Current Position
 
-Phase: 09
-Plan: Not started
-Next: `/gsd-verify-work 08` — conversational UAT, then phase completion.
-Status: Milestone complete
-Last activity: 2026-06-21
+Phase: 11 (budget-overview) — COMPLETE
+Plan: 10 of 10
+Next: Phase 11 milestone done — Budget Overview tab live (cards + 4 chart sections + 3h wealth snapshot), localized EN/PL/UK, E2E-verified on dev host.
+Status: Phase 11 complete (all 11 phases done)
+Last activity: 2026-06-28 -- Phase 11 complete + verified
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -110,6 +110,10 @@ _Updated after each plan completion_
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 10 added (2026-06-26): User Settings Redesign — 2-pill carousel (General · User) reusing the BDP pill/prefetch frame + Settings-tab accordion; remove AI/voice Provider feature end-to-end (incl. column-drop migration); add profile name/email edit (email re-verify), email-gated password change (reuses reset flow), active-sessions revoke + sign-out-others, Danger Zone account deletion (GDPR); build the missing logged-out forgot/reset-password pages + fix the dead sign-in link. Depends on Phase 3 (BDP frame) + Phase 6 (settings). _(v1.2 track)_
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
@@ -156,6 +160,11 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase ?]: [Phase 05]: Plan 05-13 — reserve mutations rewritten to the replay model (delta-only adjust = target−currentR, userDefined-only wallet edits, surplus-driven RESERVE_TOPUP); greedy allocator + stored reserveActualCents deleted. Executed on tasks-redesign branch parallel to the main Phase-07 cursor.
 - [Phase 05]: 05-14 — reserve HTTP contracts locked to the engine shape: /reserves rows{reserveCents,usedCents,overspentCents} + totals{internal,userDefined,surplus,direction,disabled,budgetCurrency}; adjust → {reserveCents,deltaCents,summary}; spendings carries reserveUsedCents+overspentCents+balanceCents (no reserveAvailableCents). Routes are thin forwarders — DTO shaped in the use-case, zero route field-logic change. Real-Postgres integration tests assert key-presence + dead-key absence + adjust ledger delta + disabled path (25 reserve-route tests green).
 - [Phase 05]: 05-14 — reserve-balance-repo.ts is now fully orphaned: removed the BudgetingModule field (factory) + the dead boot constructions; getForBudget has ZERO live callers and budget-home-summary-repo reads category_limits, NOT the dropped category_reserve_balance VIEW → no live 500 risk. File deletion deferred to 05-16. Executed on tasks-redesign branch parallel to the Phase-07 cursor (which stays at plan 2 of 10).
+- [Phase 10]: 10-03 — single `recomputeEmailHash(keyStore,userId,email)` helper called by BOTH create-after AND update-after hooks; Better Auth changeEmail writes only the plain email column, so the deterministic email_hash (users_email_hash_uq) must be recomputed on the update path or findByEmail/uniqueness go stale. Confirm link goes to the CURRENT address (updateEmailWithoutVerification:false).
+- [Phase 10]: 10-03 — section components are SERVER-SEEDED via props threaded through the pill (mirrors GeneralPill), NEVER via a client `authClient.useSession`: the vanilla better-auth/client useSession is a nanostore Atom, not a React hook — it passes Vitest (mocked as a fn) but fails `next build` ("not callable"). Always run the production Docker build, not just Vitest. Applies to 10-04/10-06.
+- [Phase 10]: 10-04 — in-app password change = ZERO backend change: reuse the wired reset flow via `authClient.requestPasswordReset({email:self, redirectTo:/<locale>/reset-password})`; password is set on the shared /reset-password page (10-05), never in settings (T-10-05 inbox-gated). Client session reads use the CALLABLE `listSessions()`/`getSession()` (not the useSession atom); current session = matching `getSession().data.session.token`. One `Confirm` discriminated-union state backs a single AlertDialog for both revoke + revoke-others.
+- [Phase 10]: 10-05 — Better Auth reset email links the token as a PATH segment `/auth/reset-password/<token>?callbackURL=/<locale>/reset-password`; its GET handler validates then redirects to `<callbackURL>?token=<token>`, so the consume page reads `?token`. E2E must extract the token from the PATH, not `?token=`, in the email. forgot-password shows a NEUTRAL success regardless of registration (T-10-07).
+- [Phase 10]: 10-06 — account-deletion cascade (purgeUserData in better-auth.ts) is app-level (no DB FK identity→tenancy): one withUserContext tx, bootstrap memberships via budget_members_self → SET app.tenant_ids → block sole-owner-of-SHARED-with-members → purge 15 explicitly-deletable tenant tables (NOT budget_share_links/audit_history/outbox — no DELETE grant) → anonymise authored adjustments (created_by NULL, needs the post-migration column GRANT) → CRYPTO-SHRED the DEK (user_keys UPDATE destroyed_at, NOT delete). Email-gated (sendDeleteAccountVerification). app_role grants live in post-migration.sql, NOT drizzle migrations. See [[project_account_deletion_cascade]].
 
 ### Pending Todos
 

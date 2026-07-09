@@ -24,8 +24,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Reserves & Wallets Tabs** — Reserves table with per-category isolated balances + wallet-share column, Wallets tab with always-inline editable rows (name/currency/amount/type) and add/delete (completed 2026-05-17)
 - [x] **Phase 6: Settings, Onboarding & Share UI** — Settings tab (identity / cushion toggle / recurring CRUD / members / danger zone), onboarding wizard, share-link recipient join flow (completed 2026-05-22)
 - [x] **Phase 7: Tasks Queue** — Banner-with-expand UI, three deterministic generators (RESERVE*TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET), kind-specific resolution actions, auto-resolve on state change. CUSHION_BELOW_TARGET surfaces actual cushion-vs-target shortfall (the two legacy 4-kind generators have been dropped from v1.1 scope and deferred to v1.2 Insights). *(All 10 plans + summaries; CI green on ccca754. Non-CI test-debt tracked in STATE.md: reserve-topup.test.ts:610 it.skip.)\_
-- [ ] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
-- [ ] **Phase 9: Investments Wallet** _(v1.2 track)_ — Feature-flagged `INVESTMENTS` wallet section (last on the wallets page, hidden when off): per-instrument holdings (name/type/group/buy-price/buy-currency/quantity/current-price) edited in a side `Sheet`; debounced instrument search over a unified universe (equities/ETF/FX/crypto/metals) preselecting type + live price; greenfield `PriceProvider` port + free-API adapters with an hourly cron fetching only held instruments + rate-limited instant fetch; values converted to budget currency for weights; daily price + FX snapshot persisted for future charts (charts NOT built here)
+- [x] **Phase 8: PWA, Offline, Push, i18n & E2E Hardening** — Serwist offline shell over new IA, IndexedDB cache + offline quick-entry replay, VAPID web-push wired to tasks, full EN/PL/UK rewrite, playwright-bdd Gherkin features rewritten, tenant-leak + domain-coverage CI gates green
+- [x] **Phase 9: Investments Wallet** _(v1.2 track)_ — Feature-flagged `INVESTMENTS` wallet section (last on the wallets page, hidden when off): per-instrument holdings (name/type/group/buy-price/buy-currency/quantity/current-price) edited in a side `Sheet`; debounced instrument search over a unified universe (equities/ETF/FX/crypto/metals) preselecting type + live price; greenfield `PriceProvider` port + free-API adapters with an hourly cron fetching only held instruments + rate-limited instant fetch; values converted to budget currency for weights; daily price + FX snapshot persisted for future charts (charts NOT built here)
+- [x] **Phase 10: User Settings Redesign** _(v1.2 track)_ — Mobile-first redesign of USER account settings as a 2-pill carousel (reusing the BDP pill/prefetch frame + Settings-tab accordion): **General** (language + display currency) and **User** (Profile: name + email-with-reverify · Security: email-gated password change + active-sessions revoke + sign-out-others · Danger Zone: delete account/GDPR). Removes the AI/voice Provider feature end-to-end (incl. column-drop migration). Builds the missing logged-out forgot/reset-password pages + fixes the dead sign-in link. TDD, EN/PL/UK, E2E Gherkin
+- [x] **Phase 11: Budget Overview Tab** _(v1.2 track)_ — New first BDP pill (`overview`): 5 always-visible summary cards (available-to-spend, capitalization=net-worth, this-month overspent categories, cushion real-months+amount, available reserves) + four collapsible time-range chart sections (Planned vs Real with category selector · Overspent · Reserves · Financial Wealth). Budget-side metrics **compute-on-read from the append-only ledger** (no snapshot table, no cascade) cached via the app's persisted React-Query SWR. Wealth value-over-time uses a small **per-budget 3h aggregate snapshot** (capitalization + investment value, in budget default-currency) — no per-asset price/FX/quantity history. Financial-Wealth toggle (capitalization default / investments + per-type pie). Introduces the chart lib (recharts). Archived categories kept in historical stats, dropped from current cards. All amounts in budget default_currency. TDD, EN/PL/UK, E2E Gherkin (completed 2026-06-28)
 
 ## Phase Details
 
@@ -150,8 +152,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 05-12-PLAN.md — Wave 3: `get-reserve-positions` replay orchestrator (event-loader → engine) + reshaped `get-reserves-summary`/builder/`get-spendings-summary` consumers
 - [x] 05-13-PLAN.md — Wave 4: Use-cases — delta-only `adjust-category-reserve` + surplus `RESERVE_TOPUP`; wallet edits set userDefined only; both category-deletion modes; exclude (no sibling spill); drop `setReserveActualMany` (completed 2026-06-05)
 - [x] 05-14-PLAN.md — Wave 5: Contracts + API reshape — `ReservesSummaryDto` → reserve/used/overspent/internal/userDefined/surplus(+direction); factory+boot rewire; route integration tests (drop expected/actual/walletShare%/mismatch)
-- [ ] 05-15-PLAN.md — Wave 6 (autonomous=false): UI reshape — single reserve + used + surplus banner; spendings used+overspent; DELETE web `reserve-allocator.ts` + `mismatch-chip.tsx`; `@tasks-redesign` reserves E2E (+ [BLOCKING] rebuild web)
-- [ ] 05-16-PLAN.md — Wave 7 (autonomous=false): Dead-code removal sweep (greedy allocator + VIEW reader grep-clean) + full gates (golden + round-trip + make test + ci-gate + @tasks-redesign E2E) + PL/UK i18n + `graphify update`
+- [x] 05-15-PLAN.md — Wave 6 (autonomous=false): UI reshape — single reserve + used + surplus banner; spendings used+overspent; DELETE web `reserve-allocator.ts` + `mismatch-chip.tsx`; `@tasks-redesign` reserves E2E (+ [BLOCKING] rebuild web)
+- [x] 05-16-PLAN.md — Wave 7 (autonomous=false): Dead-code removal sweep (greedy allocator + VIEW reader grep-clean) + full gates (golden + round-trip + make test + ci-gate + @tasks-redesign E2E) + PL/UK i18n + `graphify update`
 
 ### Phase 6: Settings, Onboarding & Share UI
 
@@ -227,7 +229,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 08-04-PLAN.md — Wave 2: Accept-Language negotiation + Intl/Temporal format audit + offline/server-down/signedOut fallback screens + staleness marker + manifest installability (I18N-02..05, PWAX-01)
 - [x] 08-05-PLAN.md — Wave 3: push-notification-handler (extensible registry, generic payload, stale-sub cleanup) + worker register + SW notificationclick + PushPrefsSection + onboarding push step + install banner + profile Install + pending-sync row marker (PWAX-05, PWAX-06, PWAX-01, PWAX-03)
 - [x] 08-06-PLAN.md — Wave 4: E2E audit-and-fill — spendings/recurring-draft/cushion/share-link features (@phase8) + complete SpendingsPo/OnboardingPo/ShareLinkPo + step bindings + existing-suite audit (E2EX-01..04, PWAX-03, PWAX-06)
-- [ ] 08-07-PLAN.md — Wave 5 (autonomous=false): check:i18n CI step + full gate sweep (ci-gate 10/10, make test, Vitest, test-e2e, dep-cruiser) + web rebuild + DESIGN sweep + human UAT install/push/deep-link (E2EX-05, PWAX-01/04, I18N-01)
+- [x] 08-07-PLAN.md — Wave 5 (autonomous=false): check:i18n CI step + full gate sweep (ci-gate 10/10, make test, Vitest, test-e2e, dep-cruiser) + web rebuild + DESIGN sweep + human UAT install/push/deep-link (E2EX-05, PWAX-01/04, I18N-01)
 
 **UI hint**: yes
 
@@ -303,18 +305,58 @@ Within Phase 5, the Reserves and Wallets tabs are parallel-eligible at the plan 
 Within Phase 7, the three generator plans (07-04 CONFIRM_DRAFT, 07-05 RESERVE_TOPUP, 07-06 CUSHION_BELOW_TARGET + sweep) are wave-2 parallel-eligible after the wave-1 ports/services land.
 Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan level.
 
-| Phase                                       | Plans Complete | Status      | Completed  |
-| ------------------------------------------- | -------------- | ----------- | ---------- |
-| 1. Schema Migration & Rename Foundation     | 0/TBD          | Not started | -          |
-| 2. Domain & API Restructure                 | 0/TBD          | Not started | -          |
-| 3. Navigation, Home & BDP Frame             | 7/7            | Complete    | 2026-05-13 |
-| 4. Spendings Grid                           | 0/TBD          | Not started | -          |
-| 5. Reserves & Wallets Tabs                  | 16/16          | Complete    | 2026-05-17 |
-| 6. Settings, Onboarding & Share UI          | 8/8            | Complete    | 2026-05-22 |
-| 7. Tasks Queue                              | 0/10           | Planned     | -          |
-| 8. PWA, Offline, Push, i18n & E2E Hardening | 6/7            | In Progress |            |
-| 9. Investments Wallet _(v1.2)_              | 0/TBD          | Spec'd      | -          |
+| Phase                                       | Plans Complete | Status   | Completed  |
+| ------------------------------------------- | -------------- | -------- | ---------- |
+| 1. Schema Migration & Rename Foundation     | 4/4            | Complete | 2026-05-11 |
+| 2. Domain & API Restructure                 | 6/6            | Complete | 2026-05-12 |
+| 3. Navigation, Home & BDP Frame             | 7/7            | Complete | 2026-05-13 |
+| 4. Spendings Grid                           | 5/5            | Complete | 2026-05-13 |
+| 5. Reserves & Wallets Tabs                  | 16/16          | Complete | 2026-05-17 |
+| 6. Settings, Onboarding & Share UI          | 8/8            | Complete | 2026-05-22 |
+| 7. Tasks Queue                              | 10/10          | Complete | 2026-05-31 |
+| 8. PWA, Offline, Push, i18n & E2E Hardening | 7/7            | Complete | 2026-06-19 |
+| 9. Investments Wallet _(v1.2)_              | 7/7            | Complete | 2026-06-25 |
+| 10. User Settings Redesign _(v1.2)_         | 6/6            | Complete | 2026-06-28 |
+| 11. Budget Overview Tab _(v1.2)_            | 10/10          | Complete | 2026-06-28 |
+
+### Phase 10: User Settings Redesign _(v1.2 track)_
+
+**Goal:** Replace the legacy user-settings page with a mobile-first redesign aligned to the current design system. Shell = a 2-pill client carousel reusing the BDP pill/pushState/prefetch/caching pattern; section content reuses the BDP Settings-tab accordion. Pills: **General** (display language + display currency) and **User** (Profile: name + email-with-reverify · Security: email-gated password change + active-sessions list/revoke + sign-out-other-devices · Danger Zone: delete own account). Remove the AI/voice Provider feature end-to-end (DB columns via migration, `user.additionalFields`, route, repo, app layer, types, session normalization, i18n). Build the missing logged-out forgot/reset-password pages and fix the dead sign-in link.
+**Requirements**: SETT-01, SETT-02 (existing locale + display-currency, restyled) + new USET-\* enumerated in 10-SPEC (profile name/email edit, email change + re-verify, email-gated password change, sessions mgmt, account deletion/GDPR right-to-delete, forgot/reset-password flow, Provider-feature removal)
+**Depends on:** Phase 3 (BDP pill/carousel frame) + Phase 6 (Settings/onboarding/share UI)
+**Plans:** 2/6 plans executed
+
+**Success Criteria** (what must be TRUE):
+
+1. The user-settings route renders a 2-pill carousel (General · User) using the same pill/pushState/prefetch mechanism as the BDP tabs — pill switching fires zero per-nav RSC and renders without horizontal scroll or clipped controls at a 375px viewport.
+2. General pill changes display language (hard-reload locale swap, persisted) and display currency (persisted) — both behaviors preserved from the legacy page.
+3. User → Profile: user can change display name and email; an email change sends a verification link to the NEW address, leaves the account email pending/unverified until clicked, and recomputes `email_hash` so email lookups still resolve.
+4. User → Security: "Change password" emails a reset link (reuses `sendResetPassword`/`reset-password`) and the new password applies only after following that link; the active-sessions list shows current + other sessions with per-session revoke and a "sign out all other devices" action.
+5. User → Danger Zone: user can permanently delete their own account after explicit confirmation; account + associated personal data are removed (GDPR right-to-delete) and the user is signed out.
+6. A logged-out user can request a reset link at `/[locale]/forgot-password` and set a new password at `/[locale]/reset-password?token=…`; the sign-in "Forgot your password?" link points to the live request page (no dead link); an expired token shows the expired-state copy.
+7. The AI/voice Provider feature is gone end-to-end: no providers UI, no `PUT /settings/provider-prefs` route, no `preferred_llm_provider`/`preferred_stt_provider` columns (migration applied) or `user.additionalFields` entries, no `settings.providers.*` i18n keys, no provider refs in `server-session` normalization; tests updated, `make ci-gate` green.
+8. All new/changed UI strings exist in EN/PL/UK; E2E Gherkin features cover forgot-password (golden + expired), change name, change email + re-verify, email-gated password change, revoke session, delete account.
 
 ---
 
-_Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET._
+### Phase 11: Budget Overview Tab _(v1.2 track)_
+
+**Goal:** Add a new first BDP pill, `overview`, that gives the family a budget-wide snapshot — 5 always-visible summary cards plus four collapsible chart sections (Planned · Overspent · Reserves · Financial Wealth). Budget-side metrics are reconstructed on-read from the append-only ledger + SCD-2 limits and cached via the existing persisted React-Query SWR, so the tab paints instantly from cache, revalidates in the background, and self-corrects when any past data changes (mutation → invalidate) — no snapshot table, no dependency-cascade for those. Wealth value-over-time (which can't be reconstructed from current holdings) is served by a small per-budget **3h aggregate snapshot** (capitalization + investment value, in budget default-currency); the live current point is computed on read. All amounts convert to the budget's `default_currency`. Phase 9 (investments) is complete, so the wealth section ships here too rather than a separate phase.
+**Depends on:** Phase 3 (BDP pill/carousel/prefetch frame) · Phase 4 (spendings-summary) · Phase 5 (reserves view + cushion summary) · Phase 9 (investments holdings + price cache, complete)
+**Requirements**: OVW-\* (enumerated in 11-SPEC if specced) — see 11-CONTEXT.md for locked decisions
+
+**Success Criteria** (what must be TRUE):
+
+1. `overview` is the first pill in `TAB_ORDER`; selecting it uses the same pushState/prefetch/no-RSC mechanism as the other tabs and renders without horizontal scroll at 375px.
+2. Five summary cards render, each in the budget's default_currency: available-to-spend (Σ SPENDINGS wallets), capitalization (Σ all wallets = net worth), this-month overspent categories, cushion (real months + total amount from `get-cushion-summary`), available reserves (Σ RESERVE wallets).
+3. Four sections (Planned · Overspent · Reserves · Financial Wealth), each collapsed by default. Planned/Overspent/Reserves/Wealth-value charts are scoped to a shared range selector (this month · last 3 months · this year · all · custom from→to); buckets are monthly by default, daily for `this month` / short custom spans.
+4. Planned section: a category selector (default = none) toggles between budget-wide and per-category Planned-vs-Real timeline (Real = confirmed only; Planned = the limit active that month — cushion in cushion-mode months else normal); plus planned-avg-vs-real-avg (Y=category, averaged over months the category was active in range). The planned-recurring-per-month and planned-recurring-per-category charts reflect the CURRENT recurring-rules configuration (not range-scoped).
+5. Overspent section shows total overspent in range + an overspent-by-category bar, using `max(0, spent − active_limit − reserve_used)` (after-reserves, matching the grid); Reserves section shows a reserves-by-category bar.
+6. Archived categories remain in charts/totals for past periods where they had activity, but are excluded from the current-month cards and forward planned-average stats.
+7. Financial-Wealth section: a capitalization (default) / investments toggle; stats show grow/loss (value delta over range, amount + %) and monthly-average grow (simple mean of month-over-month %); a value time-series + a month-over-month dynamics (%) chart read from the 3h aggregate snapshots with a live current point; the investments view adds a per-type pie (Phase 9 type colors; tap/hover → share % + type label). (No "invested over period" metric.)
+8. A pg-boss handler snapshots every budget's {capitalization, investment value} in default_currency every ≤3h into a new aggregate table; budget-side metrics compute-on-read (no snapshot) and the tab renders cached data instantly then revalidates; editing a past transaction is reflected after invalidation with correct recomputed history.
+9. recharts (latest stable) added; chart components are responsive + themed per DESIGN.md; all strings EN/PL/UK; E2E Gherkin covers the golden overview render + range switch + category selector + wealth toggle + pie interaction.
+
+---
+
+_Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._

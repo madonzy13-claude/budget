@@ -77,4 +77,8 @@ export interface CategoryRepo {
     orderedIds: string[],
     actorUserId: string,
   ): Promise<void>;
+  // r33 investment-category methods (findInvestmentCategory /
+  // ensureInvestmentCategory / setInvestmentLimitMode) live only on the concrete
+  // DrizzleCategoryRepo — the investment route uses it directly, so they're kept
+  // off this port to avoid forcing every CategoryRepo fake to stub them.
 }

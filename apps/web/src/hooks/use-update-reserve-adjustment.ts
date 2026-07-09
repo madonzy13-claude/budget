@@ -156,6 +156,9 @@ export function useUpdateReserveAdjustment(
       // success path (including the cover branch below, which returns early).
       qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
 
+      // Cash-flow projection inputs changed — refresh the banner.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
+
       // Did part of the added reserve cover THIS month's overspend? cover =
       // typed target − resulting reserve. When it did (and a caller wants the
       // reveal), DEFER the snap: keep the optimistic numbers on screen so the

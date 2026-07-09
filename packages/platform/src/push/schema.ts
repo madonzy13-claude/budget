@@ -4,6 +4,7 @@ import {
   text,
   boolean,
   timestamp,
+  jsonb,
   pgPolicy,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -50,6 +51,9 @@ export const notificationPrefs = sharedKernel.table(
     budgetId: uuid("budget_id").notNull(),
     notificationType: text("notification_type").notNull(),
     enabled: boolean("enabled").notNull().default(true),
+    // r32: extra config for types that need more than on/off. BUDGET_REMINDER
+    // stores {days:number[] (ISO 1=Mon..7=Sun), tz:string}. NULL for on/off kinds.
+    config: jsonb("config").$type<{ days?: number[]; tz?: string } | null>(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

@@ -6,13 +6,12 @@
  * Single-page React step machine. ONE route, all state in React, no per-step
  * URLs.
  *
- * Step flow:
+ * Step flow (kind-removal: no Type step):
  *   0. Welcome   → "Get started" advances to step 1; no API call.
- *   1. Type      → collect kind (PRIVATE / SHARED); no API call.
- *   2. Basics    → collect name + currency; no API call.
- *   3. Features  → collect cushion + reserves + push toggles; no API call.
- *   4. Review    → "Create budget" performs:
- *                    - POST   /budgets       (name, kind, default_currency)
+ *   1. Basics    → collect name + currency; no API call.
+ *   2. Features  → collect cushion + reserves + push toggles; no API call.
+ *   3. Review    → "Create budget" performs:
+ *                    - POST   /budgets       (name, default_currency)
  *                    - PATCH  /budgets/:id   (cushion_mode_enabled if true,
  *                                             reserves_enabled if false)
  *                    - PUT    /onboarding/progress  (step=4, completedAt)
@@ -34,18 +33,18 @@ import { useTranslations } from "next-intl";
 import { WizardLayout } from "./wizard-layout";
 import { StepWelcome } from "./steps/step-welcome";
 import { StepBasics } from "./steps/step-basics";
-import { StepType } from "./steps/step-type";
 import { StepFeatures } from "./steps/step-features";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
 import { subscribeToPushForBudget } from "@/lib/push-subscribe";
 
-type Step = 0 | 1 | 2 | 3 | 4;
+// kind-removal: the Type step is gone. Steps are now
+// 0 Welcome, 1 Basics, 2 Features, 3 Review.
+type Step = 0 | 1 | 2 | 3;
 
 interface WizardForm {
   name: string;
   currency: string;
-  kind: "PRIVATE" | "SHARED";
   cushionEnabled: boolean;
   reservesEnabled: boolean;
   /** Phase 9: opt into the Investments wallet section. Default off. */
@@ -60,7 +59,7 @@ interface WizardPageProps {
   /**
    * Server-derived signal: the caller already has at least one budget.
    * When true, the wizard skips step 0 (welcome) and opens on step 1
-   * (Type). The welcome card is a first-budget intro — showing it on
+   * (Basics). The welcome card is a first-budget intro — showing it on
    * every subsequent budget would read as patronising.
    */
   skipWelcome?: boolean;
@@ -107,7 +106,6 @@ export function WizardPage({
   const [form, setForm] = useState<WizardForm>({
     name: "",
     currency: "USD",
-    kind: "PRIVATE",
     cushionEnabled: true,
     reservesEnabled: true,
     investmentsEnabled: false,
@@ -141,7 +139,6 @@ export function WizardPage({
     const createRes = await api.budgets.$post({
       json: {
         name: form.name.trim(),
-        kind: form.kind,
         default_currency: form.currency,
       },
     });
@@ -217,20 +214,16 @@ export function WizardPage({
       if (step === 0) {
         setStep(1);
       } else if (step === 1) {
-        // Step 1 (Type) has no required fields — Type selection has a
-        // default value (PRIVATE), so Next always proceeds.
-        setStep(2);
-      } else if (step === 2) {
-        // Step 2 (Basics) requires a non-empty name before advancing.
+        // Step 1 (Basics) requires a non-empty name before advancing.
         if (!form.name.trim()) {
           setNameError(tBasics("name_required"));
           setIsLoading(false);
           return;
         }
+        setStep(2);
+      } else if (step === 2) {
         setStep(3);
       } else if (step === 3) {
-        setStep(4);
-      } else if (step === 4) {
         await commitWizard();
         return; // avoid setIsLoading(false) on redirect
       }
@@ -255,7 +248,7 @@ export function WizardPage({
    * out-of-bound jump call cannot push the user forward without going
    * through onNext (which enforces validation per step).
    */
-  function onStepJump(target: 1 | 2 | 3 | 4) {
+  function onStepJump(target: 1 | 2 | 3) {
     if (target < step) {
       setNameError(null);
       setStep(target);
@@ -268,10 +261,6 @@ export function WizardPage({
         return <StepWelcome />;
       case 1:
         return (
-          <StepType value={form.kind} onChange={(v) => updateForm("kind", v)} />
-        );
-      case 2:
-        return (
           <StepBasics
             name={form.name}
             onChangeName={(v) => updateForm("name", v)}
@@ -280,7 +269,7 @@ export function WizardPage({
             onChangeCurrency={(v) => updateForm("currency", v)}
           />
         );
-      case 3:
+      case 2:
         return (
           <StepFeatures
             cushionEnabled={form.cushionEnabled}
@@ -297,12 +286,11 @@ export function WizardPage({
             onChangePush={(v) => updateForm("pushEnabled", v)}
           />
         );
-      case 4:
+      case 3:
         return (
           <StepReview
             name={form.name}
             currency={form.currency}
-            kind={form.kind}
             cushionEnabled={form.cushionEnabled}
             reservesEnabled={form.reservesEnabled}
           />
@@ -320,7 +308,7 @@ export function WizardPage({
       nextLabel={
         step === 0
           ? tActions("get_started")
-          : step === 4
+          : step === 3
             ? tActions("create_budget")
             : tActions("next")
       }

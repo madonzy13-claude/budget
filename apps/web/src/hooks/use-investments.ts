@@ -39,6 +39,8 @@ export interface HoldingDto {
   metal: string | null;
   metalKind: string | null;
   unitOfMeasure: string | null;
+  /** Bullion premium over spot, percent string ("20"=+20%); null = none. */
+  premiumPct: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
   /** Tracked-instrument provider; 'manual' = user-priced (editable price, no auto
@@ -57,6 +59,8 @@ export interface HoldingDto {
   valueInBudgetCents: string;
   /** signed P/L %, 1 decimal; null for cash / no-basis. */
   profitLossPct: number | null;
+  /** signed absolute P/L in cents (server-computed); null for cash / no-basis. */
+  profitLossCents: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;

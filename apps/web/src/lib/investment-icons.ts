@@ -20,10 +20,7 @@ import {
   Briefcase,
   type LucideIcon,
 } from "lucide-react";
-import {
-  deriveUiType,
-  type UiType,
-} from "@/lib/investment-types";
+import { deriveUiType, type UiType } from "@/lib/investment-types";
 import type { HoldingDto } from "@/hooks/use-investments";
 
 export const UI_TYPE_ICON: Record<UiType, LucideIcon> = {
@@ -57,12 +54,24 @@ export const UI_TYPE_COLOR: Record<UiType, string> = {
   broker: "#818cf8", // indigo
 };
 
-/** Icon + color for a holding, resolved from its (derived) UI type. */
+/** Light silver-grey accent for the non-gold precious metals (silver, platinum,
+ *  palladium). Chosen LIGHT so it stands out on the dark grey investment card
+ *  (--canvas/surface-dark) instead of blending into it. Gold keeps its yellow. */
+const SILVER_METAL_COLOR = "#cbd5e1";
+const SILVER_METALS = new Set(["silver", "platinum", "palladium"]);
+
+/** Icon + color for a holding, resolved from its (derived) UI type. The precious-
+ *  metals accent is metal-aware: gold stays yellow; the silvery metals render grey. */
 export function holdingIcon(h: {
   uiType: HoldingDto["uiType"];
   holdingType: HoldingDto["holdingType"];
   isCustom: HoldingDto["isCustom"];
+  metal?: HoldingDto["metal"];
 }): { Icon: LucideIcon; color: string } {
   const ut = deriveUiType(h.uiType, h.holdingType, h.isCustom);
-  return { Icon: UI_TYPE_ICON[ut], color: UI_TYPE_COLOR[ut] };
+  const color =
+    ut === "precious_metals" && h.metal && SILVER_METALS.has(h.metal)
+      ? SILVER_METAL_COLOR
+      : UI_TYPE_COLOR[ut];
+  return { Icon: UI_TYPE_ICON[ut], color };
 }

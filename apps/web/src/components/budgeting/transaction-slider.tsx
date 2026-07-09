@@ -6,13 +6,15 @@
  * Composes DateInput, AmountInput, CurrencyPicker, FxPreviewLine, FxFreshnessBadge.
  * Delete confirmation via AlertDialog (T-04-04-08 mitigation).
  */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
+import { Temporal } from "temporal-polyfill";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -86,37 +88,39 @@ export interface TransactionSliderProps {
   prefillCategoryId?: string;
 }
 
-const schema = z.object({
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    // No future-dated transactions — cap at the last day of the current month.
-    .refine((d) => d <= lastDayOfCurrentMonthIso(), {
-      message: "future_date_not_allowed",
-    }),
-  categoryId: z.string().min(1),
-  // Accept BOTH "." and "," as the decimal separator — parseDecimal normalises
-  // the comma to a dot on submit. A period-only regex here rejected "10,50"
-  // before submit ever ran, so the comma fix in onSubmit could never apply.
-  amountOrig: z.string().regex(/^\d+([.,]\d{1,2})?$/),
-  currencyOrig: z.string().length(3),
-  note: z.string().max(500).nullable().optional(),
-});
-
-type FormValues = z.infer<typeof schema>;
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+/** Schema factory: the future-date cap is the last day of the current month IN
+ *  THE USER'S TIMEZONE (r31 item 1), so it matches the picker max + default date. */
+function makeSchema(tz: string) {
+  return z.object({
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      // No future-dated transactions — cap at the last day of the current month.
+      .refine((d) => d <= lastDayOfCurrentMonthIso(tz), {
+        message: "future_date_not_allowed",
+      }),
+    categoryId: z.string().min(1),
+    // Accept BOTH "." and "," as the decimal separator — parseDecimal normalises
+    // the comma to a dot on submit. A period-only regex here rejected "10,50"
+    // before submit ever ran, so the comma fix in onSubmit could never apply.
+    amountOrig: z.string().regex(/^\d+([.,]\d{1,2})?$/),
+    currencyOrig: z.string().length(3),
+    note: z.string().max(500).nullable().optional(),
+  });
 }
 
-/** Last day of the CURRENT month (UTC, matching todayIso). Transactions cannot
- *  be dated into a future month — this is the date picker's max. */
-function lastDayOfCurrentMonthIso(): string {
-  const now = new Date();
-  // Day 0 of next month = last day of this month.
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
-    .toISOString()
-    .slice(0, 10);
+type FormValues = z.infer<ReturnType<typeof makeSchema>>;
+
+/** Today's date in the user's timezone (r31 item 1) — the default for a new txn. */
+function todayIso(tz: string = "UTC"): string {
+  return Temporal.Now.plainDateISO(tz).toString();
+}
+
+/** Last day of the current month IN THE USER'S TIMEZONE (matching todayIso).
+ *  Transactions cannot be dated into a future month — the date picker's max. */
+function lastDayOfCurrentMonthIso(tz: string = "UTC"): string {
+  const today = Temporal.Now.plainDateISO(tz);
+  return today.with({ day: today.daysInMonth }).toString();
 }
 
 // Prefill the amount field using the same rules as the grid (centsToBare):
@@ -170,10 +174,14 @@ export function TransactionSlider({
     deleteOpenRef.current = deleteOpen;
   }, [deleteOpen]);
 
+  // Today / month-cap follow the user's timezone (r31 item 1).
+  const userTz = useUserTimezone();
+  const schema = useMemo(() => makeSchema(userTz), [userTz]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      date: initial?.date ?? todayIso(),
+      date: initial?.date ?? todayIso(userTz),
       categoryId:
         initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
       amountOrig: initial?.amountOriginalCents
@@ -213,7 +221,7 @@ export function TransactionSlider({
   useEffect(() => {
     if (open) {
       form.reset({
-        date: initial?.date ?? todayIso(),
+        date: initial?.date ?? todayIso(userTz),
         categoryId:
           initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
         amountOrig: initial?.amountOriginalCents
@@ -223,7 +231,7 @@ export function TransactionSlider({
         note: initial?.note ?? "",
       });
     }
-  }, [open, initial?.txId]);
+  }, [open, initial?.txId, userTz]);
 
   const fetchFxPreview = useCallback(async () => {
     if (!currencyOrig || currencyOrig === budgetCurrency) {
@@ -414,7 +422,7 @@ export function TransactionSlider({
                       <DateInput
                         value={field.value}
                         onChange={field.onChange}
-                        max={lastDayOfCurrentMonthIso()}
+                        max={lastDayOfCurrentMonthIso(userTz)}
                         aria-invalid={!!form.formState.errors.date}
                         id="txn-slider-date"
                       />

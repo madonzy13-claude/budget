@@ -29,7 +29,7 @@ vi.mock("next-intl", () => ({
         shareAria: "{name} share of section total.",
         dragHandleAria: "Drag to move {name} to another section.",
         trashAria: "Delete wallet {name}.",
-        title: "Delete wallet '{name}'?",
+        title: "Delete wallet ''{name}''?",
         body: "This can't be undone here.",
         cta: "Delete",
         cancel: "Cancel",

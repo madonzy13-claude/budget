@@ -8,7 +8,9 @@ import { describe, test, expect, mock } from "bun:test";
 import { Hono } from "hono";
 
 class FakePgBoss {
-  async start() { return this; }
+  async start() {
+    return this;
+  }
   async work() {}
   async schedule() {}
   async createQueue() {}
@@ -28,11 +30,14 @@ function buildDeps(overrides: Record<string, unknown> = {}) {
       userRepo: {
         async updateLocale() {},
         async updateDisplayCurrency() {},
-        async updateProviderPrefs() {},
+        async updateTimezone() {},
+        async updateTheme() {},
       },
       auth: {
         api: {
-          async listSessions() { return []; },
+          async listSessions() {
+            return [];
+          },
           async revokeSession() {},
         },
       },
@@ -59,7 +64,7 @@ describe("GET /settings/sessions", () => {
     const app = buildApp();
     const res = await app.request("/settings/sessions");
     expect(res.status).toBe(401);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toBe("unauthorized");
   });
 
@@ -69,7 +74,7 @@ describe("GET /settings/sessions", () => {
       headers: { "X-Test-Auth": "true" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(Array.isArray(body.sessions)).toBe(true);
   });
 });
@@ -93,7 +98,7 @@ describe("PUT /settings/locale", () => {
       body: JSON.stringify({ locale: "pl" }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
   });
 
@@ -127,7 +132,7 @@ describe("PUT /settings/display-currency", () => {
       body: JSON.stringify({ currency: "EUR" }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
   });
 
@@ -142,26 +147,70 @@ describe("PUT /settings/display-currency", () => {
   });
 });
 
-describe("PUT /settings/provider-prefs", () => {
+describe("PUT /settings/timezone", () => {
   test("returns 401 when not authenticated", async () => {
     const app = buildApp();
-    const res = await app.request("/settings/provider-prefs", {
+    const res = await app.request("/settings/timezone", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ llm: "claude_haiku" }),
+      body: JSON.stringify({ timezone: "Europe/Warsaw" }),
     });
     expect(res.status).toBe(401);
   });
 
-  test("accepts valid provider prefs", async () => {
+  test("accepts a valid IANA timezone", async () => {
     const app = buildApp();
-    const res = await app.request("/settings/provider-prefs", {
+    const res = await app.request("/settings/timezone", {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
-      body: JSON.stringify({ llm: "groq", stt: "browser" }),
+      body: JSON.stringify({ timezone: "Europe/Warsaw" }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.ok).toBe(true);
+  });
+
+  test("rejects an invalid timezone with 400", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/timezone", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ timezone: "Mars/Olympus_Mons" }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("PUT /settings/theme", () => {
+  test("returns 401 when not authenticated", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: "light" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("accepts a valid theme", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ theme: "light" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.ok).toBe(true);
+  });
+
+  test("rejects an invalid theme with 400", async () => {
+    const app = buildApp();
+    const res = await app.request("/settings/theme", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ theme: "sepia" }),
+    });
+    expect(res.status).toBe(400);
   });
 });

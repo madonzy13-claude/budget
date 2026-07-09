@@ -37,7 +37,10 @@ vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
   };
 });
 
-import { CategorySlider } from "@/components/budgeting/category-slider";
+import {
+  CategorySlider,
+  computeSliderAmounts,
+} from "@/components/budgeting/category-slider";
 
 const defaultProps = {
   open: true,
@@ -117,22 +120,22 @@ describe("CategorySlider", () => {
     expect(colorButtons.length).toBeGreaterThanOrEqual(8);
   });
 
-  it("currency for planned + cushion is fixed to budgetCurrency (no picker)", () => {
+  it("planned shows a fixed-currency amount with a short currency sign (no picker)", () => {
     render(
       <TestQueryProvider>
         <CategorySlider {...defaultProps} />
       </TestQueryProvider>,
     );
-    // Should show USD badge(s) but no currency select/picker
-    const currencyBadges = document.querySelectorAll(
-      "[data-testid='currency-badge']",
-    );
-    expect(currencyBadges.length).toBeGreaterThanOrEqual(1);
-    // No currency picker select for planned/cushion
-    const currencyPicker = document.querySelector(
-      "[data-testid='currency-picker']",
-    );
-    expect(currencyPicker).toBeNull();
+    // The planned total renders as a currency-formatted amount (symbol), not a
+    // typed field — and there is no currency picker.
+    const readout = document.querySelector(
+      "[data-testid='cat-slider-planned-readout']",
+    ) as HTMLElement;
+    expect(readout).toBeTruthy();
+    expect(readout.textContent).toContain("$");
+    expect(
+      document.querySelector("[data-testid='currency-picker']"),
+    ).toBeNull();
   });
 
   it("create flow: limits POST sends amounts as digit strings (setLimitSchema expects z.string)", async () => {
@@ -146,11 +149,12 @@ describe("CategorySlider", () => {
       document.querySelector("#cat-slider-name") as HTMLElement,
       "Travel",
     );
-    const planned = document.querySelector(
-      "#cat-slider-planned",
+    // Create mode builds Planned from Needs + Wants (no single planned input).
+    const needs = document.querySelector(
+      "#cat-slider-needs",
     ) as HTMLInputElement;
-    await user.clear(planned);
-    await user.type(planned, "100");
+    await user.clear(needs);
+    await user.type(needs, "100");
     const saveBtn = screen
       .getAllByRole("button")
       .find((b) => b.textContent?.includes("catSlider.cta.create"))!;
@@ -188,11 +192,8 @@ describe("CategorySlider", () => {
         <CategorySlider {...editProps} />
       </TestQueryProvider>,
     );
-    const cushion = document.querySelector(
-      "#cat-slider-cushion",
-    ) as HTMLInputElement;
-    await user.clear(cushion);
-    await user.type(cushion, "50");
+    // Any successful save invalidates the pending-tasks query. Edit mode now
+    // prefills the fields, so just save.
     const saveBtn = screen
       .getAllByRole("button")
       .find((b) => b.textContent?.includes("catSlider.cta.save"))!;
@@ -351,30 +352,31 @@ describe("CategorySlider", () => {
     expect(nameInput.value).toBe("Groceries");
   });
 
-  it("edit mode: planned amount is prefilled (10000 cents → 100, bare format)", () => {
+  it("edit mode: planned prefills the Needs input (10000 cents → 100)", () => {
     render(
       <TestQueryProvider>
         <CategorySlider {...editProps} />
       </TestQueryProvider>,
     );
-    const plannedInput = document.getElementById(
-      "cat-slider-planned",
+    const needs = document.getElementById(
+      "cat-slider-needs",
     ) as HTMLInputElement;
-    expect(plannedInput).toBeTruthy();
-    expect(plannedInput.value).toBe("100");
+    expect(needs).toBeTruthy();
+    expect(needs.value).toBe("100");
   });
 
-  it("edit mode: cushion amount is prefilled (2000 cents → 20, bare format)", () => {
+  it("edit mode: a cushion ≠ planned prefills Custom mode with the amount (2000 → 20)", () => {
     render(
       <TestQueryProvider>
         <CategorySlider {...editProps} />
       </TestQueryProvider>,
     );
-    const cushionInput = document.getElementById(
-      "cat-slider-cushion",
+    // 2000 cushion ≠ 10000 planned → Custom, prefilled with the bare amount.
+    const custom = document.getElementById(
+      "cat-slider-cushion-custom",
     ) as HTMLInputElement;
-    expect(cushionInput).toBeTruthy();
-    expect(cushionInput.value).toBe("20");
+    expect(custom).toBeTruthy();
+    expect(custom.value).toBe("20");
   });
 
   it("edit mode: saving with prefilled decimal amounts submits PATCH + limits (schema accepts decimals)", async () => {
@@ -441,176 +443,10 @@ describe("CategorySlider", () => {
       "cat-slider-name",
     ) as HTMLInputElement;
     expect(nameInput?.value).toBe("Transport");
-    const plannedInput = document.getElementById(
-      "cat-slider-planned",
+    const needs = document.getElementById(
+      "cat-slider-needs",
     ) as HTMLInputElement;
-    expect(plannedInput?.value).toBe("50");
-  });
-
-  // ── Phase 7-09 (D-PH7-35..37): silent cushion-mirror ───────────────
-  describe("CategorySlider cushion mirror (D-PH7-35..37)", () => {
-    const linkedProps = {
-      ...defaultProps,
-      mode: "edit" as const,
-      initial: {
-        categoryId: "cat-linked",
-        name: "Linked",
-        plannedCents: "10000",
-        cushionCents: "10000",
-        iconKey: null,
-        colorKey: null,
-      },
-    };
-    const linkedNullProps = {
-      ...defaultProps,
-      mode: "edit" as const,
-      initial: {
-        categoryId: "cat-null-cushion",
-        name: "Null cushion",
-        plannedCents: "10000",
-        cushionCents: "",
-        iconKey: null,
-        colorKey: null,
-      },
-    };
-    const unlinkedProps = {
-      ...defaultProps,
-      mode: "edit" as const,
-      initial: {
-        categoryId: "cat-unlinked",
-        name: "Unlinked",
-        plannedCents: "10000",
-        cushionCents: "5000",
-        iconKey: null,
-        colorKey: null,
-      },
-    };
-
-    it("linked=true when initial.cushionCents is empty/null → typing planned mirrors cushion", async () => {
-      const user = userEvent.setup();
-      render(
-        <TestQueryProvider>
-          <CategorySlider {...linkedNullProps} />
-        </TestQueryProvider>,
-      );
-      const planned = document.getElementById(
-        "cat-slider-planned",
-      ) as HTMLInputElement;
-      const cushion = document.getElementById(
-        "cat-slider-cushion",
-      ) as HTMLInputElement;
-      await user.clear(planned);
-      await user.type(planned, "250");
-      expect(cushion.value).toBe("250");
-    });
-
-    it("linked=true when initial cushion === planned → typing planned mirrors cushion", async () => {
-      const user = userEvent.setup();
-      render(
-        <TestQueryProvider>
-          <CategorySlider {...linkedProps} />
-        </TestQueryProvider>,
-      );
-      const planned = document.getElementById(
-        "cat-slider-planned",
-      ) as HTMLInputElement;
-      const cushion = document.getElementById(
-        "cat-slider-cushion",
-      ) as HTMLInputElement;
-      await user.clear(planned);
-      await user.type(planned, "300");
-      expect(cushion.value).toBe("300");
-    });
-
-    it("linked=false when initial cushion !== planned → typing planned does NOT mirror", async () => {
-      const user = userEvent.setup();
-      render(
-        <TestQueryProvider>
-          <CategorySlider {...unlinkedProps} />
-        </TestQueryProvider>,
-      );
-      const planned = document.getElementById(
-        "cat-slider-planned",
-      ) as HTMLInputElement;
-      const cushion = document.getElementById(
-        "cat-slider-cushion",
-      ) as HTMLInputElement;
-      // initial cushion is 5000 cents → bare "50"
-      expect(cushion.value).toBe("50");
-      await user.clear(planned);
-      await user.type(planned, "200");
-      // unchanged — link broken from start
-      expect(cushion.value).toBe("50");
-    });
-
-    it("typing cushion silently breaks link → subsequent planned change does not mirror", async () => {
-      const user = userEvent.setup();
-      render(
-        <TestQueryProvider>
-          <CategorySlider {...linkedNullProps} />
-        </TestQueryProvider>,
-      );
-      const planned = document.getElementById(
-        "cat-slider-planned",
-      ) as HTMLInputElement;
-      const cushion = document.getElementById(
-        "cat-slider-cushion",
-      ) as HTMLInputElement;
-      // First: change cushion → breaks link
-      await user.clear(cushion);
-      await user.type(cushion, "75");
-      expect(cushion.value).toBe("75");
-      // Now change planned → should NOT mirror
-      await user.clear(planned);
-      await user.type(planned, "200");
-      expect(cushion.value).toBe("75");
-    });
-
-    it("renders no chain icon / no relink affordance", () => {
-      render(
-        <TestQueryProvider>
-          <CategorySlider {...linkedProps} />
-        </TestQueryProvider>,
-      );
-      // No button labeled link/unlink/chain
-      expect(
-        screen.queryByRole("button", { name: /chain|link|unlink|relink/i }),
-      ).toBeNull();
-    });
-
-    it("slider reopen with equal values re-links (mirror behavior restored)", async () => {
-      const user = userEvent.setup();
-      const { rerender } = render(
-        <TestQueryProvider>
-          <CategorySlider {...unlinkedProps} open={false} />
-        </TestQueryProvider>,
-      );
-      const newInitial = {
-        categoryId: "cat-relinked",
-        name: "Relinked",
-        plannedCents: "20000",
-        cushionCents: "20000",
-        iconKey: null,
-        colorKey: null,
-      };
-      rerender(
-        <TestQueryProvider>
-          <CategorySlider {...unlinkedProps} open={true} initial={newInitial} />
-        </TestQueryProvider>,
-      );
-      const planned = document.getElementById(
-        "cat-slider-planned",
-      ) as HTMLInputElement;
-      const cushion = document.getElementById(
-        "cat-slider-cushion",
-      ) as HTMLInputElement;
-      // Initial: both 200
-      expect(planned.value).toBe("200");
-      expect(cushion.value).toBe("200");
-      await user.clear(planned);
-      await user.type(planned, "300");
-      expect(cushion.value).toBe("300");
-    });
+    expect(needs?.value).toBe("50");
   });
 
   // ── UAT round 14: delete must hit the backend's archive endpoint ─────
@@ -653,6 +489,179 @@ describe("CategorySlider", () => {
       );
       // Slider closes on success
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
+  });
+
+  // ── r32: create-mode Needs + Wants → Planned + cushion mode selector ──
+  describe("computeSliderAmounts", () => {
+    const base = { needs: "100", wants: "50", custom: "7" };
+    it("planned = needs + wants (cents); cushion follows the mode", () => {
+      expect(computeSliderAmounts({ ...base, cushionMode: "none" })).toEqual({
+        normalAmount: "15000",
+        cushionAmount: "0",
+      });
+      expect(
+        computeSliderAmounts({ ...base, cushionMode: "needs_wants" }),
+      ).toEqual({ normalAmount: "15000", cushionAmount: "15000" });
+      expect(
+        computeSliderAmounts({ ...base, cushionMode: "needs_only" }),
+      ).toEqual({ normalAmount: "15000", cushionAmount: "10000" });
+      expect(computeSliderAmounts({ ...base, cushionMode: "custom" })).toEqual({
+        normalAmount: "15000",
+        cushionAmount: "700",
+      });
+    });
+    it("empty needs/wants → zero; decimals kept to the cent", () => {
+      expect(
+        computeSliderAmounts({
+          needs: "",
+          wants: "",
+          custom: "",
+          cushionMode: "needs_wants",
+        }),
+      ).toEqual({ normalAmount: "0", cushionAmount: "0" });
+      expect(
+        computeSliderAmounts({
+          needs: "10.50",
+          wants: "0.25",
+          custom: "",
+          cushionMode: "needs_only",
+        }),
+      ).toEqual({ normalAmount: "1075", cushionAmount: "1050" });
+    });
+  });
+
+  describe("create mode: Needs + Wants + cushion mode UI", () => {
+    it("renders Needs, Wants, a Planned readout and the 4 cushion modes; no single planned input", () => {
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...defaultProps} />
+        </TestQueryProvider>,
+      );
+      expect(document.querySelector("#cat-slider-needs")).toBeTruthy();
+      expect(document.querySelector("#cat-slider-wants")).toBeTruthy();
+      expect(
+        document.querySelector("[data-testid='cat-slider-planned-readout']"),
+      ).toBeTruthy();
+      for (const m of ["none", "needs_wants", "needs_only", "custom"]) {
+        expect(
+          document.querySelector(`[data-testid='cushion-mode-${m}']`),
+        ).toBeTruthy();
+      }
+      // The old single planned/cushion inputs are gone in create mode.
+      expect(document.querySelector("#cat-slider-planned")).toBeNull();
+      expect(document.querySelector("#cat-slider-cushion")).toBeNull();
+    });
+
+    it("Planned readout is the live sum of Needs + Wants", async () => {
+      const user = userEvent.setup();
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...defaultProps} />
+        </TestQueryProvider>,
+      );
+      await user.type(
+        document.querySelector("#cat-slider-needs") as HTMLElement,
+        "100",
+      );
+      await user.type(
+        document.querySelector("#cat-slider-wants") as HTMLElement,
+        "50",
+      );
+      const readout = document.querySelector(
+        "[data-testid='cat-slider-planned-readout']",
+      ) as HTMLElement;
+      expect(readout.textContent).toContain("150");
+    });
+
+    async function submitCreate(
+      clickMode: string | null,
+      opts: { needs?: string; wants?: string; custom?: string } = {},
+    ) {
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ category: { id: "cat-x" } }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+      render(
+        <TestQueryProvider>
+          <CategorySlider {...defaultProps} onOpenChange={onOpenChange} />
+        </TestQueryProvider>,
+      );
+      await user.type(
+        document.querySelector("#cat-slider-name") as HTMLElement,
+        "Food",
+      );
+      await user.type(
+        document.querySelector("#cat-slider-needs") as HTMLElement,
+        opts.needs ?? "100",
+      );
+      if (opts.wants) {
+        await user.type(
+          document.querySelector("#cat-slider-wants") as HTMLElement,
+          opts.wants,
+        );
+      }
+      if (clickMode) {
+        await user.click(
+          document.querySelector(
+            `[data-testid='cushion-mode-${clickMode}']`,
+          ) as HTMLElement,
+        );
+      }
+      if (opts.custom) {
+        await user.type(
+          document.querySelector("#cat-slider-cushion-custom") as HTMLElement,
+          opts.custom,
+        );
+      }
+      await user.click(
+        screen
+          .getAllByRole("button")
+          .find((b) => b.textContent?.includes("catSlider.cta.create"))!,
+      );
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.find((c) => String(c[0]).includes("/limits")),
+        ).toBeTruthy(),
+      );
+      const limitsCall = fetchMock.mock.calls.find((c) =>
+        String(c[0]).includes("/limits"),
+      )!;
+      return JSON.parse((limitsCall[1] as { body: string }).body);
+    }
+
+    it("default cushion mode is None → cushionAmount 0", async () => {
+      const body = await submitCreate(null);
+      expect(body.normalAmount).toBe("10000");
+      expect(body.cushionAmount).toBe("0");
+    });
+
+    it("cushion mode Needs + Wants → cushionAmount = planned", async () => {
+      const body = await submitCreate("needs_wants", {
+        needs: "100",
+        wants: "50",
+      });
+      expect(body.normalAmount).toBe("15000");
+      expect(body.cushionAmount).toBe("15000");
+    });
+
+    it("cushion mode Needs only → cushionAmount = needs", async () => {
+      const body = await submitCreate("needs_only", {
+        needs: "100",
+        wants: "50",
+      });
+      expect(body.normalAmount).toBe("15000");
+      expect(body.cushionAmount).toBe("10000");
+    });
+
+    it("cushion mode Custom → reveals an input, submits its value", async () => {
+      const body = await submitCreate("custom", { needs: "100", custom: "7" });
+      expect(body.normalAmount).toBe("10000");
+      expect(body.cushionAmount).toBe("700");
     });
   });
 });

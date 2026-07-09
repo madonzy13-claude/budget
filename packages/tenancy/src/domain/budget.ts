@@ -19,14 +19,10 @@ export class Budget {
     public cushionModeEnabled: boolean = false,
   ) {}
 
+  // kind-removal: any budget can accept members. Private-vs-shared is a
+  // display derivation from member_count, not an invite gate. Kept as a method
+  // (callers unchanged) but now unconditionally allows.
   canAcceptMember(): Result<void, Error> {
-    if (this.kind === "PRIVATE" && this.memberCount >= 1) {
-      return err(
-        new Error(
-          "PRIVATE budgets accept only the owner. Convert to SHARED first.",
-        ),
-      );
-    }
     return ok(undefined);
   }
 

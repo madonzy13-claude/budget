@@ -66,6 +66,12 @@ export function createWalletsRoute(deps: BootedDeps) {
       return c.json({ error: msg }, 422);
     }
 
+    // r36: a new wallet with an initial balance changes the income-vs-planned
+    // "available" total → recompute. Own-tx, never throws.
+    await deps.budgeting.recomputeIncomeUnderPlannedRunner({
+      tenantId,
+      budgetId: tenantId,
+    });
     return c.json(r.value, 201);
   });
 
@@ -163,6 +169,12 @@ export function createWalletsRoute(deps: BootedDeps) {
     });
 
     if (r.isErr()) return c.json({ error: r.error.message }, 422);
+    // r36: archiving a wallet removes its balance from the income-vs-planned
+    // "available" total → recompute. Own-tx, never throws.
+    await deps.budgeting.recomputeIncomeUnderPlannedRunner({
+      tenantId,
+      budgetId: tenantId,
+    });
     return c.json(r.value);
   });
 
@@ -203,6 +215,13 @@ export function createWalletsRoute(deps: BootedDeps) {
       if (msg === "not_found") return c.json({ error: "not_found" }, 404);
       return c.json({ error: msg }, 422);
     }
+    // r36: the wallets UI edits a balance via this PATCH (amount field), NOT the
+    // PUT /balance endpoint — so the income-vs-planned "available" recompute must
+    // fire here too. Own-tx, never throws.
+    await deps.budgeting.recomputeIncomeUnderPlannedRunner({
+      tenantId,
+      budgetId: tenantId,
+    });
     return c.json(r.value, 200);
   });
 
@@ -211,9 +230,8 @@ export function createWalletsRoute(deps: BootedDeps) {
   // appear in the supplied order within their section. Tenant + walletType
   // membership re-validated server-side (defence in depth).
   app.post("/reorder", async (c) => {
-    const { reorderWalletsSchema } = await import(
-      "@budget/budgeting/src/contracts/api"
-    );
+    const { reorderWalletsSchema } =
+      await import("@budget/budgeting/src/contracts/api");
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const tenantId = pickTenant(c);
@@ -275,6 +293,12 @@ export function createWalletsRoute(deps: BootedDeps) {
     });
 
     if (r.isErr()) return c.json({ error: r.error.message }, 422);
+    // r36: wallet balances now feed the income-vs-planned "available" total, so a
+    // balance change can flip the INCOME_UNDER_PLANNED task. Own-tx, never throws.
+    await deps.budgeting.recomputeIncomeUnderPlannedRunner({
+      tenantId,
+      budgetId: tenantId,
+    });
     return c.json(r.value, 200);
   });
 

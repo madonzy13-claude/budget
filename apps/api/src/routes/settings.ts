@@ -1,6 +1,6 @@
 /**
  * settings.ts — /settings route factory
- * User settings: locale, display_currency, provider_prefs, sessions.
+ * User settings: locale, display_currency, sessions.
  *
  * PC-02: uses deps.identity.userRepo + deps.identity.auth from factory output.
  * T-01-07-06: zValidator on every state-changing endpoint.
@@ -10,11 +10,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { BootedDeps } from "../boot";
 import { UserId } from "@budget/shared-kernel";
-import type {
-  Locale,
-  LLMProviderName,
-  STTProviderName,
-} from "@budget/identity";
+import type { Locale } from "@budget/identity";
 
 export function settingsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
@@ -27,9 +23,19 @@ export function settingsRoutesFactory(deps: BootedDeps) {
     currency: z.string().regex(/^[A-Z]{3}$/),
   });
 
-  const providerPrefsSchema = z.object({
-    llm: z.enum(["claude_haiku", "groq"]).nullable().optional(),
-    stt: z.enum(["browser", "groq"]).nullable().optional(),
+  const timezoneSchema = z.object({
+    timezone: z.string().refine((tz) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Invalid timezone"),
+  });
+
+  const themeSchema = z.object({
+    theme: z.enum(["dark", "light"]),
   });
 
   // PUT /settings/locale — update user locale
@@ -70,30 +76,37 @@ export function settingsRoutesFactory(deps: BootedDeps) {
     }
   });
 
-  // PUT /settings/provider-prefs — update LLM/STT provider preferences
-  r.put(
-    "/provider-prefs",
-    zValidator("json", providerPrefsSchema),
-    async (c) => {
-      const session = c.get("session");
-      if (!session) return c.json({ error: "unauthorized" }, 401);
+  // PUT /settings/timezone — update the user's IANA timezone
+  r.put("/timezone", zValidator("json", timezoneSchema), async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
 
-      const body = c.req.valid("json");
-      const prefs: {
-        llm?: LLMProviderName | null;
-        stt?: STTProviderName | null;
-      } = {};
-      if (body.llm !== undefined)
-        prefs.llm = body.llm as LLMProviderName | null;
-      if (body.stt !== undefined)
-        prefs.stt = body.stt as STTProviderName | null;
-      await deps.identity.userRepo.updateProviderPrefs(
+    const body = c.req.valid("json");
+    try {
+      await deps.identity.userRepo.updateTimezone(
         UserId(session.user.id),
-        prefs,
+        body.timezone,
       );
       return c.json({ ok: true });
-    },
-  );
+    } catch (e) {
+      const msg = (e as Error).message ?? "unknown";
+      if (/Invalid timezone/.test(msg)) return c.json({ error: msg }, 400);
+      throw e;
+    }
+  });
+
+  // PUT /settings/theme — update the user's UI theme
+  r.put("/theme", zValidator("json", themeSchema), async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const body = c.req.valid("json");
+    await deps.identity.userRepo.updateTheme(
+      UserId(session.user.id),
+      body.theme,
+    );
+    return c.json({ ok: true });
+  });
 
   // GET /settings/sessions — list active sessions
   r.get("/sessions", async (c) => {

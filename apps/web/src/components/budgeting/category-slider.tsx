@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -41,6 +41,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { AmountInput } from "@/components/budgeting/fields/amount-input";
+import { centsToDisplayCompact } from "@/lib/cents-format";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { cn } from "@/lib/utils";
@@ -76,16 +77,26 @@ export interface CategorySliderProps {
   cushionEnabled?: boolean;
 }
 
-// plannedCents/cushionCents hold the raw decimal-string input ("60", "60.00")
-// — decimalToCents() converts to integer cents at submit. The regex must accept
-// the decimal form: edit mode prefills these via centsToDecimal ("60.00"), and
-// an integer-only regex would silently block zodResolver / handleSubmit.
-const amountField = z.string().regex(/^\d+(\.\d{1,2})?$/);
+// Inputs hold a raw decimal-string ("60", "60.00"); amountToCents converts to
+// integer cents at submit. Empty (= 0) lets a limit-less category be one click.
+const amountOrEmpty = z.string().regex(/^(\d+(\.\d{1,2})?)?$/);
+
+export const CUSHION_MODES = [
+  "none",
+  "needs_wants",
+  "needs_only",
+  "custom",
+] as const;
+export type CushionMode = (typeof CUSHION_MODES)[number];
 
 const schema = z.object({
   name: z.string().min(1).max(60),
-  plannedCents: amountField,
-  cushionCents: amountField,
+  // r32: BOTH create + edit build Planned from Needs + Wants and choose Cushion
+  // by mode. Empty inputs (= 0) let a limit-less category be one click.
+  needs: amountOrEmpty,
+  wants: amountOrEmpty,
+  cushionMode: z.enum(CUSHION_MODES),
+  customCushion: amountOrEmpty,
   // 260613-v1p: iconKey removed (icon picker gone). colorKey persists.
   colorKey: z.string().nullable(),
 });
@@ -105,11 +116,78 @@ function centsToDecimal(cents: string): string {
   return `${sign}${whole}.${frac.toString().padStart(2, "0")}`;
 }
 
-// Returns a digit string — setLimitSchema validates normalAmount/cushionAmount
-// as z.string().regex(/^\d+$/) (bigint cents over the wire). Sending a number
-// fails validation with a 422.
-function decimalToCents(decimal: string): string {
-  return String(Math.round(parseFloat(decimal) * 100));
+// Empty / NaN → 0 (inputs may be blank); otherwise round to cents.
+function amountToCents(decimal: string): number {
+  const n = parseFloat(decimal);
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+/**
+ * Derive the persisted {normalAmount, cushionAmount} (cents strings) from the
+ * create-mode inputs. Planned = needs + wants; cushion follows the mode. Pure —
+ * unit-tested directly, single source of truth for the create submit payload.
+ */
+export function computeSliderAmounts(input: {
+  needs: string;
+  wants: string;
+  cushionMode: CushionMode;
+  custom: string;
+}): { normalAmount: string; cushionAmount: string } {
+  const needs = amountToCents(input.needs);
+  const wants = amountToCents(input.wants);
+  const planned = needs + wants;
+  let cushion: number;
+  switch (input.cushionMode) {
+    case "needs_wants":
+      cushion = planned;
+      break;
+    case "needs_only":
+      cushion = needs;
+      break;
+    case "custom":
+      cushion = amountToCents(input.custom);
+      break;
+    case "none":
+    default:
+      cushion = 0;
+  }
+  return { normalAmount: String(planned), cushionAmount: String(cushion) };
+}
+
+/**
+ * Map an existing category's stored {planned, cushion} cents back onto the
+ * needs/wants + cushion-mode model for edit prefill. The needs/wants split is
+ * not persisted (only the planned total is), so Needs = planned and Wants = 0;
+ * the user can re-split. Cushion mode is inferred: 0 → none, == planned →
+ * needs+wants, otherwise → custom (carrying the amount).
+ */
+export function prefillFromInitial(initial?: {
+  plannedCents?: string;
+  cushionCents?: string;
+}): {
+  needs: string;
+  wants: string;
+  cushionMode: CushionMode;
+  customCushion: string;
+} {
+  const planned = initial?.plannedCents ?? "";
+  const cushion = initial?.cushionCents ?? "";
+  const cushionN = amountToCents(centsToDecimalSafe(cushion));
+  const plannedN = amountToCents(centsToDecimalSafe(planned));
+  let cushionMode: CushionMode = "none";
+  if (cushionN > 0)
+    cushionMode = cushionN === plannedN ? "needs_wants" : "custom";
+  return {
+    needs: planned ? centsToDecimal(planned) : "",
+    wants: "",
+    cushionMode,
+    customCushion: cushionMode === "custom" ? centsToDecimal(cushion) : "",
+  };
+}
+
+// centsToDecimal on a possibly-empty string, "" → "0" (for numeric compares).
+function centsToDecimalSafe(cents: string): string {
+  return cents ? centsToDecimal(cents) : "0";
 }
 
 export function CategorySlider({
@@ -134,6 +212,10 @@ export function CategorySlider({
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "categories"] });
     qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
+    // A category's planned/cushion limit feeds the Overview charts (planned-avg
+    // vs real-avg, overspent-by-category, the cards), so refresh the whole
+    // overview subtree — otherwise the chart stays stale until a hard reload.
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
     // A limit change can resolve/raise the CUSHION_BELOW_TARGET task server-side
     // (cushion target vs actual), so refresh the pending-tasks query → the pill
     // badge updates in the background instead of going stale until a reload.
@@ -150,34 +232,43 @@ export function CategorySlider({
     deleteOpenRef.current = deleteOpen;
   }, [deleteOpen]);
 
+  const locale = useLocale();
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: initial?.name ?? "",
-      plannedCents: initial?.plannedCents
-        ? centsToDecimal(initial.plannedCents)
-        : "0",
-      cushionCents: initial?.cushionCents
-        ? centsToDecimal(initial.cushionCents)
-        : "0",
+      ...prefillFromInitial(initial),
       colorKey: initial?.colorKey ?? null,
     },
   });
 
-  // Phase 7-09 D-PH7-35..37: silent cushion-mirror. The drawer assumes
-  // cushion-follows-planned is the sensible default; it stays linked until
-  // the user explicitly types into the cushion field. There is no UI
-  // affordance — no chain icon, no relink button — per D-PH7-36.
-  //
-  // Initial linked = true when initial cushion is null / empty / equal to
-  // planned. Reopening the slider with new initial values re-evaluates it.
-  const [linked, setLinked] = useState<boolean>(() => {
-    const c = initial?.cushionCents;
-    const p = initial?.plannedCents;
-    return c == null || c === "" || String(c) === String(p);
-  });
-
   const { isSubmitting } = form.formState;
+
+  // Live preview: Planned = Needs + Wants, and Cushion follows the selected
+  // mode. Watched so the readouts update as the user types.
+  const needsW = form.watch("needs");
+  const wantsW = form.watch("wants");
+  const cushionModeW = form.watch("cushionMode");
+  const customW = form.watch("customCushion");
+  const preview = computeSliderAmounts({
+    needs: needsW,
+    wants: wantsW,
+    cushionMode: cushionModeW,
+    custom: customW,
+  });
+  const plannedPreview = centsToDisplayCompact(
+    preview.normalAmount,
+    budgetCurrency,
+    locale,
+    true,
+  );
+  const cushionPreview = centsToDisplayCompact(
+    preview.cushionAmount,
+    budgetCurrency,
+    locale,
+    true,
+  );
 
   // UAT Defect 3: RHF defaultValues only apply on first mount. When the slider
   // reopens (or switches category), call reset() so edit mode prefills correctly.
@@ -185,20 +276,9 @@ export function CategorySlider({
     if (open) {
       form.reset({
         name: initial?.name ?? "",
-        plannedCents: initial?.plannedCents
-          ? centsToDecimal(initial.plannedCents)
-          : "0",
-        cushionCents: initial?.cushionCents
-          ? centsToDecimal(initial.cushionCents)
-          : "0",
+        ...prefillFromInitial(initial),
         colorKey: initial?.colorKey ?? null,
       });
-      // Phase 7-09 D-PH7-35: re-initialize linked from new initial values
-      // so reopening the drawer with equal planned/cushion restores the
-      // mirror behavior even after the previous session broke it.
-      const c = initial?.cushionCents;
-      const p = initial?.plannedCents;
-      setLinked(c == null || c === "" || String(c) === String(p));
     }
   }, [open, initial?.categoryId]);
 
@@ -216,8 +296,15 @@ export function CategorySlider({
     // Editing a PAST month changes only that month; current/future + new
     // categories carry forward (the SCD-2 default).
     const singleMonth = mode === "edit" && targetMonth < currentMonth;
-    const normalAmount = decimalToCents(values.plannedCents);
-    const cushionAmount = decimalToCents(values.cushionCents);
+    // Both modes build Planned from Needs + Wants and Cushion from the mode.
+    const derived = computeSliderAmounts({
+      needs: values.needs,
+      wants: values.wants,
+      cushionMode: values.cushionMode,
+      custom: values.customCushion,
+    });
+    const normalAmount = derived.normalAmount;
+    const cushionAmount = cushionEnabled ? derived.cushionAmount : "0";
 
     try {
       if (mode === "create") {
@@ -414,81 +501,104 @@ export function CategorySlider({
                 )}
               />
 
-              {/* Planned monthly */}
-              <FormField
-                control={form.control}
-                name="plannedCents"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm text-[var(--muted-foreground)]">
-                      {t("catSlider.field.planned")}
-                    </FormLabel>
-                    <div className="flex gap-2 items-center">
-                      <FormControl>
-                        <AmountInput
-                          value={field.value}
-                          onChange={(v) => {
-                            field.onChange(v);
-                            // Phase 7-09 D-PH7-35: silent mirror — when
-                            // linked, planned changes drive cushion too.
-                            if (linked) {
-                              form.setValue("cushionCents", v, {
-                                shouldValidate: true,
-                              });
-                            }
-                          }}
-                          aria-invalid={!!form.formState.errors.plannedCents}
-                          id="cat-slider-planned"
-                        />
-                      </FormControl>
-                      <span
-                        data-testid="currency-badge"
-                        className="text-sm font-medium text-[var(--primary)] px-2 py-1 rounded bg-[var(--surface-elevated-dark)]"
-                      >
-                        {budgetCurrency}
-                      </span>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Planned = Needs + Wants (both editable), in one row with the
+                  short-currency total on the right. */}
+              <FormItem>
+                <FormLabel className="text-sm text-[var(--muted-foreground)]">
+                  {t("catSlider.field.planned")}
+                </FormLabel>
+                <div className="flex items-center gap-2">
+                  <AmountInput
+                    value={needsW}
+                    onChange={(v) =>
+                      form.setValue("needs", v, { shouldValidate: true })
+                    }
+                    placeholder={t("catSlider.field.needs")}
+                    className="flex-1 min-w-0"
+                    id="cat-slider-needs"
+                  />
+                  <span
+                    aria-hidden
+                    className="text-[var(--muted-foreground)] shrink-0"
+                  >
+                    +
+                  </span>
+                  <AmountInput
+                    value={wantsW}
+                    onChange={(v) =>
+                      form.setValue("wants", v, { shouldValidate: true })
+                    }
+                    placeholder={t("catSlider.field.wants")}
+                    className="flex-1 min-w-0"
+                    id="cat-slider-wants"
+                  />
+                  <span
+                    aria-hidden
+                    className="text-[var(--muted-foreground)] shrink-0"
+                  >
+                    =
+                  </span>
+                  <span
+                    data-testid="cat-slider-planned-readout"
+                    className="shrink-0 whitespace-nowrap text-num-sm font-semibold text-[var(--body-on-dark)]"
+                  >
+                    {plannedPreview}
+                  </span>
+                </div>
+              </FormItem>
 
-              {/* Cushion monthly — gated by the master cushion feature flag */}
+              {/* Cushion — chosen by mode, with a prominent resulting amount. */}
               {cushionEnabled && (
-                <FormField
-                  control={form.control}
-                  name="cushionCents"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm text-[var(--muted-foreground)]">
-                        {t("catSlider.field.cushion")}
-                      </FormLabel>
-                      <div className="flex gap-2 items-center">
-                        <FormControl>
-                          <AmountInput
-                            value={field.value}
-                            onChange={(v) => {
-                              field.onChange(v);
-                              // Phase 7-09 D-PH7-36: typing cushion
-                              // silently breaks the link with no UI
-                              // affordance (no icon, no relink button).
-                              setLinked(false);
-                            }}
-                            aria-invalid={!!form.formState.errors.cushionCents}
-                            id="cat-slider-cushion"
-                          />
-                        </FormControl>
-                        <span
-                          data-testid="currency-badge"
-                          className="text-sm font-medium text-[var(--primary)] px-2 py-1 rounded bg-[var(--surface-elevated-dark)]"
-                        >
-                          {budgetCurrency}
-                        </span>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
+                <div className="flex flex-col gap-2">
+                  <FormLabel className="text-sm text-[var(--muted-foreground)]">
+                    {t("catSlider.field.cushion")}
+                  </FormLabel>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CUSHION_MODES.map((m) => (
+                      <Button
+                        key={m}
+                        type="button"
+                        size="sm"
+                        data-testid={`cushion-mode-${m}`}
+                        variant={cushionModeW === m ? "primary" : "outline"}
+                        aria-pressed={cushionModeW === m}
+                        onClick={() =>
+                          form.setValue("cushionMode", m, {
+                            shouldValidate: true,
+                          })
+                        }
+                      >
+                        {t(`catSlider.cushionMode.${m}`)}
+                      </Button>
+                    ))}
+                  </div>
+                  {cushionModeW === "custom" && (
+                    <AmountInput
+                      value={customW}
+                      onChange={(v) =>
+                        form.setValue("customCushion", v, {
+                          shouldValidate: true,
+                        })
+                      }
+                      placeholder={t("catSlider.field.cushion")}
+                      className="w-full"
+                      id="cat-slider-cushion-custom"
+                    />
                   )}
-                />
+                  {/* r32 #3: the resulting cushion was an easy-to-miss muted line;
+                      now a filled row with the amount in the accent color. */}
+                  <div className="flex items-center justify-between rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 py-2">
+                    <span className="text-sm text-[var(--muted-foreground)]">
+                      {t("catSlider.field.cushionResult")}
+                    </span>
+                    <span
+                      data-testid="cat-slider-cushion-readout"
+                      className="text-num-sm font-semibold text-[var(--primary)]"
+                    >
+                      {cushionPreview}
+                    </span>
+                  </div>
+                </div>
               )}
 
               {/* Color picker (260613-v1p: icon picker removed; swatches use

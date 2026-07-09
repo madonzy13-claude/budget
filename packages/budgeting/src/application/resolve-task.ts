@@ -20,6 +20,8 @@ export interface ResolveTaskInput {
   tenantId: string;
   budgetId: string;
   taskId: string;
+  /** r32: the user who resolved it — excluded from the completion push. */
+  actorUserId?: string;
 }
 
 export interface ResolveTaskDeps {
@@ -34,7 +36,12 @@ export function resolveTask(deps: ResolveTaskDeps) {
       // symmetry with other budget-scoped services and to keep the route
       // handler shape consistent. The adapter UPDATE is also gated by
       // status='PENDING' so re-resolves silently no-op (idempotent).
-      await deps.taskRepo.resolve(input.taskId, input.tenantId);
+      await deps.taskRepo.resolve(
+        input.taskId,
+        input.tenantId,
+        undefined,
+        input.actorUserId,
+      );
       return ok(undefined);
     } catch (e) {
       return err(e as Error);

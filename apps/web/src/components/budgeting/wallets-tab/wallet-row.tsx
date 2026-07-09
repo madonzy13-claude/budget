@@ -484,8 +484,10 @@ function PersistedRow({
           onSelect directly. */}
         <div className="w-[44px] sm:w-[96px]" data-inline-cell>
           {isReserveSection ? (
+            // Match the investments-row currency: small + grey, right-aligned so it
+            // sits tight to the amount instead of floating mid-column (r31 item 3).
             <span
-              className="text-num-md"
+              className="block w-full text-right text-num-sm text-[var(--muted-foreground)]"
               aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
             >
               {wallet.currency}

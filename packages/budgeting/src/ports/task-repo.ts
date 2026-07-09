@@ -33,7 +33,10 @@ export type TaskKind =
   | "CUSHION_BELOW_TARGET"
   // Phase 9 (INV-01 / A1 / D-10): a tracked instrument a budget holds was
   // delisted (no longer in the daily seed feed → active=false).
-  | "INVESTMENT_INSTRUMENT_DELISTED";
+  | "INVESTMENT_INSTRUMENT_DELISTED"
+  // r33: the budget has income and total planned spending exceeds it — "review
+  // your spendings". Shows under the Spendings pill.
+  | "INCOME_UNDER_PLANNED";
 
 export type TaskStatus = "PENDING" | "RESOLVED";
 
@@ -102,6 +105,22 @@ export interface InvestmentDelistedPayload {
   instrument_symbol: string;
 }
 
+/**
+ * Payload for an INCOME_UNDER_PLANNED task (r33). All money fields are
+ * bigint-as-string, monthly, in the budget's default currency.
+ */
+export interface IncomeUnderPlannedPayload {
+  /** Total monthly income (FX→budget ccy). */
+  income_cents: string;
+  /** income + counted wallet balances (spendings + reserve [+ cushion if enabled]), FX→budget ccy. */
+  available_cents: string;
+  /** Total planned spending (Σ category planned; smart Investments excluded). */
+  planned_cents: string;
+  /** planned − available (> 0). */
+  shortfall_cents: string;
+  currency: string;
+}
+
 export interface TaskRepo {
   /**
    * Returns PENDING tasks for the given budget, ordered ASC by `created_at`.
@@ -124,7 +143,18 @@ export interface TaskRepo {
    * matches; cross-tenant attempts silently no-op (0 rows updated). Already
    * RESOLVED rows are not re-resolved.
    */
-  resolve(taskId: string, tenantId: string, tx?: TenantTx): Promise<void>;
+  /**
+   * r32: actorUserId (the human who resolved it) is carried into the
+   * task.resolved event so the push handler can skip the actor's own devices —
+   * you don't need a "task completed" ping for a task you just closed. Omitted
+   * for system/auto-resolve paths (→ notify all members).
+   */
+  resolve(
+    taskId: string,
+    tenantId: string,
+    tx?: TenantTx,
+    actorUserId?: string,
+  ): Promise<void>;
 
   /**
    * Emits a RESERVE_TOPUP task. Idempotent at the DB layer via partial unique
@@ -175,6 +205,18 @@ export interface TaskRepo {
   ): Promise<void>;
 
   /**
+   * Emits an INCOME_UNDER_PLANNED task (r33). Idempotent via the partial unique
+   * index on (budget_id) WHERE kind='INCOME_UNDER_PLANNED' AND status='PENDING'.
+   * ON CONFLICT DO UPDATE refreshes the payload with the live shortfall.
+   */
+  emitIncomeUnderPlanned(
+    tenantId: string,
+    budgetId: string,
+    payload: IncomeUnderPlannedPayload,
+    tx: TenantTx,
+  ): Promise<void>;
+
+  /**
    * Resolves all PENDING tasks for a (tenantId, budgetId, kind) tuple in one
    * statement. Used by auto-resolve hooks when the underlying trigger
    * condition is no longer true (e.g. cushion target now met).
@@ -195,4 +237,17 @@ export interface TaskRepo {
     draftId: string,
     tx: TenantTx,
   ): Promise<void>;
+
+  /**
+   * Resolves PENDING INVESTMENT_INSTRUMENT_DELISTED tasks whose holding is in
+   * `holdingIds` (r31b). Called by the daily seed when an instrument reappears in
+   * the feed (reactivated) so the stale delisted task — and the holding's delisted
+   * chrome — clears instead of lingering. Returns the number resolved. No-op for
+   * an empty list. tenant-scoped (RLS), so run inside withTenantTx.
+   */
+  resolveInvestmentDelistedForHoldings(
+    tenantId: string,
+    holdingIds: string[],
+    tx: TenantTx,
+  ): Promise<number>;
 }

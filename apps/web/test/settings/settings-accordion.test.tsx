@@ -4,7 +4,7 @@
  * Covers: 5-section accordion render for SHARED budgets,
  * 4-section render for PRIVATE budgets, default-open section.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SettingsAccordion } from "@/components/settings/settings-accordion";
 
@@ -57,6 +57,24 @@ vi.mock("@tanstack/react-query", () => ({
   QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// entity hooks the accordion reads for the config checklist — return arrays so
+// wallets.some/categories.some don't blow up (the blanket useQuery mock returns
+// {members:[]} for MembersSection's own query).
+// Controllable so a test can put the wallets count in a loading state and assert
+// the config-progress banner stays hidden (r34 flicker fix).
+const walletsMock = vi.hoisted(() => ({
+  current: { data: [] as unknown[], isLoading: false },
+}));
+vi.mock("@/hooks/use-wallets", () => ({
+  useWallets: () => walletsMock.current,
+}));
+vi.mock("@/hooks/use-investments", () => ({
+  useInvestments: () => ({ data: [] }),
+}));
+vi.mock("@/hooks/use-budget-data", () => ({
+  useCategories: () => ({ data: [] }),
+}));
+
 const sharedBudget = {
   id: "budget-1",
   name: "Family Budget",
@@ -87,12 +105,13 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     expect(screen.getByText("sections.danger")).toBeInTheDocument();
   });
 
-  it("renders only 4 sections for a PRIVATE budget (no Members)", () => {
+  it("renders Members for ANY budget (kind-removal: invite always available)", () => {
     render(<SettingsAccordion budget={privateBudget} />);
     expect(screen.getByText("sections.identity")).toBeInTheDocument();
     expect(screen.getByText("sections.cushion")).toBeInTheDocument();
     expect(screen.getByText("sections.recurring")).toBeInTheDocument();
-    expect(screen.queryByText("sections.members")).not.toBeInTheDocument();
+    // Members section is now shown regardless of former private/shared kind.
+    expect(screen.getByText("sections.members")).toBeInTheDocument();
     expect(screen.getByText("sections.danger")).toBeInTheDocument();
   });
 
@@ -101,5 +120,23 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     // The accordion item with value="budget-identity" should be open
     const openItem = container.querySelector('[data-state="open"]');
     expect(openItem).not.toBeNull();
+  });
+});
+
+describe("SettingsAccordion — config-progress banner (r34 flicker)", () => {
+  beforeEach(() => {
+    walletsMock.current = { data: [], isLoading: false };
+  });
+
+  it("hides the banner while the config counts are still loading", () => {
+    walletsMock.current = { data: undefined as unknown as unknown[], isLoading: true };
+    render(<SettingsAccordion budget={sharedBudget} />);
+    expect(screen.queryByTestId("settings-config-progress")).toBeNull();
+  });
+
+  it("shows the banner once counts loaded + setup is incomplete", () => {
+    // default mock: loaded (isLoading:false) with empty data → percent < 100
+    render(<SettingsAccordion budget={sharedBudget} />);
+    expect(screen.getByTestId("settings-config-progress")).toBeInTheDocument();
   });
 });

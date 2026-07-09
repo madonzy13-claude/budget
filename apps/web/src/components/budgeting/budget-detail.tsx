@@ -27,8 +27,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { BdpTabs } from "@/components/budgeting/bdp-tabs";
+import { BdpUiStateProvider } from "@/components/budgeting/bdp-ui-state";
 import { PillTaskSlider } from "@/components/budgeting/tasks/pill-task-slider";
 import { usePrefetchBudgetTabs } from "@/hooks/use-prefetch-budget-tabs";
+import { rememberLastBudget } from "@/lib/last-budget";
+import { useBudget } from "@/hooks/use-budget-data";
+import { OverviewTab } from "@/components/budgeting/overview/overview-tab";
 import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets-sectioned-list";
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
 import { ReservesTableClient } from "@/components/budgeting/reserves-tab/reserves-table-client";
@@ -40,8 +44,33 @@ import { TAB_ORDER, isBdpTab, type BdpTab } from "@/lib/bdp-tabs";
  * (so geometry / bottom-clearance behaviour is unchanged): spendings keeps
  * data-no-page-clearance (its inner scroller owns the scroll); the rest sit in a
  * centered 1280px column. */
-function TabPane({ tab, budgetId }: { tab: BdpTab; budgetId: string }) {
+function TabPane({
+  tab,
+  budgetId,
+  reservesEnabled,
+  investmentsEnabled,
+}: {
+  tab: BdpTab;
+  budgetId: string;
+  reservesEnabled: boolean;
+  investmentsEnabled: boolean;
+}) {
   switch (tab) {
+    case "overview":
+      // data-no-page-clearance: Overview owns an inner scroll surface (OverviewTab),
+      // so the shell zeroes the page-level bottom pad (mirrors spendings).
+      return (
+        // Full-width wrapper (item 9): OverviewTab owns a full-width inner
+        // scroller so wheeling over the desktop side-margins still scrolls; the
+        // content centers itself at max-w-[1280px] inside it.
+        <div data-no-page-clearance className="w-full">
+          <OverviewTab
+            budgetId={budgetId}
+            reservesEnabled={reservesEnabled}
+            investmentsEnabled={investmentsEnabled}
+          />
+        </div>
+      );
     case "wallets":
       return (
         <div className="mx-auto w-full max-w-[1280px]">
@@ -76,19 +105,38 @@ const variants = {
 };
 
 /**
- * Reset every scroll root on a tab switch (ported from ScrollResetOnMount): in
- * browser mode the document/window scrolls; in standalone the
- * main[data-shell-scroll] element does. Reset all three idempotently inside a rAF
- * so the spendings month navigator isn't hidden under the sticky pills band.
+ * Page-scroll persistence across pill navigation (round 18 item 10). The
+ * wallets/reserves/settings panes page-scroll (browser: window/documentElement;
+ * standalone: main[data-shell-scroll]) — overview/spendings own inner scrollers
+ * and stay at page-scroll 0. We SAVE the outgoing tab's page scroll and RESTORE
+ * the incoming tab's (0 → reset to top, as before).
  */
-function resetScrollRoots() {
-  requestAnimationFrame(() => {
-    if (typeof window.scrollTo === "function") window.scrollTo(0, 0);
-    const se = document.scrollingElement as HTMLElement | null;
-    if (se && se.scrollTop !== 0) se.scrollTop = 0;
-    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
-    if (main && main.scrollTop !== 0) main.scrollTop = 0;
-  });
+function readPageScroll(): number {
+  const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
+  if (main && main.scrollTop > 0) return main.scrollTop;
+  return window.scrollY || (document.scrollingElement?.scrollTop ?? 0);
+}
+function applyPageScroll(top: number) {
+  if (typeof window.scrollTo === "function") window.scrollTo(0, top);
+  const se = document.scrollingElement as HTMLElement | null;
+  if (se && se.scrollTop !== top) se.scrollTop = top;
+  const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
+  if (main && main.scrollTop !== top) main.scrollTop = top;
+}
+/** Restore once the incoming pane is tall enough (it mounts before its data lays
+ *  out, so a one-shot set clamps); reset-to-0 is a single rAF. */
+function restorePageScroll(top: number) {
+  if (top <= 0) {
+    requestAnimationFrame(() => applyPageScroll(0));
+    return;
+  }
+  const start = performance.now();
+  const tick = () => {
+    applyPageScroll(top);
+    if (readPageScroll() >= top - 2 || performance.now() - start > 2000) return;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 interface BudgetDetailProps {
@@ -116,6 +164,33 @@ export function BudgetDetail({
   // there is no RSC to prefetch, so the whole connection serves the data.
   usePrefetchBudgetTabs(budgetId);
 
+  // r35: remember this budget so a plain home landing (app reopen) reopens it.
+  useEffect(() => {
+    rememberLastBudget(budgetId);
+  }, [budgetId]);
+
+  // reservesEnabled arrives as a server prop (initial paint). The Settings →
+  // Reserves toggle PATCHes the flag + invalidates ["budget", id, "detail"], so
+  // read the live value from that query and prefer it — this hides/shows the
+  // Reserves pill + the Overview reserves card/section WITHOUT a full reload.
+  const liveBudget = useBudget(budgetId).data as
+    | {
+        reservesEnabled?: boolean;
+        reserves_enabled?: boolean;
+        investmentsEnabled?: boolean;
+        investments_enabled?: boolean;
+      }
+    | undefined;
+  const reservesOn =
+    liveBudget?.reservesEnabled ??
+    liveBudget?.reserves_enabled ??
+    reservesEnabled;
+  // No server prop for investments (Overview-only) — read live from the same
+  // useBudget query the Settings → Investments toggle invalidates, so the
+  // "incl. investments" sub-line + the wealth view toggle react without a reload.
+  const investmentsOn =
+    liveBudget?.investmentsEnabled ?? liveBudget?.investments_enabled ?? true;
+
   // Direction + monotonic per-switch key (ported from page-transition.tsx). Runs
   // in render against refs so a re-render keeps the same pane while every real
   // tab change advances the key and the slide direction.
@@ -130,17 +205,26 @@ export function BudgetDetail({
     prevIdx.current = curIdx;
   }
 
+  // Per-tab page-scroll (wallets/reserves/settings) — survives pill switches for
+  // the BDP's lifetime (item 10); overview/spendings inner scroll lives in the
+  // BdpUiStore instead.
+  const pageScrollByTab = useRef<Record<string, number>>({});
+
   const select = useCallback(
     (tab: BdpTab) => {
       setActiveTab((prev) => {
         if (prev === tab) return prev;
+        pageScrollByTab.current[prev] = readPageScroll(); // save outgoing
         // URL sync for bookmark/back — NOT a Next navigation, so no RSC fetch.
+        // Preserve the search string (?month=…) so Spendings returns to the same
+        // month after visiting another pill (round 16 item 4) — the month lives
+        // in the URL (useMonthParam), and dropping it here reset it to "current".
         window.history.pushState(
           null,
           "",
-          `/${locale}/budgets/${budgetId}/${tab}`,
+          `/${locale}/budgets/${budgetId}/${tab}${window.location.search}`,
         );
-        resetScrollRoots();
+        restorePageScroll(pageScrollByTab.current[tab] ?? 0); // restore incoming
         return tab;
       });
     },
@@ -151,18 +235,19 @@ export function BudgetDetail({
   useEffect(() => {
     function onPop() {
       const m = window.location.pathname.match(
-        /\/budgets\/[^/]+\/(wallets|spendings|reserves|settings)/,
+        /\/budgets\/[^/]+\/(overview|wallets|spendings|reserves|settings)/,
       );
       const tab = isBdpTab(m?.[1]) ? (m![1] as BdpTab) : "wallets";
+      pageScrollByTab.current[lastTab.current] = readPageScroll();
       setActiveTab(tab);
-      resetScrollRoots();
+      restorePageScroll(pageScrollByTab.current[tab] ?? 0);
     }
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   return (
-    <>
+    <BdpUiStateProvider>
       {/* Sticky pills band — same wrapper/testid/attrs as the old BudgetShellData
           band so the @tasks-geometry proofs and z-stack are unchanged. */}
       <div
@@ -175,7 +260,7 @@ export function BudgetDetail({
           budgetId={budgetId}
           activeTab={activeTab}
           onSelect={select}
-          reservesEnabled={reservesEnabled}
+          reservesEnabled={reservesOn}
           initialTasks={initialTasks}
         />
       </div>
@@ -203,19 +288,30 @@ export function BudgetDetail({
               {/* Tasks strip slides WITH the page (first child, as before). Keyed
                   per tab so the always-start-collapsed + deep-link auto-expand
                   mount semantics hold on every switch. */}
-              <PillTaskSlider
-                key={activeTab}
+              {/* Overview has no task strip (no task kind maps to it); the guard
+                  also narrows BdpTab → Pill for the slider's `pill` prop. */}
+              {activeTab !== "overview" && (
+                <PillTaskSlider
+                  key={activeTab}
+                  budgetId={budgetId}
+                  locale={locale}
+                  pill={activeTab}
+                  initialTasks={initialTasks}
+                  focusTaskId={
+                    activeTab === initialTab ? focusTaskId : undefined
+                  }
+                />
+              )}
+              <TabPane
+                tab={activeTab}
                 budgetId={budgetId}
-                locale={locale}
-                pill={activeTab}
-                initialTasks={initialTasks}
-                focusTaskId={activeTab === initialTab ? focusTaskId : undefined}
+                reservesEnabled={reservesOn}
+                investmentsEnabled={investmentsOn}
               />
-              <TabPane tab={activeTab} budgetId={budgetId} />
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
-    </>
+    </BdpUiStateProvider>
   );
 }

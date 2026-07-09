@@ -10,17 +10,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { api } from "@/lib/api-client";
 
 export interface BudgetIdentitySectionProps {
@@ -123,24 +116,14 @@ export function BudgetIdentitySection({
         </p>
         <div className="flex justify-end">
           {hasTransactions ? (
-            <div className="flex items-center justify-end gap-2">
-              <span className="rounded-md px-3 py-1.5 text-sm text-[var(--body)]">
-                {defaultCurrency}
-              </span>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Lock
-                      className="h-4 w-4 text-[var(--muted-foreground)]"
-                      aria-label={t("identity.currency_locked_tooltip")}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t("identity.currency_locked_tooltip")}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            // Locked (post-first-transaction): plain grey code, no lock chrome —
+            // matches the investments-row currency styling (r31 item 4).
+            <span
+              className="px-3 py-1.5 text-sm text-[var(--muted-foreground)]"
+              aria-label={t("identity.currency_locked_tooltip")}
+            >
+              {defaultCurrency}
+            </span>
           ) : (
             // CurrencyPicker's internal triggers (Radix SelectTrigger on
             // desktop, native <select> on touch) both default to w-full,

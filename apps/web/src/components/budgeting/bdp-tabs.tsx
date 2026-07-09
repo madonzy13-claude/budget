@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
+  LayoutDashboard,
   LayoutGrid,
   Coins,
   Wallet,
@@ -14,7 +15,7 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 import { motion } from "motion/react";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
-import { pillFor, type Pill } from "@/components/budgeting/tasks/kind-pill-map";
+import { pillFor } from "@/components/budgeting/tasks/kind-pill-map";
 import type { BdpTab } from "@/lib/bdp-tabs";
 
 /**
@@ -39,8 +40,10 @@ interface BdpTabsProps {
   initialTasks?: TaskSummary[];
 }
 
-// UAT-PH5-T2-02: Wallets surfaced first — Wallets → Spendings → Reserves → Settings.
-const TABS: ReadonlyArray<{ slug: Pill; icon: LucideIcon }> = [
+// Phase 11: Overview surfaced first — Overview → Wallets → Spendings → Reserves
+// → Settings (mirrors TAB_ORDER). Overview carries no tasks (badge always 0).
+const TABS: ReadonlyArray<{ slug: BdpTab; icon: LucideIcon }> = [
+  { slug: "overview", icon: LayoutDashboard },
   { slug: "wallets", icon: Wallet },
   { slug: "spendings", icon: LayoutGrid },
   { slug: "reserves", icon: Coins },
@@ -73,7 +76,8 @@ export function BdpTabs({
     refetchIntervalInBackground: false,
   });
 
-  const countsByPill: Record<Pill, number> = {
+  const countsByPill: Record<BdpTab, number> = {
+    overview: 0,
     wallets: 0,
     spendings: 0,
     reserves: 0,
@@ -91,7 +95,7 @@ export function BdpTabs({
   return (
     <nav
       aria-label={t("aria")}
-      className="flex h-12 items-center justify-center gap-2 px-4 sm:px-6"
+      className="flex h-12 items-center justify-center gap-1.5 overflow-x-auto px-4 sm:px-6"
     >
       {visibleTabs.map(({ slug, icon: Icon }) => {
         const active = slug === activeTab;
@@ -105,7 +109,7 @@ export function BdpTabs({
             aria-current={active ? "page" : undefined}
             aria-label={label}
             className={cn(
-              "relative inline-flex h-9 items-center gap-2 rounded-[var(--radius-pill)] px-4 transition-colors",
+              "relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-pill)] px-3 transition-colors",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]",
               "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
               active
@@ -124,18 +128,35 @@ export function BdpTabs({
                 transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
               />
             )}
-            <Icon className="relative z-10 size-[18px]" aria-hidden="true" />
+            <Icon
+              className="relative z-10 size-5 shrink-0"
+              aria-hidden="true"
+            />
             <span
               className={cn(
                 "relative z-10",
-                active ? "inline" : "hidden sm:inline",
+                // Settings label overflowed the mobile pill row with all pills
+                // present, so it's icon-only on mobile — BUT only while Reserves
+                // is on. With Reserves off (one fewer pill = extra space) the
+                // active Settings pill has room to show its label like the others.
+                slug === "settings" && reservesEnabled
+                  ? "hidden sm:inline"
+                  : active
+                    ? "inline"
+                    : "hidden sm:inline",
               )}
             >
               {label}
             </span>
-            <span className="relative z-10">
-              <PillBadge count={countsByPill[slug]} />
-            </span>
+            {/* Badge only when there's a count — an always-present empty span left
+                the `gap-1.5` in play, shoving the icon off-center on an icon-only
+                pill (round 19 item 1: the settings circle). inline-flex items-center
+                keeps the badge centered against the icon (was ~1px low otherwise). */}
+            {countsByPill[slug] > 0 && (
+              <span className="relative z-10 inline-flex items-center">
+                <PillBadge count={countsByPill[slug]} />
+              </span>
+            )}
           </button>
         );
       })}

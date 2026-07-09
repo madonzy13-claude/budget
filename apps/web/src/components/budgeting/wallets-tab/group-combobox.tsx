@@ -65,11 +65,10 @@ export function GroupCombobox({
           data-testid="holding-sheet-group"
           // Match the other fields (Input/SelectTrigger): grey field fill +
           // hairline border, not the outline button's dark/transparent bg.
-          className="h-10 w-full justify-between border border-[var(--input)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] px-3 py-2 text-base font-normal text-[var(--foreground)] sm:text-sm"
+          className="h-10 w-full justify-between border border-[var(--input)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] !px-3 py-2 text-base font-normal text-[var(--foreground)] sm:text-sm"
         >
-          <span
-            className={value ? "" : "text-[var(--muted-foreground)]"}
-          >
+          {/* White text like the other field values (no muted placeholder tint). */}
+          <span className="text-[var(--foreground)]">
             {value ?? t("field.groupPlaceholder")}
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
@@ -92,10 +91,7 @@ export function GroupCombobox({
             <CommandEmpty>{t("group.noGroups")}</CommandEmpty>
             <CommandGroup>
               {/* Ungrouped clear option */}
-              <CommandItem
-                value="__ungrouped__"
-                onSelect={() => select(null)}
-              >
+              <CommandItem value="__ungrouped__" onSelect={() => select(null)}>
                 <Check
                   className={[
                     "mr-2 h-4 w-4",

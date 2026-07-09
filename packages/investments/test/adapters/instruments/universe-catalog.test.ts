@@ -51,7 +51,13 @@ describe("classifyTdRow (stocks/ETF → provider + rank)", () => {
   it("the same ticker on two exchanges yields two distinct providers (no collision)", () => {
     const warsaw = classifyTdRow(gpw, "equities")!;
     const toronto = classifyTdRow(
-      { symbol: "CDR", name: "Cardero Resource", currency: "CAD", mic_code: "XTSE", country: "Canada" },
+      {
+        symbol: "CDR",
+        name: "Cardero Resource",
+        currency: "CAD",
+        mic_code: "XTSE",
+        country: "Canada",
+      },
       "equities",
     )!;
     expect(warsaw.symbol).toBe(toronto.symbol); // same ticker
@@ -60,18 +66,31 @@ describe("classifyTdRow (stocks/ETF → provider + rank)", () => {
 
   it("a London ETF → manual:XLON, ranked above Warsaw", () => {
     const lse = classifyTdRow(
-      { symbol: "VUSA", name: "Vanguard S&P 500", currency: "GBP", mic_code: "XLON", country: "United Kingdom" },
+      {
+        symbol: "VUSA",
+        name: "Vanguard S&P 500",
+        currency: "GBP",
+        mic_code: "XLON",
+        country: "United Kingdom",
+      },
       "etf",
     )!;
     expect(lse.provider).toBe("manual:XLON");
     expect(lse.assetClass).toBe("etf");
     expect(lse.rank).toBe(80);
-    expect(lse.rank ?? 0).toBeGreaterThan(classifyTdRow(gpw, "equities")!.rank ?? 0);
+    expect(lse.rank ?? 0).toBeGreaterThan(
+      classifyTdRow(gpw, "equities")!.rank ?? 0,
+    );
   });
 
   it("an unknown exchange falls back to the rank floor (still manual-qualified)", () => {
     const r = classifyTdRow(
-      { symbol: "ZZZ", name: "Obscure Co", mic_code: "XZZZ", country: "Nowhere" },
+      {
+        symbol: "ZZZ",
+        name: "Obscure Co",
+        mic_code: "XZZZ",
+        country: "Nowhere",
+      },
       "equities",
     )!;
     expect(r.rank).toBe(10);
@@ -111,10 +130,34 @@ describe("crypto ranking + classification", () => {
 describe("dedupeUniverse (no duplicate (symbol, provider) for the bulk upsert)", () => {
   it("collapses a repeated (symbol, provider), keeping the highest rank", () => {
     const list: InstrumentUpsert[] = [
-      { symbol: "AAPL", displayName: "Apple", provider: "finnhub", assetClass: "equities", rank: 80 },
-      { symbol: "AAPL", displayName: "Apple", provider: "finnhub", assetClass: "equities", rank: 100 },
-      { symbol: "CDR", displayName: "CD Projekt", provider: "manual:XWAR", assetClass: "equities", rank: 70 },
-      { symbol: "CDR", displayName: "Cardero", provider: "manual:XTSE", assetClass: "equities", rank: 78 },
+      {
+        symbol: "AAPL",
+        displayName: "Apple",
+        provider: "finnhub",
+        assetClass: "equities",
+        rank: 80,
+      },
+      {
+        symbol: "AAPL",
+        displayName: "Apple",
+        provider: "finnhub",
+        assetClass: "equities",
+        rank: 100,
+      },
+      {
+        symbol: "CDR",
+        displayName: "CD Projekt",
+        provider: "manual:XWAR",
+        assetClass: "equities",
+        rank: 70,
+      },
+      {
+        symbol: "CDR",
+        displayName: "Cardero",
+        provider: "manual:XTSE",
+        assetClass: "equities",
+        rank: 78,
+      },
     ];
     const out = dedupeUniverse(list);
     expect(out).toHaveLength(3); // AAPL collapsed; the two CDRs differ by provider
@@ -129,26 +172,77 @@ describe("buildUniverse (assembly + resilience)", () => {
       // Per-country requests now: return each country's row, empty for the rest.
       if (u.includes("country=United%20States")) {
         return Promise.resolve(
-          new Response(JSON.stringify({ data: [{ symbol: "AAPL", name: "Apple Inc", currency: "USD", mic_code: "XNAS", country: "United States" }] }), { status: 200 }),
+          new Response(
+            JSON.stringify({
+              data: [
+                {
+                  symbol: "AAPL",
+                  name: "Apple Inc",
+                  currency: "USD",
+                  mic_code: "XNAS",
+                  country: "United States",
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
         );
       }
       if (u.includes("country=Poland")) {
         return Promise.resolve(
-          new Response(JSON.stringify({ data: [{ symbol: "CDR", name: "CD Projekt", currency: "PLN", mic_code: "XWAR", country: "Poland" }] }), { status: 200 }),
+          new Response(
+            JSON.stringify({
+              data: [
+                {
+                  symbol: "CDR",
+                  name: "CD Projekt",
+                  currency: "PLN",
+                  mic_code: "XWAR",
+                  country: "Poland",
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
         );
       }
-      return Promise.resolve(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ data: [] }), { status: 200 }),
+      );
     }
     if (u.includes("/etf")) {
       return Promise.resolve(
-        new Response(JSON.stringify({ data: [{ symbol: "VOO", name: "Vanguard S&P 500 ETF", currency: "USD", mic_code: "ARCX", country: "United States" }] }), { status: 200 }),
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                symbol: "VOO",
+                name: "Vanguard S&P 500 ETF",
+                currency: "USD",
+                mic_code: "ARCX",
+                country: "United States",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
       );
     }
     if (u.includes("/coins/markets")) {
       // First page returns one coin; later pages empty → loop stops.
       if (u.includes("page=1")) {
         return Promise.resolve(
-          new Response(JSON.stringify([{ id: "bitcoin", symbol: "btc", name: "Bitcoin", market_cap_rank: 1 }]), { status: 200 }),
+          new Response(
+            JSON.stringify([
+              {
+                id: "bitcoin",
+                symbol: "btc",
+                name: "Bitcoin",
+                market_cap_rank: 1,
+              },
+            ]),
+            { status: 200 },
+          ),
         );
       }
       return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
@@ -168,8 +262,10 @@ describe("buildUniverse (assembly + resilience)", () => {
     expect(bySym["CDR"].provider).toBe("manual:XWAR");
     expect(bySym["VOO"].provider).toBe("finnhub");
     expect(bySym["bitcoin"].provider).toBe("coingecko");
-    // Metals always present (auto, Twelve Data FX).
-    expect(bySym["XAU/USD"].provider).toBe("twelve_data");
+    // Metals always present (auto-priced via gold-api.com — free + keyless).
+    expect(bySym["XAU/USD"].provider).toBe("gold_api");
+    // Palladium (260626) is seeded alongside gold/silver/platinum.
+    expect(bySym["XPD/USD"].provider).toBe("gold_api");
     expect(u.length).toBe(METALS_UNIVERSE.length + 3 + 1);
   });
 
@@ -180,7 +276,11 @@ describe("buildUniverse (assembly + resilience)", () => {
       }
       return fakeFetch(url as never);
     }) as unknown as typeof fetch;
-    const u = await buildUniverse({ twelveDataKey: "k", fetchFn: throwingTd, retryDelayMs: 0 });
+    const u = await buildUniverse({
+      twelveDataKey: "k",
+      fetchFn: throwingTd,
+      retryDelayMs: 0,
+    });
     expect(u.find((i) => i.symbol === "XAU/USD")).toBeTruthy();
     expect(u.find((i) => i.symbol === "bitcoin")).toBeTruthy();
     expect(u.find((i) => i.symbol === "AAPL")).toBeUndefined();

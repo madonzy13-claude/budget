@@ -16,13 +16,31 @@ import { createShareLink } from "@budget/tenancy/src/application/create-share-li
 import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-link";
 import { serverError } from "../middleware/server-error";
 import { budgetIdentityRoutesFactory } from "./budget-identity";
+import { registerOverviewCardsRoutes } from "./overview-cards";
+import { registerOverviewPlannedRoutes } from "./overview-planned";
+import { registerOverviewOverspentRoutes } from "./overview-overspent";
+import { registerOverviewWealthRoutes } from "./overview-wealth";
+import { registerOverviewProjectionRoutes } from "./overview-projection";
 
 export function budgetsRoutesFactory(deps: BootedDeps) {
   const r = new Hono();
 
+  // Phase 11 (11-03): GET /budgets/:id/overview/cards — the 5-card summary.
+  registerOverviewCardsRoutes(r, deps);
+  // Phase 11 (11-04): GET /budgets/:id/overview/planned — the Planned section.
+  registerOverviewPlannedRoutes(r, deps);
+  // Phase 11 (11-05): GET /budgets/:id/overview/overspent-reserves.
+  registerOverviewOverspentRoutes(r, deps);
+  // Phase 11 (11-06): GET /budgets/:id/overview/wealth.
+  registerOverviewWealthRoutes(r, deps);
+  // Overview cash-flow projection timeline: GET /budgets/:id/overview/projection.
+  registerOverviewProjectionRoutes(r, deps);
+
+  // kind-removal: no `kind` — private/shared is derived from member_count at
+  // display time. Unknown keys (a stale client still sending `kind`) are
+  // stripped by zod's default object parsing, so old callers don't break.
   const createSchema = z.object({
     name: z.string().min(1).max(100),
-    kind: z.enum(["PRIVATE", "SHARED"]),
     default_currency: z.string().regex(/^[A-Z]{3}$/),
   });
 
@@ -66,12 +84,25 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
         body: {
           name: body.name,
           slug,
-          kind: body.kind,
           default_currency: body.default_currency,
           userId: session.user.id,
         },
         headers: c.req.raw.headers,
       });
+
+      // Default the user's global display currency to their FIRST budget's
+      // currency. setDisplayCurrencyIfUnset only writes when the column is still
+      // NULL (untouched), so a later budget or a manual pick is never clobbered.
+      // Best-effort: a failure here must not fail budget creation.
+      try {
+        await deps.identity.userRepo.setDisplayCurrencyIfUnset(
+          UserId(session.user.id),
+          body.default_currency,
+        );
+      } catch (e) {
+        console.error("[create-budget] display-currency seed failed:", e);
+      }
+
       return c.json({ id: r2.id, name: body.name }, 201);
     } catch (e) {
       const msg = (e as Error).message ?? "unknown";
@@ -182,16 +213,14 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       UserId(session.user.id),
       async (tx) => {
         const result = await tx.execute(sql`
-          SELECT bm.role::text AS role, b.kind::text AS kind, b.name AS name
+          SELECT bm.role::text AS role, b.name AS name
             FROM tenancy.budget_members bm
             JOIN tenancy.budgets b ON b.id = bm.budget_id
            WHERE bm.budget_id = ${budgetId}::uuid
              AND bm.user_id = ${session.user.id}::uuid
            LIMIT 1
         `);
-        return result.rows[0] as
-          | { role: string; kind: string; name: string }
-          | undefined;
+        return result.rows[0] as { role: string; name: string } | undefined;
       },
     );
 
@@ -205,15 +234,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     if (lookup.value.role !== "owner") {
       return c.json({ error: "forbidden" }, 403);
     }
-    if (lookup.value.kind === "PRIVATE") {
-      return c.json(
-        {
-          error:
-            "PRIVATE budgets accept only the owner. Convert to SHARED first.",
-        },
-        409,
-      );
-    }
+    // kind-removal: no PRIVATE gate — any budget an owner controls can be invited to.
 
     const invitationId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);

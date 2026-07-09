@@ -63,6 +63,35 @@ async function createTestUser() {
   return { userId, tenantId };
 }
 
+/** Read raw rule columns under RLS (mirrors createTestUser's GUC bootstrap). */
+async function fetchRuleRow(ruleId: string, tenantId: string, userId: string) {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
+    const res = await client.query(
+      `SELECT cadence, cadence_anchor, next_due_date::text AS next_due_date
+         FROM budgeting.recurring_rules WHERE id = $1`,
+      [ruleId],
+    );
+    await client.query("COMMIT");
+    return res.rows[0] as {
+      cadence: string;
+      cadence_anchor: number | null;
+      next_due_date: string;
+    };
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
 async function buildApp(userId: string, tenantId: string) {
   const { createRecurringRulesRoute } =
     await import("../../src/routes/recurring-rules");
@@ -193,6 +222,52 @@ describe("/recurring-rules", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { affectedPendingDraftIds: string[] };
     expect(Array.isArray(body.affectedPendingDraftIds)).toBe(true);
+  });
+
+  it("PATCH cadence_anchor persists the new day + recomputes next_due_date", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    // Future first_due so create seeds next_due_date = first_due (day 10), no back-fill.
+    const createRes = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: "400.00",
+        currency: "USD",
+        cadence: "MONTHLY",
+        cadence_anchor: 10,
+        first_due_date: "2026-12-10",
+        note: "Gym",
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const { ruleId } = (await createRes.json()) as { ruleId: string };
+
+    const before = await fetchRuleRow(ruleId, testTenantId, testUserId);
+    expect(before.cadence_anchor).toBe(10);
+
+    const res = await app.request(`/recurring-rules/${ruleId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        edits: { cadence: "MONTHLY", cadenceAnchor: 20 },
+        applyToFuture: true,
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const after = await fetchRuleRow(ruleId, testTenantId, testUserId);
+    // (b) persisted anchor changed
+    expect(after.cadence_anchor).toBe(20);
+    // (c) next_due_date recomputed onto the new day, strictly after today
+    expect(Number(after.next_due_date.slice(8, 10))).toBe(20);
+    const today = new Date().toISOString().slice(0, 10);
+    expect(after.next_due_date > today).toBe(true);
   });
 
   it("DELETE soft-deletes a rule → 204", async () => {

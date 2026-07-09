@@ -21,6 +21,8 @@ export interface NewHolding {
   metal: string | null;
   metalKind: string | null;
   unitOfMeasure: string | null;
+  /** Precious-metals bullion premium over spot, percent string ("20"=+20%); null = none. */
+  premiumPct: string | null;
 }
 
 export interface HoldingRepo {

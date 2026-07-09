@@ -205,7 +205,11 @@ async function createFixture(): Promise<Fixture> {
 
 async function seedTask(opts: {
   budgetId: string;
-  kind: "RESERVE_TOPUP" | "CONFIRM_DRAFT" | "CUSHION_BELOW_TARGET";
+  kind:
+    | "RESERVE_TOPUP"
+    | "CONFIRM_DRAFT"
+    | "CUSHION_BELOW_TARGET"
+    | "INVESTMENT_INSTRUMENT_DELISTED";
   status?: "PENDING" | "RESOLVED";
 }): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
@@ -295,6 +299,20 @@ describe.if(DB_REACHABLE)(
       const b = budgets.find((b) => b.id === fix.budgetId);
       expect(b).toBeDefined();
       expect(b!.pendingTasksCount).toBe(2);
+    });
+
+    it("does not count INVESTMENT_INSTRUMENT_DELISTED (informational — surfaced on the holding, not the badge; r31b)", async () => {
+      // A delisted-instrument task is not an actionable queue item (it flags the
+      // holding inline). It must NOT inflate the badge over the visible pills.
+      await seedTask({
+        budgetId: fix.budgetId,
+        kind: "INVESTMENT_INSTRUMENT_DELISTED",
+      });
+
+      const budgets = await getActiveBudgets(fix.userId);
+      const b = budgets.find((b) => b.id === fix.budgetId);
+      expect(b).toBeDefined();
+      expect(b!.pendingTasksCount).toBe(2); // still 2 — delisted is not counted
     });
 
     it("JIT is off inside listForUser transaction (PERF 260613-dn1 #1)", async () => {

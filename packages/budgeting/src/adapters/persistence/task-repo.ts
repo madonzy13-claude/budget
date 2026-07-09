@@ -37,6 +37,7 @@ import type {
   ConfirmDraftPayload,
   CushionBelowTargetPayload,
   InvestmentDelistedPayload,
+  IncomeUnderPlannedPayload,
 } from "../../ports/task-repo";
 
 /**
@@ -117,6 +118,37 @@ async function emitTaskCreatedIfInserted(
   });
 }
 
+/**
+ * Emit one `task.resolved` outbox event per row a resolve UPDATE closed (its
+ * RETURNING rows: id, budget_id, kind). Consumed by the push handler so ALL budget
+ * members' phones re-sync their app-icon badge — and get a nudge — after a task is
+ * closed on any device, whatever the close path (r31d). Empty rows → no-op.
+ */
+async function emitTaskResolvedForRows(
+  tx: TenantTx,
+  tenantId: string,
+  rows: Record<string, unknown>[],
+  actorUserId?: string,
+): Promise<void> {
+  for (const row of rows) {
+    const taskId = row.id as string;
+    await writeOutbox(tx as unknown as Parameters<typeof writeOutbox>[0], {
+      tenantId: TenantId(tenantId),
+      aggregateType: "task",
+      aggregateId: taskId,
+      eventType: "task.resolved",
+      payload: {
+        kind: row.kind as TaskKind,
+        budgetId: row.budget_id as string,
+        taskId,
+        // r32: who closed it (undefined for system auto-resolve). The push
+        // handler skips this user's own devices for the completion nudge.
+        ...(actorUserId ? { actorUserId } : {}),
+      },
+    });
+  }
+}
+
 export function createTaskRepo(): TaskRepo {
   return {
     async listPending(budgetId, tenantId) {
@@ -195,16 +227,20 @@ export function createTaskRepo(): TaskRepo {
       return r.value;
     },
 
-    async resolve(taskId, tenantId, tx) {
+    async resolve(taskId, tenantId, tx, actorUserId) {
       const runUpdate = async (innerTx: TenantTx): Promise<void> => {
         const drizzleTx = innerTx as DrizzleTx;
-        await drizzleTx.execute(sql`
+        const res = await drizzleTx.execute(sql`
           UPDATE budgeting.tasks
              SET status = 'RESOLVED', resolved_at = now()
            WHERE id = ${taskId}::uuid
              AND tenant_id = ${tenantId}::uuid
              AND status = 'PENDING'
+          RETURNING id, budget_id, kind
         `);
+        // Emit task.resolved ONLY when a PENDING row was actually closed (RETURNING
+        // non-empty) — an already-resolved / cross-tenant / missing id no-ops.
+        await emitTaskResolvedForRows(innerTx, tenantId, res.rows, actorUserId);
       };
 
       if (tx) {
@@ -336,28 +372,83 @@ export function createTaskRepo(): TaskRepo {
       );
     },
 
+    async emitIncomeUnderPlanned(
+      tenantId,
+      budgetId,
+      payload: IncomeUnderPlannedPayload,
+      tx,
+    ) {
+      // r33: like RESERVE_TOPUP / CUSHION_BELOW_TARGET, the shortfall must track
+      // the live income-vs-planned gap — DO UPDATE refreshes the payload so an
+      // already-pending task never shows a stale amount after an income/limit
+      // edit. Targets the partial unique index tasks_income_under_planned_dedup_idx
+      // (budget_id WHERE kind='INCOME_UNDER_PLANNED' AND status='PENDING').
+      const drizzleTx = tx as DrizzleTx;
+      const payloadJson = JSON.stringify(payload);
+      const res = await drizzleTx.execute(sql`
+        INSERT INTO budgeting.tasks
+          (id, tenant_id, budget_id, kind, payload_json, status, created_at)
+        VALUES
+          (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid,
+           'INCOME_UNDER_PLANNED', ${payloadJson}::jsonb, 'PENDING', now())
+        ON CONFLICT (budget_id) WHERE (kind = 'INCOME_UNDER_PLANNED' AND status = 'PENDING')
+        DO UPDATE SET payload_json = EXCLUDED.payload_json
+        RETURNING id, (xmax = 0) AS inserted
+      `);
+      await emitTaskCreatedIfInserted(
+        tx,
+        res,
+        tenantId,
+        budgetId,
+        "INCOME_UNDER_PLANNED",
+      );
+    },
+
     async resolveByKindAndBudget(tenantId, budgetId, kind, tx) {
       const drizzleTx = tx as DrizzleTx;
-      await drizzleTx.execute(sql`
+      const res = await drizzleTx.execute(sql`
         UPDATE budgeting.tasks
            SET status = 'RESOLVED', resolved_at = now()
          WHERE budget_id = ${budgetId}::uuid
            AND tenant_id = ${tenantId}::uuid
            AND kind = ${kind}
            AND status = 'PENDING'
+        RETURNING id, budget_id, kind
       `);
+      await emitTaskResolvedForRows(tx, tenantId, res.rows);
     },
 
     async resolveConfirmDraftByDraftId(tenantId, draftId, tx) {
       const drizzleTx = tx as DrizzleTx;
-      await drizzleTx.execute(sql`
+      const res = await drizzleTx.execute(sql`
         UPDATE budgeting.tasks
            SET status = 'RESOLVED', resolved_at = now()
          WHERE tenant_id = ${tenantId}::uuid
            AND kind = 'CONFIRM_DRAFT'
            AND payload_json->>'draft_id' = ${draftId}
            AND status = 'PENDING'
+        RETURNING id, budget_id, kind
       `);
+      await emitTaskResolvedForRows(tx, tenantId, res.rows);
+    },
+
+    async resolveInvestmentDelistedForHoldings(tenantId, holdingIds, tx) {
+      if (holdingIds.length === 0) return 0;
+      const drizzleTx = tx as DrizzleTx;
+      const idList = sql.join(
+        holdingIds.map((id) => sql`${id}`),
+        sql`, `,
+      );
+      const res = await drizzleTx.execute(sql`
+        UPDATE budgeting.tasks
+           SET status = 'RESOLVED', resolved_at = now()
+         WHERE tenant_id = ${tenantId}::uuid
+           AND kind = 'INVESTMENT_INSTRUMENT_DELISTED'
+           AND status = 'PENDING'
+           AND payload_json->>'holding_id' IN (${idList})
+        RETURNING id
+      `);
+      return res.rows.length;
     },
   };
 }

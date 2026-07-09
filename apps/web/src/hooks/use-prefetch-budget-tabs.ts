@@ -20,12 +20,16 @@ import { Temporal } from "temporal-polyfill";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { fetchSpendingsSummary } from "@/hooks/use-spendings-summary";
 import { mapTxnRowToDTO } from "@/hooks/use-transactions";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 
 export function usePrefetchBudgetTabs(budgetId: string) {
   const qc = useQueryClient();
+  // Same tz as the spendings grid's default month so the prefetched summary/txn
+  // keys match what the grid reads (r31 item 1).
+  const userTz = useUserTimezone();
   useEffect(() => {
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    const month = Temporal.Now.plainDateISO("UTC")
+    const month = Temporal.Now.plainDateISO(userTz)
       .toPlainYearMonth()
       .toString();
 
@@ -47,6 +51,12 @@ export function usePrefetchBudgetTabs(budgetId: string) {
     // at ~16 concurrent requests and inflated each ~4x on the API (260ms → ~1s),
     // so the primary data + RSC didn't land until ~2s → cold/janky first click.
     const priorityJobs: Job[] = [
+      // Phase 11: overview is the FIRST pill — warm its cards before tap (D-05).
+      // Section endpoints (planned/overspent/wealth) stay lazy (collapsed by default).
+      {
+        key: ["budget", budgetId, "overview", "cards"],
+        fn: () => get(`/budgets/${budgetId}/overview/cards`, (j) => j),
+      },
       {
         key: ["budget", budgetId, "wallets"],
         fn: () =>
@@ -134,6 +144,21 @@ export function usePrefetchBudgetTabs(budgetId: string) {
           ),
       },
       {
+        // settings income-section reads ["incomes", budgetId].
+        key: ["incomes", budgetId],
+        fn: () =>
+          get(
+            `/budgets/${budgetId}/incomes`,
+            (j) => (j as { incomes?: unknown[] }).incomes ?? [],
+          ),
+      },
+      {
+        // r33: investments settings toggle + slider read the whole {category,
+        // hasIncome, exists} object.
+        key: ["investment-category", budgetId],
+        fn: () => get(`/budgets/${budgetId}/investment-category`, (j) => j),
+      },
+      {
         // settings recurring-section reads ["categories-lite"]. Same data + shape
         // as the priority ["budget", id, "categories"] fetch — REUSE that cached
         // value (it has resolved by the time this idle tier runs) instead of
@@ -212,5 +237,5 @@ export function usePrefetchBudgetTabs(budgetId: string) {
       cancelled = true;
       clearTimeout(timerId);
     };
-  }, [budgetId, qc]);
+  }, [budgetId, qc, userTz]);
 }

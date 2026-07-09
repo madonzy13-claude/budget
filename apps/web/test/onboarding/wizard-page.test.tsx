@@ -72,15 +72,17 @@ describe("WizardPage — deferred-create step machine", () => {
     ).toBeInTheDocument();
   });
 
-  it("skips welcome when skipWelcome=true (returning user) and shows the type radiogroup", () => {
+  it("skipWelcome=true opens directly on the Basics step (kind-removal: no Type step)", () => {
     render(<WizardPage locale="en" skipWelcome />);
-    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeInTheDocument(); // budget-name input
+    expect(screen.queryByRole("radiogroup")).toBeNull();
   });
 
-  it("Get started → step 1 surfaces the type radiogroup", () => {
+  it("Get started → step 1 is the Basics step, not a type picker", () => {
     render(<WizardPage locale="en" />);
     fireEvent.click(screen.getByRole("button", { name: /get_started/i }));
-    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
   });
 
   it("step 2: empty name + Next surfaces the required-name error", () => {
@@ -111,34 +113,28 @@ describe("WizardPage — deferred-create step machine", () => {
     expect(() => render(<WizardPage locale="en" />)).not.toThrow();
   });
 
-  it("commit (step 4 Create budget) posts to /budgets and follows with progress PUT", async () => {
+  it("commit (Review → Create budget) posts to /budgets WITHOUT kind", async () => {
     render(<WizardPage locale="en" skipWelcome />);
-    // Step 1 → Type: defaults to PRIVATE, advance.
-    fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 2 → Basics: fill name, advance.
+    // Step 1 is Basics now (no Type step): fill name, advance.
     await waitFor(() =>
       expect(screen.getByRole("textbox")).toBeInTheDocument(),
     );
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "My Budget" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 3 → Features: defaults both on, advance.
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // Basics → Features
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument(),
     );
-    // Step 3 → Features (now incl. push) → 4 Review.
-    fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    // Step 4 → Review: "Create budget" fires the deferred POST.
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // Features → Review
     fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
     await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
     const [callArg] = mockBudgetsPost.mock.calls[0] as [
       { json: Record<string, unknown> },
     ];
-    expect(callArg.json).toMatchObject({
-      name: "My Budget",
-      kind: "PRIVATE",
-    });
+    expect(callArg.json).toMatchObject({ name: "My Budget" });
+    // kind-removal: the payload no longer carries a budget type.
+    expect(callArg.json).not.toHaveProperty("kind");
   });
 
   // Phase 7-09: cushion target months in StepFeatures + commit PATCH.

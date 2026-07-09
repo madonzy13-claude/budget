@@ -1,4 +1,10 @@
-import { getBoss, stopBoss, workerPool, withInfraTx } from "@budget/platform";
+import {
+  getBoss,
+  stopBoss,
+  workerPool,
+  appPool,
+  withInfraTx,
+} from "@budget/platform";
 import { sql } from "drizzle-orm";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
@@ -26,9 +32,17 @@ import { buildUniverse } from "@budget/investments/src/adapters/instruments/univ
 import { registerInstrumentPriceHourly } from "./handlers/instrument-price-hourly";
 import {
   registerInstrumentsDailySeed,
+  coldStartUniverseSeedIfEmpty,
   type InstrumentsDailySeedDeps,
 } from "./handlers/instruments-daily-seed";
 import { registerInvestmentSnapshotDaily } from "./handlers/investment-snapshot-daily";
+import { registerBudgetReminder } from "./handlers/budget-reminder";
+import { registerBudgetWealthSnapshot3h } from "./handlers/budget-wealth-snapshot-3h";
+import { createInvestmentsModule } from "@budget/investments/src/contracts/factory";
+import { DrizzleHoldingRepo } from "@budget/investments/src/adapters/persistence/holding-repo";
+import { DrizzleInstrumentRepo } from "@budget/investments/src/adapters/persistence/instrument-repo";
+import { DrizzlePriceCacheRepo } from "@budget/investments/src/adapters/persistence/price-cache-repo";
+import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 
 /**
  * Phase 9: the authoritative supported-instrument universe (search hits the local
@@ -344,6 +358,35 @@ async function main() {
     seedDeps,
   );
 
+  // r32: hourly budget-update reminder. Runs every hour (UTC 5-field cron); the
+  // handler sends only to members whose LOCAL time is ~18:00 on a selected
+  // weekday (tz + days from each member's BUDGET_REMINDER pref). Deep-links to
+  // the Spendings tab.
+  await boss.createQueue("budget-reminder");
+  await boss.schedule("budget-reminder", "0 * * * *");
+  registerBudgetReminder(
+    boss as unknown as Parameters<typeof registerBudgetReminder>[0],
+  );
+
+  // Cold-start universe seed (260626): run the daily-seed NOW when the universe is
+  // empty (fresh DB / first boot / wiped dev stack) instead of waiting for the
+  // 18:00 cron, so investment search works immediately. Logic + guards are unit-
+  // tested in instruments-daily-seed.test.ts (coldStartUniverseSeedIfEmpty).
+  await coldStartUniverseSeedIfEmpty({
+    countActiveInstruments: async () => {
+      const { rows } = await workerPool().query<{ n: string }>(
+        "SELECT count(*)::text AS n FROM budgeting.instruments WHERE active = true",
+      );
+      return Number(rows[0]?.n ?? "0");
+    },
+    enqueueSeed: async () => {
+      console.log(
+        "[worker] instruments universe empty → enqueuing instruments-daily-seed now (cold start)",
+      );
+      await boss.send("instruments-daily-seed", {});
+    },
+  });
+
   // Daily price + FX snapshot (INV-15). 17:30 Europe/Berlin — after fx-daily-fetch (17:00).
   await boss.createQueue("investment-snapshot-daily");
   await boss.schedule("investment-snapshot-daily", "30 17 * * *", null, {
@@ -352,6 +395,55 @@ async function main() {
   registerInvestmentSnapshotDaily(
     boss as unknown as Parameters<typeof registerInvestmentSnapshotDaily>[0],
     fxProvider,
+  );
+
+  // Phase 11 (11-07, D-04/SC8): HOURLY per-budget wealth snapshot. Scheduled AFTER the
+  // price/fx refresh jobs so the live valuation uses fresh cached prices. Reuses the
+  // SAME computeBudgetWealthNow primitive as the API capitalization card + the wealth
+  // live point (consistent numbers). holdingsValuation groups the investments module's
+  // listHoldings (price cache + FX); per-budget write is RLS-scoped (T-11-02).
+  const investments = createInvestmentsModule({
+    pool: appPool(),
+    fxProvider,
+    holdingRepo: new DrizzleHoldingRepo(),
+    instrumentRepo: new DrizzleInstrumentRepo(appPool()),
+    priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
+    priceProvider,
+  });
+  const WEALTH_SYSTEM_USER = "00000000-0000-0000-0000-000000000001";
+  const wealthSnapshotDeps = {
+    walletRepo: createOverviewCardsRepo(),
+    holdingsValuation: {
+      investmentValueCents: async (input: {
+        tenantId: string;
+        budgetId: string;
+        defaultCurrency: string;
+      }): Promise<bigint> => {
+        const r = await investments.listHoldings({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+          actorUserId: WEALTH_SYSTEM_USER,
+          budgetCurrency: input.defaultCurrency,
+        });
+        if (r.isErr()) throw r.error;
+        return r.value.holdings.reduce(
+          (s, h) => s + BigInt(h.valueInBudgetCents),
+          0n,
+        );
+      },
+    },
+    fxProvider,
+  };
+  // NOTE: the queue/handler name keeps the historical "-3h" suffix, but the cadence
+  // is now HOURLY (user request 2026-07-01). Renaming the queue would orphan the old
+  // pg-boss schedule, so only the cron changed: "0 */3 * * *" → "0 * * * *".
+  await boss.createQueue("budget-wealth-snapshot-3h");
+  await boss.schedule("budget-wealth-snapshot-3h", "0 * * * *", null, {
+    tz: "Europe/Berlin",
+  });
+  registerBudgetWealthSnapshot3h(
+    boss as unknown as Parameters<typeof registerBudgetWealthSnapshot3h>[0],
+    wealthSnapshotDeps,
   );
 
   // Push notifications — eventBus subscriber on task.created (no boss queue).

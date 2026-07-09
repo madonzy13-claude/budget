@@ -7,8 +7,9 @@ export interface ServerSessionUser {
   emailVerified: boolean;
   locale?: string;
   displayCurrency?: string;
-  preferredLlmProvider?: string | null;
-  preferredSttProvider?: string | null;
+  /** IANA zone (e.g. "Europe/Kyiv"). Seeds the current-month rollover so it
+   *  follows the user's local calendar, not UTC (r31 item 1). */
+  timezone?: string;
 }
 
 export interface ServerSession {
@@ -186,23 +187,14 @@ export async function getServerSession(
     ) {
       u["displayCurrency"] = u["display_currency"];
     }
-    // preferredLlmProvider / preferred_llm_provider
-    if (
-      u["preferredLlmProvider"] === undefined &&
-      u["preferred_llm_provider"] !== undefined
-    ) {
-      u["preferredLlmProvider"] = u["preferred_llm_provider"];
-    }
-    // preferredSttProvider / preferred_stt_provider
-    if (
-      u["preferredSttProvider"] === undefined &&
-      u["preferred_stt_provider"] !== undefined
-    ) {
-      u["preferredSttProvider"] = u["preferred_stt_provider"];
-    }
     // emailVerified / email_verified
     if (u["emailVerified"] === undefined && u["email_verified"] !== undefined) {
       u["emailVerified"] = u["email_verified"];
+    }
+    // timezone / time_zone (defensive — the column is one word, but the adapter
+    // casing mode could still snake it).
+    if (u["timezone"] === undefined && u["time_zone"] !== undefined) {
+      u["timezone"] = u["time_zone"];
     }
   }
   return raw as unknown as ServerSession;

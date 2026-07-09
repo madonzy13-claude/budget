@@ -16,8 +16,8 @@
  * Color: P/L uses --trading-up / --trading-down as TEXT only (semantic exception);
  * no-basis groups render "—" in --muted-strong.
  */
-import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -33,6 +33,9 @@ interface InvestmentGroupHeaderProps {
   valueBudgetCents: number;
   /** Cost-basis blended P/L% (null when no child has a basis). */
   plPct: number | null;
+  /** Aggregate P/L money in BUDGET cents (Σvalue − Σcost over children with a
+   *  basis); null when no child has a basis. Shown beside the P/L% (UAT #7). */
+  plCents?: number | null;
   /** group value / total investments value × 100, 1 decimal. */
   portfolioPct: number;
   /** Longest formatted amount in the section → dynamic amount-column width. */
@@ -55,6 +58,7 @@ export function InvestmentGroupHeader({
   budgetCurrency,
   valueBudgetCents,
   plPct,
+  plCents,
   portfolioPct,
   maxAmountChars,
   expanded,
@@ -64,7 +68,21 @@ export function InvestmentGroupHeader({
 }: InvestmentGroupHeaderProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
-  const [metricsOpen, setMetricsOpen] = useState(false);
+
+  // Desktop: a body click toggles the group's children (collapse/expand). Mobile:
+  // the children-toggle is the chevron; a body TAP reveals the group's sum-up
+  // (P/L% + portfolio%) as a second line — the same gesture a holding ROW uses —
+  // since mobile has no room for the desktop columns. matchMedia picks the
+  // behaviour; defaults to mobile until mounted (SSR-safe, test-safe).
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [showSum, setShowSum] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener?.("change", sync);
+    return () => mq.removeEventListener?.("change", sync);
+  }, []);
 
   const amount = centsToBare(String(Math.round(valueBudgetCents)), locale);
   const portfolio = `${portfolioPct.toFixed(1)}%`;
@@ -94,12 +112,13 @@ export function InvestmentGroupHeader({
       </span>
     );
 
-  // Group P/L money amount (budget ccy, no symbol) — same derivation as the row.
+  // Group P/L money amount (budget ccy, no symbol) — the real aggregate from the
+  // parent (Σvalue − Σcost), NOT back-derived from the rounded plPct (which ÷0's
+  // at a −100% total-loss group). null → no money node.
   const plMoney = (() => {
-    if (plPct == null) return null;
-    const amt = valueBudgetCents - valueBudgetCents / (1 + plPct / 100);
-    const sign = amt > 0 ? "+" : amt < 0 ? "−" : "";
-    return `${sign}${centsToBare(String(Math.round(Math.abs(amt))), locale)}`;
+    if (plCents == null) return null;
+    const sign = plCents > 0 ? "+" : plCents < 0 ? "−" : "";
+    return `${sign}${centsToBare(String(Math.round(Math.abs(plCents))), locale)}`;
   })();
 
   return (
@@ -117,9 +136,11 @@ export function InvestmentGroupHeader({
     >
       {dragHandle}
 
-      {/* Collapse children toggle (dedicated affordance). */}
-      <button
-        type="button"
+      {/* Body click: DESKTOP toggles the children (collapse/expand); MOBILE reveals
+          the sum-up second line (the chevron toggles children on mobile). */}
+      <div
+        role="button"
+        tabIndex={0}
         aria-expanded={expanded}
         aria-label={t("group.headerAria", {
           name: groupName,
@@ -127,48 +148,61 @@ export function InvestmentGroupHeader({
           state: expanded ? t("group.expanded") : t("group.collapsed"),
         })}
         data-testid={`investment-group-toggle-${groupName}`}
-        onClick={onToggle}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
-      >
-        {expanded ? (
-          <ChevronDown className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        )}
-      </button>
-
-      {/* Body — mobile tap lifts ONLY the name (currency + amount stay centered)
-          and reveals P/L% + portfolio% under the name (D-#6). */}
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={metricsOpen}
-        aria-label={t("group.metricsAria", { name: groupName })}
-        onClick={() => setMetricsOpen((v) => !v)}
+        onClick={() => (isDesktop ? onToggle() : setShowSum((s) => !s))}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setMetricsOpen((v) => !v);
+            isDesktop ? onToggle() : setShowSum((s) => !s);
           }
         }}
         className="flex min-w-0 flex-1 items-center gap-2"
       >
-        {/* Left column — full width on mobile-expanded; gap-0 + leading-tight so
-            the 3-row card fits the header height (no grow), like the row. */}
+        {/* Chevron = the children collapse/expand control (its own click so it works
+            on mobile too, where the body tap shows the sum-up instead). w-4 matches
+            the holding row's type-icon footprint so the name x-aligns (UAT). */}
+        <button
+          type="button"
+          aria-label={t("group.headerAria", {
+            name: groupName,
+            pct: portfolio,
+            state: expanded ? t("group.expanded") : t("group.collapsed"),
+          })}
+          data-testid={`investment-group-chevron-${groupName}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          className="flex h-4 w-4 shrink-0 items-center justify-center text-[var(--muted-foreground)]"
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
+        {/* Left column — gap-0 + leading-tight so the header keeps the row height.
+            On mobile, a tap reveals the sum-up (P/L% + portfolio%) as a 2nd line. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
+          {/* Shrink to text-num-sm when the sum-up is open so the group name matches
+              a tapped holding row's name (which also shrinks); showSum is only ever
+              true on mobile, so desktop keeps text-body-md. UAT #1. */}
           <span
             className={[
               "min-w-0 truncate text-[var(--body-on-dark)]",
-              metricsOpen ? "text-num-sm font-medium" : "text-title-sm",
+              showSum ? "text-num-sm" : "text-body-md",
             ].join(" ")}
           >
             {groupName}
           </span>
-          {/* Mobile expanded: P/L% + P/L money (left) · currency + amount (right);
-              then "Share: portfolio%". */}
-          {metricsOpen && (
-            <div className="flex flex-col gap-0 sm:hidden">
-              <div className="flex items-center justify-between gap-2 text-num-sm tabular-nums">
+          {showSum && (
+            // Mirrors the holding row's mobile-expanded block (P/L% + money on the
+            // left, currency + amount on the right), then a "Share: X%" line — just
+            // without the per-holding quantity (a group has none). UAT #1.
+            <div
+              data-testid={`investment-group-sum-${groupName}`}
+              className="flex flex-col gap-0 text-num-sm tabular-nums sm:hidden"
+            >
+              <div className="flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-2">
                   {plNode}
                   {plMoney && <span className={plColor}>{plMoney}</span>}
@@ -180,19 +214,32 @@ export function InvestmentGroupHeader({
                   <span className="text-[var(--body-on-dark)]">{amount}</span>
                 </span>
               </div>
-              <div className="text-caption text-[var(--muted-foreground)] tabular-nums">
+              <div className="text-caption text-[var(--muted-foreground)]">
                 {t("row.share", { pct: portfolio })}
               </div>
             </div>
           )}
         </div>
 
-        {/* Currency tight to amount (gap-1). Hidden on mobile-expanded (moves into
-            the middle row); shown collapsed + on desktop. */}
+        {/* Desktop columns mirror the holding row (UAT #7): qty · P/L% · P/L amt ·
+            value · weight. A group has no single quantity → the qty cell is an
+            empty spacer purely to keep the columns aligned with the rows. */}
+        <span className="hidden w-20 shrink-0 sm:block" aria-hidden="true" />
+        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
+          {plNode}
+        </span>
+        <span
+          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor}`}
+        >
+          {plMoney ?? ""}
+        </span>
+        {/* Currency tight to amount (gap-1). On mobile the sum-up re-renders it on
+            the right of its first line (mirrors the row), so hide it here when the
+            sum-up is open; desktop + mobile-collapsed keep it on the right (UAT #1). */}
         <div
           className={[
             "shrink-0 items-baseline gap-1",
-            metricsOpen ? "hidden sm:flex" : "flex",
+            showSum ? "hidden sm:flex" : "flex",
           ].join(" ")}
         >
           <span className="text-num-sm text-[var(--muted-foreground)]">
@@ -207,18 +254,15 @@ export function InvestmentGroupHeader({
             </span>
           </div>
         </div>
-        {/* Desktop: P/L% + portfolio% inline. */}
-        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
-          {plNode}
-        </span>
+        {/* Desktop: portfolio weight% last. */}
         <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {portfolio}
         </span>
       </div>
 
-      {/* Desktop trailing spacer — matches the row's hover-action area so the
-          group's right edge aligns with the holding rows' (D-#5). */}
-      <div className="hidden w-[60px] shrink-0 sm:block" aria-hidden="true" />
+      {/* Desktop trailing spacer — matches the row's single-trash hover area (w-7)
+          so the group's right edge aligns with the holding rows' (D-#5). */}
+      <div className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
     </div>
   );
 }
