@@ -1,5 +1,6 @@
 /**
- * push-prefs-section.test.tsx — r32 additions: the TASK_COMPLETED toggle and the
+ * push-prefs-section.test.tsx — a per-kind push toggle (r36 dropped
+ * TASK_COMPLETED; INCOME_UNDER_PLANNED is the current spendings kind) and the
  * budget-update reminder (toggle + weekday picker that PATCHes {days, tz}).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -70,7 +71,11 @@ beforeEach(() => {
     json: async () => ({
       preferences: [
         { notificationType: "RESERVE_TOPUP", enabled: true, config: null },
-        { notificationType: "TASK_COMPLETED", enabled: true, config: null },
+        {
+          notificationType: "INCOME_UNDER_PLANNED",
+          enabled: true,
+          config: null,
+        },
         {
           notificationType: "BUDGET_REMINDER",
           enabled: true,
@@ -82,9 +87,9 @@ beforeEach(() => {
 });
 
 describe("PushPrefsSection r32 toggles", () => {
-  it("renders the Task completed toggle and the reminder + 7 day buttons", async () => {
+  it("renders a per-kind toggle and the reminder + 7 day buttons", async () => {
     wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
-    expect(screen.getByTestId("push-kind-TASK_COMPLETED")).toBeTruthy();
+    expect(screen.getByTestId("push-kind-INCOME_UNDER_PLANNED")).toBeTruthy();
     expect(screen.getByTestId("push-reminder-switch")).toBeTruthy();
     for (let d = 1; d <= 7; d++) {
       expect(screen.getByTestId(`push-reminder-day-${d}`)).toBeTruthy();

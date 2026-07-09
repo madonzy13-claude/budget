@@ -63,9 +63,10 @@ describe("DraftRow", () => {
     renderDraftRow();
     const row = screen.getByTestId("draft-row-rent");
     const style = row.getAttribute("style") ?? "";
-    // Background is set inline to a value darker than the column bg so the
-    // row reads as "tentative / not yet confirmed".
-    expect(style).toMatch(/background-color:\s*#181c22/i);
+    // Background is set inline to a token darker than the column bg so the
+    // row reads as "tentative / not yet confirmed". r18 item 8: hardcoded
+    // #181c22 → --surface-sunken-dark so it flips correctly in light theme.
+    expect(style).toMatch(/background-color:\s*var\(--surface-sunken-dark\)/i);
   });
 
   it("REGRESSION-GUARD: pointermove does NOT JS-reveal chips (CSS hover only)", () => {

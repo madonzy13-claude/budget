@@ -26,8 +26,15 @@ describe("kind-pill-map", () => {
     expect(kindsFor("wallets")).toEqual(["CUSHION_BELOW_TARGET"]);
   });
 
-  it("kindsFor('spendings') returns [CONFIRM_DRAFT]", () => {
-    expect(kindsFor("spendings")).toEqual(["CONFIRM_DRAFT"]);
+  it("maps INCOME_UNDER_PLANNED → spendings", () => {
+    expect(pillFor("INCOME_UNDER_PLANNED")).toBe("spendings");
+  });
+
+  it("kindsFor('spendings') returns [CONFIRM_DRAFT, INCOME_UNDER_PLANNED]", () => {
+    expect(kindsFor("spendings")).toEqual([
+      "CONFIRM_DRAFT",
+      "INCOME_UNDER_PLANNED",
+    ]);
   });
 
   it("kindsFor('settings') returns [] (no kind maps to Settings today)", () => {
@@ -39,15 +46,21 @@ describe("kind-pill-map", () => {
       "RESERVE_TOPUP",
       "CUSHION_BELOW_TARGET",
       "CONFIRM_DRAFT",
+      "INCOME_UNDER_PLANNED",
     ] as const;
     for (const k of kinds) {
       expect(kindsFor(pillFor(k))).toContain(k);
     }
   });
 
-  it("KIND_TO_PILL keys are exactly the 3 task kinds", () => {
+  it("KIND_TO_PILL keys are exactly the 4 task kinds", () => {
     expect(Object.keys(KIND_TO_PILL).sort()).toEqual(
-      ["CONFIRM_DRAFT", "CUSHION_BELOW_TARGET", "RESERVE_TOPUP"].sort(),
+      [
+        "CONFIRM_DRAFT",
+        "CUSHION_BELOW_TARGET",
+        "INCOME_UNDER_PLANNED",
+        "RESERVE_TOPUP",
+      ].sort(),
     );
   });
 });

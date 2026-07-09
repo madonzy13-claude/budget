@@ -141,7 +141,8 @@ describe("ReservesTableRow", () => {
     it("row uses the muted excluded surface styling", () => {
       renderRow(excludedRow, true);
       const row = screen.getByTestId(`reserves-row-${excludedRow.categoryId}`);
-      expect(row.className).toContain("#14181D");
+      // r23 item 8: hardcoded #14181D → --surface-sunken-dark token (flips in light theme).
+      expect(row.className).toContain("bg-[var(--surface-sunken-dark)]");
     });
   });
 

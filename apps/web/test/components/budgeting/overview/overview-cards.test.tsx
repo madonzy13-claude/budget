@@ -42,7 +42,7 @@ vi.mock("next-intl", () => ({
       "cards.cushionOff": "Cushion off",
       "cards.availableReserves": "Available reserves",
       "cards.realMonths": "real months",
-      "cards.sinceLastMonth": "since last month",
+      "cards.sinceYesterday": "since yesterday",
       "empty.planned": "No activity in this range.",
     };
     const tpl = dict[key] ?? key;
@@ -224,7 +224,7 @@ describe("OverviewCards", () => {
     expect(screen.getByTestId("overspent-bad")).toBeTruthy();
   });
 
-  it("shows the capitalization P/L since last month when snapshots exist", () => {
+  it("shows the capitalization P/L since yesterday when snapshots exist", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     mockWealth.mockReturnValueOnce({
       data: { grow: { delta_cents: "750000", delta_pct: 9.9 } },
@@ -233,7 +233,7 @@ describe("OverviewCards", () => {
     // P/L stacks on the right: percent and amount on separate lines (item 5).
     expect(screen.getByText(/\+9\.9%/)).toBeTruthy();
     expect(screen.getByText("$7,500")).toBeTruthy();
-    expect(screen.getByText("since last month")).toBeTruthy();
+    expect(screen.getByText("since yesterday")).toBeTruthy();
   });
 
   it("shows $0 + a motivational line with a green check when nothing overspends", () => {

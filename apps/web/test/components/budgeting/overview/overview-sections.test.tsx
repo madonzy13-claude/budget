@@ -33,6 +33,17 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
 vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({ data: [{ id: "c1", name: "Food", colorKey: null }] }),
 }));
+// WealthSection reads the (prefetched) overview cards for its capitalization pie.
+vi.mock("@/hooks/use-overview-cards", () => ({
+  useOverviewCards: () => ({
+    data: {
+      investment_value_cents: "50000",
+      spendings: { wallet_cents: "30000" },
+      reserves: { wallet_cents: "20000" },
+      cushion: { total_cents: "10000" },
+    },
+  }),
+}));
 
 // Stub the chart wrappers — recharts rendering is covered by the 11-02 smoke test.
 vi.mock("@/components/budgeting/charts/line-chart", () => ({
