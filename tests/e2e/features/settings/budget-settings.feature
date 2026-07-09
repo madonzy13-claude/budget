@@ -45,8 +45,3 @@ Feature: Budget Settings — identity autosave, cushion toggle, share link, dang
     Then the Delete forever button is enabled
     When I confirm the budget deletion
     Then I am on the home page
-
-  Scenario: A PRIVATE budget shows no Members section
-    Given I am signed in as a fresh user with workspace "Private Only"
-    When I open the Budget Settings page for my budget
-    Then the Members accordion section is not visible

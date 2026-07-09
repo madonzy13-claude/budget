@@ -3,6 +3,7 @@ import {
   test,
   signUpViaHttp,
   parseSetCookieToPlaywright,
+  createBudgetViaHttp,
   type ParsedCookie,
 } from "../fixtures/fresh-user-per-scenario";
 import { TopNavPo } from "../page-objects/TopNavPo";
@@ -101,6 +102,20 @@ Given(
 When("I open the home page", async ({ page }) => {
   await page.goto("/en");
   // Wait for hydration so subsequent click handlers (router.push, onClick) fire.
+  await page
+    .waitForLoadState("networkidle", { timeout: 10000 })
+    .catch(() => {});
+});
+
+// r35: a single-budget user auto-opens their overview, so the home LISTING only
+// renders for >1 budget (or ?list=1). Seed a 2nd budget so the card listing is
+// reachable, then this step forces it with ?list=1.
+Given("I also have a budget named {string}", async ({ freshUser }, name) => {
+  await createBudgetViaHttp(freshUser.baseUrl, freshUser.cookieHeader, name);
+});
+
+When("I open the home budget listing", async ({ page }) => {
+  await page.goto("/en?list=1");
   await page
     .waitForLoadState("networkidle", { timeout: 10000 })
     .catch(() => {});

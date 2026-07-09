@@ -7,6 +7,10 @@ interface FreshUser {
   userId: string;
   budgetId: string; // == tenantId per v1.1 invariant
   budgetName: string;
+  // Exposed so steps can seed additional state (e.g. a 2nd budget so the home
+  // LISTING renders — a single-budget user auto-opens their overview, r35).
+  baseUrl: string;
+  cookieHeader: string;
 }
 
 export type ParsedCookie = {
@@ -349,7 +353,15 @@ export const test = base.extend<{ freshUser: FreshUser }>({
       budgetName,
     );
 
-    await use({ email, password, userId, budgetId, budgetName });
+    await use({
+      email,
+      password,
+      userId,
+      budgetId,
+      budgetName,
+      baseUrl,
+      cookieHeader,
+    });
   },
 });
 
@@ -420,7 +432,15 @@ export const testSharedUser = base.extend<{ sharedUser: FreshUser }>({
       "SHARED",
     );
 
-    await use({ email, password, userId, budgetId, budgetName });
+    await use({
+      email,
+      password,
+      userId,
+      budgetId,
+      budgetName,
+      baseUrl,
+      cookieHeader,
+    });
   },
 });
 

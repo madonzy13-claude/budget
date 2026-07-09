@@ -25,12 +25,16 @@ export class SettingsPage {
     return this.page.getByRole("tab", { name: this.labels.settings.localeTab });
   }
 
+  // Phase 10 rebuilt the user-settings page from tabs into a single stacked
+  // accordion whose "General" section (language + display currency) is open by
+  // default — there is no tab to click, so these just wait for the control to be
+  // present (kept so the existing steps still resolve).
   async openDisplayCurrencyTab(): Promise<void> {
-    await this.displayCurrencyTab().click();
+    await this.displayCurrencyTrigger().waitFor({ state: "visible" });
   }
 
   async openLocaleTab(): Promise<void> {
-    await this.localeTab().click();
+    await this.localeTrigger().waitFor({ state: "visible" });
   }
 
   displayCurrencyTrigger(): Locator {

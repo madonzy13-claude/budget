@@ -38,17 +38,24 @@ export class InvestmentsPo {
     return this.page.getByTestId(`investment-group-${group}`);
   }
 
-  /** The chevron collapse toggle for a group (carries aria-expanded). */
+  /** The group header body — carries aria-expanded (read state from here). On
+   *  mobile, clicking the body reveals the P/L sum-up, NOT expand/collapse. */
   groupToggle(group: string) {
     return this.page.getByTestId(`investment-group-toggle-${group}`);
   }
 
-  /** Expand a group if it is collapsed (idempotent). */
+  /** The chevron — always toggles expand/collapse on BOTH desktop and mobile. */
+  groupChevron(group: string) {
+    return this.page.getByTestId(`investment-group-chevron-${group}`);
+  }
+
+  /** Expand a group if it is collapsed (idempotent). Reads state from the body
+   *  (aria-expanded) but clicks the chevron, which toggles on mobile too. */
   async expandGroup(group: string): Promise<void> {
     const toggle = this.groupToggle(group);
     await toggle.waitFor({ state: "visible" });
     if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-      await toggle.click();
+      await this.groupChevron(group).click();
     }
   }
 
