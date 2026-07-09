@@ -110,6 +110,9 @@ export function WealthSection({
   // Chart TOOLTIP (on tap): the FULL value WITH currency (r25 item 2).
   const fmtTooltip = (n: number) =>
     centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en");
+  // Pie centre read-out: whole currency, NO cents (round to the nearest unit).
+  const fmtPieValue = (n: number) =>
+    centsToDisplayCompact(BigInt(Math.round(n / 100) * 100), ccy, "en");
 
   // Capitalization pie: where the money sits — investments / spendings-wallets /
   // reserves-wallets / cushion. Sourced from the (already-prefetched) overview
@@ -293,7 +296,7 @@ export function WealthSection({
                     nameKey="name"
                     valueKey="value"
                     colorFor={(n) => capColorMap[n] ?? NEUTRAL}
-                    formatValue={fmtTooltip}
+                    formatValue={fmtPieValue}
                   />
                 </div>
               )}
@@ -318,7 +321,7 @@ export function WealthSection({
                       colorFor={(ht) =>
                         UI_TYPE_COLOR[deriveUiType(null, ht, false)]
                       }
-                      formatValue={fmtTooltip}
+                      formatValue={fmtPieValue}
                     />
                   ) : (
                     <p className="text-num-sm text-[var(--muted-foreground)]">
