@@ -99,17 +99,19 @@ export async function sumWalletsToCurrency(
   );
   const rateMap = new Map(rateEntries);
 
-  let sum = 0n;
+  let sumCents = 0n;
   for (const it of items) {
     if (it.currency === target) {
-      sum += it.amount_cents;
+      sumCents += it.amount_cents;
       continue;
     }
     const rate = rateMap.get(`${it.currency}->${target}`)!;
     const converted = centsToMoney(it.amount_cents, it.currency).mul(rate);
-    sum += moneyToCents(Money.of(converted.amount.toFixed(), target as Currency));
+    sumCents += moneyToCents(
+      Money.of(converted.amount.toFixed(), target as Currency),
+    );
   }
-  return sum;
+  return sumCents;
 }
 
 export function computeBudgetWealthNow(deps: ComputeBudgetWealthNowDeps) {
