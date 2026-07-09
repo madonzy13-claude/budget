@@ -25,7 +25,7 @@ import {
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
-import { centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { cn } from "@/lib/utils";
 
@@ -78,29 +78,6 @@ function formatRunway(
   if (months) parts.push(`${months}${units.m}`);
   if (days) parts.push(`${days}${units.d}`);
   return parts.length ? parts.join(" ") : `0${units.d}`;
-}
-
-/**
- * Currency rounded to whole units (no cents) — the capitalization hero + its P/L
- * can be large (millions); cents add width without value (UAT item 1). Always EN
- * (currency symbol, not ISO code). bigint-safe (rounds half-up on the cents).
- */
-function centsToRounded(cents: string, ccy: string): string {
-  let big: bigint;
-  try {
-    big = BigInt(cents);
-  } catch {
-    big = 0n;
-  }
-  const neg = big < 0n;
-  const abs = neg ? -big : big;
-  let units = abs / 100n;
-  if (abs % 100n >= 50n) units += 1n;
-  return new Intl.NumberFormat("en", {
-    style: "currency",
-    currency: ccy,
-    maximumFractionDigits: 0,
-  }).format(Number(neg ? -units : units));
 }
 
 /** Shrink the hero number's font as the string grows so a big value still leaves
