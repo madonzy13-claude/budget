@@ -4,7 +4,7 @@
  * Covers: 5-section accordion render for SHARED budgets,
  * 4-section render for PRIVATE budgets, default-open section.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SettingsAccordion } from "@/components/settings/settings-accordion";
 
@@ -60,7 +60,14 @@ vi.mock("@tanstack/react-query", () => ({
 // entity hooks the accordion reads for the config checklist — return arrays so
 // wallets.some/categories.some don't blow up (the blanket useQuery mock returns
 // {members:[]} for MembersSection's own query).
-vi.mock("@/hooks/use-wallets", () => ({ useWallets: () => ({ data: [] }) }));
+// Controllable so a test can put the wallets count in a loading state and assert
+// the config-progress banner stays hidden (r34 flicker fix).
+const walletsMock = vi.hoisted(() => ({
+  current: { data: [] as unknown[], isLoading: false },
+}));
+vi.mock("@/hooks/use-wallets", () => ({
+  useWallets: () => walletsMock.current,
+}));
 vi.mock("@/hooks/use-investments", () => ({
   useInvestments: () => ({ data: [] }),
 }));
@@ -113,5 +120,23 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     // The accordion item with value="budget-identity" should be open
     const openItem = container.querySelector('[data-state="open"]');
     expect(openItem).not.toBeNull();
+  });
+});
+
+describe("SettingsAccordion — config-progress banner (r34 flicker)", () => {
+  beforeEach(() => {
+    walletsMock.current = { data: [], isLoading: false };
+  });
+
+  it("hides the banner while the config counts are still loading", () => {
+    walletsMock.current = { data: undefined as unknown as unknown[], isLoading: true };
+    render(<SettingsAccordion budget={sharedBudget} />);
+    expect(screen.queryByTestId("settings-config-progress")).toBeNull();
+  });
+
+  it("shows the banner once counts loaded + setup is incomplete", () => {
+    // default mock: loaded (isLoading:false) with empty data → percent < 100
+    render(<SettingsAccordion budget={sharedBudget} />);
+    expect(screen.getByTestId("settings-config-progress")).toBeInTheDocument();
   });
 });

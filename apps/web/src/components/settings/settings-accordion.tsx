@@ -72,14 +72,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   // prop (SettingsTabClient's useBudget → invalidated on each toggle); the counts
   // share the existing per-entity query keys so the header + popup stay live as the
   // user adds wallets / investments / categories / rules / incomes.
-  const wallets = useWallets(budget.id).data ?? [];
-  const hasCushionWallet = wallets.some((w) => w.walletType === "CUSHION");
-  const hasReserveWallet = wallets.some((w) => w.walletType === "RESERVE");
-  const hasInvestment = (useInvestments(budget.id).data ?? []).length > 0;
-  const hasCategory = (useCategories(budget.id).data ?? []).some(
-    (c) => !(c as { isInvestment?: boolean }).isInvestment,
-  );
-  const hasRecurring = (useQuery({
+  const walletsQ = useWallets(budget.id);
+  const investmentsQ = useInvestments(budget.id);
+  const categoriesQ = useCategories(budget.id);
+  const recurringQ = useQuery({
     queryKey: ["recurring-rules", budget.id],
     queryFn: async () => {
       const res = await fetch(`/api/budgets/${budget.id}/recurring-rules`, {
@@ -92,8 +88,8 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
     },
     select: (rows) => rows.length > 0,
     staleTime: 0,
-  }).data ?? false) as boolean;
-  const hasIncome = (useQuery({
+  });
+  const incomeQ = useQuery({
     queryKey: ["incomes", budget.id],
     queryFn: async () => {
       const res = await fetch(`/api/budgets/${budget.id}/incomes`, {
@@ -106,7 +102,29 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
     },
     select: (rows) => rows.length > 0,
     staleTime: 0,
-  }).data ?? false) as boolean;
+  });
+
+  const wallets = walletsQ.data ?? [];
+  const hasCushionWallet = wallets.some((w) => w.walletType === "CUSHION");
+  const hasReserveWallet = wallets.some((w) => w.walletType === "RESERVE");
+  const hasInvestment = (investmentsQ.data ?? []).length > 0;
+  const hasCategory = (categoriesQ.data ?? []).some(
+    (c) => !(c as { isInvestment?: boolean }).isInvestment,
+  );
+  const hasRecurring = (recurringQ.data ?? false) as boolean;
+  const hasIncome = (incomeQ.data ?? false) as boolean;
+
+  // r34 flicker fix: only trust `progress.percent` once every count it reads has
+  // loaded. On a cold open the `?? []` / `?? false` empties compute a <100%
+  // percent that briefly renders the "not fully configured" banner before the
+  // queries resolve to the real (often 100%) value and it hides. Gate on
+  // isLoading (a disabled/cached query is not loading → doesn't block).
+  const progressReady =
+    !walletsQ.isLoading &&
+    !investmentsQ.isLoading &&
+    !categoriesQ.isLoading &&
+    !recurringQ.isLoading &&
+    !incomeQ.isLoading;
 
   const progress = computeSettingsProgress({
     hasTransaction: budget.hasTransactions,
@@ -123,8 +141,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
 
   return (
     <>
-      {/* Hidden once fully configured (100%) — no need to nag a complete setup. */}
-      {progress.percent < 100 && (
+      {/* Hidden once fully configured (100%) — no need to nag a complete setup.
+          Also hidden until the counts have loaded, so an incomplete percent from
+          the cold-load empties never flashes before resolving (r34 flicker). */}
+      {progressReady && progress.percent < 100 && (
         <SettingsConfigProgress
           percent={progress.percent}
           items={progress.items}
