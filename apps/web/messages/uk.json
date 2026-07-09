@@ -1300,6 +1300,11 @@
           "avgForRange": "Сер. зміна ({range})",
           "growSince": "{preset, select, thisMonth {з початку місяця} last3Months {за останні 3 місяці} last6Months {за останні 6 місяців} thisYear {з початку року} all {за весь час} other {за вибраний період}}",
           "byType": "Інвестиції за типом активу",
+          "byBucket": "Розподіл капіталу",
+          "capInvestments": "Інвестиції",
+          "capSpendings": "Витрати",
+          "capReserves": "Резерви",
+          "capCushion": "Подушка",
           "pieShare": "{pct}%"
         },
         "empty": {

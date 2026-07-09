@@ -1277,6 +1277,11 @@
           "avgForRange": "Avg change ({range})",
           "growSince": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} thisYear {since year start} all {all time} other {over the selected range}}",
           "byType": "Investments by asset type",
+          "byBucket": "Where your money is",
+          "capInvestments": "Investments",
+          "capSpendings": "Spendings",
+          "capReserves": "Reserves",
+          "capCushion": "Cushion",
           "pieShare": "{pct}%"
         },
         "empty": {

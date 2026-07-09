@@ -23,6 +23,7 @@ import {
   useOverviewWealth,
   type WealthView,
 } from "@/hooks/use-overview-wealth";
+import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
@@ -33,6 +34,12 @@ import type { OverviewRange } from "@/lib/overview-range";
 const UP = "var(--trading-up)";
 const DOWN = "var(--trading-down)";
 const NEUTRAL = "var(--muted-foreground)";
+
+// Capitalization pie slice colors — 4 distinct pools of money.
+const BUCKET_INVEST = "var(--chart-bar-1)"; // blue
+const BUCKET_SPEND = "var(--primary)"; // yellow
+const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
+const BUCKET_CUSHION = "var(--trading-up)"; // green
 
 /** i18n key for the % CHANGE chart title/series, by its (coarser) bucket. */
 function dynamicsLabelKey(b: "daily" | "monthly" | "yearly"): string {
@@ -103,6 +110,38 @@ export function WealthSection({
   // Chart TOOLTIP (on tap): the FULL value WITH currency (r25 item 2).
   const fmtTooltip = (n: number) =>
     centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en");
+
+  // Capitalization pie: where the money sits — investments / spendings-wallets /
+  // reserves-wallets / cushion. Sourced from the (already-prefetched) overview
+  // cards; zero pools are dropped so the pie only shows what's actually held.
+  const cards = useOverviewCards(budgetId).data;
+  const capBuckets = cards
+    ? [
+        {
+          name: t("wealth.capInvestments"),
+          value: Number(cards.investment_value_cents),
+          color: BUCKET_INVEST,
+        },
+        {
+          name: t("wealth.capSpendings"),
+          value: Number(cards.spendings.wallet_cents),
+          color: BUCKET_SPEND,
+        },
+        {
+          name: t("wealth.capReserves"),
+          value: Number(cards.reserves.wallet_cents),
+          color: BUCKET_RESERVE,
+        },
+        {
+          name: t("wealth.capCushion"),
+          value: Number(cards.cushion.total_cents),
+          color: BUCKET_CUSHION,
+        },
+      ].filter((b) => b.value > 0)
+    : [];
+  const capColorMap: Record<string, string> = Object.fromEntries(
+    capBuckets.map((b) => [b.name, b.color]),
+  );
 
   const toggle = (v: WealthView, label: string) => (
     <button
@@ -235,6 +274,26 @@ export function WealthSection({
                     formatTooltip={(n) => `${n.toFixed(1)}%`}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     labelFormat={(v) => formatChartDate(v, locale)}
+                  />
+                </div>
+              )}
+
+              {/* Capitalization view: where the money is (investments / spendings
+                  / reserves / cushion) — a static labeled pie. */}
+              {effectiveView === "capitalization" && capBuckets.length > 0 && (
+                <div
+                  data-testid="overview-capitalization-pie"
+                  className="flex flex-col gap-2"
+                >
+                  <p className="text-caption text-[var(--muted-foreground)]">
+                    {t("wealth.byBucket")}
+                  </p>
+                  <OverviewPieChart
+                    data={capBuckets}
+                    nameKey="name"
+                    valueKey="value"
+                    colorFor={(n) => capColorMap[n] ?? NEUTRAL}
+                    labeled
                   />
                 </div>
               )}

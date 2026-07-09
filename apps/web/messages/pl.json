@@ -1300,6 +1300,11 @@
           "avgForRange": "Śr. zmiana ({range})",
           "growSince": "{preset, select, thisMonth {od początku miesiąca} last3Months {za ostatnie 3 miesiące} last6Months {za ostatnie 6 miesięcy} thisYear {od początku roku} all {cały czas} other {w wybranym zakresie}}",
           "byType": "Inwestycje wg typu aktywów",
+          "byBucket": "Podział kapitału",
+          "capInvestments": "Inwestycje",
+          "capSpendings": "Wydatki",
+          "capReserves": "Rezerwy",
+          "capCushion": "Poduszka",
           "pieShare": "{pct}%"
         },
         "empty": {
