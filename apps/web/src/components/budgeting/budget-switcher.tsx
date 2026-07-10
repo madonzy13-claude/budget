@@ -77,18 +77,6 @@ export function BudgetSwitcher({
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  // The mobile blur backdrop starts just below the trigger so the header stays
-  // sharp. Header height varies (safe-area sync), so measure the trigger bottom on
-  // open rather than hardcode it. Radix toggles the trigger on click, so with the
-  // overlay no longer covering it, tapping the header closes the menu.
-  const [overlayTop, setOverlayTop] = useState(0);
-  const handleOpenChange = useCallback((next: boolean) => {
-    if (next) {
-      const btn = document.querySelector<HTMLElement>("[data-bs-trigger]");
-      if (btn) setOverlayTop(Math.round(btn.getBoundingClientRect().bottom));
-    }
-    setOpen(next);
-  }, []);
 
   // UAT-PH5-T3-13: "selected" means the user is currently inside that
   // budget's page (URL carries its UUID). On the home page there is no
@@ -135,11 +123,11 @@ export function BudgetSwitcher({
   const triggerLabel = active?.name ?? null;
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      {/* Mobile-only: dim + blur the page behind the open dropdown, starting just
-          BELOW the trigger so the header stays sharp (and tapping the trigger
-          toggles the menu shut instead of hitting this overlay). Body portal; the
-          popper wrapper is lifted above it in global.css so the menu stays sharp.
+    <Popover open={open} onOpenChange={setOpen}>
+      {/* Mobile-only: dim + blur the page behind the open dropdown. Portaled to
+          <body> and sat at z-45 — below the header (z-50) so the WHOLE header stays
+          sharp (matches the profile menu), above page content so it blurs. The
+          popper wrapper is lifted to z-60 in global.css so the menu stays sharp.
           Tapping the backdrop dismisses. */}
       {isMobile &&
         open &&
@@ -147,8 +135,7 @@ export function BudgetSwitcher({
           <div
             aria-hidden
             onPointerDown={() => setOpen(false)}
-            style={{ top: overlayTop }}
-            className="fixed inset-x-0 bottom-0 z-[55] bg-black/25 backdrop-blur-sm"
+            className="fixed inset-0 z-[45] bg-black/25 backdrop-blur-sm"
           />,
           document.body,
         )}
@@ -170,7 +157,6 @@ export function BudgetSwitcher({
       <PopoverTrigger asChild>
         <button
           type="button"
-          data-bs-trigger
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
           className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--nav-budget-header)] outline-none transition-colors hover:bg-[var(--surface-elevated-dark)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas-dark)]"
         >
