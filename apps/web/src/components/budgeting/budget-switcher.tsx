@@ -8,7 +8,6 @@ import { useTranslations } from "next-intl";
 import { ChevronDown, Plus, User, Users } from "lucide-react";
 import {
   Popover,
-  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -139,21 +138,6 @@ export function BudgetSwitcher({
           />,
           document.body,
         )}
-      {/* Mobile-only: a full-width invisible anchor so `align=center` centres the
-          dropdown on the viewport (not under the left-side trigger). Its height
-          places the bottom edge at the trigger's bottom so the menu drops from the
-          same spot it did before centring. Absent on desktop → anchors to trigger. */}
-      {isMobile && (
-        <PopoverAnchor asChild>
-          <div
-            aria-hidden
-            // Height = safe-area inset + the trigger's row height, so the anchor's
-            // bottom tracks the trigger bottom on notched devices too (the header
-            // is pushed down by env(safe-area-inset-top)). ~48px on a plain browser.
-            className="pointer-events-none fixed inset-x-0 top-0 h-[calc(env(safe-area-inset-top,0px)+3rem)]"
-          />
-        </PopoverAnchor>
-      )}
       <PopoverTrigger asChild>
         <button
           type="button"
