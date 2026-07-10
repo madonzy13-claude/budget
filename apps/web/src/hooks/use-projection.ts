@@ -31,6 +31,13 @@ export interface ProjectionDTO {
     first_red_date: string | null;
     worst_shortfall_cents: string;
   };
+  /** "Available to spend" card health (dot + surplus/deficit). `good` is null and
+   *  `surplus_deficit_cents` is null when there is no upcoming income (grey dot,
+   *  card falls back to its "upcoming" figure). */
+  spend_health: {
+    good: boolean | null;
+    surplus_deficit_cents: string | null;
+  };
 }
 
 export async function fetchProjection(

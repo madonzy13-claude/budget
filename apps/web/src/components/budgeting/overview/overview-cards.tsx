@@ -17,6 +17,7 @@ import { Temporal } from "temporal-polyfill";
 import {
   TrendingUp,
   TrendingDown,
+  Circle,
   CircleCheck,
   CircleAlert,
   CirclePlus,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
+import { useProjection } from "@/hooks/use-projection";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
@@ -100,6 +102,10 @@ export function OverviewCards({
   const t = useTranslations("bdp.tab.overview");
   const tz = useUserTimezone();
   const { data, isError, isPending } = useOverviewCards(budgetId);
+  // Available-to-spend health (dot + surplus/deficit) comes from the cash-flow
+  // projection so it accounts for upcoming income to the last pay-day of the window
+  // (the ProjectionTimeline sibling already fetches this; React Query dedupes).
+  const { data: projection } = useProjection(budgetId);
   // Capitalization card flips to reveal the retirement runway on its back (item 9).
   const [flipped, setFlipped] = useState(false);
 
@@ -185,6 +191,16 @@ export function OverviewCards({
     investmentsEnabled && BigInt(data.investment_value_cents) > 0n;
   const overspentCount = data.overspent.count;
   const topNames = data.overspent.top.map((o) => o.name).join(" · ");
+  // Available-to-spend health from the projection. Dot: green (good), red (short),
+  // or grey when there's no upcoming income (good null) or the projection hasn't
+  // loaded yet. Surplus/deficit (cash on the day before the NEAREST income) only
+  // shows when there IS upcoming income; otherwise the card keeps the old
+  // "upcoming" figure. `good`/value are null with no income.
+  const spendHealth = projection?.spend_health;
+  const spendGood = spendHealth ? spendHealth.good : null;
+  const sdRaw = spendHealth?.surplus_deficit_cents ?? null;
+  const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
+  const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
 
   return (
     <div data-testid="overview-cards" className="flex flex-col gap-3">
@@ -231,9 +247,11 @@ export function OverviewCards({
                     <p
                       // Inline color: tailwind-merge can't tell the custom
                       // `text-num-display` size class from a text-color and was
-                      // dropping `text-[var(--primary)]`, rendering the number grey.
-                      // An inline style bypasses the merge entirely (UAT item 3).
-                      style={{ color: "var(--primary)" }}
+                      // dropping the color class, rendering the number grey. An
+                      // inline style bypasses the merge entirely (UAT item 3).
+                      // --num-hero = brand yellow (dark) → dark gold (light) so it
+                      // stays legible on the pale light card.
+                      style={{ color: "var(--num-hero)" }}
                       className={cn(
                         "num",
                         heroFontClass(
@@ -320,26 +338,36 @@ export function OverviewCards({
       })()}
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Available to spend (item 1): wallet cash on top with a good/bad dot
-            (green when the wallets cover what's left to spend, red when short),
-            then spent-this-month + left-to-spend below. */}
+        {/* Available to spend (item 1): wallet cash on top with a good/bad dot.
+            The dot + surplus/deficit come from the cash-flow projection, so they
+            account for upcoming income through the last pay-day of the window
+            (green when no shortfall in that window, red when it runs short). Below:
+            spent-this-month + the projected surplus/deficit right before that last
+            pay-day (end of current month when there's no income). */}
         <section
           data-testid="overview-card-available-to-spend"
           className={CARD}
         >
           <CardLabel>{t("cards.availableToSpend")}</CardLabel>
           <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
-            {data.spendings.good ? (
+            {spendGood === true ? (
               <CircleCheck
                 data-testid="spend-good"
                 className="size-4 shrink-0 text-[var(--trading-up)]"
                 aria-label={t("cards.spendGood")}
               />
-            ) : (
+            ) : spendGood === false ? (
               <CircleAlert
                 data-testid="spend-bad"
                 className="size-4 shrink-0 text-[var(--trading-down)]"
                 aria-label={t("cards.spendBad")}
+              />
+            ) : (
+              // No upcoming income (or projection not loaded) → neutral grey dot.
+              <Circle
+                data-testid="spend-neutral"
+                className="size-4 shrink-0 text-[var(--muted-foreground)]"
+                aria-label={t("cards.spendNeutral")}
               />
             )}
             <span className="truncate">
@@ -353,12 +381,36 @@ export function OverviewCards({
                 {animMoney(data.spendings.spent_cents)}
               </dd>
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <dt>{t("cards.leftToSpend")}</dt>
-              <dd className="num text-[var(--body-on-dark)]">
-                {animMoney(data.spendings.left_cents)}
-              </dd>
-            </div>
+            {surplusDeficit !== null ? (
+              <div className="flex items-center justify-between gap-2">
+                <dt>{isDeficit ? t("cards.deficit") : t("cards.surplus")}</dt>
+                {/* Inline color (tailwind-merge drops text-[var()] color): red
+                    deficit (<0), white when exactly 0, green surplus (>0). */}
+                <dd
+                  data-testid="spend-surplus-deficit"
+                  className="num"
+                  style={{
+                    color:
+                      surplusDeficit < 0n
+                        ? "var(--trading-down)"
+                        : surplusDeficit === 0n
+                          ? "var(--body-on-dark)"
+                          : "var(--trading-up)",
+                  }}
+                >
+                  {/* Whole units only — no cents (parity with the hero figures). */}
+                  {animRounded(String(surplusDeficit))}
+                </dd>
+              </div>
+            ) : (
+              // No upcoming income → keep the original "upcoming" figure.
+              <div className="flex items-center justify-between gap-2">
+                <dt>{t("cards.leftToSpend")}</dt>
+                <dd className="num text-[var(--body-on-dark)]">
+                  {animMoney(data.spendings.left_cents)}
+                </dd>
+              </div>
+            )}
           </dl>
         </section>
 

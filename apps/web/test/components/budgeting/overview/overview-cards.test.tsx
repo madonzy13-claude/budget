@@ -5,7 +5,7 @@
  * line shows investments, cushion real-months shows one decimal, and overspent
  * lists the top categories.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
@@ -15,6 +15,9 @@ vi.mock("next-intl", () => ({
       "cards.availableToSpend": "Available to spend",
       "cards.spentThisMonth": "Spent",
       "cards.leftToSpend": "Upcoming",
+      "cards.surplus": "Surplus",
+      "cards.deficit": "Deficit",
+      "cards.spendNeutral": "No upcoming income",
       "cards.retirementRunway": "If you retire now",
       "cards.retirementSub": "at your normal planned spending",
       "cards.flipToRetirement": "Capitalization",
@@ -64,6 +67,15 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
   useOverviewWealth: () => mockWealth(),
 }));
 
+// Projection drives the available-to-spend dot + surplus/deficit. Default: green,
+// $400 surplus (matches the old "Upcoming $400" figure so amount assertions hold).
+const mockProjection = vi.fn(() => ({
+  data: { spend_health: { good: true, surplus_deficit_cents: "40000" } },
+}));
+vi.mock("@/hooks/use-projection", () => ({
+  useProjection: () => mockProjection(),
+}));
+
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
 
 const DTO = {
@@ -104,6 +116,14 @@ const DTO = {
 };
 
 describe("OverviewCards", () => {
+  // Default: upcoming income exists, +$400 surplus, green dot. Tests that need a
+  // different projection set a sticky mockReturnValue (deterministic across renders).
+  beforeEach(() => {
+    mockProjection.mockReturnValue({
+      data: { spend_health: { good: true, surplus_deficit_cents: "40000" } },
+    });
+  });
+
   it("renders the five cards with default_currency amounts", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     render(<OverviewCards budgetId="b1" />);
@@ -121,25 +141,81 @@ describe("OverviewCards", () => {
     expect(screen.getByText("$42,180")).toBeTruthy(); // capitalization hero
     expect(screen.getByText("$1,240")).toBeTruthy(); // wallet cash (have)
     expect(screen.getByText("$800")).toBeTruthy(); // spent this month
-    expect(screen.getByText("$400")).toBeTruthy(); // left to spend
+    expect(screen.getByText("$400")).toBeTruthy(); // projected surplus (was "Upcoming")
     expect(screen.getByText("$3,500")).toBeTruthy(); // available reserves
     expect(screen.getByText("Needed $3,000")).toBeTruthy(); // reserves needed note
     expect(screen.getByText("incl. investments $12,400")).toBeTruthy();
   });
 
-  it("shows the spend good/bad indicator (item 1)", () => {
+  it("shows the spend good/bad indicator from the projection (item 1)", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    // Default projection mock is good → green check.
     const { unmount } = render(<OverviewCards budgetId="b1" />);
     expect(screen.getByTestId("spend-good")).toBeTruthy();
     unmount();
 
-    mockUse.mockReturnValue({
-      data: { ...DTO, spendings: { ...DTO.spendings, good: false } },
-      isError: false,
-      isPending: false,
+    // A projection shortfall (good:false) flips the dot to red.
+    mockProjection.mockReturnValue({
+      data: { spend_health: { good: false, surplus_deficit_cents: "-5000" } },
     });
     render(<OverviewCards budgetId="b1" />);
     expect(screen.getByTestId("spend-bad")).toBeTruthy();
+  });
+
+  it("shows a grey neutral dot + the old 'upcoming' figure when there's no income", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    mockProjection.mockReturnValue({
+      data: { spend_health: { good: null, surplus_deficit_cents: null } },
+    });
+    render(<OverviewCards budgetId="b1" />);
+    // Grey dot, not green/red.
+    expect(screen.getByTestId("spend-neutral")).toBeTruthy();
+    expect(screen.queryByTestId("spend-good")).toBeNull();
+    expect(screen.queryByTestId("spend-bad")).toBeNull();
+    // Falls back to the original "Upcoming" line ($400 = left_cents), no surplus row.
+    expect(screen.getByText("Upcoming")).toBeTruthy();
+    expect(screen.getByText("$400")).toBeTruthy();
+    expect(screen.queryByTestId("spend-surplus-deficit")).toBeNull();
+  });
+
+  it("shows surplus (green) or deficit (red) from the nearest income", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    // Default: income exists, +$400 surplus.
+    const { unmount } = render(<OverviewCards budgetId="b1" />);
+    expect(screen.getByText("Surplus")).toBeTruthy();
+    expect(
+      screen.getByTestId("spend-surplus-deficit").textContent,
+    ).toContain("$400");
+    unmount();
+
+    // Negative → Deficit label, magnitude shown (sign conveyed by red color).
+    mockProjection.mockReturnValue({
+      data: { spend_health: { good: false, surplus_deficit_cents: "-25000" } },
+    });
+    render(<OverviewCards budgetId="b1" />);
+    expect(screen.getByText("Deficit")).toBeTruthy();
+    expect(
+      screen.getByTestId("spend-surplus-deficit").textContent,
+    ).toContain("250");
+  });
+
+  it("colors the surplus/deficit value: green >0, white =0, red <0", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    const cases: [string, string][] = [
+      ["40000", "var(--trading-up)"], // surplus > 0 → green
+      ["0", "var(--body-on-dark)"], // exactly 0 → white
+      ["-25000", "var(--trading-down)"], // deficit < 0 → red
+    ];
+    for (const [cents, color] of cases) {
+      mockProjection.mockReturnValue({
+        data: { spend_health: { good: true, surplus_deficit_cents: cents } },
+      });
+      const { unmount } = render(<OverviewCards budgetId="b1" />);
+      expect(screen.getByTestId("spend-surplus-deficit").style.color).toBe(
+        color,
+      );
+      unmount();
+    }
   });
 
   it("shows the reserves ok/short/surplus indicator (item 3)", () => {
