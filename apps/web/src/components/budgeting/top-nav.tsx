@@ -43,15 +43,17 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
     getServerSession(),
   ]);
   return (
-    <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-2 px-4 sm:px-8">
+    <div className="relative mx-auto flex h-16 max-w-[1280px] items-center gap-2 px-4 sm:px-8">
       {/* Brand — fixed width, never shrinks. r35: ?list=1 forces the budget
           LISTING (bypasses the last-budget auto-open) when there's >1 budget; a
           single-budget user still lands on that budget's overview. */}
       <BrandMark href={`/${locale}?list=1`} />
       {/* Switcher takes the slack and TRUNCATES so the offline pill + avatar on
           the right are never pushed off-screen (min-w-0 lets the flex child
-          shrink below its content width). */}
-      <div className="min-w-0 flex-1">
+          shrink below its content width). Mobile: absolutely centred on the header
+          bar (true centre, independent of the asymmetric brand/avatar widths);
+          desktop keeps the in-flow flex-1 left alignment. */}
+      <div className="min-w-0 flex-1 max-sm:absolute max-sm:left-1/2 max-sm:flex-none max-sm:-translate-x-1/2">
         <BudgetSwitcher
           budgets={budgets}
           activeBudgetId={activeBudgetId}
@@ -61,7 +63,9 @@ export async function TopNav({ locale, activeBudgetId }: TopNavProps) {
       {/* Right cluster — fixed, always fully visible at the right edge. The
           offline indicator is no longer here — it's a full-width red staleness
           bar mounted below the header in the (app) layout (OfflineStaleBar). */}
-      <div className="flex shrink-0 items-center gap-2">
+      {/* max-sm:ml-auto keeps the avatar pinned right on mobile, where the centred
+          switcher is absolutely positioned (out of flow) and no longer spaces it. */}
+      <div className="flex shrink-0 items-center gap-2 max-sm:ml-auto">
         {session?.user && (
           <ProfileMenu
             locale={locale}
