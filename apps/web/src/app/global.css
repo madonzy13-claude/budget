@@ -172,9 +172,10 @@
     --body-on-dark: #eaecef;
     --on-dark: #ffffff;
     --muted-strong: #929aa5;
-    /* Top-nav budget-switcher label: muted grey in BOTH themes (matches the card
-       labels like "Spent"). --muted-foreground is the same #707a8a light or dark. */
-    --nav-budget-header: var(--muted-foreground);
+    /* Top-nav budget-switcher label: white on the dark canvas; flips to the muted
+       grey in the light scope (matches the "Spent" card label) where near-black
+       reads too heavy on the pale header. */
+    --nav-budget-header: var(--on-dark);
 
     /* Trading */
     --trading-up: #0ecb81;
@@ -235,6 +236,8 @@
     /* Hero capitalization number matches the other card figures (near-black ink)
        in light — brand yellow #fcd535 washes out on the pale card. */
     --num-hero: var(--body-on-dark);
+    /* Budget-switcher label goes grey in light (matches the "Spent" card label). */
+    --nav-budget-header: var(--muted-foreground);
   }
 
   * {
