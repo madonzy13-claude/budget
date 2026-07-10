@@ -134,6 +134,10 @@
     --primary-disabled: #3a3a1f;
     --on-primary: #181a20;
     --primary-foreground: #181a20;
+    /* Hero number (Overview capitalization / net-worth figure): brand yellow on
+       the dark card; flips to the near-black body ink in the light scope below
+       (matches the other card numbers), because yellow washes out on the pale card. */
+    --num-hero: var(--primary);
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
@@ -168,6 +172,10 @@
     --body-on-dark: #eaecef;
     --on-dark: #ffffff;
     --muted-strong: #929aa5;
+    /* Top-nav budget-switcher label: prominent white on the dark canvas; flips to
+       the muted grey in the light scope (matches the card labels like "Spent")
+       because near-black reads too heavy on the pale header. */
+    --nav-budget-header: var(--on-dark);
 
     /* Trading */
     --trading-up: #0ecb81;
@@ -225,6 +233,11 @@
     --muted-strong: #707a8a;
     --muted-foreground: #707a8a;
     --primary-disabled: #f7e9a8;
+    /* Hero capitalization number matches the other card figures (near-black ink)
+       in light — brand yellow #fcd535 washes out on the pale card. */
+    --num-hero: var(--body-on-dark);
+    /* Budget-switcher label goes grey in light (matches the "Spent" card label). */
+    --nav-budget-header: var(--muted-foreground);
   }
 
   * {

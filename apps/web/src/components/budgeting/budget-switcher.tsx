@@ -111,7 +111,7 @@ export function BudgetSwitcher({
         <button
           type="button"
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--on-dark)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--nav-budget-header)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
         >
           {/* Kind glyph: single User for PRIVATE, Users (couple) for
               SHARED. Both glyphs ride at --muted-foreground so the
