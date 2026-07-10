@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useNavRouter } from "@/components/common/nav-pending";
 import { useTranslations } from "next-intl";
@@ -122,15 +123,31 @@ export function BudgetSwitcher({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {/* Mobile-only: a full-width, header-tall invisible anchor so `align=center`
-          centres the dropdown on the viewport (not under the left-side trigger).
-          Its bottom edge sits at the header bottom so the menu still drops below
-          the bar. Absent on desktop → the content anchors to the trigger. */}
+      {/* Mobile-only: dim + blur the page behind the open dropdown. Rendered in a
+          body portal; the popper wrapper is lifted above it in global.css so the
+          menu itself stays sharp. Tapping it dismisses (same as outside-click). */}
+      {isMobile &&
+        open &&
+        createPortal(
+          <div
+            aria-hidden
+            onPointerDown={() => setOpen(false)}
+            className="fixed inset-0 z-[55] bg-black/25 backdrop-blur-sm"
+          />,
+          document.body,
+        )}
+      {/* Mobile-only: a full-width invisible anchor so `align=center` centres the
+          dropdown on the viewport (not under the left-side trigger). Its height
+          places the bottom edge at the trigger's bottom so the menu drops from the
+          same spot it did before centring. Absent on desktop → anchors to trigger. */}
       {isMobile && (
         <PopoverAnchor asChild>
           <div
             aria-hidden
-            className="pointer-events-none fixed inset-x-0 top-0 h-[calc(env(safe-area-inset-top,0px)+4rem)]"
+            // Height = safe-area inset + the trigger's row height, so the anchor's
+            // bottom tracks the trigger bottom on notched devices too (the header
+            // is pushed down by env(safe-area-inset-top)). ~48px on a plain browser.
+            className="pointer-events-none fixed inset-x-0 top-0 h-[calc(env(safe-area-inset-top,0px)+3rem)]"
           />
         </PopoverAnchor>
       )}
@@ -180,7 +197,7 @@ export function BudgetSwitcher({
         // is pinned outside the scroll region so it's never hidden below the fold.
         // --radix-popover-content-available-height is the space between the
         // trigger and the viewport edge; min() keeps a sensible ceiling.
-        className="z-[60] flex max-h-[min(70dvh,var(--radix-popover-content-available-height,70dvh))] min-w-[256px] flex-col p-0"
+        className="bs-switcher-content z-[60] flex max-h-[min(70dvh,var(--radix-popover-content-available-height,70dvh))] min-w-[256px] flex-col p-0"
         // UAT-PH5-T3-31: skip auto-focus on open. Radix's default focused
         // the first row, which surfaced a blue focus ring on the first
         // budget item that read as "first item is selected". The

@@ -254,6 +254,13 @@
     display: none;
   }
 
+  /* Budget-switcher dropdown: keep the Radix popper wrapper above the mobile blur
+     backdrop (a fixed z-55 overlay) so the menu itself stays sharp while the page
+     behind it blurs. !important beats Radix's inline wrapper z-index. */
+  [data-radix-popper-content-wrapper]:has(> .bs-switcher-content) {
+    z-index: 60 !important;
+  }
+
   html,
   body {
     background-color: var(--canvas-dark);
