@@ -70,6 +70,8 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     currentPriceCents:
       input.currentPriceCents != null ? String(input.currentPriceCents) : null,
     currentPriceCurrency: input.currentPriceCurrency ?? null,
+    // Optimistic row: the real fetch time arrives with the list refetch.
+    priceFetchedAt: null,
     valueCents,
     valueInBudgetCents: valueCents,
     profitLossPct: null,

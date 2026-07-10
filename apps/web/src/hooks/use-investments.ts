@@ -53,6 +53,9 @@ export interface HoldingDto {
   buyCurrency: string | null;
   currentPriceCents: string | null;
   currentPriceCurrency: string | null;
+  /** ISO time the auto-fetched price was last refreshed (hourly cron); null for
+   *  manual/cash holdings. Drives the "last updated" age in the holding sheet. */
+  priceFetchedAt: string | null;
   /** value in the holding's current-price currency (cents, string). */
   valueCents: string;
   /** value in the budget default currency (cents, string). */

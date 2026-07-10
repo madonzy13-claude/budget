@@ -139,6 +139,9 @@ export function listHoldings(deps: {
               ? null
               : h.currentPriceCents.toString(),
           currentPriceCurrency: h.currentPriceCurrency,
+          priceFetchedAt: h.priceFetchedAt
+            ? h.priceFetchedAt.toISOString()
+            : null,
           valueCents: value.toFixed(0),
           valueInBudgetCents: valueInBudget.toFixed(0),
           profitLossPct: profitLossPct(h, plRate),

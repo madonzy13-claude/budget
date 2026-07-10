@@ -73,7 +73,9 @@ export function fetchInstrumentPrice(deps: {
     userId: string;
     /** Convert the fetched price into this currency when set (metals: USD → ccy). */
     targetCurrency?: string;
-  }): Promise<Result<{ price: string; currency: string }, Error>> => {
+  }): Promise<
+    Result<{ price: string; currency: string; fetchedAt: Date }, Error>
+  > => {
     try {
       const inst = await deps.instrumentRepo.findById(input.instrumentId);
       if (!inst) return err(new Error("not_found"));
@@ -90,9 +92,14 @@ export function fetchInstrumentPrice(deps: {
       // rate-limit charge, so repeated lookups don't exhaust the shared quota.
       const cached = await deps.priceCacheRepo.lookup(input.instrumentId);
       if (cached && Date.now() - cached.fetchedAt.getTime() < CACHE_TTL_MS) {
-        return ok(
-          await convert(cached.price, cached.currency, input.targetCurrency),
-        );
+        return ok({
+          ...(await convert(
+            cached.price,
+            cached.currency,
+            input.targetCurrency,
+          )),
+          fetchedAt: cached.fetchedAt,
+        });
       }
 
       // Cache miss / stale → charge the per-user/minute counter, then fetch.
@@ -119,7 +126,12 @@ export function fetchInstrumentPrice(deps: {
         quote.price,
         currency,
       );
-      return ok(await convert(quote.price, currency, input.targetCurrency));
+      // Just fetched → the cache row's fetched_at is now(); surface it so the UI's
+      // "last updated" reads fresh right after an on-demand fetch.
+      return ok({
+        ...(await convert(quote.price, currency, input.targetCurrency)),
+        fetchedAt: new Date(),
+      });
     } catch (e) {
       return err(e as Error);
     }

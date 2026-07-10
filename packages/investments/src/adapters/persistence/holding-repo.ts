@@ -48,6 +48,7 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.manual_ticker as string | null) ?? null,
     (row.display_currency as string | null) ?? null,
     (row.premium_pct as string | null) ?? null,
+    row.price_fetched_at ? new Date(String(row.price_fetched_at)) : null,
   );
 }
 
@@ -187,6 +188,9 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                  -- may put current_price_currency in the price source's currency (a
                  -- metals cache row is USD); list-holdings FX-converts back into this.
                  inv.current_price_currency AS display_currency,
+                 -- When the auto-fetched price was last refreshed (hourly cron);
+                 -- surfaced so the UI shows the real price age, not "just now".
+                 c.fetched_at AS price_fetched_at,
                  COALESCE(i.symbol, inv.manual_ticker) AS symbol, i.provider AS provider
             FROM budgeting.investments inv
             LEFT JOIN budgeting.instrument_price_cache c

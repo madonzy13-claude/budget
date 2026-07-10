@@ -133,6 +133,9 @@ export interface EnrichedHoldingDto {
   buyCurrency: string | null;
   currentPriceCents: string | null;
   currentPriceCurrency: string | null;
+  /** ISO time the auto-fetched price was last refreshed (hourly cron); null for
+   *  manual/cash holdings or no cache row. Lets the UI show the real price age. */
+  priceFetchedAt: string | null;
   /** value in the holding's current-price currency (cents, string). */
   valueCents: string;
   /** value in the budget default currency (cents, string). */

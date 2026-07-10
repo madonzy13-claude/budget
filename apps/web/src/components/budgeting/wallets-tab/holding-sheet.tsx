@@ -15,7 +15,7 @@
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
 import { useMemo, useRef, useState } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useTranslations, useLocale, useFormatter } from "next-intl";
 import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   Sheet,
@@ -112,6 +112,7 @@ export function HoldingSheet({
   holding,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
+  const fmt = useFormatter();
   const createMut = useCreateHolding(budgetId);
   const updateMut = useUpdateHolding(budgetId);
 
@@ -161,6 +162,12 @@ export function HoldingSheet({
   );
   const [currentPriceCurrency, setCurrentPriceCurrency] = useState(
     holding?.currentPriceCurrency ?? budgetCurrency,
+  );
+  // ISO time the shown auto-price was fetched (hourly cache), for the "last
+  // updated" age. Seeded from the holding on open; refreshed on each on-demand
+  // fetch below. null → no known time (renders "just now").
+  const [priceFetchedAt, setPriceFetchedAt] = useState<string | null>(
+    holding?.priceFetchedAt ?? null,
   );
   const [group, setGroup] = useState<string | null>(holding?.group ?? null);
   const [metal, setMetal] = useState<Metal>(
@@ -240,6 +247,7 @@ export function HoldingSheet({
         priceCents?: string | number;
         price?: string | number;
         currency?: string;
+        fetchedAt?: string;
       };
       const cents =
         json.priceCents != null
@@ -249,6 +257,7 @@ export function HoldingSheet({
             : null;
       if (cents != null) setCurrentPrice(centsToDecimal(cents));
       if (json.currency) setCurrentPriceCurrency(json.currency);
+      if (json.fetchedAt) setPriceFetchedAt(json.fetchedAt);
     } catch {
       setPriceBlocked(true);
     } finally {
@@ -351,6 +360,19 @@ export function HoldingSheet({
     }
     return currentPrice;
   }, [currentPrice, behavior, uom]);
+
+  // "Last updated" age for the auto-fetched price. < 1 min reads "just now"
+  // (avoids a jittery "12 seconds ago"); older uses next-intl relative time
+  // ("15 minutes ago"). Prices refresh on the hourly cron, so this is usually
+  // minutes/up to an hour — NOT always "just now" (the previous hardcoded value).
+  const priceRelative = useMemo(() => {
+    if (!priceFetchedAt) return t("field.now");
+    const at = new Date(priceFetchedAt);
+    if (Number.isNaN(at.getTime())) return t("field.now");
+    return Date.now() - at.getTime() < 60_000
+      ? t("field.now")
+      : fmt.relativeTime(at);
+  }, [priceFetchedAt, fmt, t]);
 
   // Live "what will be created" sum-up (all types) — buy/current totals, premium,
   // P/L. buy + current currency are kept lock-step in this form, so it is single-
@@ -871,7 +893,7 @@ export function HoldingSheet({
                     />
                     {/* When the price was fetched. */}
                     <p className="text-caption text-[var(--muted-foreground)]">
-                      {t("field.lastUpdated", { relativeTime: t("field.now") })}
+                      {t("field.lastUpdated", { relativeTime: priceRelative })}
                     </p>
                   </div>
                 )}

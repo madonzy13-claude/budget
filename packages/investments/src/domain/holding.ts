@@ -86,6 +86,11 @@ export class Holding {
      *  already carries the user's acquisition premium. null/"" = no premium
      *  (melt/spot value). big.js-precision string. */
     public premiumPct: string | null = null,
+    /** When the auto-fetched price was last refreshed (instrument_price_cache
+     *  fetched_at, set by the hourly price cron); null for manual/cash holdings or
+     *  when there's no cache row yet. Surfaced so the UI shows the real price age
+     *  instead of a hardcoded "just now". */
+    public readonly priceFetchedAt: Date | null = null,
   ) {}
 
   /** cash_fx holdings are valued by amount (no quantity x price) and have no P/L. */
