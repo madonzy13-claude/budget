@@ -129,8 +129,7 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
     setTheme(next);
     applyTheme(next);
     persistTheme(next);
-    // Keep the menu open: the toggle flips dark/light in place (no nav) and
-    // the item's icon/label swap to the new target mode (see comment below).
+    setOpen(false); // Close the menu after switching theme (applies in place).
   }
 
   // Outside click closes the menu. The check runs on `pointerdown` so a
