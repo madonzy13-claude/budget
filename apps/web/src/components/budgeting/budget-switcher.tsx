@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useNavRouter } from "@/components/common/nav-pending";
 import { useTranslations } from "next-intl";
 import { ChevronDown, Plus, User, Users } from "lucide-react";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -61,6 +62,20 @@ export function BudgetSwitcher({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // Mobile centers the dropdown on the viewport instead of anchoring it under the
+  // (left-of-centre) trigger. We render a full-width PopoverAnchor across the
+  // header row and switch align→center; desktop keeps the trigger anchor + start.
+  // SSR starts false (= desktop layout); the menu only opens on click, long after
+  // this mount effect resolves, so there's no hydration flash.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   // UAT-PH5-T3-13: "selected" means the user is currently inside that
   // budget's page (URL carries its UUID). On the home page there is no
   // active budget — the trigger collapses to the chevron with no text and
@@ -107,6 +122,18 @@ export function BudgetSwitcher({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      {/* Mobile-only: a full-width, header-tall invisible anchor so `align=center`
+          centres the dropdown on the viewport (not under the left-side trigger).
+          Its bottom edge sits at the header bottom so the menu still drops below
+          the bar. Absent on desktop → the content anchors to the trigger. */}
+      {isMobile && (
+        <PopoverAnchor asChild>
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-x-0 top-0 h-[calc(env(safe-area-inset-top,0px)+4rem)]"
+          />
+        </PopoverAnchor>
+      )}
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -147,7 +174,7 @@ export function BudgetSwitcher({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        align="start"
+        align={isMobile ? "center" : "start"}
         // 260618: cap height so a long budget list (many budgets) doesn't
         // overflow past the viewport. The LIST scrolls; the "Create budget" row
         // is pinned outside the scroll region so it's never hidden below the fold.
