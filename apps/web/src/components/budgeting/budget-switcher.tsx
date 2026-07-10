@@ -172,7 +172,7 @@ export function BudgetSwitcher({
           type="button"
           data-bs-trigger
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--nav-budget-header)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--nav-budget-header)] outline-none transition-colors hover:bg-[var(--surface-elevated-dark)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas-dark)]"
         >
           {/* Kind glyph: single User for PRIVATE, Users (couple) for
               SHARED. Both glyphs ride at --muted-foreground so the
