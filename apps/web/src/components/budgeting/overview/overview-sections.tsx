@@ -63,16 +63,33 @@ export function OverviewSections({
   const [stickyTop, setStickyTop] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Mirror OverviewTab's scroll ownership: the inner box scrolls in standalone AND
+  // on desktop (≥sm); only mobile browser (<sm) uses native page-scroll.
+  const [useBox, setUseBox] = useState(false);
+  useEffect(() => {
+    const dm = window.matchMedia("(display-mode: standalone)");
+    const wide = window.matchMedia("(min-width: 640px)");
+    const update = () =>
+      setUseBox(
+        dm.matches ||
+          (navigator as { standalone?: boolean }).standalone === true ||
+          wide.matches,
+      );
+    update();
+    dm.addEventListener("change", update);
+    wide.addEventListener("change", update);
+    return () => {
+      dm.removeEventListener("change", update);
+      wide.removeEventListener("change", update);
+    };
+  }, []);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    // Match OverviewTab's scroll-ownership split deterministically (not via the
-    // ambiguous overflow computed-value): standalone → the box is the scroller;
-    // browser → page-scroll, pin below the band.
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as { standalone?: boolean }).standalone === true;
-    const scroller = standalone ? scrollParentOf(el) : null;
+    // The inner box (standalone/desktop) is the scroller → the range pins to its
+    // top (0); mobile browser page-scrolls → pin below the sticky header + band.
+    const scroller = useBox ? scrollParentOf(el) : null;
     let raf = 0;
 
     if (!scroller) {
@@ -121,6 +138,9 @@ export function OverviewSections({
       };
     }
 
+    // Inner-box scroller: the box top already sits below the sticky header + band,
+    // so the range pins to the box top (0), NOT the page-scroll header+band offset.
+    setStickyTop(0);
     const measure = () => {
       raf = 0;
       setPinned(
@@ -139,7 +159,7 @@ export function OverviewSections({
       window.removeEventListener("resize", onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [useBox]);
 
   return (
     <div className="flex flex-col gap-3" data-testid="overview-sections">
