@@ -7,10 +7,22 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
 
-const { mockPush, mockRefresh, mockArchive } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockRefresh: vi.fn(),
-  mockArchive: vi.fn().mockResolvedValue({ ok: true }),
+const { mockPush, mockRefresh, mockArchive, mockSetQueryData, mockInvalidate } =
+  vi.hoisted(() => ({
+    mockPush: vi.fn(),
+    mockRefresh: vi.fn(),
+    mockArchive: vi.fn().mockResolvedValue({ ok: true }),
+    mockSetQueryData: vi.fn(),
+    mockInvalidate: vi.fn(),
+  }));
+
+// react-query mock — the component reads useQueryClient to drop the deleted
+// budget from the home list cache (the infinite-loop fix).
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({
+    setQueryData: mockSetQueryData,
+    invalidateQueries: mockInvalidate,
+  }),
 }));
 
 // next-intl mock
@@ -142,5 +154,36 @@ describe("DangerZoneSection — owner/non-owner controls + typed-name gate (SETT
     // switcher drops the archived budget instead of showing it stale.
     await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
     expect(mockPush.mock.calls[0]?.[0]).toBe("/");
+  });
+
+  it("drops the deleted budget from the home cache + last-visited so the sole-budget delete lands on the empty hero, not an infinite loop", async () => {
+    mockSetQueryData.mockClear();
+    mockInvalidate.mockClear();
+    window.localStorage.setItem("last-budget-id", "budget-1");
+
+    render(<DangerZoneSection {...ownerProps} />);
+    fireEvent.click(screen.getByText("danger.delete_button"));
+    fireEvent.change(screen.getByTestId("delete-confirm-input"), {
+      target: { value: "Family Budget" },
+    });
+    fireEvent.click(screen.getByText("danger.delete_confirm"));
+
+    await waitFor(() => expect(mockSetQueryData).toHaveBeenCalled());
+    const [key, updater] = mockSetQueryData.mock.calls[0] as [
+      unknown,
+      (old: { id: string }[]) => { id: string }[],
+    ];
+    expect(key).toEqual(["active-budgets"]);
+    // The updater removes the deleted budget — so the SOLE budget becomes [] and
+    // the home page renders the empty hero instead of re-opening the dead budget.
+    expect(updater([{ id: "budget-1" }])).toEqual([]);
+    expect(updater([{ id: "budget-1" }, { id: "keep" }])).toEqual([
+      { id: "keep" },
+    ]);
+    expect(mockInvalidate).toHaveBeenCalledWith({
+      queryKey: ["active-budgets"],
+    });
+    // last-visited pointing at the deleted budget is cleared.
+    expect(window.localStorage.getItem("last-budget-id")).toBeNull();
   });
 });

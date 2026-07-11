@@ -9,9 +9,12 @@
  * Last-owner Leave button is disabled + tooltip.
  */
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useNavRouter } from "@/components/common/nav-pending";
+import { LAST_BUDGET_KEY } from "@/lib/last-budget";
+import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -48,8 +51,28 @@ export function DangerZoneSection({
 }: DangerZoneSectionProps) {
   const t = useTranslations("settings");
   const router = useNavRouter();
+  const qc = useQueryClient();
   const [confirmName, setConfirmName] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // After delete/leave, drop this budget from the home list cache so the home
+  // page sees the real remaining set immediately. Without this the stale
+  // ["active-budgets"] cache still shows it as the only budget → the home
+  // auto-open redirects to the now-archived budget → its page bounces back to
+  // home → infinite loop. With it, zero budgets renders the "create your first
+  // budget" empty hero. Also forget it as the last-visited budget.
+  const dropFromHomeCache = () => {
+    qc.setQueryData<BudgetSummary[]>(["active-budgets"], (old) =>
+      (old ?? []).filter((b) => b.id !== budgetId),
+    );
+    void qc.invalidateQueries({ queryKey: ["active-budgets"] });
+    if (
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(LAST_BUDGET_KEY) === budgetId
+    ) {
+      window.localStorage.removeItem(LAST_BUDGET_KEY);
+    }
+  };
 
   /**
    * Delete-as-archive: the typed-name confirmation is preserved (so we keep
@@ -73,6 +96,7 @@ export function DangerZoneSection({
       });
       if (!res.ok) throw new Error("Failed to archive budget");
       toast.success(t("danger.deleted_toast"));
+      dropFromHomeCache();
       // 260618: the header BudgetSwitcher list is an SSR prop from the (app)
       // layout (GET /budgets/active). A soft push alone reuses the cached layout
       // RSC, so the just-archived budget lingered in the dropdown. refresh()
@@ -98,6 +122,7 @@ export function DangerZoneSection({
       }
       if (!res.ok) throw new Error("Failed to leave budget");
       toast.success(t("danger.left_toast"));
+      dropFromHomeCache();
       // Same SSR-staleness fix as delete: refetch the (app) layout's budget list
       // so the left budget drops out of the header switcher immediately.
       router.push("/");
