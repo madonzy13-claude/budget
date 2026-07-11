@@ -3,11 +3,16 @@ import { render, screen, act } from "@testing-library/react";
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
 import { BdpUiStateProvider } from "@/components/budgeting/bdp-ui-state";
 
-// next-intl: passthrough that returns the key (aria-labels compare by key path).
-vi.mock("next-intl", () => ({
-  useTranslations: () => (k: string) => k,
-  useLocale: () => "en",
-}));
+// next-intl: passthrough t() returns the key; t.rich() invokes the amt-tag
+// callback with the amount so the redaction path is exercised in tests.
+vi.mock("next-intl", () => {
+  const t = (k: string) => k;
+  (t as unknown as { rich: unknown }).rich = (
+    _k: string,
+    values?: Record<string, (v: unknown) => unknown> & { amount?: unknown },
+  ) => (values?.amt ? values.amt(values.amount) : _k);
+  return { useTranslations: () => t, useLocale: () => "en" };
+});
 
 const DATA = {
   default_currency: "USD",
@@ -62,27 +67,28 @@ const heroText = () =>
 describe("Overview amount privacy", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("starts hidden: masked figure (bullets, no digits) + Show-amounts eye", () => {
+  it("starts hidden: redaction bars cover the figures + Show-amounts eye", () => {
     renderCards();
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
     expect(screen.getByTestId("privacy-toggle").getAttribute("aria-label")).toBe(
       "cards.privacyShow",
     );
-    // Capitalization is masked: bullets present, no real digits leak.
-    expect(heroText()).toContain("•");
+    // Figures are covered by redaction bars; no real digits leak into the DOM.
+    expect(screen.getAllByTestId("redaction-bar").length).toBeGreaterThan(0);
     expect(heroText()).not.toMatch(/\d/);
   });
 
-  it("reveals the real amount on click and re-masks on a second click", () => {
+  it("reveals the real amount on click and re-covers on a second click", () => {
     renderCards();
     const btn = screen.getByTestId("privacy-toggle");
     act(() => btn.click());
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("false");
     expect(btn.getAttribute("aria-label")).toBe("cards.privacyHide");
-    expect(heroText()).not.toContain("•");
+    expect(screen.queryAllByTestId("redaction-bar")).toHaveLength(0);
+    expect(heroText()).toMatch(/\d/);
     act(() => btn.click());
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
     expect(btn.getAttribute("aria-label")).toBe("cards.privacyShow");
-    expect(heroText()).toContain("•");
+    expect(screen.getAllByTestId("redaction-bar").length).toBeGreaterThan(0);
   });
 });

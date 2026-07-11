@@ -60,6 +60,23 @@ function CardLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Redaction bar — a solid rounded block that covers a hidden amount. Inherits the
+ * figure's font (em-relative height) and is sized to the real figure's character
+ * count (`ch`) so revealing/hiding doesn't shift the layout. Used for the privacy
+ * toggle instead of a blur (a `filter` on the card breaks the capitalization flip).
+ */
+function RedactionBar({ chars }: { chars: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="redaction-bar"
+      className="inline-block max-w-full translate-y-[-0.06em] rounded-[var(--radius-sm)] bg-[var(--surface-elevated-dark)] align-middle"
+      style={{ width: `${Math.max(2, chars)}ch`, height: "0.7em" }}
+    />
+  );
+}
+
+/**
  * Cushion runway as years/months/days, dropping any zero component (UAT round,
  * Phase 11): 0 → "0d", 6 months → "6m", 5 months 3 days → "5m 3d", 15 months →
  * "1y 3m". 30.44 = mean days/month; a fraction that rounds to a full month carries
@@ -175,22 +192,15 @@ export function OverviewCards({
   const fmtMoney = (cents: string) => centsToDisplayCompact(cents, ccy, "en", true);
   const fmtRounded = (cents: string) =>
     centsToRounded(cents, ccy, "en", true);
-  // Privacy mask: when hidden, keep the currency sign + separators but replace
-  // every digit with a bullet ("$1,234" → "$•,•••"), so a hidden amount reads as
-  // an intentional placeholder. Masking (vs blur) leaves NO `filter` on the card,
-  // which is what defeated the capitalization flip's backface-visibility.
+  // Privacy: when hidden, every figure is covered by a REDACTION BAR (a solid
+  // rounded block sized to the real figure so the layout doesn't jump) instead of
+  // the number. A bar (vs blur) leaves NO `filter` on the card, which is what
+  // defeated the capitalization flip's backface-visibility.
   const hide = !revealed;
-  const mask = (s: string) => s.replace(/\d/g, "•");
-  // String formatters (for interpolated sentences) — masked when hidden.
-  const money = (cents: string) =>
-    hide ? mask(fmtMoney(cents)) : fmtMoney(cents);
-  const rounded = (cents: string) =>
-    hide ? mask(fmtRounded(cents)) : fmtRounded(cents);
-  // Node formatters — count-tween when revealed; a static masked span when hidden
-  // (no tween on a placeholder).
+  // Node formatters — count-tween when revealed; a redaction bar when hidden.
   const animMoney = (cents: string) =>
     hide ? (
-      <span className="num">{mask(fmtMoney(cents))}</span>
+      <RedactionBar chars={fmtMoney(cents).length} />
     ) : (
       <AnimatedFigure
         value={Number(cents)}
@@ -199,7 +209,7 @@ export function OverviewCards({
     );
   const animRounded = (cents: string) =>
     hide ? (
-      <span className="num">{mask(fmtRounded(cents))}</span>
+      <RedactionBar chars={fmtRounded(cents).length} />
     ) : (
       <AnimatedFigure
         value={Number(cents)}
@@ -320,9 +330,19 @@ export function OverviewCards({
                     </p>
                     {hasInvestments && (
                       <p className="text-caption text-[var(--muted-foreground)]">
-                        {t("cards.capitalizationSub", {
+                        {t.rich("cards.capitalizationSub", {
                           // No cents — match the hero capitalization number.
-                          amount: rounded(data.investment_value_cents),
+                          amount: fmtRounded(data.investment_value_cents),
+                          amt: (chunks) =>
+                            hide ? (
+                              <RedactionBar
+                                chars={
+                                  fmtRounded(data.investment_value_cents).length
+                                }
+                              />
+                            ) : (
+                              <>{chunks}</>
+                            ),
                         })}
                       </p>
                     )}
@@ -352,9 +372,12 @@ export function OverviewCards({
                           />
                         )}
                         {hide ? (
-                          mask(
-                            `${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`,
-                          )
+                          <RedactionBar
+                            chars={
+                              `${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`
+                                .length
+                            }
+                          />
                         ) : (
                           <AnimatedFigure
                             value={pl.delta_pct}
@@ -512,13 +535,23 @@ export function OverviewCards({
               </span>
             </p>
             <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
-              {t(
+              {t.rich(
                 data.reserves.status === "surplus"
                   ? "cards.reservesSurplusNote"
                   : data.reserves.status === "short"
                     ? "cards.reservesShortNote"
                     : "cards.reservesOkNote",
-                { amount: money(data.reserves.required_cents) },
+                {
+                  amount: fmtMoney(data.reserves.required_cents),
+                  amt: (chunks) =>
+                    hide ? (
+                      <RedactionBar
+                        chars={fmtMoney(data.reserves.required_cents).length}
+                      />
+                    ) : (
+                      <>{chunks}</>
+                    ),
+                },
               )}
             </p>
           </section>
@@ -536,7 +569,7 @@ export function OverviewCards({
                   className="size-4 shrink-0 text-[var(--trading-up)]"
                   aria-hidden="true"
                 />
-                {money("0")}
+                {animMoney("0")}
               </p>
               <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
                 {t("cards.overspentMotivation")}
@@ -585,7 +618,11 @@ export function OverviewCards({
               )}
               <span className="truncate">
                 {hide ? (
-                  mask(formatRunway(data.cushion.real_months, runwayUnits))
+                  <RedactionBar
+                    chars={
+                      formatRunway(data.cushion.real_months, runwayUnits).length
+                    }
+                  />
                 ) : (
                   <AnimatedFigure
                     value={data.cushion.real_months}
