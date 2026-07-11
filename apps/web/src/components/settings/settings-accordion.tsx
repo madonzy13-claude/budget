@@ -45,6 +45,8 @@ export interface SettingsBudget {
   investmentsEnabled?: boolean;
   /** D-PH5-R11: gates the Reserves tab + every reserves item on the Overview. */
   reservesEnabled?: boolean;
+  /** r36: gates the Overview page/pill. Default true. */
+  overviewEnabled?: boolean;
   hasTransactions: boolean;
   currentUserRole: "owner" | "member";
 }
@@ -173,6 +175,8 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
               name={budget.name}
               defaultCurrency={budget.defaultCurrency}
               hasTransactions={budget.hasTransactions}
+              overviewEnabled={budget.overviewEnabled ?? true}
+              isOwner={isOwner}
             />
           </AccordionContent>
         </AccordionItem>

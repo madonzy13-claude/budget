@@ -245,6 +245,11 @@
       "name_saved": "Назву бюджету збережено",
       "currency_label": "Валюта",
       "currency_saved": "Валюту оновлено",
+"overview_label": "Сторінка огляду",
+"overview_hint": "Показувати вкладку огляду для цього бюджету.",
+"overview_on_toast": "Сторінку огляду показано",
+"overview_off_toast": "Сторінку огляду сховано",
+"overview_error": "Не вдалося оновити налаштування огляду",
       "currency_locked_tooltip": "Валюта заблокована після першої транзакції"
     },
     "cushion": {

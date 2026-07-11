@@ -36,11 +36,12 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         reserves_enabled: boolean;
         cushion_enabled: boolean;
         investments_enabled: boolean;
+        overview_enabled: boolean;
         // Migration 0027: column is numeric(4,1); pg returns numeric as
         // string. Caller parses to number.
         cushion_target_months: string | number | null;
       }>(
-        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, investments_enabled, cushion_target_months
+        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, investments_enabled, overview_enabled, cushion_target_months
             FROM tenancy.budgets WHERE id = ${id}`,
       );
       return result.rows[0] ?? null;
@@ -61,6 +62,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       reservesEnabled: row.reserves_enabled ?? true,
       cushionEnabled: row.cushion_enabled ?? true,
       investmentsEnabled: row.investments_enabled ?? false,
+      overviewEnabled: row.overview_enabled ?? true,
       cushionTargetMonths:
         row.cushion_target_months == null
           ? 6
@@ -243,6 +245,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       reservesEnabled?: boolean;
       cushionEnabled?: boolean;
       investmentsEnabled?: boolean;
+      overviewEnabled?: boolean;
       // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33): cushion target months —
       // multiplier for category cushion_amount in the cushion summary math.
       // Range 1..60 enforced at API (Zod) AND DB (CHECK constraint via
@@ -286,6 +289,13 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         // upstream in the budget-identity route.
         await tx.execute(
           sql`UPDATE tenancy.budgets SET investments_enabled = ${patch.investmentsEnabled} WHERE id = ${budgetId}::uuid`,
+        );
+      }
+      if (patch.overviewEnabled !== undefined) {
+        // r36: Overview page global toggle. Boolean only; hides the Overview
+        // pill. Owner gate enforced upstream in the budget-identity route.
+        await tx.execute(
+          sql`UPDATE tenancy.budgets SET overview_enabled = ${patch.overviewEnabled} WHERE id = ${budgetId}::uuid`,
         );
       }
       if (patch.cushionTargetMonths !== undefined) {

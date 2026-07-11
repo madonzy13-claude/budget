@@ -186,6 +186,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       reservesEnabled: budget.reservesEnabled ?? true,
       cushionEnabled: budget.cushionEnabled ?? true,
       investmentsEnabled: budget.investmentsEnabled ?? false,
+      overviewEnabled: budget.overviewEnabled ?? true,
       cushionTargetMonths: budget.cushionTargetMonths ?? 6,
       hasTransactions,
       currentUserRole,

@@ -179,12 +179,18 @@ export function BudgetDetail({
         reserves_enabled?: boolean;
         investmentsEnabled?: boolean;
         investments_enabled?: boolean;
+        overviewEnabled?: boolean;
+        overview_enabled?: boolean;
       }
     | undefined;
   const reservesOn =
     liveBudget?.reservesEnabled ??
     liveBudget?.reserves_enabled ??
     reservesEnabled;
+  // r36: Overview page flag (live from useBudget the Settings → General toggle
+  // invalidates) → hides the Overview pill + falls back off a direct /overview.
+  const overviewOn =
+    liveBudget?.overviewEnabled ?? liveBudget?.overview_enabled ?? true;
   // No server prop for investments (Overview-only) — read live from the same
   // useBudget query the Settings → Investments toggle invalidates, so the
   // "incl. investments" sub-line + the wealth view toggle react without a reload.
@@ -246,6 +252,13 @@ export function BudgetDetail({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // r36: Overview disabled while it's the active tab (direct /overview URL, or the
+  // user just turned it off in Settings) → fall back to Wallets so no hidden pill
+  // is left selected.
+  useEffect(() => {
+    if (!overviewOn && activeTab === "overview") select("wallets");
+  }, [overviewOn, activeTab, select]);
+
   return (
     <BdpUiStateProvider>
       {/* Sticky pills band — same wrapper/testid/attrs as the old BudgetShellData
@@ -261,6 +274,7 @@ export function BudgetDetail({
           activeTab={activeTab}
           onSelect={select}
           reservesEnabled={reservesOn}
+          overviewEnabled={overviewOn}
           initialTasks={initialTasks}
         />
       </div>

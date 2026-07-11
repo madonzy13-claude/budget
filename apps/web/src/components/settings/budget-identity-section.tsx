@@ -11,9 +11,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api-client";
 
 export interface BudgetIdentitySectionProps {
@@ -21,6 +23,10 @@ export interface BudgetIdentitySectionProps {
   name: string;
   defaultCurrency: string;
   hasTransactions: boolean;
+  /** r36: current Overview-page flag; the toggle hides/shows the Overview pill. */
+  overviewEnabled?: boolean;
+  /** Only owners may flip the flag (mirrors the API owner-gate). */
+  isOwner?: boolean;
 }
 
 export function BudgetIdentitySection({
@@ -28,9 +34,39 @@ export function BudgetIdentitySection({
   name,
   defaultCurrency,
   hasTransactions,
+  overviewEnabled = true,
+  isOwner = true,
 }: BudgetIdentitySectionProps) {
   const t = useTranslations("settings");
   const router = useRouter();
+  const qc = useQueryClient();
+
+  // Overview-page toggle (r36). Optimistic flip + PATCH; invalidate the
+  // budget-detail query so BdpTabs shows/hides the Overview pill without a reload.
+  const [overviewOn, setOverviewOn] = useState(overviewEnabled);
+  const [savingOverview, setSavingOverview] = useState(false);
+  useEffect(() => setOverviewOn(overviewEnabled), [overviewEnabled]);
+
+  const saveOverview = async (checked: boolean) => {
+    setOverviewOn(checked);
+    setSavingOverview(true);
+    try {
+      const res = await api.budgets[":id"].$patch({
+        param: { id: budgetId },
+        json: { overview_enabled: checked },
+      });
+      if (!res.ok) throw new Error("Failed to update overview flag");
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
+      toast.success(
+        checked ? t("identity.overview_on_toast") : t("identity.overview_off_toast"),
+      );
+    } catch {
+      setOverviewOn(!checked);
+      toast.error(t("identity.overview_error"));
+    } finally {
+      setSavingOverview(false);
+    }
+  };
 
   // Optimistic display name so the inline cell shows the new value
   // immediately after blur, while router.refresh() asynchronously syncs the
@@ -143,6 +179,25 @@ export function BudgetIdentitySection({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Overview page toggle (r36) — hides the Overview pill when off. */}
+      <div className="flex items-center justify-between gap-4 py-3">
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-sm font-semibold text-[var(--body)]">
+            {t("identity.overview_label")}
+          </p>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {t("identity.overview_hint")}
+          </p>
+        </div>
+        <Switch
+          data-testid="overview-enabled-switch"
+          checked={overviewOn}
+          onCheckedChange={saveOverview}
+          disabled={savingOverview || !isOwner}
+          aria-label={t("identity.overview_label")}
+        />
       </div>
     </div>
   );

@@ -245,6 +245,11 @@
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
       "currency_saved": "Waluta zaktualizowana",
+"overview_label": "Strona przeglądu",
+"overview_hint": "Pokaż kartę przeglądu (Overview) dla tego budżetu.",
+"overview_on_toast": "Strona przeglądu włączona",
+"overview_off_toast": "Strona przeglądu ukryta",
+"overview_error": "Nie udało się zaktualizować ustawienia przeglądu",
       "currency_locked_tooltip": "Waluta zablokowana po pierwszej transakcji"
     },
     "cushion": {

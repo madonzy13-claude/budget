@@ -245,6 +245,11 @@
       "name_saved": "Budget name saved",
       "currency_label": "Currency",
       "currency_saved": "Currency updated",
+"overview_label": "Overview page",
+"overview_hint": "Show the Overview dashboard tab for this budget.",
+"overview_on_toast": "Overview page shown",
+"overview_off_toast": "Overview page hidden",
+"overview_error": "Couldn't update the Overview setting",
       "currency_locked_tooltip": "Currency locked after first transaction"
     },
     "cushion": {
