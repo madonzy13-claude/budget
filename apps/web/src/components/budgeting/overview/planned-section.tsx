@@ -77,7 +77,7 @@ export function PlannedSection({
   const ccy = data?.currency ?? "USD";
   const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en");
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
 
   return (
     <OverviewSection

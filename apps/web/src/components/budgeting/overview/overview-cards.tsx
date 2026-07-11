@@ -162,10 +162,11 @@ export function OverviewCards({
   }
 
   const ccy = data.default_currency;
-  // Overview money always renders with the EN locale so the currency symbol ($,
-  // €, …) shows instead of the ISO code (PL/UK render USD as "$", not "USD") and
-  // grouping matches the English surfaces (UAT round, item 6).
-  const money = (cents: string) => centsToDisplayCompact(cents, ccy, "en");
+  // Overview money always renders with the EN locale + narrow symbol so the SHORT
+  // currency sign shows ("$", "€", "zł", "₴") instead of the ISO code Intl falls
+  // back to for many currencies in `en` ("PLN"/"UAH"); grouping matches the English
+  // surfaces (UAT round, item 6).
+  const money = (cents: string) => centsToDisplayCompact(cents, ccy, "en", true);
   // Animated variants — the figure counts to its new value when data refreshes.
   const animMoney = (cents: string) => (
     <AnimatedFigure
@@ -176,7 +177,7 @@ export function OverviewCards({
   const animRounded = (cents: string) => (
     <AnimatedFigure
       value={Number(cents)}
-      format={(n) => centsToRounded(String(Math.round(n)), ccy)}
+      format={(n) => centsToRounded(String(Math.round(n)), ccy, "en", true)}
     />
   );
   // Localized cushion-runway unit suffixes (item 4): EN y/m/d, UK р/м/д, PL l/m/d.
@@ -255,7 +256,7 @@ export function OverviewCards({
                       className={cn(
                         "num",
                         heroFontClass(
-                          centsToRounded(data.capitalization_cents, ccy),
+                          centsToRounded(data.capitalization_cents, ccy, "en", true),
                         ),
                       )}
                     >
@@ -268,6 +269,8 @@ export function OverviewCards({
                           amount: centsToRounded(
                             data.investment_value_cents,
                             ccy,
+                            "en",
+                            true,
                           ),
                         })}
                       </p>

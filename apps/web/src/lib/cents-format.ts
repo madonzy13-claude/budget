@@ -110,6 +110,9 @@ export function centsToRounded(
   cents: string | bigint,
   currency: string,
   locale = "en",
+  // narrow=true → the shortest currency sign ("zł", "₴", "$") instead of the ISO
+  // code Intl falls back to for many currencies in `en` ("PLN" → "zł").
+  narrow = false,
 ): string {
   let big: bigint;
   try {
@@ -124,6 +127,7 @@ export function centsToRounded(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    currencyDisplay: narrow ? "narrowSymbol" : "symbol",
     maximumFractionDigits: 0,
   }).format(Number(neg ? -units : units));
 }

@@ -109,10 +109,10 @@ export function WealthSection({
   const fmtY = chartCompactCents;
   // Chart TOOLTIP (on tap): the FULL value WITH currency (r25 item 2).
   const fmtTooltip = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en");
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
   // Pie centre read-out: whole currency, NO cents (round to the nearest unit).
   const fmtPieValue = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n / 100) * 100), ccy, "en");
+    centsToDisplayCompact(BigInt(Math.round(n / 100) * 100), ccy, "en", true);
 
   // Capitalization pie: where the money sits — investments / spendings-wallets /
   // reserves-wallets / cushion. Sourced from the (already-prefetched) overview
@@ -211,7 +211,7 @@ export function WealthSection({
                           : "text-[var(--trading-down)]",
                       )}
                     >
-                      {centsToDisplayCompact(growth.delta_cents, ccy, "en")}
+                      {centsToDisplayCompact(growth.delta_cents, ccy, "en", true)}
                     </span>
                   </div>
                   <PctStat label={t("wealth.grow")} pct={growth.delta_pct} />
