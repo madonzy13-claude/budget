@@ -177,6 +177,26 @@ describe("RecurringRuleForm — Category mandatory (UAT-7 retest)", () => {
     expect(saveBtn).toBeDisabled();
   });
 
+  it("Save stays disabled for a budget rule even when categories haven't loaded yet (no category-less rule)", () => {
+    // Race: the categories query is still empty when the sheet opens. Gating on
+    // budgetId (not categories.length) keeps Save disabled so a category-less
+    // rule can't slip through before the list resolves.
+    render(
+      <RecurringRuleForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="create"
+        budgetId="bgt-1"
+        categories={[]}
+      />,
+    );
+    // Fill the name so only the missing category can keep Save disabled.
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: "Rent" },
+    });
+    expect(screen.getByRole("button", { name: /Save rule/i })).toBeDisabled();
+  });
+
   it("does NOT render a '(no category)' / clear option in the picker", () => {
     render(
       <RecurringRuleForm

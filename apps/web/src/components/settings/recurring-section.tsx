@@ -69,6 +69,10 @@ export function RecurringSection({
   const offlineToast = useOfflineWriteToast();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editRuleId, setEditRuleId] = useState<string | null>(null);
+  // Bumped on every open so the form REMOUNTS each time (create→create too), not
+  // just when switching rules. Without it, a second "Add" reuses the first add's
+  // useState values → the previous rule's name/amount/category leak in.
+  const [formNonce, setFormNonce] = useState(0);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -115,11 +119,13 @@ export function RecurringSection({
 
   const handleEdit = (id: string) => {
     setEditRuleId(id);
+    setFormNonce((n) => n + 1);
     setSheetOpen(true);
   };
 
   const handleAdd = () => {
     setEditRuleId(null);
+    setFormNonce((n) => n + 1);
     setSheetOpen(true);
   };
 
@@ -199,7 +205,7 @@ export function RecurringSection({
           set on first mount stuck around as the user clicked different
           rows. */}
       <RecurringRuleForm
-        key={editRuleId ?? "create"}
+        key={`${editRuleId ?? "create"}-${formNonce}`}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         mode={editRuleId ? "edit" : "create"}
