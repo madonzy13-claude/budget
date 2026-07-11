@@ -54,25 +54,35 @@ const renderCards = () =>
     </BdpUiStateProvider>,
   );
 
+const heroText = () =>
+  screen
+    .getByTestId("overview-card-capitalization")
+    .querySelector(".num")!.textContent ?? "";
+
 describe("Overview amount privacy", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("starts hidden (blurred) with a Show-amounts eye", () => {
+  it("starts hidden: masked figure (bullets, no digits) + Show-amounts eye", () => {
     renderCards();
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
     expect(screen.getByTestId("privacy-toggle").getAttribute("aria-label")).toBe(
       "cards.privacyShow",
     );
+    // Capitalization is masked: bullets present, no real digits leak.
+    expect(heroText()).toContain("•");
+    expect(heroText()).not.toMatch(/\d/);
   });
 
-  it("reveals on click and re-hides on a second click", () => {
+  it("reveals the real amount on click and re-masks on a second click", () => {
     renderCards();
     const btn = screen.getByTestId("privacy-toggle");
     act(() => btn.click());
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("false");
     expect(btn.getAttribute("aria-label")).toBe("cards.privacyHide");
+    expect(heroText()).not.toContain("•");
     act(() => btn.click());
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
     expect(btn.getAttribute("aria-label")).toBe("cards.privacyShow");
+    expect(heroText()).toContain("•");
   });
 });

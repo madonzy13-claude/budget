@@ -855,18 +855,3 @@ html.is-server-down
   }
 }
 
-/* Amount privacy blur (Overview eye toggle). Every figure (`.num`) plus the two
-   interpolated sub-lines that carry an amount without `.num` (`.privacy-amt`)
-   blurs at once with a fluid transition. Unlayered so it beats the @layer
-   utilities `.num`; scoped to `.privacy-scope` so no other surface is touched.
-   will-change hints the compositor so the reveal animates smoothly. */
-.privacy-scope .num,
-.privacy-scope .privacy-amt {
-  transition: filter 0.35s ease;
-  will-change: filter;
-}
-.privacy-scope[data-hidden="true"] .num,
-.privacy-scope[data-hidden="true"] .privacy-amt {
-  filter: blur(7px);
-}
-

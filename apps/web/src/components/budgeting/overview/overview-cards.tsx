@@ -172,20 +172,40 @@ export function OverviewCards({
   // currency sign shows ("$", "€", "zł", "₴") instead of the ISO code Intl falls
   // back to for many currencies in `en` ("PLN"/"UAH"); grouping matches the English
   // surfaces (UAT round, item 6).
-  const money = (cents: string) => centsToDisplayCompact(cents, ccy, "en", true);
-  // Animated variants — the figure counts to its new value when data refreshes.
-  const animMoney = (cents: string) => (
-    <AnimatedFigure
-      value={Number(cents)}
-      format={(n) => money(String(Math.round(n)))}
-    />
-  );
-  const animRounded = (cents: string) => (
-    <AnimatedFigure
-      value={Number(cents)}
-      format={(n) => centsToRounded(String(Math.round(n)), ccy, "en", true)}
-    />
-  );
+  const fmtMoney = (cents: string) => centsToDisplayCompact(cents, ccy, "en", true);
+  const fmtRounded = (cents: string) =>
+    centsToRounded(cents, ccy, "en", true);
+  // Privacy mask: when hidden, keep the currency sign + separators but replace
+  // every digit with a bullet ("$1,234" → "$•,•••"), so a hidden amount reads as
+  // an intentional placeholder. Masking (vs blur) leaves NO `filter` on the card,
+  // which is what defeated the capitalization flip's backface-visibility.
+  const hide = !revealed;
+  const mask = (s: string) => s.replace(/\d/g, "•");
+  // String formatters (for interpolated sentences) — masked when hidden.
+  const money = (cents: string) =>
+    hide ? mask(fmtMoney(cents)) : fmtMoney(cents);
+  const rounded = (cents: string) =>
+    hide ? mask(fmtRounded(cents)) : fmtRounded(cents);
+  // Node formatters — count-tween when revealed; a static masked span when hidden
+  // (no tween on a placeholder).
+  const animMoney = (cents: string) =>
+    hide ? (
+      <span className="num">{mask(fmtMoney(cents))}</span>
+    ) : (
+      <AnimatedFigure
+        value={Number(cents)}
+        format={(n) => fmtMoney(String(Math.round(n)))}
+      />
+    );
+  const animRounded = (cents: string) =>
+    hide ? (
+      <span className="num">{mask(fmtRounded(cents))}</span>
+    ) : (
+      <AnimatedFigure
+        value={Number(cents)}
+        format={(n) => fmtRounded(String(Math.round(n)))}
+      />
+    );
   // Localized cushion-runway unit suffixes (item 4): EN y/m/d, UK р/м/д, PL l/m/d.
   const runwayUnits = {
     y: t("cards.unitY"),
@@ -212,10 +232,10 @@ export function OverviewCards({
   return (
     <div
       data-testid="overview-cards"
-      // `privacy-scope` + data-hidden drive the amount blur (global.css): every
-      // `.num` figure (and the two interpolated `.privacy-amt` sub-lines) blurs
-      // with a fluid transition when hidden.
-      className="privacy-scope flex flex-col gap-3"
+      // data-hidden reflects the privacy toggle (used by tests); the actual hiding
+      // is per-figure masking (fmt helpers above), not a CSS filter — a filter on
+      // the card defeats the capitalization flip's backface-visibility.
+      className="flex flex-col gap-3"
       data-hidden={!revealed}
     >
       {/* Hero: Capitalization (net worth) — a FLIP card. Front = the big yellow
@@ -262,7 +282,7 @@ export function OverviewCards({
               aria-label={
                 revealed ? t("cards.privacyHide") : t("cards.privacyShow")
               }
-              className="absolute right-2.5 top-2.5 z-20 grid size-8 place-items-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
+              className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
             >
               {revealed ? (
                 <Eye className="size-4" aria-hidden="true" />
@@ -279,8 +299,8 @@ export function OverviewCards({
               {/* FRONT — capitalization (in flow → defines the card height) */}
               <div className="[backface-visibility:hidden]">
                 <CardLabel>{t("cards.capitalization")}</CardLabel>
-                <div className="mt-1 flex flex-wrap items-stretch justify-between gap-x-3 gap-y-1">
-                  <div className="flex min-w-0 flex-col justify-between gap-1">
+                <div className="mt-1 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <div className="flex min-w-0 flex-col gap-1">
                     <p
                       // Inline color: tailwind-merge can't tell the custom
                       // `text-num-display` size class from a text-color and was
@@ -299,15 +319,10 @@ export function OverviewCards({
                       {animRounded(data.capitalization_cents)}
                     </p>
                     {hasInvestments && (
-                      <p className="privacy-amt text-caption text-[var(--muted-foreground)]">
+                      <p className="text-caption text-[var(--muted-foreground)]">
                         {t("cards.capitalizationSub", {
                           // No cents — match the hero capitalization number.
-                          amount: centsToRounded(
-                            data.investment_value_cents,
-                            ccy,
-                            "en",
-                            true,
-                          ),
+                          amount: rounded(data.investment_value_cents),
                         })}
                       </p>
                     )}
@@ -315,9 +330,10 @@ export function OverviewCards({
                   {pl && pl.delta_pct !== null && (
                     <div
                       className={cn(
-                        // mt-6 keeps the P/L clear of the privacy eye pinned to the
-                        // card's top-right corner (both are right-aligned).
-                        "text-caption mt-6 flex shrink-0 flex-col items-end justify-between gap-0.5 text-right",
+                        // Top-aligned tight stack: the P/L % sits level with the top
+                        // of the hero number, $ and "since" hug beneath it. mt-0.5
+                        // nudges it just clear of the privacy eye in the corner.
+                        "text-caption mt-0.5 flex shrink-0 flex-col items-end gap-0.5 text-right",
                         Number(pl.delta_cents) >= 0
                           ? "text-[var(--trading-up)]"
                           : "text-[var(--trading-down)]",
@@ -335,10 +351,16 @@ export function OverviewCards({
                             aria-hidden="true"
                           />
                         )}
-                        <AnimatedFigure
-                          value={pl.delta_pct}
-                          format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`}
-                        />
+                        {hide ? (
+                          mask(
+                            `${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`,
+                          )
+                        ) : (
+                          <AnimatedFigure
+                            value={pl.delta_pct}
+                            format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`}
+                          />
+                        )}
                       </span>
                       <span className="num">{animRounded(pl.delta_cents)}</span>
                       <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
@@ -489,7 +511,7 @@ export function OverviewCards({
                 {animMoney(data.available_reserves_cents)}
               </span>
             </p>
-            <p className="privacy-amt text-caption mt-1.5 text-[var(--muted-foreground)]">
+            <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
               {t(
                 data.reserves.status === "surplus"
                   ? "cards.reservesSurplusNote"
@@ -562,10 +584,14 @@ export function OverviewCards({
                 />
               )}
               <span className="truncate">
-                <AnimatedFigure
-                  value={data.cushion.real_months}
-                  format={(n) => formatRunway(n, runwayUnits)}
-                />
+                {hide ? (
+                  mask(formatRunway(data.cushion.real_months, runwayUnits))
+                ) : (
+                  <AnimatedFigure
+                    value={data.cushion.real_months}
+                    format={(n) => formatRunway(n, runwayUnits)}
+                  />
+                )}
               </span>
             </p>
             {/* Have vs needed to cover the threshold (item 5). */}
