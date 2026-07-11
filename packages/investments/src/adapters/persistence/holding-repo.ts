@@ -10,7 +10,11 @@ import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { Holding, type HoldingType } from "../../domain/holding";
-import type { HoldingRepo, NewHolding } from "../../ports/holding-repo";
+import type {
+  HoldingRepo,
+  NewHolding,
+  GroupFlowLeg,
+} from "../../ports/holding-repo";
 
 type DrizzleTx = {
   execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -255,6 +259,62 @@ export class DrizzleHoldingRepo implements HoldingRepo {
            LIMIT 1
         `);
         return res.rows.length ? mapRow(res.rows[0]) : null;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
+  async recordGroupFlow(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+    groupName: string,
+    leg: Omit<GroupFlowLeg, "groupName">,
+  ): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(userId),
+      async (tx) => {
+        const dt = tx as DrizzleTx;
+        await dt.execute(sql`
+          INSERT INTO budgeting.investment_group_flows
+            (tenant_id, budget_id, group_name,
+             cost_cents, cost_currency, proceeds_cents, proceeds_currency)
+          VALUES
+            (${tenantId}::uuid, ${budgetId}::uuid, ${groupName},
+             ${leg.costCents.toString()}::bigint, ${leg.costCurrency},
+             ${leg.proceedsCents.toString()}::bigint, ${leg.proceedsCurrency})
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
+
+  async listGroupFlows(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+  ): Promise<GroupFlowLeg[]> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(userId),
+      async (tx) => {
+        const dt = tx as DrizzleTx;
+        const res = await dt.execute(sql`
+          SELECT group_name,
+                 cost_cents::text AS cost_cents, cost_currency,
+                 proceeds_cents::text AS proceeds_cents, proceeds_currency
+            FROM budgeting.investment_group_flows
+           WHERE budget_id = ${budgetId}::uuid AND tenant_id = ${tenantId}::uuid
+        `);
+        return res.rows.map((row) => ({
+          groupName: String(row.group_name),
+          costCents: BigInt(String(row.cost_cents)),
+          costCurrency: (row.cost_currency as string | null) ?? null,
+          proceedsCents: BigInt(String(row.proceeds_cents)),
+          proceedsCurrency: (row.proceeds_currency as string | null) ?? null,
+        }));
       },
     );
     if (r.isErr()) throw r.error;

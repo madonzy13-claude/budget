@@ -53,7 +53,11 @@ import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { centsToBare } from "@/lib/cents-format";
 import { useBudget } from "@/hooks/use-budget-data";
-import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
+import {
+  useInvestments,
+  useGroupRealized,
+  type HoldingDto,
+} from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { useArchiveHolding } from "@/hooks/use-archive-holding";
@@ -94,6 +98,7 @@ function GroupHeaderItem({
   budgetCurrency,
   totalBudgetCents,
   maxAmountChars,
+  realizedCents,
   expanded,
   onToggle,
 }: {
@@ -101,11 +106,12 @@ function GroupHeaderItem({
   budgetCurrency: string;
   totalBudgetCents: number;
   maxAmountChars: number;
+  realizedCents: number;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const t = useTranslations("budget.investments");
-  const agg = groupAggregate(entry.holdings);
+  const agg = groupAggregate(entry.holdings, realizedCents);
   const portfolioPct =
     totalBudgetCents > 0 ? (agg.valueBudgetCents / totalBudgetCents) * 100 : 0;
   const {
@@ -172,15 +178,17 @@ function GroupBlockPreview({
   budgetCurrency,
   totalBudgetCents,
   maxAmountChars,
+  realizedCents,
   expanded,
 }: {
   entry: Extract<InvestmentEntry, { kind: "group" }>;
   budgetCurrency: string;
   totalBudgetCents: number;
   maxAmountChars: number;
+  realizedCents: number;
   expanded: boolean;
 }) {
-  const agg = groupAggregate(entry.holdings);
+  const agg = groupAggregate(entry.holdings, realizedCents);
   const portfolioPct =
     totalBudgetCents > 0 ? (agg.valueBudgetCents / totalBudgetCents) * 100 : 0;
   return (
@@ -243,6 +251,9 @@ export function InvestmentsSection({
     () => investmentsQuery.data ?? [],
     [investmentsQuery.data],
   );
+  // Realized gains per group (budget cents) from the sell/withdrawal ledger —
+  // folded into each group's P/L so a sell-and-reinvest keeps its gain.
+  const groupRealized = useGroupRealized(budgetId);
   // The id currently being dragged (null when idle) → drives the group-block
   // DragOverlay + the dimming of the dragged block in place.
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -701,6 +712,7 @@ export function InvestmentsSection({
                       budgetCurrency={budgetCurrency}
                       totalBudgetCents={totalBudgetCents}
                       maxAmountChars={maxAmountChars}
+                      realizedCents={Number(groupRealized[entry.name] ?? 0)}
                       expanded={isExpanded(entry.name)}
                       onToggle={() => toggleGroup(entry.name)}
                     />,
@@ -750,6 +762,7 @@ export function InvestmentsSection({
               budgetCurrency={budgetCurrency}
               totalBudgetCents={totalBudgetCents}
               maxAmountChars={maxAmountChars}
+              realizedCents={Number(groupRealized[activeGroupEntry.name] ?? 0)}
               expanded={isExpanded(activeGroupEntry.name)}
             />
           ) : null}

@@ -254,6 +254,106 @@ describe("Investments routes", () => {
     expect(row.valueInBudgetCents).toBe("15000");
   });
 
+  it("a partial sell books group realized gains so the group P/L survives (r36)", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+
+    // BTC in group "Crypto": bought $5,000/unit, now $10,000/unit, qty 1.
+    const postRes = await app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "BTC",
+        holdingType: "crypto",
+        group: "Crypto",
+        quantity: "1",
+        buyPriceCents: 500000,
+        buyCurrency: "EUR",
+        currentPriceCents: 1000000,
+        currentPriceCurrency: "EUR",
+      }),
+    });
+    expect(postRes.status).toBe(201);
+    const btc = (await postRes.json()) as any;
+
+    // Before any sell: no realized flows recorded.
+    const before = (await (await app.request("/investments")).json()) as any;
+    expect(before.groupRealized?.Crypto ?? undefined).toBeUndefined();
+
+    // Sell 0.3 BTC (quantity 1 → 0.7). Realized = 0.3 × ($10,000 − $5,000) =
+    // $1,500 = 150000 cents (proceeds 300000 − cost 150000).
+    const patchRes = await app.request(`/investments/${btc.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: "0.7" }),
+    });
+    expect(patchRes.status).toBe(200);
+
+    const after = (await (await app.request("/investments")).json()) as any;
+    expect(after.groupRealized.Crypto).toBe("150000");
+  });
+
+  it("removing a grouped holding books its full position as a realized withdrawal (r36)", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+
+    const postRes = await app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "ETH",
+        holdingType: "crypto",
+        group: "Alt",
+        quantity: "2",
+        buyPriceCents: 100000,
+        buyCurrency: "EUR",
+        currentPriceCents: 150000,
+        currentPriceCurrency: "EUR",
+      }),
+    });
+    const eth = (await postRes.json()) as any;
+
+    // Archive the whole position: realized = 2 × ($1,500 − $1,000) = $1,000 =
+    // 100000 cents (proceeds 300000 − cost 200000).
+    const archRes = await app.request(`/investments/${eth.id}/archive`, {
+      method: "POST",
+    });
+    expect(archRes.status).toBe(200);
+
+    const after = (await (await app.request("/investments")).json()) as any;
+    expect(after.holdings.some((h: any) => h.id === eth.id)).toBe(false);
+    expect(after.groupRealized.Alt).toBe("100000");
+  });
+
+  it("a loose (ungrouped) holding books no realized flow on sell (r36)", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+
+    const postRes = await app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Loose Gold",
+        holdingType: "commodity",
+        quantity: "10",
+        buyPriceCents: 5000,
+        buyCurrency: "EUR",
+        currentPriceCents: 7000,
+        currentPriceCurrency: "EUR",
+      }),
+    });
+    const gold = (await postRes.json()) as any;
+
+    await app.request(`/investments/${gold.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: "6" }),
+    });
+
+    const after = (await (await app.request("/investments")).json()) as any;
+    expect(Object.keys(after.groupRealized)).toHaveLength(0);
+  });
+
   it("the 11th on-add instant price fetch within a minute is rate-limited (INV-14)", async () => {
     const fix = await createFixture("EUR");
     // 11 DISTINCT instruments: the read-through cache (9.2) serves a repeated

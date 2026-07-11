@@ -112,6 +112,33 @@ describe("groupAggregate", () => {
     const agg = groupAggregate([h({ id: "Cash", profitLossPct: null })]);
     expect(agg.plPct).toBeNull();
   });
+
+  it("defaults realized gains to 0 (unchanged when omitted)", () => {
+    // value 100k, +25% → cost 80k → P/L = 20k, 25%.
+    const agg = groupAggregate([
+      h({ id: "A", valueInBudgetCents: "100000", profitLossPct: 25 }),
+    ]);
+    expect(agg.plCents).toBe(20000);
+    expect(agg.plPct).toBeCloseTo(25, 2);
+  });
+
+  it("adds realized gains so a sell-and-reinvest keeps the group P/L", () => {
+    // BTC bought $5k, now $10k (+100%). Sold 0.3 BTC → USDT, realizing
+    // $1,500 (150000c). Remaining in group: 0.7 BTC worth $7,000 (+100%,
+    // cost $3,500) + USDT $3,000 (0%, cost $3,000).
+    // netContributed = ΣcostCurrent − realized = 650000 − 150000 = 500000.
+    // P/L = Σvalue − netContributed = 1,000,000 − 500,000 = 500,000 ($5,000)
+    //     → still +100% on the $5,000 net contributed. Same as before the sell.
+    const agg = groupAggregate(
+      [
+        h({ id: "BTC", valueInBudgetCents: "700000", profitLossPct: 100 }),
+        h({ id: "USDT", valueInBudgetCents: "300000", profitLossPct: 0 }),
+      ],
+      150000,
+    );
+    expect(agg.plCents).toBe(500000);
+    expect(agg.plPct).toBeCloseTo(100, 2);
+  });
 });
 
 describe("resolveDragEnd", () => {

@@ -25,6 +25,21 @@ export interface NewHolding {
   premiumPct: string | null;
 }
 
+/**
+ * One deposit/withdrawal ledger row for a group. Legs are stored in their native
+ * currency (no FX at write time); the read side converts to the budget currency.
+ * See budgeting.investment_group_flows (migration 0054).
+ */
+export interface GroupFlowLeg {
+  groupName: string;
+  /** Cost basis of the quantity that left the group. */
+  costCents: bigint;
+  costCurrency: string | null;
+  /** Value the quantity realized on the way out. */
+  proceedsCents: bigint;
+  proceedsCurrency: string | null;
+}
+
 export interface HoldingRepo {
   create(
     tenantId: string,
@@ -56,4 +71,18 @@ export interface HoldingRepo {
     userId: string,
     id: string,
   ): Promise<Holding | null>;
+  /** Book a group withdrawal (a sell/removal) into the flow ledger. */
+  recordGroupFlow(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+    groupName: string,
+    leg: Omit<GroupFlowLeg, "groupName">,
+  ): Promise<void>;
+  /** All ledger legs for a budget (read side aggregates + FX-converts them). */
+  listGroupFlows(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+  ): Promise<GroupFlowLeg[]>;
 }

@@ -70,17 +70,51 @@ export interface HoldingDto {
   createdAt: string;
 }
 
-export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {
-  return useQuery({
-    queryKey: ["budget", budgetId, "investments"],
-    queryFn: async () => {
+/** Full GET /investments payload cached under the shared query key. */
+interface InvestmentsPayload {
+  holdings: HoldingDto[];
+  /** realized gains per group (budget cents, string) — see groupAggregate. */
+  groupRealized: Record<string, string>;
+}
+
+function investmentsQueryOptions(
+  budgetId: string,
+  initialData?: HoldingDto[],
+) {
+  return {
+    queryKey: ["budget", budgetId, "investments"] as const,
+    queryFn: async (): Promise<InvestmentsPayload> => {
       const res = await clientApiFetch(`/budgets/${budgetId}/investments`, {
         signal: AbortSignal.timeout(7000),
       });
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
-      return (json.holdings ?? []) as HoldingDto[];
+      return {
+        holdings: (json.holdings ?? []) as HoldingDto[],
+        groupRealized: (json.groupRealized ?? {}) as Record<string, string>,
+      };
     },
-    initialData,
+    initialData: initialData
+      ? { holdings: initialData, groupRealized: {} }
+      : undefined,
+  };
+}
+
+export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {
+  return useQuery({
+    ...investmentsQueryOptions(budgetId, initialData),
+    select: (d: InvestmentsPayload) => d.holdings,
   });
+}
+
+/**
+ * Realized gains per group (budget cents). Shares the useInvestments query cache
+ * (same key → one fetch); pass a group name into groupAggregate's realized arg.
+ */
+export function useGroupRealized(budgetId: string): Record<string, string> {
+  const q = useQuery({
+    ...investmentsQueryOptions(budgetId),
+    select: (d: InvestmentsPayload) => d.groupRealized,
+  });
+  return q.data ?? {};
 }

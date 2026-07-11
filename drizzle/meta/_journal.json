@@ -372,6 +372,13 @@
       "when": 1782670800000,
       "tag": "0053_income_under_planned_task",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1782674400000,
+      "tag": "0054_investment_group_flows",
+      "breakpoints": true
     }
   ]
 }

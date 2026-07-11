@@ -11,6 +11,7 @@ import {
   type RateMap,
 } from "../domain/portfolio-metrics";
 import type { EnrichedHoldingDto } from "../contracts/api";
+import { realizedCentsByGroup } from "./group-flow";
 
 /**
  * Enriched holdings read (INV-08/09/10 + B4). HoldingRepo.listForBudget JOINs
@@ -30,7 +31,13 @@ export function listHoldings(deps: {
     budgetCurrency: string;
   }): Promise<
     Result<
-      { holdings: EnrichedHoldingDto[]; groupWeights: Record<string, number> },
+      {
+        holdings: EnrichedHoldingDto[];
+        groupWeights: Record<string, number>;
+        // Realized gains per group (budget cents, string) from the flow ledger —
+        // added to the group's unrealized P/L so a sell-and-reinvest holds its P/L.
+        groupRealized: Record<string, string>;
+      },
       Error
     >
   > => {
@@ -98,6 +105,23 @@ export function listHoldings(deps: {
       const weights = portfolioWeights(holdings, rateMap, budgetCcy);
       const gWeights = groupWeights(holdings, rateMap, budgetCcy);
 
+      // Realized gains from past group withdrawals (sells/removals). Legs are
+      // stored in native currency; fold them to budget cents with the same rate
+      // map used for holdings (adding any leg-only currencies to it first).
+      const flowLegs = await deps.holdingRepo.listGroupFlows(
+        input.tenantId,
+        input.actorUserId,
+        input.budgetId,
+      );
+      for (const leg of flowLegs) {
+        for (const c of [leg.costCurrency, leg.proceedsCurrency]) {
+          if (c && rateMap[c] === undefined) rateMap[c] = await getRate(c, budgetCcy);
+        }
+      }
+      const groupRealized = realizedCentsByGroup(flowLegs, (c) =>
+        c ? String(rateMap[c] ?? "1") : "1",
+      );
+
       const enriched: EnrichedHoldingDto[] = [];
       for (const h of holdings) {
         const value = holdingValue(h); // cents, in the holding's value currency
@@ -155,6 +179,7 @@ export function listHoldings(deps: {
       return ok({
         holdings: enriched,
         groupWeights: Object.fromEntries(gWeights),
+        groupRealized,
       });
     } catch (e) {
       return err(e as Error);
