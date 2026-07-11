@@ -22,7 +22,10 @@ import {
   CircleAlert,
   CirclePlus,
   Hourglass,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { usePrivacyReveal } from "@/components/budgeting/bdp-ui-state";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
@@ -108,6 +111,9 @@ export function OverviewCards({
   const { data: projection } = useProjection(budgetId);
   // Capitalization card flips to reveal the retirement runway on its back (item 9).
   const [flipped, setFlipped] = useState(false);
+  // Amount privacy: all figures start blurred; the eye toggle on the hero card
+  // reveals them (auto-re-hides after 30 min idle — see usePrivacyReveal).
+  const { revealed, toggle: togglePrivacy } = usePrivacyReveal();
 
   /** "5 years and 6 months" — fully localized (ICU plurals) for the flip back. */
   const retirementFull = (totalMonths: number): string => {
@@ -204,7 +210,14 @@ export function OverviewCards({
   const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
 
   return (
-    <div data-testid="overview-cards" className="flex flex-col gap-3">
+    <div
+      data-testid="overview-cards"
+      // `privacy-scope` + data-hidden drive the amount blur (global.css): every
+      // `.num` figure (and the two interpolated `.privacy-amt` sub-lines) blurs
+      // with a fluid transition when hidden.
+      className="privacy-scope flex flex-col gap-3"
+      data-hidden={!revealed}
+    >
       {/* Hero: Capitalization (net worth) — a FLIP card. Front = the big yellow
           figure + P/L; tapping it rotates horizontally to the back, which shows the
           retirement runway ("if you retire now …"). The front sits in normal flow
@@ -218,7 +231,7 @@ export function OverviewCards({
             data-testid="overview-card-capitalization"
             className={cn(
               CARD,
-              "[perspective:1200px]",
+              "relative [perspective:1200px]",
               canFlip && "cursor-pointer select-none",
             )}
             {...(canFlip && {
@@ -234,6 +247,29 @@ export function OverviewCards({
               },
             })}
           >
+            {/* Privacy eye — a direct child of the section (OUTSIDE the rotating
+                3D wrapper) so it stays put during the flip and never rides the
+                rotateY. stopPropagation keeps a tap from also flipping the card. */}
+            <button
+              type="button"
+              data-testid="privacy-toggle"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePrivacy();
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              aria-pressed={revealed}
+              aria-label={
+                revealed ? t("cards.privacyHide") : t("cards.privacyShow")
+              }
+              className="absolute right-2.5 top-2.5 z-20 grid size-8 place-items-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
+            >
+              {revealed ? (
+                <Eye className="size-4" aria-hidden="true" />
+              ) : (
+                <EyeOff className="size-4" aria-hidden="true" />
+              )}
+            </button>
             <div
               className="relative transition-transform duration-500 [transform-style:preserve-3d]"
               style={{
@@ -263,7 +299,7 @@ export function OverviewCards({
                       {animRounded(data.capitalization_cents)}
                     </p>
                     {hasInvestments && (
-                      <p className="text-caption text-[var(--muted-foreground)]">
+                      <p className="privacy-amt text-caption text-[var(--muted-foreground)]">
                         {t("cards.capitalizationSub", {
                           // No cents — match the hero capitalization number.
                           amount: centsToRounded(
@@ -279,7 +315,9 @@ export function OverviewCards({
                   {pl && pl.delta_pct !== null && (
                     <div
                       className={cn(
-                        "text-caption flex shrink-0 flex-col items-end justify-between gap-0.5 text-right",
+                        // mt-6 keeps the P/L clear of the privacy eye pinned to the
+                        // card's top-right corner (both are right-aligned).
+                        "text-caption mt-6 flex shrink-0 flex-col items-end justify-between gap-0.5 text-right",
                         Number(pl.delta_cents) >= 0
                           ? "text-[var(--trading-up)]"
                           : "text-[var(--trading-down)]",
@@ -451,7 +489,7 @@ export function OverviewCards({
                 {animMoney(data.available_reserves_cents)}
               </span>
             </p>
-            <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
+            <p className="privacy-amt text-caption mt-1.5 text-[var(--muted-foreground)]">
               {t(
                 data.reserves.status === "surplus"
                   ? "cards.reservesSurplusNote"

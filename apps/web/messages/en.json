@@ -1201,6 +1201,8 @@
           "retirementSub": "at your normal planned spending",
           "retirementInflation": "incl. {pct}% annual inflation",
           "flipToRetirement": "Capitalization — tap to see your retirement runway",
+"privacyShow": "Show amounts",
+"privacyHide": "Hide amounts",
           "years": "{count, plural, one {# year} other {# years}}",
           "months": "{count, plural, one {# month} other {# months}}",
           "and": "and",

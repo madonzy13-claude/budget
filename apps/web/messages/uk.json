@@ -1224,6 +1224,8 @@
           "retirementSub": "за звичайних запланованих витрат",
           "retirementInflation": "з урахуванням {pct}% річної інфляції",
           "flipToRetirement": "Капіталізація — торкніться, щоб побачити запас на пенсію",
+"privacyShow": "Показати суми",
+"privacyHide": "Сховати суми",
           "years": "{count, plural, one {# рік} few {# роки} many {# років} other {# року}}",
           "months": "{count, plural, one {# місяць} few {# місяці} many {# місяців} other {# місяця}}",
           "and": "і",

@@ -1224,6 +1224,8 @@
           "retirementSub": "przy normalnym planowanym wydatku",
           "retirementInflation": "z {pct}% roczną inflacją",
           "flipToRetirement": "Kapitalizacja — dotknij, aby zobaczyć ile starczy na emeryturze",
+"privacyShow": "Pokaż kwoty",
+"privacyHide": "Ukryj kwoty",
           "years": "{count, plural, one {# rok} few {# lata} many {# lat} other {# roku}}",
           "months": "{count, plural, one {# miesiąc} few {# miesiące} many {# miesięcy} other {# miesiąca}}",
           "and": "i",
