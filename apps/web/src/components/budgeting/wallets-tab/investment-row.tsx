@@ -88,10 +88,11 @@ export function InvestmentRow({
   const pct = holding.profitLossPct;
   const delisted = holding.isDelisted;
 
-  // Name: cash shows just "Cash" (currency is its own column, D-#cash); tracked
-  // instruments show TICKER / "TICKER (Name)"; everything else the stored name.
+  // Name: cash shows its user-given name when set, else falls back to "Cash"
+  // (currency is its own column, D-#cash); tracked instruments show TICKER /
+  // "TICKER (Name)"; everything else the stored name.
   const isCash = holding.holdingType === "cash_fx";
-  const cashLabel = t("uitype.cash");
+  const cashLabel = holding.name.trim() ? holding.name : t("uitype.cash");
 
   // Quantity for the mobile-expanded row — only for holdings where it's meaningful
   // (tracked / metals). Cash + broker are single-unit (qty 1), so omit it. Trim
