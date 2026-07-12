@@ -23,10 +23,15 @@ describe("buildTrustedOrigins", () => {
     ]);
   });
 
-  it("trusts the http SIBLING of an https origin (iPhone-8 http PWA fix)", () => {
+  it("does NOT derive a scheme sibling for a non-loopback host (CSRF surface)", () => {
     const origins = buildTrustedOrigins("https://budget-dev.madonzy.com");
-    expect(origins).toContain("https://budget-dev.madonzy.com");
-    expect(origins).toContain("http://budget-dev.madonzy.com");
+    expect(origins).toEqual(["https://budget-dev.madonzy.com"]);
+    // The http sibling must be listed EXPLICITLY in TRUSTED_ORIGINS if needed.
+    const withHttp = buildTrustedOrigins(
+      "https://budget-dev.madonzy.com",
+      "http://budget-dev.madonzy.com",
+    );
+    expect(withHttp).toContain("http://budget-dev.madonzy.com");
   });
 
   it("parses comma-separated TRUSTED_ORIGINS", () => {
@@ -52,14 +57,13 @@ describe("buildTrustedOrigins", () => {
       "http://localhost:3000",
       "http://a.example.com,,http://b.example.com,",
     );
-    // blanks dropped; each origin also brings its https scheme-sibling.
+    // blanks dropped; non-loopback hosts get NO scheme sibling. localhost (the
+    // APP_URL) is loopback, so it brings its https sibling.
     expect(origins).toEqual([
       "http://localhost:3000",
       "https://localhost:3000",
       "http://a.example.com",
-      "https://a.example.com",
       "http://b.example.com",
-      "https://b.example.com",
     ]);
   });
 });
