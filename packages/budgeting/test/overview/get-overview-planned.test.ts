@@ -210,7 +210,7 @@ describe("getOverviewPlanned", () => {
     expect(perCat.get("B")).toBe("10000"); // 120000/12
   });
 
-  test("smart Investments category: planned = income − Σ other planned (r33)", async () => {
+  test("the Investments category is EXCLUDED from plannedAvgVsReal (over/under chart)", async () => {
     // Minimal repo: one normal category N (planned 30000) + a smart investment
     // category I (no planned/spend). Income 100000/mo → I planned = 100000−30000.
     const smartRepo: GetOverviewPlannedDeps["repo"] = {
@@ -268,10 +268,269 @@ describe("getOverviewPlanned", () => {
       })
     )._unsafeUnwrap();
     const n = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
-    const i = dto.plannedAvgVsReal.find((c) => c.category_id === "I")!;
     expect(n.planned_avg_cents).toBe("30000");
-    // 100000 monthly income − 30000 other planned = 70000 smart limit.
-    expect(i.planned_avg_cents).toBe("70000");
-    expect(i.real_avg_cents).toBe("0");
+    // Investing isn't spending → the Investments category is excluded from the
+    // over/under-budget-by-category chart entirely (its smart limit dwarfs every
+    // real category and isn't a budget-vs-actual comparison).
+    expect(dto.plannedAvgVsReal.some((c) => c.category_id === "I")).toBe(false);
+  });
+
+  test("timeline EXCLUDES the investment category's planned + spend (item 1)", async () => {
+    // Normal N (planned 30000, spend 20000) + investment V (planned 50000, spend
+    // 40000), Jan. A 3-month range → monthly timeline. The Jan bar must reflect N
+    // ONLY — investing isn't spending, so V never inflates the spend/plan lines.
+    const tlRepo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "N", month: "2026-01", planned_cents: 30000n },
+          { category_id: "V", month: "2026-01", planned_cents: 50000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [
+          { category_id: "N", month: "2026-01", spent_cents: 20000n },
+          { category_id: "V", month: "2026-01", spent_cents: 40000n },
+        ];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+          {
+            category_id: "V",
+            name: "Investments",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: true,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const tlDeps: GetOverviewPlannedDeps = {
+      repo: tlRepo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      incomeRepo: {
+        async listActive() {
+          return [{ amount: "1000.00", currency: "USD", cadence: "MONTHLY" }];
+        },
+      },
+    };
+    const dto = (
+      await getOverviewPlanned(tlDeps)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+      })
+    )._unsafeUnwrap();
+    expect(dto.bucket).toBe("monthly");
+    const jan = dto.timeline.find((t) => t.label === "2026-01")!;
+    expect(jan.planned_cents).toBe("30000"); // V's 50000 excluded
+    expect(jan.real_cents).toBe("20000"); // V's 40000 excluded
+    // …and the avg-by-category chart also excludes V (investing isn't spending).
+    expect(dto.plannedAvgVsReal.some((c) => c.category_id === "V")).toBe(false);
+  });
+
+  test("daily bucket, NO spend but a planned limit → planned-only line (real=0), not empty", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [{ category_id: "N", month: "2026-01", planned_cents: 30000n }];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return []; // no confirmed spend in range
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-01-15", // same month → daily bucket
+      })
+    )._unsafeUnwrap();
+    expect(dto.bucket).toBe("daily");
+    // Two endpoints draw the flat planned line; real is 0 everywhere.
+    expect(dto.timeline.map((p) => p.label)).toEqual([
+      "2026-01-01",
+      "2026-01-15",
+    ]);
+    expect(dto.timeline.every((p) => p.real_cents === "0")).toBe(true);
+    expect(dto.timeline[0]!.planned_cents).toBe("30000");
+  });
+
+  test("timeline splits planned into needs (cushion) + wants (planned − needs)", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          {
+            category_id: "N",
+            month: "2026-01",
+            planned_cents: 30000n,
+            needs_cents: 20000n, // cushion/essential
+          },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: "N", month: "2026-01", spent_cents: 5000n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+      })
+    )._unsafeUnwrap();
+    const jan = dto.timeline.find((t) => t.label === "2026-01")!;
+    expect(jan.planned_cents).toBe("30000");
+    expect(jan.needs_cents).toBe("20000");
+    expect(jan.wants_cents).toBe("10000"); // planned − needs
+  });
+
+  test("daily bucket, NO spend AND no planned → timeline stays empty (message shows)", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-01-15",
+      })
+    )._unsafeUnwrap();
+    expect(dto.timeline).toEqual([]);
+  });
+
+  test("daily bucket, a SELECTED category with 0 budget draws a 0-line, not empty (item 2)", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return []; // the selected category has no planned limit → 0
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-01-15",
+        categoryId: "some-cat", // a category IS selected
+      })
+    )._unsafeUnwrap();
+    // A 0-line (two endpoints) instead of the "No activity" message.
+    expect(dto.timeline.map((t) => t.label)).toEqual([
+      "2026-01-01",
+      "2026-01-15",
+    ]);
+    expect(dto.timeline.every((t) => t.planned_cents === "0")).toBe(true);
   });
 });

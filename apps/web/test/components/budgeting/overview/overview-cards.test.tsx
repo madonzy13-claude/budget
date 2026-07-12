@@ -8,9 +8,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("next-intl", () => ({
-  useLocale: () => "en",
-  useTranslations: () => (key: string, vars?: Record<string, unknown>) => {
+vi.mock("next-intl", () => {
+  const translate = (key: string, vars?: Record<string, unknown>) => {
     const dict: Record<string, string> = {
       "cards.availableToSpend": "Available to spend",
       "cards.spentThisMonth": "Spent",
@@ -50,11 +49,28 @@ vi.mock("next-intl", () => ({
     };
     const tpl = dict[key] ?? key;
     if (!vars) return tpl;
+    // Skip function values (t.rich chunk callbacks) — the test templates use plain
+    // {amount} tokens, so only the string vars interpolate.
     return Object.entries(vars).reduce(
-      (s, [k, v]) => s.replace(new RegExp(`{${k}}`, "g"), String(v)),
+      (s, [k, v]) =>
+        typeof v === "function"
+          ? s
+          : s.replace(new RegExp(`{${k}}`, "g"), String(v)),
       tpl,
     );
-  },
+  };
+  // t is callable AND exposes t.rich (next-intl) — both interpolate the same way.
+  const t = Object.assign(translate, { rich: translate });
+  return {
+    useLocale: () => "en",
+    useTranslations: () => t,
+  };
+});
+
+// Privacy masking defaults to HIDDEN; reveal it so amount assertions see the
+// numbers, not redaction bars.
+vi.mock("@/components/budgeting/bdp-ui-state", () => ({
+  usePrivacyReveal: () => ({ revealed: true, toggle: vi.fn() }),
 }));
 
 const mockUse = vi.fn();
@@ -183,9 +199,9 @@ describe("OverviewCards", () => {
     // Default: income exists, +$400 surplus.
     const { unmount } = render(<OverviewCards budgetId="b1" />);
     expect(screen.getByText("Surplus")).toBeTruthy();
-    expect(
-      screen.getByTestId("spend-surplus-deficit").textContent,
-    ).toContain("$400");
+    expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
+      "$400",
+    );
     unmount();
 
     // Negative → Deficit label, magnitude shown (sign conveyed by red color).
@@ -194,9 +210,9 @@ describe("OverviewCards", () => {
     });
     render(<OverviewCards budgetId="b1" />);
     expect(screen.getByText("Deficit")).toBeTruthy();
-    expect(
-      screen.getByTestId("spend-surplus-deficit").textContent,
-    ).toContain("250");
+    expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
+      "250",
+    );
   });
 
   it("colors the surplus/deficit value: green >0, white =0, red <0", () => {
@@ -253,6 +269,29 @@ describe("OverviewCards", () => {
       expect(screen.getByText(expected)).toBeTruthy();
       unmount();
     }
+  });
+
+  it("shows ∞ runway when nothing is required but cushion is saved (item 7)", () => {
+    // required 0 (no per-category cushion target) but money IS saved → the runway
+    // is unbounded, NOT the misleading "0d".
+    mockUse.mockReturnValue({
+      data: {
+        ...DTO,
+        cushion: {
+          enabled: true,
+          real_months: 0,
+          required_cents: "0",
+          total_cents: "13048483",
+          covered: true,
+        },
+      },
+      isError: false,
+      isPending: false,
+    });
+    render(<OverviewCards budgetId="b1" />);
+    expect(screen.getByTestId("cushion-unlimited")).toBeTruthy();
+    expect(screen.getByText("∞")).toBeTruthy();
+    expect(screen.queryByText("0d")).toBeNull();
   });
 
   it("flags whether the cushion covers the required limit", () => {

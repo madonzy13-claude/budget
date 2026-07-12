@@ -27,7 +27,7 @@ const PRESETS: {
   { preset: "thisMonth", label: "1M" },
   { preset: "last3Months", label: "3M" },
   { preset: "last6Months", label: "6M" },
-  { preset: "thisYear", i18nKey: "year" },
+  { preset: "last12Months", i18nKey: "year" },
   { preset: "all", i18nKey: "all" },
 ];
 

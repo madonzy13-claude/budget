@@ -11,7 +11,7 @@ export type RangePreset =
   | "thisMonth"
   | "last3Months"
   | "last6Months"
-  | "thisYear"
+  | "last12Months"
   | "all"
   | "custom";
 
@@ -56,8 +56,13 @@ export function resolveRange(
         from: today.subtract({ months: 5 }).with({ day: 1 }).toString(),
         to,
       };
-    case "thisYear":
-      return { from: today.with({ month: 1, day: 1 }).toString(), to };
+    case "last12Months":
+      // Trailing 12 months (a real year), NOT year-to-date: 11 months back to the
+      // 1st + the current partial month = 12 month-buckets.
+      return {
+        from: today.subtract({ months: 11 }).with({ day: 1 }).toString(),
+        to,
+      };
     case "all":
       // Cap at 5 years to respect the API span guard.
       return { from: today.subtract({ years: 5 }).toString(), to };

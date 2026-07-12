@@ -194,9 +194,9 @@ export function OverviewCards({
   // currency sign shows ("$", "€", "zł", "₴") instead of the ISO code Intl falls
   // back to for many currencies in `en` ("PLN"/"UAH"); grouping matches the English
   // surfaces (UAT round, item 6).
-  const fmtMoney = (cents: string) => centsToDisplayCompact(cents, ccy, "en", true);
-  const fmtRounded = (cents: string) =>
-    centsToRounded(cents, ccy, "en", true);
+  const fmtMoney = (cents: string) =>
+    centsToDisplayCompact(cents, ccy, "en", true);
+  const fmtRounded = (cents: string) => centsToRounded(cents, ccy, "en", true);
   // Privacy: when hidden, every figure is covered by a REDACTION BAR (a solid
   // rounded block sized to the real figure so the layout doesn't jump) instead of
   // the number. A bar (vs blur) leaves NO `filter` on the card, which is what
@@ -330,7 +330,12 @@ export function OverviewCards({
                       className={cn(
                         "num",
                         heroFontClass(
-                          centsToRounded(data.capitalization_cents, ccy, "en", true),
+                          centsToRounded(
+                            data.capitalization_cents,
+                            ccy,
+                            "en",
+                            true,
+                          ),
                         ),
                       )}
                     >
@@ -389,7 +394,9 @@ export function OverviewCards({
                         ) : (
                           <AnimatedFigure
                             value={pl.delta_pct}
-                            format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`}
+                            format={(n) =>
+                              `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
+                            }
                           />
                         )}
                       </span>
@@ -465,14 +472,14 @@ export function OverviewCards({
               />
             )}
             <span className="truncate">
-              {animMoney(data.spendings.wallet_cents)}
+              {animRounded(data.spendings.wallet_cents)}
             </span>
           </p>
           <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
             <div className="flex items-center justify-between gap-2">
               <dt>{t("cards.spentThisMonth")}</dt>
               <dd className="num text-[var(--body-on-dark)]">
-                {animMoney(data.spendings.spent_cents)}
+                {animRounded(data.spendings.spent_cents)}
               </dd>
             </div>
             {surplusDeficit !== null ? (
@@ -501,7 +508,7 @@ export function OverviewCards({
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.leftToSpend")}</dt>
                 <dd className="num text-[var(--body-on-dark)]">
-                  {animMoney(data.spendings.left_cents)}
+                  {animRounded(data.spendings.left_cents)}
                 </dd>
               </div>
             )}
@@ -625,18 +632,34 @@ export function OverviewCards({
                 />
               )}
               <span className="truncate">
-                {hide ? (
-                  <RedactionBar
-                    chars={
-                      formatRunway(data.cushion.real_months, runwayUnits).length
-                    }
-                  />
-                ) : (
-                  <AnimatedFigure
-                    value={data.cushion.real_months}
-                    format={(n) => formatRunway(n, runwayUnits)}
-                  />
-                )}
+                {(() => {
+                  // No cushion requirement configured but cash IS saved → the runway
+                  // is unbounded (money ÷ a zero monthly need), NOT "0d". Show ∞.
+                  const unlimited =
+                    data.cushion.required_cents === "0" &&
+                    Number(data.cushion.total_cents) > 0;
+                  if (hide)
+                    return (
+                      <RedactionBar
+                        chars={
+                          unlimited
+                            ? 1
+                            : formatRunway(
+                                data.cushion.real_months,
+                                runwayUnits,
+                              ).length
+                        }
+                      />
+                    );
+                  if (unlimited)
+                    return <span data-testid="cushion-unlimited">∞</span>;
+                  return (
+                    <AnimatedFigure
+                      value={data.cushion.real_months}
+                      format={(n) => formatRunway(n, runwayUnits)}
+                    />
+                  );
+                })()}
               </span>
             </p>
             {/* Have vs needed to cover the threshold (item 5). */}
@@ -644,13 +667,13 @@ export function OverviewCards({
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.cushionSaved")}</dt>
                 <dd className="num text-[var(--body-on-dark)]">
-                  {animMoney(data.cushion.total_cents)}
+                  {animRounded(data.cushion.total_cents)}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.cushionNeeded")}</dt>
                 <dd className="num text-[var(--body-on-dark)]">
-                  {animMoney(data.cushion.required_cents)}
+                  {animRounded(data.cushion.required_cents)}
                 </dd>
               </div>
             </dl>

@@ -12,7 +12,11 @@
 import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
-import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
+import {
+  usePersistedSectionOpen,
+  useBdpUiStore,
+} from "@/components/budgeting/bdp-ui-state";
+import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
@@ -63,7 +67,16 @@ export function PlannedSection({
       new Date(2000, Number(m) - 1, 1),
     );
   const [open, toggleOpen] = usePersistedSectionOpen("planned");
-  const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
+  // Persist the selected category across pill navigation (the carousel unmounts
+  // this pane, so a plain useState would reset to "All categories" on return).
+  const store = useBdpUiStore();
+  const [categoryId, setCategoryIdState] = useState<string | undefined>(
+    () => store?.overview.plannedCategoryId,
+  );
+  const setCategoryId = (v: string | undefined) => {
+    if (store) store.overview.plannedCategoryId = v;
+    setCategoryIdState(v);
+  };
 
   const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
@@ -125,25 +138,41 @@ export function PlannedSection({
                     data.timeline.map((p) => ({
                       label: p.label,
                       real: Number(p.real_cents),
-                      planned: Number(p.planned_cents),
+                      needs: Number(p.needs_cents),
+                      wants: Number(p.wants_cents),
                     })),
-                    range.preset === "all" ? ["real", "planned"] : [],
+                    range.preset === "all" ? ["real", "needs", "wants"] : [],
                   ),
                   // Real spend starts at 0 (nothing spent yet); planned holds flat.
                   ["real"],
-                  // Daily bucket = CUMULATIVE spend → always ramp from 0 at month
-                  // start, not from day 1's total (r31e). Monthly bucket is per-
-                  // month (not cumulative) so only the lone-dot case gets a baseline.
                   data.bucket === "daily",
                 )}
                 xKey="label"
+                // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
+                // it — the stack total = the planned limit, so "into wants" reads as
+                // spending beyond needs. `real` is the actual-spend line on top.
+                // needs = grey base, wants = green stacked above (the "over" band);
+                // spendings (real) = yellow, drawn LAST so its area sits on top.
                 series={[
-                  { key: "real", label: t("planned.real") },
                   {
-                    key: "planned",
-                    label: t("planned.planned"),
-                    color: NEUTRAL,
-                    dashed: true,
+                    key: "needs",
+                    label: t("planned.needs"),
+                    color: CHART_THEME.neutral,
+                    stack: "planned",
+                    fillOpacity: 0.3,
+                  },
+                  {
+                    key: "wants",
+                    label: t("planned.wants"),
+                    color: "var(--trading-up)",
+                    stack: "planned",
+                    fillOpacity: 0.3,
+                  },
+                  {
+                    key: "real",
+                    label: t("planned.real"),
+                    color: CHART_THEME.accent,
+                    fillOpacity: 0.35,
                   },
                 ]}
                 formatY={fmtY}
@@ -213,6 +242,7 @@ export function PlannedSection({
               data={data.recurringPerMonth.map((m) => ({
                 month: String(m.month),
                 planned: Number(m.planned_cents),
+                items: m.items,
               }))}
               xKey="month"
               series={[
@@ -222,6 +252,16 @@ export function PlannedSection({
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}
               labelFormat={monthName}
+              // Tooltip lists each planned payment for the month (the series row
+              // already shows the total).
+              tooltipExtra={(row) => {
+                const items =
+                  (row.items as { name: string; amount_cents: string }[]) ?? [];
+                return items.map((it) => ({
+                  label: it.name || "—",
+                  value: fmtTooltip(Number(it.amount_cents)),
+                }));
+              }}
             />
           </div>
 

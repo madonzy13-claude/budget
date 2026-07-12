@@ -427,11 +427,16 @@ export async function boot(): Promise<BootedDeps> {
             budgetCurrency: input.defaultCurrency,
           });
           if (r.isErr()) throw r.error;
+          // Group by the DISPLAY type (ui_type), not the coarse holding_type: a
+          // Broker holding is holding_type "other" but ui_type "broker", so grouping
+          // by holding_type wrongly bucketed every broker under "Other" and never
+          // showed a Broker slice. Fall back to holding_type when ui_type is unset.
           const byType = new Map<string, bigint>();
           for (const h of r.value.holdings) {
+            const key = h.uiType || h.holdingType;
             byType.set(
-              h.holdingType,
-              (byType.get(h.holdingType) ?? 0n) + BigInt(h.valueInBudgetCents),
+              key,
+              (byType.get(key) ?? 0n) + BigInt(h.valueInBudgetCents),
             );
           }
           return Array.from(byType.entries()).map(

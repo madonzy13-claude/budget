@@ -109,6 +109,52 @@ describe("getOverviewWealth", () => {
     expect(s24.dynamicsBucket).toBe("yearly");
   });
 
+  test("1M (daily) shows a bar for EVERY day via carry-forward, not just snapshot days (item 4)", async () => {
+    // One snapshot on day 1, then nothing until the live point on day 5. The daily
+    // dynamics must still show a bar per day (carry-forward = flat 0% on gap days),
+    // not a single bar for the only day with a raw snapshot.
+    const sparseRepo: GetOverviewWealthDeps["snapshotRepo"] = {
+      async seriesForRange() {
+        return [
+          {
+            captured_at: new Date("2026-03-01T00:00:00Z"),
+            capitalization_cents: 100000n,
+            investment_value_cents: 0n,
+          },
+        ];
+      },
+      async openingBefore() {
+        return null;
+      },
+    };
+    const liveRepo: GetOverviewWealthDeps["computeWealthNow"] = async () => ({
+      capitalization_cents: 110000n,
+      investment_value_cents: 0n,
+      currency: "USD",
+    });
+    const dto = (
+      await getOverviewWealth(
+        deps({ snapshotRepo: sparseRepo, computeWealthNow: liveRepo }),
+      )({
+        ...base,
+        from: "2026-03-01",
+        to: "2026-03-05",
+        now: () => new Date("2026-03-05T12:00:00Z"),
+        view: "capitalization",
+      })
+    )._unsafeUnwrap();
+    expect(dto.dynamicsBucket).toBe("daily");
+    // A bar for every day except the first (no predecessor): 03-02 … 03-05.
+    expect(dto.dynamics.map((d) => d.label)).toEqual([
+      "2026-03-02",
+      "2026-03-03",
+      "2026-03-04",
+      "2026-03-05",
+    ]);
+    // Gap days carry the day-1 value (0%); the live jump on the last day is +10%.
+    expect(dto.dynamics.map((d) => d.pct)).toEqual([0, 0, 0, 10]);
+  });
+
   test("value series spans the whole range; carry-forward across gaps (item 5)", async () => {
     const dto = await run();
     // spans from the first bucket of `from` to the last bucket of `to`.
@@ -201,8 +247,10 @@ describe("getOverviewWealth", () => {
     expect(dto.pie).toBeNull();
   });
 
-  test("opening value seeds carry-forward ONLY, not the dynamics (r28 item 1)", async () => {
-    // A snapshot BEFORE the range (last December) — the "opening value".
+  test("CONTIGUOUS opening seeds the first in-range dynamics bucket (item 4)", async () => {
+    // A snapshot in the IMMEDIATELY-PRECEDING bucket (last December) — contiguous
+    // with the first in-range month (Jan), so the first bar is a true per-period
+    // change, not dropped for lack of a predecessor.
     const withOpening: GetOverviewWealthDeps["snapshotRepo"] = {
       ...snapshotRepo(),
       async openingBefore() {
@@ -221,9 +269,39 @@ describe("getOverviewWealth", () => {
     )._unsafeUnwrap();
     // carry-forward: leading buckets show the opening value, not 0 (r24 item 2).
     expect(valueAt(dto, "2026-01-01T00")).toBe("80000");
-    // dynamics is NOT seeded by the opening — the first in-range bucket (Jan) has no
-    // predecessor, so steps start at Feb. This kills the giant opening-jump bar that
-    // otherwise swamped the real per-period changes (r28 item 1).
+    // dynamics NOW includes Jan — seeded by the contiguous Dec opening (item 4).
+    expect(dto.dynamics.map((d) => d.label)).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+    ]);
+    expect(dto.dynamics[0]!.pct).toBeCloseTo(25.0, 5); // Dec 80000 → Jan 100000
+    expect(dto.dynamics[1]!.pct).toBeCloseTo(10.0, 5); // Jan 100000 → Feb 110000
+  });
+
+  test("a NON-contiguous (far-back) opening does NOT seed dynamics — no giant jump bar (r28 item 1)", async () => {
+    // An opening 7 months back (a stale seed, not the previous month). Seeding it
+    // would draw a giant Jun→Jan bar that swamps the real per-period changes, so the
+    // first in-range bucket (Jan) stays without a predecessor and steps start at Feb.
+    const withStaleOpening: GetOverviewWealthDeps["snapshotRepo"] = {
+      ...snapshotRepo(),
+      async openingBefore() {
+        return {
+          captured_at: new Date("2025-06-30T00:00:00Z"),
+          capitalization_cents: 80000n,
+          investment_value_cents: 40000n,
+        };
+      },
+    };
+    const dto = (
+      await getOverviewWealth(deps({ snapshotRepo: withStaleOpening }))({
+        ...base,
+        view: "capitalization",
+      })
+    )._unsafeUnwrap();
+    // carry-forward still seeds leading buckets from the opening (r24 item 2)…
+    expect(valueAt(dto, "2026-01-01T00")).toBe("80000");
+    // …but the dynamics do NOT — Jan has no (contiguous) predecessor, so no jump bar.
     expect(dto.dynamics.map((d) => d.label)).toEqual(["2026-02", "2026-03"]);
     expect(dto.dynamics[0]!.pct).toBeCloseTo(10.0, 5); // Jan 100000 → Feb 110000
   });

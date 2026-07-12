@@ -153,6 +153,18 @@ function dynLabelOf(d: Date, b: DynBucket): string {
       ? iso.slice(0, 7)
       : iso.slice(0, 10);
 }
+/** The calendar bucket immediately BEFORE `label` — used to test whether the
+ *  opening snapshot is the first in-range bucket's contiguous predecessor. */
+function prevDynLabel(label: string, b: DynBucket): string {
+  if (b === "yearly") return String(Number(label) - 1);
+  if (b === "monthly") {
+    const [y, m] = label.split("-").map(Number);
+    return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  }
+  return new Date(Date.parse(`${label}T00:00:00Z`) - MS_PER_DAY)
+    .toISOString()
+    .slice(0, 10);
+}
 
 /** % change a→b as a JS number, or null when the base is 0. */
 function pctChange(prev: bigint, cur: bigint): number | null {
@@ -250,25 +262,51 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
             : (Number(gEnd - chartStart) * 100) / Number(chartStart),
       };
 
-      // dynamics (% change) at its OWN coarser calendar bucket (item 1). last-in-
-      // bucket + live override; step between consecutive DATA buckets only (a
-      // zero-fill gap would fake a −100%). Labelled by the later bucket.
+      // dynamics (% change) at its OWN coarser calendar bucket (item 1). Labelled by
+      // the later bucket.
       const dynBucket = dynamicsBucketOf(input.from, input.to);
-      const byDyn = new Map<string, bigint>();
-      // IN-RANGE buckets ONLY — no pre-range opening (r28 item 1). Seeding the
-      // opening gave the first bucket a predecessor, but that first bar then spanned
-      // the whole gap back to it (a seed-data jump = a giant +900% outlier) which
-      // swamped every real per-period change. Without it the first in-range bucket
-      // simply has no bar (no predecessor), and the rest are true per-period changes.
-      for (const r of rows)
-        byDyn.set(dynLabelOf(r.captured_at, dynBucket), pick(r));
-      if (liveInRange) byDyn.set(dynLabelOf(now, dynBucket), pick(live));
-      const dynLabels = [...byDyn.keys()].sort((a, b) => a.localeCompare(b));
-      const dynVals = dynLabels.map((l) => byDyn.get(l)!);
-      const dynamics = dynLabels.slice(1).map((label, i) => ({
-        label,
-        pct: pctChange(dynVals[i]!, dynVals[i + 1]!),
-      }));
+      let dynamics: { label: string; pct: number | null }[];
+      if (dynBucket === "daily") {
+        // 1M → a bar for EVERY day in range, using the CARRIED series value (the
+        // series holds a value for each day incl. gaps via carry-forward, which never
+        // fakes a −100%). So the month shows all its days, not just the sparse days
+        // that happen to have a raw snapshot (item 4).
+        const byDay = new Map<string, bigint>();
+        for (const p of series)
+          byDay.set(p.label.slice(0, 10), BigInt(p.value_cents));
+        const dayLabels = [...byDay.keys()].sort((a, b) => a.localeCompare(b));
+        const dayVals = dayLabels.map((l) => byDay.get(l)!);
+        dynamics = dayLabels.slice(1).map((label, i) => ({
+          label,
+          pct: pctChange(dayVals[i]!, dayVals[i + 1]!),
+        }));
+      } else {
+        // monthly / yearly → step between consecutive DATA buckets only (a zero-fill
+        // gap would fake a −100%; snapshots are sparse but real on long ranges).
+        const byDyn = new Map<string, bigint>();
+        for (const r of rows)
+          byDyn.set(dynLabelOf(r.captured_at, dynBucket), pick(r));
+        if (liveInRange) byDyn.set(dynLabelOf(now, dynBucket), pick(live));
+        let dynLabels = [...byDyn.keys()].sort((a, b) => a.localeCompare(b));
+        // Give the FIRST in-range bucket a predecessor — but ONLY when the opening
+        // snapshot lands in the immediately-preceding calendar bucket. Then that first
+        // bar is a true per-period change (dense monthly history — item 4), instead of
+        // being dropped for lack of a predecessor. A NON-contiguous opening (a far-back
+        // seed) is still skipped so the first bar never spans a gap into a giant
+        // outlier (r28 item 1 — a seed-data jump swamped every real per-period change).
+        if (opening && openingVal !== null && dynLabels.length) {
+          const openLabel = dynLabelOf(opening.captured_at, dynBucket);
+          if (openLabel === prevDynLabel(dynLabels[0]!, dynBucket)) {
+            byDyn.set(openLabel, openingVal);
+            dynLabels = [...byDyn.keys()].sort((a, b) => a.localeCompare(b));
+          }
+        }
+        const dynVals = dynLabels.map((l) => byDyn.get(l)!);
+        dynamics = dynLabels.slice(1).map((label, i) => ({
+          label,
+          pct: pctChange(dynVals[i]!, dynVals[i + 1]!),
+        }));
+      }
       const nonNull = dynamics
         .map((d) => d.pct)
         .filter((p): p is number => p !== null);

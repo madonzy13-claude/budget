@@ -22,6 +22,7 @@ import {
   leftAlignedYTick,
   type ChartSeries,
 } from "./chart-theme";
+import { CategoryTick } from "./category-tick";
 import { ChartTooltipContent } from "./chart-tooltip";
 
 export function OverviewBarChart({
@@ -54,6 +55,11 @@ export function OverviewBarChart({
   xTickFormat?: (label: string | number) => string;
 }) {
   const vertical = layout === "vertical";
+  // Vertical (category) charts: scale height with the row count so 2-line wrapped
+  // labels don't overlap in thin bands (UAT). Horizontal keeps the passed height.
+  const chartHeight = vertical
+    ? Math.max(height, data.length * 36 + 24)
+    : height;
   // Which category is hovered/tapped — DIMs the others (round 18 item 5) AND drives
   // the tooltip's visibility. Round 19 item 2: a re-tap of the SAME bar hides it.
   // Implemented via a press-start ref (the active index BEFORE this press): the tap
@@ -92,7 +98,8 @@ export function OverviewBarChart({
       dataKey={xKey}
       width={72}
       {...chartAxis}
-      tick={leftAlignedYTick(72)}
+      tick={<CategoryTick width={72} />}
+      interval={0}
     />
   ) : (
     <YAxis
@@ -104,7 +111,7 @@ export function OverviewBarChart({
     />
   );
   return (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveContainer width="100%" height={chartHeight}>
       <BarChart
         data={data}
         layout={layout}

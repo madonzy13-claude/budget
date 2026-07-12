@@ -32,6 +32,12 @@ export interface BdpUiStore {
     /** open-state per collapsible section: planned/overspent/reserves/wealth. */
     sections: Record<string, boolean>;
     scrollTop?: number;
+    /** Financial-Wealth chart view (capitalization vs investments) — persists
+     *  across pill navigation so leaving + returning keeps the chosen view. */
+    wealthView?: "capitalization" | "investments";
+    /** Planned section's category selector — persists across pill navigation so
+     *  a chosen category isn't reset to "All categories" on return. */
+    plannedCategoryId?: string;
   };
   spendings: { scrollTop?: number; scrollLeft?: number };
   /** Investment rows tapped open (mobile P/L expand), keyed by holding id. */
@@ -79,8 +85,7 @@ function usePrivacyState(): PrivacyState {
       "pointermove",
     ];
     arm();
-    for (const e of events)
-      window.addEventListener(e, arm, { passive: true });
+    for (const e of events) window.addEventListener(e, arm, { passive: true });
     return () => {
       clearTimeout(timer);
       for (const e of events) window.removeEventListener(e, arm);

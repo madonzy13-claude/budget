@@ -12,14 +12,24 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 export interface OverviewPlannedDTO {
   currency: string;
   bucket: "monthly" | "daily";
-  timeline: { label: string; planned_cents: string; real_cents: string }[];
+  timeline: {
+    label: string;
+    planned_cents: string;
+    real_cents: string;
+    needs_cents: string;
+    wants_cents: string;
+  }[];
   plannedAvgVsReal: {
     category_id: string;
     name: string;
     planned_avg_cents: string;
     real_avg_cents: string;
   }[];
-  recurringPerMonth: { month: number; planned_cents: string }[];
+  recurringPerMonth: {
+    month: number;
+    planned_cents: string;
+    items: { name: string; amount_cents: string }[];
+  }[];
   recurringPerCategory: {
     category_id: string;
     name: string;
