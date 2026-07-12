@@ -101,8 +101,21 @@ export function InvestmentRow({
   const qtyDisplay = holding.quantity.includes(".")
     ? holding.quantity.replace(/0+$/, "").replace(/\.$/, "")
     : holding.quantity;
-  const desktopName = isCash ? cashLabel : desktopLabel(holding);
-  const mobileName = isCash ? cashLabel : mobileLabel(holding, expanded);
+  // A tracked (auto-fetch) holding whose `name` the user overrode — it differs
+  // from the instrument's own display name. Show that custom name verbatim
+  // instead of the auto "TICKER (name)" label.
+  const customName =
+    holding.instrumentName &&
+    holding.name.trim() &&
+    holding.name.trim() !== holding.instrumentName.trim()
+      ? holding.name.trim()
+      : null;
+  const desktopName = isCash
+    ? cashLabel
+    : (customName ?? desktopLabel(holding));
+  const mobileName = isCash
+    ? cashLabel
+    : (customName ?? mobileLabel(holding, expanded));
 
   // Type icon + fixed accent color so the list is scannable by asset type.
   const { Icon: TypeIcon, color: typeColor } = holdingIcon(holding);

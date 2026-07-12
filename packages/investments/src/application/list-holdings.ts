@@ -125,6 +125,7 @@ export function listHoldings(deps: {
           unitOfMeasure: h.unitOfMeasure,
           premiumPct: h.premiumPct,
           symbol: h.symbol,
+          instrumentName: h.instrumentName,
           instrumentProvider: h.provider,
           isCustom: h.isCustom(),
           // Delisted chrome is surfaced via the INVESTMENT_INSTRUMENT_DELISTED

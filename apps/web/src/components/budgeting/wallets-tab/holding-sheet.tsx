@@ -123,7 +123,29 @@ export function HoldingSheet({
       ? deriveUiType(holding.uiType, holding.holdingType, holding.isCustom)
       : "",
   );
-  const [name, setName] = useState(holding?.name ?? "");
+  // For a tracked (auto-fetch) holding, `name` drives the Asset search box and
+  // holds the INSTRUMENT label; the optional user override lives in `customName`.
+  // Everything else keeps `name` as the holding's own name.
+  const [name, setName] = useState(() => {
+    if (!holding) return "";
+    const ut = deriveUiType(holding.uiType, holding.holdingType, holding.isCustom);
+    const autoTracked =
+      holding.instrumentId != null && UI_TYPE_META[ut].behavior === "tracked";
+    return autoTracked && holding.instrumentName
+      ? holding.instrumentName
+      : holding.name;
+  });
+  // Optional custom name for auto-fetch assets (crypto/equity/etf). When set it
+  // becomes the saved `name` (and the row renders it instead of "TICKER (Name)").
+  const [customName, setCustomName] = useState(() => {
+    if (!holding || holding.instrumentId == null) return "";
+    const ut = deriveUiType(holding.uiType, holding.holdingType, holding.isCustom);
+    if (UI_TYPE_META[ut].behavior !== "tracked") return "";
+    return holding.instrumentName &&
+      holding.name.trim() !== holding.instrumentName.trim()
+      ? holding.name
+      : "";
+  });
   const [instrumentId, setInstrumentId] = useState<string | null>(
     holding?.instrumentId ?? null,
   );
@@ -300,6 +322,7 @@ export function HoldingSheet({
     setSymbol(null);
     setManualTicker("");
     setName("");
+    setCustomName("");
     setCurrentPrice("");
     setPriceBlocked(false);
     if (UI_TYPE_META[next].behavior === "metals") {
@@ -492,7 +515,9 @@ export function HoldingSheet({
       const ticker = manualEntry ? manualTicker.trim() || null : null;
       return {
         ...common,
-        name: name.trim(),
+        // Auto-fetch asset: the optional custom name wins over the instrument
+        // label; manual entry has no custom-name field so this is just `name`.
+        name: customName.trim() || name.trim(),
         instrumentId,
         manualTicker: ticker,
         // `symbol` is web-only (optimistic row ticker); the server derives it.
@@ -614,25 +639,42 @@ export function HoldingSheet({
           {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
               open: no type → no Asset/Name field, and neither input auto-focuses). */}
           {behavior === "tracked" && !manualEntry ? (
-            <Field label={t("field.asset")}>
-              <InstrumentSearchInput
-                budgetId={budgetId}
-                assetClass={meta?.assetClass}
-                hideCustom
-                allowManualEntry
-                name={name}
-                onNameChange={(v) => {
-                  markDirty();
-                  setName(v);
-                  if (instrumentId != null) {
-                    setInstrumentId(null);
-                    setSymbol(null);
-                  }
-                }}
-                onSelectInstrument={selectInstrument}
-                onSelectCustom={enableManualEntry}
-              />
-            </Field>
+            <>
+              <Field label={t("field.asset")}>
+                <InstrumentSearchInput
+                  budgetId={budgetId}
+                  assetClass={meta?.assetClass}
+                  hideCustom
+                  allowManualEntry
+                  name={name}
+                  onNameChange={(v) => {
+                    markDirty();
+                    setName(v);
+                    if (instrumentId != null) {
+                      setInstrumentId(null);
+                      setSymbol(null);
+                    }
+                  }}
+                  onSelectInstrument={selectInstrument}
+                  onSelectCustom={enableManualEntry}
+                />
+              </Field>
+              {/* Optional custom name for the auto-fetch asset — when set it's shown
+                  in the list instead of the auto "TICKER (Name)" label. */}
+              {instrumentId != null && (
+                <Field label={t("field.nameOptional")}>
+                  <Input
+                    data-testid="holding-sheet-custom-name"
+                    value={customName}
+                    placeholder={name}
+                    onChange={(e) => {
+                      markDirty();
+                      setCustomName(e.target.value);
+                    }}
+                  />
+                </Field>
+              )}
+            </>
           ) : behavior === "tracked" && manualEntry ? (
             // Manual entry (ticker not in the catalog): plain name + ticker fields.
             <>
@@ -786,25 +828,11 @@ export function HoldingSheet({
             </>
           ) : behavior ? (
             <>
-              {/* 5. Buy price + currency + quantity (tracked / manual / metals).
-                  Currency picker hides once an instrument is chosen (its quote
-                  currency is used); the price labels then show that currency. */}
-              <Field
-                label={
-                  showBuyCurrency
-                    ? t("field.buyPrice")
-                    : `${t("field.buyPrice")} (${buyCurrency})`
-                }
-              >
-                <NumericInput
-                  testId="holding-sheet-buy-price"
-                  value={buyPrice}
-                  onChange={(v) => {
-                    markDirty();
-                    setBuyPrice(v);
-                  }}
-                />
-              </Field>
+              {/* 5. Currency + buy price + quantity (tracked / manual / metals).
+                  Currency comes FIRST (before buy price) so the user picks the
+                  denomination before typing an amount. The picker hides once an
+                  instrument is chosen (its quote currency is used); the price
+                  labels then show that currency. */}
               {showBuyCurrency && (
                 <Field
                   label={
@@ -836,6 +864,22 @@ export function HoldingSheet({
                   />
                 </Field>
               )}
+              <Field
+                label={
+                  showBuyCurrency
+                    ? t("field.buyPrice")
+                    : `${t("field.buyPrice")} (${buyCurrency})`
+                }
+              >
+                <NumericInput
+                  testId="holding-sheet-buy-price"
+                  value={buyPrice}
+                  onChange={(v) => {
+                    markDirty();
+                    setBuyPrice(v);
+                  }}
+                />
+              </Field>
               <Field label={t("field.quantity")}>
                 <NumericInput
                   testId="holding-sheet-quantity"

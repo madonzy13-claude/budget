@@ -91,6 +91,11 @@ export class Holding {
      *  when there's no cache row yet. Surfaced so the UI shows the real price age
      *  instead of a hardcoded "just now". */
     public readonly priceFetchedAt: Date | null = null,
+    /** Tracked instruments only: the instrument's own display name (e.g.
+     *  "Bitcoin (BTC)"), joined from budgeting.instruments on read. Lets the UI
+     *  tell a user-chosen custom `name` apart from the auto label. null for
+     *  custom/cash/metals or when no instrument is linked. */
+    public readonly instrumentName: string | null = null,
   ) {}
 
   /** cash_fx holdings are valued by amount (no quantity x price) and have no P/L. */

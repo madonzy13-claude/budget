@@ -526,6 +526,7 @@
       },
       "field": {
         "name": "Nazwa",
+        "nameOptional": "Nazwa (opcjonalnie)",
         "type": "Typ",
         "typePlaceholder": "Wybierz typ",
         "group": "Grupa",

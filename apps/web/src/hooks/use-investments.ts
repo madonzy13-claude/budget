@@ -43,6 +43,9 @@ export interface HoldingDto {
   premiumPct: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
+  /** Tracked-instrument display name (e.g. "Bitcoin (BTC)"); lets the row show a
+   *  user-chosen custom `name` instead of the auto label. null for custom/cash. */
+  instrumentName: string | null;
   /** Tracked-instrument provider; 'manual' = user-priced (editable price, no auto
    *  refresh); null for custom/cash holdings. */
   instrumentProvider: string | null;

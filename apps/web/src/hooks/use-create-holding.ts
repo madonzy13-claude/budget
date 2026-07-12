@@ -60,6 +60,9 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     // Show the ticker immediately (selected instrument symbol or the manual ticker);
     // the list refetch later confirms it from the server (COALESCE join).
     symbol: input.symbol ?? input.manualTicker ?? null,
+    // Derived on read (instrument join) — the list refetch fills it in; a custom
+    // `name` still renders correctly since it differs from the (null) label here.
+    instrumentName: null,
     instrumentProvider: null,
     isCustom: !input.instrumentId,
     isDelisted: false,

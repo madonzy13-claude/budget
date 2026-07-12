@@ -73,6 +73,8 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     unitOfMeasure: null,
     premiumPct: null,
     symbol: null,
+    instrumentName: null,
+    instrumentProvider: null,
     isCustom: false,
     isDelisted: false,
     quantity: "10",
@@ -130,6 +132,37 @@ describe("InvestmentRow", () => {
     expect(screen.getByText("BTC")).toBeInTheDocument(); // mobile
   });
 
+  it("auto-fetch asset with a custom name → renders the custom name, not TICKER (Name)", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "My retirement BTC",
+          instrumentName: "Bitcoin (BTC)",
+          symbol: "bitcoin",
+          holdingType: "crypto",
+        })}
+      />,
+    );
+    // Custom name shown in both breakpoints; the auto label is NOT rendered.
+    expect(screen.getAllByText("My retirement BTC").length).toBeGreaterThan(0);
+    expect(screen.queryByText("BTC (Bitcoin)")).toBeNull();
+  });
+
+  it("auto-fetch asset whose name matches the instrument → auto label (no custom)", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Bitcoin (BTC)",
+          instrumentName: "Bitcoin (BTC)",
+          symbol: "bitcoin",
+          holdingType: "crypto",
+        })}
+      />,
+    );
+    expect(screen.getByText("BTC (Bitcoin)")).toBeInTheDocument();
+    expect(screen.queryByText("Bitcoin (BTC)")).toBeNull();
+  });
+
   it("has NO inline input (sheet-only editing, INV-06)", () => {
     render(<InvestmentRow holding={holding()} />);
     const row = screen.getByTestId("holding-row-AAPL");
@@ -148,7 +181,7 @@ describe("InvestmentRow", () => {
     expect(pl.className).toContain("text-[var(--trading-down)]");
   });
 
-  it("cash → renders 'Cash' (not the stored name), no P/L dash, share still shows", () => {
+  it("cash → renders its custom name (S1748), no P/L dash, share still shows", () => {
     render(
       <InvestmentRow
         holding={holding({
@@ -158,8 +191,7 @@ describe("InvestmentRow", () => {
         })}
       />,
     );
-    expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
-    expect(screen.queryByText("EUR Cash")).not.toBeInTheDocument();
+    expect(screen.getAllByText("EUR Cash").length).toBeGreaterThan(0);
     expect(screen.queryByText("—")).not.toBeInTheDocument();
     expect(screen.getByText("18.0%")).toBeInTheDocument(); // share / weight
   });

@@ -526,6 +526,7 @@
       },
       "field": {
         "name": "Назва",
+        "nameOptional": "Назва (необов’язково)",
         "type": "Тип",
         "typePlaceholder": "Виберіть тип",
         "group": "Група",

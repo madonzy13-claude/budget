@@ -49,6 +49,7 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.display_currency as string | null) ?? null,
     (row.premium_pct as string | null) ?? null,
     row.price_fetched_at ? new Date(String(row.price_fetched_at)) : null,
+    (row.instrument_name as string | null) ?? null,
   );
 }
 
@@ -191,7 +192,10 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                  -- When the auto-fetched price was last refreshed (hourly cron);
                  -- surfaced so the UI shows the real price age, not "just now".
                  c.fetched_at AS price_fetched_at,
-                 COALESCE(i.symbol, inv.manual_ticker) AS symbol, i.provider AS provider
+                 COALESCE(i.symbol, inv.manual_ticker) AS symbol, i.provider AS provider,
+                 -- The instrument's own display name (e.g. Bitcoin (BTC)), so the UI
+                 -- can tell a user-chosen custom name from the auto label.
+                 i.display_name AS instrument_name
             FROM budgeting.investments inv
             LEFT JOIN budgeting.instrument_price_cache c
                    ON c.instrument_id = inv.instrument_id

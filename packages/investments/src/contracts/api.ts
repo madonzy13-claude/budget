@@ -123,6 +123,9 @@ export interface EnrichedHoldingDto {
   premiumPct: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
+  /** Tracked-instrument display name (e.g. "Bitcoin (BTC)"); lets the UI tell a
+   *  user-chosen custom `name` from the auto label. null for custom/cash/metals. */
+  instrumentName: string | null;
   /** Tracked-instrument price provider; 'manual' = user-priced (editable in the
    *  form, no auto refresh); null for custom/cash holdings. */
   instrumentProvider: string | null;
