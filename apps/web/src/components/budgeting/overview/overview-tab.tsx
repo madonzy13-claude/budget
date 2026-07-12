@@ -24,10 +24,12 @@ export function OverviewTab({
   budgetId,
   reservesEnabled = true,
   investmentsEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   reservesEnabled?: boolean;
   investmentsEnabled?: boolean;
+  amountPrivacyEnabled?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Scroll ownership by display mode (the iOS-Safari "two scrollbars + dead band"
@@ -107,6 +109,7 @@ export function OverviewTab({
           budgetId={budgetId}
           reservesEnabled={reservesEnabled}
           investmentsEnabled={investmentsEnabled}
+          amountPrivacyEnabled={amountPrivacyEnabled}
         />
         <ProjectionTimeline budgetId={budgetId} />
         <OverviewSections

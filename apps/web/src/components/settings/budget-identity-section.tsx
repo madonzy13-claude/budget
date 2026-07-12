@@ -23,8 +23,8 @@ export interface BudgetIdentitySectionProps {
   name: string;
   defaultCurrency: string;
   hasTransactions: boolean;
-  /** r36: current Overview-page flag; the toggle hides/shows the Overview pill. */
-  overviewEnabled?: boolean;
+  /** r36: amount-privacy flag; ON = Overview hides amounts by default (eye to reveal). */
+  amountPrivacyEnabled?: boolean;
   /** Only owners may flip the flag (mirrors the API owner-gate). */
   isOwner?: boolean;
 }
@@ -34,37 +34,38 @@ export function BudgetIdentitySection({
   name,
   defaultCurrency,
   hasTransactions,
-  overviewEnabled = true,
+  amountPrivacyEnabled = true,
   isOwner = true,
 }: BudgetIdentitySectionProps) {
   const t = useTranslations("settings");
   const router = useRouter();
   const qc = useQueryClient();
 
-  // Overview-page toggle (r36). Optimistic flip + PATCH; invalidate the
-  // budget-detail query so BdpTabs shows/hides the Overview pill without a reload.
-  const [overviewOn, setOverviewOn] = useState(overviewEnabled);
-  const [savingOverview, setSavingOverview] = useState(false);
-  useEffect(() => setOverviewOn(overviewEnabled), [overviewEnabled]);
+  // Amount-privacy toggle (r36). Optimistic flip + PATCH; invalidate the
+  // budget-detail query so the Overview eye + default-hidden behavior update
+  // without a reload.
+  const [privacyOn, setPrivacyOn] = useState(amountPrivacyEnabled);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  useEffect(() => setPrivacyOn(amountPrivacyEnabled), [amountPrivacyEnabled]);
 
-  const saveOverview = async (checked: boolean) => {
-    setOverviewOn(checked);
-    setSavingOverview(true);
+  const savePrivacy = async (checked: boolean) => {
+    setPrivacyOn(checked);
+    setSavingPrivacy(true);
     try {
       const res = await api.budgets[":id"].$patch({
         param: { id: budgetId },
-        json: { overview_enabled: checked },
+        json: { amount_privacy_enabled: checked },
       });
-      if (!res.ok) throw new Error("Failed to update overview flag");
+      if (!res.ok) throw new Error("Failed to update amount-privacy flag");
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
       toast.success(
-        checked ? t("identity.overview_on_toast") : t("identity.overview_off_toast"),
+        checked ? t("identity.privacy_on_toast") : t("identity.privacy_off_toast"),
       );
     } catch {
-      setOverviewOn(!checked);
-      toast.error(t("identity.overview_error"));
+      setPrivacyOn(!checked);
+      toast.error(t("identity.privacy_error"));
     } finally {
-      setSavingOverview(false);
+      setSavingPrivacy(false);
     }
   };
 
@@ -181,22 +182,23 @@ export function BudgetIdentitySection({
         </div>
       </div>
 
-      {/* Overview page toggle (r36) — hides the Overview pill when off. */}
+      {/* Amount-privacy toggle (r36) — when on, the Overview hides amounts by
+          default and shows an eye to reveal; when off, amounts are always shown. */}
       <div className="flex items-center justify-between gap-4 py-3">
         <div className="min-w-0 space-y-0.5">
           <p className="text-sm font-semibold text-[var(--body)]">
-            {t("identity.overview_label")}
+            {t("identity.privacy_label")}
           </p>
           <p className="text-xs text-[var(--muted-foreground)]">
-            {t("identity.overview_hint")}
+            {t("identity.privacy_hint")}
           </p>
         </div>
         <Switch
-          data-testid="overview-enabled-switch"
-          checked={overviewOn}
-          onCheckedChange={saveOverview}
-          disabled={savingOverview || !isOwner}
-          aria-label={t("identity.overview_label")}
+          data-testid="amount-privacy-switch"
+          checked={privacyOn}
+          onCheckedChange={savePrivacy}
+          disabled={savingPrivacy || !isOwner}
+          aria-label={t("identity.privacy_label")}
         />
       </div>
     </div>

@@ -34,8 +34,8 @@ interface BudgetApiShape {
   investments_enabled?: boolean;
   reservesEnabled?: boolean;
   reserves_enabled?: boolean;
-  overviewEnabled?: boolean;
-  overview_enabled?: boolean;
+  amountPrivacyEnabled?: boolean;
+  amount_privacy_enabled?: boolean;
   hasTransactions?: boolean;
   has_transactions?: boolean;
   currentUserRole?: "owner" | "member";
@@ -56,7 +56,8 @@ function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
     investmentsEnabled:
       raw.investmentsEnabled ?? raw.investments_enabled ?? false,
     reservesEnabled: raw.reservesEnabled ?? raw.reserves_enabled ?? true,
-    overviewEnabled: raw.overviewEnabled ?? raw.overview_enabled ?? true,
+    amountPrivacyEnabled:
+      raw.amountPrivacyEnabled ?? raw.amount_privacy_enabled ?? true,
     hasTransactions: raw.hasTransactions ?? raw.has_transactions ?? false,
     currentUserRole: raw.currentUserRole ?? raw.current_user_role ?? "member",
   };

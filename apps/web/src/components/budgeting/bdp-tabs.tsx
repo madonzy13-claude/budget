@@ -37,8 +37,6 @@ interface BdpTabsProps {
   onSelect: (tab: BdpTab) => void;
   // D-PH5-R11 cascading-hide surface 1: when false, Reserves pill is hidden.
   reservesEnabled?: boolean;
-  // r36: when false, the Overview pill is hidden.
-  overviewEnabled?: boolean;
   initialTasks?: TaskSummary[];
 }
 
@@ -58,7 +56,6 @@ export function BdpTabs({
   activeTab,
   onSelect,
   reservesEnabled = true,
-  overviewEnabled = true,
   initialTasks,
 }: BdpTabsProps) {
   const t = useTranslations("bdp.tab");
@@ -91,12 +88,9 @@ export function BdpTabs({
   }
 
   // D-PH5-R11: filter Reserves pill when reserves are disabled.
-  // r36: filter Overview pill when the Overview page is disabled.
-  const visibleTabs = TABS.filter(
-    (tab) =>
-      (reservesEnabled || tab.slug !== "reserves") &&
-      (overviewEnabled || tab.slug !== "overview"),
-  );
+  const visibleTabs = reservesEnabled
+    ? TABS
+    : TABS.filter((tab) => tab.slug !== "reserves");
 
   return (
     <nav

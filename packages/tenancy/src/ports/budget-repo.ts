@@ -15,7 +15,7 @@ export interface BudgetRepo {
       reservesEnabled?: boolean;
       cushionEnabled?: boolean;
       investmentsEnabled?: boolean;
-      overviewEnabled?: boolean;
+      amountPrivacyEnabled?: boolean;
     },
     actorUserId: string,
   ): Promise<void>;

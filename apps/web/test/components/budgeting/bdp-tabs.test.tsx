@@ -47,7 +47,6 @@ function renderTabs(
         activeTab={props.activeTab ?? "wallets"}
         onSelect={onSelect}
         reservesEnabled={props.reservesEnabled}
-        overviewEnabled={props.overviewEnabled}
         initialTasks={props.initialTasks}
       />
     </TestQueryProvider>,
@@ -146,37 +145,6 @@ describe("BdpTabs", () => {
         "Settings",
       ]);
       expect(screen.queryByRole("button", { name: "Reserves" })).toBeNull();
-    });
-  });
-
-  describe("overviewEnabled cascading-hide (r36)", () => {
-    it("no prop (undefined) → defaults to true → Overview pill present", () => {
-      renderTabs({ activeTab: "wallets" });
-      expect(screen.getByRole("button", { name: "Overview" })).toBeTruthy();
-    });
-
-    it("overviewEnabled={false} → 4 pills: Wallets, Spendings, Reserves, Settings", () => {
-      renderTabs({ activeTab: "wallets", overviewEnabled: false });
-      const pills = screen.getAllByRole("button");
-      expect(pills.length).toBe(4);
-      expect(pills.map((p) => p.getAttribute("aria-label"))).toEqual([
-        "Wallets",
-        "Spendings",
-        "Reserves",
-        "Settings",
-      ]);
-      expect(screen.queryByRole("button", { name: "Overview" })).toBeNull();
-    });
-
-    it("overviewEnabled=false AND reservesEnabled=false → 3 pills", () => {
-      renderTabs({
-        activeTab: "wallets",
-        overviewEnabled: false,
-        reservesEnabled: false,
-      });
-      expect(
-        screen.getAllByRole("button").map((p) => p.getAttribute("aria-label")),
-      ).toEqual(["Wallets", "Spendings", "Settings"]);
     });
   });
 

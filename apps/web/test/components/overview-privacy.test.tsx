@@ -52,10 +52,10 @@ vi.mock("@/components/common/user-timezone-provider", () => ({
   useUserTimezone: () => "UTC",
 }));
 
-const renderCards = () =>
+const renderCards = (amountPrivacyEnabled = true) =>
   render(
     <BdpUiStateProvider>
-      <OverviewCards budgetId="b1" />
+      <OverviewCards budgetId="b1" amountPrivacyEnabled={amountPrivacyEnabled} />
     </BdpUiStateProvider>,
   );
 
@@ -90,5 +90,13 @@ describe("Overview amount privacy", () => {
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
     expect(btn.getAttribute("aria-label")).toBe("cards.privacyShow");
     expect(screen.getAllByTestId("redaction-bar").length).toBeGreaterThan(0);
+  });
+
+  it("privacy flag OFF → amounts always visible, no eye, no bars", () => {
+    renderCards(false);
+    expect(screen.queryByTestId("privacy-toggle")).toBeNull();
+    expect(screen.queryAllByTestId("redaction-bar")).toHaveLength(0);
+    expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("false");
+    expect(heroText()).toMatch(/\d/);
   });
 });

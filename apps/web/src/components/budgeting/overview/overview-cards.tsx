@@ -114,10 +114,13 @@ export function OverviewCards({
   budgetId,
   reservesEnabled = true,
   investmentsEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   reservesEnabled?: boolean;
   investmentsEnabled?: boolean;
+  /** r36: when false, amounts are always visible and the eye toggle is hidden. */
+  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const tz = useUserTimezone();
@@ -128,9 +131,11 @@ export function OverviewCards({
   const { data: projection } = useProjection(budgetId);
   // Capitalization card flips to reveal the retirement runway on its back (item 9).
   const [flipped, setFlipped] = useState(false);
-  // Amount privacy: all figures start blurred; the eye toggle on the hero card
-  // reveals them (auto-re-hides after 30 min idle — see usePrivacyReveal).
-  const { revealed, toggle: togglePrivacy } = usePrivacyReveal();
+  // Amount privacy (per-budget flag). When ON, figures start hidden (redaction
+  // bars) with an eye to reveal (auto-re-hides after 30 min idle — see
+  // usePrivacyReveal). When OFF, amounts are always visible and there's no eye.
+  const { revealed: rawRevealed, toggle: togglePrivacy } = usePrivacyReveal();
+  const revealed = amountPrivacyEnabled ? rawRevealed : true;
 
   /** "5 years and 6 months" — fully localized (ICU plurals) for the flip back. */
   const retirementFull = (totalMonths: number): string => {
@@ -277,29 +282,32 @@ export function OverviewCards({
               },
             })}
           >
-            {/* Privacy eye — a direct child of the section (OUTSIDE the rotating
-                3D wrapper) so it stays put during the flip and never rides the
-                rotateY. stopPropagation keeps a tap from also flipping the card. */}
-            <button
-              type="button"
-              data-testid="privacy-toggle"
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePrivacy();
-              }}
-              onKeyDown={(e) => e.stopPropagation()}
-              aria-pressed={revealed}
-              aria-label={
-                revealed ? t("cards.privacyHide") : t("cards.privacyShow")
-              }
-              className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
-            >
-              {revealed ? (
-                <Eye className="size-4" aria-hidden="true" />
-              ) : (
-                <EyeOff className="size-4" aria-hidden="true" />
-              )}
-            </button>
+            {/* Privacy eye — only when the amount-privacy flag is on. A direct
+                child of the section (OUTSIDE the rotating 3D wrapper) so it stays
+                put during the flip and never rides the rotateY. stopPropagation
+                keeps a tap from also flipping the card. */}
+            {amountPrivacyEnabled && (
+              <button
+                type="button"
+                data-testid="privacy-toggle"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePrivacy();
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                aria-pressed={revealed}
+                aria-label={
+                  revealed ? t("cards.privacyHide") : t("cards.privacyShow")
+                }
+                className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
+              >
+                {revealed ? (
+                  <Eye className="size-4" aria-hidden="true" />
+                ) : (
+                  <EyeOff className="size-4" aria-hidden="true" />
+                )}
+              </button>
+            )}
             <div
               className="relative transition-transform duration-500 [transform-style:preserve-3d]"
               style={{

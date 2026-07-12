@@ -245,11 +245,11 @@
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
       "currency_saved": "Waluta zaktualizowana",
-"overview_label": "Strona przeglądu",
-"overview_hint": "Pokaż kartę przeglądu (Overview) dla tego budżetu.",
-"overview_on_toast": "Strona przeglądu włączona",
-"overview_off_toast": "Strona przeglądu ukryta",
-"overview_error": "Nie udało się zaktualizować ustawienia przeglądu",
+"privacy_label": "Ukryj kwoty",
+"privacy_hint": "Ukrywaj kwoty domyślnie; dotknij oka, aby je odsłonić.",
+"privacy_on_toast": "Kwoty domyślnie ukryte",
+"privacy_off_toast": "Kwoty zawsze widoczne",
+"privacy_error": "Nie udało się zaktualizować ustawienia prywatności",
       "currency_locked_tooltip": "Waluta zablokowana po pierwszej transakcji"
     },
     "cushion": {

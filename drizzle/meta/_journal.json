@@ -386,6 +386,13 @@
       "when": 1782678000000,
       "tag": "0055_overview_enabled",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1782681600000,
+      "tag": "0056_amount_privacy_flag",
+      "breakpoints": true
     }
   ]
 }
