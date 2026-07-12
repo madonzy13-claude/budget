@@ -1,6 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 import { routing } from "../i18n/routing";
+import { shouldUpgradeToHttps } from "./lib/https-upgrade";
 import { decideSignedOutLocaleRedirect } from "./lib/negotiate-locale";
 
 const intlMiddleware = createMiddleware(routing);
@@ -52,24 +53,11 @@ function stripLocale(pathname: string): string {
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Force http→https for real hosts. Better Auth sets a Secure session cookie
-  // (BETTER_AUTH_URL is https), which a browser REFUSES to store over http — so an
-  // iOS PWA whose shortcut is pinned to http:// signs in "successfully" but the
-  // cookie never lands, and the next request loops straight back to /sign-in.
-  // X-Forwarded-Proto is set by the TLS-terminating edge (Cloudflare). Loopback +
-  // tailscale (.ts.net) run genuine http in dev and are left alone.
+  // Force http→https for real hosts so a browser will store Better Auth's Secure
+  // session cookie (see shouldUpgradeToHttps). Without this an iOS PWA pinned to
+  // http:// signs in but loops back to /sign-in, cookie never kept.
   const host = request.headers.get("host") ?? "";
-  const bareHost = host.split(":")[0].replace(/^\[|\]$/g, "");
-  const isDevHost =
-    bareHost === "localhost" ||
-    bareHost === "127.0.0.1" ||
-    bareHost === "::1" ||
-    bareHost.endsWith(".ts.net");
-  if (
-    request.headers.get("x-forwarded-proto") === "http" &&
-    host &&
-    !isDevHost
-  ) {
+  if (shouldUpgradeToHttps(request.headers.get("x-forwarded-proto"), host)) {
     return NextResponse.redirect(
       `https://${host}${pathname}${request.nextUrl.search}`,
       308,
