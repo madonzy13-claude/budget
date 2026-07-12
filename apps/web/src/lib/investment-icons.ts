@@ -38,20 +38,24 @@ export const UI_TYPE_ICON: Record<UiType, LucideIcon> = {
   broker: Briefcase,
 };
 
-/** Fixed accent color per type (hex; applied as the icon color). */
+/**
+ * Fixed accent color per type (hex; icon color + investments pie slice). Hues are
+ * spread around the wheel so every type is visually distinct — no two share a
+ * family (the old map had three near-identical greens and two golds/greys).
+ */
 export const UI_TYPE_COLOR: Record<UiType, string> = {
-  equity: "#4ea1ff", // blue
-  etf: "#2dd4bf", // teal
-  etb: "#a3a3a3", // grey (bonds)
-  reit: "#c084fc", // purple
+  equity: "#3b82f6", // blue
+  etf: "#06b6d4", // cyan
+  etb: "#94a3b8", // light slate (bonds)
+  reit: "#a855f7", // purple
   crypto: "#f7931a", // bitcoin orange
-  treasury_bond: "#34d399", // green
-  collectibles: "#f472b6", // pink
-  real_estate: "#fbbf24", // amber
-  other: "#94a3b8", // slate
+  treasury_bond: "#10b981", // emerald
+  collectibles: "#ec4899", // magenta/pink
+  real_estate: "#8b5a2b", // brown
+  other: "#475569", // dark slate
   precious_metals: "#eab308", // gold
-  cash: "#22c55e", // green
-  broker: "#818cf8", // indigo
+  cash: "#84cc16", // lime
+  broker: "#6366f1", // indigo
 };
 
 /** Light silver-grey accent for the non-gold precious metals (silver, platinum,

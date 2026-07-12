@@ -34,6 +34,6 @@ describe("holdingIcon — precious-metals accent is metal-aware (260626)", () =>
         holdingType: "equities",
         isCustom: false,
       }).color,
-    ).toBe("#4ea1ff");
+    ).toBe("#3b82f6");
   });
 });

@@ -88,6 +88,9 @@ export function WealthSection({
   investmentsEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  // Investment type labels (uitype.*) live under budget.investments — same source
+  // the add-investment type dropdown uses, so the pie reads identically.
+  const tInvest = useTranslations("budget.investments");
   const locale = useLocale();
   const [open, toggleOpen] = usePersistedSectionOpen("wealth");
   const [view, setView] = useState<WealthView>("capitalization");
@@ -320,6 +323,11 @@ export function WealthSection({
                       valueKey="value"
                       colorFor={(ht) =>
                         UI_TYPE_COLOR[deriveUiType(null, ht, false)]
+                      }
+                      // Human label (same as the add-investment type dropdown)
+                      // instead of the raw underscored holding_type.
+                      formatName={(ht) =>
+                        tInvest(`uitype.${deriveUiType(null, ht, false)}`)
                       }
                       formatValue={fmtPieValue}
                     />

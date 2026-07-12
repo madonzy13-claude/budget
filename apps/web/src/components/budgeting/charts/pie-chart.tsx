@@ -20,6 +20,7 @@ export function OverviewPieChart({
   colorFor,
   height = 240,
   formatValue,
+  formatName,
 }: {
   data: Array<Record<string, unknown>>;
   nameKey: string;
@@ -28,6 +29,9 @@ export function OverviewPieChart({
   height?: number;
   /** Formats the raw slice value for the centre read-out (e.g. cents → "$71,540"). */
   formatValue?: (n: number) => string;
+  /** Formats the raw slice name for the centre read-out (e.g. "cash_fx" → "Cash").
+   *  colorFor still receives the raw name, so colours stay keyed off the raw value. */
+  formatName?: (name: string) => string;
 }) {
   // hover = transient (desktop); tapped = persistent (mobile). Active is either —
   // so a mobile mouseleave-after-touch can't clear a tapped selection.
@@ -89,7 +93,9 @@ export function OverviewPieChart({
       {activeRow && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           <span className="text-caption text-[var(--muted-foreground)]">
-            {String(activeRow[nameKey])}
+            {formatName
+              ? formatName(String(activeRow[nameKey]))
+              : String(activeRow[nameKey])}
           </span>
           <span className="num text-num-sm font-semibold text-[var(--body-on-dark)]">
             {formatValue ? formatValue(activeVal) : String(activeVal)}
