@@ -4,6 +4,7 @@
  * pickTenant (never client-supplied — T-9-14); RLS is the second layer.
  */
 import { Hono } from "hono";
+import { UserId } from "@budget/shared-kernel";
 import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
 
@@ -84,11 +85,17 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const budget = await deps.tenancy.workspaceRepo.findById(tenantId);
     const budgetCurrency = budget?.default_currency ?? "EUR";
+    // Viewer's timezone so a deposit's accrual rolls at their local midnight
+    // (not UTC) — matches the app's today/current-month convention.
+    const timezone =
+      (await deps.identity.userRepo.findById(UserId(userId)))?.timezone ??
+      "UTC";
     const r = await deps.investments.listHoldings({
       tenantId,
       budgetId: tenantId,
       actorUserId: userId,
       budgetCurrency,
+      timezone,
     });
     if (r.isErr()) return serverError(c, "list_holdings_failed", r.error);
     return c.json(r.value);

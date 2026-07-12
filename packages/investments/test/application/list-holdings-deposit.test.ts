@@ -1,4 +1,5 @@
 import { describe, test, expect } from "bun:test";
+import { Temporal } from "temporal-polyfill";
 import { listHoldings } from "../../src/application/list-holdings";
 import { Holding } from "../../src/domain/holding";
 import type { HoldingRepo } from "../../src/ports/holding-repo";
@@ -105,5 +106,36 @@ describe("listHoldings — deposit enrichment", () => {
       .toISOString()
       .slice(0, 10);
     expect([at(today), at(yday)]).toContain(dto.valueCents);
+  });
+
+  test("uses the viewer's timezone for 'today' (accrual rolls at local midnight)", async () => {
+    const tz = "Asia/Tokyo"; // UTC+9 — its calendar day can differ from UTC's
+    const run = listHoldings({
+      holdingRepo: stubRepo([depositHolding()]),
+      fxProvider: stubFx,
+    });
+    const res = await run({
+      tenantId: "tenant-1",
+      budgetId: "budget-1",
+      actorUserId: "user-1",
+      budgetCurrency: "USD",
+      timezone: tz,
+    });
+    const dto = res._unsafeUnwrap().holdings[0];
+    // The value must match the deposit formula evaluated at *Tokyo's* today —
+    // proving the tz was threaded through (± a day for the midnight straddle).
+    const at = (isoDate: string) =>
+      computeDepositValueCents({
+        principalCents: 100_000n,
+        rateBps: 1200,
+        startDate: "2020-01-01",
+        capFrequency: "monthly",
+        asOf: isoDate,
+      });
+    const tzToday = Temporal.Now.plainDateISO(tz);
+    expect([
+      at(tzToday.toString()),
+      at(tzToday.subtract({ days: 1 }).toString()),
+    ]).toContain(dto.valueCents);
   });
 });

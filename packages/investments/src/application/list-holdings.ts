@@ -33,6 +33,9 @@ export function listHoldings(deps: {
     budgetId: string;
     actorUserId: string;
     budgetCurrency: string;
+    /** Viewer's IANA timezone — deposits accrue by the viewer's calendar day, so
+     *  "today" rolls at their local midnight (not UTC). Defaults to UTC. */
+    timezone?: string;
   }): Promise<
     Result<
       { holdings: EnrichedHoldingDto[]; groupWeights: Record<string, number> },
@@ -53,9 +56,12 @@ export function listHoldings(deps: {
       // into current_price_cents. Every downstream metric (value, P/L = value −
       // principal, weight) then works unchanged. Re-reading after a capitalization
       // never loses earnings: the value is always rebuilt from the start date.
-      // ponytail: UTC "today" — a deposit accrues by calendar day; a few hours of
-      // tz skew at the boundary is immaterial. Pass a user tz here if it ever is.
-      const today = Temporal.Now.plainDateISO("UTC").toString();
+      // "Today" in the VIEWER's timezone so a deposit's day rolls over at their
+      // local midnight, matching how the rest of the app derives today/current
+      // month (UserTimezoneProvider). Falls back to UTC when unknown.
+      const today = Temporal.Now.plainDateISO(
+        input.timezone ?? "UTC",
+      ).toString();
       for (const h of holdings) {
         if (h.holdingType !== "deposit" || h.buyPriceCents === null) continue;
         h.currentPriceCents = BigInt(
