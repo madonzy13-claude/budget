@@ -7,14 +7,31 @@ describe("buildTrustedOrigins", () => {
     expect(origins).toContain("http://localhost:3000");
   });
 
-  it("returns only APP_URL when TRUSTED_ORIGINS is undefined", () => {
+  it("includes APP_URL + its scheme sibling when TRUSTED_ORIGINS is undefined", () => {
     const origins = buildTrustedOrigins("http://localhost:3000", undefined);
-    expect(origins).toEqual(["http://localhost:3000"]);
+    expect(origins).toEqual([
+      "http://localhost:3000",
+      "https://localhost:3000",
+    ]);
   });
 
-  it("returns only APP_URL when TRUSTED_ORIGINS is empty string", () => {
+  it("includes APP_URL + its scheme sibling when TRUSTED_ORIGINS is empty string", () => {
     const origins = buildTrustedOrigins("http://localhost:3000", "");
-    expect(origins).toEqual(["http://localhost:3000"]);
+    expect(origins).toEqual([
+      "http://localhost:3000",
+      "https://localhost:3000",
+    ]);
+  });
+
+  it("does NOT derive a scheme sibling for a non-loopback host (CSRF surface)", () => {
+    const origins = buildTrustedOrigins("https://budget-dev.madonzy.com");
+    expect(origins).toEqual(["https://budget-dev.madonzy.com"]);
+    // The http sibling must be listed EXPLICITLY in TRUSTED_ORIGINS if needed.
+    const withHttp = buildTrustedOrigins(
+      "https://budget-dev.madonzy.com",
+      "http://budget-dev.madonzy.com",
+    );
+    expect(withHttp).toContain("http://budget-dev.madonzy.com");
   });
 
   it("parses comma-separated TRUSTED_ORIGINS", () => {
@@ -40,8 +57,11 @@ describe("buildTrustedOrigins", () => {
       "http://localhost:3000",
       "http://a.example.com,,http://b.example.com,",
     );
+    // blanks dropped; non-loopback hosts get NO scheme sibling. localhost (the
+    // APP_URL) is loopback, so it brings its https sibling.
     expect(origins).toEqual([
       "http://localhost:3000",
+      "https://localhost:3000",
       "http://a.example.com",
       "http://b.example.com",
     ]);

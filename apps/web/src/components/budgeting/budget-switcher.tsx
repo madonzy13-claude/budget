@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useNavRouter } from "@/components/common/nav-pending";
 import { useTranslations } from "next-intl";
@@ -61,6 +62,21 @@ export function BudgetSwitcher({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // Mobile centers the dropdown on the viewport instead of anchoring it under the
+  // (left-of-centre) trigger. We render a full-width PopoverAnchor across the
+  // header row and switch align→center; desktop keeps the trigger anchor + start.
+  // SSR starts false (= desktop layout); the menu only opens on click, long after
+  // this mount effect resolves, so there's no hydration flash.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+
   // UAT-PH5-T3-13: "selected" means the user is currently inside that
   // budget's page (URL carries its UUID). On the home page there is no
   // active budget — the trigger collapses to the chevron with no text and
@@ -107,11 +123,26 @@ export function BudgetSwitcher({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      {/* Mobile-only: dim + blur the page behind the open dropdown. Portaled to
+          <body> and sat at z-45 — below the header (z-50) so the WHOLE header stays
+          sharp (matches the profile menu), above page content so it blurs. The
+          popper wrapper is lifted to z-60 in global.css so the menu stays sharp.
+          Tapping the backdrop dismisses. */}
+      {isMobile &&
+        open &&
+        createPortal(
+          <div
+            aria-hidden
+            onPointerDown={() => setOpen(false)}
+            className="fixed inset-0 z-[45] bg-black/25 backdrop-blur-sm"
+          />,
+          document.body,
+        )}
       <PopoverTrigger asChild>
         <button
           type="button"
           aria-label={t("nav.budgetSwitcher.trigger.aria")}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--on-dark)] transition-colors hover:bg-[var(--surface-elevated-dark)]"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[var(--nav-budget-header)] outline-none transition-colors hover:bg-[var(--surface-elevated-dark)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas-dark)]"
         >
           {/* Kind glyph: single User for PRIVATE, Users (couple) for
               SHARED. Both glyphs ride at --muted-foreground so the
@@ -147,13 +178,13 @@ export function BudgetSwitcher({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        align="start"
+        align={isMobile ? "center" : "start"}
         // 260618: cap height so a long budget list (many budgets) doesn't
         // overflow past the viewport. The LIST scrolls; the "Create budget" row
         // is pinned outside the scroll region so it's never hidden below the fold.
         // --radix-popover-content-available-height is the space between the
         // trigger and the viewport edge; min() keeps a sensible ceiling.
-        className="z-[60] flex max-h-[min(70dvh,var(--radix-popover-content-available-height,70dvh))] min-w-[256px] flex-col p-0"
+        className="bs-switcher-content z-[60] flex max-h-[min(70dvh,var(--radix-popover-content-available-height,70dvh))] min-w-[256px] flex-col p-0"
         // UAT-PH5-T3-31: skip auto-focus on open. Radix's default focused
         // the first row, which surfaced a blue focus ring on the first
         // budget item that read as "first item is selected". The

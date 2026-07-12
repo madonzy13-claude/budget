@@ -31,6 +31,11 @@ export interface UpdateHoldingInput {
   manualTicker?: string | null;
   /** Web-only optimistic ticker; the server derives the persisted symbol. */
   symbol?: string | null;
+  // Deposit-only.
+  depositRateBps?: number | null;
+  depositStartDate?: string | null;
+  depositEndDate?: string | null;
+  depositCapFrequency?: string | null;
   /** Suppress the "saved" toast — drag-to-group reassignment is silent (UAT). */
   silent?: boolean;
 }

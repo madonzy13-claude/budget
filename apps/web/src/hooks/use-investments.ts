@@ -10,7 +10,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
-/** Locked 9-value holding type (INV-04) — mirrors the server contract. */
+/** Locked holding type (INV-04) — mirrors the server contract. */
 export type HoldingType =
   | "equities"
   | "etf"
@@ -20,7 +20,8 @@ export type HoldingType =
   | "commodity"
   | "cash_fx"
   | "real_estate"
-  | "other";
+  | "other"
+  | "deposit";
 
 /**
  * Enriched holding row returned by GET /investments. Shape mirrors the server
@@ -43,6 +44,9 @@ export interface HoldingDto {
   premiumPct: string | null;
   /** Tracked-instrument ticker (e.g. AAPL); null for custom/cash/metals. */
   symbol: string | null;
+  /** Tracked-instrument display name (e.g. "Bitcoin (BTC)"); lets the row show a
+   *  user-chosen custom `name` instead of the auto label. null for custom/cash. */
+  instrumentName: string | null;
   /** Tracked-instrument provider; 'manual' = user-priced (editable price, no auto
    *  refresh); null for custom/cash holdings. */
   instrumentProvider: string | null;
@@ -53,6 +57,9 @@ export interface HoldingDto {
   buyCurrency: string | null;
   currentPriceCents: string | null;
   currentPriceCurrency: string | null;
+  /** ISO time the auto-fetched price was last refreshed (hourly cron); null for
+   *  manual/cash holdings. Drives the "last updated" age in the holding sheet. */
+  priceFetchedAt: string | null;
   /** value in the holding's current-price currency (cents, string). */
   valueCents: string;
   /** value in the budget default currency (cents, string). */
@@ -65,6 +72,12 @@ export interface HoldingDto {
   weightPct: number;
   sortOrder: number;
   createdAt: string;
+  // Deposit-only (holdingType === "deposit"; null otherwise). Value is computed
+  // server-side from these + today; echoed back so the edit form can prefill.
+  depositRateBps: number | null;
+  depositStartDate: string | null;
+  depositEndDate: string | null;
+  depositCapFrequency: string | null;
 }
 
 export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {

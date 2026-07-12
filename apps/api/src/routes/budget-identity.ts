@@ -31,6 +31,9 @@ const patchBudgetSchema = z.object({
   // Phase 9: Investments feature toggle. Plain boolean — gates the Investments
   // section on the wallets page. Owner-gated via the same path as cushion.
   investments_enabled: z.boolean().optional(),
+  // r36: amount-privacy toggle. Plain boolean — when true the Overview hides
+  // amounts by default (eye to reveal). Owner-gated via the same path as reserves.
+  amount_privacy_enabled: z.boolean().optional(),
   // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33) + UAT round 7: cushion target
   // months multiplier. Defense in depth: Zod 1..60 here + DB CHECK
   // constraint (1..60) via migration 0026. Migration 0027 promotes the DB
@@ -106,6 +109,7 @@ export function budgetIdentityRoutesFactory(
       reservesEnabled: budget.reservesEnabled ?? true,
       cushionEnabled: budget.cushionEnabled ?? true,
       investmentsEnabled: budget.investmentsEnabled ?? false,
+      amountPrivacyEnabled: budget.amountPrivacyEnabled ?? true,
       hasTransactions,
       currentUserRole,
     });
@@ -155,6 +159,7 @@ export function budgetIdentityRoutesFactory(
       body.reserves_enabled !== undefined ||
       body.cushion_enabled !== undefined ||
       body.investments_enabled !== undefined ||
+      body.amount_privacy_enabled !== undefined ||
       body.cushion_target_months !== undefined
     ) {
       try {
@@ -173,6 +178,9 @@ export function budgetIdentityRoutesFactory(
               : {}),
             ...(body.investments_enabled !== undefined
               ? { investmentsEnabled: body.investments_enabled }
+              : {}),
+            ...(body.amount_privacy_enabled !== undefined
+              ? { amountPrivacyEnabled: body.amount_privacy_enabled }
               : {}),
             ...(body.cushion_target_months !== undefined
               ? { cushionTargetMonths: body.cushion_target_months }

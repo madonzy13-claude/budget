@@ -20,6 +20,8 @@ export function OverviewPieChart({
   colorFor,
   height = 240,
   formatValue,
+  formatName,
+  allLabel = "All",
 }: {
   data: Array<Record<string, unknown>>;
   nameKey: string;
@@ -28,6 +30,11 @@ export function OverviewPieChart({
   height?: number;
   /** Formats the raw slice value for the centre read-out (e.g. cents → "$71,540"). */
   formatValue?: (n: number) => string;
+  /** Formats the raw slice name for the centre read-out (e.g. "cash_fx" → "Cash").
+   *  colorFor still receives the raw name, so colours stay keyed off the raw value. */
+  formatName?: (name: string) => string;
+  /** Centre label shown when NO slice is selected — the whole pie (total · 100%). */
+  allLabel?: string;
 }) {
   // hover = transient (desktop); tapped = persistent (mobile). Active is either —
   // so a mobile mouseleave-after-touch can't clear a tapped selection.
@@ -38,9 +45,16 @@ export function OverviewPieChart({
   const total =
     data.reduce((sum, d) => sum + (Number(d[valueKey]) || 0), 0) || 1;
 
+  const rawTotal = data.reduce((sum, d) => sum + (Number(d[valueKey]) || 0), 0);
   const activeRow = active !== undefined ? data[active] : undefined;
-  const activeVal = activeRow ? Number(activeRow[valueKey]) || 0 : 0;
-  const activePct = ((activeVal / total) * 100).toFixed(0);
+  // Nothing selected → the centre shows the WHOLE pie (All · total · 100%).
+  const centreName = activeRow
+    ? formatName
+      ? formatName(String(activeRow[nameKey]))
+      : String(activeRow[nameKey])
+    : allLabel;
+  const centreVal = activeRow ? Number(activeRow[valueKey]) || 0 : rawTotal;
+  const centrePct = activeRow ? ((centreVal / total) * 100).toFixed(0) : "100";
 
   return (
     // relative → the centre read-out overlays the hole. Suppress the browser focus
@@ -48,6 +62,12 @@ export function OverviewPieChart({
     <div
       className="relative [&_:focus]:outline-none [&_:focus-visible]:outline-none"
       style={{ WebkitTapHighlightColor: "transparent" }}
+      // Click OUTSIDE a slice (the hole / empty area) resets to "All". A click ON a
+      // slice is handled by the Pie's onClick (re-tapping the same slice clears it).
+      onClick={(e) => {
+        if (!(e.target as HTMLElement).closest(".recharts-sector"))
+          setTapped(undefined);
+      }}
     >
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
@@ -86,16 +106,16 @@ export function OverviewPieChart({
         </PieChart>
       </ResponsiveContainer>
 
-      {activeRow && (
+      {data.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           <span className="text-caption text-[var(--muted-foreground)]">
-            {String(activeRow[nameKey])}
+            {centreName}
           </span>
           <span className="num text-num-sm font-semibold text-[var(--body-on-dark)]">
-            {formatValue ? formatValue(activeVal) : String(activeVal)}
+            {formatValue ? formatValue(centreVal) : String(centreVal)}
           </span>
           <span className="text-caption text-[var(--muted-foreground)]">
-            {activePct}%
+            {centrePct}%
           </span>
         </div>
       )}

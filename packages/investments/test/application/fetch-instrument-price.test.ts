@@ -69,7 +69,7 @@ describe("fetchInstrumentPrice — read-through cache", () => {
       userId: "u1",
     });
     expect(res.isOk()).toBe(true);
-    expect(res._unsafeUnwrap()).toEqual({ price: "297.50", currency: "USD" });
+    expect(res._unsafeUnwrap()).toMatchObject({ price: "297.50", currency: "USD" });
     expect(calls.providerCalls).toBe(0);
     expect(calls.rateLimitQueries).toBe(0);
   });
@@ -81,7 +81,7 @@ describe("fetchInstrumentPrice — read-through cache", () => {
       userId: "u1",
     });
     expect(res.isOk()).toBe(true);
-    expect(res._unsafeUnwrap()).toEqual({ price: "298.00", currency: "USD" });
+    expect(res._unsafeUnwrap()).toMatchObject({ price: "298.00", currency: "USD" });
     expect(calls.providerCalls).toBe(1);
     expect(calls.rateLimitQueries).toBe(1);
     expect(calls.upserts).toBe(1);
@@ -114,7 +114,7 @@ describe("fetchInstrumentPrice — read-through cache", () => {
     });
     expect(res.isOk()).toBe(true);
     // 2000 USD × 4.0 = 8000 PLN.
-    expect(res._unsafeUnwrap()).toEqual({
+    expect(res._unsafeUnwrap()).toMatchObject({
       price: "8000.00000000",
       currency: "PLN",
     });
@@ -129,7 +129,7 @@ describe("fetchInstrumentPrice — read-through cache", () => {
       userId: "u1",
       targetCurrency: "USD",
     });
-    expect(res._unsafeUnwrap()).toEqual({ price: "2000.00", currency: "USD" });
+    expect(res._unsafeUnwrap()).toMatchObject({ price: "2000.00", currency: "USD" });
   });
 
   test("a STALE cache entry (older than the TTL) refetches from the provider", async () => {
@@ -144,5 +144,29 @@ describe("fetchInstrumentPrice — read-through cache", () => {
     expect(res.isOk()).toBe(true);
     expect(res._unsafeUnwrap().price).toBe("298.00");
     expect(calls.providerCalls).toBe(1);
+  });
+
+  test("surfaces fetchedAt — the cache time on a hit, ~now on a fresh fetch — so the UI shows the real price age", async () => {
+    // Cache hit (fresh, within the 1h TTL) → returns the cache row's fetched_at,
+    // NOT "now": 20 min ago stays a hit but is clearly not "just now".
+    const cachedAt = new Date(Date.now() - 20 * 60 * 1000);
+    const { deps: hitDeps } = makeDeps({
+      cached: { price: "297.50", currency: "USD", fetchedAt: cachedAt },
+    });
+    const hit = await fetchInstrumentPrice(hitDeps)({
+      instrumentId: INST.id,
+      userId: "u1",
+    });
+    expect(hit._unsafeUnwrap().fetchedAt).toEqual(cachedAt);
+
+    // Fresh provider fetch → fetchedAt is ~now (just refreshed the cache).
+    const { deps: freshDeps } = makeDeps({ cached: null });
+    const fresh = await fetchInstrumentPrice(freshDeps)({
+      instrumentId: INST.id,
+      userId: "u1",
+    });
+    const at = fresh._unsafeUnwrap().fetchedAt;
+    expect(at instanceof Date).toBe(true);
+    expect(Date.now() - at.getTime()).toBeLessThan(5000);
   });
 });

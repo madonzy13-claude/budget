@@ -15,7 +15,7 @@
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
 import { useMemo, useRef, useState } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useTranslations, useLocale, useFormatter } from "next-intl";
 import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   Sheet,
@@ -59,10 +59,12 @@ import {
   deriveUiType,
   isAutoPriced,
   usesUserChosenCurrency,
+  CAP_FREQUENCIES,
   type UiType,
   type Metal,
   type MetalKind,
   type Uom,
+  type CapFrequency,
 } from "@/lib/investment-types";
 import {
   computeHoldingPreview,
@@ -112,6 +114,7 @@ export function HoldingSheet({
   holding,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
+  const fmt = useFormatter();
   const createMut = useCreateHolding(budgetId);
   const updateMut = useUpdateHolding(budgetId);
 
@@ -122,7 +125,37 @@ export function HoldingSheet({
       ? deriveUiType(holding.uiType, holding.holdingType, holding.isCustom)
       : "",
   );
-  const [name, setName] = useState(holding?.name ?? "");
+  // For a tracked (auto-fetch) holding, `name` drives the Asset search box and
+  // holds the INSTRUMENT label; the optional user override lives in `customName`.
+  // Everything else keeps `name` as the holding's own name.
+  const [name, setName] = useState(() => {
+    if (!holding) return "";
+    const ut = deriveUiType(
+      holding.uiType,
+      holding.holdingType,
+      holding.isCustom,
+    );
+    const autoTracked =
+      holding.instrumentId != null && UI_TYPE_META[ut].behavior === "tracked";
+    return autoTracked && holding.instrumentName
+      ? holding.instrumentName
+      : holding.name;
+  });
+  // Optional custom name for auto-fetch assets (crypto/equity/etf). When set it
+  // becomes the saved `name` (and the row renders it instead of "TICKER (Name)").
+  const [customName, setCustomName] = useState(() => {
+    if (!holding || holding.instrumentId == null) return "";
+    const ut = deriveUiType(
+      holding.uiType,
+      holding.holdingType,
+      holding.isCustom,
+    );
+    if (UI_TYPE_META[ut].behavior !== "tracked") return "";
+    return holding.instrumentName &&
+      holding.name.trim() !== holding.instrumentName.trim()
+      ? holding.name
+      : "";
+  });
   const [instrumentId, setInstrumentId] = useState<string | null>(
     holding?.instrumentId ?? null,
   );
@@ -162,6 +195,12 @@ export function HoldingSheet({
   const [currentPriceCurrency, setCurrentPriceCurrency] = useState(
     holding?.currentPriceCurrency ?? budgetCurrency,
   );
+  // ISO time the shown auto-price was fetched (hourly cache), for the "last
+  // updated" age. Seeded from the holding on open; refreshed on each on-demand
+  // fetch below. null → no known time (renders "just now").
+  const [priceFetchedAt, setPriceFetchedAt] = useState<string | null>(
+    holding?.priceFetchedAt ?? null,
+  );
   const [group, setGroup] = useState<string | null>(holding?.group ?? null);
   const [metal, setMetal] = useState<Metal>(
     (holding?.metal as Metal) ?? "gold",
@@ -175,6 +214,17 @@ export function HoldingSheet({
   // field can hold a transient empty/decimal state.
   const [premiumPct, setPremiumPct] = useState<string>(
     trimQty(holding?.premiumPct ?? ""),
+  );
+  // Deposit: principal rides `buyPrice`/`buyCurrency`; these describe accrual.
+  const [depositRate, setDepositRate] = useState(
+    holding?.depositRateBps != null ? String(holding.depositRateBps / 100) : "",
+  );
+  const [depositStart, setDepositStart] = useState(
+    holding?.depositStartDate ?? new Date().toISOString().slice(0, 10),
+  );
+  const [depositEnd, setDepositEnd] = useState(holding?.depositEndDate ?? "");
+  const [depositFreq, setDepositFreq] = useState<CapFrequency>(
+    (holding?.depositCapFrequency as CapFrequency) ?? "monthly",
   );
   const [dirty, setDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -240,6 +290,7 @@ export function HoldingSheet({
         priceCents?: string | number;
         price?: string | number;
         currency?: string;
+        fetchedAt?: string;
       };
       const cents =
         json.priceCents != null
@@ -249,6 +300,7 @@ export function HoldingSheet({
             : null;
       if (cents != null) setCurrentPrice(centsToDecimal(cents));
       if (json.currency) setCurrentPriceCurrency(json.currency);
+      if (json.fetchedAt) setPriceFetchedAt(json.fetchedAt);
     } catch {
       setPriceBlocked(true);
     } finally {
@@ -291,8 +343,15 @@ export function HoldingSheet({
     setSymbol(null);
     setManualTicker("");
     setName("");
+    setCustomName("");
     setCurrentPrice("");
     setPriceBlocked(false);
+    if (UI_TYPE_META[next].behavior === "deposit") {
+      setDepositRate("");
+      setDepositStart(new Date().toISOString().slice(0, 10));
+      setDepositEnd("");
+      setDepositFreq("monthly");
+    }
     if (UI_TYPE_META[next].behavior === "metals") {
       setMetal("gold");
       setMetalKind("coin");
@@ -352,6 +411,19 @@ export function HoldingSheet({
     return currentPrice;
   }, [currentPrice, behavior, uom]);
 
+  // "Last updated" age for the auto-fetched price. < 1 min reads "just now"
+  // (avoids a jittery "12 seconds ago"); older uses next-intl relative time
+  // ("15 minutes ago"). Prices refresh on the hourly cron, so this is usually
+  // minutes/up to an hour — NOT always "just now" (the previous hardcoded value).
+  const priceRelative = useMemo(() => {
+    if (!priceFetchedAt) return t("field.now");
+    const at = new Date(priceFetchedAt);
+    if (Number.isNaN(at.getTime())) return t("field.now");
+    return Date.now() - at.getTime() < 60_000
+      ? t("field.now")
+      : fmt.relativeTime(at);
+  }, [priceFetchedAt, fmt, t]);
+
   // Live "what will be created" sum-up (all types) — buy/current totals, premium,
   // P/L. buy + current currency are kept lock-step in this form, so it is single-
   // currency and the P/L is exact (no FX in the preview).
@@ -359,21 +431,30 @@ export function HoldingSheet({
     () =>
       computeHoldingPreview({
         behavior,
-        currency: currentPriceCurrency,
+        currency: behavior === "deposit" ? buyCurrency : currentPriceCurrency,
         quantity,
         buyPrice,
         currentPrice,
         uom,
         premiumPct,
+        depositRatePct: depositRate,
+        depositStart,
+        depositEnd,
+        depositFreq,
       }),
     [
       behavior,
       currentPriceCurrency,
+      buyCurrency,
       quantity,
       buyPrice,
       currentPrice,
       uom,
       premiumPct,
+      depositRate,
+      depositStart,
+      depositEnd,
+      depositFreq,
     ],
   );
 
@@ -397,6 +478,14 @@ export function HoldingSheet({
       case "broker":
         // name + deposited (buyPrice) + actual (currentPrice); no quantity.
         return !!name.trim() && !!buyPrice.trim() && !!currentPrice.trim();
+      case "deposit":
+        // name + principal (buyPrice) + rate + start date; end date optional.
+        return (
+          !!name.trim() &&
+          !!buyPrice.trim() &&
+          !!depositRate.trim() &&
+          !!depositStart.trim()
+        );
       case "manual":
       default:
         return !!name.trim() && !!currentPrice.trim();
@@ -411,6 +500,8 @@ export function HoldingSheet({
     buyPrice,
     name,
     quantity,
+    depositRate,
+    depositStart,
   ]);
 
   function attemptClose() {
@@ -449,6 +540,28 @@ export function HoldingSheet({
         currentPriceCurrency: buyCurrency,
       };
     }
+    if (behavior === "deposit") {
+      // Bank deposit: principal is the cost basis; the current value is computed
+      // server-side from rate+start+cadence, so seed current = principal for the
+      // optimistic row. Rate stored as basis points (percent × 100).
+      const principal = toCents(buyPrice);
+      const bps = depositRate.trim()
+        ? Math.round(Number(depositRate.replace(",", ".")) * 100)
+        : null;
+      return {
+        ...common,
+        name: name.trim(),
+        quantity: "1",
+        buyPriceCents: principal,
+        buyCurrency,
+        currentPriceCents: principal,
+        currentPriceCurrency: buyCurrency,
+        depositRateBps: bps,
+        depositStartDate: depositStart || null,
+        depositEndDate: depositEnd || null,
+        depositCapFrequency: depositFreq,
+      };
+    }
     if (behavior === "metals") {
       return {
         ...common,
@@ -470,7 +583,9 @@ export function HoldingSheet({
       const ticker = manualEntry ? manualTicker.trim() || null : null;
       return {
         ...common,
-        name: name.trim(),
+        // Auto-fetch asset: the optional custom name wins over the instrument
+        // label; manual entry has no custom-name field so this is just `name`.
+        name: customName.trim() || name.trim(),
         instrumentId,
         manualTicker: ticker,
         // `symbol` is web-only (optimistic row ticker); the server derives it.
@@ -592,25 +707,42 @@ export function HoldingSheet({
           {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
               open: no type → no Asset/Name field, and neither input auto-focuses). */}
           {behavior === "tracked" && !manualEntry ? (
-            <Field label={t("field.asset")}>
-              <InstrumentSearchInput
-                budgetId={budgetId}
-                assetClass={meta?.assetClass}
-                hideCustom
-                allowManualEntry
-                name={name}
-                onNameChange={(v) => {
-                  markDirty();
-                  setName(v);
-                  if (instrumentId != null) {
-                    setInstrumentId(null);
-                    setSymbol(null);
-                  }
-                }}
-                onSelectInstrument={selectInstrument}
-                onSelectCustom={enableManualEntry}
-              />
-            </Field>
+            <>
+              <Field label={t("field.asset")}>
+                <InstrumentSearchInput
+                  budgetId={budgetId}
+                  assetClass={meta?.assetClass}
+                  hideCustom
+                  allowManualEntry
+                  name={name}
+                  onNameChange={(v) => {
+                    markDirty();
+                    setName(v);
+                    if (instrumentId != null) {
+                      setInstrumentId(null);
+                      setSymbol(null);
+                    }
+                  }}
+                  onSelectInstrument={selectInstrument}
+                  onSelectCustom={enableManualEntry}
+                />
+              </Field>
+              {/* Optional custom name for the auto-fetch asset — when set it's shown
+                  in the list instead of the auto "TICKER (Name)" label. */}
+              {instrumentId != null && (
+                <Field label={t("field.nameOptional")}>
+                  <Input
+                    data-testid="holding-sheet-custom-name"
+                    value={customName}
+                    placeholder={name}
+                    onChange={(e) => {
+                      markDirty();
+                      setCustomName(e.target.value);
+                    }}
+                  />
+                </Field>
+              )}
+            </>
           ) : behavior === "tracked" && manualEntry ? (
             // Manual entry (ticker not in the catalog): plain name + ticker fields.
             <>
@@ -762,20 +894,25 @@ export function HoldingSheet({
                 />
               </Field>
             </>
-          ) : behavior ? (
+          ) : behavior === "deposit" ? (
+            /* 4c. Deposit: currency + principal + annual rate + capitalization
+               frequency + start date + optional maturity. Value accrues on read. */
             <>
-              {/* 5. Buy price + currency + quantity (tracked / manual / metals).
-                  Currency picker hides once an instrument is chosen (its quote
-                  currency is used); the price labels then show that currency. */}
-              <Field
-                label={
-                  showBuyCurrency
-                    ? t("field.buyPrice")
-                    : `${t("field.buyPrice")} (${buyCurrency})`
-                }
-              >
+              <Field label={t("field.currency")}>
+                <CurrencyPicker
+                  variant="field"
+                  value={buyCurrency}
+                  onSelect={(v) => {
+                    markDirty();
+                    setBuyCurrency(v);
+                    setCurrentPriceCurrency(v);
+                  }}
+                  aria-label={t("field.currency")}
+                />
+              </Field>
+              <Field label={t("field.principal")}>
                 <NumericInput
-                  testId="holding-sheet-buy-price"
+                  testId="holding-sheet-principal"
                   value={buyPrice}
                   onChange={(v) => {
                     markDirty();
@@ -783,6 +920,77 @@ export function HoldingSheet({
                   }}
                 />
               </Field>
+              <Field label={t("field.rate")}>
+                <NumericInput
+                  testId="holding-sheet-rate"
+                  value={depositRate}
+                  onChange={(v) => {
+                    markDirty();
+                    setDepositRate(v);
+                  }}
+                  placeholder="0"
+                />
+              </Field>
+              <Field label={t("field.capFrequency")}>
+                <Select
+                  value={depositFreq}
+                  onValueChange={(v) => {
+                    markDirty();
+                    setDepositFreq(v as CapFrequency);
+                  }}
+                >
+                  <SelectTrigger
+                    aria-label={t("field.capFrequency")}
+                    data-testid="holding-sheet-cap-frequency"
+                  >
+                    <SelectValue>
+                      {t(`capFrequency.${depositFreq}`)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CAP_FREQUENCIES.map((f) => (
+                      <SelectItem
+                        key={f}
+                        value={f}
+                        data-testid={`cap-frequency-${f}`}
+                      >
+                        {t(`capFrequency.${f}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={t("field.startDate")}>
+                <Input
+                  type="date"
+                  data-testid="holding-sheet-start-date"
+                  value={depositStart}
+                  onChange={(e) => {
+                    markDirty();
+                    setDepositStart(e.target.value);
+                  }}
+                />
+              </Field>
+              <Field label={t("field.endDateOptional")}>
+                <Input
+                  type="date"
+                  data-testid="holding-sheet-end-date"
+                  value={depositEnd}
+                  min={depositStart || undefined}
+                  onChange={(e) => {
+                    markDirty();
+                    setDepositEnd(e.target.value);
+                  }}
+                />
+              </Field>
+            </>
+          ) : behavior ? (
+            <>
+              {/* 5. Currency + buy price + quantity (tracked / manual / metals).
+                  Currency comes FIRST (before buy price) so the user picks the
+                  denomination before typing an amount. The picker hides once an
+                  instrument is chosen (its quote currency is used); the price
+                  labels then show that currency. */}
               {showBuyCurrency && (
                 <Field
                   label={
@@ -814,6 +1022,22 @@ export function HoldingSheet({
                   />
                 </Field>
               )}
+              <Field
+                label={
+                  showBuyCurrency
+                    ? t("field.buyPrice")
+                    : `${t("field.buyPrice")} (${buyCurrency})`
+                }
+              >
+                <NumericInput
+                  testId="holding-sheet-buy-price"
+                  value={buyPrice}
+                  onChange={(v) => {
+                    markDirty();
+                    setBuyPrice(v);
+                  }}
+                />
+              </Field>
               <Field label={t("field.quantity")}>
                 <NumericInput
                   testId="holding-sheet-quantity"
@@ -871,7 +1095,7 @@ export function HoldingSheet({
                     />
                     {/* When the price was fetched. */}
                     <p className="text-caption text-[var(--muted-foreground)]">
-                      {t("field.lastUpdated", { relativeTime: t("field.now") })}
+                      {t("field.lastUpdated", { relativeTime: priceRelative })}
                     </p>
                   </div>
                 )}
@@ -999,6 +1223,18 @@ function HoldingPreviewBlock({
       rows.push({
         key: "dep",
         label: t("preview.deposited"),
+        value: money(preview.buyTotal),
+      });
+    rows.push({
+      key: "cur",
+      label: t("preview.currentValue"),
+      value: money(preview.actualTotal),
+    });
+  } else if (behavior === "deposit") {
+    if (preview.buyTotal != null)
+      rows.push({
+        key: "principal",
+        label: t("preview.principal"),
         value: money(preview.buyTotal),
       });
     rows.push({

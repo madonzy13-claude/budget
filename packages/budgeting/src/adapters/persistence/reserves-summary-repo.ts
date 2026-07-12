@@ -20,7 +20,8 @@ export class DrizzleReservesSummaryRepo implements ReservesSummaryRepo {
             FROM budgeting.wallets
             WHERE tenant_id = ${tenantId}::uuid
               AND wallet_type = 'RESERVE'
-              AND archived_at IS NULL`,
+              AND archived_at IS NULL
+              AND current_balance >= 0`,
       );
       const rows = (result as any).rows ?? result;
       return BigInt(rows[0]?.total ?? "0");

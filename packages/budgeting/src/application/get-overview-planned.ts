@@ -14,11 +14,7 @@
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type { FxProvider } from "@budget/shared-kernel";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
-import {
-  computeInvestmentSmartLimit,
-  normalizeIncomesToMonthlyItems,
-  type IncomeForNormalize,
-} from "./investment-smart-limit";
+import { type IncomeForNormalize } from "./investment-smart-limit";
 import {
   recurringMonthlyNormalize,
   type Cadence,
@@ -28,6 +24,9 @@ export interface MonthlyPlannedRow {
   category_id: string;
   month: string; // YYYY-MM
   planned_cents: bigint;
+  /** The cushion (essential/"needs") portion of the planned limit; wants =
+   *  planned − needs. Defaults to 0 for callers/tests that omit it. */
+  needs_cents?: bigint;
 }
 export interface MonthlySpendRow {
   category_id: string;
@@ -47,7 +46,10 @@ export interface DailySpendRow {
 }
 export interface ActiveRecurringRule {
   category_id: string | null;
+  /** category name (for the per-category chart). */
   name: string | null;
+  /** the rule's OWN name/note (for the per-month payment list). */
+  rule_name?: string | null;
   amount_cents: bigint; // in `currency`
   currency: string;
   cadence: Cadence;
@@ -105,14 +107,27 @@ export interface GetOverviewPlannedInput {
 export interface OverviewPlannedDTO {
   currency: string;
   bucket: "monthly" | "daily";
-  timeline: { label: string; planned_cents: string; real_cents: string }[];
+  timeline: {
+    label: string;
+    planned_cents: string;
+    real_cents: string;
+    /** planned split: needs (cushion/essential) + wants (planned − needs). The
+     *  chart stacks wants ABOVE needs; needs + wants === planned. */
+    needs_cents: string;
+    wants_cents: string;
+  }[];
   plannedAvgVsReal: {
     category_id: string;
     name: string;
     planned_avg_cents: string;
     real_avg_cents: string;
   }[];
-  recurringPerMonth: { month: number; planned_cents: string }[];
+  recurringPerMonth: {
+    month: number;
+    planned_cents: string;
+    /** the individual payments that make up this month's bar (tooltip list). */
+    items: { name: string; amount_cents: string }[];
+  }[];
   recurringPerCategory: {
     category_id: string;
     name: string;
@@ -177,32 +192,54 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         deps.repo.activeRecurringRules(input.budgetId),
       ]);
 
+      // Investment categories are excluded from the "All categories" planned-vs-
+      // actual TIMELINE — investing isn't spending, so it shouldn't inflate the
+      // spend line (item 1). Still shown if the user explicitly picks it in the
+      // category selector. The avg-by-category chart KEEPS it (r33 smart limit).
+      const investmentIds = new Set(
+        windows.filter((w) => w.is_investment).map((w) => w.category_id),
+      );
       const inCat = (catId: string) =>
-        !input.categoryId || catId === input.categoryId;
+        input.categoryId
+          ? catId === input.categoryId
+          : !investmentIds.has(catId);
 
       // ---- timeline ----
       let timeline: OverviewPlannedDTO["timeline"];
       if (bucket === "monthly") {
         const months = monthsInRange(input.from, input.to);
         const plannedByMonth = new Map<string, bigint>();
+        const needsByMonth = new Map<string, bigint>();
         const spendByMonth = new Map<string, bigint>();
         for (const p of planned)
-          if (inCat(p.category_id))
+          if (inCat(p.category_id)) {
             plannedByMonth.set(
               p.month,
               (plannedByMonth.get(p.month) ?? 0n) + p.planned_cents,
             );
+            needsByMonth.set(
+              p.month,
+              (needsByMonth.get(p.month) ?? 0n) + (p.needs_cents ?? 0n),
+            );
+          }
         for (const s of spend)
           if (inCat(s.category_id))
             spendByMonth.set(
               s.month,
               (spendByMonth.get(s.month) ?? 0n) + s.spent_cents,
             );
-        timeline = months.map((label) => ({
-          label,
-          planned_cents: (plannedByMonth.get(label) ?? 0n).toString(),
-          real_cents: (spendByMonth.get(label) ?? 0n).toString(),
-        }));
+        timeline = months.map((label) => {
+          const planned = plannedByMonth.get(label) ?? 0n;
+          const needs = needsByMonth.get(label) ?? 0n;
+          const wants = planned > needs ? planned - needs : 0n;
+          return {
+            label,
+            planned_cents: planned.toString(),
+            real_cents: (spendByMonth.get(label) ?? 0n).toString(),
+            needs_cents: needs.toString(),
+            wants_cents: wants.toString(),
+          };
+        });
       } else {
         // daily: cumulative confirmed spend per returned day; planned = the
         // active monthly limit for that day's month (flat target line).
@@ -213,25 +250,55 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           input.categoryId,
         );
         const plannedByMonth = new Map<string, bigint>();
+        const needsByMonth = new Map<string, bigint>();
         for (const p of planned)
-          if (inCat(p.category_id))
+          if (inCat(p.category_id)) {
             plannedByMonth.set(
               p.month,
               (plannedByMonth.get(p.month) ?? 0n) + p.planned_cents,
             );
-        let cumulative = 0n;
-        timeline = [...days]
-          .sort((a, b) => a.day.localeCompare(b.day))
-          .map((d) => {
-            cumulative += d.spent_cents;
-            return {
-              label: d.day,
-              planned_cents: (
-                plannedByMonth.get(d.day.slice(0, 7)) ?? 0n
-              ).toString(),
-              real_cents: cumulative.toString(),
-            };
-          });
+            needsByMonth.set(
+              p.month,
+              (needsByMonth.get(p.month) ?? 0n) + (p.needs_cents ?? 0n),
+            );
+          }
+        // needs/wants split for a given day's month (planned = needs + wants).
+        const splitAt = (month: string) => {
+          const planned = plannedByMonth.get(month) ?? 0n;
+          const needs = needsByMonth.get(month) ?? 0n;
+          return {
+            planned_cents: planned.toString(),
+            needs_cents: needs.toString(),
+            wants_cents: (planned > needs ? planned - needs : 0n).toString(),
+          };
+        };
+        const anyPlanned = [...plannedByMonth.values()].some((v) => v > 0n);
+        // Render the (flat) line whenever there's a planned limit OR a single
+        // category is being inspected — a selected category with a 0 budget should
+        // still draw a 0-line (parity with the monthly view), NOT "No activity".
+        // Only the All-categories view with nothing planned keeps the empty message.
+        if (days.length === 0 && (anyPlanned || input.categoryId)) {
+          // No confirmed spend in range — render the planned target line with
+          // real = 0 instead of an empty "no activity" chart (UAT). Two endpoints
+          // draw the flat planned line.
+          timeline = [input.from, input.to].map((label) => ({
+            label,
+            ...splitAt(label.slice(0, 7)),
+            real_cents: "0",
+          }));
+        } else {
+          let cumulative = 0n;
+          timeline = [...days]
+            .sort((a, b) => a.day.localeCompare(b.day))
+            .map((d) => {
+              cumulative += d.spent_cents;
+              return {
+                label: d.day,
+                ...splitAt(d.day.slice(0, 7)),
+                real_cents: cumulative.toString(),
+              };
+            });
+        }
       }
 
       // ---- planned-avg vs real-avg over active months only (D-13/D-06) ----
@@ -245,6 +312,10 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
 
       const plannedAvgVsReal = windows
         .map((w) => {
+          // Investing isn't spending — exclude it from the over/under-budget-by-
+          // category chart entirely (its smart limit dwarfs every real category and
+          // isn't a "budget vs actual" comparison anyway).
+          if (w.is_investment) return null;
           const active = rangeMonths.filter(
             (m) =>
               m >= w.created_month &&
@@ -280,19 +351,37 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       );
 
       const perMonth = new Array<bigint>(12).fill(0n);
+      // Per-month list of the individual payments that make up each bar (name +
+      // this-month amount) — the "Recurring bills, by month" tooltip lists them.
+      const perMonthItems: Array<{ name: string; amount_cents: string }[]> =
+        Array.from({ length: 12 }, () => []);
       const perCategory = new Map<string, { name: string; cents: bigint }>();
       rules.forEach((rule, i) => {
         const amt = ruleAmounts[i]!;
+        // per-MONTH list uses the rule's own name (note); per-category keeps the
+        // category name. Fall back to the category name when a rule has no note.
+        const itemName = rule.rule_name || rule.name || "";
+        const addItem = (m: number, cents: bigint) =>
+          perMonthItems[m]!.push({
+            name: itemName,
+            amount_cents: cents.toString(),
+          });
         // per-month distribution: where the rule actually fires.
         if (rule.cadence === "YEARLY") {
           const idx = (rule.yearly_month ?? 1) - 1;
           perMonth[idx] = (perMonth[idx] ?? 0n) + amt; // full annual amount in its month
+          addItem(idx, amt);
         } else if (rule.cadence === "MONTHLY") {
-          for (let m = 0; m < 12; m++) perMonth[m] = (perMonth[m] ?? 0n) + amt;
+          for (let m = 0; m < 12; m++) {
+            perMonth[m] = (perMonth[m] ?? 0n) + amt;
+            addItem(m, amt);
+          }
         } else {
           const monthly = recurringMonthlyNormalize(amt, rule.cadence);
-          for (let m = 0; m < 12; m++)
+          for (let m = 0; m < 12; m++) {
             perMonth[m] = (perMonth[m] ?? 0n) + monthly;
+            addItem(m, monthly);
+          }
         }
         // per-category: a comparable monthly figure (YEARLY ÷ 12).
         if (rule.category_id) {
@@ -305,37 +394,6 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         }
       });
 
-      // r33: the smart Investments category has no stored category_limits row, so
-      // it lands in plannedAvgVsReal with planned_avg 0. Override its planned with
-      // the computed smart limit (monthly income − Σ other planned), matching the
-      // spendings grid. real_avg stays 0 (contributions aren't ledger spend).
-      const invWindow = windows.find((w) => w.is_investment);
-      if (invWindow && deps.incomeRepo && deps.fxProvider) {
-        const invRow = plannedAvgVsReal.find(
-          (r) => r.category_id === invWindow.category_id,
-        );
-        if (invRow) {
-          const otherPlannedCents = plannedAvgVsReal.reduce(
-            (sum, r) =>
-              r.category_id === invWindow.category_id
-                ? sum
-                : sum + BigInt(r.planned_avg_cents),
-            0n,
-          );
-          const incomes = await deps.incomeRepo.listActive(input.tenantId);
-          const monthlyIncomeCents = await sumWalletsToCurrency(
-            normalizeIncomesToMonthlyItems(incomes),
-            ccy,
-            deps.fxProvider,
-            asOf,
-          );
-          invRow.planned_avg_cents = computeInvestmentSmartLimit({
-            monthlyIncomeCents,
-            otherPlannedCents,
-          }).toString();
-        }
-      }
-
       return ok({
         currency: ccy,
         bucket,
@@ -344,6 +402,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         recurringPerMonth: perMonth.map((cents, i) => ({
           month: i + 1,
           planned_cents: cents.toString(),
+          items: perMonthItems[i]!,
         })),
         recurringPerCategory: Array.from(perCategory.entries()).map(
           ([category_id, v]) => ({

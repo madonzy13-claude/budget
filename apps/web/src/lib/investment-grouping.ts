@@ -82,6 +82,10 @@ export interface GroupAggregate {
  * P/L% = (Σ value − Σ cost) / Σ cost, where cost_i is derived from each child's
  * own value and P/L% (value / (1 + pl/100)). Children with no P/L (cash, no
  * basis) contribute to value but are excluded from the P/L maths.
+ *
+ * Current-state only — the group P/L reflects what is in the group right now, no
+ * deposit/withdrawal history (the flow-ledger model was rolled back as too
+ * complex for users to reason about).
  */
 export function groupAggregate(holdings: HoldingDto[]): GroupAggregate {
   let valueBudgetCents = 0;

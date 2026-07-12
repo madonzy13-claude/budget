@@ -19,6 +19,9 @@ export interface BudgetDTO {
   // Phase 9: Investments feature flag. When false the Investments section on
   // the wallets page is hidden. Default false (opt-in).
   investmentsEnabled?: boolean;
+  // r36: amount-privacy flag. When true (default) Overview amounts are hidden by
+  // default behind an eye toggle; when false they're always visible (no eye).
+  amountPrivacyEnabled?: boolean;
   // Phase 7-09 / UAT round 6: desired cushion runway in months (1..60).
   // Settable via PATCH /budgets/:id { cushion_target_months }; default 6.
   // Surfaced on findById so the Settings page can read the current value.

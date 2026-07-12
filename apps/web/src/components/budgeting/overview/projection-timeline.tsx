@@ -230,7 +230,7 @@ function ProjectionTooltip({
   t: ReturnType<typeof useTranslations>;
 }) {
   const money = (c: string) =>
-    centsToDisplayCompact(roundToUnit(c), currency, "en");
+    centsToDisplayCompact(roundToUnit(c), currency, "en", true);
   const available = Number(day.available_cents);
   // Anchor the tooltip so it never clips the card edge: pin its LEFT edge to the
   // cursor near the start, its RIGHT edge near the end, else centre it.

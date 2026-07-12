@@ -105,6 +105,10 @@ describe("GET /budgets/:id/overview/projection", () => {
       currency: string;
       days: { available_cents: string; color: string }[];
       summary: { worst_shortfall_cents: string };
+      spend_health: {
+        good: boolean | null;
+        surplus_deficit_cents: string | null;
+      };
     };
     expect(typeof body.currency).toBe("string");
     expect(Array.isArray(body.days)).toBe(true);
@@ -113,6 +117,11 @@ describe("GET /budgets/:id/overview/projection", () => {
     expect(typeof body.days[0].available_cents).toBe("string");
     expect(body.summary).toHaveProperty("worst_shortfall_cents");
     expect(["green", "yellow", "red"]).toContain(body.days[0].color);
+    // Available-to-spend health rides the projection. Bare budget has NO income →
+    // neutral: grey dot (good null) + no surplus/deficit figure (null).
+    expect(body).toHaveProperty("spend_health");
+    expect(body.spend_health.good).toBeNull();
+    expect(body.spend_health.surplus_deficit_cents).toBeNull();
   });
 
   test("unknown budget → 404 (IDOR guard)", async () => {

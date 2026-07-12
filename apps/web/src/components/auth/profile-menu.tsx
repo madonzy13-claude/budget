@@ -40,6 +40,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { NavLink } from "@/components/common/nav-link";
 import { useTranslations } from "next-intl";
@@ -91,6 +92,11 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
   const tPwa = useTranslations("pwa.install");
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Mobile-only: dim + blur the page behind the open menu. The header carries its
+  // own backdrop-filter (a containing block for fixed), so the overlay is portaled
+  // to <body> and sits BELOW the header's z (z-45 < header z-50) — that keeps the
+  // header AND this in-header menu sharp automatically while everything below blurs.
+  const [isMobile, setIsMobile] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isStandaloneMode, setIsStandaloneMode] = useState(false);
   const [pwaInstalled, setPwaInstalled] = useState(false);
@@ -124,13 +130,20 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   function toggleTheme() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     applyTheme(next);
     persistTheme(next);
-    // Keep the menu open: the toggle flips dark/light in place (no nav) and
-    // the item's icon/label swap to the new target mode (see comment below).
+    setOpen(false); // Close the menu after switching theme (applies in place).
   }
 
   // Outside click closes the menu. The check runs on `pointerdown` so a
@@ -255,6 +268,21 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
           </AvatarFallback>
         </Avatar>
       </button>
+      {/* Mobile-only blur backdrop behind the open menu. Portaled to <body> so it
+          escapes the header's backdrop-filter containing block (a `fixed` child of
+          the header would be clipped to it). z-45 sits below the header (z-50) so
+          the header + this menu stay sharp while the page below blurs. Tap to
+          dismiss. */}
+      {isMobile &&
+        open &&
+        createPortal(
+          <div
+            aria-hidden
+            onPointerDown={() => setOpen(false)}
+            className="fixed inset-0 z-[45] bg-black/25 backdrop-blur-sm"
+          />,
+          document.body,
+        )}
       {open && (
         <div
           id={menuId}
@@ -269,7 +297,9 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
           // z-50 keeps the menu above sticky page chrome (BDP tab
           // bar z-40, header z-40).
           className={cn(
-            "absolute right-0 top-full z-50 mt-1 min-w-[14rem]",
+            // z-[60] keeps the menu above the mobile blur backdrop (z-55) and
+            // sticky page chrome (BDP tab bar / header z-40).
+            "absolute right-0 top-full z-[60] mt-1 min-w-[14rem]",
             "rounded-md border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)] p-1.5 text-[var(--body-on-dark)] shadow-xl",
           )}
         >

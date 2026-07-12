@@ -75,6 +75,8 @@ export interface CategoryDTO {
   iconKey: string | null;
   colorKey: string | null;
   sortIndex: number;
+  /** persisted cushion config (mig 0059); null = inferred. */
+  cushionMode?: string | null;
 }
 
 export interface SpendingsGridClientProps {
@@ -143,6 +145,7 @@ function seedCategoryOrder(data: unknown): CategoryDTO[] {
       iconKey: (c.iconKey as string | null) ?? null,
       colorKey: (c.colorKey as string | null) ?? null,
       sortIndex: (c.sortIndex as number | undefined) ?? 0,
+      cushionMode: (c.cushionMode as string | null | undefined) ?? null,
     }))
     .sort((a, b) => a.sortIndex - b.sortIndex);
 }
@@ -738,6 +741,8 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       cushionCents: s?.cushionCents ?? "0",
       // 260613-v1p: iconKey dropped from the slider initial (icon picker removed).
       colorKey: cat.colorKey,
+      // mig 0059: persisted cushion mode prefills the slider's Cushion selector.
+      cushionMode: (cat.cushionMode as string | null | undefined) ?? null,
       // r33: the smart Investments category uses a different edit form.
       isInvestment: s?.isInvestment ?? false,
       investmentLimitMode: s?.investmentLimitMode ?? null,

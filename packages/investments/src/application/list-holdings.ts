@@ -1,4 +1,5 @@
 import Big from "big.js";
+import { Temporal } from "temporal-polyfill";
 import { ok, err, type Result } from "neverthrow";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { HoldingRepo } from "../ports/holding-repo";
@@ -10,6 +11,10 @@ import {
   groupWeights,
   type RateMap,
 } from "../domain/portfolio-metrics";
+import {
+  computeDepositValueCents,
+  type CapFrequency,
+} from "../domain/deposit-value";
 import type { EnrichedHoldingDto } from "../contracts/api";
 
 /**
@@ -28,6 +33,9 @@ export function listHoldings(deps: {
     budgetId: string;
     actorUserId: string;
     budgetCurrency: string;
+    /** Viewer's IANA timezone — deposits accrue by the viewer's calendar day, so
+     *  "today" rolls at their local midnight (not UTC). Defaults to UTC. */
+    timezone?: string;
   }): Promise<
     Result<
       { holdings: EnrichedHoldingDto[]; groupWeights: Record<string, number> },
@@ -42,6 +50,32 @@ export function listHoldings(deps: {
       );
       const budgetCcy = input.budgetCurrency;
       const asOf = new Date();
+
+      // Deposits carry no fetched/stored price — their value is a pure function of
+      // (principal, rate, start, cadence, today), so compute it here and stuff it
+      // into current_price_cents. Every downstream metric (value, P/L = value −
+      // principal, weight) then works unchanged. Re-reading after a capitalization
+      // never loses earnings: the value is always rebuilt from the start date.
+      // "Today" in the VIEWER's timezone so a deposit's day rolls over at their
+      // local midnight, matching how the rest of the app derives today/current
+      // month (UserTimezoneProvider). Falls back to UTC when unknown.
+      const today = Temporal.Now.plainDateISO(
+        input.timezone ?? "UTC",
+      ).toString();
+      for (const h of holdings) {
+        if (h.holdingType !== "deposit" || h.buyPriceCents === null) continue;
+        h.currentPriceCents = BigInt(
+          computeDepositValueCents({
+            principalCents: h.buyPriceCents,
+            rateBps: h.depositRateBps ?? 0,
+            startDate: h.depositStartDate ?? today,
+            capFrequency: (h.depositCapFrequency ?? "monthly") as CapFrequency,
+            asOf: today,
+            endDate: h.depositEndDate,
+          }),
+        );
+        h.currentPriceCurrency = h.buyCurrency;
+      }
       const rateCache = new Map<string, string>();
       const getRate = async (from: string, to: string): Promise<string> => {
         if (from === to) return "1";
@@ -125,6 +159,7 @@ export function listHoldings(deps: {
           unitOfMeasure: h.unitOfMeasure,
           premiumPct: h.premiumPct,
           symbol: h.symbol,
+          instrumentName: h.instrumentName,
           instrumentProvider: h.provider,
           isCustom: h.isCustom(),
           // Delisted chrome is surfaced via the INVESTMENT_INSTRUMENT_DELISTED
@@ -139,6 +174,9 @@ export function listHoldings(deps: {
               ? null
               : h.currentPriceCents.toString(),
           currentPriceCurrency: h.currentPriceCurrency,
+          priceFetchedAt: h.priceFetchedAt
+            ? h.priceFetchedAt.toISOString()
+            : null,
           valueCents: value.toFixed(0),
           valueInBudgetCents: valueInBudget.toFixed(0),
           profitLossPct: profitLossPct(h, plRate),
@@ -146,6 +184,10 @@ export function listHoldings(deps: {
           weightPct: weights.get(h.id) ?? 0,
           sortOrder: h.sortOrder,
           createdAt: h.createdAt.toISOString(),
+          depositRateBps: h.depositRateBps,
+          depositStartDate: h.depositStartDate,
+          depositEndDate: h.depositEndDate,
+          depositCapFrequency: h.depositCapFrequency,
         });
       }
 

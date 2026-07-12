@@ -33,6 +33,7 @@ export function OverviewAreaChart({
   formatTooltip,
   xTickFormat,
   labelFormat,
+  tooltipExtra,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -45,6 +46,10 @@ export function OverviewAreaChart({
   xTickFormat?: (label: string | number) => string;
   /** Format the tooltip's X label (defaults to xTickFormat). */
   labelFormat?: (label: string | number) => string;
+  /** Extra tooltip rows appended below the series (e.g. a payment breakdown). */
+  tooltipExtra?: (
+    row: Record<string, unknown>,
+  ) => Array<{ label: string; value: string; color?: string }>;
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
@@ -79,6 +84,7 @@ export function OverviewAreaChart({
               formatY={formatTooltip ?? formatY}
               series={series}
               labelFormat={labelFormat ?? xTickFormat}
+              extra={tooltipExtra}
               {...contentExtra}
             />
           }
@@ -91,9 +97,10 @@ export function OverviewAreaChart({
               type="monotone"
               dataKey={s.key}
               name={s.label}
+              stackId={s.stack}
               stroke={color}
               fill={color}
-              fillOpacity={0.15}
+              fillOpacity={s.fillOpacity ?? 0.15}
               strokeWidth={2}
               strokeDasharray={s.dashed ? "4 4" : undefined}
               dot={false}

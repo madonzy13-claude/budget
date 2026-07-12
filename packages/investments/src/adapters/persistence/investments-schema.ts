@@ -18,6 +18,7 @@ import {
   bigint,
   integer,
   timestamp,
+  date,
   check,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
@@ -51,6 +52,13 @@ export const investments = budgeting.table(
     quantity: numeric("quantity", { precision: 28, scale: 8 }).notNull(),
     currentPriceCents: bigint("current_price_cents", { mode: "bigint" }),
     currentPriceCurrency: char("current_price_currency", { length: 3 }),
+    // Deposit-only (holding_type = 'deposit'): principal + currency ride
+    // buy_price_cents/buy_currency; these describe how it accrues. Value is
+    // computed on read (never stored) — see application/list-holdings.ts.
+    depositRateBps: integer("deposit_rate_bps"), // annual rate, basis points
+    depositStartDate: date("deposit_start_date"), // 'YYYY-MM-DD'
+    depositEndDate: date("deposit_end_date"), // 'YYYY-MM-DD' maturity; NULL = open
+    depositCapFrequency: text("deposit_cap_frequency"), // daily|monthly|quarterly|semiannual|yearly
     sortOrder: integer("sort_order").notNull().default(0),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -60,11 +68,15 @@ export const investments = budgeting.table(
   (t) => [
     check(
       "investments_holding_type_chk",
-      sql`${t.holdingType} IN ('equities','etf','bond','crypto','reit','commodity','cash_fx','real_estate','other')`,
+      sql`${t.holdingType} IN ('equities','etf','bond','crypto','reit','commodity','cash_fx','real_estate','other','deposit')`,
     ),
     check(
       "investments_ui_type_chk",
-      sql`${t.uiType} IS NULL OR ${t.uiType} IN ('equity','etf','etb','reit','crypto','treasury_bond','collectibles','real_estate','other','precious_metals','cash')`,
+      sql`${t.uiType} IS NULL OR ${t.uiType} IN ('equity','etf','etb','reit','crypto','treasury_bond','collectibles','real_estate','other','precious_metals','cash','broker','deposit')`,
+    ),
+    check(
+      "investments_deposit_cap_frequency_chk",
+      sql`${t.depositCapFrequency} IS NULL OR ${t.depositCapFrequency} IN ('daily','monthly','quarterly','semiannual','yearly')`,
     ),
     check(
       "investments_metal_chk",

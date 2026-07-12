@@ -180,6 +180,39 @@ describe("Overview cards", () => {
     expect(r._unsafeUnwrap().available_reserves_cents).toBe(5000n);
   });
 
+  test("negative wallet balances (credit cards) are excluded from available-to-spend + reserves", async () => {
+    const d = deps();
+    d.walletRepo = {
+      async listWalletsWithType() {
+        return [
+          {
+            amount_cents: 10000n,
+            currency: "USD",
+            wallet_type: "SPENDINGS" as const,
+          },
+          {
+            amount_cents: -4000n, // credit card — excluded from "available"
+            currency: "USD",
+            wallet_type: "SPENDINGS" as const,
+          },
+          {
+            amount_cents: 5000n,
+            currency: "USD",
+            wallet_type: "RESERVE" as const,
+          },
+          {
+            amount_cents: -1500n, // credit — excluded
+            currency: "USD",
+            wallet_type: "RESERVE" as const,
+          },
+        ];
+      },
+    };
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    expect(dto.available_to_spend_cents).toBe(10000n); // −4000 excluded
+    expect(dto.available_reserves_cents).toBe(5000n); // −1500 excluded
+  });
+
   test("spendings breakdown: spent + budget-left + wallet + good flag (item 1)", async () => {
     const dto = (await getOverviewCards(deps())(input))._unsafeUnwrap();
     // r36: left_cents is PER-CATEGORY max(leftover, upcoming), NOT the net.

@@ -30,13 +30,36 @@ export function buildTrustedOrigins(
   appUrl: string,
   trustedOriginsEnv?: string,
 ): string[] {
-  return [
+  const configured = [
     appUrl,
     ...(trustedOriginsEnv
       ?.split(",")
       .map((o) => o.trim())
       .filter(Boolean) ?? []),
   ];
+  // Also trust the scheme-SIBLING (http↔https) of LOOPBACK origins only, so local
+  // dev over either scheme just works. We deliberately do NOT derive siblings for
+  // real hosts: auto-trusting `http://<prod-host>` would widen the CSRF surface
+  // (a page served over http at that host — e.g. via MITM on a hostile network —
+  // could forge authenticated requests). A non-loopback host that must accept both
+  // schemes (e.g. an installed PWA pinned to http://) is listed EXPLICITLY in
+  // TRUSTED_ORIGINS for that deployment.
+  const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+  const isLoopback = (o: string): boolean => {
+    try {
+      return LOOPBACK.has(new URL(o).hostname);
+    } catch {
+      return false;
+    }
+  };
+  const out = new Set<string>();
+  for (const o of configured) {
+    out.add(o);
+    if (!isLoopback(o)) continue;
+    if (o.startsWith("https://")) out.add(`http://${o.slice(8)}`);
+    else if (o.startsWith("http://")) out.add(`https://${o.slice(7)}`);
+  }
+  return [...out];
 }
 
 /**

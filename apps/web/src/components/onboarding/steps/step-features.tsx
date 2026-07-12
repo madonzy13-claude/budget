@@ -121,7 +121,10 @@ export function StepFeatures({
               min={1}
               max={60}
               step={1}
-              value={cushionTargetMonths}
+              // 0 renders as EMPTY so a cleared field stays clearable — showing "0"
+              // stuck a leading zero that a typed digit turned into "03". 0 is still
+              // flagged invalid by monthsInvalid below.
+              value={cushionTargetMonths === 0 ? "" : cushionTargetMonths}
               onChange={(e) => {
                 const v = parseInt(e.target.value, 10);
                 onChangeCushionTargetMonths(Number.isNaN(v) ? 0 : v);

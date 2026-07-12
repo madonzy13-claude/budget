@@ -21,6 +21,8 @@ export interface CategoryRow {
   colorKey: string | null;
   /** r33: THE Investments category — excluded entirely from the reserves tab. */
   isInvestment?: boolean;
+  /** Persisted cushion configuration (mig 0059); null = inferred. */
+  cushionMode?: string | null;
 }
 
 export interface CategoriesRepo {

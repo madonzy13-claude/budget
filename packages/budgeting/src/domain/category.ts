@@ -24,6 +24,8 @@ export class Category {
     // green "overinvested" label + the smart-limit compute in the summary.
     public readonly isInvestment: boolean = false,
     public investmentLimitMode: string | null = null,
+    // Persisted cushion configuration (mig 0059); null = inferred.
+    public cushionMode: string | null = null,
   ) {}
 
   /** Set or clear the category color (260613-v1p). null clears it (→ no bar). */

@@ -49,6 +49,12 @@ export const budgets = tenancy.table(
     // Phase 9: gates the Investments section on the wallets page. Opt-in —
     // default false (unlike reserves/cushion, which default true).
     investmentsEnabled: boolean("investments_enabled").notNull().default(false),
+    // r36: amount-privacy toggle. TRUE (default) → Overview amounts are HIDDEN by
+    // default behind redaction bars with an eye to reveal; FALSE → amounts always
+    // visible, no eye. Toggled in Settings → General.
+    amountPrivacyEnabled: boolean("amount_privacy_enabled")
+      .notNull()
+      .default(true),
     // Phase 6 (D-09): soft-delete timestamp. NULL = active, non-NULL = archived.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
   },

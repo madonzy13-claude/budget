@@ -15,7 +15,10 @@ import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OverviewSection } from "./overview-section";
-import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
+import {
+  usePersistedSectionOpen,
+  useBdpUiStore,
+} from "@/components/budgeting/bdp-ui-state";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
@@ -88,9 +91,22 @@ export function WealthSection({
   investmentsEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  // Investment type labels (uitype.*) live under budget.investments — same source
+  // the add-investment type dropdown uses, so the pie reads identically.
+  const tInvest = useTranslations("budget.investments");
   const locale = useLocale();
   const [open, toggleOpen] = usePersistedSectionOpen("wealth");
-  const [view, setView] = useState<WealthView>("capitalization");
+  // View persists across pill navigation (the carousel unmounts this pane, so a
+  // plain useState would reset to Capitalization on return). Backed by the shared
+  // BdpUiStore ref like range / open-sections.
+  const store = useBdpUiStore();
+  const [view, setViewState] = useState<WealthView>(
+    () => store?.overview.wealthView ?? "capitalization",
+  );
+  const setView = (v: WealthView) => {
+    if (store) store.overview.wealthView = v;
+    setViewState(v);
+  };
   // Investments off → no per-type view to switch to: capitalization-only (the
   // toggle is hidden below), regardless of any prior selection.
   const effectiveView: WealthView = investmentsEnabled
@@ -109,10 +125,10 @@ export function WealthSection({
   const fmtY = chartCompactCents;
   // Chart TOOLTIP (on tap): the FULL value WITH currency (r25 item 2).
   const fmtTooltip = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en");
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
   // Pie centre read-out: whole currency, NO cents (round to the nearest unit).
   const fmtPieValue = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n / 100) * 100), ccy, "en");
+    centsToDisplayCompact(BigInt(Math.round(n / 100) * 100), ccy, "en", true);
 
   // Capitalization pie: where the money sits — investments / spendings-wallets /
   // reserves-wallets / cushion. Sourced from the (already-prefetched) overview
@@ -190,6 +206,19 @@ export function WealthSection({
           // chart (r30 item 2). Fall back to `grow` when the field is absent — a
           // stale cached response mid-deploy must not white-screen the page.
           const growth = data.grow_from_open ?? data.grow;
+          // "All": drop the leading zero buckets before the first real snapshot so
+          // the timeline starts at the first non-zero value, not a flat run of zeros
+          // stretching back to the 5-year cap (item 9). Only for the "all" preset —
+          // the shorter presets intentionally seed the opening value.
+          const seriesPoints =
+            range.preset === "all"
+              ? (() => {
+                  const first = data.series.findIndex(
+                    (p) => Number(p.value_cents) !== 0,
+                  );
+                  return first > 0 ? data.series.slice(first) : data.series;
+                })()
+              : data.series;
           return (
             <>
               {/* VALUE chart + its RANGE-scoped metric: total growth over the whole
@@ -211,7 +240,12 @@ export function WealthSection({
                           : "text-[var(--trading-down)]",
                       )}
                     >
-                      {centsToDisplayCompact(growth.delta_cents, ccy, "en")}
+                      {centsToDisplayCompact(
+                        growth.delta_cents,
+                        ccy,
+                        "en",
+                        true,
+                      )}
                     </span>
                   </div>
                   <PctStat label={t("wealth.grow")} pct={growth.delta_pct} />
@@ -222,7 +256,7 @@ export function WealthSection({
                   {t("wealth.growSince", { preset: range.preset })}
                 </p>
                 <OverviewAreaChart
-                  data={data.series.map((p) => ({
+                  data={seriesPoints.map((p) => ({
                     label: p.label,
                     value: Number(p.value_cents),
                   }))}
@@ -297,6 +331,7 @@ export function WealthSection({
                     valueKey="value"
                     colorFor={(n) => capColorMap[n] ?? NEUTRAL}
                     formatValue={fmtPieValue}
+                    allLabel={t("range.all")}
                   />
                 </div>
               )}
@@ -319,9 +354,15 @@ export function WealthSection({
                       nameKey="holding_type"
                       valueKey="value"
                       colorFor={(ht) =>
-                        UI_TYPE_COLOR[deriveUiType(null, ht, false)]
+                        UI_TYPE_COLOR[deriveUiType(ht, ht, false)]
+                      }
+                      // Human label (same as the add-investment type dropdown)
+                      // instead of the raw underscored holding_type.
+                      formatName={(ht) =>
+                        tInvest(`uitype.${deriveUiType(ht, ht, false)}`)
                       }
                       formatValue={fmtPieValue}
+                      allLabel={t("range.all")}
                     />
                   ) : (
                     <p className="text-num-sm text-[var(--muted-foreground)]">

@@ -24,10 +24,12 @@ export function OverviewTab({
   budgetId,
   reservesEnabled = true,
   investmentsEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   reservesEnabled?: boolean;
   investmentsEnabled?: boolean;
+  amountPrivacyEnabled?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Scroll ownership by display mode (the iOS-Safari "two scrollbars + dead band"
@@ -40,12 +42,28 @@ export function OverviewTab({
   // 100lvh−visible gap as dead space → a 2nd scrollbar + a dark band beneath the
   // box (UAT-08). Default false (page-scroll) so a browser tab never first-paints
   // the fixed-height box; flip to inner-scroll only once we confirm standalone.
+  // Own an inner scroll surface in STANDALONE (the iOS-Safari fix) AND on DESKTOP
+  // (≥sm): a fixed-height box means the pinned range selector engages immediately
+  // like on mobile, instead of only after enough page scroll — on a tall desktop
+  // the page often can't scroll far enough to reach the pin, so it never sticks.
+  // Only mobile browser (<sm, touch) keeps native page-scroll (iOS bar-collapse).
   const [innerScroll, setInnerScroll] = useState(false);
   useEffect(() => {
-    setInnerScroll(
-      window.matchMedia("(display-mode: standalone)").matches ||
-        (navigator as { standalone?: boolean }).standalone === true,
-    );
+    const dm = window.matchMedia("(display-mode: standalone)");
+    const wide = window.matchMedia("(min-width: 640px)");
+    const update = () =>
+      setInnerScroll(
+        dm.matches ||
+          (navigator as { standalone?: boolean }).standalone === true ||
+          wide.matches,
+      );
+    update();
+    dm.addEventListener("change", update);
+    wide.addEventListener("change", update);
+    return () => {
+      dm.removeEventListener("change", update);
+      wide.removeEventListener("change", update);
+    };
   }, []);
   // Only meaningful for inner-scroll (the h-[--grid-max-h] class); a no-op var
   // otherwise. fitVisible tracks the visible viewport height for the PWA box.
@@ -91,6 +109,7 @@ export function OverviewTab({
           budgetId={budgetId}
           reservesEnabled={reservesEnabled}
           investmentsEnabled={investmentsEnabled}
+          amountPrivacyEnabled={amountPrivacyEnabled}
         />
         <ProjectionTimeline budgetId={budgetId} />
         <OverviewSections

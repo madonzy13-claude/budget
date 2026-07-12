@@ -49,11 +49,13 @@ function TabPane({
   budgetId,
   reservesEnabled,
   investmentsEnabled,
+  amountPrivacyEnabled,
 }: {
   tab: BdpTab;
   budgetId: string;
   reservesEnabled: boolean;
   investmentsEnabled: boolean;
+  amountPrivacyEnabled: boolean;
 }) {
   switch (tab) {
     case "overview":
@@ -68,6 +70,7 @@ function TabPane({
             budgetId={budgetId}
             reservesEnabled={reservesEnabled}
             investmentsEnabled={investmentsEnabled}
+            amountPrivacyEnabled={amountPrivacyEnabled}
           />
         </div>
       );
@@ -179,12 +182,20 @@ export function BudgetDetail({
         reserves_enabled?: boolean;
         investmentsEnabled?: boolean;
         investments_enabled?: boolean;
+        amountPrivacyEnabled?: boolean;
+        amount_privacy_enabled?: boolean;
       }
     | undefined;
   const reservesOn =
     liveBudget?.reservesEnabled ??
     liveBudget?.reserves_enabled ??
     reservesEnabled;
+  // r36: amount-privacy flag (live from useBudget, invalidated by the Settings →
+  // General toggle) → when ON the Overview hides amounts by default with an eye.
+  const amountPrivacyOn =
+    liveBudget?.amountPrivacyEnabled ??
+    liveBudget?.amount_privacy_enabled ??
+    true;
   // No server prop for investments (Overview-only) — read live from the same
   // useBudget query the Settings → Investments toggle invalidates, so the
   // "incl. investments" sub-line + the wealth view toggle react without a reload.
@@ -307,6 +318,7 @@ export function BudgetDetail({
                 budgetId={budgetId}
                 reservesEnabled={reservesOn}
                 investmentsEnabled={investmentsOn}
+                amountPrivacyEnabled={amountPrivacyOn}
               />
             </motion.div>
           </AnimatePresence>

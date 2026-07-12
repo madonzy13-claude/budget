@@ -11,9 +11,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api-client";
 
 export interface BudgetIdentitySectionProps {
@@ -21,6 +23,10 @@ export interface BudgetIdentitySectionProps {
   name: string;
   defaultCurrency: string;
   hasTransactions: boolean;
+  /** r36: amount-privacy flag; ON = Overview hides amounts by default (eye to reveal). */
+  amountPrivacyEnabled?: boolean;
+  /** Only owners may flip the flag (mirrors the API owner-gate). */
+  isOwner?: boolean;
 }
 
 export function BudgetIdentitySection({
@@ -28,9 +34,40 @@ export function BudgetIdentitySection({
   name,
   defaultCurrency,
   hasTransactions,
+  amountPrivacyEnabled = true,
+  isOwner = true,
 }: BudgetIdentitySectionProps) {
   const t = useTranslations("settings");
   const router = useRouter();
+  const qc = useQueryClient();
+
+  // Amount-privacy toggle (r36). Optimistic flip + PATCH; invalidate the
+  // budget-detail query so the Overview eye + default-hidden behavior update
+  // without a reload.
+  const [privacyOn, setPrivacyOn] = useState(amountPrivacyEnabled);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  useEffect(() => setPrivacyOn(amountPrivacyEnabled), [amountPrivacyEnabled]);
+
+  const savePrivacy = async (checked: boolean) => {
+    setPrivacyOn(checked);
+    setSavingPrivacy(true);
+    try {
+      const res = await api.budgets[":id"].$patch({
+        param: { id: budgetId },
+        json: { amount_privacy_enabled: checked },
+      });
+      if (!res.ok) throw new Error("Failed to update amount-privacy flag");
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
+      toast.success(
+        checked ? t("identity.privacy_on_toast") : t("identity.privacy_off_toast"),
+      );
+    } catch {
+      setPrivacyOn(!checked);
+      toast.error(t("identity.privacy_error"));
+    } finally {
+      setSavingPrivacy(false);
+    }
+  };
 
   // Optimistic display name so the inline cell shows the new value
   // immediately after blur, while router.refresh() asynchronously syncs the
@@ -143,6 +180,26 @@ export function BudgetIdentitySection({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Amount-privacy toggle (r36) — when on, the Overview hides amounts by
+          default and shows an eye to reveal; when off, amounts are always shown. */}
+      <div className="flex items-center justify-between gap-4 py-3">
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-sm font-semibold text-[var(--body)]">
+            {t("identity.privacy_label")}
+          </p>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {t("identity.privacy_hint")}
+          </p>
+        </div>
+        <Switch
+          data-testid="amount-privacy-switch"
+          checked={privacyOn}
+          onCheckedChange={savePrivacy}
+          disabled={savingPrivacy || !isOwner}
+          aria-label={t("identity.privacy_label")}
+        />
       </div>
     </div>
   );

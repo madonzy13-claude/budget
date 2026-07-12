@@ -67,6 +67,22 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
           input.premiumPct !== undefined
             ? (input.premiumPct ?? null)
             : current.premiumPct,
+        depositRateBps:
+          input.depositRateBps !== undefined
+            ? (input.depositRateBps ?? null)
+            : current.depositRateBps,
+        depositStartDate:
+          input.depositStartDate !== undefined
+            ? (input.depositStartDate ?? null)
+            : current.depositStartDate,
+        depositEndDate:
+          input.depositEndDate !== undefined
+            ? (input.depositEndDate ?? null)
+            : current.depositEndDate,
+        depositCapFrequency:
+          input.depositCapFrequency !== undefined
+            ? (input.depositCapFrequency ?? null)
+            : current.depositCapFrequency,
       };
 
       const updated = await deps.holdingRepo.update(

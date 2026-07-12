@@ -40,3 +40,13 @@ describe("resolveRange thisMonth respects the timezone", () => {
     });
   });
 });
+
+describe("resolveRange last12Months is a trailing year, not YTD", () => {
+  it("spans 12 month-buckets back from today (11 months + current)", () => {
+    // Today (UTC) = 2026-06-30 → 11 months back = 2025-07-01 → to today.
+    expect(resolveRange("last12Months", "UTC", undefined, boundary)).toEqual({
+      from: "2025-07-01",
+      to: "2026-06-30",
+    });
+  });
+});

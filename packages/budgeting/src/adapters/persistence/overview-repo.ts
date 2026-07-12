@@ -110,7 +110,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           -- a planned row when a limit was actually effective then. Archived gate
           -- stays (drop the category for months at/after it's archived).
           cat_month AS (
-            SELECT c.id AS category_id, m.month, m.month_start
+            SELECT c.id AS category_id, c.cushion_mode, m.month, m.month_start
               FROM budgeting.categories c
               CROSS JOIN months m
              WHERE c.tenant_id = ${budgetId}::uuid
@@ -119,7 +119,18 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           SELECT cm.category_id::text AS category_id,
                  cm.month AS month,
                  (CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
-                       ELSE cl.normal_amount END)::text AS planned_cents
+                       ELSE cl.normal_amount END)::text AS planned_cents,
+                 -- needs = the essential portion; wants = planned − needs. For a
+                 -- cushioned category that's the cushion (capped at planned). For a
+                 -- NON-cushioned category (mode 'none') the cushion is 0 but the
+                 -- planned is still its needs budget (not "wants") → needs = planned.
+                 (CASE WHEN cm.cushion_mode = 'none'
+                       THEN CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
+                                 ELSE cl.normal_amount END
+                       ELSE LEAST(cl.cushion_amount,
+                                  CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
+                                       ELSE cl.normal_amount END)
+                  END)::text AS needs_cents
             FROM cat_month cm
             JOIN mode_at ma ON ma.month_start = cm.month_start
             JOIN LATERAL (
@@ -137,6 +148,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           category_id: r.category_id as string,
           month: r.month as string,
           planned_cents: BigInt(r.planned_cents as string),
+          needs_cents: BigInt(r.needs_cents as string),
         }));
       });
     },
@@ -195,6 +207,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
         const res = await tx.execute(sql`
           SELECT rr.category_id::text AS category_id,
                  c.name AS name,
+                 rr.note AS rule_name,
                  (rr.amount * 100)::bigint::text AS amount_cents,
                  rr.currency,
                  rr.cadence,
@@ -208,6 +221,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
         return res.rows.map((r) => ({
           category_id: (r.category_id as string | null) ?? null,
           name: (r.name as string | null) ?? null,
+          rule_name: (r.rule_name as string | null) ?? null,
           amount_cents: BigInt(r.amount_cents as string),
           currency: r.currency as string,
           cadence: r.cadence as Cadence,

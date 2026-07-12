@@ -149,7 +149,7 @@ describe("ProfileMenu theme + profile entry", () => {
     expect(screen.getByTestId("profile-menu-settings")).toBeInTheDocument();
   });
 
-  test("theme item flips the <html data-theme> in place", async () => {
+  test("theme item flips the <html data-theme> and closes the menu", async () => {
     document.documentElement.removeAttribute("data-theme"); // starts dark
     await openMenu();
     const toggle = screen.getByTestId("profile-menu-theme");
@@ -157,7 +157,9 @@ describe("ProfileMenu theme + profile entry", () => {
     expect(toggle).toHaveTextContent("theme_light");
     fireEvent.click(toggle);
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
-    // Now offers "Dark mode".
-    expect(toggle).toHaveTextContent("theme_dark");
+    // Switching theme dismisses the menu (applies in place, no nav).
+    expect(
+      screen.queryByTestId("profile-menu-theme"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -75,4 +75,9 @@ export interface ChartSeries {
   color?: string;
   /** render as a dashed series (the planned baseline) */
   dashed?: boolean;
+  /** shared stackId — series with the same value stack on top of each other
+   *  (e.g. needs + wants → the planned total). */
+  stack?: string;
+  /** fill opacity override (e.g. a heavier fill for a stacked band). */
+  fillOpacity?: number;
 }

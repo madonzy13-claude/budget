@@ -586,7 +586,12 @@ export function RecurringRuleForm({
               disabled={
                 saving ||
                 !note?.trim() ||
-                (categories && categories.length > 0 && !categoryId)
+                // Budget-scoped rules MUST be categorised — the generated spending
+                // draft needs a column to land in. Gating on budgetId (not on
+                // categories.length) closes the race where the categories query
+                // hasn't resolved yet: without it, an empty list slipped through
+                // and a category-less rule was created.
+                (!!budgetId && !categoryId)
               }
               className="h-14 text-base w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
             >

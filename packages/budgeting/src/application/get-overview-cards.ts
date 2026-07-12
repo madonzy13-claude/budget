@@ -225,15 +225,21 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       const spendableTypes = meta.cushion_mode_enabled
         ? ["SPENDINGS", "CUSHION"]
         : ["SPENDINGS"];
+      // A NEGATIVE wallet balance is a credit-card / liability — it counts toward
+      // capitalization (net worth, computed elsewhere) but NOT toward "available"
+      // funds. Exclude it from every by-type available sum (spendings, reserves).
+      const positive = (w: { amount_cents: bigint }) => w.amount_cents >= 0n;
       const [availableToSpend, availableReserves] = await Promise.all([
         sumWalletsToCurrency(
-          wallets.filter((w) => spendableTypes.includes(w.wallet_type)),
+          wallets.filter(
+            (w) => spendableTypes.includes(w.wallet_type) && positive(w),
+          ),
           defaultCcy,
           deps.fxProvider,
           now,
         ),
         sumWalletsToCurrency(
-          wallets.filter((w) => w.wallet_type === "RESERVE"),
+          wallets.filter((w) => w.wallet_type === "RESERVE" && positive(w)),
           defaultCcy,
           deps.fxProvider,
           now,

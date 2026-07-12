@@ -61,6 +61,13 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             first_red_date: p.summary.firstRedDate,
             worst_shortfall_cents: p.summary.worstShortfallCents.toString(),
           },
+          spend_health: {
+            good: p.spendHealth.good,
+            surplus_deficit_cents:
+              p.spendHealth.surplusDeficitCents === null
+                ? null
+                : p.spendHealth.surplusDeficitCents.toString(),
+          },
         },
         200,
       );

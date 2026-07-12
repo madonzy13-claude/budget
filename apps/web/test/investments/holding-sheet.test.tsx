@@ -25,6 +25,12 @@ vi.mock("next-intl", () => ({
       return s;
     },
   useLocale: () => "en",
+  // holding-sheet.tsx uses fmt.relativeTime(at) for the price age (b789ec8).
+  useFormatter: () => ({
+    relativeTime: (_d: Date) => "just now",
+    number: (n: number) => String(n),
+    dateTime: (d: Date) => d.toISOString(),
+  }),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -154,6 +160,10 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     weightPct: 100,
     sortOrder: 1,
     createdAt: "2026-06-21T00:00:00Z",
+    depositRateBps: null,
+    depositStartDate: null,
+    depositEndDate: null,
+    depositCapFrequency: null,
     ...over,
   };
 }
@@ -409,6 +419,78 @@ describe("HoldingSheet — type-first", () => {
     // Name present and Save enabled (deposited + actual + name all filled).
     expect(screen.getByTestId("holding-sheet-name")).toBeInTheDocument();
     expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled();
+  });
+
+  it("deposit type shows principal + rate + capitalization + start + optional end, and prefills them", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "deposit",
+          uiType: "deposit",
+          instrumentId: null,
+          name: "Savings @ 5.25%",
+          buyPriceCents: "500000",
+          buyCurrency: "USD",
+          currentPriceCents: "500000",
+          currentPriceCurrency: "USD",
+          depositRateBps: 525,
+          depositStartDate: "2025-01-01",
+          depositEndDate: "2026-01-01",
+          depositCapFrequency: "monthly",
+        })}
+      />,
+    );
+    // Deposit-specific fields present.
+    expect(screen.getByTestId("holding-sheet-principal")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-rate")).toHaveValue("5.25");
+    expect(screen.getByTestId("holding-sheet-start-date")).toHaveValue(
+      "2025-01-01",
+    );
+    expect(screen.getByTestId("holding-sheet-end-date")).toHaveValue(
+      "2026-01-01",
+    );
+    expect(
+      screen.getByTestId("holding-sheet-cap-frequency"),
+    ).toBeInTheDocument();
+    // Not a quantity/buy-price holding.
+    expect(screen.queryByTestId("holding-sheet-quantity")).toBeNull();
+    expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled();
+  });
+
+  it("deposit save builds a payload with rate (bps), dates and frequency", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "deposit",
+          uiType: "deposit",
+          instrumentId: null,
+          name: "Savings",
+          buyPriceCents: "500000",
+          buyCurrency: "USD",
+          depositRateBps: 525,
+          depositStartDate: "2025-01-01",
+          depositEndDate: null,
+          depositCapFrequency: "monthly",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(updateMutate).toHaveBeenCalledTimes(1);
+    const payload = updateMutate.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      holdingType: "deposit",
+      uiType: "deposit",
+      depositRateBps: 525,
+      depositStartDate: "2025-01-01",
+      depositEndDate: null,
+      depositCapFrequency: "monthly",
+      buyPriceCents: "500000",
+      quantity: "1",
+    });
   });
 
   it("selecting an instrument hides the currency picker and shows its currency in the price label", () => {

@@ -98,10 +98,18 @@ export const categoryColorKeySchema = z
   .nullable()
   .optional();
 
+// Persisted cushion configuration (migration 0059). Presence-optional so a
+// rename-only PATCH never wipes it; null clears it back to inferred.
+export const cushionModeSchema = z
+  .enum(["none", "needs_wants", "needs_only", "custom"])
+  .nullable()
+  .optional();
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(120),
   parentId: z.string().uuid().optional(),
   colorKey: categoryColorKeySchema,
+  cushionMode: cushionModeSchema,
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
@@ -110,6 +118,7 @@ export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export const updateCategorySchema = z.object({
   name: z.string().min(1).max(120),
   colorKey: categoryColorKeySchema,
+  cushionMode: cushionModeSchema,
 });
 
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;

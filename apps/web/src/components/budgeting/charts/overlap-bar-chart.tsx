@@ -21,15 +21,15 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import {
-  CHART_THEME,
-  chartAxis,
-  leftAlignedYTick,
-  type ChartSeries,
-} from "./chart-theme";
+import { CHART_THEME, chartAxis, type ChartSeries } from "./chart-theme";
+import { CategoryTick } from "./category-tick";
 import { ChartTooltipContent } from "./chart-tooltip";
 
 const BAR_SIZE = 16;
+// Vertical (category) row height: enough for a 2-line wrapped label + the overlaid
+// bars. A FIXED chart height crammed many categories into thin bands, so labels
+// overlapped and the two bars no longer sat on one line (UAT). Scale with count.
+const ROW_PX = 36;
 
 export function OverviewOverlapBarChart({
   data,
@@ -85,8 +85,11 @@ export function OverviewOverlapBarChart({
   const dim = (ri: number, full: number) =>
     activeIndex === null || activeIndex === ri ? full : full * 0.3;
 
+  // Grow the chart so every category gets a full ROW_PX band (min = the passed
+  // height). Prevents 2-line labels overlapping + keeps the bar-in-bar on one line.
+  const chartHeight = Math.max(height, data.length * ROW_PX + 24);
   return (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveContainer width="100%" height={chartHeight}>
       <BarChart
         data={data}
         layout="vertical"
@@ -119,7 +122,8 @@ export function OverviewOverlapBarChart({
           dataKey={xKey}
           width={72}
           {...chartAxis}
-          tick={leftAlignedYTick(72)}
+          tick={<CategoryTick width={72} />}
+          interval={0}
         />
         <Tooltip
           active={activeIndex !== null}
@@ -168,7 +172,9 @@ export function OverviewOverlapBarChart({
           {data.map((row, ri) => (
             <Cell
               key={ri}
-              fill={overlayColorByPoint ? overlayColorByPoint(row) : overlayFill}
+              fill={
+                overlayColorByPoint ? overlayColorByPoint(row) : overlayFill
+              }
               fillOpacity={dim(ri, overlayOpacity)}
             />
           ))}

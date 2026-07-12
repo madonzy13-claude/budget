@@ -1,6 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 import { routing } from "../i18n/routing";
+import { shouldUpgradeToHttps } from "./lib/https-upgrade";
 import { decideSignedOutLocaleRedirect } from "./lib/negotiate-locale";
 
 const intlMiddleware = createMiddleware(routing);
@@ -51,6 +52,18 @@ function stripLocale(pathname: string): string {
 
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Force http→https for real hosts so a browser will store Better Auth's Secure
+  // session cookie (see shouldUpgradeToHttps). Without this an iOS PWA pinned to
+  // http:// signs in but loops back to /sign-in, cookie never kept.
+  const host = request.headers.get("host") ?? "";
+  if (shouldUpgradeToHttps(request.headers.get("x-forwarded-proto"), host)) {
+    return NextResponse.redirect(
+      `https://${host}${pathname}${request.nextUrl.search}`,
+      308,
+    );
+  }
+
   const isAuthenticated = !!sessionCookieValue(request);
   const bare = stripLocale(pathname);
   const locale = extractLocale(pathname);

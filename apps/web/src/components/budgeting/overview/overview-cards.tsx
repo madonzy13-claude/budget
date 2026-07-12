@@ -17,13 +17,18 @@ import { Temporal } from "temporal-polyfill";
 import {
   TrendingUp,
   TrendingDown,
+  Circle,
   CircleCheck,
   CircleAlert,
   CirclePlus,
   Hourglass,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { usePrivacyReveal } from "@/components/budgeting/bdp-ui-state";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
+import { useProjection } from "@/hooks/use-projection";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
@@ -51,6 +56,23 @@ const CARD =
 function CardLabel({ children }: { children: React.ReactNode }) {
   return (
     <p className="text-caption text-[var(--muted-foreground)]">{children}</p>
+  );
+}
+
+/**
+ * Redaction bar — a solid rounded block that covers a hidden amount. Inherits the
+ * figure's font (em-relative height) and is sized to the real figure's character
+ * count (`ch`) so revealing/hiding doesn't shift the layout. Used for the privacy
+ * toggle instead of a blur (a `filter` on the card breaks the capitalization flip).
+ */
+function RedactionBar({ chars }: { chars: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="redaction-bar"
+      className="inline-block max-w-full translate-y-[-0.06em] rounded-[var(--radius-sm)] bg-[var(--surface-elevated-dark)] align-middle"
+      style={{ width: `${Math.max(2, chars)}ch`, height: "0.7em" }}
+    />
   );
 }
 
@@ -92,16 +114,28 @@ export function OverviewCards({
   budgetId,
   reservesEnabled = true,
   investmentsEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   reservesEnabled?: boolean;
   investmentsEnabled?: boolean;
+  /** r36: when false, amounts are always visible and the eye toggle is hidden. */
+  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const tz = useUserTimezone();
   const { data, isError, isPending } = useOverviewCards(budgetId);
+  // Available-to-spend health (dot + surplus/deficit) comes from the cash-flow
+  // projection so it accounts for upcoming income to the last pay-day of the window
+  // (the ProjectionTimeline sibling already fetches this; React Query dedupes).
+  const { data: projection } = useProjection(budgetId);
   // Capitalization card flips to reveal the retirement runway on its back (item 9).
   const [flipped, setFlipped] = useState(false);
+  // Amount privacy (per-budget flag). When ON, figures start hidden (redaction
+  // bars) with an eye to reveal (auto-re-hides after 30 min idle — see
+  // usePrivacyReveal). When OFF, amounts are always visible and there's no eye.
+  const { revealed: rawRevealed, toggle: togglePrivacy } = usePrivacyReveal();
+  const revealed = amountPrivacyEnabled ? rawRevealed : true;
 
   /** "5 years and 6 months" — fully localized (ICU plurals) for the flip back. */
   const retirementFull = (totalMonths: number): string => {
@@ -156,23 +190,37 @@ export function OverviewCards({
   }
 
   const ccy = data.default_currency;
-  // Overview money always renders with the EN locale so the currency symbol ($,
-  // €, …) shows instead of the ISO code (PL/UK render USD as "$", not "USD") and
-  // grouping matches the English surfaces (UAT round, item 6).
-  const money = (cents: string) => centsToDisplayCompact(cents, ccy, "en");
-  // Animated variants — the figure counts to its new value when data refreshes.
-  const animMoney = (cents: string) => (
-    <AnimatedFigure
-      value={Number(cents)}
-      format={(n) => money(String(Math.round(n)))}
-    />
-  );
-  const animRounded = (cents: string) => (
-    <AnimatedFigure
-      value={Number(cents)}
-      format={(n) => centsToRounded(String(Math.round(n)), ccy)}
-    />
-  );
+  // Overview money always renders with the EN locale + narrow symbol so the SHORT
+  // currency sign shows ("$", "€", "zł", "₴") instead of the ISO code Intl falls
+  // back to for many currencies in `en` ("PLN"/"UAH"); grouping matches the English
+  // surfaces (UAT round, item 6).
+  const fmtMoney = (cents: string) =>
+    centsToDisplayCompact(cents, ccy, "en", true);
+  const fmtRounded = (cents: string) => centsToRounded(cents, ccy, "en", true);
+  // Privacy: when hidden, every figure is covered by a REDACTION BAR (a solid
+  // rounded block sized to the real figure so the layout doesn't jump) instead of
+  // the number. A bar (vs blur) leaves NO `filter` on the card, which is what
+  // defeated the capitalization flip's backface-visibility.
+  const hide = !revealed;
+  // Node formatters — count-tween when revealed; a redaction bar when hidden.
+  const animMoney = (cents: string) =>
+    hide ? (
+      <RedactionBar chars={fmtMoney(cents).length} />
+    ) : (
+      <AnimatedFigure
+        value={Number(cents)}
+        format={(n) => fmtMoney(String(Math.round(n)))}
+      />
+    );
+  const animRounded = (cents: string) =>
+    hide ? (
+      <RedactionBar chars={fmtRounded(cents).length} />
+    ) : (
+      <AnimatedFigure
+        value={Number(cents)}
+        format={(n) => fmtRounded(String(Math.round(n)))}
+      />
+    );
   // Localized cushion-runway unit suffixes (item 4): EN y/m/d, UK р/м/д, PL l/m/d.
   const runwayUnits = {
     y: t("cards.unitY"),
@@ -185,9 +233,26 @@ export function OverviewCards({
     investmentsEnabled && BigInt(data.investment_value_cents) > 0n;
   const overspentCount = data.overspent.count;
   const topNames = data.overspent.top.map((o) => o.name).join(" · ");
+  // Available-to-spend health from the projection. Dot: green (good), red (short),
+  // or grey when there's no upcoming income (good null) or the projection hasn't
+  // loaded yet. Surplus/deficit (cash on the day before the NEAREST income) only
+  // shows when there IS upcoming income; otherwise the card keeps the old
+  // "upcoming" figure. `good`/value are null with no income.
+  const spendHealth = projection?.spend_health;
+  const spendGood = spendHealth ? spendHealth.good : null;
+  const sdRaw = spendHealth?.surplus_deficit_cents ?? null;
+  const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
+  const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
 
   return (
-    <div data-testid="overview-cards" className="flex flex-col gap-3">
+    <div
+      data-testid="overview-cards"
+      // data-hidden reflects the privacy toggle (used by tests); the actual hiding
+      // is per-figure masking (fmt helpers above), not a CSS filter — a filter on
+      // the card defeats the capitalization flip's backface-visibility.
+      className="flex flex-col gap-3"
+      data-hidden={!revealed}
+    >
       {/* Hero: Capitalization (net worth) — a FLIP card. Front = the big yellow
           figure + P/L; tapping it rotates horizontally to the back, which shows the
           retirement runway ("if you retire now …"). The front sits in normal flow
@@ -201,7 +266,7 @@ export function OverviewCards({
             data-testid="overview-card-capitalization"
             className={cn(
               CARD,
-              "[perspective:1200px]",
+              "relative [perspective:1200px]",
               canFlip && "cursor-pointer select-none",
             )}
             {...(canFlip && {
@@ -217,6 +282,32 @@ export function OverviewCards({
               },
             })}
           >
+            {/* Privacy eye — only when the amount-privacy flag is on. A direct
+                child of the section (OUTSIDE the rotating 3D wrapper) so it stays
+                put during the flip and never rides the rotateY. stopPropagation
+                keeps a tap from also flipping the card. */}
+            {amountPrivacyEnabled && (
+              <button
+                type="button"
+                data-testid="privacy-toggle"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePrivacy();
+                }}
+                onKeyDown={(e) => e.stopPropagation()}
+                aria-pressed={revealed}
+                aria-label={
+                  revealed ? t("cards.privacyHide") : t("cards.privacyShow")
+                }
+                className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
+              >
+                {revealed ? (
+                  <Eye className="size-4" aria-hidden="true" />
+                ) : (
+                  <EyeOff className="size-4" aria-hidden="true" />
+                )}
+              </button>
+            )}
             <div
               className="relative transition-transform duration-500 [transform-style:preserve-3d]"
               style={{
@@ -226,18 +317,25 @@ export function OverviewCards({
               {/* FRONT — capitalization (in flow → defines the card height) */}
               <div className="[backface-visibility:hidden]">
                 <CardLabel>{t("cards.capitalization")}</CardLabel>
-                <div className="mt-1 flex flex-wrap items-stretch justify-between gap-x-3 gap-y-1">
-                  <div className="flex min-w-0 flex-col justify-between gap-1">
+                <div className="mt-1 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <div className="flex min-w-0 flex-col gap-1">
                     <p
                       // Inline color: tailwind-merge can't tell the custom
                       // `text-num-display` size class from a text-color and was
-                      // dropping `text-[var(--primary)]`, rendering the number grey.
-                      // An inline style bypasses the merge entirely (UAT item 3).
-                      style={{ color: "var(--primary)" }}
+                      // dropping the color class, rendering the number grey. An
+                      // inline style bypasses the merge entirely (UAT item 3).
+                      // --num-hero = brand yellow (dark) → dark gold (light) so it
+                      // stays legible on the pale light card.
+                      style={{ color: "var(--num-hero)" }}
                       className={cn(
                         "num",
                         heroFontClass(
-                          centsToRounded(data.capitalization_cents, ccy),
+                          centsToRounded(
+                            data.capitalization_cents,
+                            ccy,
+                            "en",
+                            true,
+                          ),
                         ),
                       )}
                     >
@@ -245,12 +343,19 @@ export function OverviewCards({
                     </p>
                     {hasInvestments && (
                       <p className="text-caption text-[var(--muted-foreground)]">
-                        {t("cards.capitalizationSub", {
+                        {t.rich("cards.capitalizationSub", {
                           // No cents — match the hero capitalization number.
-                          amount: centsToRounded(
-                            data.investment_value_cents,
-                            ccy,
-                          ),
+                          amount: fmtRounded(data.investment_value_cents),
+                          amt: (chunks) =>
+                            hide ? (
+                              <RedactionBar
+                                chars={
+                                  fmtRounded(data.investment_value_cents).length
+                                }
+                              />
+                            ) : (
+                              <>{chunks}</>
+                            ),
                         })}
                       </p>
                     )}
@@ -258,7 +363,10 @@ export function OverviewCards({
                   {pl && pl.delta_pct !== null && (
                     <div
                       className={cn(
-                        "text-caption flex shrink-0 flex-col items-end justify-between gap-0.5 text-right",
+                        // Top-aligned tight stack: the P/L % sits level with the top
+                        // of the hero number, $ and "since" hug beneath it. mt-0.5
+                        // nudges it just clear of the privacy eye in the corner.
+                        "text-caption mt-0.5 flex shrink-0 flex-col items-end gap-0.5 text-right",
                         Number(pl.delta_cents) >= 0
                           ? "text-[var(--trading-up)]"
                           : "text-[var(--trading-down)]",
@@ -276,10 +384,21 @@ export function OverviewCards({
                             aria-hidden="true"
                           />
                         )}
-                        <AnimatedFigure
-                          value={pl.delta_pct}
-                          format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`}
-                        />
+                        {hide ? (
+                          <RedactionBar
+                            chars={
+                              `${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`
+                                .length
+                            }
+                          />
+                        ) : (
+                          <AnimatedFigure
+                            value={pl.delta_pct}
+                            format={(n) =>
+                              `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
+                            }
+                          />
+                        )}
                       </span>
                       <span className="num">{animRounded(pl.delta_cents)}</span>
                       <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
@@ -320,45 +439,79 @@ export function OverviewCards({
       })()}
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Available to spend (item 1): wallet cash on top with a good/bad dot
-            (green when the wallets cover what's left to spend, red when short),
-            then spent-this-month + left-to-spend below. */}
+        {/* Available to spend (item 1): wallet cash on top with a good/bad dot.
+            The dot + surplus/deficit come from the cash-flow projection, so they
+            account for upcoming income through the last pay-day of the window
+            (green when no shortfall in that window, red when it runs short). Below:
+            spent-this-month + the projected surplus/deficit right before that last
+            pay-day (end of current month when there's no income). */}
         <section
           data-testid="overview-card-available-to-spend"
           className={CARD}
         >
           <CardLabel>{t("cards.availableToSpend")}</CardLabel>
           <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
-            {data.spendings.good ? (
+            {spendGood === true ? (
               <CircleCheck
                 data-testid="spend-good"
                 className="size-4 shrink-0 text-[var(--trading-up)]"
                 aria-label={t("cards.spendGood")}
               />
-            ) : (
+            ) : spendGood === false ? (
               <CircleAlert
                 data-testid="spend-bad"
                 className="size-4 shrink-0 text-[var(--trading-down)]"
                 aria-label={t("cards.spendBad")}
               />
+            ) : (
+              // No upcoming income (or projection not loaded) → neutral grey dot.
+              <Circle
+                data-testid="spend-neutral"
+                className="size-4 shrink-0 text-[var(--muted-foreground)]"
+                aria-label={t("cards.spendNeutral")}
+              />
             )}
             <span className="truncate">
-              {animMoney(data.spendings.wallet_cents)}
+              {animRounded(data.spendings.wallet_cents)}
             </span>
           </p>
           <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
             <div className="flex items-center justify-between gap-2">
               <dt>{t("cards.spentThisMonth")}</dt>
               <dd className="num text-[var(--body-on-dark)]">
-                {animMoney(data.spendings.spent_cents)}
+                {animRounded(data.spendings.spent_cents)}
               </dd>
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <dt>{t("cards.leftToSpend")}</dt>
-              <dd className="num text-[var(--body-on-dark)]">
-                {animMoney(data.spendings.left_cents)}
-              </dd>
-            </div>
+            {surplusDeficit !== null ? (
+              <div className="flex items-center justify-between gap-2">
+                <dt>{isDeficit ? t("cards.deficit") : t("cards.surplus")}</dt>
+                {/* Inline color (tailwind-merge drops text-[var()] color): red
+                    deficit (<0), white when exactly 0, green surplus (>0). */}
+                <dd
+                  data-testid="spend-surplus-deficit"
+                  className="num"
+                  style={{
+                    color:
+                      surplusDeficit < 0n
+                        ? "var(--trading-down)"
+                        : surplusDeficit === 0n
+                          ? "var(--body-on-dark)"
+                          : "var(--trading-up)",
+                  }}
+                >
+                  {/* Whole units only — no cents (parity with the hero figures). */}
+                  {animRounded(String(surplusDeficit))}
+                </dd>
+              </div>
+            ) : (
+              // No upcoming income → keep the original "upcoming" figure.
+              <div className="flex items-center justify-between gap-2">
+                <dt>{t("cards.leftToSpend")}</dt>
+                <dd className="num text-[var(--body-on-dark)]">
+                  {animRounded(data.spendings.left_cents)}
+                </dd>
+              </div>
+            )}
           </dl>
         </section>
 
@@ -397,13 +550,23 @@ export function OverviewCards({
               </span>
             </p>
             <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
-              {t(
+              {t.rich(
                 data.reserves.status === "surplus"
                   ? "cards.reservesSurplusNote"
                   : data.reserves.status === "short"
                     ? "cards.reservesShortNote"
                     : "cards.reservesOkNote",
-                { amount: money(data.reserves.required_cents) },
+                {
+                  amount: fmtMoney(data.reserves.required_cents),
+                  amt: (chunks) =>
+                    hide ? (
+                      <RedactionBar
+                        chars={fmtMoney(data.reserves.required_cents).length}
+                      />
+                    ) : (
+                      <>{chunks}</>
+                    ),
+                },
               )}
             </p>
           </section>
@@ -421,7 +584,7 @@ export function OverviewCards({
                   className="size-4 shrink-0 text-[var(--trading-up)]"
                   aria-hidden="true"
                 />
-                {money("0")}
+                {animMoney("0")}
               </p>
               <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
                 {t("cards.overspentMotivation")}
@@ -469,10 +632,34 @@ export function OverviewCards({
                 />
               )}
               <span className="truncate">
-                <AnimatedFigure
-                  value={data.cushion.real_months}
-                  format={(n) => formatRunway(n, runwayUnits)}
-                />
+                {(() => {
+                  // No cushion requirement configured but cash IS saved → the runway
+                  // is unbounded (money ÷ a zero monthly need), NOT "0d". Show ∞.
+                  const unlimited =
+                    data.cushion.required_cents === "0" &&
+                    Number(data.cushion.total_cents) > 0;
+                  if (hide)
+                    return (
+                      <RedactionBar
+                        chars={
+                          unlimited
+                            ? 1
+                            : formatRunway(
+                                data.cushion.real_months,
+                                runwayUnits,
+                              ).length
+                        }
+                      />
+                    );
+                  if (unlimited)
+                    return <span data-testid="cushion-unlimited">∞</span>;
+                  return (
+                    <AnimatedFigure
+                      value={data.cushion.real_months}
+                      format={(n) => formatRunway(n, runwayUnits)}
+                    />
+                  );
+                })()}
               </span>
             </p>
             {/* Have vs needed to cover the threshold (item 5). */}
@@ -480,13 +667,13 @@ export function OverviewCards({
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.cushionSaved")}</dt>
                 <dd className="num text-[var(--body-on-dark)]">
-                  {animMoney(data.cushion.total_cents)}
+                  {animRounded(data.cushion.total_cents)}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.cushionNeeded")}</dt>
                 <dd className="num text-[var(--body-on-dark)]">
-                  {animMoney(data.cushion.required_cents)}
+                  {animRounded(data.cushion.required_cents)}
                 </dd>
               </div>
             </dl>

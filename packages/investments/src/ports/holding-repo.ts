@@ -23,6 +23,11 @@ export interface NewHolding {
   unitOfMeasure: string | null;
   /** Precious-metals bullion premium over spot, percent string ("20"=+20%); null = none. */
   premiumPct: string | null;
+  // Deposit-only (null otherwise). Principal + currency ride buyPriceCents/buyCurrency.
+  depositRateBps: number | null;
+  depositStartDate: string | null;
+  depositEndDate: string | null;
+  depositCapFrequency: string | null;
 }
 
 export interface HoldingRepo {

@@ -37,6 +37,11 @@ export interface CreateHoldingInput {
   /** Ticker for the optimistic row (selected instrument symbol or manual ticker);
    *  the server derives the persisted symbol so it's not sent in the body schema. */
   symbol?: string | null;
+  // Deposit-only.
+  depositRateBps?: number | null;
+  depositStartDate?: string | null;
+  depositEndDate?: string | null;
+  depositCapFrequency?: string | null;
 }
 
 function optimisticRow(input: CreateHoldingInput): HoldingDto {
@@ -60,6 +65,9 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     // Show the ticker immediately (selected instrument symbol or the manual ticker);
     // the list refetch later confirms it from the server (COALESCE join).
     symbol: input.symbol ?? input.manualTicker ?? null,
+    // Derived on read (instrument join) — the list refetch fills it in; a custom
+    // `name` still renders correctly since it differs from the (null) label here.
+    instrumentName: null,
     instrumentProvider: null,
     isCustom: !input.instrumentId,
     isDelisted: false,
@@ -70,6 +78,8 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     currentPriceCents:
       input.currentPriceCents != null ? String(input.currentPriceCents) : null,
     currentPriceCurrency: input.currentPriceCurrency ?? null,
+    // Optimistic row: the real fetch time arrives with the list refetch.
+    priceFetchedAt: null,
     valueCents,
     valueInBudgetCents: valueCents,
     profitLossPct: null,
@@ -77,6 +87,10 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     weightPct: 0,
     sortOrder: 9999,
     createdAt: new Date().toISOString(),
+    depositRateBps: input.depositRateBps ?? null,
+    depositStartDate: input.depositStartDate ?? null,
+    depositEndDate: input.depositEndDate ?? null,
+    depositCapFrequency: input.depositCapFrequency ?? null,
   };
 }
 

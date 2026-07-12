@@ -23,14 +23,31 @@ export type UiType =
   | "other"
   | "precious_metals"
   | "cash"
-  | "broker";
+  | "broker"
+  | "deposit";
 
 export type InvestmentBehavior =
   | "tracked"
   | "manual"
   | "metals"
   | "cash"
-  | "broker";
+  | "broker"
+  | "deposit";
+
+/** Deposit interest capitalization cadence (mirrors the server contract). */
+export type CapFrequency =
+  | "daily"
+  | "monthly"
+  | "quarterly"
+  | "semiannual"
+  | "yearly";
+export const CAP_FREQUENCIES: CapFrequency[] = [
+  "daily",
+  "monthly",
+  "quarterly",
+  "semiannual",
+  "yearly",
+];
 
 export interface UiTypeMeta {
   /** Coarse backend holding_type. */
@@ -61,6 +78,7 @@ export const UI_TYPE_META: Record<UiType, UiTypeMeta> = {
   precious_metals: { holdingType: "commodity", behavior: "metals" },
   cash: { holdingType: "cash_fx", behavior: "cash" },
   broker: { holdingType: "other", behavior: "broker" },
+  deposit: { holdingType: "deposit", behavior: "deposit" },
 };
 
 /** Dropdown order (tracked first, then manual, then metals/cash/broker; the
@@ -76,6 +94,7 @@ export const UI_TYPE_ORDER: UiType[] = [
   "real_estate",
   "precious_metals",
   "cash",
+  "deposit",
   "broker",
   "other",
 ];
@@ -153,6 +172,8 @@ export function deriveUiType(
       return "cash";
     case "real_estate":
       return "real_estate";
+    case "deposit":
+      return "deposit";
     case "bond":
       return isCustom ? "treasury_bond" : "etb";
     default:

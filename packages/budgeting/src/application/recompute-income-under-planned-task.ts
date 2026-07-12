@@ -195,6 +195,7 @@ export async function computeIncomeVsPlanned(
       FROM budgeting.wallets
      WHERE tenant_id = ${input.tenantId}::uuid
        AND archived_at IS NULL
+       AND current_balance >= 0
        AND wallet_type IN (
          'SPENDINGS'${cushionModeEnabled ? sql`, 'CUSHION'` : sql``}
        )

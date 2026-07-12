@@ -1,5 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { centsToBare, centsToDisplayCompact } from "../../src/lib/cents-format";
+import {
+  centsToBare,
+  centsToDisplayCompact,
+  centsToRounded,
+} from "../../src/lib/cents-format";
+
+// Intl separates the amount and sign with a non-breaking space; normalise it so
+// the assertions read plainly.
+const norm = (s: string) => s.replace(/[\u00a0\u202f]/g, " ");
+
+describe("narrow currency sign position", () => {
+  it("puts suffix-convention signs AFTER the amount (zł, kr)", () => {
+    expect(norm(centsToDisplayCompact("91693700", "PLN", "en", true))).toBe(
+      "916,937 zł",
+    );
+    expect(norm(centsToRounded("91693700", "PLN", "en", true))).toBe(
+      "916,937 zł",
+    );
+    expect(norm(centsToDisplayCompact("70000", "SEK", "en", true))).toBe(
+      "700 kr",
+    );
+  });
+
+  it("keeps prefix signs BEFORE the amount ($, €)", () => {
+    expect(norm(centsToDisplayCompact("91693700", "USD", "en", true))).toBe(
+      "$916,937",
+    );
+    expect(norm(centsToDisplayCompact("70000", "EUR", "en", true))).toBe("€700");
+  });
+
+  it("does not reposition the ISO-code fallback (narrow=false)", () => {
+    expect(norm(centsToDisplayCompact("70000", "PLN", "en"))).toBe("PLN 700");
+  });
+});
 
 describe("centsToDisplayCompact narrow currency symbol", () => {
   it("uses the narrow symbol (kr, zł, ₴) not the ISO code when narrow=true", () => {

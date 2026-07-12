@@ -182,6 +182,35 @@ describe("Budget identity routes (SETT-02)", () => {
     expect(captured).toEqual({ cushionTargetMonths: 12 });
   });
 
+  it("PATCH /budgets/:id with amount_privacy_enabled=false → 200; passes amountPrivacyEnabled to updateIdentity (r36)", async () => {
+    let captured: Record<string, unknown> | null = null;
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
+      hasTransactions: false,
+      updateIdentitySpy: (_id, patch) => {
+        captured = patch;
+      },
+    });
+    const res = await app.request("/budgets/budget-001", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount_privacy_enabled: false }),
+    });
+    expect(res.status).toBe(200);
+    expect(captured).toEqual({ amountPrivacyEnabled: false });
+  });
+
+  it("PATCH /budgets/:id amount_privacy_enabled by non-owner → 403 (owner gate, r36)", async () => {
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
+      callerRole: "member",
+    });
+    const res = await app.request("/budgets/budget-001", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount_privacy_enabled: false }),
+    });
+    expect(res.status).toBe(403);
+  });
+
   it("PATCH /budgets/:id with cushion_target_months=0 → 400 (Zod min=1)", async () => {
     const app = buildApp({ user: { id: "user-001" } });
     const res = await app.request("/budgets/budget-001", {

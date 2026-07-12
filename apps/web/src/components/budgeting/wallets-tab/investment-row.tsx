@@ -88,20 +88,38 @@ export function InvestmentRow({
   const pct = holding.profitLossPct;
   const delisted = holding.isDelisted;
 
-  // Name: cash shows just "Cash" (currency is its own column, D-#cash); tracked
-  // instruments show TICKER / "TICKER (Name)"; everything else the stored name.
+  // Name: cash shows its user-given name when set, else falls back to "Cash"
+  // (currency is its own column, D-#cash); tracked instruments show TICKER /
+  // "TICKER (Name)"; everything else the stored name.
   const isCash = holding.holdingType === "cash_fx";
-  const cashLabel = t("uitype.cash");
+  const cashLabel = holding.name.trim() ? holding.name : t("uitype.cash");
 
   // Quantity for the mobile-expanded row — only for holdings where it's meaningful
-  // (tracked / metals). Cash + broker are single-unit (qty 1), so omit it. Trim
-  // trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
-  const showQty = !isCash && holding.uiType !== "broker";
+  // (tracked / metals). Cash + broker + deposit are single-unit (qty 1), so omit
+  // it. Trim trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
+  const showQty =
+    !isCash &&
+    holding.uiType !== "broker" &&
+    holding.uiType !== "deposit" &&
+    holding.holdingType !== "deposit";
   const qtyDisplay = holding.quantity.includes(".")
     ? holding.quantity.replace(/0+$/, "").replace(/\.$/, "")
     : holding.quantity;
-  const desktopName = isCash ? cashLabel : desktopLabel(holding);
-  const mobileName = isCash ? cashLabel : mobileLabel(holding, expanded);
+  // A tracked (auto-fetch) holding whose `name` the user overrode — it differs
+  // from the instrument's own display name. Show that custom name verbatim
+  // instead of the auto "TICKER (name)" label.
+  const customName =
+    holding.instrumentName &&
+    holding.name.trim() &&
+    holding.name.trim() !== holding.instrumentName.trim()
+      ? holding.name.trim()
+      : null;
+  const desktopName = isCash
+    ? cashLabel
+    : (customName ?? desktopLabel(holding));
+  const mobileName = isCash
+    ? cashLabel
+    : (customName ?? mobileLabel(holding, expanded));
 
   // Type icon + fixed accent color so the list is scannable by asset type.
   const { Icon: TypeIcon, color: typeColor } = holdingIcon(holding);
