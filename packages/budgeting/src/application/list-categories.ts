@@ -24,6 +24,7 @@ export function listCategories(deps: ListCategoriesDeps) {
           archivedAt: c.archivedAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
           colorKey: c.colorKey ?? null,
+          cushionMode: c.cushionMode ?? null,
         })),
       );
     } catch (e) {

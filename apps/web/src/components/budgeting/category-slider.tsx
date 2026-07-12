@@ -60,6 +60,8 @@ export interface CategorySliderProps {
     plannedCents: string;
     cushionCents: string;
     colorKey: string | null;
+    /** persisted cushion config (mig 0059) — prefills the mode. */
+    cushionMode?: string | null;
   };
   txnsCount?: number;
   /**
@@ -164,6 +166,8 @@ export function computeSliderAmounts(input: {
 export function prefillFromInitial(initial?: {
   plannedCents?: string;
   cushionCents?: string;
+  /** Persisted cushion config (mig 0059) — wins over the amount-based inference. */
+  cushionMode?: string | null;
 }): {
   needs: string;
   wants: string;
@@ -177,6 +181,13 @@ export function prefillFromInitial(initial?: {
   let cushionMode: CushionMode = "none";
   if (cushionN > 0)
     cushionMode = cushionN === plannedN ? "needs_wants" : "custom";
+  // A persisted mode is authoritative — it's the only way to show "Needs only"
+  // when cushion == planned (no wants yet).
+  if (
+    initial?.cushionMode &&
+    (CUSHION_MODES as readonly string[]).includes(initial.cushionMode)
+  )
+    cushionMode = initial.cushionMode as CushionMode;
   return {
     needs: planned ? centsToDecimal(planned) : "",
     wants: "",
