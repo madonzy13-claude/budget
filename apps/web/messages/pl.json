@@ -546,6 +546,11 @@
         "premium": "Premia %",
         "depositedValue": "Wartość wpłacona",
         "actualValue": "Wartość aktualna",
+        "principal": "Kwota",
+        "rate": "Oprocentowanie roczne (%)",
+        "capFrequency": "Kapitalizacja",
+        "startDate": "Data rozpoczęcia",
+        "endDateOptional": "Data zakończenia (opcjonalnie)",
         "ticker": "Symbol",
         "tickerPlaceholder": "np. AAPL"
       },
@@ -561,7 +566,15 @@
         "other": "Inne",
         "precious_metals": "Metale szlachetne",
         "cash": "Gotówka",
-        "broker": "Konto maklerskie"
+        "broker": "Konto maklerskie",
+        "deposit": "Lokata"
+      },
+      "capFrequency": {
+        "daily": "Dzienna",
+        "monthly": "Miesięczna",
+        "quarterly": "Kwartalna",
+        "semiannual": "Półroczna",
+        "yearly": "Roczna"
       },
       "metalOption": {
         "gold": "Złoto",
@@ -653,6 +666,7 @@
         "title": "Podgląd",
         "buyTotal": "Łączny zakup",
         "deposited": "Wpłacono",
+        "principal": "Kwota",
         "amount": "Kwota",
         "currentValue": "Wartość bieżąca",
         "premium": "Premia",

@@ -10,7 +10,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
-/** Locked 9-value holding type (INV-04) — mirrors the server contract. */
+/** Locked holding type (INV-04) — mirrors the server contract. */
 export type HoldingType =
   | "equities"
   | "etf"
@@ -20,7 +20,8 @@ export type HoldingType =
   | "commodity"
   | "cash_fx"
   | "real_estate"
-  | "other";
+  | "other"
+  | "deposit";
 
 /**
  * Enriched holding row returned by GET /investments. Shape mirrors the server
@@ -71,6 +72,12 @@ export interface HoldingDto {
   weightPct: number;
   sortOrder: number;
   createdAt: string;
+  // Deposit-only (holdingType === "deposit"; null otherwise). Value is computed
+  // server-side from these + today; echoed back so the edit form can prefill.
+  depositRateBps: number | null;
+  depositStartDate: string | null;
+  depositEndDate: string | null;
+  depositCapFrequency: string | null;
 }
 
 export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {

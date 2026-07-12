@@ -37,6 +37,11 @@ export interface CreateHoldingInput {
   /** Ticker for the optimistic row (selected instrument symbol or manual ticker);
    *  the server derives the persisted symbol so it's not sent in the body schema. */
   symbol?: string | null;
+  // Deposit-only.
+  depositRateBps?: number | null;
+  depositStartDate?: string | null;
+  depositEndDate?: string | null;
+  depositCapFrequency?: string | null;
 }
 
 function optimisticRow(input: CreateHoldingInput): HoldingDto {
@@ -82,6 +87,10 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     weightPct: 0,
     sortOrder: 9999,
     createdAt: new Date().toISOString(),
+    depositRateBps: input.depositRateBps ?? null,
+    depositStartDate: input.depositStartDate ?? null,
+    depositEndDate: input.depositEndDate ?? null,
+    depositCapFrequency: input.depositCapFrequency ?? null,
   };
 }
 

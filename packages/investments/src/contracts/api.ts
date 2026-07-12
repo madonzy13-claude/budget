@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-/** Locked 9-value holding type (INV-04). */
+/** Locked holding type (INV-04). */
 export const holdingTypeSchema = z.enum([
   "equities",
   "etf",
@@ -16,10 +16,12 @@ export const holdingTypeSchema = z.enum([
   "cash_fx",
   "real_estate",
   "other",
+  // Bank savings deposit (accrues interest, compute-on-read).
+  "deposit",
 ]);
 export type HoldingTypeInput = z.infer<typeof holdingTypeSchema>;
 
-/** Phase 9.1/9.2 — user-facing type the add/edit form was filled with (12 values). */
+/** Phase 9.1/9.2 — user-facing type the add/edit form was filled with. */
 export const uiTypeSchema = z.enum([
   "equity",
   "etf",
@@ -34,6 +36,8 @@ export const uiTypeSchema = z.enum([
   "cash",
   // 9.2 — brokerage/cash account: deposited value vs actual value, no instrument.
   "broker",
+  // Bank savings deposit: principal + annual rate + capitalization cadence.
+  "deposit",
 ]);
 export type UiTypeInput = z.infer<typeof uiTypeSchema>;
 
@@ -51,7 +55,20 @@ export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
   precious_metals: "commodity",
   cash: "cash_fx",
   broker: "other",
+  deposit: "deposit",
 };
+
+/** Deposit interest capitalization cadence. */
+export const capFrequencySchema = z.enum([
+  "daily",
+  "monthly",
+  "quarterly",
+  "semiannual",
+  "yearly",
+]);
+export type CapFrequencyInput = z.infer<typeof capFrequencySchema>;
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const metalSchema = z.enum(["gold", "silver", "platinum", "palladium"]);
 export const metalKindSchema = z.enum(["coin", "bar", "other"]);
@@ -95,6 +112,15 @@ export const createHoldingSchema = z.object({
   /** Bullion premium over spot as a percent ("20" = +20%); metals only. Applied to
    *  the current (resale) value; null/"" = melt/spot value. */
   premiumPct: numericString.nullish(),
+  // Deposit attributes (nullish for every other type). The principal + currency
+  // ride buyPriceCents / buyCurrency; these describe how it accrues.
+  /** Annual interest rate in basis points (525 = 5.25%). */
+  depositRateBps: z.coerce.number().int().min(0).max(1_000_000).nullish(),
+  /** First day interest accrues, 'YYYY-MM-DD'. */
+  depositStartDate: isoDate.nullish(),
+  /** Optional maturity 'YYYY-MM-DD'; value freezes on/after it. */
+  depositEndDate: isoDate.nullish(),
+  depositCapFrequency: capFrequencySchema.nullish(),
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
@@ -153,4 +179,9 @@ export interface EnrichedHoldingDto {
   weightPct: number;
   sortOrder: number;
   createdAt: string;
+  // Deposit-only (null otherwise) — echoed back so the edit form can prefill.
+  depositRateBps: number | null;
+  depositStartDate: string | null;
+  depositEndDate: string | null;
+  depositCapFrequency: string | null;
 }

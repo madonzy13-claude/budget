@@ -59,10 +59,12 @@ import {
   deriveUiType,
   isAutoPriced,
   usesUserChosenCurrency,
+  CAP_FREQUENCIES,
   type UiType,
   type Metal,
   type MetalKind,
   type Uom,
+  type CapFrequency,
 } from "@/lib/investment-types";
 import {
   computeHoldingPreview,
@@ -128,7 +130,11 @@ export function HoldingSheet({
   // Everything else keeps `name` as the holding's own name.
   const [name, setName] = useState(() => {
     if (!holding) return "";
-    const ut = deriveUiType(holding.uiType, holding.holdingType, holding.isCustom);
+    const ut = deriveUiType(
+      holding.uiType,
+      holding.holdingType,
+      holding.isCustom,
+    );
     const autoTracked =
       holding.instrumentId != null && UI_TYPE_META[ut].behavior === "tracked";
     return autoTracked && holding.instrumentName
@@ -139,7 +145,11 @@ export function HoldingSheet({
   // becomes the saved `name` (and the row renders it instead of "TICKER (Name)").
   const [customName, setCustomName] = useState(() => {
     if (!holding || holding.instrumentId == null) return "";
-    const ut = deriveUiType(holding.uiType, holding.holdingType, holding.isCustom);
+    const ut = deriveUiType(
+      holding.uiType,
+      holding.holdingType,
+      holding.isCustom,
+    );
     if (UI_TYPE_META[ut].behavior !== "tracked") return "";
     return holding.instrumentName &&
       holding.name.trim() !== holding.instrumentName.trim()
@@ -204,6 +214,17 @@ export function HoldingSheet({
   // field can hold a transient empty/decimal state.
   const [premiumPct, setPremiumPct] = useState<string>(
     trimQty(holding?.premiumPct ?? ""),
+  );
+  // Deposit: principal rides `buyPrice`/`buyCurrency`; these describe accrual.
+  const [depositRate, setDepositRate] = useState(
+    holding?.depositRateBps != null ? String(holding.depositRateBps / 100) : "",
+  );
+  const [depositStart, setDepositStart] = useState(
+    holding?.depositStartDate ?? new Date().toISOString().slice(0, 10),
+  );
+  const [depositEnd, setDepositEnd] = useState(holding?.depositEndDate ?? "");
+  const [depositFreq, setDepositFreq] = useState<CapFrequency>(
+    (holding?.depositCapFrequency as CapFrequency) ?? "monthly",
   );
   const [dirty, setDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -325,6 +346,12 @@ export function HoldingSheet({
     setCustomName("");
     setCurrentPrice("");
     setPriceBlocked(false);
+    if (UI_TYPE_META[next].behavior === "deposit") {
+      setDepositRate("");
+      setDepositStart(new Date().toISOString().slice(0, 10));
+      setDepositEnd("");
+      setDepositFreq("monthly");
+    }
     if (UI_TYPE_META[next].behavior === "metals") {
       setMetal("gold");
       setMetalKind("coin");
@@ -404,21 +431,30 @@ export function HoldingSheet({
     () =>
       computeHoldingPreview({
         behavior,
-        currency: currentPriceCurrency,
+        currency: behavior === "deposit" ? buyCurrency : currentPriceCurrency,
         quantity,
         buyPrice,
         currentPrice,
         uom,
         premiumPct,
+        depositRatePct: depositRate,
+        depositStart,
+        depositEnd,
+        depositFreq,
       }),
     [
       behavior,
       currentPriceCurrency,
+      buyCurrency,
       quantity,
       buyPrice,
       currentPrice,
       uom,
       premiumPct,
+      depositRate,
+      depositStart,
+      depositEnd,
+      depositFreq,
     ],
   );
 
@@ -442,6 +478,14 @@ export function HoldingSheet({
       case "broker":
         // name + deposited (buyPrice) + actual (currentPrice); no quantity.
         return !!name.trim() && !!buyPrice.trim() && !!currentPrice.trim();
+      case "deposit":
+        // name + principal (buyPrice) + rate + start date; end date optional.
+        return (
+          !!name.trim() &&
+          !!buyPrice.trim() &&
+          !!depositRate.trim() &&
+          !!depositStart.trim()
+        );
       case "manual":
       default:
         return !!name.trim() && !!currentPrice.trim();
@@ -456,6 +500,8 @@ export function HoldingSheet({
     buyPrice,
     name,
     quantity,
+    depositRate,
+    depositStart,
   ]);
 
   function attemptClose() {
@@ -492,6 +538,28 @@ export function HoldingSheet({
         buyCurrency,
         currentPriceCents: toCents(currentPrice),
         currentPriceCurrency: buyCurrency,
+      };
+    }
+    if (behavior === "deposit") {
+      // Bank deposit: principal is the cost basis; the current value is computed
+      // server-side from rate+start+cadence, so seed current = principal for the
+      // optimistic row. Rate stored as basis points (percent × 100).
+      const principal = toCents(buyPrice);
+      const bps = depositRate.trim()
+        ? Math.round(Number(depositRate.replace(",", ".")) * 100)
+        : null;
+      return {
+        ...common,
+        name: name.trim(),
+        quantity: "1",
+        buyPriceCents: principal,
+        buyCurrency,
+        currentPriceCents: principal,
+        currentPriceCurrency: buyCurrency,
+        depositRateBps: bps,
+        depositStartDate: depositStart || null,
+        depositEndDate: depositEnd || null,
+        depositCapFrequency: depositFreq,
       };
     }
     if (behavior === "metals") {
@@ -826,6 +894,96 @@ export function HoldingSheet({
                 />
               </Field>
             </>
+          ) : behavior === "deposit" ? (
+            /* 4c. Deposit: currency + principal + annual rate + capitalization
+               frequency + start date + optional maturity. Value accrues on read. */
+            <>
+              <Field label={t("field.currency")}>
+                <CurrencyPicker
+                  variant="field"
+                  value={buyCurrency}
+                  onSelect={(v) => {
+                    markDirty();
+                    setBuyCurrency(v);
+                    setCurrentPriceCurrency(v);
+                  }}
+                  aria-label={t("field.currency")}
+                />
+              </Field>
+              <Field label={t("field.principal")}>
+                <NumericInput
+                  testId="holding-sheet-principal"
+                  value={buyPrice}
+                  onChange={(v) => {
+                    markDirty();
+                    setBuyPrice(v);
+                  }}
+                />
+              </Field>
+              <Field label={t("field.rate")}>
+                <NumericInput
+                  testId="holding-sheet-rate"
+                  value={depositRate}
+                  onChange={(v) => {
+                    markDirty();
+                    setDepositRate(v);
+                  }}
+                  placeholder="0"
+                />
+              </Field>
+              <Field label={t("field.capFrequency")}>
+                <Select
+                  value={depositFreq}
+                  onValueChange={(v) => {
+                    markDirty();
+                    setDepositFreq(v as CapFrequency);
+                  }}
+                >
+                  <SelectTrigger
+                    aria-label={t("field.capFrequency")}
+                    data-testid="holding-sheet-cap-frequency"
+                  >
+                    <SelectValue>
+                      {t(`capFrequency.${depositFreq}`)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CAP_FREQUENCIES.map((f) => (
+                      <SelectItem
+                        key={f}
+                        value={f}
+                        data-testid={`cap-frequency-${f}`}
+                      >
+                        {t(`capFrequency.${f}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={t("field.startDate")}>
+                <Input
+                  type="date"
+                  data-testid="holding-sheet-start-date"
+                  value={depositStart}
+                  onChange={(e) => {
+                    markDirty();
+                    setDepositStart(e.target.value);
+                  }}
+                />
+              </Field>
+              <Field label={t("field.endDateOptional")}>
+                <Input
+                  type="date"
+                  data-testid="holding-sheet-end-date"
+                  value={depositEnd}
+                  min={depositStart || undefined}
+                  onChange={(e) => {
+                    markDirty();
+                    setDepositEnd(e.target.value);
+                  }}
+                />
+              </Field>
+            </>
           ) : behavior ? (
             <>
               {/* 5. Currency + buy price + quantity (tracked / manual / metals).
@@ -1065,6 +1223,18 @@ function HoldingPreviewBlock({
       rows.push({
         key: "dep",
         label: t("preview.deposited"),
+        value: money(preview.buyTotal),
+      });
+    rows.push({
+      key: "cur",
+      label: t("preview.currentValue"),
+      value: money(preview.actualTotal),
+    });
+  } else if (behavior === "deposit") {
+    if (preview.buyTotal != null)
+      rows.push({
+        key: "principal",
+        label: t("preview.principal"),
         value: money(preview.buyTotal),
       });
     rows.push({

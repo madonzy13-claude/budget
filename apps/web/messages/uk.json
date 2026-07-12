@@ -546,6 +546,11 @@
         "premium": "Премія %",
         "depositedValue": "Внесена вартість",
         "actualValue": "Поточна вартість",
+        "principal": "Сума",
+        "rate": "Річна ставка (%)",
+        "capFrequency": "Капіталізація",
+        "startDate": "Дата початку",
+        "endDateOptional": "Дата завершення (необов’язково)",
         "ticker": "Тікер",
         "tickerPlaceholder": "напр. AAPL"
       },
@@ -561,7 +566,15 @@
         "other": "Інше",
         "precious_metals": "Дорогоцінні метали",
         "cash": "Готівка",
-        "broker": "Брокерський рахунок"
+        "broker": "Брокерський рахунок",
+        "deposit": "Депозит"
+      },
+      "capFrequency": {
+        "daily": "Щоденна",
+        "monthly": "Щомісячна",
+        "quarterly": "Щоквартальна",
+        "semiannual": "Піврічна",
+        "yearly": "Щорічна"
       },
       "metalOption": {
         "gold": "Золото",
@@ -653,6 +666,7 @@
         "title": "Перегляд",
         "buyTotal": "Сума купівлі",
         "deposited": "Внесено",
+        "principal": "Сума",
         "amount": "Сума",
         "currentValue": "Поточна вартість",
         "premium": "Премія",

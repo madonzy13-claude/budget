@@ -18,6 +18,7 @@ import {
   Coins,
   Banknote,
   Briefcase,
+  PiggyBank,
   type LucideIcon,
 } from "lucide-react";
 import { deriveUiType, type UiType } from "@/lib/investment-types";
@@ -36,6 +37,7 @@ export const UI_TYPE_ICON: Record<UiType, LucideIcon> = {
   precious_metals: Coins,
   cash: Banknote,
   broker: Briefcase,
+  deposit: PiggyBank,
 };
 
 /**
@@ -56,6 +58,7 @@ export const UI_TYPE_COLOR: Record<UiType, string> = {
   precious_metals: "#eab308", // gold
   cash: "#84cc16", // lime
   broker: "#6366f1", // indigo
+  deposit: "#14b8a6", // teal
 };
 
 /** Light silver-grey accent for the non-gold precious metals (silver, platinum,

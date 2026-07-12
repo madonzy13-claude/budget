@@ -36,6 +36,10 @@ export function createHolding(deps: { holdingRepo: HoldingRepo }) {
       metalKind: input.metalKind ?? null,
       unitOfMeasure: input.unitOfMeasure ?? null,
       premiumPct: input.premiumPct ?? null,
+      depositRateBps: input.depositRateBps ?? null,
+      depositStartDate: input.depositStartDate ?? null,
+      depositEndDate: input.depositEndDate ?? null,
+      depositCapFrequency: input.depositCapFrequency ?? null,
     };
     try {
       return ok(

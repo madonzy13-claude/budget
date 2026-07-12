@@ -29,6 +29,12 @@ export interface HoldingPreviewInput {
   uom: Uom;
   /** Metals only, percent string. */
   premiumPct: string;
+  // Deposit only. Principal rides `buyPrice`; these describe how it accrues so the
+  // preview can project the current value (approximate float; server is exact).
+  depositRatePct?: string;
+  depositStart?: string;
+  depositEnd?: string;
+  depositFreq?: string;
 }
 
 export interface HoldingPreview {
@@ -59,10 +65,84 @@ function num(s: string): number {
   return Number.isFinite(v) ? v : 0;
 }
 
+/**
+ * Projected current value of a deposit (major units), mirroring the server's
+ * computeDepositValueCents but with plain Date + float — this is a live PREVIEW,
+ * the persisted value is big.js-precise server-side. Value freezes at `endISO`.
+ */
+export function depositPreviewValue(
+  principal: number,
+  ratePct: number,
+  startISO: string,
+  freq: string,
+  endISO: string | undefined,
+  nowMs: number,
+): number {
+  const r = ratePct / 100;
+  const start = Date.parse(`${startISO}T00:00:00Z`);
+  if (!Number.isFinite(start) || !r) return principal;
+  let asOf = nowMs;
+  const end = endISO ? Date.parse(`${endISO}T00:00:00Z`) : NaN;
+  if (Number.isFinite(end) && asOf > end) asOf = end;
+  if (asOf <= start) return principal;
+  const DAY = 86_400_000;
+  const days = (a: number, b: number) => Math.round((b - a) / DAY);
+  if (freq === "daily") {
+    return principal * Math.pow(1 + r / 365, days(start, asOf));
+  }
+  const step =
+    freq === "monthly"
+      ? 1
+      : freq === "quarterly"
+        ? 3
+        : freq === "semiannual"
+          ? 6
+          : 12;
+  let base = principal;
+  let cursor = new Date(start);
+  for (;;) {
+    const next = new Date(cursor);
+    next.setUTCMonth(next.getUTCMonth() + step);
+    if (next.getTime() > asOf) break;
+    base += (base * r * days(cursor.getTime(), next.getTime())) / 365;
+    cursor = next;
+  }
+  base += (base * r * days(cursor.getTime(), asOf)) / 365;
+  return base;
+}
+
 export function computeHoldingPreview(
   i: HoldingPreviewInput,
 ): HoldingPreview | null {
   if (!i.behavior) return null;
+
+  // Deposit: principal + projected accrued value; P/L = accrued interest.
+  if (i.behavior === "deposit") {
+    const principal = num(i.buyPrice);
+    const value = depositPreviewValue(
+      principal,
+      num(i.depositRatePct ?? ""),
+      i.depositStart ?? "",
+      i.depositFreq ?? "monthly",
+      i.depositEnd || undefined,
+      Date.now(),
+    );
+    return {
+      currency: i.currency,
+      showQty: false,
+      qty: 1,
+      buyUnit: principal,
+      buyTotal: principal,
+      actualUnit: value,
+      actualBase: value,
+      premiumPct: 0,
+      premiumAmount: 0,
+      actualTotal: value,
+      pl: value - principal,
+      plPct: principal !== 0 ? ((value - principal) / principal) * 100 : null,
+    };
+  }
+
   const isCash = i.behavior === "cash";
   const isBroker = i.behavior === "broker";
   const isMetals = i.behavior === "metals";

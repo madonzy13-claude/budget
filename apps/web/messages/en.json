@@ -546,6 +546,11 @@
         "premium": "Premium %",
         "depositedValue": "Deposited value",
         "actualValue": "Actual value",
+        "principal": "Amount",
+        "rate": "Annual rate (%)",
+        "capFrequency": "Capitalization",
+        "startDate": "Start date",
+        "endDateOptional": "End date (optional)",
         "ticker": "Ticker",
         "tickerPlaceholder": "e.g. AAPL"
       },
@@ -561,7 +566,15 @@
         "other": "Other",
         "precious_metals": "Precious metals",
         "cash": "Cash",
-        "broker": "Broker"
+        "broker": "Broker",
+        "deposit": "Deposit"
+      },
+      "capFrequency": {
+        "daily": "Daily",
+        "monthly": "Monthly",
+        "quarterly": "Quarterly",
+        "semiannual": "Semi-annual",
+        "yearly": "Yearly"
       },
       "metalOption": {
         "gold": "Gold",
@@ -653,6 +666,7 @@
         "title": "Preview",
         "buyTotal": "Buy total",
         "deposited": "Deposited",
+        "principal": "Amount",
         "amount": "Amount",
         "currentValue": "Current value",
         "premium": "Premium",

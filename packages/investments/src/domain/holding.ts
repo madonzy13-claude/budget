@@ -6,7 +6,7 @@
  * portfolio-metrics.ts.
  */
 
-/** Locked 9-value union (INV-04) — also the asset_class / holding_type CHECK set. */
+/** Locked union (INV-04) — also the asset_class / holding_type CHECK set. */
 export type HoldingType =
   | "equities"
   | "etf"
@@ -16,7 +16,9 @@ export type HoldingType =
   | "commodity"
   | "cash_fx"
   | "real_estate"
-  | "other";
+  | "other"
+  // Bank savings deposit: value accrues from principal+rate+time (compute-on-read).
+  | "deposit";
 
 export const HOLDING_TYPES: readonly HoldingType[] = [
   "equities",
@@ -28,6 +30,7 @@ export const HOLDING_TYPES: readonly HoldingType[] = [
   "cash_fx",
   "real_estate",
   "other",
+  "deposit",
 ] as const;
 
 const HOLDING_TYPE_SET: ReadonlySet<string> = new Set(HOLDING_TYPES);
@@ -96,7 +99,23 @@ export class Holding {
      *  tell a user-chosen custom `name` apart from the auto label. null for
      *  custom/cash/metals or when no instrument is linked. */
     public readonly instrumentName: string | null = null,
+    // Deposit-only (holdingType === "deposit"). buyPriceCents holds the
+    // principal and buy/current currency the deposit currency; the current value
+    // is computed on read from these + today (see computeDepositValueCents).
+    /** Annual interest rate in basis points (525 = 5.25%). */
+    public depositRateBps: number | null = null,
+    /** First day interest accrues, 'YYYY-MM-DD'. */
+    public depositStartDate: string | null = null,
+    /** Capitalization cadence: daily|monthly|quarterly|semiannual|yearly. */
+    public depositCapFrequency: string | null = null,
+    /** Optional maturity 'YYYY-MM-DD'; value freezes on/after it. null = open-ended. */
+    public depositEndDate: string | null = null,
   ) {}
+
+  /** Bank deposit: value accrues from principal+rate+time, computed on read. */
+  isDeposit(): boolean {
+    return this.holdingType === "deposit";
+  }
 
   /** cash_fx holdings are valued by amount (no quantity x price) and have no P/L. */
   isCash(): boolean {

@@ -50,6 +50,12 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.premium_pct as string | null) ?? null,
     row.price_fetched_at ? new Date(String(row.price_fetched_at)) : null,
     (row.instrument_name as string | null) ?? null,
+    row.deposit_rate_bps === null || row.deposit_rate_bps === undefined
+      ? null
+      : Number(row.deposit_rate_bps),
+    (row.deposit_start_date as string | null) ?? null,
+    (row.deposit_cap_frequency as string | null) ?? null,
+    (row.deposit_end_date as string | null) ?? null,
   );
 }
 
@@ -70,7 +76,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type,
              group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
              current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
-             premium_pct, sort_order, created_at)
+             premium_pct, deposit_rate_bps, deposit_start_date, deposit_end_date,
+             deposit_cap_frequency, sort_order, created_at)
           VALUES
             (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
              ${input.name}, ${input.holdingType}, ${input.uiType},
@@ -80,6 +87,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
              ${input.currentPriceCurrency},
              ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
              ${input.manualTicker}, ${input.premiumPct ?? null}::numeric,
+             ${input.depositRateBps ?? null}::integer, ${input.depositStartDate ?? null}::date,
+             ${input.depositEndDate ?? null}::date, ${input.depositCapFrequency ?? null},
              COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
                         WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
              now())
@@ -90,6 +99,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                     current_price_cents::text AS current_price_cents,
                     current_price_currency, metal, metal_kind, unit_of_measure,
                     manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
+                    deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
+                    deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
                     sort_order, archived_at, created_at
         `);
         return mapRow(res.rows[0]);
@@ -126,7 +137,11 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             metal_kind = ${input.metalKind},
             unit_of_measure = ${input.unitOfMeasure},
             manual_ticker = ${input.manualTicker},
-            premium_pct = ${input.premiumPct ?? null}::numeric
+            premium_pct = ${input.premiumPct ?? null}::numeric,
+            deposit_rate_bps = ${input.depositRateBps ?? null}::integer,
+            deposit_start_date = ${input.depositStartDate ?? null}::date,
+            deposit_end_date = ${input.depositEndDate ?? null}::date,
+            deposit_cap_frequency = ${input.depositCapFrequency ?? null}
           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid AND archived_at IS NULL
           RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
                     ui_type, group_name, instrument_id::text AS instrument_id,
@@ -135,6 +150,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                     current_price_cents::text AS current_price_cents,
                     current_price_currency, metal, metal_kind, unit_of_measure,
                     manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
+                    deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
+                    deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
                     sort_order, archived_at, created_at
         `);
         return res.rows.length ? mapRow(res.rows[0]) : null;
@@ -195,7 +212,12 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                  COALESCE(i.symbol, inv.manual_ticker) AS symbol, i.provider AS provider,
                  -- The instrument's own display name (e.g. Bitcoin (BTC)), so the UI
                  -- can tell a user-chosen custom name from the auto label.
-                 i.display_name AS instrument_name
+                 i.display_name AS instrument_name,
+                 -- Deposit accrual inputs; value is computed on read (list-holdings).
+                 inv.deposit_rate_bps,
+                 inv.deposit_start_date::text AS deposit_start_date,
+                 inv.deposit_end_date::text AS deposit_end_date,
+                 inv.deposit_cap_frequency
             FROM budgeting.investments inv
             LEFT JOIN budgeting.instrument_price_cache c
                    ON c.instrument_id = inv.instrument_id
@@ -253,7 +275,9 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                  buy_price_cents::text AS buy_price_cents, buy_currency,
                  quantity::text AS quantity,
                  current_price_cents::text AS current_price_cents,
-                 current_price_currency, sort_order, archived_at, created_at
+                 current_price_currency, sort_order, archived_at, created_at,
+                 deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
+                 deposit_end_date::text AS deposit_end_date, deposit_cap_frequency
             FROM budgeting.investments
            WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
            LIMIT 1

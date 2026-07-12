@@ -58,19 +58,21 @@ export const mk = (o: Init = {}): Holding =>
   );
 
 describe("Holding entity", () => {
-  test("constructs with each of the 9 valid holding types", () => {
+  test("constructs with each of the 10 valid holding types", () => {
     for (const t of HOLDING_TYPES) {
       const h = mk({ holdingType: t });
       expect(h.holdingType).toBe(t);
     }
-    expect(HOLDING_TYPES).toHaveLength(9);
+    expect(HOLDING_TYPES).toHaveLength(10);
+    expect(HOLDING_TYPES).toContain("deposit");
   });
 
-  test("isHoldingType guards the locked 9-value union", () => {
+  test("isHoldingType guards the locked union", () => {
     expect(isHoldingType("equities")).toBe(true);
     expect(isHoldingType("cash_fx")).toBe(true);
     expect(isHoldingType("real_estate")).toBe(true);
     expect(isHoldingType("other")).toBe(true);
+    expect(isHoldingType("deposit")).toBe(true);
     expect(isHoldingType("stonks")).toBe(false);
     expect(isHoldingType("")).toBe(false);
   });

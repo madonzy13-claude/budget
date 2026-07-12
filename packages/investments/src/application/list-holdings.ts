@@ -1,4 +1,5 @@
 import Big from "big.js";
+import { Temporal } from "temporal-polyfill";
 import { ok, err, type Result } from "neverthrow";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { HoldingRepo } from "../ports/holding-repo";
@@ -10,6 +11,10 @@ import {
   groupWeights,
   type RateMap,
 } from "../domain/portfolio-metrics";
+import {
+  computeDepositValueCents,
+  type CapFrequency,
+} from "../domain/deposit-value";
 import type { EnrichedHoldingDto } from "../contracts/api";
 
 /**
@@ -42,6 +47,29 @@ export function listHoldings(deps: {
       );
       const budgetCcy = input.budgetCurrency;
       const asOf = new Date();
+
+      // Deposits carry no fetched/stored price — their value is a pure function of
+      // (principal, rate, start, cadence, today), so compute it here and stuff it
+      // into current_price_cents. Every downstream metric (value, P/L = value −
+      // principal, weight) then works unchanged. Re-reading after a capitalization
+      // never loses earnings: the value is always rebuilt from the start date.
+      // ponytail: UTC "today" — a deposit accrues by calendar day; a few hours of
+      // tz skew at the boundary is immaterial. Pass a user tz here if it ever is.
+      const today = Temporal.Now.plainDateISO("UTC").toString();
+      for (const h of holdings) {
+        if (h.holdingType !== "deposit" || h.buyPriceCents === null) continue;
+        h.currentPriceCents = BigInt(
+          computeDepositValueCents({
+            principalCents: h.buyPriceCents,
+            rateBps: h.depositRateBps ?? 0,
+            startDate: h.depositStartDate ?? today,
+            capFrequency: (h.depositCapFrequency ?? "monthly") as CapFrequency,
+            asOf: today,
+            endDate: h.depositEndDate,
+          }),
+        );
+        h.currentPriceCurrency = h.buyCurrency;
+      }
       const rateCache = new Map<string, string>();
       const getRate = async (from: string, to: string): Promise<string> => {
         if (from === to) return "1";
@@ -150,6 +178,10 @@ export function listHoldings(deps: {
           weightPct: weights.get(h.id) ?? 0,
           sortOrder: h.sortOrder,
           createdAt: h.createdAt.toISOString(),
+          depositRateBps: h.depositRateBps,
+          depositStartDate: h.depositStartDate,
+          depositEndDate: h.depositEndDate,
+          depositCapFrequency: h.depositCapFrequency,
         });
       }
 

@@ -37,6 +37,10 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       currentPriceCents:
         h.currentPriceCents === null ? null : h.currentPriceCents.toString(),
       currentPriceCurrency: h.currentPriceCurrency,
+      depositRateBps: h.depositRateBps ?? null,
+      depositStartDate: h.depositStartDate ?? null,
+      depositEndDate: h.depositEndDate ?? null,
+      depositCapFrequency: h.depositCapFrequency ?? null,
       sortOrder: h.sortOrder,
       archivedAt: h.archivedAt ? h.archivedAt.toISOString() : null,
       createdAt: h.createdAt ? h.createdAt.toISOString() : null,
