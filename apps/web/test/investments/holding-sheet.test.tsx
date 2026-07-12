@@ -25,6 +25,12 @@ vi.mock("next-intl", () => ({
       return s;
     },
   useLocale: () => "en",
+  // holding-sheet.tsx uses fmt.relativeTime(at) for the price age (b789ec8).
+  useFormatter: () => ({
+    relativeTime: (_d: Date) => "just now",
+    number: (n: number) => String(n),
+    dateTime: (d: Date) => d.toISOString(),
+  }),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));

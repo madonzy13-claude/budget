@@ -65,10 +65,10 @@ function buildTitleParams(
   const payload = task.payload ?? {};
   const currency = (payload.currency as string) ?? "EUR";
 
-  // Always format with the EN locale so the currency SYMBOL ($, €, £) shows —
-  // not the ISO code. Intl in PL/UK renders USD as "563 USD"; "en" gives "$563"
-  // (round 23 item 6; mirrors the overview cards). Compact: drops `.00` on whole
-  // units, keeps 2 digits on fractions.
+  // EN locale + narrow sign so the SHORT currency sign shows, not the ISO code:
+  // "$563", "€563", and the suffix-convention signs "563 zł" / "563 kr" (PLN/SEK…)
+  // instead of "PLN 563" (mirrors the overview cards). Compact: drops `.00` on
+  // whole units, keeps 2 digits on fractions.
   function fmt(cents: unknown): string {
     if (cents === undefined || cents === null || cents === "") return "";
     try {
@@ -78,7 +78,7 @@ function buildTitleParams(
       const asNumber = Number(raw);
       if (!Number.isFinite(asNumber)) return "";
       const intStr = Math.trunc(asNumber).toString();
-      return centsToDisplayCompact(intStr, currency, "en");
+      return centsToDisplayCompact(intStr, currency, "en", true);
     } catch {
       return "";
     }

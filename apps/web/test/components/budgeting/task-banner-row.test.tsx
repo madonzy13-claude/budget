@@ -99,6 +99,21 @@ describe("TaskBannerRow — read-only row", () => {
     expect(screen.getByText(/Confirm €1,000 — Groceries/)).toBeInTheDocument();
   });
 
+  it("uses the short sign AFTER the amount for suffix currencies (zł), not the ISO code", () => {
+    render(
+      <TaskBannerRow
+        task={makeTask("CONFIRM_DRAFT", { currency: "PLN" })}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
+    // narrow sign, suffix convention: "1,000 zł" — NOT "PLN 1,000".
+    expect(
+      screen.getByText(/Confirm 1,000 zł — Groceries/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/PLN/)).not.toBeInTheDocument();
+  });
+
   it("renders the title interpolated with payload (CUSHION_BELOW_TARGET)", () => {
     render(
       <TaskBannerRow
