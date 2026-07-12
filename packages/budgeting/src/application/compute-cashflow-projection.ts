@@ -125,6 +125,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
             FROM budgeting.wallets
            WHERE tenant_id = ${input.tenantId}::uuid
              AND archived_at IS NULL
+             AND current_balance >= 0
              AND wallet_type IN ('SPENDINGS'${cushionMode ? sql`, 'CUSHION'` : sql``})`);
 
         // Categories + this-month + next-month active limits (cushion vs normal).

@@ -36,6 +36,15 @@ type WalletType = WalletDto["walletType"];
 // values when the whole section is empty so the column never collapses.
 const MIN_AMOUNT_CHARS = 4;
 
+/** Keep only a signed decimal: digits, ONE leading "-", ONE ".". Comma→dot. */
+export function sanitizeAmount(raw: string): string {
+  let v = raw.replace(/,/g, ".").replace(/[^0-9.-]/g, "");
+  v = (v.startsWith("-") ? "-" : "") + v.replace(/-/g, ""); // minus only leading
+  const dot = v.indexOf(".");
+  if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, ""); // one dot
+  return v;
+}
+
 interface PersistedProps {
   mode: "persisted";
   wallet: WalletDto;
@@ -545,15 +554,18 @@ function PersistedRow({
                 type="text"
                 inputMode="decimal"
                 defaultValue={draft}
-                // UAT-PH5-T3-29: accept comma as the decimal separator
-                // (PL/UK locales) and translate to the dot the server +
-                // domain layer expect. The input still displays whatever
-                // the user typed because `defaultValue` is uncontrolled.
-                onChange={(e) => onChange(e.target.value.replace(",", "."))}
+                // Keeps a signed decimal (digits, one leading "-", one ".") — a
+                // negative balance (credit-card liability) is entered by pasting the
+                // minus; iOS's numeric pad has no minus key (r-this).
+                onChange={(e) => {
+                  const v = sanitizeAmount(e.target.value);
+                  if (v !== e.target.value) e.target.value = v;
+                  onChange(v);
+                }}
                 className="h-9 text-right"
               />
             )}
-            onSave={(v) => onUpdate({ amount: v.replace(",", ".") })}
+            onSave={(v) => onUpdate({ amount: sanitizeAmount(v) })}
           />
         </div>
 

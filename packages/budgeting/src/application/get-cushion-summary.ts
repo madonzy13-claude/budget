@@ -150,6 +150,7 @@ export async function computeCushionSummary(
      WHERE tenant_id = ${input.tenantId}::uuid
        AND wallet_type = 'CUSHION'
        AND archived_at IS NULL
+       AND current_balance >= 0
   `);
 
   // 4. FX-convert to budget currency (TODAY as as-of — Pitfall 5).
