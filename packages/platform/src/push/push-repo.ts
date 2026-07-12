@@ -251,7 +251,10 @@ export async function getSubscriptionsForBudget(
     },
   );
   if (result.isErr()) throw result.error;
-  return result.value;
+  const rows = result.value;
+  // Override the (stale, always-"en") stored locale with the user's live setting.
+  const locales = await getUserLocales([...new Set(rows.map((r) => r.userId))]);
+  return rows.map((r) => ({ ...r, locale: locales[r.userId] ?? r.locale }));
 }
 
 /**
@@ -289,6 +292,32 @@ export async function getUserTimezones(
     )) as unknown as { rows: { id: string; timezone: string | null }[] };
     const out: Record<string, string> = {};
     for (const r of res.rows) if (r.timezone) out[r.id] = r.timezone;
+    return out;
+  });
+  if (result.isErr()) throw result.error;
+  return result.value;
+}
+
+/**
+ * Each user's CURRENT app locale (identity.users.locale) — the authoritative
+ * source for push language. The push_subscriptions.locale column is a denormalised
+ * copy that defaults to "en" (the client subscribe call never sent one), so it's
+ * stale/wrong for non-English users; resolve the live value at SEND time instead.
+ * worker_role read (withInfraTx) — the tenant path can't SELECT identity.users
+ * across users. Missing/NULL → absent (caller falls back to "en").
+ */
+export async function getUserLocales(
+  userIds: string[],
+): Promise<Record<string, string>> {
+  if (userIds.length === 0) return {};
+  const result = await withInfraTx(async (tx) => {
+    const res = (await tx.execute(
+      sql`SELECT id::text AS id, locale
+            FROM identity.users
+           WHERE id::text = ANY(${userIds})`,
+    )) as unknown as { rows: { id: string; locale: string | null }[] };
+    const out: Record<string, string> = {};
+    for (const r of res.rows) if (r.locale) out[r.id] = r.locale;
     return out;
   });
   if (result.isErr()) throw result.error;
@@ -352,7 +381,10 @@ export async function getReminderSubscriptionsForBudget(
     },
   );
   if (result.isErr()) throw result.error;
-  return result.value;
+  const rows = result.value;
+  // Override the (stale, always-"en") stored locale with the user's live setting.
+  const locales = await getUserLocales([...new Set(rows.map((r) => r.userId))]);
+  return rows.map((r) => ({ ...r, locale: locales[r.userId] ?? r.locale }));
 }
 
 /**
