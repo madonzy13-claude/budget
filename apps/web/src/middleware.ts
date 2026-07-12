@@ -51,6 +51,31 @@ function stripLocale(pathname: string): string {
 
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Force http→https for real hosts. Better Auth sets a Secure session cookie
+  // (BETTER_AUTH_URL is https), which a browser REFUSES to store over http — so an
+  // iOS PWA whose shortcut is pinned to http:// signs in "successfully" but the
+  // cookie never lands, and the next request loops straight back to /sign-in.
+  // X-Forwarded-Proto is set by the TLS-terminating edge (Cloudflare). Loopback +
+  // tailscale (.ts.net) run genuine http in dev and are left alone.
+  const host = request.headers.get("host") ?? "";
+  const bareHost = host.split(":")[0].replace(/^\[|\]$/g, "");
+  const isDevHost =
+    bareHost === "localhost" ||
+    bareHost === "127.0.0.1" ||
+    bareHost === "::1" ||
+    bareHost.endsWith(".ts.net");
+  if (
+    request.headers.get("x-forwarded-proto") === "http" &&
+    host &&
+    !isDevHost
+  ) {
+    return NextResponse.redirect(
+      `https://${host}${pathname}${request.nextUrl.search}`,
+      308,
+    );
+  }
+
   const isAuthenticated = !!sessionCookieValue(request);
   const bare = stripLocale(pathname);
   const locale = extractLocale(pathname);
