@@ -7,14 +7,26 @@ describe("buildTrustedOrigins", () => {
     expect(origins).toContain("http://localhost:3000");
   });
 
-  it("returns only APP_URL when TRUSTED_ORIGINS is undefined", () => {
+  it("includes APP_URL + its scheme sibling when TRUSTED_ORIGINS is undefined", () => {
     const origins = buildTrustedOrigins("http://localhost:3000", undefined);
-    expect(origins).toEqual(["http://localhost:3000"]);
+    expect(origins).toEqual([
+      "http://localhost:3000",
+      "https://localhost:3000",
+    ]);
   });
 
-  it("returns only APP_URL when TRUSTED_ORIGINS is empty string", () => {
+  it("includes APP_URL + its scheme sibling when TRUSTED_ORIGINS is empty string", () => {
     const origins = buildTrustedOrigins("http://localhost:3000", "");
-    expect(origins).toEqual(["http://localhost:3000"]);
+    expect(origins).toEqual([
+      "http://localhost:3000",
+      "https://localhost:3000",
+    ]);
+  });
+
+  it("trusts the http SIBLING of an https origin (iPhone-8 http PWA fix)", () => {
+    const origins = buildTrustedOrigins("https://budget-dev.madonzy.com");
+    expect(origins).toContain("https://budget-dev.madonzy.com");
+    expect(origins).toContain("http://budget-dev.madonzy.com");
   });
 
   it("parses comma-separated TRUSTED_ORIGINS", () => {
@@ -40,10 +52,14 @@ describe("buildTrustedOrigins", () => {
       "http://localhost:3000",
       "http://a.example.com,,http://b.example.com,",
     );
+    // blanks dropped; each origin also brings its https scheme-sibling.
     expect(origins).toEqual([
       "http://localhost:3000",
+      "https://localhost:3000",
       "http://a.example.com",
+      "https://a.example.com",
       "http://b.example.com",
+      "https://b.example.com",
     ]);
   });
 });

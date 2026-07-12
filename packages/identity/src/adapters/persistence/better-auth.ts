@@ -30,13 +30,28 @@ export function buildTrustedOrigins(
   appUrl: string,
   trustedOriginsEnv?: string,
 ): string[] {
-  return [
+  const configured = [
     appUrl,
     ...(trustedOriginsEnv
       ?.split(",")
       .map((o) => o.trim())
       .filter(Boolean) ?? []),
   ];
+  // Also trust the scheme-SIBLING (http↔https) of every configured origin. An
+  // installed iOS PWA whose home-screen shortcut is pinned to http:// presents an
+  // `http://<host>` Origin even though the site is normally https — Better Auth then
+  // rejects the login as "Invalid origin" (observed on an iPhone 8 home-screen app).
+  // The app already serves BOTH schemes (see the dual session-cookie handling in the
+  // web middleware), so trusting the sibling of an already-trusted HOST is consistent
+  // and tightly scoped: never a different host or port, only the other scheme of one
+  // you already allow.
+  const out = new Set<string>();
+  for (const o of configured) {
+    out.add(o);
+    if (o.startsWith("https://")) out.add(`http://${o.slice(8)}`);
+    else if (o.startsWith("http://")) out.add(`https://${o.slice(7)}`);
+  }
+  return [...out];
 }
 
 /**
