@@ -407,6 +407,13 @@
       "when": 1782688800000,
       "tag": "0058_drop_group_flows",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1782692400000,
+      "tag": "0059_category_cushion_mode",
+      "breakpoints": true
     }
   ]
 }
