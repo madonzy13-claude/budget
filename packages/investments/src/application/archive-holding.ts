@@ -42,6 +42,18 @@ export function archiveHolding(deps: { holdingRepo: HoldingRepo }) {
         input.actorUserId,
         input.holdingId,
       );
+
+      // If that was the LAST holding in its group, wipe the group's flow ledger
+      // so its realized P/L doesn't linger (and a same-name group later starts
+      // fresh). No-op while other holdings remain in the group.
+      if (holding?.group) {
+        await deps.holdingRepo.pruneGroupFlowsIfEmpty(
+          input.tenantId,
+          input.actorUserId,
+          input.budgetId ?? input.tenantId,
+          holding.group,
+        );
+      }
       return ok({ ok: true });
     } catch (e) {
       return err(e as Error);

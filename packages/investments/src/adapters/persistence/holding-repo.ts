@@ -320,4 +320,36 @@ export class DrizzleHoldingRepo implements HoldingRepo {
     if (r.isErr()) throw r.error;
     return r.value;
   }
+
+  async pruneGroupFlowsIfEmpty(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+    groupName: string,
+  ): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(userId),
+      async (tx) => {
+        const dt = tx as DrizzleTx;
+        // Delete the group's flows only when no ACTIVE holding is left in it, so
+        // an emptied group's realized P/L is wiped and a same-name recreation
+        // starts clean. NOT EXISTS keeps it a no-op while the group is non-empty.
+        await dt.execute(sql`
+          DELETE FROM budgeting.investment_group_flows f
+           WHERE f.budget_id = ${budgetId}::uuid
+             AND f.tenant_id = ${tenantId}::uuid
+             AND f.group_name = ${groupName}
+             AND NOT EXISTS (
+               SELECT 1 FROM budgeting.investments i
+                WHERE i.budget_id = ${budgetId}::uuid
+                  AND i.tenant_id = ${tenantId}::uuid
+                  AND i.group_name = ${groupName}
+                  AND i.archived_at IS NULL
+             )
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
 }

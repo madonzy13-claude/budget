@@ -85,4 +85,15 @@ export interface HoldingRepo {
     userId: string,
     budgetId: string,
   ): Promise<GroupFlowLeg[]>;
+  /**
+   * Delete a group's flow ledger IFF no active (non-archived) holding remains in
+   * that group — so an emptied group carries no realized P/L, and a later
+   * same-name group starts fresh. No-op while any holding is still in the group.
+   */
+  pruneGroupFlowsIfEmpty(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+    groupName: string,
+  ): Promise<void>;
 }

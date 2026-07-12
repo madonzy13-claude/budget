@@ -116,6 +116,16 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
             );
           }
         }
+        // Moving the holding OUT of its group may have emptied it — if so, wipe
+        // the old group's flow ledger so its realized P/L doesn't linger.
+        if (merged.group !== oldGroup) {
+          await deps.holdingRepo.pruneGroupFlowsIfEmpty(
+            input.tenantId,
+            input.actorUserId,
+            input.budgetId ?? input.tenantId,
+            oldGroup,
+          );
+        }
       }
       return ok(updated);
     } catch (e) {

@@ -296,11 +296,17 @@ describe("Investments routes", () => {
   it("removing a grouped holding books its full position as a realized withdrawal (r36)", async () => {
     const fix = await createFixture("EUR");
     const app = await buildApp(fix);
+    const post = (body: Record<string, unknown>) =>
+      app.request("/investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    const postRes = await app.request("/investments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    // Two holdings in "Alt" so archiving ONE leaves the group non-empty (the
+    // realized withdrawal must persist; the empty-group prune is a separate test).
+    const eth = (await (
+      await post({
         name: "ETH",
         holdingType: "crypto",
         group: "Alt",
@@ -309,12 +315,21 @@ describe("Investments routes", () => {
         buyCurrency: "EUR",
         currentPriceCents: 150000,
         currentPriceCurrency: "EUR",
-      }),
+      })
+    ).json()) as any;
+    await post({
+      name: "ADA",
+      holdingType: "crypto",
+      group: "Alt",
+      quantity: "1",
+      buyPriceCents: 50000,
+      buyCurrency: "EUR",
+      currentPriceCents: 50000,
+      currentPriceCurrency: "EUR",
     });
-    const eth = (await postRes.json()) as any;
 
-    // Archive the whole position: realized = 2 × ($1,500 − $1,000) = $1,000 =
-    // 100000 cents (proceeds 300000 − cost 200000).
+    // Archive ETH's whole position: realized = 2 × (€1,500 − €1,000) = €1,000 =
+    // 100000 cents (proceeds 300000 − cost 200000). ADA keeps "Alt" alive.
     const archRes = await app.request(`/investments/${eth.id}/archive`, {
       method: "POST",
     });
@@ -323,6 +338,99 @@ describe("Investments routes", () => {
     const after = (await (await app.request("/investments")).json()) as any;
     expect(after.holdings.some((h: any) => h.id === eth.id)).toBe(false);
     expect(after.groupRealized.Alt).toBe("100000");
+  });
+
+  it("emptying a group wipes its realized P/L; a same-name group starts fresh (r36)", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+
+    const post = (body: Record<string, unknown>) =>
+      app.request("/investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    // BTC in "Crypto": bought €5k, now €10k, qty 1.
+    const btc = (await (
+      await post({
+        name: "BTC",
+        holdingType: "crypto",
+        group: "Crypto",
+        quantity: "1",
+        buyPriceCents: 500000,
+        buyCurrency: "EUR",
+        currentPriceCents: 1000000,
+        currentPriceCurrency: "EUR",
+      })
+    ).json()) as any;
+
+    // Sell 0.3 → books a realized flow of €1,500 (150000c).
+    await app.request(`/investments/${btc.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: "0.7" }),
+    });
+    const afterSell = (await (await app.request("/investments")).json()) as any;
+    expect(afterSell.groupRealized.Crypto).toBe("150000");
+
+    // Archive the ONLY holding in the group → group is now empty → flows pruned.
+    await app.request(`/investments/${btc.id}/archive`, { method: "POST" });
+    const afterArchive = (await (
+      await app.request("/investments")
+    ).json()) as any;
+    expect(afterArchive.groupRealized.Crypto ?? undefined).toBeUndefined();
+
+    // Recreate a "Crypto" group with a new holding → NO stale realized P/L.
+    await post({
+      name: "ETH",
+      holdingType: "crypto",
+      group: "Crypto",
+      quantity: "1",
+      buyPriceCents: 100000,
+      buyCurrency: "EUR",
+      currentPriceCents: 120000,
+      currentPriceCurrency: "EUR",
+    });
+    const afterRecreate = (await (
+      await app.request("/investments")
+    ).json()) as any;
+    expect(afterRecreate.groupRealized.Crypto ?? undefined).toBeUndefined();
+  });
+
+  it("moving the last holding out of a group wipes that group's realized P/L (r36)", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+    const post = (body: Record<string, unknown>) =>
+      app.request("/investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    const sol = (await (
+      await post({
+        name: "SOL",
+        holdingType: "crypto",
+        group: "Alpha",
+        quantity: "2",
+        buyPriceCents: 100000,
+        buyCurrency: "EUR",
+        currentPriceCents: 150000,
+        currentPriceCurrency: "EUR",
+      })
+    ).json()) as any;
+
+    // Move SOL out of "Alpha" → books a withdrawal to Alpha, then empties it.
+    await app.request(`/investments/${sol.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ group: "Beta" }),
+    });
+    const after = (await (await app.request("/investments")).json()) as any;
+    // Alpha is empty → its flows are gone; Beta never had a withdrawal.
+    expect(after.groupRealized.Alpha ?? undefined).toBeUndefined();
+    expect(after.groupRealized.Beta ?? undefined).toBeUndefined();
   });
 
   it("a loose (ungrouped) holding books no realized flow on sell (r36)", async () => {
