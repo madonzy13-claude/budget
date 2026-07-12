@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { toast } from "sonner";
-import type { HoldingDto } from "./use-investments";
+import type { InvestmentsPayload } from "./use-investments";
 
 export function useArchiveHolding(budgetId: string) {
   const qc = useQueryClient();
@@ -33,10 +33,11 @@ export function useArchiveHolding(budgetId: string) {
 
     onMutate: async (holdingId) => {
       await qc.cancelQueries({ queryKey: key });
-      const previous = qc.getQueryData<HoldingDto[]>(key);
-      qc.setQueryData<HoldingDto[]>(
-        key,
-        (old) => old?.filter((h) => h.id !== holdingId) ?? [],
+      const previous = qc.getQueryData<InvestmentsPayload>(key);
+      qc.setQueryData<InvestmentsPayload>(key, (old) =>
+        old?.holdings
+          ? { ...old, holdings: old.holdings.filter((h) => h.id !== holdingId) }
+          : old,
       );
       return { previous };
     },

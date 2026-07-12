@@ -13,7 +13,7 @@ import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
-import type { HoldingDto } from "./use-investments";
+import type { InvestmentsPayload } from "./use-investments";
 
 export interface ReorderHoldingsInput {
   orderedIds: string[];
@@ -44,15 +44,15 @@ export function useReorderHoldings(budgetId: string) {
 
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: key });
-      const previous = qc.getQueryData<HoldingDto[]>(key);
-      qc.setQueryData<HoldingDto[]>(key, (old) => {
-        if (!old) return old;
+      const previous = qc.getQueryData<InvestmentsPayload>(key);
+      qc.setQueryData<InvestmentsPayload>(key, (old) => {
+        if (!old?.holdings) return old;
         const orderMap = new Map(input.orderedIds.map((id, i) => [id, i + 1]));
-        const next = old.map((h) =>
+        const next = old.holdings.map((h) =>
           orderMap.has(h.id) ? { ...h, sortOrder: orderMap.get(h.id)! } : h,
         );
         next.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-        return next;
+        return { ...old, holdings: next };
       });
       return { previous };
     },

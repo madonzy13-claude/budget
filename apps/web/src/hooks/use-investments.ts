@@ -70,8 +70,13 @@ export interface HoldingDto {
   createdAt: string;
 }
 
-/** Full GET /investments payload cached under the shared query key. */
-interface InvestmentsPayload {
+/**
+ * Full GET /investments payload cached under the shared query key
+ * ["budget", id, "investments"]. NOTE: the cache holds this OBJECT, not a bare
+ * HoldingDto[] — every mutation's optimistic update must read/write `.holdings`
+ * (see use-reorder/archive/update/create-holding), or `old.map`/`.filter` throws.
+ */
+export interface InvestmentsPayload {
   holdings: HoldingDto[];
   /** realized gains per group (budget cents, string) — see groupAggregate. */
   groupRealized: Record<string, string>;
