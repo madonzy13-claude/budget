@@ -1,10 +1,8 @@
-import Big from "big.js";
 import { ok, err, type Result } from "neverthrow";
 import type { Holding } from "../domain/holding";
 import type { HoldingRepo, NewHolding } from "../ports/holding-repo";
 import type { UpdateHoldingInput } from "../contracts/api";
 import { toCents } from "./create-holding";
-import { withdrawalLeg } from "./group-flow";
 
 export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
   return async (
@@ -12,8 +10,6 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
       tenantId: string;
       holdingId: string;
       actorUserId: string;
-      // Budget the holding lives in (== tenantId in this app); defaults to it.
-      budgetId?: string;
     },
   ): Promise<Result<Holding, Error>> => {
     try {
@@ -80,53 +76,6 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
         merged,
       );
       if (!updated) return err(new Error("not_found"));
-
-      // Book a group withdrawal when quantity LEAVES a group: a partial sell
-      // (quantity dropped within the same group) or the whole position moving
-      // OUT of its group. Both realize the leaving quantity at the current
-      // price, so the group's P/L stays put instead of shrinking with the sold
-      // units. Loose holdings (no old group) book nothing.
-      // ponytail: a single PATCH that both changes group AND drops quantity is
-      // treated as a full move-out of the old position; the rare combo isn't
-      // split into move + partial-sell.
-      const oldGroup = current.group;
-      if (oldGroup !== null) {
-        let leavingQty: string | null = null;
-        if (merged.group !== oldGroup) {
-          leavingQty = current.quantity; // whole position leaves the old group
-        } else {
-          const drop = new Big(current.quantity).minus(new Big(merged.quantity));
-          if (drop.gt(0)) leavingQty = drop.toString(); // partial sell
-        }
-        if (leavingQty !== null) {
-          const leg = withdrawalLeg({
-            leavingQty,
-            buyPriceCents: current.buyPriceCents,
-            buyCurrency: current.buyCurrency,
-            sellPriceCents: current.currentPriceCents,
-            sellCurrency: current.currentPriceCurrency,
-          });
-          if (leg) {
-            await deps.holdingRepo.recordGroupFlow(
-              input.tenantId,
-              input.actorUserId,
-              input.budgetId ?? input.tenantId,
-              oldGroup,
-              leg,
-            );
-          }
-        }
-        // Moving the holding OUT of its group may have emptied it — if so, wipe
-        // the old group's flow ledger so its realized P/L doesn't linger.
-        if (merged.group !== oldGroup) {
-          await deps.holdingRepo.pruneGroupFlowsIfEmpty(
-            input.tenantId,
-            input.actorUserId,
-            input.budgetId ?? input.tenantId,
-            oldGroup,
-          );
-        }
-      }
       return ok(updated);
     } catch (e) {
       return err(e as Error);

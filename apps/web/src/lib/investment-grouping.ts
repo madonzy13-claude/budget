@@ -78,29 +78,16 @@ export interface GroupAggregate {
 }
 
 /**
- * Aggregate a group's children: total value (budget cents) + P/L against the
- * group's NET CONTRIBUTED capital.
+ * Aggregate a group's children: total value (budget cents) + blended cost-basis
+ * P/L% = (Σ value − Σ cost) / Σ cost, where cost_i is derived from each child's
+ * own value and P/L% (value / (1 + pl/100)). Children with no P/L (cash, no
+ * basis) contribute to value but are excluded from the P/L maths.
  *
- * A group is treated as a mini-portfolio you deposit into (adding/growing a
- * holding books its cost) and withdraw from (selling/removing a holding books
- * its current value — the realized proceeds). `realizedCents` is Σ(proceeds −
- * cost) booked by past withdrawals (server-computed from the flow ledger; 0 for
- * groups that never had one, so the maths below is unchanged for them).
- *
- *   netContributed = Σ costCurrent − realized
- *   P/L (money)    = Σ value − netContributed = (Σ value − Σ cost) + realized
- *   P/L %          = P/L / netContributed
- *
- * costCurrent_i is derived from each child's own value and P/L% (value / (1 +
- * pl/100)). Children with no P/L (cash, no basis) contribute to value but are
- * excluded from the cost/realized maths. This keeps a sell-and-reinvest (e.g.
- * BTC → USDT within the group) showing the SAME P/L as before the sell, instead
- * of the gain vanishing with the sold quantity.
+ * Current-state only — the group P/L reflects what is in the group right now, no
+ * deposit/withdrawal history (the flow-ledger model was rolled back as too
+ * complex for users to reason about).
  */
-export function groupAggregate(
-  holdings: HoldingDto[],
-  realizedCents = 0,
-): GroupAggregate {
+export function groupAggregate(holdings: HoldingDto[]): GroupAggregate {
   let valueBudgetCents = 0;
   let sumV = 0;
   let sumC = 0;
@@ -115,12 +102,8 @@ export function groupAggregate(
       anyBasis = true;
     }
   }
-  const netContributed = sumC - realizedCents;
-  const plCents = anyBasis ? sumV - sumC + realizedCents : null;
-  const plPct =
-    anyBasis && netContributed > 0
-      ? (plCents! / netContributed) * 100
-      : null;
+  const plPct = anyBasis && sumC > 0 ? ((sumV - sumC) / sumC) * 100 : null;
+  const plCents = anyBasis && sumC > 0 ? sumV - sumC : null;
   return { valueBudgetCents, plPct, plCents };
 }
 

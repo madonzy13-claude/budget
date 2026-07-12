@@ -14,11 +14,7 @@ import { persistNow } from "@/lib/query-persist";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
-import type {
-  HoldingDto,
-  HoldingType,
-  InvestmentsPayload,
-} from "./use-investments";
+import type { HoldingDto, HoldingType } from "./use-investments";
 
 export interface CreateHoldingInput {
   name: string;
@@ -117,12 +113,11 @@ export function useCreateHolding(budgetId: string) {
 
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: key });
-      const previous = qc.getQueryData<InvestmentsPayload>(key);
-      qc.setQueryData<InvestmentsPayload>(key, (old) =>
-        old?.holdings
-          ? { ...old, holdings: [...old.holdings, optimisticRow(input)] }
-          : { holdings: [optimisticRow(input)], groupRealized: {} },
-      );
+      const previous = qc.getQueryData<HoldingDto[]>(key);
+      qc.setQueryData<HoldingDto[]>(key, (old) => [
+        ...(old ?? []),
+        optimisticRow(input),
+      ]);
       // Write-through: make the optimistic row durable in IDB NOW, before the
       // POST/any reload — the 800ms debounced persister otherwise leaves a window
       // where a reload restores the stale pre-add snapshot and the holding

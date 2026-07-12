@@ -181,7 +181,6 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     const r = await deps.investments.updateHolding({
       ...parsed.data,
       tenantId,
-      budgetId: tenantId,
       holdingId,
       actorUserId: userId,
     });
@@ -201,7 +200,6 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     const { id: holdingId } = c.req.param();
     const r = await deps.investments.archiveHolding({
       tenantId,
-      budgetId: tenantId,
       holdingId,
       actorUserId: userId,
     });

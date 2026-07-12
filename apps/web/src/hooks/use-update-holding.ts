@@ -11,7 +11,7 @@ import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
-import type { HoldingType, InvestmentsPayload } from "./use-investments";
+import type { HoldingDto, HoldingType } from "./use-investments";
 
 export interface UpdateHoldingInput {
   holdingId: string;
@@ -73,10 +73,10 @@ export function useUpdateHolding(budgetId: string) {
 
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: key });
-      const previous = qc.getQueryData<InvestmentsPayload>(key);
-      qc.setQueryData<InvestmentsPayload>(key, (old) => {
-        if (!old?.holdings) return old;
-        const holdings = old.holdings.map((h) =>
+      const previous = qc.getQueryData<HoldingDto[]>(key);
+      qc.setQueryData<HoldingDto[]>(key, (old) => {
+        if (!old) return old;
+        return old.map((h) =>
           h.id === input.holdingId
             ? {
                 ...h,
@@ -101,7 +101,6 @@ export function useUpdateHolding(budgetId: string) {
               }
             : h,
         );
-        return { ...old, holdings };
       });
       return { previous };
     },

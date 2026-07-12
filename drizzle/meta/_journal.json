@@ -400,6 +400,13 @@
       "when": 1782685200000,
       "tag": "0057_prune_orphan_group_flows",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1782688800000,
+      "tag": "0058_drop_group_flows",
+      "breakpoints": true
     }
   ]
 }

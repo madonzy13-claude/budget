@@ -70,56 +70,17 @@ export interface HoldingDto {
   createdAt: string;
 }
 
-/**
- * Full GET /investments payload cached under the shared query key
- * ["budget", id, "investments"]. NOTE: the cache holds this OBJECT, not a bare
- * HoldingDto[] — every mutation's optimistic update must read/write `.holdings`
- * (see use-reorder/archive/update/create-holding), or `old.map`/`.filter` throws.
- */
-export interface InvestmentsPayload {
-  holdings: HoldingDto[];
-  /** realized gains per group (budget cents, string) — see groupAggregate. */
-  groupRealized: Record<string, string>;
-}
-
-function investmentsQueryOptions(
-  budgetId: string,
-  initialData?: HoldingDto[],
-) {
-  return {
-    queryKey: ["budget", budgetId, "investments"] as const,
-    queryFn: async (): Promise<InvestmentsPayload> => {
+export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {
+  return useQuery({
+    queryKey: ["budget", budgetId, "investments"],
+    queryFn: async () => {
       const res = await clientApiFetch(`/budgets/${budgetId}/investments`, {
         signal: AbortSignal.timeout(7000),
       });
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
-      return {
-        holdings: (json.holdings ?? []) as HoldingDto[],
-        groupRealized: (json.groupRealized ?? {}) as Record<string, string>,
-      };
+      return (json.holdings ?? []) as HoldingDto[];
     },
-    initialData: initialData
-      ? { holdings: initialData, groupRealized: {} }
-      : undefined,
-  };
-}
-
-export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {
-  return useQuery({
-    ...investmentsQueryOptions(budgetId, initialData),
-    select: (d: InvestmentsPayload) => d.holdings,
+    initialData,
   });
-}
-
-/**
- * Realized gains per group (budget cents). Shares the useInvestments query cache
- * (same key → one fetch); pass a group name into groupAggregate's realized arg.
- */
-export function useGroupRealized(budgetId: string): Record<string, string> {
-  const q = useQuery({
-    ...investmentsQueryOptions(budgetId),
-    select: (d: InvestmentsPayload) => d.groupRealized,
-  });
-  return q.data ?? {};
 }
