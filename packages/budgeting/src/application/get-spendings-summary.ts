@@ -71,6 +71,10 @@ export interface SpendingsSummaryCategoryDTO {
   sortIndex: number;
   plannedCents: string;
   cushionCents: string;
+  /** 0061: persisted needs/wants split of plannedCents (null = never set, the
+   *  editor then falls back to needs = planned, wants = 0). */
+  needsCents: string | null;
+  wantsCents: string | null;
   activeBudgetCents: string;
   spentCents: string;
   /** Reserve drawn for THIS month (clamped ≤ reserveAvailableCents). */
@@ -211,6 +215,8 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const limits = effectiveLimits.get(c.id) ?? {
             planned: 0n,
             cushion: 0n,
+            needs: null,
+            wants: null,
           };
           const isInvestment = Boolean((c as any).isInvestment);
           const planned =
@@ -262,6 +268,10 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             sortIndex: (c as any).sortIndex ?? 0,
             plannedCents: planned.toString(),
             cushionCents: cushion.toString(),
+            // 0061: the persisted needs/wants split (null when never set → the
+            // editor falls back to needs = planned, wants = 0).
+            needsCents: limits.needs != null ? limits.needs.toString() : null,
+            wantsCents: limits.wants != null ? limits.wants.toString() : null,
             activeBudgetCents: active.toString(),
             spentCents: spent.toString(),
             reserveUsedCents: reserveUsed.toString(),

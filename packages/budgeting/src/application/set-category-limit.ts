@@ -78,6 +78,8 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
         normalCurrency: input.normalCurrency,
         cushionAmount: input.cushionAmount,
         cushionCurrency: input.cushionCurrency,
+        needsAmount: input.needsAmount,
+        wantsAmount: input.wantsAmount,
         actorUserId: input.actorUserId,
         carryForward,
       });
@@ -185,6 +187,8 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
       normalCurrency: current.normalCurrency,
       cushionAmount: current.cushionAmount,
       cushionCurrency: current.cushionCurrency,
+      needsAmount: current.needsAmount,
+      wantsAmount: current.wantsAmount,
       effectiveFrom: current.effectiveFrom,
       effectiveTo: current.effectiveTo,
       createdAt: current.createdAt.toISOString(),

@@ -421,6 +421,13 @@
       "when": 1782696000000,
       "tag": "0060_investment_deposit",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1782699600000,
+      "tag": "0061_category_limit_needs_wants",
+      "breakpoints": true
     }
   ]
 }

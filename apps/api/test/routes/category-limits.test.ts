@@ -250,3 +250,154 @@ describe("Category limits SCD-2 via HTTP", () => {
     expect(openCount).toBe(1);
   });
 });
+
+// Repro for "editing needs/wants resets to previous value": a same-month edit
+// (carry-forward, no singleMonth — the current-month case) must UPDATE the
+// effective limit in place, not leave the old value.
+describe("same-month limit edit (needs/wants change)", () => {
+  it("re-setting the current month's limit updates the effective value", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Edit Amount Cat" }),
+      })
+    ).json();
+
+    const setLimit = (normalAmount: string) =>
+      app.request(`/categories/${cat.category.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount,
+          normalCurrency: "EUR",
+          cushionAmount: "0",
+          cushionCurrency: "EUR",
+          effectiveFrom: "2026-07-01",
+        }),
+      });
+
+    await setLimit("10000"); // initial planned 100.00
+    await setLimit("25000"); // edit needs/wants → planned 250.00
+
+    const eff = await (
+      await app.request(
+        `/categories/${cat.category.id}/limits/effective?date=2026-07-15`,
+      )
+    ).json();
+    expect(eff.normalAmount).toBe("25000");
+  });
+
+  // The realistic case: the open limit was created in an EARLIER month (carried
+  // forward), and the user edits the CURRENT month — a new open segment opens.
+  it("editing a later month when the open limit started earlier updates the later month", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Carried Cat" }),
+      })
+    ).json();
+    const setLimit = (normalAmount: string, effectiveFrom: string) =>
+      app.request(`/categories/${cat.category.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount,
+          normalCurrency: "EUR",
+          cushionAmount: "0",
+          cushionCurrency: "EUR",
+          effectiveFrom,
+        }),
+      });
+    await setLimit("10000", "2026-05-01"); // opened in May, still open
+    await setLimit("25000", "2026-07-01"); // edit July
+
+    const jul = await (
+      await app.request(
+        `/categories/${cat.category.id}/limits/effective?date=2026-07-15`,
+      )
+    ).json();
+    expect(jul.normalAmount).toBe("25000");
+  });
+});
+
+// mig 0061: the needs/wants SPLIT must round-trip so the editor prefills it
+// instead of collapsing to needs = planned on reopen.
+describe("needs/wants split persistence (mig 0061)", () => {
+  it("POST needsAmount/wantsAmount → GET effective returns the split", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Split Cat" }),
+      })
+    ).json();
+
+    await app.request(`/categories/${cat.category.id}/limits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        normalAmount: "10000",
+        needsAmount: "6000",
+        wantsAmount: "4000",
+        cushionAmount: "0",
+        normalCurrency: "EUR",
+        cushionCurrency: "EUR",
+        effectiveFrom: "2026-07-01",
+      }),
+    });
+
+    const eff = await (
+      await app.request(
+        `/categories/${cat.category.id}/limits/effective?date=2026-07-15`,
+      )
+    ).json();
+    expect(eff.normalAmount).toBe("10000");
+    expect(eff.needsAmount).toBe("6000");
+    expect(eff.wantsAmount).toBe("4000");
+  });
+
+  it("re-editing the split updates it in place (same month)", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Split Edit Cat" }),
+      })
+    ).json();
+    const post = (needs: string, wants: string, normal: string) =>
+      app.request(`/categories/${cat.category.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: normal,
+          needsAmount: needs,
+          wantsAmount: wants,
+          cushionAmount: "0",
+          normalCurrency: "EUR",
+          cushionCurrency: "EUR",
+          effectiveFrom: "2026-07-01",
+        }),
+      });
+    await post("6000", "4000", "10000");
+    await post("8000", "7000", "15000"); // change the split + total
+
+    const eff = await (
+      await app.request(
+        `/categories/${cat.category.id}/limits/effective?date=2026-07-15`,
+      )
+    ).json();
+    expect(eff.needsAmount).toBe("8000");
+    expect(eff.wantsAmount).toBe("7000");
+    expect(eff.normalAmount).toBe("15000");
+  });
+});

@@ -20,7 +20,11 @@ const CAT_A = "cat-aaaa";
 const CAT_B = "cat-bbbb";
 const CAT_INV = "cat-iiii";
 
-function cat(id: string, sortIndex: number, extra: Record<string, unknown> = {}) {
+function cat(
+  id: string,
+  sortIndex: number,
+  extra: Record<string, unknown> = {},
+) {
   return {
     id,
     tenantId: TENANT,
@@ -55,7 +59,13 @@ function makeDeps(opts: {
 }) {
   const categoryRepo = { listForBudget: async () => opts.categories };
   const categoryLimitRepo: Pick<CategoryLimitRepo, "effectiveForMonth"> = {
-    effectiveForMonth: async () => opts.limits,
+    effectiveForMonth: async () =>
+      new Map(
+        [...opts.limits].map(([k, v]) => [
+          k,
+          { ...v, needs: null, wants: null },
+        ]),
+      ),
   };
   const transactionRepo: Pick<
     TransactionRepo,
