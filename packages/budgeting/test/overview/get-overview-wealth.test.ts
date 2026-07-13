@@ -153,6 +153,11 @@ describe("getOverviewWealth", () => {
     ]);
     // Gap days carry the day-1 value (0%); the live jump on the last day is +10%.
     expect(dto.dynamics.map((d) => d.pct)).toEqual([0, 0, 0, 10]);
+    // Each bar also carries the signed money delta for the tooltip amount: flat
+    // gap days are "0"; the +10% live day is a positive money change.
+    const deltas = dto.dynamics.map((d) => d.delta_cents);
+    expect(deltas.slice(0, 3)).toEqual(["0", "0", "0"]);
+    expect(Number(deltas[3])).toBeGreaterThan(0);
   });
 
   test("value series spans the whole range; carry-forward across gaps (item 5)", async () => {
@@ -178,6 +183,44 @@ describe("getOverviewWealth", () => {
     // "measure from the $0 edge" so the number matches what the chart draws).
     expect(dto.grow_from_open.delta_cents).toBe("108000"); // 108000 − 0 (chart start)
     expect(dto.grow_from_open.delta_pct).toBeNull();
+  });
+
+  test("investments view: invested_cents + grow_net exclude contributions (items 4/5)", async () => {
+    const dto = (
+      await getOverviewWealth(deps({ investedInPeriod: async () => 10000n }))({
+        ...base,
+        view: "investments",
+      })
+    )._unsafeUnwrap();
+    // Invested = the Investments-category spend in the range.
+    expect(dto.invested_cents).toBe("10000");
+    // Investments series: 45000 → 50000 → 55000 → live 56000; chart starts at the
+    // $0 zero-fill (no opening) so grow_from_open = 56000. Net removes the 10000
+    // paid in → real market P/L = 46000.
+    expect(dto.grow_from_open.delta_cents).toBe("56000");
+    expect(dto.grow_net?.delta_cents).toBe("46000");
+  });
+
+  test("no Investments category → invested_cents + grow_net are null", async () => {
+    const dto = (
+      await getOverviewWealth(deps({ investedInPeriod: async () => null }))({
+        ...base,
+        view: "investments",
+      })
+    )._unsafeUnwrap();
+    expect(dto.invested_cents).toBeNull();
+    expect(dto.grow_net).toBeNull();
+  });
+
+  test("capitalization view never computes contributions", async () => {
+    const dto = (
+      await getOverviewWealth(deps({ investedInPeriod: async () => 10000n }))({
+        ...base,
+        view: "capitalization",
+      })
+    )._unsafeUnwrap();
+    expect(dto.invested_cents).toBeNull();
+    expect(dto.grow_net).toBeNull();
   });
 
   test("dynamics at the coarser (monthly) bucket, data-only steps (D-16)", async () => {

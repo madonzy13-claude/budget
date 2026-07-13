@@ -112,6 +112,10 @@ export function WealthSection({
   const effectiveView: WealthView = investmentsEnabled
     ? view
     : "capitalization";
+  // Investments view: optionally exclude the money paid IN (contributions tracked
+  // by the Investments category) so the growth reads as real market P/L, not the
+  // book value inflated by new deposits.
+  const [excludeContrib, setExcludeContrib] = useState(false);
 
   const { data, isPending, isError } = useOverviewWealth(budgetId, {
     from: range.from,
@@ -225,31 +229,85 @@ export function WealthSection({
               selected range (r27 item 2 — the metric lives with the chart it
               measures, so it's clear it analyzes the range, not a single period). */}
               <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-start justify-center gap-6">
-                  <div className="flex flex-col gap-0.5">
-                    <p className="text-caption text-[var(--muted-foreground)]">
-                      {Number(growth.delta_cents) >= 0
-                        ? t("wealth.grow")
-                        : t("wealth.loss")}
-                    </p>
-                    <span
-                      className={cn(
-                        "num text-num-md",
-                        Number(growth.delta_cents) >= 0
-                          ? "text-[var(--trading-up)]"
-                          : "text-[var(--trading-down)]",
+                {(() => {
+                  // Investments view with an Investments category → offer the
+                  // "excluding contributions" (real market P/L) figure.
+                  const canExclude =
+                    effectiveView === "investments" && data.grow_net != null;
+                  const shownGrowth =
+                    excludeContrib && canExclude && data.grow_net
+                      ? data.grow_net
+                      : growth;
+                  const up = Number(shownGrowth.delta_cents) >= 0;
+                  return (
+                    <>
+                      <div className="flex flex-wrap items-start justify-center gap-6">
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-caption text-[var(--muted-foreground)]">
+                            {up ? t("wealth.grow") : t("wealth.loss")}
+                          </p>
+                          <span
+                            className={cn(
+                              "num text-num-md",
+                              up
+                                ? "text-[var(--trading-up)]"
+                                : "text-[var(--trading-down)]",
+                            )}
+                          >
+                            {centsToDisplayCompact(
+                              shownGrowth.delta_cents,
+                              ccy,
+                              "en",
+                              true,
+                            )}
+                          </span>
+                        </div>
+                        <PctStat
+                          label={t("wealth.grow")}
+                          pct={shownGrowth.delta_pct}
+                        />
+                        {/* Invested over the period (Investments-category spend) —
+                            shown whenever the category exists (invested_cents set). */}
+                        {effectiveView === "investments" &&
+                          data.invested_cents != null && (
+                            <div className="flex flex-col gap-0.5">
+                              <p className="text-caption text-[var(--muted-foreground)]">
+                                {t("wealth.invested")}
+                              </p>
+                              <span className="num text-num-md text-[var(--body-on-dark)]">
+                                {centsToDisplayCompact(
+                                  data.invested_cents,
+                                  ccy,
+                                  "en",
+                                  true,
+                                )}
+                              </span>
+                            </div>
+                          )}
+                      </div>
+                      {/* Toggle: exclude contributions → the growth above becomes the
+                          real market P/L (value change minus money paid in). */}
+                      {canExclude && (
+                        <button
+                          type="button"
+                          data-testid="wealth-exclude-contrib"
+                          onClick={() => setExcludeContrib((v) => !v)}
+                          aria-pressed={excludeContrib}
+                          className={cn(
+                            "mx-auto text-caption underline underline-offset-2",
+                            excludeContrib
+                              ? "text-[var(--primary)]"
+                              : "text-[var(--muted-foreground)]",
+                          )}
+                        >
+                          {excludeContrib
+                            ? t("wealth.includeContributions")
+                            : t("wealth.excludeContributions")}
+                        </button>
                       )}
-                    >
-                      {centsToDisplayCompact(
-                        growth.delta_cents,
-                        ccy,
-                        "en",
-                        true,
-                      )}
-                    </span>
-                  </div>
-                  <PctStat label={t("wealth.grow")} pct={growth.delta_pct} />
-                </div>
+                    </>
+                  );
+                })()}
                 {/* Make explicit this growth is measured over the SELECTED period, e.g.
                 "since month start" on 1M — not a daily figure (r28 correction). */}
                 <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
@@ -292,6 +350,7 @@ export function WealthSection({
                       label: d.label,
                       pct: d.pct ?? 0,
                       raw: d.pct,
+                      delta_cents: d.delta_cents,
                     }))}
                     xKey="label"
                     series={[
@@ -309,6 +368,19 @@ export function WealthSection({
                     }
                     formatValue={pctAxisTick}
                     formatTooltip={(n) => `${n.toFixed(1)}%`}
+                    // Show the money change alongside the % (r-item: tooltip amount).
+                    tooltipExtra={(row) => [
+                      {
+                        label: t("wealth.amount"),
+                        value: centsToDisplayCompact(
+                          BigInt(String(row.delta_cents ?? "0")),
+                          ccy,
+                          "en",
+                          true,
+                        ),
+                        color: Number(row.delta_cents ?? 0) >= 0 ? UP : DOWN,
+                      },
+                    ]}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     labelFormat={(v) => formatChartDate(v, locale)}
                   />

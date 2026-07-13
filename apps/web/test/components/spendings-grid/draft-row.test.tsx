@@ -121,6 +121,26 @@ describe("DraftRow", () => {
     expect(screen.getByTestId("draft-row-rent").textContent).toContain("Rent");
   });
 
+  it("does NOT render the note when it just repeats the rule name (no dupe label)", () => {
+    // Recurring rules default their note to the rule name → "T-Mobile  T-Mobile".
+    renderDraftRow({
+      draft: { ...draft, ruleName: "T-Mobile", note: "t-mobile" },
+    });
+    expect(screen.queryByTestId("draft-row-note")).toBeNull();
+    // The rule name still shows exactly once.
+    const row = screen.getByTestId("draft-row-t-mobile");
+    expect(row.textContent?.match(/T-Mobile/gi)?.length).toBe(1);
+  });
+
+  it("renders the note when it adds info beyond the rule name", () => {
+    renderDraftRow({
+      draft: { ...draft, ruleName: "T-Mobile", note: "October bill" },
+    });
+    expect(screen.getByTestId("draft-row-note").textContent).toContain(
+      "October bill",
+    );
+  });
+
   it("double-click + edit + blur commits with new amount (no Enter required)", () => {
     renderDraftRow();
     const row = screen.getByTestId("draft-row-rent");

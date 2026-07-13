@@ -324,8 +324,12 @@ export function OverviewCards({
               {/* FRONT — capitalization (in flow → defines the card height) */}
               <div className="[backface-visibility:hidden]">
                 <CardLabel>{t("cards.capitalization")}</CardLabel>
-                <div className="mt-1 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                  <div className="flex min-w-0 flex-col gap-1">
+                {/* nowrap: the P/L stays inline (right) at all times. The left
+                    column flex-shrinks (min-w-0) and the hero number / its privacy
+                    RedactionBar (max-w-full) cap within it — otherwise a wide
+                    redaction bar wrapped the P/L onto its own line (privacy mode). */}
+                <div className="mt-1 flex flex-nowrap items-start justify-between gap-x-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <p
                       // Inline color: tailwind-merge can't tell the custom
                       // `text-num-display` size class from a text-color and was
