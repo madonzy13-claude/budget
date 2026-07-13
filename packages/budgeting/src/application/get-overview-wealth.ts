@@ -77,18 +77,6 @@ export interface GetOverviewWealthDeps {
     from: string;
     to: string;
   }) => Promise<Map<string, bigint> | null>;
-  /** Analytic DEPOSIT backdate: returns a valuer `(date 'YYYY-MM-DD') → cents`
-   *  giving the deposit value (default ccy) that captured snapshots DON'T yet
-   *  include — the stretch from each deposit's start date up to (not incl.) its
-   *  creation date. Lets deposits show from their start date, interest and all,
-   *  in BOTH the investments and capitalization series. Buckets on/after a
-   *  deposit's creation already carry it (snapshot/live) → 0 there, no double
-   *  count. null when the budget has no deposits. */
-  depositBackdate?: (input: {
-    tenantId: string;
-    budgetId: string;
-    defaultCurrency: string;
-  }) => Promise<((dateISO: string) => bigint) | null>;
 }
 
 export interface GetOverviewWealthInput {
@@ -264,22 +252,10 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         }
         return s;
       };
-      // Deposit backdate supplement (default ccy) at a bucket's date — 0 unless
-      // the budget has deposits whose start predates their creation. Added to
-      // BOTH tracks (a deposit is part of investments AND net worth).
-      const depSupp = deps.depositBackdate
-        ? await deps.depositBackdate({
-            tenantId: input.tenantId,
-            budgetId: input.budgetId,
-            defaultCurrency: ccy,
-          })
-        : null;
-      const suppAt = (d: Date): bigint =>
-        depSupp ? depSupp(d.toISOString().slice(0, 10)) : 0n;
       const pickAdj = (
         r: { capitalization_cents: bigint; investment_value_cents: bigint },
         d: Date,
-      ) => pick(r) + suppAt(d) - contribUpTo(d);
+      ) => pick(r) - contribUpTo(d);
 
       const openingVal = opening ? pickAdj(opening, opening.captured_at) : null;
 
