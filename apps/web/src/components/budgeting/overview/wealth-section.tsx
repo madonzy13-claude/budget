@@ -49,7 +49,7 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
   const down = pct !== null && pct < 0;
   const Arrow = up ? ArrowUp : ArrowDown;
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
       <span
         className={cn(
@@ -231,16 +231,19 @@ export function WealthSection({
               <div className="flex flex-col gap-2">
                 {(() => {
                   const up = Number(growth.delta_cents) >= 0;
-                  // Investments view with an Investments category → offer the Total /
-                  // Market-only (net-of-contributions) switch. `growth` already
-                  // reflects the choice — the server computes it net when `net`.
-                  const canNet =
+                  // Investments view + an Investments category → show the "invested"
+                  // metric; and, ONLY when there's something to exclude (invested >
+                  // 0), the Incl./Excl.-contributions switch (otherwise it would look
+                  // broken — nothing to net). `growth` already reflects the choice.
+                  const hasInvestCat =
                     effectiveView === "investments" &&
                     data.invested_cents != null;
+                  const canNet =
+                    hasInvestCat && Number(data.invested_cents) > 0;
                   return (
                     <>
                       <div className="flex flex-wrap items-start justify-center gap-6">
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col items-center gap-0.5">
                           <p className="text-caption text-[var(--muted-foreground)]">
                             {up ? t("wealth.grow") : t("wealth.loss")}
                           </p>
@@ -260,8 +263,8 @@ export function WealthSection({
                           pct={growth.delta_pct}
                         />
                         {/* Invested over the period (Investments-category spend). */}
-                        {canNet && (
-                          <div className="flex flex-col gap-0.5">
+                        {hasInvestCat && (
+                          <div className="flex flex-col items-center gap-0.5">
                             <p className="text-caption text-[var(--muted-foreground)]">
                               {t("wealth.invested")}
                             </p>
@@ -291,7 +294,7 @@ export function WealthSection({
                                 : "text-[var(--muted-foreground)]",
                             )}
                           >
-                            {t("wealth.total")}
+                            {t("wealth.inclContrib")}
                           </button>
                           <button
                             type="button"
@@ -305,7 +308,7 @@ export function WealthSection({
                                 : "text-[var(--muted-foreground)]",
                             )}
                           >
-                            {t("wealth.marketOnly")}
+                            {t("wealth.exclContrib")}
                           </button>
                         </div>
                       )}
