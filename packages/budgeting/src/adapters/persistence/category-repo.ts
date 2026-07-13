@@ -57,11 +57,12 @@ export class DrizzleCategoryRepo implements CategoryRepo {
       // last (rightmost) in the grid instead of defaulting to 0.
       await tx.execute(
         sql`INSERT INTO budgeting.categories
-              (id, tenant_id, name, parent_id, color_key, archived_at, created_at, actor_user_id, sort_index)
+              (id, tenant_id, name, parent_id, color_key, cushion_mode, archived_at, created_at, actor_user_id, sort_index)
             VALUES
               (${category.id}::uuid, ${category.tenantId}::uuid, ${category.name},
                ${category.parentId ? sql`${category.parentId}::uuid` : sql`NULL`},
                ${category.colorKey ?? null},
+               ${category.cushionMode ?? null},
                ${category.archivedAt?.toISOString() ?? null},
                ${category.createdAt.toISOString()}, ${category.actorUserId}::uuid,
                (SELECT COALESCE(MAX(sort_index), -1) + 1
@@ -579,28 +580,25 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     categoryId: string,
     newName: string,
     actorUserId: string,
-    opts?: { colorKey: string | null },
+    opts?: { colorKey?: string | null; cushionMode?: string | null },
   ): Promise<void> {
     const tid = TenantId(tenantId);
     const uid = UserId(actorUserId);
-    // 260613-v1p: recolor in the same UPDATE only when opts is present
-    // (presence-aware), so a rename-only edit never wipes the stored color.
-    const recolor = opts !== undefined;
+    // 260613-v1p / mig 0059: recolor and re-mode in the same UPDATE, presence-aware
+    // PER KEY, so a rename-only edit never wipes the stored color or cushion mode.
+    const recolor = opts !== undefined && "colorKey" in opts;
+    const remode = opts !== undefined && "cushionMode" in opts;
 
     const r = await withTenantTx(tid, uid, async (tx) => {
-      if (recolor) {
-        await tx.execute(
-          sql`UPDATE budgeting.categories
-              SET name = ${newName}, color_key = ${opts!.colorKey ?? null}
-              WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
-        );
-      } else {
-        await tx.execute(
-          sql`UPDATE budgeting.categories
-              SET name = ${newName}
-              WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
-        );
-      }
+      // Build SET incrementally — each optional column is updated only when its
+      // key was provided.
+      const sets = [sql`name = ${newName}`];
+      if (recolor) sets.push(sql`color_key = ${opts!.colorKey ?? null}`);
+      if (remode) sets.push(sql`cushion_mode = ${opts!.cushionMode ?? null}`);
+      await tx.execute(
+        sql`UPDATE budgeting.categories SET ${sql.join(sets, sql`, `)}
+            WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+      );
 
       await writeAudit(tx, {
         tenantId: tid,
@@ -609,9 +607,11 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         action: "update",
         actorUserId: uid,
         before: null,
-        after: recolor
-          ? { name: newName, colorKey: opts!.colorKey ?? null }
-          : { name: newName },
+        after: {
+          name: newName,
+          ...(recolor ? { colorKey: opts!.colorKey ?? null } : {}),
+          ...(remode ? { cushionMode: opts!.cushionMode ?? null } : {}),
+        },
       });
 
       await writeOutbox(tx, {

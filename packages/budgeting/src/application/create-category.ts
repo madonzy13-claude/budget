@@ -49,6 +49,9 @@ export function createCategory(deps: CreateCategoryDeps) {
       now,
       input.actorUserId,
       input.colorKey ?? null,
+      false,
+      null,
+      input.cushionMode ?? null,
     );
 
     try {
@@ -64,6 +67,7 @@ export function createCategory(deps: CreateCategoryDeps) {
       archivedAt: null,
       createdAt: now.toISOString(),
       colorKey: category.colorKey,
+      cushionMode: category.cushionMode,
     });
   };
 }

@@ -328,6 +328,9 @@ export function CategorySlider({
             body: JSON.stringify({
               name: values.name,
               colorKey: values.colorKey,
+              // Persist the chosen mode so "Needs only" (cushion == planned)
+              // isn't misread as "Needs + wants" when the editor reopens.
+              cushionMode: values.cushionMode,
             }),
           },
         );
@@ -370,6 +373,9 @@ export function CategorySlider({
               body: JSON.stringify({
                 name: values.name,
                 colorKey: values.colorKey,
+                // Persist the mode so the selection survives reopen (a rename-only
+                // edit would otherwise re-infer it from the amounts).
+                cushionMode: values.cushionMode,
               }),
             },
           ),

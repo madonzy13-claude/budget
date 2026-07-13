@@ -131,6 +131,8 @@ export interface CategoryDto {
   createdAt: string;
   // 260613-v1p: persisted color key (null = no color).
   colorKey: string | null;
+  // mig 0059: persisted cushion mode (null = inferred from amounts on reopen).
+  cushionMode?: string | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -38,6 +38,11 @@ export class Category {
     this.investmentLimitMode = mode;
   }
 
+  /** mig 0059: persist the chosen cushion mode. null clears it (→ inferred). */
+  setCushionMode(mode: string | null): void {
+    this.cushionMode = mode;
+  }
+
   isRoot(): boolean {
     return this.parentId === null;
   }

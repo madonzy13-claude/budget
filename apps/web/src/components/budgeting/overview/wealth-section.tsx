@@ -28,6 +28,7 @@ import {
 } from "@/hooks/use-overview-wealth";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { centsToRounded } from "@/lib/cents-format";
+import { selectRangeGrowth } from "@/lib/wealth-growth";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
@@ -206,10 +207,11 @@ export function WealthSection({
         </p>
       ) : (
         (() => {
-          // FW growth anchors on the chart's OPENING value so the % agrees with the
-          // chart (r30 item 2). Fall back to `grow` when the field is absent — a
-          // stale cached response mid-deploy must not white-screen the page.
-          const growth = data.grow_from_open ?? data.grow;
+          // FW growth must match the RENDERED chart: opening-seeded start for the
+          // shorter presets (grow_from_open), first-real-value start for "all"
+          // (grow) — "all" trims the leading $0 buckets below, so grow_from_open's
+          // $0 baseline would show an empty % and the whole end value as "growth".
+          const growth = selectRangeGrowth(range.preset, data);
           // "All": drop the leading zero buckets before the first real snapshot so
           // the timeline starts at the first non-zero value, not a flat run of zeros
           // stretching back to the 5-year cap (item 9). Only for the "all" preset —

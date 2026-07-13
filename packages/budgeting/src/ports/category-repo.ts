@@ -36,15 +36,17 @@ export interface CategoryRepo {
     opts?: { archivedFrom?: string | null; hideAll?: boolean },
   ): Promise<void>;
   /**
-   * Rename a category, optionally recoloring it in the same write (260613-v1p).
-   * Pass opts.colorKey to set/clear the color; omit opts to leave color untouched.
+   * Rename a category, optionally recoloring and/or setting the cushion mode in
+   * the same write (260613-v1p, mig 0059). Presence-aware PER KEY: include
+   * `colorKey`/`cushionMode` to set (or clear, via null) that column; omit a key
+   * to leave that column untouched. Omit opts entirely to touch neither.
    */
   rename(
     tenantId: string,
     categoryId: string,
     newName: string,
     actorUserId: string,
-    opts?: { colorKey: string | null },
+    opts?: { colorKey?: string | null; cushionMode?: string | null },
   ): Promise<void>;
   /**
    * Unarchive a category. Clears archived_from and archived_at (set both NULL),

@@ -615,3 +615,68 @@ describe("PUT /categories/:id/share-overrides", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// cushion_mode (mig 0059) must PERSIST end-to-end like colorKey. The mode is the
+// only way to distinguish "needs_only" (cushion == planned, no wants) from
+// "needs_wants" on reopen, so dropping it makes the edit silently revert. The
+// list DTO carries cushionMode; GET /categories is what the grid reads.
+describe("category cushion-mode persistence (mig 0059)", () => {
+  beforeAll(async () => {
+    const t = await createTestUser();
+    testUserId = t.userId;
+    testTenantId = t.tenantId;
+  });
+
+  async function getMode(app: Hono, id: string): Promise<unknown> {
+    const { categories } = await (await app.request("/categories")).json();
+    return categories.find((c: { id: string }) => c.id === id)?.cushionMode;
+  }
+
+  it("POST {cushionMode:'custom'} → GET list returns 'custom'", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Cushion Create", cushionMode: "custom" }),
+      })
+    ).json();
+    expect(await getMode(app, created.category.id)).toBe("custom");
+  });
+
+  it("PATCH {cushionMode:'needs_only'} → GET list returns 'needs_only'", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Cushion Edit", cushionMode: "none" }),
+      })
+    ).json();
+    const patched = await app.request(`/categories/${created.category.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Cushion Edit", cushionMode: "needs_only" }),
+    });
+    expect(patched.status).toBe(200);
+    expect(await getMode(app, created.category.id)).toBe("needs_only");
+  });
+
+  it("PATCH without cushionMode leaves the stored mode intact (presence-aware)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const created = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Cushion Keep", cushionMode: "custom" }),
+      })
+    ).json();
+    // A rename-only PATCH (no cushionMode key) must not wipe the mode.
+    await app.request(`/categories/${created.category.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Cushion Keep 2" }),
+    });
+    expect(await getMode(app, created.category.id)).toBe("custom");
+  });
+});
