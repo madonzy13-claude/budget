@@ -34,7 +34,7 @@ interface HeldInstrument {
 
 export async function runInstrumentPriceHourly(
   priceProvider: PriceProvider,
-): Promise<{ fetched: number; failed: number }> {
+): Promise<{ fetched: number; failed: number; failedSymbols: string[] }> {
   const heldR = await withInfraTx(async (tx) => {
     const rows = await tx.execute(sql`
       SELECT DISTINCT i.id::text AS id, i.symbol, i.provider AS price_provider
@@ -56,6 +56,8 @@ export async function runInstrumentPriceHourly(
 
   let fetched = 0;
   let failed = 0;
+  const failedSymbols: string[] = [];
+  const errorSamples: string[] = [];
   for (const inst of held) {
     try {
       const quote = await priceProvider.currentPrice(
@@ -73,12 +75,29 @@ export async function runInstrumentPriceHourly(
       });
       if (up.isErr()) throw up.error;
       fetched++;
-    } catch {
-      // T-9-10: one bad symbol/provider must not abort the whole sweep.
+    } catch (e) {
+      // T-9-10: one bad symbol/provider must not abort the whole sweep. But record
+      // WHICH ones fail — silent swallowing made a provider outage look like the
+      // cron "not running" (prices froze, net worth flat, no signal). A few samples
+      // keep the log bounded when many fail at once (rate-limit).
       failed++;
+      failedSymbols.push(inst.symbol);
+      if (errorSamples.length < 5) {
+        errorSamples.push(
+          `${inst.symbol}/${inst.price_provider}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
   }
-  return { fetched, failed };
+  console.log(
+    `[instrument-price-hourly] fetched=${fetched} failed=${failed} held=${held.length}`,
+  );
+  if (failed > 0) {
+    console.warn(
+      `[instrument-price-hourly] ${failed} price fetch(es) failed; samples: ${errorSamples.join(" | ")}`,
+    );
+  }
+  return { fetched, failed, failedSymbols };
 }
 
 export function registerInstrumentPriceHourly(

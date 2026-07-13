@@ -104,5 +104,7 @@ describe("instrument-price-hourly job (INV-13)", () => {
     const result = await runInstrumentPriceHourly(provider);
     expect(result.failed).toBeGreaterThanOrEqual(1);
     expect(result.fetched).toBeGreaterThanOrEqual(1);
+    // Observability (INV-13): the failing symbol is surfaced, not silently swallowed.
+    expect(result.failedSymbols).toContain("MSFT");
   });
 });

@@ -339,13 +339,21 @@ describe("OverviewCards", () => {
     expect(screen.getByTestId("overspent-bad")).toBeTruthy();
   });
 
-  it("shows the capitalization P/L since yesterday when snapshots exist", () => {
+  it("shows the capitalization P/L since yesterday's close (viewer-tz midnight)", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    // tz defaults to UTC (no provider) → base is the bucket at/before today 00:00Z.
+    const today = new Date().toISOString().slice(0, 10);
+    const yday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
     mockWealth.mockReturnValueOnce({
-      data: { grow: { delta_cents: "750000", delta_pct: 9.9 } },
+      data: {
+        series: [
+          { label: `${yday}T23`, value_cents: "7575000" }, // yesterday's close (base)
+          { label: `${today}T05`, value_cents: "8325000" }, // now
+        ],
+      },
     });
     render(<OverviewCards budgetId="b1" />);
-    // P/L stacks on the right: percent and amount on separate lines (item 5).
+    // Δ = 8,325,000 − 7,575,000 = 750,000¢ (+9.9%). Stacks: percent + amount.
     expect(screen.getByText(/\+9\.9%/)).toBeTruthy();
     expect(screen.getByText("$7,500")).toBeTruthy();
     expect(screen.getByText("since yesterday")).toBeTruthy();
@@ -389,8 +397,15 @@ describe("OverviewCards", () => {
       isError: false,
       isPending: false,
     });
+    const today = new Date().toISOString().slice(0, 10);
+    const yday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
     mockWealth.mockReturnValueOnce({
-      data: { grow: { delta_cents: "706753656", delta_pct: 92993.9 } },
+      data: {
+        series: [
+          { label: `${yday}T23`, value_cents: "760000" },
+          { label: `${today}T05`, value_cents: "707513656" }, // Δ = 706,753,656¢
+        ],
+      },
     });
     render(<OverviewCards budgetId="b1" />);
     expect(screen.getByText("$7,075,137")).toBeTruthy(); // rounded, no cents
