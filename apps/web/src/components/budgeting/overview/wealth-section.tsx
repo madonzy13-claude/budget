@@ -27,7 +27,7 @@ import {
   type WealthView,
 } from "@/hooks/use-overview-wealth";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
-import { centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
@@ -43,15 +43,6 @@ const BUCKET_INVEST = "var(--chart-bar-1)"; // blue
 const BUCKET_SPEND = "var(--primary)"; // yellow
 const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
 const BUCKET_CUSHION = "var(--chart-bar-3)"; // purple (distinct from teal)
-
-/** i18n key for the % CHANGE chart title/series, by its (coarser) bucket. */
-function dynamicsLabelKey(b: "daily" | "monthly" | "yearly"): string {
-  return b === "daily"
-    ? "wealth.dynamicsDaily"
-    : b === "monthly"
-      ? "wealth.dynamicsMonthly"
-      : "wealth.dynamicsYearly";
-}
 
 function PctStat({ label, pct }: { label: string; pct: number | null }) {
   const up = pct !== null && pct >= 0;
@@ -112,27 +103,36 @@ export function WealthSection({
   const effectiveView: WealthView = investmentsEnabled
     ? view
     : "capitalization";
-  // Investments view: optionally exclude the money paid IN (contributions tracked
-  // by the Investments category) so the growth reads as real market P/L, not the
-  // book value inflated by new deposits.
-  const [excludeContrib, setExcludeContrib] = useState(false);
+  // Investments view: when on, fetch the NET-of-contributions series/growth/dynamics
+  // (money paid in via the Investments category subtracted) → real market movement.
+  const [net, setNet] = useState(false);
 
   const { data, isPending, isError } = useOverviewWealth(budgetId, {
     from: range.from,
     to: range.to,
     view: effectiveView,
     enabled: open,
+    net: effectiveView === "investments" && net,
   });
 
   const ccy = data?.currency ?? "USD";
+  // Overview shows NO cents anywhere (round to whole units).
+  const fmtRounded = (cents: string | bigint) =>
+    centsToRounded(cents, ccy, "en", true);
+  // Signed, sign-tight, no cents: "+30,640 zł" / "−30,640 zł".
+  const fmtSigned = (cents: string | bigint) => {
+    const b = BigInt(String(cents));
+    const sign = b > 0n ? "+" : b < 0n ? "−" : "";
+    return `${sign}${centsToRounded(b < 0n ? -b : b, ccy, "en", true)}`;
+  };
+  const fmtSignedPct = (n: number) =>
+    `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}%`;
   // Chart AXIS: bare + COMPACT ("82K", "1M") — no currency (r24 items 5/7).
   const fmtY = chartCompactCents;
-  // Chart TOOLTIP (on tap): the FULL value WITH currency (r25 item 2).
-  const fmtTooltip = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
-  // Pie centre read-out: whole currency, NO cents (round to the nearest unit).
-  const fmtPieValue = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n / 100) * 100), ccy, "en", true);
+  // Chart TOOLTIP (on tap): the FULL value WITH currency, no cents.
+  const fmtTooltip = (n: number) => fmtRounded(BigInt(Math.round(n)));
+  // Pie centre read-out: whole currency, NO cents.
+  const fmtPieValue = (n: number) => fmtRounded(BigInt(Math.round(n)));
 
   // Capitalization pie: where the money sits — investments / spendings-wallets /
   // reserves-wallets / cushion. Sourced from the (already-prefetched) overview
@@ -230,15 +230,13 @@ export function WealthSection({
               measures, so it's clear it analyzes the range, not a single period). */}
               <div className="flex flex-col gap-2">
                 {(() => {
-                  // Investments view with an Investments category → offer the
-                  // "excluding contributions" (real market P/L) figure.
-                  const canExclude =
-                    effectiveView === "investments" && data.grow_net != null;
-                  const shownGrowth =
-                    excludeContrib && canExclude && data.grow_net
-                      ? data.grow_net
-                      : growth;
-                  const up = Number(shownGrowth.delta_cents) >= 0;
+                  const up = Number(growth.delta_cents) >= 0;
+                  // Investments view with an Investments category → offer the Total /
+                  // Market-only (net-of-contributions) switch. `growth` already
+                  // reflects the choice — the server computes it net when `net`.
+                  const canNet =
+                    effectiveView === "investments" &&
+                    data.invested_cents != null;
                   return (
                     <>
                       <div className="flex flex-wrap items-start justify-center gap-6">
@@ -254,56 +252,62 @@ export function WealthSection({
                                 : "text-[var(--trading-down)]",
                             )}
                           >
-                            {centsToDisplayCompact(
-                              shownGrowth.delta_cents,
-                              ccy,
-                              "en",
-                              true,
-                            )}
+                            {fmtSigned(growth.delta_cents)}
                           </span>
                         </div>
                         <PctStat
                           label={t("wealth.grow")}
-                          pct={shownGrowth.delta_pct}
+                          pct={growth.delta_pct}
                         />
-                        {/* Invested over the period (Investments-category spend) —
-                            shown whenever the category exists (invested_cents set). */}
-                        {effectiveView === "investments" &&
-                          data.invested_cents != null && (
-                            <div className="flex flex-col gap-0.5">
-                              <p className="text-caption text-[var(--muted-foreground)]">
-                                {t("wealth.invested")}
-                              </p>
-                              <span className="num text-num-md text-[var(--body-on-dark)]">
-                                {centsToDisplayCompact(
-                                  data.invested_cents,
-                                  ccy,
-                                  "en",
-                                  true,
-                                )}
-                              </span>
-                            </div>
-                          )}
+                        {/* Invested over the period (Investments-category spend). */}
+                        {canNet && (
+                          <div className="flex flex-col gap-0.5">
+                            <p className="text-caption text-[var(--muted-foreground)]">
+                              {t("wealth.invested")}
+                            </p>
+                            <span className="num text-num-md text-[var(--body-on-dark)]">
+                              {fmtRounded(data.invested_cents!)}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      {/* Toggle: exclude contributions → the growth above becomes the
-                          real market P/L (value change minus money paid in). */}
-                      {canExclude && (
-                        <button
-                          type="button"
-                          data-testid="wealth-exclude-contrib"
-                          onClick={() => setExcludeContrib((v) => !v)}
-                          aria-pressed={excludeContrib}
-                          className={cn(
-                            "mx-auto text-caption underline underline-offset-2",
-                            excludeContrib
-                              ? "text-[var(--primary)]"
-                              : "text-[var(--muted-foreground)]",
-                          )}
+                      {/* Total vs Market-only (net of contributions) — a clear
+                          segmented switch; the active side is filled. Toggling
+                          refetches so EVERY chart below updates too. */}
+                      {canNet && (
+                        <div
+                          role="group"
+                          className="mx-auto inline-flex rounded-full border border-[var(--hairline-dark)] p-0.5 text-caption"
                         >
-                          {excludeContrib
-                            ? t("wealth.includeContributions")
-                            : t("wealth.excludeContributions")}
-                        </button>
+                          <button
+                            type="button"
+                            data-testid="wealth-net-total"
+                            onClick={() => setNet(false)}
+                            aria-pressed={!net}
+                            className={cn(
+                              "rounded-full px-3 py-1 transition-colors",
+                              !net
+                                ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
+                                : "text-[var(--muted-foreground)]",
+                            )}
+                          >
+                            {t("wealth.total")}
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="wealth-net-market"
+                            onClick={() => setNet(true)}
+                            aria-pressed={net}
+                            className={cn(
+                              "rounded-full px-3 py-1 transition-colors",
+                              net
+                                ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
+                                : "text-[var(--muted-foreground)]",
+                            )}
+                          >
+                            {t("wealth.marketOnly")}
+                          </button>
+                        </div>
                       )}
                     </>
                   );
@@ -353,12 +357,9 @@ export function WealthSection({
                       delta_cents: d.delta_cents,
                     }))}
                     xKey="label"
-                    series={[
-                      {
-                        key: "pct",
-                        label: t(dynamicsLabelKey(data.dynamicsBucket)),
-                      },
-                    ]}
+                    // Empty series label → the tooltip shows just the % (no
+                    // "Monthly change" text); the amount follows on its own line.
+                    series={[{ key: "pct", label: "" }]}
                     colorByPoint={(row) =>
                       row.raw === null
                         ? NEUTRAL
@@ -367,18 +368,13 @@ export function WealthSection({
                           : DOWN
                     }
                     formatValue={pctAxisTick}
-                    formatTooltip={(n) => `${n.toFixed(1)}%`}
-                    // Show the money change alongside the % (r-item: tooltip amount).
+                    formatTooltip={fmtSignedPct}
+                    // The money change on its own line — signed, sign-tight, no cents,
+                    // no label (just the % above and the amount below).
                     tooltipExtra={(row) => [
                       {
-                        label: t("wealth.amount"),
-                        value: centsToDisplayCompact(
-                          BigInt(String(row.delta_cents ?? "0")),
-                          ccy,
-                          "en",
-                          true,
-                        ),
-                        color: Number(row.delta_cents ?? 0) >= 0 ? UP : DOWN,
+                        label: "",
+                        value: fmtSigned(String(row.delta_cents ?? "0")),
                       },
                     ]}
                     xTickFormat={(v) => formatChartDate(v, locale)}

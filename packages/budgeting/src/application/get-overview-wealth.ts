@@ -67,16 +67,16 @@ export interface GetOverviewWealthDeps {
       budgetId: string,
     ): Promise<{ default_currency: string } | null>;
   };
-  /** Σ contributions to investing (the smart Investments category's spend) over
-   *  [from,to]. Returns null when the budget has NO Investments category (the
-   *  feature is off) — the "invested" metric + net-of-contributions P/L are then
-   *  omitted. Investments view only. */
-  investedInPeriod?: (input: {
+  /** Contributions to investing per calendar month (YYYY-MM → cents) — the smart
+   *  Investments category's spend over [from,to]. Returns null when the budget has
+   *  NO Investments category (feature off). Powers the "invested" metric and the
+   *  net-of-contributions series/growth/dynamics. Investments view only. */
+  investedByMonth?: (input: {
     tenantId: string;
     budgetId: string;
     from: string;
     to: string;
-  }) => Promise<bigint | null>;
+  }) => Promise<Map<string, bigint> | null>;
 }
 
 export interface GetOverviewWealthInput {
@@ -85,6 +85,9 @@ export interface GetOverviewWealthInput {
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD
   view: WealthView;
+  /** Investments view: subtract contributions (money paid in) from every value
+   *  point so the series/growth/dynamics show real market movement. */
+  net?: boolean;
   now?: () => Date;
 }
 
@@ -107,11 +110,9 @@ export interface OverviewWealthDTO {
   dynamics: { label: string; pct: number | null; delta_cents: string }[];
   pie: { holding_type: string; value_cents: string }[] | null;
   /** Σ contributions to investing over the range (Investments-category spend);
-   *  null when the budget has no Investments category. Investments view only. */
+   *  null when the budget has no Investments category. Investments view only.
+   *  When net=true, `series`/`grow`/`dynamics` are already reduced by contributions. */
   invested_cents: string | null;
-  /** grow_from_open reduced by contributions = real market P/L excluding money
-   *  paid in; null when there's no Investments category. Investments view only. */
-  grow_net: { delta_cents: string; delta_pct: number | null } | null;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -221,12 +222,50 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         input.budgetId,
         input.from,
       );
-      const openingVal = opening ? pick(opening) : null;
+      // Contributions per month (Investments-category spend): powers the "invested"
+      // metric and — when net=true — is subtracted from each value point so the
+      // series/growth/dynamics show real MARKET movement, not book value inflated by
+      // new deposits. null (⇒ no adjustment) unless the budget has the category.
+      const contribMap =
+        view === "investments" && deps.investedByMonth
+          ? await deps.investedByMonth({
+              tenantId: input.tenantId,
+              budgetId: input.budgetId,
+              from: input.from,
+              to: input.to,
+            })
+          : null;
+      const invested_cents = contribMap
+        ? [...contribMap.values()].reduce((a, b) => a + b, 0n).toString()
+        : null;
+      const contribMonths = contribMap
+        ? [...contribMap.keys()].sort((a, b) => a.localeCompare(b))
+        : [];
+      // Cumulative contributions on/before a date's month (0 unless net=true).
+      const contribUpTo = (d: Date): bigint => {
+        if (!contribMap || !input.net) return 0n;
+        const m = d.toISOString().slice(0, 7);
+        let s = 0n;
+        for (const mm of contribMonths) {
+          if (mm <= m) s += contribMap.get(mm)!;
+          else break;
+        }
+        return s;
+      };
+      const pickAdj = (
+        r: { capitalization_cents: bigint; investment_value_cents: bigint },
+        d: Date,
+      ) => pick(r) - contribUpTo(d);
+
+      const openingVal = opening ? pickAdj(opening, opening.captured_at) : null;
 
       // VALUE series aggregated at the value bucket (last-in-bucket wins).
       const byValue = new Map<string, bigint>();
       for (const r of rows)
-        byValue.set(bucketLabel(r.captured_at, hours), pick(r));
+        byValue.set(
+          bucketLabel(r.captured_at, hours),
+          pickAdj(r, r.captured_at),
+        );
 
       // Live current point (D-04): overrides the current value bucket so the
       // rightmost point reflects the last few hours. Only when `now` is in range.
@@ -241,7 +280,7 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
       // to is an inclusive day → compare against the LAST bucket of that day.
       const toLabel = bucketLabel(new Date(`${input.to}T23:59:59Z`), hours);
       const liveInRange = liveLabel >= fromLabel && liveLabel <= toLabel;
-      if (liveInRange) byValue.set(liveLabel, pick(live));
+      if (liveInRange) byValue.set(liveLabel, pickAdj(live, now));
 
       // grow/loss (D-15) from the DATA points only (first vs last real value) — not
       // the zero-fill, so leading empty buckets don't turn grow into "0 → net worth".
@@ -307,8 +346,12 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         // gap would fake a −100%; snapshots are sparse but real on long ranges).
         const byDyn = new Map<string, bigint>();
         for (const r of rows)
-          byDyn.set(dynLabelOf(r.captured_at, dynBucket), pick(r));
-        if (liveInRange) byDyn.set(dynLabelOf(now, dynBucket), pick(live));
+          byDyn.set(
+            dynLabelOf(r.captured_at, dynBucket),
+            pickAdj(r, r.captured_at),
+          );
+        if (liveInRange)
+          byDyn.set(dynLabelOf(now, dynBucket), pickAdj(live, now));
         let dynLabels = [...byDyn.keys()].sort((a, b) => a.localeCompare(b));
         // Give the FIRST in-range bucket a predecessor — but ONLY when the opening
         // snapshot lands in the immediately-preceding calendar bucket. Then that first
@@ -359,33 +402,6 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         }));
       }
 
-      // Contributions (Investments-category spend) in the period, and the
-      // net-of-contributions growth — the "real" market P/L excluding the money
-      // the user paid in. Investments view only + only when the budget has an
-      // Investments category (deps.investedInPeriod returns non-null).
-      let invested_cents: string | null = null;
-      let grow_net: { delta_cents: string; delta_pct: number | null } | null =
-        null;
-      if (view === "investments" && deps.investedInPeriod) {
-        const invested = await deps.investedInPeriod({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-          from: input.from,
-          to: input.to,
-        });
-        if (invested !== null) {
-          invested_cents = invested.toString();
-          const netDelta = BigInt(grow_from_open.delta_cents) - invested;
-          grow_net = {
-            delta_cents: netDelta.toString(),
-            delta_pct:
-              chartStart === 0n
-                ? null
-                : (Number(netDelta) * 100) / Number(chartStart),
-          };
-        }
-      }
-
       return ok({
         currency: ccy,
         view,
@@ -398,7 +414,6 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         dynamics,
         pie,
         invested_cents,
-        grow_net,
       });
     } catch (e) {
       return err(e as Error);

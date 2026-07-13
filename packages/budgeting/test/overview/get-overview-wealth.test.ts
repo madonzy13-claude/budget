@@ -185,42 +185,56 @@ describe("getOverviewWealth", () => {
     expect(dto.grow_from_open.delta_pct).toBeNull();
   });
 
-  test("investments view: invested_cents + grow_net exclude contributions (items 4/5)", async () => {
-    const dto = (
-      await getOverviewWealth(deps({ investedInPeriod: async () => 10000n }))({
+  test("investments: invested_cents (item 5) + net reduces the WHOLE view (items 2/4)", async () => {
+    // 10,000 contributed in Feb (within the Jan–Mar range).
+    const invByMonth = async () => new Map([["2026-02", 10000n]]);
+    const gross = (
+      await getOverviewWealth(deps({ investedByMonth: invByMonth }))({
         ...base,
         view: "investments",
       })
     )._unsafeUnwrap();
-    // Invested = the Investments-category spend in the range.
-    expect(dto.invested_cents).toBe("10000");
-    // Investments series: 45000 → 50000 → 55000 → live 56000; chart starts at the
-    // $0 zero-fill (no opening) so grow_from_open = 56000. Net removes the 10000
-    // paid in → real market P/L = 46000.
-    expect(dto.grow_from_open.delta_cents).toBe("56000");
-    expect(dto.grow_net?.delta_cents).toBe("46000");
-  });
+    expect(gross.invested_cents).toBe("10000");
 
-  test("no Investments category → invested_cents + grow_net are null", async () => {
-    const dto = (
-      await getOverviewWealth(deps({ investedInPeriod: async () => null }))({
+    // net=true subtracts contributions from every value point → grow shrinks by the
+    // money paid in (real market movement), and the series/dynamics follow.
+    const net = (
+      await getOverviewWealth(deps({ investedByMonth: invByMonth }))({
         ...base,
         view: "investments",
+        net: true,
+      })
+    )._unsafeUnwrap();
+    expect(net.invested_cents).toBe("10000");
+    expect(Number(net.grow.delta_cents)).toBe(
+      Number(gross.grow.delta_cents) - 10000,
+    );
+    // The value series is reduced too (last point net = gross − 10000).
+    const lastGross = Number(
+      gross.series[gross.series.length - 1]!.value_cents,
+    );
+    const lastNet = Number(net.series[net.series.length - 1]!.value_cents);
+    expect(lastNet).toBe(lastGross - 10000);
+  });
+
+  test("no Investments category → invested_cents null (feature off)", async () => {
+    const dto = (
+      await getOverviewWealth(deps({ investedByMonth: async () => null }))({
+        ...base,
+        view: "investments",
+        net: true,
       })
     )._unsafeUnwrap();
     expect(dto.invested_cents).toBeNull();
-    expect(dto.grow_net).toBeNull();
   });
 
   test("capitalization view never computes contributions", async () => {
     const dto = (
-      await getOverviewWealth(deps({ investedInPeriod: async () => 10000n }))({
-        ...base,
-        view: "capitalization",
-      })
+      await getOverviewWealth(
+        deps({ investedByMonth: async () => new Map([["2026-02", 10000n]]) }),
+      )({ ...base, view: "capitalization", net: true })
     )._unsafeUnwrap();
     expect(dto.invested_cents).toBeNull();
-    expect(dto.grow_net).toBeNull();
   });
 
   test("dynamics at the coarser (monthly) bucket, data-only steps (D-16)", async () => {
