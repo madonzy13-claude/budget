@@ -371,6 +371,23 @@ export async function boot(): Promise<BootedDeps> {
         0n,
       );
     },
+    investmentCostBasisCents: async (input: {
+      tenantId: string;
+      budgetId: string;
+      defaultCurrency: string;
+    }): Promise<bigint> => {
+      const r = await investments.listHoldings({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        actorUserId: SYSTEM_USER_UUID,
+        budgetCurrency: input.defaultCurrency,
+      });
+      if (r.isErr()) throw r.error;
+      return r.value.holdings.reduce(
+        (sum, h) => sum + BigInt(h.costInBudgetCents),
+        0n,
+      );
+    },
   };
   const budgetingFinal = Object.assign(budgeting, {
     getOverviewCards: getOverviewCards({
@@ -445,31 +462,28 @@ export async function boot(): Promise<BootedDeps> {
         },
       },
       metaReader: summaryRepo,
-      // Cost basis of the holdings (buy cost, FX→budget ccy) keyed by each
-      // holding's creation DATE. Powers the "invested" metric + the Excl. (net =
-      // value − cost = P/L) view. null when the budget has no holdings.
-      investmentCostBasis: async (input: {
+      // "Invested" metric = the smart Investments category's spend over [from,to],
+      // keyed YYYY-MM. null when the budget has no Investments category. The Excl.
+      // net adjustment uses each snapshot's stored cost basis, not this.
+      investedByMonth: async (input: {
         tenantId: string;
         budgetId: string;
-        defaultCurrency: string;
+        from: string;
+        to: string;
       }) => {
-        const r = await investments.listHoldings({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-          actorUserId: SYSTEM_USER_UUID,
-          budgetCurrency: input.defaultCurrency,
-        });
-        if (r.isErr()) throw r.error;
-        if (r.value.holdings.length === 0) return null;
-        const byDate = new Map<string, bigint>();
-        for (const h of r.value.holdings) {
-          const day = h.createdAt.slice(0, 10);
-          byDate.set(
-            day,
-            (byDate.get(day) ?? 0n) + BigInt(h.costInBudgetCents),
-          );
+        const cat = await categoryRepo.findInvestmentCategory(input.tenantId);
+        if (!cat) return null;
+        const rows = await createOverviewRepo().monthlySpendByCategory(
+          input.budgetId,
+          input.from,
+          input.to,
+        );
+        const byMonth = new Map<string, bigint>();
+        for (const r of rows) {
+          if (r.category_id !== cat.id) continue;
+          byMonth.set(r.month, (byMonth.get(r.month) ?? 0n) + r.spent_cents);
         }
-        return byDate;
+        return byMonth;
       },
     }),
     // Overview cash-flow projection timeline (today → end of next month).

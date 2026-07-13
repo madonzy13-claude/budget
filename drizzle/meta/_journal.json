@@ -428,6 +428,13 @@
       "when": 1782699600000,
       "tag": "0061_category_limit_needs_wants",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1782703200000,
+      "tag": "0062_snapshot_cost_basis",
+      "breakpoints": true
     }
   ]
 }

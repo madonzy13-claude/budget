@@ -35,6 +35,12 @@ export const budgetWealthSnapshots = budgeting.table(
     investmentValueCents: bigint("investment_value_cents", {
       mode: "bigint",
     }).notNull(),
+    // 0062: investments cost basis (Σ buy_price × qty, FX→budget ccy) at capture
+    // time, so P/L (value − cost) is trackable over time. Nullable (legacy rows
+    // backfilled to the current cost basis).
+    investmentCostBasisCents: bigint("investment_cost_basis_cents", {
+      mode: "bigint",
+    }),
     currency: char("currency", { length: 3 }).notNull(),
   },
   (t) => [
