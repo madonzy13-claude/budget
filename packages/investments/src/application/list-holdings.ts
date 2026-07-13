@@ -139,6 +139,21 @@ export function listHoldings(deps: {
         const toBudget = rateMap[valueCcy] ?? "1";
         const valueInBudget = value.times(new Big(toBudget));
 
+        // Cost basis = buy_price × quantity (in the BUY currency), FX→budget. Uses
+        // the buy-currency rate specifically (metals buy in PLN, price in USD).
+        const buyCcy = h.buyCurrency ?? budgetCcy;
+        const costRaw =
+          h.buyPriceCents === null
+            ? new Big(0)
+            : new Big(h.buyPriceCents.toString()).times(
+                new Big(h.quantity.toString()),
+              );
+        const buyToBudget =
+          h.buyPriceCents === null
+            ? "1"
+            : (rateMap[buyCcy] ?? (await getRate(buyCcy, budgetCcy)));
+        const costInBudget = costRaw.times(new Big(buyToBudget));
+
         // P/L converts current -> buy currency only when they differ.
         const plRate =
           h.currentPriceCurrency &&
@@ -179,6 +194,7 @@ export function listHoldings(deps: {
             : null,
           valueCents: value.toFixed(0),
           valueInBudgetCents: valueInBudget.toFixed(0),
+          costInBudgetCents: costInBudget.toFixed(0),
           profitLossPct: profitLossPct(h, plRate),
           profitLossCents: profitLossCents(h, plRate),
           weightPct: weights.get(h.id) ?? 0,

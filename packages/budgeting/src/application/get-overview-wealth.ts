@@ -67,15 +67,16 @@ export interface GetOverviewWealthDeps {
       budgetId: string,
     ): Promise<{ default_currency: string } | null>;
   };
-  /** Contributions to investing per calendar month (YYYY-MM → cents) — the smart
-   *  Investments category's spend over [from,to]. Returns null when the budget has
-   *  NO Investments category (feature off). Powers the "invested" metric and the
-   *  net-of-contributions series/growth/dynamics. Investments view only. */
-  investedByMonth?: (input: {
+  /** Cost basis of the tracked investments = each holding's buy cost (buy_price ×
+   *  quantity, FX→budget ccy), keyed by the holding's creation DATE ('YYYY-MM-DD')
+   *  so it enters exactly when the holding starts appearing in the value series.
+   *  Powers the "invested" metric (Σ cost) and — when net=true — is subtracted
+   *  from every value point so the series/grow/dynamics show real P/L (value −
+   *  cost). null when the budget has NO holdings. Investments view only. */
+  investmentCostBasis?: (input: {
     tenantId: string;
     budgetId: string;
-    from: string;
-    to: string;
+    defaultCurrency: string;
   }) => Promise<Map<string, bigint> | null>;
 }
 
@@ -222,32 +223,33 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         input.budgetId,
         input.from,
       );
-      // Contributions per month (Investments-category spend): powers the "invested"
-      // metric and — when net=true — is subtracted from each value point so the
-      // series/growth/dynamics show real MARKET movement, not book value inflated by
-      // new deposits. null (⇒ no adjustment) unless the budget has the category.
-      const contribMap =
-        view === "investments" && deps.investedByMonth
-          ? await deps.investedByMonth({
+      // Cost basis of the holdings (buy cost, FX→budget ccy) keyed by creation
+      // DATE: powers the "invested" metric (Σ cost) and — when net=true — is
+      // subtracted from each value point so the series/grow/dynamics show real P/L
+      // (value − cost), not book value inflated by the money paid in. Each
+      // holding's cost enters on its creation day, exactly when its value starts
+      // appearing in the snapshots. null (⇒ no adjustment) when no holdings.
+      const costMap =
+        view === "investments" && deps.investmentCostBasis
+          ? await deps.investmentCostBasis({
               tenantId: input.tenantId,
               budgetId: input.budgetId,
-              from: input.from,
-              to: input.to,
+              defaultCurrency: ccy,
             })
           : null;
-      const invested_cents = contribMap
-        ? [...contribMap.values()].reduce((a, b) => a + b, 0n).toString()
+      const invested_cents = costMap
+        ? [...costMap.values()].reduce((a, b) => a + b, 0n).toString()
         : null;
-      const contribMonths = contribMap
-        ? [...contribMap.keys()].sort((a, b) => a.localeCompare(b))
+      const costDates = costMap
+        ? [...costMap.keys()].sort((a, b) => a.localeCompare(b))
         : [];
-      // Cumulative contributions on/before a date's month (0 unless net=true).
-      const contribUpTo = (d: Date): bigint => {
-        if (!contribMap || !input.net) return 0n;
-        const m = d.toISOString().slice(0, 7);
+      // Cumulative cost of holdings created on/before a date (0 unless net=true).
+      const costUpTo = (d: Date): bigint => {
+        if (!costMap || !input.net) return 0n;
+        const day = d.toISOString().slice(0, 10);
         let s = 0n;
-        for (const mm of contribMonths) {
-          if (mm <= m) s += contribMap.get(mm)!;
+        for (const dd of costDates) {
+          if (dd <= day) s += costMap.get(dd)!;
           else break;
         }
         return s;
@@ -255,7 +257,7 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
       const pickAdj = (
         r: { capitalization_cents: bigint; investment_value_cents: bigint },
         d: Date,
-      ) => pick(r) - contribUpTo(d);
+      ) => pick(r) - costUpTo(d);
 
       const openingVal = opening ? pickAdj(opening, opening.captured_at) : null;
 

@@ -185,21 +185,21 @@ describe("getOverviewWealth", () => {
     expect(dto.grow_from_open.delta_pct).toBeNull();
   });
 
-  test("investments: invested_cents (item 5) + net reduces the WHOLE view (items 2/4)", async () => {
-    // 10,000 contributed in Feb (within the Jan–Mar range).
-    const invByMonth = async () => new Map([["2026-02", 10000n]]);
+  test("investments: invested_cents = cost basis + net = value − cost (P/L)", async () => {
+    // A holding bought 2026-02-10 for 10,000 (budget ccy).
+    const costBasis = async () => new Map([["2026-02-10", 10000n]]);
     const gross = (
-      await getOverviewWealth(deps({ investedByMonth: invByMonth }))({
+      await getOverviewWealth(deps({ investmentCostBasis: costBasis }))({
         ...base,
         view: "investments",
       })
     )._unsafeUnwrap();
     expect(gross.invested_cents).toBe("10000");
 
-    // net=true subtracts contributions from every value point → grow shrinks by the
-    // money paid in (real market movement), and the series/dynamics follow.
+    // net=true subtracts the cost basis from every value point → grow shows real
+    // P/L (value − cost), and the series/dynamics follow.
     const net = (
-      await getOverviewWealth(deps({ investedByMonth: invByMonth }))({
+      await getOverviewWealth(deps({ investmentCostBasis: costBasis }))({
         ...base,
         view: "investments",
         net: true,
@@ -209,7 +209,7 @@ describe("getOverviewWealth", () => {
     expect(Number(net.grow.delta_cents)).toBe(
       Number(gross.grow.delta_cents) - 10000,
     );
-    // The value series is reduced too (last point net = gross − 10000).
+    // The value series is reduced too (last point net = gross − cost).
     const lastGross = Number(
       gross.series[gross.series.length - 1]!.value_cents,
     );
@@ -217,9 +217,9 @@ describe("getOverviewWealth", () => {
     expect(lastNet).toBe(lastGross - 10000);
   });
 
-  test("no Investments category → invested_cents null (feature off)", async () => {
+  test("no holdings → invested_cents null", async () => {
     const dto = (
-      await getOverviewWealth(deps({ investedByMonth: async () => null }))({
+      await getOverviewWealth(deps({ investmentCostBasis: async () => null }))({
         ...base,
         view: "investments",
         net: true,
@@ -228,10 +228,12 @@ describe("getOverviewWealth", () => {
     expect(dto.invested_cents).toBeNull();
   });
 
-  test("capitalization view never computes contributions", async () => {
+  test("capitalization view never computes cost basis", async () => {
     const dto = (
       await getOverviewWealth(
-        deps({ investedByMonth: async () => new Map([["2026-02", 10000n]]) }),
+        deps({
+          investmentCostBasis: async () => new Map([["2026-02-10", 10000n]]),
+        }),
       )({ ...base, view: "capitalization", net: true })
     )._unsafeUnwrap();
     expect(dto.invested_cents).toBeNull();
