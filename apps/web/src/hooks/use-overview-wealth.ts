@@ -25,17 +25,22 @@ export interface OverviewWealthDTO {
   /** Σ contributions (Investments-category spend) over the range; null when the
    *  budget has no Investments category. Investments view only. */
   invested_cents: string | null;
-  /** Growth reduced by contributions = real market P/L; null without the category. */
-  grow_net: { delta_cents: string; delta_pct: number | null } | null;
 }
 
 export function useOverviewWealth(
   budgetId: string,
-  opts: { from: string; to: string; view: WealthView; enabled: boolean },
+  opts: {
+    from: string;
+    to: string;
+    view: WealthView;
+    enabled: boolean;
+    /** Investments view: fetch the net-of-contributions series/growth/dynamics. */
+    net?: boolean;
+  },
 ) {
-  const { from, to, view, enabled } = opts;
+  const { from, to, view, enabled, net = false } = opts;
   return useQuery({
-    queryKey: ["budget", budgetId, "overview", "wealth", from, to, view],
+    queryKey: ["budget", budgetId, "overview", "wealth", from, to, view, net],
     enabled,
     refetchOnMount: "always",
     // Keep the prior chart on screen while a new range/view refetches, so the
@@ -44,6 +49,7 @@ export function useOverviewWealth(
     placeholderData: keepPreviousData,
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to, view });
+      if (net) qs.set("net", "1");
       const res = await clientApiFetch(
         `/budgets/${budgetId}/overview/wealth?${qs.toString()}`,
         { headers: { "X-Budget-ID": budgetId } },

@@ -30,7 +30,7 @@ import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
-import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
+import { centsToRounded } from "@/lib/cents-format";
 import { dayCloseDelta } from "@/lib/day-close-delta";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { cn } from "@/lib/utils";
@@ -201,8 +201,8 @@ export function OverviewCards({
   // currency sign shows ("$", "€", "zł", "₴") instead of the ISO code Intl falls
   // back to for many currencies in `en` ("PLN"/"UAH"); grouping matches the English
   // surfaces (UAT round, item 6).
-  const fmtMoney = (cents: string) =>
-    centsToDisplayCompact(cents, ccy, "en", true);
+  // Overview shows NO cents anywhere — every card amount rounds to whole units.
+  const fmtMoney = (cents: string) => centsToRounded(cents, ccy, "en", true);
   const fmtRounded = (cents: string) => centsToRounded(cents, ccy, "en", true);
   // Privacy: when hidden, every figure is covered by a REDACTION BAR (a solid
   // rounded block sized to the real figure so the layout doesn't jump) instead of

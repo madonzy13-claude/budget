@@ -23,7 +23,7 @@ import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-b
 import { overspendHeat } from "@/lib/overspend-heat";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
-import { centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate } from "@/lib/chart-date-format";
 import type { OverviewRange } from "@/lib/overview-range";
@@ -90,7 +90,7 @@ export function PlannedSection({
   const ccy = data?.currency ?? "USD";
   const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
+    centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
 
   return (
     <OverviewSection

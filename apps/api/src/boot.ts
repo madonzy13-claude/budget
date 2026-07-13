@@ -445,9 +445,9 @@ export async function boot(): Promise<BootedDeps> {
         },
       },
       metaReader: summaryRepo,
-      // Σ contributions to investing = the smart Investments category's spend over
-      // the range. null when the budget has no Investments category (feature off).
-      investedInPeriod: async (input: {
+      // Contributions to investing per month = the smart Investments category's
+      // spend, keyed YYYY-MM. null when the budget has no Investments category.
+      investedByMonth: async (input: {
         tenantId: string;
         budgetId: string;
         from: string;
@@ -460,9 +460,12 @@ export async function boot(): Promise<BootedDeps> {
           input.from,
           input.to,
         );
-        return rows
-          .filter((r) => r.category_id === cat.id)
-          .reduce((sum, r) => sum + r.spent_cents, 0n);
+        const byMonth = new Map<string, bigint>();
+        for (const r of rows) {
+          if (r.category_id !== cat.id) continue;
+          byMonth.set(r.month, (byMonth.get(r.month) ?? 0n) + r.spent_cents);
+        }
+        return byMonth;
       },
     }),
     // Overview cash-flow projection timeline (today → end of next month).

@@ -22,6 +22,9 @@ export function registerOverviewWealthRoutes(r: Hono, deps: BootedDeps) {
       from: z.string().regex(DATE_RE),
       to: z.string().regex(DATE_RE),
       view: z.enum(["capitalization", "investments"]).default("capitalization"),
+      // Investments view: subtract contributions so the whole view is net of
+      // money paid in (real market movement). "1" = on.
+      net: z.enum(["0", "1"]).optional(),
     })
     .refine((q) => q.from <= q.to, { message: "from_after_to" })
     .refine(
@@ -53,6 +56,7 @@ export function registerOverviewWealthRoutes(r: Hono, deps: BootedDeps) {
       from: parsed.data.from,
       to: parsed.data.to,
       view: parsed.data.view,
+      net: parsed.data.net === "1",
     });
     if (result.isErr())
       return serverError(c, "overview_wealth_failed", result.error);
