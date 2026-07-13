@@ -31,6 +31,7 @@ import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
+import { dayCloseDelta } from "@/lib/day-close-delta";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { cn } from "@/lib/utils";
 
@@ -148,10 +149,12 @@ export function OverviewCards({
     return y ?? m ?? t("cards.months", { count: 0 });
   };
 
-  // Capitalization P/L vs the PREVIOUS DAY — the hero card stays a simple day P/L
-  // (the range-scoped "since period start" view lives inside Financial Wealth, not
-  // here). Trailing-1-day range, capitalization view; grow.delta = net-worth change
-  // off the hourly snapshots + live point.
+  // Capitalization day P/L = change since the viewer's LOCAL midnight (= yesterday's
+  // close in their timezone), NOT a rolling ~24h/29h window. We fetch the hourly
+  // capitalization series over a trailing 1-day range (covers every tz's midnight)
+  // and anchor the delta on the local-midnight bucket client-side — see
+  // dayCloseDelta. (The endpoint's own `grow` anchors on the first in-range bucket,
+  // which spans yesterday too, and is UTC-only.)
   const plRange = useMemo(() => {
     const today = Temporal.Now.plainDateISO(tz);
     return {
@@ -159,12 +162,16 @@ export function OverviewCards({
       to: today.toString(),
     };
   }, [tz]);
-  const pl = useOverviewWealth(budgetId, {
+  const plSeries = useOverviewWealth(budgetId, {
     from: plRange.from,
     to: plRange.to,
     view: "capitalization",
     enabled: true,
-  }).data?.grow;
+  }).data?.series;
+  const pl = useMemo(
+    () => (plSeries ? dayCloseDelta(plSeries, tz, Date.now()) : undefined),
+    [plSeries, tz],
+  );
 
   if (isPending) {
     return (
