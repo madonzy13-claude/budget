@@ -17,10 +17,6 @@ import {
   appPool,
 } from "@budget/platform";
 import { createInvestmentsModule } from "@budget/investments/src/contracts/factory";
-import {
-  buildDepositBackdate,
-  type CapFrequency,
-} from "@budget/investments/src/application/deposit-backdate";
 import { DrizzleHoldingRepo } from "@budget/investments/src/adapters/persistence/holding-repo";
 import { DrizzleInstrumentRepo } from "@budget/investments/src/adapters/persistence/instrument-repo";
 import { DrizzlePriceCacheRepo } from "@budget/investments/src/adapters/persistence/price-cache-repo";
@@ -470,44 +466,6 @@ export async function boot(): Promise<BootedDeps> {
           byMonth.set(r.month, (byMonth.get(r.month) ?? 0n) + r.spent_cents);
         }
         return byMonth;
-      },
-      // Deposits are deterministic (principal + compounding), so backfill their
-      // value for the stretch BEFORE they were entered — letting the series show
-      // them from their start date. Buckets on/after a deposit's creation already
-      // carry it (snapshot/live), so the valuer returns 0 there (no double count).
-      depositBackdate: async (input: {
-        tenantId: string;
-        budgetId: string;
-        defaultCurrency: string;
-      }) => {
-        const r = await investments.listHoldings({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-          actorUserId: SYSTEM_USER_UUID,
-          budgetCurrency: input.defaultCurrency,
-        });
-        if (r.isErr()) throw r.error;
-        const today = new Date().toISOString().slice(0, 10);
-        const specs = r.value.holdings
-          .filter(
-            (h) =>
-              h.holdingType === "deposit" &&
-              h.buyPriceCents != null &&
-              h.depositStartDate != null,
-          )
-          .map((h) => ({
-            principalCents: h.buyPriceCents!,
-            rateBps: h.depositRateBps ?? 0,
-            startDate: h.depositStartDate!,
-            capFrequency: (h.depositCapFrequency ?? "monthly") as CapFrequency,
-            endDate: h.depositEndDate,
-            createdAt: h.createdAt.slice(0, 10),
-            // FX (incl. quantity) is derived inside buildDepositBackdate from this
-            // vs the deposit's own-ccy value today.
-            valueInBudgetCents: h.valueInBudgetCents,
-          }));
-        if (specs.length === 0) return null;
-        return buildDepositBackdate(specs, today);
       },
     }),
     // Overview cash-flow projection timeline (today → end of next month).
