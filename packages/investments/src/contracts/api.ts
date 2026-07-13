@@ -169,6 +169,10 @@ export interface EnrichedHoldingDto {
   valueCents: string;
   /** value in the budget default currency (cents, string). */
   valueInBudgetCents: string;
+  /** cost basis (buy_price × quantity) in the budget default currency (cents,
+   *  string). "0" when there is no buy price (cash). Powers the Overview
+   *  cost-basis / P-L math. */
+  costInBudgetCents: string;
   /** signed P/L %, 1 decimal; null for cash / no-basis. */
   profitLossPct: number | null;
   /** signed absolute P/L in cents (buy-currency basis); null for cash / no-basis.

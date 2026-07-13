@@ -40,6 +40,7 @@ vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
 import {
   CategorySlider,
   computeSliderAmounts,
+  prefillFromInitial,
 } from "@/components/budgeting/category-slider";
 
 const defaultProps = {
@@ -493,6 +494,41 @@ describe("CategorySlider", () => {
   });
 
   // ── r32: create-mode Needs + Wants → Planned + cushion mode selector ──
+  describe("prefillFromInitial (mig 0061 split restore)", () => {
+    it("restores the persisted needs/wants split exactly", () => {
+      const r = prefillFromInitial({
+        plannedCents: "15000",
+        cushionCents: "0",
+        needsCents: "10000",
+        wantsCents: "5000",
+      });
+      expect(r.needs).toBe("100");
+      expect(r.wants).toBe("50");
+    });
+
+    it("falls back to needs = planned, wants empty when the split was never stored", () => {
+      const r = prefillFromInitial({
+        plannedCents: "15000",
+        cushionCents: "0",
+        needsCents: null,
+        wantsCents: null,
+      });
+      expect(r.needs).toBe("150");
+      expect(r.wants).toBe("");
+    });
+
+    it("keeps wants empty (not '0') when the stored wants is zero", () => {
+      const r = prefillFromInitial({
+        plannedCents: "10000",
+        cushionCents: "0",
+        needsCents: "10000",
+        wantsCents: "0",
+      });
+      expect(r.needs).toBe("100");
+      expect(r.wants).toBe("");
+    });
+  });
+
   describe("computeSliderAmounts", () => {
     const base = { needs: "100", wants: "50", custom: "7" };
     it("planned = needs + wants (cents); cushion follows the mode", () => {

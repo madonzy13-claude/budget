@@ -24,6 +24,9 @@ export interface SpendingsSummaryDTO {
     sortIndex: number;
     plannedCents: string;
     cushionCents: string;
+    /** mig 0061: persisted needs/wants split (null/absent = never set). */
+    needsCents?: string | null;
+    wantsCents?: string | null;
     activeBudgetCents: string;
     spentCents: string;
     reserveUsedCents: string;

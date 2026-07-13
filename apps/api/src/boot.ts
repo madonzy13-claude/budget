@@ -371,6 +371,23 @@ export async function boot(): Promise<BootedDeps> {
         0n,
       );
     },
+    investmentCostBasisCents: async (input: {
+      tenantId: string;
+      budgetId: string;
+      defaultCurrency: string;
+    }): Promise<bigint> => {
+      const r = await investments.listHoldings({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        actorUserId: SYSTEM_USER_UUID,
+        budgetCurrency: input.defaultCurrency,
+      });
+      if (r.isErr()) throw r.error;
+      return r.value.holdings.reduce(
+        (sum, h) => sum + BigInt(h.costInBudgetCents),
+        0n,
+      );
+    },
   };
   const budgetingFinal = Object.assign(budgeting, {
     getOverviewCards: getOverviewCards({
@@ -445,8 +462,9 @@ export async function boot(): Promise<BootedDeps> {
         },
       },
       metaReader: summaryRepo,
-      // Contributions to investing per month = the smart Investments category's
-      // spend, keyed YYYY-MM. null when the budget has no Investments category.
+      // "Invested" metric = the smart Investments category's spend over [from,to],
+      // keyed YYYY-MM. null when the budget has no Investments category. The Excl.
+      // net adjustment uses each snapshot's stored cost basis, not this.
       investedByMonth: async (input: {
         tenantId: string;
         budgetId: string;

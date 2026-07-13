@@ -10,6 +10,10 @@ export interface SetLimitInput {
   normalCurrency: string;
   cushionAmount: string;
   cushionCurrency: string;
+  // 0061: the needs/wants split of normalAmount (= needs + wants). Optional —
+  // omitted → columns left NULL (legacy: needs = normal, wants = 0).
+  needsAmount?: string;
+  wantsAmount?: string;
   effectiveFrom: string; // YYYY-MM-DD
   actorUserId: string;
 }
@@ -22,6 +26,8 @@ export interface CategoryLimitRow {
   normalCurrency: string;
   cushionAmount: string;
   cushionCurrency: string;
+  needsAmount: string | null;
+  wantsAmount: string | null;
   effectiveFrom: string;
   effectiveTo: string | null;
   actorUserId: string;
@@ -36,6 +42,8 @@ export interface SetLimitForMonthInput {
   normalCurrency: string;
   cushionAmount: string;
   cushionCurrency: string;
+  needsAmount?: string;
+  wantsAmount?: string;
   actorUserId: string;
   /**
    * true  → carry forward from this month (current/latest-month edit): the value
@@ -72,5 +80,15 @@ export interface CategoryLimitRepo {
     tenantId: string,
     budgetId: string,
     monthStart: string, // YYYY-MM-DD
-  ): Promise<Map<string, { planned: bigint; cushion: bigint }>>;
+  ): Promise<
+    Map<
+      string,
+      {
+        planned: bigint;
+        cushion: bigint;
+        needs: bigint | null;
+        wants: bigint | null;
+      }
+    >
+  >;
 }

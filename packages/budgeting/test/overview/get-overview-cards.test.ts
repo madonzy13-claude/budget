@@ -140,6 +140,9 @@ function deps(): GetOverviewCardsDeps {
       async investmentValueCents() {
         return 10000n;
       },
+      async investmentCostBasisCents() {
+        return 0n;
+      },
     },
     fxProvider: fxProvider() as GetOverviewCardsDeps["fxProvider"],
     cushionSummary: async () =>

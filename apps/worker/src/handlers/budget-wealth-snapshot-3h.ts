@@ -75,12 +75,13 @@ export async function runBudgetWealthSnapshot3h(
         async (tx) => {
           const res = await (tx as DrizzleTx).execute(sql`
             INSERT INTO budgeting.budget_wealth_snapshots
-              (tenant_id, budget_id, capitalization_cents, investment_value_cents, currency)
+              (tenant_id, budget_id, capitalization_cents, investment_value_cents, investment_cost_basis_cents, currency)
             VALUES (
               ${b.tenant_id}::uuid,
               ${b.budget_id}::uuid,
               ${wealth.capitalization_cents.toString()}::bigint,
               ${wealth.investment_value_cents.toString()}::bigint,
+              ${wealth.investment_cost_basis_cents.toString()}::bigint,
               ${wealth.currency}
             )
             ON CONFLICT (budget_id, (date_trunc('hour', captured_at AT TIME ZONE 'UTC')))

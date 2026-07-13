@@ -59,6 +59,9 @@ export interface CategorySliderProps {
     name: string;
     plannedCents: string;
     cushionCents: string;
+    /** persisted needs/wants split (mig 0061) — prefills the split when set. */
+    needsCents?: string | null;
+    wantsCents?: string | null;
     colorKey: string | null;
     /** persisted cushion config (mig 0059) — prefills the mode. */
     cushionMode?: string | null;
@@ -166,6 +169,10 @@ export function computeSliderAmounts(input: {
 export function prefillFromInitial(initial?: {
   plannedCents?: string;
   cushionCents?: string;
+  /** Persisted needs/wants split (mig 0061). When present, prefills the split
+   *  exactly; when absent (legacy), falls back to needs = planned, wants = 0. */
+  needsCents?: string | null;
+  wantsCents?: string | null;
   /** Persisted cushion config (mig 0059) — wins over the amount-based inference. */
   cushionMode?: string | null;
 }): {
@@ -188,9 +195,22 @@ export function prefillFromInitial(initial?: {
     (CUSHION_MODES as readonly string[]).includes(initial.cushionMode)
   )
     cushionMode = initial.cushionMode as CushionMode;
+  // The persisted split (mig 0061) is authoritative — restore Needs and Wants
+  // exactly. Only when it was never stored (null) do we fall back to putting the
+  // whole planned into Needs (the legacy behaviour that lost the split).
+  const hasSplit = initial?.needsCents != null || initial?.wantsCents != null;
+  const needs = hasSplit
+    ? centsToDecimal(initial!.needsCents ?? "0")
+    : planned
+      ? centsToDecimal(planned)
+      : "";
+  const wants =
+    hasSplit && initial?.wantsCents != null && initial.wantsCents !== "0"
+      ? centsToDecimal(initial.wantsCents)
+      : "";
   return {
-    needs: planned ? centsToDecimal(planned) : "",
-    wants: "",
+    needs,
+    wants,
     cushionMode,
     customCushion: cushionMode === "custom" ? centsToDecimal(cushion) : "",
   };
@@ -316,6 +336,10 @@ export function CategorySlider({
     });
     const normalAmount = derived.normalAmount;
     const cushionAmount = cushionEnabled ? derived.cushionAmount : "0";
+    // 0061: persist the needs/wants SPLIT (normalAmount = needs + wants) so the
+    // editor prefills it on reopen instead of collapsing to needs = planned.
+    const needsAmount = String(amountToCents(values.needs));
+    const wantsAmount = String(amountToCents(values.wants));
 
     try {
       if (mode === "create") {
@@ -353,6 +377,8 @@ export function CategorySlider({
             body: JSON.stringify({
               normalAmount,
               cushionAmount,
+              needsAmount,
+              wantsAmount,
               effectiveFrom,
             }),
           },
@@ -387,6 +413,8 @@ export function CategorySlider({
               body: JSON.stringify({
                 normalAmount,
                 cushionAmount,
+                needsAmount,
+                wantsAmount,
                 effectiveFrom,
                 singleMonth,
               }),

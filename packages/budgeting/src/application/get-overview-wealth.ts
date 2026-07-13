@@ -26,6 +26,9 @@ export interface WealthSnapshotRow {
   captured_at: Date;
   capitalization_cents: bigint;
   investment_value_cents: bigint;
+  /** Investments cost basis at capture (0062). null on legacy rows not yet
+   *  backfilled → treated as no cost (net leaves that bucket unadjusted). */
+  investment_cost_basis_cents: bigint | null;
 }
 
 export interface GetOverviewWealthDeps {
@@ -52,6 +55,7 @@ export interface GetOverviewWealthDeps {
   }) => Promise<{
     capitalization_cents: bigint;
     investment_value_cents: bigint;
+    investment_cost_basis_cents: bigint;
     currency: string;
   }>;
   /** Per-holding-type valuation for the investments pie (already default_ccy). */
@@ -67,10 +71,11 @@ export interface GetOverviewWealthDeps {
       budgetId: string,
     ): Promise<{ default_currency: string } | null>;
   };
-  /** Contributions to investing per calendar month (YYYY-MM → cents) — the smart
-   *  Investments category's spend over [from,to]. Returns null when the budget has
-   *  NO Investments category (feature off). Powers the "invested" metric and the
-   *  net-of-contributions series/growth/dynamics. Investments view only. */
+  /** Contributions to investing per calendar month (YYYY-MM → cents) = the smart
+   *  Investments category's spend over [from,to]. Powers ONLY the "invested"
+   *  metric (Σ over the selected period). null when the budget has no Investments
+   *  category. Investments view only. The Excl. net adjustment uses each
+   *  snapshot's stored cost basis, NOT this. */
   investedByMonth?: (input: {
     tenantId: string;
     budgetId: string;
@@ -222,10 +227,9 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         input.budgetId,
         input.from,
       );
-      // Contributions per month (Investments-category spend): powers the "invested"
-      // metric and — when net=true — is subtracted from each value point so the
-      // series/growth/dynamics show real MARKET movement, not book value inflated by
-      // new deposits. null (⇒ no adjustment) unless the budget has the category.
+      // "Invested" metric = the Investments-category spend over the SELECTED
+      // period (money allocated to investing in-range). Informational only — the
+      // net adjustment below does NOT use it. null when there's no such category.
       const contribMap =
         view === "investments" && deps.investedByMonth
           ? await deps.investedByMonth({
@@ -238,34 +242,30 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
       const invested_cents = contribMap
         ? [...contribMap.values()].reduce((a, b) => a + b, 0n).toString()
         : null;
-      const contribMonths = contribMap
-        ? [...contribMap.keys()].sort((a, b) => a.localeCompare(b))
-        : [];
-      // Cumulative contributions on/before a date's month (0 unless net=true).
-      const contribUpTo = (d: Date): bigint => {
-        if (!contribMap || !input.net) return 0n;
-        const m = d.toISOString().slice(0, 7);
-        let s = 0n;
-        for (const mm of contribMonths) {
-          if (mm <= m) s += contribMap.get(mm)!;
-          else break;
-        }
-        return s;
-      };
-      const pickAdj = (
-        r: { capitalization_cents: bigint; investment_value_cents: bigint },
-        d: Date,
-      ) => pick(r) - contribUpTo(d);
 
-      const openingVal = opening ? pickAdj(opening, opening.captured_at) : null;
+      // Excl. (net) adjustment = subtract each snapshot's STORED cost basis so the
+      // series/grow/dynamics show real P/L (value − cost). Investments view only;
+      // 0 unless net=true. Cost is captured per snapshot so it tracks over time
+      // with NO creation-date cliff; a null cost (legacy, un-backfilled row) leaves
+      // that bucket unadjusted.
+      const costOf = (r: {
+        investment_cost_basis_cents: bigint | null;
+      }): bigint =>
+        input.net && view === "investments"
+          ? (r.investment_cost_basis_cents ?? 0n)
+          : 0n;
+      const pickAdj = (r: {
+        capitalization_cents: bigint;
+        investment_value_cents: bigint;
+        investment_cost_basis_cents: bigint | null;
+      }) => pick(r) - costOf(r);
+
+      const openingVal = opening ? pickAdj(opening) : null;
 
       // VALUE series aggregated at the value bucket (last-in-bucket wins).
       const byValue = new Map<string, bigint>();
       for (const r of rows)
-        byValue.set(
-          bucketLabel(r.captured_at, hours),
-          pickAdj(r, r.captured_at),
-        );
+        byValue.set(bucketLabel(r.captured_at, hours), pickAdj(r));
 
       // Live current point (D-04): overrides the current value bucket so the
       // rightmost point reflects the last few hours. Only when `now` is in range.
@@ -280,7 +280,7 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
       // to is an inclusive day → compare against the LAST bucket of that day.
       const toLabel = bucketLabel(new Date(`${input.to}T23:59:59Z`), hours);
       const liveInRange = liveLabel >= fromLabel && liveLabel <= toLabel;
-      if (liveInRange) byValue.set(liveLabel, pickAdj(live, now));
+      if (liveInRange) byValue.set(liveLabel, pickAdj(live));
 
       // grow/loss (D-15) from the DATA points only (first vs last real value) — not
       // the zero-fill, so leading empty buckets don't turn grow into "0 → net worth".
@@ -346,12 +346,8 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         // gap would fake a −100%; snapshots are sparse but real on long ranges).
         const byDyn = new Map<string, bigint>();
         for (const r of rows)
-          byDyn.set(
-            dynLabelOf(r.captured_at, dynBucket),
-            pickAdj(r, r.captured_at),
-          );
-        if (liveInRange)
-          byDyn.set(dynLabelOf(now, dynBucket), pickAdj(live, now));
+          byDyn.set(dynLabelOf(r.captured_at, dynBucket), pickAdj(r));
+        if (liveInRange) byDyn.set(dynLabelOf(now, dynBucket), pickAdj(live));
         let dynLabels = [...byDyn.keys()].sort((a, b) => a.localeCompare(b));
         // Give the FIRST in-range bucket a predecessor — but ONLY when the opening
         // snapshot lands in the immediately-preceding calendar bucket. Then that first

@@ -23,16 +23,19 @@ function snapshotRepo(): GetOverviewWealthDeps["snapshotRepo"] {
           captured_at: new Date("2026-01-05T00:00:00Z"),
           capitalization_cents: 90000n,
           investment_value_cents: 45000n,
+          investment_cost_basis_cents: 40000n,
         },
         {
           captured_at: new Date("2026-01-31T00:00:00Z"),
           capitalization_cents: 100000n,
           investment_value_cents: 50000n,
+          investment_cost_basis_cents: 40000n,
         },
         {
           captured_at: new Date("2026-02-28T00:00:00Z"),
           capitalization_cents: 110000n,
           investment_value_cents: 55000n,
+          investment_cost_basis_cents: 40000n,
         },
       ];
     },
@@ -46,6 +49,7 @@ function computeWealthNow(): GetOverviewWealthDeps["computeWealthNow"] {
   return async () => ({
     capitalization_cents: 108000n,
     investment_value_cents: 56000n,
+    investment_cost_basis_cents: 40000n,
     currency: "USD",
   });
 }
@@ -120,6 +124,7 @@ describe("getOverviewWealth", () => {
             captured_at: new Date("2026-03-01T00:00:00Z"),
             capitalization_cents: 100000n,
             investment_value_cents: 0n,
+            investment_cost_basis_cents: 0n,
           },
         ];
       },
@@ -130,6 +135,7 @@ describe("getOverviewWealth", () => {
     const liveRepo: GetOverviewWealthDeps["computeWealthNow"] = async () => ({
       capitalization_cents: 110000n,
       investment_value_cents: 0n,
+      investment_cost_basis_cents: 0n,
       currency: "USD",
     });
     const dto = (
@@ -185,8 +191,8 @@ describe("getOverviewWealth", () => {
     expect(dto.grow_from_open.delta_pct).toBeNull();
   });
 
-  test("investments: invested_cents (item 5) + net reduces the WHOLE view (items 2/4)", async () => {
-    // 10,000 contributed in Feb (within the Jan–Mar range).
+  test("invested_cents = Investments-category spend over the period; net = value − per-snapshot cost", async () => {
+    // "Invested" metric comes from the category spend (10,000 in Feb).
     const invByMonth = async () => new Map([["2026-02", 10000n]]);
     const gross = (
       await getOverviewWealth(deps({ investedByMonth: invByMonth }))({
@@ -196,8 +202,8 @@ describe("getOverviewWealth", () => {
     )._unsafeUnwrap();
     expect(gross.invested_cents).toBe("10000");
 
-    // net=true subtracts contributions from every value point → grow shrinks by the
-    // money paid in (real market movement), and the series/dynamics follow.
+    // net=true subtracts each snapshot's STORED cost basis (40000) → the series
+    // shows real P/L (value − cost). The "invested" metric is unchanged.
     const net = (
       await getOverviewWealth(deps({ investedByMonth: invByMonth }))({
         ...base,
@@ -206,18 +212,17 @@ describe("getOverviewWealth", () => {
       })
     )._unsafeUnwrap();
     expect(net.invested_cents).toBe("10000");
-    expect(Number(net.grow.delta_cents)).toBe(
-      Number(gross.grow.delta_cents) - 10000,
-    );
-    // The value series is reduced too (last point net = gross − 10000).
     const lastGross = Number(
       gross.series[gross.series.length - 1]!.value_cents,
     );
     const lastNet = Number(net.series[net.series.length - 1]!.value_cents);
-    expect(lastNet).toBe(lastGross - 10000);
+    expect(lastNet).toBe(lastGross - 40000); // 56000 value − 40000 cost = 16000
+    // Cost is CONSTANT across the mock's snapshots, so the range delta (grow) is
+    // unchanged — only the level shifts down by the cost.
+    expect(net.grow.delta_cents).toBe(gross.grow.delta_cents);
   });
 
-  test("no Investments category → invested_cents null (feature off)", async () => {
+  test("no Investments category → invested_cents null", async () => {
     const dto = (
       await getOverviewWealth(deps({ investedByMonth: async () => null }))({
         ...base,
@@ -228,13 +233,48 @@ describe("getOverviewWealth", () => {
     expect(dto.invested_cents).toBeNull();
   });
 
-  test("capitalization view never computes contributions", async () => {
+  test("capitalization view never computes invested / cost", async () => {
     const dto = (
       await getOverviewWealth(
         deps({ investedByMonth: async () => new Map([["2026-02", 10000n]]) }),
       )({ ...base, view: "capitalization", net: true })
     )._unsafeUnwrap();
     expect(dto.invested_cents).toBeNull();
+  });
+
+  test("net uses PER-SNAPSHOT cost basis (tracks cost added over time)", async () => {
+    // Cost grows mid-range (a holding added): 40000 → 50000 at Feb.
+    const varyingRepo: GetOverviewWealthDeps["snapshotRepo"] = {
+      async seriesForRange() {
+        return [
+          {
+            captured_at: new Date("2026-01-31T00:00:00Z"),
+            capitalization_cents: 100000n,
+            investment_value_cents: 50000n,
+            investment_cost_basis_cents: 40000n,
+          },
+          {
+            captured_at: new Date("2026-02-28T00:00:00Z"),
+            capitalization_cents: 110000n,
+            investment_value_cents: 62000n,
+            investment_cost_basis_cents: 50000n,
+          },
+        ];
+      },
+      async openingBefore() {
+        return null;
+      },
+    };
+    const dto = (
+      await getOverviewWealth(deps({ snapshotRepo: varyingRepo }))({
+        ...base,
+        view: "investments",
+        net: true,
+      })
+    )._unsafeUnwrap();
+    // Jan bucket P/L = 50000 − 40000 = 10000; Feb = 62000 − 50000 = 12000.
+    expect(valueAt(dto, "2026-01-31T00")).toBe("10000");
+    expect(valueAt(dto, "2026-02-28T00")).toBe("12000");
   });
 
   test("dynamics at the coarser (monthly) bucket, data-only steps (D-16)", async () => {
@@ -257,11 +297,13 @@ describe("getOverviewWealth", () => {
             captured_at: new Date("2026-01-31T00:00:00Z"),
             capitalization_cents: 0n,
             investment_value_cents: 0n,
+            investment_cost_basis_cents: 0n,
           },
           {
             captured_at: new Date("2026-02-28T00:00:00Z"),
             capitalization_cents: 50000n,
             investment_value_cents: 0n,
+            investment_cost_basis_cents: 0n,
           },
         ];
       },
@@ -272,6 +314,7 @@ describe("getOverviewWealth", () => {
     const liveZero: GetOverviewWealthDeps["computeWealthNow"] = async () => ({
       capitalization_cents: 60000n,
       investment_value_cents: 0n,
+      investment_cost_basis_cents: 0n,
       currency: "USD",
     });
     const dto = (
@@ -315,6 +358,7 @@ describe("getOverviewWealth", () => {
           captured_at: new Date("2025-12-31T00:00:00Z"),
           capitalization_cents: 80000n,
           investment_value_cents: 40000n,
+          investment_cost_basis_cents: 0n,
         };
       },
     };
@@ -347,6 +391,7 @@ describe("getOverviewWealth", () => {
           captured_at: new Date("2025-06-30T00:00:00Z"),
           capitalization_cents: 80000n,
           investment_value_cents: 40000n,
+          investment_cost_basis_cents: 0n,
         };
       },
     };
@@ -375,6 +420,7 @@ describe("getOverviewWealth", () => {
           captured_at: new Date("2025-12-31T00:00:00Z"),
           capitalization_cents: 80000n,
           investment_value_cents: 40000n,
+          investment_cost_basis_cents: 0n,
         };
       },
     };

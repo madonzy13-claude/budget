@@ -35,6 +35,12 @@ export interface HoldingsValuationPort {
     budgetId: string;
     defaultCurrency: string;
   }): Promise<bigint>;
+  /** Σ non-archived holding COST BASIS (buy_price × qty), FX→default_ccy. */
+  investmentCostBasisCents(input: {
+    tenantId: string;
+    budgetId: string;
+    defaultCurrency: string;
+  }): Promise<bigint>;
 }
 
 export interface ComputeBudgetWealthNowDeps {
@@ -53,6 +59,8 @@ export interface ComputeBudgetWealthNowInput {
 export interface BudgetWealthNow {
   capitalization_cents: bigint;
   investment_value_cents: bigint;
+  /** Σ holdings cost basis (buy_price × qty, FX→default_ccy) — for P/L over time. */
+  investment_cost_basis_cents: bigint;
   currency: string;
 }
 
@@ -118,14 +126,20 @@ export function computeBudgetWealthNow(deps: ComputeBudgetWealthNowDeps) {
   return async (
     input: ComputeBudgetWealthNowInput,
   ): Promise<BudgetWealthNow> => {
-    const [wallets, investmentValueCents] = await Promise.all([
-      deps.walletRepo.listWalletsWithType(input.budgetId),
-      deps.holdingsValuation.investmentValueCents({
-        tenantId: input.tenantId,
-        budgetId: input.budgetId,
-        defaultCurrency: input.defaultCurrency,
-      }),
-    ]);
+    const [wallets, investmentValueCents, investmentCostBasisCents] =
+      await Promise.all([
+        deps.walletRepo.listWalletsWithType(input.budgetId),
+        deps.holdingsValuation.investmentValueCents({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+          defaultCurrency: input.defaultCurrency,
+        }),
+        deps.holdingsValuation.investmentCostBasisCents({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+          defaultCurrency: input.defaultCurrency,
+        }),
+      ]);
 
     const walletsCents = await sumWalletsToCurrency(
       wallets,
@@ -137,6 +151,7 @@ export function computeBudgetWealthNow(deps: ComputeBudgetWealthNowDeps) {
     return {
       capitalization_cents: walletsCents + investmentValueCents,
       investment_value_cents: investmentValueCents,
+      investment_cost_basis_cents: investmentCostBasisCents,
       currency: input.defaultCurrency,
     };
   };

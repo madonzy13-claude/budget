@@ -35,6 +35,8 @@ export function getEffectiveLimit(deps: GetEffectiveLimitDeps) {
         normalCurrency: limit.normalCurrency,
         cushionAmount: limit.cushionAmount,
         cushionCurrency: limit.cushionCurrency,
+        needsAmount: limit.needsAmount,
+        wantsAmount: limit.wantsAmount,
         effectiveFrom: limit.effectiveFrom,
         effectiveTo: limit.effectiveTo,
         createdAt: limit.createdAt.toISOString(),

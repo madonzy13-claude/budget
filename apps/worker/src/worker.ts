@@ -431,6 +431,23 @@ async function main() {
           0n,
         );
       },
+      investmentCostBasisCents: async (input: {
+        tenantId: string;
+        budgetId: string;
+        defaultCurrency: string;
+      }): Promise<bigint> => {
+        const r = await investments.listHoldings({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+          actorUserId: WEALTH_SYSTEM_USER,
+          budgetCurrency: input.defaultCurrency,
+        });
+        if (r.isErr()) throw r.error;
+        return r.value.holdings.reduce(
+          (s, h) => s + BigInt(h.costInBudgetCents),
+          0n,
+        );
+      },
     },
     fxProvider,
   };

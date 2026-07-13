@@ -43,7 +43,8 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
           const res = await (tx as DrizzleTx).execute(sql`
             SELECT captured_at,
                    capitalization_cents::text AS capitalization_cents,
-                   investment_value_cents::text AS investment_value_cents
+                   investment_value_cents::text AS investment_value_cents,
+                   investment_cost_basis_cents::text AS investment_cost_basis_cents
               FROM budgeting.budget_wealth_snapshots
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${budgetId}::uuid
@@ -57,6 +58,10 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
             investment_value_cents: BigInt(
               row.investment_value_cents as string,
             ),
+            investment_cost_basis_cents:
+              row.investment_cost_basis_cents == null
+                ? null
+                : BigInt(row.investment_cost_basis_cents as string),
           }));
         },
       );
@@ -72,7 +77,8 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
           const res = await (tx as DrizzleTx).execute(sql`
             SELECT captured_at,
                    capitalization_cents::text AS capitalization_cents,
-                   investment_value_cents::text AS investment_value_cents
+                   investment_value_cents::text AS investment_value_cents,
+                   investment_cost_basis_cents::text AS investment_cost_basis_cents
               FROM budgeting.budget_wealth_snapshots
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${budgetId}::uuid
@@ -88,6 +94,10 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
             investment_value_cents: BigInt(
               row.investment_value_cents as string,
             ),
+            investment_cost_basis_cents:
+              row.investment_cost_basis_cents == null
+                ? null
+                : BigInt(row.investment_cost_basis_cents as string),
           } satisfies WealthSnapshotRow;
         },
       );

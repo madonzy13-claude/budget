@@ -739,6 +739,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       name: cat.name,
       plannedCents: s?.plannedCents ?? "0",
       cushionCents: s?.cushionCents ?? "0",
+      // mig 0061: persisted needs/wants split prefills the slider's split exactly.
+      needsCents: s?.needsCents ?? null,
+      wantsCents: s?.wantsCents ?? null,
       // 260613-v1p: iconKey dropped from the slider initial (icon picker removed).
       colorKey: cat.colorKey,
       // mig 0059: persisted cushion mode prefills the slider's Cushion selector.

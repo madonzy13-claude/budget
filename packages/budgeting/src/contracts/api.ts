@@ -141,6 +141,10 @@ export interface CategoryDto {
 
 export const setLimitSchema = z.object({
   normalAmount: z.string().regex(/^\d+$/), // bigint cents as string
+  // 0061: the needs/wants split of normalAmount (= needs + wants). Optional —
+  // the slider sends them so the split survives reopen; omitted → columns NULL.
+  needsAmount: z.string().regex(/^\d+$/).optional(),
+  wantsAmount: z.string().regex(/^\d+$/).optional(),
   // Currencies optional — when omitted the API derives both from the active
   // workspace's default_currency. The form does not ask the user to pick.
   normalCurrency: z
@@ -170,6 +174,8 @@ export interface CategoryLimitDto {
   normalCurrency: string;
   cushionAmount: string;
   cushionCurrency: string;
+  needsAmount: string | null;
+  wantsAmount: string | null;
   effectiveFrom: string;
   effectiveTo: string | null;
   createdAt: string;

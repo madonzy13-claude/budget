@@ -31,6 +31,11 @@ export const categoryLimits = budgeting.table(
     // MIG-05: parallel SCD-2 column for cushion in base-currency cents (D-11).
     // Nullable: NULL means "not yet set / use cushionAmount legacy field".
     cushionAmountCents: bigint("cushion_amount_cents", { mode: "bigint" }),
+    // 0061: the needs/wants split of normal_amount (= needs + wants). Nullable —
+    // NULL means legacy (treat needs = normal_amount, wants = 0). Recorded so the
+    // category edit slider can prefill the split instead of collapsing to Needs.
+    needsAmount: bigint("needs_amount", { mode: "bigint" }),
+    wantsAmount: bigint("wants_amount", { mode: "bigint" }),
     effectiveFrom: date("effective_from").notNull(),
     effectiveTo: date("effective_to"),
     actorUserId: uuid("actor_user_id").notNull(),

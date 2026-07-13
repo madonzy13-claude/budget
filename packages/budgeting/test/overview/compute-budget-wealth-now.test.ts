@@ -29,6 +29,7 @@ function deps(
   wallets: WalletWithType[],
   investmentValueCents: bigint,
   rates: Record<string, string> = {},
+  investmentCostBasisCents: bigint = 0n,
 ): ComputeBudgetWealthNowDeps {
   return {
     walletRepo: {
@@ -39,6 +40,9 @@ function deps(
     holdingsValuation: {
       async investmentValueCents() {
         return investmentValueCents;
+      },
+      async investmentCostBasisCents() {
+        return investmentCostBasisCents;
       },
     },
     fxProvider: fxProvider(rates) as ComputeBudgetWealthNowDeps["fxProvider"],
@@ -63,6 +67,14 @@ describe("computeBudgetWealthNow", () => {
     expect(out.capitalization_cents).toBe(18000n);
     expect(out.investment_value_cents).toBe(0n);
     expect(out.currency).toBe("USD");
+  });
+
+  test("returns the investments cost basis (0062, for P/L over time)", async () => {
+    const out = await computeBudgetWealthNow(
+      deps([], 60000n, {}, 40000n /* cost basis */),
+    )(input);
+    expect(out.investment_value_cents).toBe(60000n);
+    expect(out.investment_cost_basis_cents).toBe(40000n);
   });
 
   test("FX-converts non-default-currency wallets to default_currency", async () => {

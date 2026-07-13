@@ -72,6 +72,9 @@ describe("listHoldings — deposit enrichment", () => {
     expect(dto.profitLossPct).not.toBeNull();
     expect(dto.profitLossPct!).toBeGreaterThan(0);
 
+    // Cost basis in budget ccy = principal × qty (USD→USD = 1) = 100000.
+    expect(dto.costInBudgetCents).toBe("100000");
+
     // Deposit inputs are echoed back for the edit form.
     expect(dto.depositRateBps).toBe(1200);
     expect(dto.depositCapFrequency).toBe("monthly");
