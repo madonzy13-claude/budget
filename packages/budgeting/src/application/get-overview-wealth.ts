@@ -67,6 +67,16 @@ export interface GetOverviewWealthDeps {
       budgetId: string,
     ): Promise<{ default_currency: string } | null>;
   };
+  /** Σ contributions to investing (the smart Investments category's spend) over
+   *  [from,to]. Returns null when the budget has NO Investments category (the
+   *  feature is off) — the "invested" metric + net-of-contributions P/L are then
+   *  omitted. Investments view only. */
+  investedInPeriod?: (input: {
+    tenantId: string;
+    budgetId: string;
+    from: string;
+    to: string;
+  }) => Promise<bigint | null>;
 }
 
 export interface GetOverviewWealthInput {
@@ -93,8 +103,15 @@ export interface OverviewWealthDTO {
    *  there is no prior snapshot. */
   grow_from_open: { delta_cents: string; delta_pct: number | null };
   monthly_avg_grow_pct: number | null;
-  dynamics: { label: string; pct: number | null }[];
+  /** Per-bucket change: % and the signed money delta (for the tooltip amount). */
+  dynamics: { label: string; pct: number | null; delta_cents: string }[];
   pie: { holding_type: string; value_cents: string }[] | null;
+  /** Σ contributions to investing over the range (Investments-category spend);
+   *  null when the budget has no Investments category. Investments view only. */
+  invested_cents: string | null;
+  /** grow_from_open reduced by contributions = real market P/L excluding money
+   *  paid in; null when there's no Investments category. Investments view only. */
+  grow_net: { delta_cents: string; delta_pct: number | null } | null;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -265,7 +282,11 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
       // dynamics (% change) at its OWN coarser calendar bucket (item 1). Labelled by
       // the later bucket.
       const dynBucket = dynamicsBucketOf(input.from, input.to);
-      let dynamics: { label: string; pct: number | null }[];
+      let dynamics: {
+        label: string;
+        pct: number | null;
+        delta_cents: string;
+      }[];
       if (dynBucket === "daily") {
         // 1M → a bar for EVERY day in range, using the CARRIED series value (the
         // series holds a value for each day incl. gaps via carry-forward, which never
@@ -279,6 +300,7 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         dynamics = dayLabels.slice(1).map((label, i) => ({
           label,
           pct: pctChange(dayVals[i]!, dayVals[i + 1]!),
+          delta_cents: (dayVals[i + 1]! - dayVals[i]!).toString(),
         }));
       } else {
         // monthly / yearly → step between consecutive DATA buckets only (a zero-fill
@@ -305,6 +327,7 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         dynamics = dynLabels.slice(1).map((label, i) => ({
           label,
           pct: pctChange(dynVals[i]!, dynVals[i + 1]!),
+          delta_cents: (dynVals[i + 1]! - dynVals[i]!).toString(),
         }));
       }
       const nonNull = dynamics
@@ -336,6 +359,33 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         }));
       }
 
+      // Contributions (Investments-category spend) in the period, and the
+      // net-of-contributions growth — the "real" market P/L excluding the money
+      // the user paid in. Investments view only + only when the budget has an
+      // Investments category (deps.investedInPeriod returns non-null).
+      let invested_cents: string | null = null;
+      let grow_net: { delta_cents: string; delta_pct: number | null } | null =
+        null;
+      if (view === "investments" && deps.investedInPeriod) {
+        const invested = await deps.investedInPeriod({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+          from: input.from,
+          to: input.to,
+        });
+        if (invested !== null) {
+          invested_cents = invested.toString();
+          const netDelta = BigInt(grow_from_open.delta_cents) - invested;
+          grow_net = {
+            delta_cents: netDelta.toString(),
+            delta_pct:
+              chartStart === 0n
+                ? null
+                : (Number(netDelta) * 100) / Number(chartStart),
+          };
+        }
+      }
+
       return ok({
         currency: ccy,
         view,
@@ -347,6 +397,8 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         monthly_avg_grow_pct,
         dynamics,
         pie,
+        invested_cents,
+        grow_net,
       });
     } catch (e) {
       return err(e as Error);

@@ -359,6 +359,16 @@ describe("OverviewCards", () => {
     expect(screen.getByText("since yesterday")).toBeTruthy();
   });
 
+  it("keeps the capitalization hero row inline (nowrap) so the P/L never drops below", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    render(<OverviewCards budgetId="b1" />);
+    const card = screen.getByTestId("overview-card-capitalization");
+    // The hero row (number + since-yesterday P/L) must not wrap — in privacy mode a
+    // wide redaction bar previously pushed the P/L onto its own line.
+    expect(card.querySelector(".flex-nowrap")).toBeTruthy();
+    expect(card.querySelector(".flex-wrap")).toBeNull();
+  });
+
   it("shows $0 + a motivational line with a green check when nothing overspends", () => {
     mockUse.mockReturnValue({
       data: {

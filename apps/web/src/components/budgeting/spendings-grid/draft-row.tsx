@@ -58,6 +58,13 @@ export function DraftRow({
   const committedRef = useRef(false);
 
   const formattedAmount = centsToBare(draft.amountConvertedCents, locale);
+  // A recurring rule's note usually defaults to its name, so the row would render
+  // the same label twice (e.g. "T-Mobile  T-Mobile"). Only show the note when it
+  // adds something beyond the rule name.
+  const noteDiffers =
+    !!draft.note &&
+    draft.note.trim().toLowerCase() !==
+      (draft.ruleName ?? "").trim().toLowerCase();
 
   function handleClick() {
     if (readOnly) return;
@@ -145,8 +152,9 @@ export function DraftRow({
           <span className="flex min-w-0 items-baseline gap-2 text-sm text-[var(--muted-foreground)]">
             <span className="shrink-0">{formattedAmount}</span>
             {/* note + ruleName hide once the action chips show (tap-revealed OR
-                desktop hover) so all three chips fit without clipping. */}
-            {draft.note && !revealed ? (
+                desktop hover) so all three chips fit without clipping. The note is
+                skipped when it merely repeats the rule name (no duplicate label). */}
+            {noteDiffers && !revealed ? (
               <span
                 data-testid="draft-row-note"
                 className="min-w-0 truncate text-xs text-[var(--muted-foreground)] sm:group-hover:hidden"

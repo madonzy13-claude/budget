@@ -20,8 +20,13 @@ export interface OverviewWealthDTO {
   /** FW-section growth anchored on the opening value (chart start); hero uses `grow`. */
   grow_from_open: { delta_cents: string; delta_pct: number | null };
   monthly_avg_grow_pct: number | null;
-  dynamics: { label: string; pct: number | null }[];
+  dynamics: { label: string; pct: number | null; delta_cents: string }[];
   pie: { holding_type: string; value_cents: string }[] | null;
+  /** Σ contributions (Investments-category spend) over the range; null when the
+   *  budget has no Investments category. Investments view only. */
+  invested_cents: string | null;
+  /** Growth reduced by contributions = real market P/L; null without the category. */
+  grow_net: { delta_cents: string; delta_pct: number | null } | null;
 }
 
 export function useOverviewWealth(

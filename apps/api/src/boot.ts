@@ -445,6 +445,25 @@ export async function boot(): Promise<BootedDeps> {
         },
       },
       metaReader: summaryRepo,
+      // Σ contributions to investing = the smart Investments category's spend over
+      // the range. null when the budget has no Investments category (feature off).
+      investedInPeriod: async (input: {
+        tenantId: string;
+        budgetId: string;
+        from: string;
+        to: string;
+      }) => {
+        const cat = await categoryRepo.findInvestmentCategory(input.tenantId);
+        if (!cat) return null;
+        const rows = await createOverviewRepo().monthlySpendByCategory(
+          input.budgetId,
+          input.from,
+          input.to,
+        );
+        return rows
+          .filter((r) => r.category_id === cat.id)
+          .reduce((sum, r) => sum + r.spent_cents, 0n);
+      },
     }),
     // Overview cash-flow projection timeline (today → end of next month).
     getCashflowProjection: computeCashflowProjection({

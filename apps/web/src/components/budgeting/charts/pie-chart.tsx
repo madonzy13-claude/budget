@@ -64,9 +64,13 @@ export function OverviewPieChart({
       style={{ WebkitTapHighlightColor: "transparent" }}
       // Click OUTSIDE a slice (the hole / empty area) resets to "All". A click ON a
       // slice is handled by the Pie's onClick (re-tapping the same slice clears it).
+      // Clear hover too: on touch a tap leaves `hover` set (no mouseleave fires), so
+      // clearing only `tapped` would leave `active = hover` still showing the slice.
       onClick={(e) => {
-        if (!(e.target as HTMLElement).closest(".recharts-sector"))
+        if (!(e.target as HTMLElement).closest(".recharts-sector")) {
           setTapped(undefined);
+          setHover(undefined);
+        }
       }}
     >
       <ResponsiveContainer width="100%" height={height}>
@@ -90,9 +94,12 @@ export function OverviewPieChart({
             )}
             onMouseEnter={(_, index) => setHover(index)}
             onMouseLeave={() => setHover(undefined)}
-            onClick={(_, index) =>
-              setTapped((prev) => (prev === index ? undefined : index))
-            }
+            onClick={(_, index) => {
+              // Clear any lingering (touch) hover so re-tapping the SAME slice
+              // reliably falls back to "All" instead of `active` reading `hover`.
+              setHover(undefined);
+              setTapped((prev) => (prev === index ? undefined : index));
+            }}
           >
             {data.map((d, i) => (
               <Cell

@@ -36,6 +36,7 @@ export function OverviewBarChart({
   colorByPoint,
   labelFormat,
   xTickFormat,
+  tooltipExtra,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -46,6 +47,11 @@ export function OverviewBarChart({
   /** Tooltip value formatter — the FULL value on tap; axis stays compact. Falls
    *  back to `formatValue` (round 25 item 2). */
   formatTooltip?: (n: number) => string;
+  /** Extra tooltip rows computed from the hovered data row (e.g. the money amount
+   *  alongside the % change). */
+  tooltipExtra?: (
+    row: Record<string, unknown>,
+  ) => Array<{ label: string; value: string; color?: string }>;
   /** Single-series only: per-bar color (MoM up/down, per-category colorKey).
    *  Ignored for grouped (multi-series) bars. */
   colorByPoint?: (row: Record<string, unknown>) => string;
@@ -155,6 +161,7 @@ export function OverviewBarChart({
               colorForRow={
                 colorByPoint && series.length === 1 ? colorByPoint : undefined
               }
+              extra={tooltipExtra}
             />
           }
         />
