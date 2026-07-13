@@ -243,9 +243,13 @@ export function createCategoriesRoute(deps: BootedDeps) {
       categoryId,
       name: parsed.data.name,
       actorUserId: userId,
-      // Presence-aware: only pass colorKey when the client sent the key (incl.
-      // explicit null), so a rename-only PATCH leaves the stored color intact.
+      // Presence-aware: only pass a field when the client sent that key (incl.
+      // explicit null), so a rename-only PATCH leaves the stored color / cushion
+      // mode intact.
       ...("colorKey" in body ? { colorKey: parsed.data.colorKey ?? null } : {}),
+      ...("cushionMode" in body
+        ? { cushionMode: parsed.data.cushionMode ?? null }
+        : {}),
     });
 
     if (r.isErr()) return c.json({ error: r.error.message }, 422);

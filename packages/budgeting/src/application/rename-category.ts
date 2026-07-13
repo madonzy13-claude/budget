@@ -15,10 +15,11 @@ export function renameCategory(deps: RenameCategoryDeps) {
     categoryId: string;
     name: string;
     actorUserId: string;
-    // 260613-v1p: optional recolor in the same PATCH. undefined → leave color
-    // untouched; null → clear it; a key → set it. The route passes through
-    // exactly what zod parsed (presence-aware).
+    // 260613-v1p / mig 0059: optional recolor and cushion-mode change in the same
+    // PATCH. undefined → leave untouched; null → clear; a value → set. The route
+    // passes through exactly what zod parsed (presence-aware per key).
     colorKey?: string | null;
+    cushionMode?: string | null;
   }): Promise<Result<CategoryDto, Error>> => {
     const category = await deps.repo.findById(input.tenantId, input.categoryId);
     if (!category) {
@@ -28,10 +29,12 @@ export function renameCategory(deps: RenameCategoryDeps) {
     const result = category.rename(input.name);
     if (result.isErr()) return err(result.error);
 
-    // Only recolor when colorKey was explicitly provided (presence-aware), so a
-    // rename-only PATCH never wipes an existing color.
+    // Only touch a field when it was explicitly provided (presence-aware), so a
+    // rename-only PATCH never wipes an existing color or cushion mode.
     const recolor = input.colorKey !== undefined;
+    const remode = input.cushionMode !== undefined;
     if (recolor) category.recolor(input.colorKey ?? null);
+    if (remode) category.setCushionMode(input.cushionMode ?? null);
 
     try {
       await deps.repo.rename(
@@ -39,7 +42,12 @@ export function renameCategory(deps: RenameCategoryDeps) {
         input.categoryId,
         input.name,
         input.actorUserId,
-        recolor ? { colorKey: input.colorKey ?? null } : undefined,
+        recolor || remode
+          ? {
+              ...(recolor ? { colorKey: input.colorKey ?? null } : {}),
+              ...(remode ? { cushionMode: input.cushionMode ?? null } : {}),
+            }
+          : undefined,
       );
     } catch (e) {
       return err(e as Error);
@@ -52,6 +60,7 @@ export function renameCategory(deps: RenameCategoryDeps) {
       archivedAt: category.archivedAt?.toISOString() ?? null,
       createdAt: category.createdAt.toISOString(),
       colorKey: category.colorKey,
+      cushionMode: category.cushionMode,
     });
   };
 }
