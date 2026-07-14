@@ -34,6 +34,8 @@ describe("Budget member routes (SETT-05, SETT-07)", () => {
             { userId: "user-owner", role: "owner" },
             { userId: "user-member", role: "member" },
           ],
+          setMemberRole: async () => {},
+          reconcileOwnerUserId: async () => {},
         },
       },
       identity: {
@@ -107,6 +109,79 @@ describe("Budget member routes (SETT-05, SETT-07)", () => {
     expect(res.status).toBe(409);
     const body = (await res.json()) as any;
     expect(body.error).toBe("last_owner");
+  });
+
+  // ── Role change (promote/demote owners) — T-06 ownership ──────────────────
+  it("POST .../role promote member→owner as owner → 200", async () => {
+    const app = buildApp({ user: { id: "user-owner" } });
+    const res = await app.request("/budgets/budget-001/members/user-member/role", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "owner" }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("POST .../role as non-owner → 403", async () => {
+    const app = buildApp({ user: { id: "user-member" } });
+    const res = await app.request("/budgets/budget-001/members/user-owner/role", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "owner" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST .../role invalid role → 400", async () => {
+    const app = buildApp({ user: { id: "user-owner" } });
+    const res = await app.request("/budgets/budget-001/members/user-member/role", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "admin" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST .../role demote owner→member with 2 owners → 200", async () => {
+    const app = buildApp({ user: { id: "user-owner" } }, "budget-001", {
+      tenancy: {
+        workspaceRepo: {
+          listMembers: async () => [
+            { userId: "user-owner", role: "owner" },
+            { userId: "user-two", role: "owner" },
+          ],
+          setMemberRole: async () => {},
+          reconcileOwnerUserId: async () => {},
+        },
+      },
+    });
+    const res = await app.request("/budgets/budget-001/members/user-two/role", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "member" }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("POST .../role demote the LAST owner → 409", async () => {
+    const app = buildApp({ user: { id: "user-owner" } }, "budget-001", {
+      tenancy: {
+        workspaceRepo: {
+          listMembers: async () => [{ userId: "user-owner", role: "owner" }],
+          reconcileOwnerUserId: async () => {},
+        },
+      },
+      identity: {
+        auth: { api: { updateMemberRole: async () => ({}) } },
+      },
+    });
+    const res = await app.request("/budgets/budget-001/members/user-owner/role", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "member" }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).error).toBe("last_owner");
   });
 
   it("GET /budgets/:id/members unauthenticated → 401", async () => {

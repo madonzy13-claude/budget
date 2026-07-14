@@ -264,7 +264,7 @@
       "mode_label": "Cushion mode",
       "mode_help_text": "Switch the current month to the tighter cushion budget. Reversible at any time.",
       "targetMonthsLabel": "Target months",
-      "targetMonthsError": "Months must be a whole number between 1 and 60.",
+      "targetMonthsError": "Months must be between 1 and 60.",
       "saved": "Cushion target saved",
       "preview": "Have {actual} of {required} — short by {shortfall}",
       "previewMet": "Have {actual} of {required} — target met",
@@ -286,12 +286,22 @@
       "revoke_confirm": "Remove",
       "revoke_cancel": "Cancel",
       "revoked_toast": "Member removed.",
-      "revoke_error": "Failed to remove member. Try again."
+      "revoke_error": "Failed to remove member. Try again.",
+      "make_owner": "Make owner",
+      "make_member": "Make member",
+      "role_changed_toast": "Role updated.",
+      "role_change_error": "Failed to change role. Try again.",
+      "last_owner_error": "A budget must keep at least one owner.",
+      "manage_aria": "Manage {name}"
     },
     "push": {
       "sectionTitle": "Notifications",
       "enableLabel": "Push notifications",
       "enableDescription": "Receive alerts for tasks needing your attention",
+      "badge": {
+        "label": "Show in app icon badge",
+        "description": "Add this budget's pending tasks to the app icon count (needs notification permission)."
+      },
       "kindsLabel": "Notify me for",
       "kind": {
         "RESERVE_TOPUP": {
@@ -707,6 +717,7 @@
       }
     },
     "switcher": {
+      "placeholder": "Select budget",
       "personal": "Personal",
       "shared": "Shared",
       "empty": {
@@ -789,7 +800,9 @@
         "investments_label": "Investments",
         "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section.",
         "targetMonthsLabel": "Target months",
-        "targetMonthsError": "Months must be a whole number between 1 and 60.",
+        "targetMonthsError": "Months must be between 1 and 60.",
+        "badge_label": "Show in app icon badge",
+        "badge_help": "Add this budget's pending tasks to the app icon count.",
         "push_label": "Enable push notifications",
         "push_help": "Get alerted when tasks need your attention — works even when the app is closed."
       },
@@ -1238,8 +1251,8 @@
           "reservesShort": "Reserves below the required amount",
           "reservesSurplus": "More reserves than needed",
           "reservesOkNote": "Needed <amt>{amount}</amt>",
-          "reservesShortNote": "Not enough. <amt>{amount}</amt> needed",
-          "reservesSurplusNote": "Too much. Only <amt>{amount}</amt> needed",
+          "reservesShortNote": "Not enough. <amt>{amount}</amt> is missing",
+          "reservesSurplusNote": "Too much. <amt>{amount}</amt> extra",
           "capitalization": "Capitalization",
           "capitalizationSub": "incl. investments <amt>{amount}</amt>",
           "sinceLastMonth": "since last month",

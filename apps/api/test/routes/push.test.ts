@@ -328,20 +328,28 @@ describe("GET /push/preferences", () => {
     fix = await createFixture();
   });
 
-  it("returns 3 notification kinds with enabled=true by default (no pref rows)", async () => {
+  it("returns all kinds by default; known kinds ON, BADGE OFF (opt-in)", async () => {
     const app = await buildApp({ userId: fix.userId, tenantId: fix.budgetId });
     const res = await app.request(`/push/preferences?budgetId=${fix.budgetId}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       preferences: Array<{ notificationType: string; enabled: boolean }>;
     };
-    expect(body.preferences).toHaveLength(3);
     const kinds = body.preferences.map((p) => p.notificationType).sort();
     expect(kinds).toEqual(
-      ["CUSHION_BELOW_TARGET", "CONFIRM_DRAFT", "RESERVE_TOPUP"].sort(),
+      [
+        "BADGE",
+        "BUDGET_REMINDER",
+        "CONFIRM_DRAFT",
+        "CUSHION_BELOW_TARGET",
+        "INCOME_UNDER_PLANNED",
+        "RESERVE_TOPUP",
+        "TASK_COMPLETED",
+      ].sort(),
     );
+    // Every kind defaults ON except the opt-in BADGE.
     for (const pref of body.preferences) {
-      expect(pref.enabled).toBe(true);
+      expect(pref.enabled).toBe(pref.notificationType !== "BADGE");
     }
   });
 

@@ -160,15 +160,20 @@ export function BudgetSwitcher({
                 aria-hidden="true"
               />
             ))}
-          {/* UAT-PH5-T3-13: show up to 20 characters with no truncation. The
-              label is omitted entirely when there is no active budget so the
-              header collapses to a bare chevron on the home page. */}
-          {triggerLabel && (
+          {/* An active budget shows its name (prominent). With NO active budget
+              (home/settings) show a MUTED, normal-weight placeholder so it reads
+              as "no budget selected" — not a dimmed selection — instead of a bare
+              dangling chevron. */}
+          {triggerLabel ? (
             <span
               className="text-title-sm inline-block max-w-[20ch] truncate align-middle sm:max-w-[28ch]"
               title={triggerLabel}
             >
               {triggerLabel}
+            </span>
+          ) : (
+            <span className="text-title-sm inline-block truncate align-middle font-normal text-[var(--muted-foreground)]">
+              {t("nav.switcher.placeholder")}
             </span>
           )}
           <ChevronDown

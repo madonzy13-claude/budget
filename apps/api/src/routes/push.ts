@@ -42,6 +42,9 @@ const prefsSchema = z.object({
     // r32: task-completed toggle + budget-update reminder (with day/tz config).
     "TASK_COMPLETED",
     "BUDGET_REMINDER",
+    // r37: per-user-per-budget app-icon BADGE opt-out. Not a push notification —
+    // controls whether this budget's pending-task count feeds the PWA app badge.
+    "BADGE",
   ]),
   enabled: z.boolean(),
   config: z

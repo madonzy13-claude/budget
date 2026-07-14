@@ -30,6 +30,7 @@ import { IncomeSection } from "@/components/settings/income-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
 import { PushPrefsSection } from "@/components/settings/push-prefs-section";
+import { OwnerGate } from "@/components/settings/owner-gate";
 
 export interface SettingsBudget {
   id: string;
@@ -170,14 +171,16 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {t("sections.identity")}
           </AccordionTrigger>
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <BudgetIdentitySection
-              budgetId={budget.id}
-              name={budget.name}
-              defaultCurrency={budget.defaultCurrency}
-              hasTransactions={budget.hasTransactions}
-              amountPrivacyEnabled={budget.amountPrivacyEnabled ?? true}
-              isOwner={isOwner}
-            />
+            <OwnerGate isOwner={isOwner}>
+              <BudgetIdentitySection
+                budgetId={budget.id}
+                name={budget.name}
+                defaultCurrency={budget.defaultCurrency}
+                hasTransactions={budget.hasTransactions}
+                amountPrivacyEnabled={budget.amountPrivacyEnabled ?? true}
+                isOwner={isOwner}
+              />
+            </OwnerGate>
           </AccordionContent>
         </AccordionItem>
 
@@ -187,13 +190,15 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {t("sections.cushion")}
           </AccordionTrigger>
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <CushionSection
-              budgetId={budget.id}
-              cushionEnabled={budget.cushionEnabled}
-              cushionModeEnabled={budget.cushionModeEnabled}
-              cushionTargetMonths={budget.cushionTargetMonths}
-              budgetCurrency={budget.defaultCurrency}
-            />
+            <OwnerGate isOwner={isOwner}>
+              <CushionSection
+                budgetId={budget.id}
+                cushionEnabled={budget.cushionEnabled}
+                cushionModeEnabled={budget.cushionModeEnabled}
+                cushionTargetMonths={budget.cushionTargetMonths}
+                budgetCurrency={budget.defaultCurrency}
+              />
+            </OwnerGate>
           </AccordionContent>
         </AccordionItem>
 
@@ -203,10 +208,12 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {t("sections.reserves")}
           </AccordionTrigger>
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <ReservesSection
-              budgetId={budget.id}
-              reservesEnabled={budget.reservesEnabled ?? true}
-            />
+            <OwnerGate isOwner={isOwner}>
+              <ReservesSection
+                budgetId={budget.id}
+                reservesEnabled={budget.reservesEnabled ?? true}
+              />
+            </OwnerGate>
           </AccordionContent>
         </AccordionItem>
 
@@ -216,10 +223,12 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {t("sections.investments")}
           </AccordionTrigger>
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <InvestmentsSection
-              budgetId={budget.id}
-              investmentsEnabled={budget.investmentsEnabled ?? false}
-            />
+            <OwnerGate isOwner={isOwner}>
+              <InvestmentsSection
+                budgetId={budget.id}
+                investmentsEnabled={budget.investmentsEnabled ?? false}
+              />
+            </OwnerGate>
           </AccordionContent>
         </AccordionItem>
 
@@ -229,10 +238,12 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {t("sections.recurring")}
           </AccordionTrigger>
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <RecurringSection
-              budgetId={budget.id}
-              defaultCurrency={budget.defaultCurrency}
-            />
+            <OwnerGate isOwner={isOwner}>
+              <RecurringSection
+                budgetId={budget.id}
+                defaultCurrency={budget.defaultCurrency}
+              />
+            </OwnerGate>
           </AccordionContent>
         </AccordionItem>
 
@@ -242,10 +253,12 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {t("sections.income")}
           </AccordionTrigger>
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <IncomeSection
-              budgetId={budget.id}
-              defaultCurrency={budget.defaultCurrency}
-            />
+            <OwnerGate isOwner={isOwner}>
+              <IncomeSection
+                budgetId={budget.id}
+                defaultCurrency={budget.defaultCurrency}
+              />
+            </OwnerGate>
           </AccordionContent>
         </AccordionItem>
 
@@ -259,6 +272,20 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
               budgetId={budget.id}
               currentUserRole={budget.currentUserRole}
             />
+            {/* Bug #1: members have no Danger Zone, so their "Leave budget"
+                action lives here. Reuses DangerZoneSection's non-owner branch
+                (the Leave button + confirm dialog + 409 last-owner handling)
+                rather than duplicating that logic. */}
+            {!isOwner && (
+              <div className="mt-4 border-t border-[var(--hairline-on-dark)] pt-4">
+                <DangerZoneSection
+                  budgetId={budget.id}
+                  budgetName={budget.name}
+                  isOwner={false}
+                  isLastOwner={false}
+                />
+              </div>
+            )}
           </AccordionContent>
         </AccordionItem>
 
@@ -272,25 +299,28 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* 6. Danger Zone */}
-        <AccordionItem value="danger-zone">
-          <AccordionTrigger className="px-6 text-[var(--trading-down)]">
-            {t("sections.danger")}
-          </AccordionTrigger>
-          <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <DangerZoneSection
-              budgetId={budget.id}
-              budgetName={budget.name}
-              isOwner={isOwner}
-              // WR-06: client cannot reliably know the owner count without an
-              // extra fetch. We conservatively mark any owner as potential
-              // last-owner — the server's 409 is the authoritative guard, and
-              // handleLeave in DangerZoneSection catches the 409 and shows the
-              // tooltip message.
-              isLastOwner={isOwner}
-            />
-          </AccordionContent>
-        </AccordionItem>
+        {/* 6. Danger Zone — owners only (bug #1). Members leave via the button
+            in the Members section, not here. */}
+        {isOwner && (
+          <AccordionItem value="danger-zone">
+            <AccordionTrigger className="px-6 text-[var(--trading-down)]">
+              {t("sections.danger")}
+            </AccordionTrigger>
+            <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
+              <DangerZoneSection
+                budgetId={budget.id}
+                budgetName={budget.name}
+                isOwner={isOwner}
+                // WR-06: client cannot reliably know the owner count without an
+                // extra fetch. We conservatively mark any owner as potential
+                // last-owner — the server's 409 is the authoritative guard, and
+                // handleLeave in DangerZoneSection catches the 409 and shows the
+                // tooltip message.
+                isLastOwner={isOwner}
+              />
+            </AccordionContent>
+          </AccordionItem>
+        )}
       </Accordion>
     </>
   );

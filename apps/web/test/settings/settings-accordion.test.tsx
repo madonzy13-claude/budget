@@ -5,7 +5,7 @@
  * 4-section render for PRIVATE budgets, default-open section.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { SettingsAccordion } from "@/components/settings/settings-accordion";
 
 // next-intl mock
@@ -120,6 +120,43 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     // The accordion item with value="budget-identity" should be open
     const openItem = container.querySelector('[data-state="open"]');
     expect(openItem).not.toBeNull();
+  });
+});
+
+describe("SettingsAccordion — member read-only gating (bug #1)", () => {
+  const memberBudget = { ...sharedBudget, currentUserRole: "member" as const };
+
+  it("hides the Danger Zone from members", () => {
+    render(<SettingsAccordion budget={memberBudget} />);
+    expect(screen.queryByText("sections.danger")).toBeNull();
+  });
+
+  it("keeps the Danger Zone for owners", () => {
+    render(<SettingsAccordion budget={sharedBudget} />);
+    expect(screen.getByText("sections.danger")).toBeInTheDocument();
+  });
+
+  it("gives members a Leave-budget action inside the Members section", () => {
+    render(<SettingsAccordion budget={memberBudget} />);
+    // Members section is collapsed by default — open it so its content mounts.
+    fireEvent.click(screen.getByText("sections.members"));
+    expect(screen.getByText("danger.leave_button")).toBeInTheDocument();
+  });
+
+  it("does not show the members Leave action to owners", () => {
+    render(<SettingsAccordion budget={sharedBudget} />);
+    fireEvent.click(screen.getByText("sections.members"));
+    expect(screen.queryByText("danger.leave_button")).toBeNull();
+  });
+
+  it("wraps owner-only sections in a disabled fieldset for members", () => {
+    const { container } = render(<SettingsAccordion budget={memberBudget} />);
+    expect(container.querySelector("fieldset[disabled]")).not.toBeNull();
+  });
+
+  it("leaves owner-only sections enabled for owners", () => {
+    const { container } = render(<SettingsAccordion budget={sharedBudget} />);
+    expect(container.querySelector("fieldset[disabled]")).toBeNull();
   });
 });
 

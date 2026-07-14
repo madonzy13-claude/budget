@@ -468,6 +468,72 @@ export class DrizzleBudgetRepo implements BudgetRepo {
     if (r.isErr()) throw r.error;
   }
 
+  /**
+   * Set a member's role directly (owner ⇄ member). The route enforces authz
+   * (owner-only + last-owner guard); this just writes the column the Better Auth
+   * org plugin reads. Runs in service context with the budget's tenant set so RLS
+   * permits the UPDATE.
+   */
+  async setMemberRole(
+    budgetId: string,
+    userId: string,
+    role: "owner" | "member",
+    actorUserId: string,
+  ): Promise<void> {
+    // withTenantTx (user context) — writes to budget_members need the app role +
+    // RLS tenant context; withInfraTx is SELECT-only (permission denied on write).
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(actorUserId),
+      async (tx) => {
+        await tx.execute(sql`
+          UPDATE tenancy.budget_members
+             SET role = ${role}
+           WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
+
+  /**
+   * Repoint budgets.owner_user_id to a current owner when it no longer names one
+   * (the creator was demoted or removed while other owners remain). The legacy
+   * single owner_user_id column gates account deletion (identity.purgeUserData),
+   * so it must follow the multi-owner budget_members reality — otherwise a demoted
+   * creator gets wrongly blocked from deleting their account. Idempotent: no-op
+   * when owner_user_id already names an owner, or when there are no owners.
+   */
+  async reconcileOwnerUserId(
+    budgetId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(actorUserId),
+      async (tx) => {
+      await tx.execute(sql`
+        UPDATE tenancy.budgets b
+           SET owner_user_id = (
+             SELECT m.user_id FROM tenancy.budget_members m
+              WHERE m.budget_id = ${budgetId}::uuid AND m.role = 'owner'
+              ORDER BY m.created_at ASC
+              LIMIT 1
+           )
+         WHERE b.id = ${budgetId}::uuid
+           AND EXISTS (
+             SELECT 1 FROM tenancy.budget_members mo
+              WHERE mo.budget_id = ${budgetId}::uuid AND mo.role = 'owner'
+           )
+           AND b.owner_user_id NOT IN (
+             SELECT mc.user_id FROM tenancy.budget_members mc
+              WHERE mc.budget_id = ${budgetId}::uuid AND mc.role = 'owner'
+           )
+      `);
+    });
+    if (r.isErr()) throw r.error;
+  }
+
   async hasTransactions(budgetId: string): Promise<boolean> {
     // withInfraTx: infrastructure carve-out — exists query runs in service context,
     // not user request context (same pattern as findById).

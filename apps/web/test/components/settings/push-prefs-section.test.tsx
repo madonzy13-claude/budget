@@ -3,7 +3,7 @@
  * TASK_COMPLETED; INCOME_UNDER_PLANNED is the current spendings kind) and the
  * budget-update reminder (toggle + weekday picker that PATCHes {days, tz}).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
@@ -141,5 +141,131 @@ describe("PushPrefsSection r32 toggles", () => {
     };
     expect(arg.json.enabled).toBe(false);
     expect(arg.json.config.days).toEqual([1, 2, 3, 4, 5]);
+  });
+});
+
+describe("PushPrefsSection badge toggle (r37)", () => {
+  const orig = (globalThis as { Notification?: unknown }).Notification;
+  function mockNotification(permission: string, requestResult?: string) {
+    (globalThis as { Notification?: unknown }).Notification = {
+      permission,
+      requestPermission: vi.fn(async () => requestResult ?? permission),
+    };
+  }
+  afterEach(() => {
+    (globalThis as { Notification?: unknown }).Notification = orig;
+  });
+
+  const badgePatches = () =>
+    patchMock.mock.calls.filter(
+      (c) =>
+        (c[0] as { json?: { notificationType?: string } })?.json
+          ?.notificationType === "BADGE",
+    );
+
+  it("is OFF by default — the badge is opt-in", async () => {
+    mockNotification("granted");
+    wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
+    const sw = screen.getByTestId("push-badge-switch");
+    await waitFor(() => expect(sw.getAttribute("aria-checked")).toBe("false"));
+  });
+
+  it("enabling WITH notification permission PATCHes BADGE enabled=true", async () => {
+    mockNotification("granted");
+    wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
+    const sw = screen.getByTestId("push-badge-switch");
+    await waitFor(() => expect(sw.getAttribute("aria-checked")).toBe("false"));
+    fireEvent.click(sw);
+    await waitFor(() => expect(badgePatches().length).toBe(1));
+    const arg = badgePatches().at(-1)![0] as {
+      json: { notificationType: string; enabled: boolean };
+    };
+    expect(arg.json.enabled).toBe(true);
+  });
+
+  it("enabling updates the shared badge-prefs cache immediately (instant app icon)", async () => {
+    mockNotification("granted");
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    // Seed the aggregate cache <AppBadge> reads (keyed by sorted budget ids).
+    qc.setQueryData(["badge-prefs", [budgetId]], {});
+    render(
+      <QueryClientProvider client={qc}>
+        <PushPrefsSection budgetId={budgetId} initialMasterOn />
+      </QueryClientProvider>,
+    );
+    const sw = screen.getByTestId("push-badge-switch");
+    await waitFor(() => expect(sw.getAttribute("aria-checked")).toBe("false"));
+    fireEvent.click(sw);
+    await waitFor(() =>
+      expect(
+        (qc.getQueryData(["badge-prefs", [budgetId]]) as Record<
+          string,
+          boolean
+        >)[budgetId],
+      ).toBe(true),
+    );
+  });
+
+  it("enabling WITHOUT permission does not persist and stays OFF", async () => {
+    mockNotification("default", "denied");
+    wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
+    const sw = screen.getByTestId("push-badge-switch");
+    await waitFor(() => expect(sw.getAttribute("aria-checked")).toBe("false"));
+    fireEvent.click(sw);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(badgePatches().length).toBe(0);
+    expect(sw.getAttribute("aria-checked")).toBe("false");
+  });
+
+  // Start with NO push subscription so the master switch begins OFF and a click
+  // turns it ON (which runs the auto-enable path).
+  function withMasterOff() {
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        ready: Promise.resolve({
+          pushManager: { getSubscription: async () => null },
+        }),
+      },
+    });
+  }
+
+  it("turning push ON auto-enables the badge when it was never set", async () => {
+    mockNotification("granted");
+    withMasterOff(); // getMock (beforeEach) has no BADGE row
+    wrap(<PushPrefsSection budgetId={budgetId} />);
+    await waitFor(() => expect(getMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 25)); // let prefs settle into state
+    const master = screen.getByTestId("push-master-switch");
+    await waitFor(() => expect(master.getAttribute("aria-checked")).toBe("false"));
+    fireEvent.click(master);
+    await waitFor(() =>
+      expect(
+        badgePatches().some(
+          (c) => (c[0] as { json: { enabled: boolean } }).json.enabled === true,
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("turning push ON does NOT re-enable a badge the user manually turned off", async () => {
+    mockNotification("granted");
+    withMasterOff();
+    getMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        preferences: [{ notificationType: "BADGE", enabled: false }],
+      }),
+    });
+    wrap(<PushPrefsSection budgetId={budgetId} />);
+    await waitFor(() => expect(getMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 25)); // let prefs settle into state
+    const master = screen.getByTestId("push-master-switch");
+    await waitFor(() => expect(master.getAttribute("aria-checked")).toBe("false"));
+    fireEvent.click(master);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(badgePatches().length).toBe(0); // manual OFF respected
   });
 });

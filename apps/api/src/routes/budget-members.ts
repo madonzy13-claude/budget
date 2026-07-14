@@ -92,10 +92,114 @@ export function budgetMembersRoutesFactory(deps: MembersDeps) {
       throw e;
     }
 
+    // If we just removed an owner, make sure budgets.owner_user_id still points to
+    // a current owner (account-deletion keys on it — see below).
+    await reconcileOwnerUserId(deps, budgetId, session.user.id);
+
+    return c.json({ ok: true }, 200);
+  });
+
+  // POST /:id/members/:memberId/role — owner-only role change (promote a member
+  // to owner, or demote an owner to member). Any owner may change any member's
+  // role, including their own; the LAST owner is protected so the budget always
+  // keeps ≥1 owner (mirrors the revoke last-owner guard).
+  r.post("/:id/members/:memberId/role", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const memberId = c.req.param("memberId");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    let body: { role?: string };
+    try {
+      body = (await c.req.json()) as { role?: string };
+    } catch {
+      body = {};
+    }
+    const role = body.role;
+    if (role !== "owner" && role !== "member") {
+      return c.json({ error: "invalid_role" }, 400);
+    }
+
+    let members: { userId: string; role: string }[];
+    try {
+      members = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+    } catch (e) {
+      console.error("[member-role] listMembers failed:", e);
+      return c.json({ error: "internal" }, 500);
+    }
+
+    // Owner-only gate.
+    const callerEntry = members.find((m) => m.userId === session.user.id);
+    if (!callerEntry) return c.json({ error: "Member not found" }, 404);
+    if (callerEntry.role !== "owner") {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    const targetEntry = members.find((m) => m.userId === memberId);
+    if (!targetEntry) return c.json({ error: "member_not_found" }, 404);
+    // No-op if the role is already what's requested.
+    if (targetEntry.role === role) return c.json({ ok: true }, 200);
+
+    // Demoting an owner: never leave the budget with zero owners.
+    if (role === "member" && targetEntry.role === "owner") {
+      const ownerCount = members.filter((m) => m.role === "owner").length;
+      if (ownerCount <= 1) return c.json({ error: "last_owner" }, 409);
+    }
+
+    // Update the role column directly. Better Auth's updateMemberRole keys on the
+    // MEMBER ROW id (not userId) and 404s here; the org plugin only READS this
+    // column, so a direct write is correct and simpler.
+    try {
+      await deps.tenancy.workspaceRepo.setMemberRole(
+        budgetId,
+        memberId,
+        role,
+        session.user.id,
+      );
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? "unknown";
+      console.error("[member-role] setMemberRole failed:", msg);
+      throw e;
+    }
+
+    // Keep budgets.owner_user_id pointing at a real owner so account deletion
+    // (which blocks a user who solely owns a shared budget) doesn't wrongly block
+    // a demoted creator while other owners remain.
+    await reconcileOwnerUserId(deps, budgetId, session.user.id);
+
     return c.json({ ok: true }, 200);
   });
 
   return r;
+}
+
+/**
+ * Best-effort: if budgets.owner_user_id no longer names a current owner (the
+ * creator got demoted/removed while other owners remain), repoint it to an
+ * existing owner. The legacy single-column owner_user_id gates account deletion
+ * (identity.purgeUserData), so it must track the multi-owner reality. No-ops if
+ * the repo doesn't expose the helper (older wiring / unit tests that don't mock it).
+ */
+async function reconcileOwnerUserId(
+  deps: MembersDeps,
+  budgetId: string,
+  actorUserId: string,
+): Promise<void> {
+  const repo = deps.tenancy.workspaceRepo as {
+    reconcileOwnerUserId?: (id: string, actorUserId: string) => Promise<void>;
+  };
+  if (typeof repo.reconcileOwnerUserId !== "function") return;
+  try {
+    await repo.reconcileOwnerUserId(budgetId, actorUserId);
+  } catch (e) {
+    console.error("[member-role] reconcileOwnerUserId failed:", e);
+  }
 }
 
 // Named alias referenced in plan 06-03 key_links

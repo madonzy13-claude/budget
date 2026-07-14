@@ -295,11 +295,35 @@ async function syncAppBadgeFromServer(): Promise<void> {
     const res = await fetch("/api/budgets/active", { credentials: "include" });
     if (!res.ok) return;
     const body = (await res.json()) as {
-      budgets?: { pendingTasksCount?: number }[];
-      workspaces?: { pendingTasksCount?: number }[];
+      budgets?: { id?: string; pendingTasksCount?: number }[];
+      workspaces?: { id?: string; pendingTasksCount?: number }[];
     };
     const list = body.budgets ?? body.workspaces ?? [];
-    const total = list.reduce((s, b) => s + (b.pendingTasksCount ?? 0), 0);
+    // r37: the app-icon badge is OPT-IN per budget. Only count budgets the user
+    // switched on (notification_prefs BADGE=enabled), so this matches the in-app
+    // <AppBadge> aggregate.
+    let total = 0;
+    for (const b of list) {
+      const pending = b.pendingTasksCount ?? 0;
+      if (pending <= 0 || !b.id) continue;
+      try {
+        const pr = await fetch(
+          "/api/push/preferences?budgetId=" + b.id,
+          { credentials: "include", headers: { "X-Budget-ID": b.id } },
+        );
+        if (!pr.ok) continue;
+        const pd = (await pr.json()) as {
+          preferences?: { notificationType: string; enabled: boolean }[];
+        };
+        const badge = (pd.preferences ?? []).find(
+          (p) => p.notificationType === "BADGE",
+        );
+        // eslint-disable-next-line local/no-float-money -- integer task counts, not Money
+        if (badge?.enabled === true) total += pending;
+      } catch {
+        /* skip this budget */
+      }
+    }
     if (total > 0) await nav.setAppBadge(total);
     else if (typeof nav.clearAppBadge === "function") await nav.clearAppBadge();
   } catch {

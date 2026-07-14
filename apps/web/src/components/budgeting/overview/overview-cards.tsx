@@ -30,7 +30,7 @@ import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
-import { centsToRounded } from "@/lib/cents-format";
+import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
 import { dayCloseDelta } from "@/lib/day-close-delta";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { cn } from "@/lib/utils";
@@ -61,19 +61,34 @@ function CardLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Redaction bar — a solid rounded block that covers a hidden amount. Inherits the
- * figure's font (em-relative height) and is sized to the real figure's character
- * count (`ch`) so revealing/hiding doesn't shift the layout. Used for the privacy
- * toggle instead of a blur (a `filter` on the card breaks the capitalization flip).
+ * Redactable — covers a hidden amount with a solid rounded bar WITHOUT any layout
+ * shift on toggle. The real content is still rendered (visibility:hidden) so it
+ * reserves the EXACT width + line-height; the bar is an absolute overlay sized to
+ * that box. Revealing just drops the cover — the geometry is identical either way,
+ * so the cards never jump (character-count `ch` sizing was only approximate, and a
+ * 0.7em bar shortened the line-box → the old vertical jump). A bar (not a blur):
+ * a `filter` on the card breaks the capitalization flip's backface-visibility. The
+ * reserved text is aria-hidden so screen readers don't read the masked value.
  */
-function RedactionBar({ chars }: { chars: number }) {
+function Redactable({
+  hide,
+  children,
+}: {
+  hide: boolean;
+  children: React.ReactNode;
+}) {
+  if (!hide) return <>{children}</>;
   return (
-    <span
-      aria-hidden="true"
-      data-testid="redaction-bar"
-      className="inline-block max-w-full translate-y-[-0.06em] rounded-[var(--radius-sm)] bg-[var(--surface-elevated-dark)] align-middle"
-      style={{ width: `${Math.max(2, chars)}ch`, height: "0.7em" }}
-    />
+    <span className="relative inline-block max-w-full align-baseline">
+      <span className="invisible" aria-hidden="true">
+        {children}
+      </span>
+      <span
+        aria-hidden="true"
+        data-testid="redaction-bar"
+        className="absolute inset-x-0 top-1/2 h-[0.7em] -translate-y-1/2 rounded-[var(--radius-sm)] bg-[var(--surface-elevated-dark)]"
+      />
+    </span>
   );
 }
 
@@ -204,30 +219,29 @@ export function OverviewCards({
   // Overview shows NO cents anywhere — every card amount rounds to whole units.
   const fmtMoney = (cents: string) => centsToRounded(cents, ccy, "en", true);
   const fmtRounded = (cents: string) => centsToRounded(cents, ccy, "en", true);
-  // Privacy: when hidden, every figure is covered by a REDACTION BAR (a solid
-  // rounded block sized to the real figure so the layout doesn't jump) instead of
-  // the number. A bar (vs blur) leaves NO `filter` on the card, which is what
-  // defeated the capitalization flip's backface-visibility.
+  // Privacy: when hidden, every figure is covered by a REDACTION BAR — a solid
+  // rounded block overlaid on the real (invisible-but-still-laid-out) number, so
+  // toggling never shifts the layout (see Redactable). A bar (vs blur) leaves NO
+  // `filter` on the card, which is what defeated the capitalization flip.
   const hide = !revealed;
-  // Node formatters — count-tween when revealed; a redaction bar when hidden.
-  const animMoney = (cents: string) =>
-    hide ? (
-      <RedactionBar chars={fmtMoney(cents).length} />
-    ) : (
+  // Node formatters — count-tween the figure; a redaction bar covers it when hidden
+  // (the real number stays mounted, invisible, so the layout doesn't jump).
+  const animMoney = (cents: string) => (
+    <Redactable hide={hide}>
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtMoney(String(Math.round(n)))}
       />
-    );
-  const animRounded = (cents: string) =>
-    hide ? (
-      <RedactionBar chars={fmtRounded(cents).length} />
-    ) : (
+    </Redactable>
+  );
+  const animRounded = (cents: string) => (
+    <Redactable hide={hide}>
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtRounded(String(Math.round(n)))}
       />
-    );
+    </Redactable>
+  );
   // Localized cushion-runway unit suffixes (item 4): EN y/m/d, UK р/м/д, PL l/m/d.
   const runwayUnits = {
     y: t("cards.unitY"),
@@ -326,8 +340,8 @@ export function OverviewCards({
                 <CardLabel>{t("cards.capitalization")}</CardLabel>
                 {/* nowrap: the P/L stays inline (right) at all times. The left
                     column flex-shrinks (min-w-0) and the hero number / its privacy
-                    RedactionBar (max-w-full) cap within it — otherwise a wide
-                    redaction bar wrapped the P/L onto its own line (privacy mode). */}
+                    cover (max-w-full) cap within it — otherwise a wide redaction
+                    bar wrapped the P/L onto its own line (privacy mode). */}
                 <div className="mt-1 flex flex-nowrap items-start justify-between gap-x-3">
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <p
@@ -357,16 +371,9 @@ export function OverviewCards({
                         {t.rich("cards.capitalizationSub", {
                           // No cents — match the hero capitalization number.
                           amount: fmtRounded(data.investment_value_cents),
-                          amt: (chunks) =>
-                            hide ? (
-                              <RedactionBar
-                                chars={
-                                  fmtRounded(data.investment_value_cents).length
-                                }
-                              />
-                            ) : (
-                              <>{chunks}</>
-                            ),
+                          amt: (chunks) => (
+                            <Redactable hide={hide}>{chunks}</Redactable>
+                          ),
                         })}
                       </p>
                     )}
@@ -395,21 +402,14 @@ export function OverviewCards({
                             aria-hidden="true"
                           />
                         )}
-                        {hide ? (
-                          <RedactionBar
-                            chars={
-                              `${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`
-                                .length
-                            }
-                          />
-                        ) : (
+                        <Redactable hide={hide}>
                           <AnimatedFigure
                             value={pl.delta_pct}
                             format={(n) =>
                               `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
                             }
                           />
-                        )}
+                        </Redactable>
                       </span>
                       <span className="num">{animRounded(pl.delta_cents)}</span>
                       <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
@@ -568,15 +568,27 @@ export function OverviewCards({
                     ? "cards.reservesShortNote"
                     : "cards.reservesOkNote",
                 {
-                  amount: fmtMoney(data.reserves.required_cents),
-                  amt: (chunks) =>
-                    hide ? (
-                      <RedactionBar
-                        chars={fmtMoney(data.reserves.required_cents).length}
-                      />
-                    ) : (
-                      <>{chunks}</>
-                    ),
+                  // short → how much is MISSING, surplus → how much is EXTRA (both
+                  // with cents, matching the spendings tab); ok → the needed amount.
+                  amount: centsToDisplayCompact(
+                    data.reserves.status === "surplus"
+                      ? (
+                          BigInt(data.available_reserves_cents) -
+                          BigInt(data.reserves.required_cents)
+                        ).toString()
+                      : data.reserves.status === "short"
+                        ? (
+                            BigInt(data.reserves.required_cents) -
+                            BigInt(data.available_reserves_cents)
+                          ).toString()
+                        : data.reserves.required_cents,
+                    ccy,
+                    "en",
+                    true,
+                  ),
+                  amt: (chunks) => (
+                    <Redactable hide={hide}>{chunks}</Redactable>
+                  ),
                 },
               )}
             </p>
@@ -649,27 +661,15 @@ export function OverviewCards({
                   const unlimited =
                     data.cushion.required_cents === "0" &&
                     Number(data.cushion.total_cents) > 0;
-                  if (hide)
-                    return (
-                      <RedactionBar
-                        chars={
-                          unlimited
-                            ? 1
-                            : formatRunway(
-                                data.cushion.real_months,
-                                runwayUnits,
-                              ).length
-                        }
-                      />
-                    );
-                  if (unlimited)
-                    return <span data-testid="cushion-unlimited">∞</span>;
-                  return (
+                  const node = unlimited ? (
+                    <span data-testid="cushion-unlimited">∞</span>
+                  ) : (
                     <AnimatedFigure
                       value={data.cushion.real_months}
                       format={(n) => formatRunway(n, runwayUnits)}
                     />
                   );
+                  return <Redactable hide={hide}>{node}</Redactable>;
                 })()}
               </span>
             </p>

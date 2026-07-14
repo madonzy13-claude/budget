@@ -59,6 +59,7 @@ import {
   type Theme,
 } from "@/components/settings/theme-toggle";
 import { signOut } from "@/lib/auth-client";
+import { initialsOf } from "@/lib/initials";
 import { clearQueryCache, dropLegacyBudgetCache } from "@/lib/query-persist";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -75,16 +76,6 @@ export interface ProfileMenuProps {
     name: string;
     email: string;
   };
-}
-
-function initialsOf(name: string, email: string): string {
-  const source = (name || email || "").trim();
-  if (!source) return "?";
-  const parts = source.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2 && parts[0] && parts[1]) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return source.slice(0, 2).toUpperCase();
 }
 
 export function ProfileMenu({ locale, user }: ProfileMenuProps) {

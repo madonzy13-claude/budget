@@ -73,9 +73,18 @@ describe("Overview amount privacy", () => {
     expect(screen.getByTestId("privacy-toggle").getAttribute("aria-label")).toBe(
       "cards.privacyShow",
     );
-    // Figures are covered by redaction bars; no real digits leak into the DOM.
+    // Figures are covered by redaction bars.
     expect(screen.getAllByTestId("redaction-bar").length).toBeGreaterThan(0);
-    expect(heroText()).not.toMatch(/\d/);
+    // Zero-jump cover: the real number stays mounted but is rendered invisible
+    // (reserves the exact box) with the bar overlaid — so toggling never shifts
+    // the layout. The hero .num therefore holds both a bar and the (hidden) digits.
+    const heroNum = screen
+      .getByTestId("overview-card-capitalization")
+      .querySelector(".num")!;
+    expect(
+      heroNum.querySelector('[data-testid="redaction-bar"]'),
+    ).not.toBeNull();
+    expect(heroNum.querySelector(".invisible")?.textContent ?? "").toMatch(/\d/);
   });
 
   it("reveals the real amount on click and re-covers on a second click", () => {
