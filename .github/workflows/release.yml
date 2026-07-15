@@ -39,26 +39,44 @@ jobs:
       - name: Check CI check-runs of tagged SHA
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
           SHA="${GITHUB_SHA}"
           # Combined-status API is unreachable for the default GITHUB_TOKEN on
           # free private repos. Use check-runs (Actions writes check-runs, not
-          # legacy statuses) and require every COMPLETED non-Release check to
-          # be success / neutral / skipped. The Release workflow is filtered out
-          # because it is the workflow currently running.
-          BAD=$(gh api --paginate \
-            "repos/${{ github.repository }}/commits/${SHA}/check-runs?per_page=100" \
-            --jq '
-              [.check_runs[]
-                | select(.status == "completed")
-                | select(.name | test("^Release$|^GitHub Release$|^Build & push|^Verify CI was green|^Validate tag"; "i") | not)
-                | select(.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")
-                | {name, conclusion}]')
-          echo "Non-green checks: $BAD"
-          if [[ "$BAD" != "[]" ]]; then
-            echo "CI is not green on $SHA — refusing to release"
+          # legacy statuses). The Release workflow's own checks are filtered out
+          # (they are running right now). The repo has well under 100 checks, so a
+          # single page holds them all (no cross-page array merge to worry about).
+          REL='^Release$|^GitHub Release$|^Build & push|^Verify CI was green|^Validate tag'
+          CHECKS=$(gh api --paginate \
+            "repos/${REPO}/commits/${SHA}/check-runs?per_page=100" \
+            --jq "[.check_runs[] | select(.name | test(\"${REL}\"; \"i\") | not) | {name, status, conclusion}]")
+          echo "Relevant CI checks on ${SHA}:"
+          echo "$CHECKS" | jq .
+
+          # (1) CI must have ACTUALLY run — a commit with zero checks must not
+          #     release (would otherwise pass vacuously).
+          TOTAL=$(echo "$CHECKS" | jq 'length')
+          if [[ "$TOTAL" -eq 0 ]]; then
+            echo "::error::No CI checks ran on ${SHA}. Tag a commit that CI verified on main."
             exit 1
           fi
+
+          # (2) CI must be FINISHED — no queued / in_progress checks.
+          PENDING=$(echo "$CHECKS" | jq -c '[.[] | select(.status != "completed")]')
+          if [[ "$PENDING" != "[]" ]]; then
+            echo "::error::CI still running on ${SHA}: ${PENDING}. Wait for it to finish."
+            exit 1
+          fi
+
+          # (3) Every completed check must be green (success / neutral / skipped).
+          BAD=$(echo "$CHECKS" | jq -c '[.[] | select(.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")]')
+          if [[ "$BAD" != "[]" ]]; then
+            echo "::error::CI is not green on ${SHA}: ${BAD}. Refusing to release."
+            exit 1
+          fi
+          echo "CI is fully green on ${SHA} (${TOTAL} checks) — proceeding to build & push."
 
   build-and-push:
     name: Build & push ${{ matrix.service }}
@@ -103,6 +121,17 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          # NEXT_PUBLIC_VAPID_PUBLIC_KEY is INLINED into the web client bundle at
+          # BUILD time — it cannot be injected at runtime. Without it pushManager
+          # .subscribe() has no applicationServerKey and web push silently no-ops.
+          # It is the PUBLIC half of the VAPID pair (safe as a repo variable); the
+          # server VAPID_PRIVATE_KEY must be its matching private half. Empty when
+          # the variable is unset → the app is fully functional, push just stays off.
+          # (Only the web Dockerfile declares this ARG; other services ignore it.)
+          # GIT_COMMIT stamps the build id shown in the Settings footer.
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
 
       - name: Trivy scan (CRITICAL fails)
         uses: aquasecurity/trivy-action@master
