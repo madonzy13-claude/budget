@@ -16,6 +16,11 @@ import {
   normalizeKeys,
   withKeyFailover,
 } from "../../ports/price-provider";
+import {
+  sanePositiveNumber,
+  assertBodyUnderCap,
+  PRICE_BODY_CAP_BYTES,
+} from "@budget/shared-kernel";
 
 const FINNHUB_HOST = "https://finnhub.io";
 const TIMEOUT_MS = 8000;
@@ -44,10 +49,20 @@ export class FinnhubPriceProvider implements PriceProvider {
       });
       if (res.status === 429) throw new RateLimited("finnhub");
       if (!res.ok) throw new NoPriceAvailable(symbol, "finnhub");
+      try {
+        assertBodyUnderCap(res, PRICE_BODY_CAP_BYTES);
+      } catch {
+        throw new NoPriceAvailable(symbol, "finnhub");
+      }
 
       const body = (await res.json()) as { c?: number };
       // c === 0 (or absent) means Finnhub has no quote for the symbol.
       if (body.c === undefined || body.c === null || body.c === 0) {
+        throw new NoPriceAvailable(symbol, "finnhub");
+      }
+      try {
+        sanePositiveNumber(body.c);
+      } catch {
         throw new NoPriceAvailable(symbol, "finnhub");
       }
 

@@ -12,6 +12,7 @@
  * T-02-02: amount_converted_cents is NEVER read from client body — computed server-side.
  * Pitfall 7: date string converted via new Date(s + 'T00:00:00Z').
  */
+import Big from "big.js";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
@@ -122,13 +123,21 @@ export function createTransaction(deps: CreateTransactionDeps) {
       );
       fxRate = fxResult.rate;
       fxAsOf = input.date;
-      amountConvertedCents = String(Math.round(absCents * Number(fxRate)));
-    }
 
-    // T-02-01: cap rate to sane bounds (0 < rate < 1e6)
-    const rateNum = Number(fxRate);
-    if (rateNum <= 0 || rateNum >= 1e6) {
-      return err(new Error(`FX rate out of bounds: ${fxRate}`));
+      // T-02-01: cap rate to sane bounds BEFORE it enters money math (was
+      // checked only AFTER the multiply below, so a bad rate was used first).
+      const rateNum = Number(fxRate);
+      if (!Number.isFinite(rateNum) || rateNum <= 0 || rateNum >= 1e6) {
+        return err(new Error(`FX rate out of bounds: ${fxRate}`));
+      }
+
+      // SEC: convert via big.js, not `absCents * Number(fxRate)`. The float
+      // product loses precision once it exceeds 2^53 (large principal × rate),
+      // silently storing a wrong converted amount. Big keeps it exact.
+      amountConvertedCents = new Big(amountOriginalCents)
+        .times(fxRate)
+        .round(0)
+        .toString();
     }
 
     const id = crypto.randomUUID();

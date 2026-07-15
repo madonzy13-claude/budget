@@ -64,6 +64,44 @@ const nextConfig = {
       },
     ];
   },
+  // SEC: baseline security headers.
+  //   - X-Frame-Options: DENY       → clickjacking on destructive actions
+  //                                    (transfer-ownership, delete-budget, invite).
+  //   - Referrer-Policy             → share-link tokens live in the URL path
+  //                                    (/accept-invitation/:id, /budgets/join/:token);
+  //                                    strip them from cross-origin Referer.
+  //   - X-Content-Type-Options      → block MIME sniffing.
+  //   - Content-Security-Policy     → the directives that add real defense
+  //     WITHOUT a script-src nonce: base-uri blocks <base> injection (which
+  //     rewrites every relative URL), object-src kills plugin/Flash vectors,
+  //     frame-ancestors is the modern anti-clickjacking control, form-action
+  //     pins form posts to same-origin. A full script-src/style-src CSP is
+  //     intentionally deferred: the inline <head> bootstrap scripts in
+  //     app/layout.tsx + Next.js's own inline runtime need per-request nonces
+  //     threaded through middleware first, and a mis-scoped script-src silently
+  //     breaks the PWA. That is the recommended follow-up, tracked separately.
+  async headers() {
+    const csp = [
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+    ].join("; ");
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          { key: "Content-Security-Policy", value: csp },
+        ],
+      },
+    ];
+  },
 };
 
 export default withSerwist(withNextIntl(nextConfig));

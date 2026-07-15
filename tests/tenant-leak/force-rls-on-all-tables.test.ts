@@ -105,6 +105,52 @@ describe("Test 4: FORCE ROW LEVEL SECURITY on all INCLUDED tables", () => {
     }
   }, 10_000);
 
+  it("every table in the 4 user-data schemas is classified in USER-DATA-TABLES.txt (fail-closed: a new table with no RLS decision breaks CI)", async () => {
+    // Regression-detection gate: the INCLUDED/EXCLUDED lists above are only
+    // meaningful if they cover EVERY table. Enumerate the live schema and assert
+    // the DB table set equals the classified set. A table added by a future
+    // migration that is neither INCLUDED (→ must have FORCE RLS, checked above)
+    // nor EXCLUDED (→ consciously RLS-exempt) fails here — you cannot ship a new
+    // tenant table without a row-security decision.
+    const client = rawMigratorClient();
+    await client.connect();
+    try {
+      const r = await client.query<{ table_name: string }>(
+        `SELECT n.nspname || '.' || c.relname AS table_name
+             FROM pg_class c
+             JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'r'
+              AND n.nspname IN ('identity', 'tenancy', 'shared_kernel', 'budgeting')
+            ORDER BY table_name`,
+      );
+      const inDb = new Set(r.rows.map((row) => row.table_name));
+      const classified = new Set([...included, ...excluded]);
+
+      const unclassified = [...inDb].filter((t) => !classified.has(t));
+      const stale = [...classified].filter((t) => !inDb.has(t));
+
+      const problems: string[] = [];
+      if (unclassified.length > 0) {
+        problems.push(
+          `${unclassified.length} table(s) in the DB are NOT classified in USER-DATA-TABLES.txt — ` +
+            `add each as TENANT-SCOPED/USER-SCOPED (with FORCE RLS) or EXCLUDED (justify why RLS-exempt):\n` +
+            unclassified.map((t) => `  - ${t}`).join("\n"),
+        );
+      }
+      if (stale.length > 0) {
+        problems.push(
+          `${stale.length} classified table(s) no longer exist in the DB (stale entry — remove):\n` +
+            stale.map((t) => `  - ${t}`).join("\n"),
+        );
+      }
+      if (problems.length > 0) throw new Error(problems.join("\n\n"));
+
+      expect(inDb.size).toBe(classified.size);
+    } finally {
+      await client.end();
+    }
+  }, 10_000);
+
   it("shared_kernel.outbox (EXCLUDED / Pitfall 10) does NOT have FORCE ROW LEVEL SECURITY", async () => {
     const client = rawMigratorClient();
     await client.connect();

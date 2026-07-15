@@ -62,26 +62,37 @@ function CardLabel({ children }: { children: React.ReactNode }) {
 
 /**
  * Redactable — covers a hidden amount with a solid rounded bar WITHOUT any layout
- * shift on toggle. The real content is still rendered (visibility:hidden) so it
- * reserves the EXACT width + line-height; the bar is an absolute overlay sized to
- * that box. Revealing just drops the cover — the geometry is identical either way,
- * so the cards never jump (character-count `ch` sizing was only approximate, and a
- * 0.7em bar shortened the line-box → the old vertical jump). A bar (not a blur):
- * a `filter` on the card breaks the capitalization flip's backface-visibility. The
- * reserved text is aria-hidden so screen readers don't read the masked value.
+ * shift on toggle. SECURITY: the real value must NOT be in the DOM when hidden
+ * (devtools/view-source would otherwise reveal it — a cosmetic-only privacy
+ * toggle). So the hidden branch renders a `•` placeholder of the SAME character
+ * length as the real string (`mask`) instead of the real digits — same reserved
+ * box (tabular `.num` → bullet ≈ digit width), zero leak. The bar is an absolute
+ * overlay sized to that placeholder box. Revealing swaps in the real value; the
+ * geometry matches so the cards never jump. A bar (not a blur): a `filter` on the
+ * card breaks the capitalization flip's backface-visibility. The placeholder is
+ * aria-hidden so screen readers don't read the mask.
+ *
+ * `mask` is the string whose LENGTH sizes the placeholder (never rendered as
+ * digits — only its `.length` bullets are). Callers pass the formatted value they
+ * already computed; when absent (rich-text chunks whose string isn't at hand) a
+ * short fixed run is used, which the bar covers anyway.
  */
 function Redactable({
   hide,
   children,
+  mask,
 }: {
   hide: boolean;
   children: React.ReactNode;
+  mask?: string;
 }) {
   if (!hide) return <>{children}</>;
+  // Bullet run of the same length as the real string → same width, no digits.
+  const dots = "•".repeat(Math.max(1, mask ? mask.length : 4));
   return (
     <span className="relative inline-block max-w-full align-baseline">
       <span className="invisible" aria-hidden="true">
-        {children}
+        {dots}
       </span>
       <span
         aria-hidden="true"
@@ -227,7 +238,7 @@ export function OverviewCards({
   // Node formatters — count-tween the figure; a redaction bar covers it when hidden
   // (the real number stays mounted, invisible, so the layout doesn't jump).
   const animMoney = (cents: string) => (
-    <Redactable hide={hide}>
+    <Redactable hide={hide} mask={fmtMoney(cents)}>
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtMoney(String(Math.round(n)))}
@@ -235,7 +246,7 @@ export function OverviewCards({
     </Redactable>
   );
   const animRounded = (cents: string) => (
-    <Redactable hide={hide}>
+    <Redactable hide={hide} mask={fmtRounded(cents)}>
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtRounded(String(Math.round(n)))}
@@ -264,6 +275,24 @@ export function OverviewCards({
   const sdRaw = spendHealth?.surplus_deficit_cents ?? null;
   const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
   const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
+  // Reserves-note amount (short → missing, surplus → extra, ok → needed). Lifted
+  // out so it feeds BOTH the rendered text and the privacy mask length.
+  const reservesNoteAmount = centsToDisplayCompact(
+    data.reserves.status === "surplus"
+      ? (
+          BigInt(data.available_reserves_cents) -
+          BigInt(data.reserves.required_cents)
+        ).toString()
+      : data.reserves.status === "short"
+        ? (
+            BigInt(data.reserves.required_cents) -
+            BigInt(data.available_reserves_cents)
+          ).toString()
+        : data.reserves.required_cents,
+    ccy,
+    "en",
+    true,
+  );
 
   return (
     <div
@@ -372,7 +401,12 @@ export function OverviewCards({
                           // No cents — match the hero capitalization number.
                           amount: fmtRounded(data.investment_value_cents),
                           amt: (chunks) => (
-                            <Redactable hide={hide}>{chunks}</Redactable>
+                            <Redactable
+                              hide={hide}
+                              mask={fmtRounded(data.investment_value_cents)}
+                            >
+                              {chunks}
+                            </Redactable>
                           ),
                         })}
                       </p>
@@ -402,7 +436,10 @@ export function OverviewCards({
                             aria-hidden="true"
                           />
                         )}
-                        <Redactable hide={hide}>
+                        <Redactable
+                          hide={hide}
+                          mask={`${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`}
+                        >
                           <AnimatedFigure
                             value={pl.delta_pct}
                             format={(n) =>
@@ -570,24 +607,11 @@ export function OverviewCards({
                 {
                   // short → how much is MISSING, surplus → how much is EXTRA (both
                   // with cents, matching the spendings tab); ok → the needed amount.
-                  amount: centsToDisplayCompact(
-                    data.reserves.status === "surplus"
-                      ? (
-                          BigInt(data.available_reserves_cents) -
-                          BigInt(data.reserves.required_cents)
-                        ).toString()
-                      : data.reserves.status === "short"
-                        ? (
-                            BigInt(data.reserves.required_cents) -
-                            BigInt(data.available_reserves_cents)
-                          ).toString()
-                        : data.reserves.required_cents,
-                    ccy,
-                    "en",
-                    true,
-                  ),
+                  amount: reservesNoteAmount,
                   amt: (chunks) => (
-                    <Redactable hide={hide}>{chunks}</Redactable>
+                    <Redactable hide={hide} mask={reservesNoteAmount}>
+                      {chunks}
+                    </Redactable>
                   ),
                 },
               )}
@@ -669,7 +693,14 @@ export function OverviewCards({
                       format={(n) => formatRunway(n, runwayUnits)}
                     />
                   );
-                  return <Redactable hide={hide}>{node}</Redactable>;
+                  const mask = unlimited
+                    ? "∞"
+                    : formatRunway(data.cushion.real_months, runwayUnits);
+                  return (
+                    <Redactable hide={hide} mask={mask}>
+                      {node}
+                    </Redactable>
+                  );
                 })()}
               </span>
             </p>

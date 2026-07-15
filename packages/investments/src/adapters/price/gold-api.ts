@@ -16,6 +16,11 @@ import {
   type ProviderId,
   NoPriceAvailable,
 } from "../../ports/price-provider";
+import {
+  sanePositiveNumber,
+  assertBodyUnderCap,
+  PRICE_BODY_CAP_BYTES,
+} from "@budget/shared-kernel";
 
 const GOLD_API_HOST = "https://api.gold-api.com";
 const TIMEOUT_MS = 8000;
@@ -33,9 +38,19 @@ export class GoldApiPriceProvider implements PriceProvider {
       { signal: AbortSignal.timeout(TIMEOUT_MS) },
     );
     if (!res.ok) throw new NoPriceAvailable(symbol, "gold_api");
+    try {
+      assertBodyUnderCap(res, PRICE_BODY_CAP_BYTES);
+    } catch {
+      throw new NoPriceAvailable(symbol, "gold_api");
+    }
 
     const body = (await res.json()) as { price?: number };
     if (body.price === undefined || body.price === null) {
+      throw new NoPriceAvailable(symbol, "gold_api");
+    }
+    try {
+      sanePositiveNumber(body.price);
+    } catch {
       throw new NoPriceAvailable(symbol, "gold_api");
     }
     return {

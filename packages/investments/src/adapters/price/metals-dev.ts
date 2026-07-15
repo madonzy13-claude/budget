@@ -12,6 +12,11 @@ import {
   NoPriceAvailable,
   MetalsDailyOnlyError,
 } from "../../ports/price-provider";
+import {
+  sanePositiveNumber,
+  assertBodyUnderCap,
+  PRICE_BODY_CAP_BYTES,
+} from "@budget/shared-kernel";
 
 const METALS_DEV_HOST = "https://api.metals.dev";
 const TIMEOUT_MS = 8000;
@@ -41,10 +46,20 @@ export class MetalsDevPriceProvider implements PriceProvider {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) throw new NoPriceAvailable(symbol, "metals_dev");
+    try {
+      assertBodyUnderCap(res, PRICE_BODY_CAP_BYTES);
+    } catch {
+      throw new NoPriceAvailable(symbol, "metals_dev");
+    }
 
     const body = (await res.json()) as { metals?: Record<string, number> };
     const price = body.metals?.[symbol] ?? body.metals?.[symbol.toLowerCase()];
     if (price === undefined || price === null) {
+      throw new NoPriceAvailable(symbol, "metals_dev");
+    }
+    try {
+      sanePositiveNumber(price);
+    } catch {
       throw new NoPriceAvailable(symbol, "metals_dev");
     }
 

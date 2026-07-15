@@ -106,4 +106,30 @@ describe("TwelveDataPriceProvider", () => {
       provider.currentPrice("AAPL", "twelve_data"),
     ).rejects.toBeInstanceOf(NoPriceAvailable);
   });
+
+  test.each([-5, 0, "NaN", "Infinity", 1e13])(
+    "insane upstream price %p throws NoPriceAvailable (never enters money math)",
+    async (price) => {
+      const { fn } = mockFetch(() => ({
+        ok: true,
+        status: 200,
+        body: { price },
+      }));
+      const provider = new TwelveDataPriceProvider("KEY", fn);
+      await expect(
+        provider.currentPrice("AAPL", "twelve_data"),
+      ).rejects.toBeInstanceOf(NoPriceAvailable);
+    },
+  );
+
+  test("a valid price string passes through byte-identical", async () => {
+    const { fn } = mockFetch(() => ({
+      ok: true,
+      status: 200,
+      body: { price: "189.500" },
+    }));
+    const provider = new TwelveDataPriceProvider("KEY", fn);
+    const quote = await provider.currentPrice("AAPL", "twelve_data");
+    expect(quote.price).toBe("189.500"); // trailing zero preserved
+  });
 });

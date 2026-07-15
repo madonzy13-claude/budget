@@ -278,6 +278,17 @@ export function createAuth(opts: CreateAuthOptions) {
       database: {
         generateId: () => crypto.randomUUID(),
       },
+      // SEC: pin the rate-limiter's client-IP resolution to Cloudflare's
+      // cf-connecting-ip. Better Auth's default reads the leftmost X-Forwarded-For,
+      // which a client can spoof per-request to rotate their apparent IP and defeat
+      // the per-IP brute-force throttle on sign-in/reset. Prod sits behind the
+      // cloudflared tunnel, which sets cf-connecting-ip to the true client IP
+      // un-spoofably (it overwrites any inbound value) and the Next.js /auth/*
+      // rewrite forwards it to the API. In dev (no Cloudflare) the header is
+      // absent and Better Auth falls back to the socket peer address.
+      ipAddress: {
+        ipAddressHeaders: ["cf-connecting-ip"],
+      },
     },
     emailAndPassword: {
       enabled: true,

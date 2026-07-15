@@ -207,7 +207,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     const { id: budgetId } = c.req.param();
     const body = c.req.valid("json");
 
-    const { withBootstrapUserContext, appPool } =
+    const { withBootstrapUserContext, withUserContext } =
       await import("@budget/platform");
 
     const lookup = await withBootstrapUserContext(
@@ -240,23 +240,23 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     const invitationId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    try {
-      await appPool().query(
-        `INSERT INTO tenancy.budget_invitations
+    // SEC: run the INSERT through withUserContext (sets app.current_user_id)
+    // rather than a raw appPool().query. budget_invitations is intentionally
+    // RLS-exempt (token/email-keyed, mirrors identity.verifications), so the
+    // owner-check above is the real gate — but keeping every write on a context
+    // helper preserves the greppable "no raw-pool writes" invariant and sets a
+    // user GUC for audit consistency. Values are Drizzle-parameterized.
+    const ins = await withUserContext(UserId(session.user.id), async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO tenancy.budget_invitations
           (id, budget_id, email, role, status, inviter_id, expires_at)
-         VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
-        [
-          invitationId,
-          budgetId,
-          body.email,
-          body.role,
-          session.user.id,
-          expiresAt,
-        ],
-      );
-    } catch (e) {
-      console.error("[invite] insert failed:", (e as Error).message);
-      throw e;
+        VALUES (${invitationId}::uuid, ${budgetId}::uuid, ${body.email},
+                ${body.role}, 'pending', ${session.user.id}::uuid, ${expiresAt})
+      `);
+    });
+    if (ins.isErr()) {
+      console.error("[invite] insert failed:", ins.error.message);
+      throw ins.error;
     }
 
     try {
@@ -331,13 +331,41 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     },
   );
 
-  // PUT /budgets/:id/shares — update member shares
+  // PUT /budgets/:id/shares — update member shares (owner-only)
   r.put("/:id/shares", zValidator("json", sharesSchema), async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const { id: budgetId } = c.req.param();
     const body = c.req.valid("json");
+
+    // SEC: tenant gate — caller must be a member of THIS budget. Without this,
+    // memberShareRepo.update() opens withTenantTx(budgetId, …) which SET LOCALs
+    // app.tenant_ids to the URL id, so RLS (budget_id = ANY(app.tenant_ids))
+    // passes for ANY budget and a non-member could overwrite another
+    // household's contribution splits. tenantIds is the membership-verified set
+    // from tenant-guard; the URL param is never trusted on its own.
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    // Owner-only gate — shares are a settings-level mutation, matching every
+    // other budget-settings write (invite / role / archive / identity PATCH).
+    let members: { userId: string; role: string }[];
+    try {
+      members = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+    } catch (e) {
+      console.error("[update-shares] listMembers failed:", e);
+      return c.json({ error: "internal" }, 500);
+    }
+    const callerEntry = members.find((m) => m.userId === session.user.id);
+    if (!callerEntry) {
+      return c.json({ error: "Member not found" }, 404);
+    }
+    if (callerEntry.role !== "owner") {
+      return c.json({ error: "forbidden" }, 403);
+    }
 
     await deps.tenancy.memberShareRepo.update(
       budgetId,

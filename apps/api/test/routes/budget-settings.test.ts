@@ -9,17 +9,23 @@ import { describe, it, expect } from "bun:test";
 import { Hono } from "hono";
 
 describe("Budget settings route", () => {
-  function buildApp(userId: string, tenantId: string) {
+  function buildApp(userId: string, tenantId: string, callerRole = "owner") {
     const {
       createBudgetSettingsRoute,
     } = require("../../src/routes/budget-settings");
 
     const fakeDeps = {
+      tenancy: {
+        workspaceRepo: {
+          listMembers: async () => [{ userId, role: callerRole }],
+        },
+      },
       budgeting: {
         toggleBudgetMode: async (_input: any) => {
           const { ok } = require("@budget/shared-kernel");
           return ok({ mode: "NORMAL" });
         },
+        recomputeIncomeUnderPlannedRunner: async () => {},
       },
     } as any;
 
@@ -34,7 +40,7 @@ describe("Budget settings route", () => {
     return app;
   }
 
-  it("POST /budget-settings/budget-mode updates budget identity", async () => {
+  it("POST /budget-settings/budget-mode as owner updates budget identity", async () => {
     const app = buildApp("user-001", "tenant-001");
     const res = await app.request("/budget-settings/budget-mode", {
       method: "POST",
@@ -42,6 +48,16 @@ describe("Budget settings route", () => {
       body: JSON.stringify({ mode: "NORMAL", effectiveFrom: "2026-01-01" }),
     });
     expect(res.status).toBe(200);
+  });
+
+  it("POST /budget-settings/budget-mode as non-owner member → 403", async () => {
+    const app = buildApp("user-001", "tenant-001", "member");
+    const res = await app.request("/budget-settings/budget-mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "NORMAL", effectiveFrom: "2026-01-01" }),
+    });
+    expect(res.status).toBe(403);
   });
 
   it("PATCH /workspace-settings returns 404", async () => {

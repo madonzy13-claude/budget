@@ -114,31 +114,40 @@ describe("Budget member routes (SETT-05, SETT-07)", () => {
   // ── Role change (promote/demote owners) — T-06 ownership ──────────────────
   it("POST .../role promote member→owner as owner → 200", async () => {
     const app = buildApp({ user: { id: "user-owner" } });
-    const res = await app.request("/budgets/budget-001/members/user-member/role", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "owner" }),
-    });
+    const res = await app.request(
+      "/budgets/budget-001/members/user-member/role",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "owner" }),
+      },
+    );
     expect(res.status).toBe(200);
   });
 
   it("POST .../role as non-owner → 403", async () => {
     const app = buildApp({ user: { id: "user-member" } });
-    const res = await app.request("/budgets/budget-001/members/user-owner/role", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "owner" }),
-    });
+    const res = await app.request(
+      "/budgets/budget-001/members/user-owner/role",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "owner" }),
+      },
+    );
     expect(res.status).toBe(403);
   });
 
   it("POST .../role invalid role → 400", async () => {
     const app = buildApp({ user: { id: "user-owner" } });
-    const res = await app.request("/budgets/budget-001/members/user-member/role", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "admin" }),
-    });
+    const res = await app.request(
+      "/budgets/budget-001/members/user-member/role",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    );
     expect(res.status).toBe(400);
   });
 
@@ -175,11 +184,14 @@ describe("Budget member routes (SETT-05, SETT-07)", () => {
         auth: { api: { updateMemberRole: async () => ({}) } },
       },
     });
-    const res = await app.request("/budgets/budget-001/members/user-owner/role", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "member" }),
-    });
+    const res = await app.request(
+      "/budgets/budget-001/members/user-owner/role",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "member" }),
+      },
+    );
     expect(res.status).toBe(409);
     expect(((await res.json()) as any).error).toBe("last_owner");
   });
@@ -308,5 +320,85 @@ describe("Budget members — regression: share + leave (D-15, D-12)", () => {
     const budgetBody = (await budgetRes.json()) as any;
     expect(budgetBody.id).toBeDefined();
     expect(budgetBody.members).toBeUndefined();
+  });
+});
+
+describe("PUT /budgets/:id/shares — authorization (SEC: cross-tenant + role)", () => {
+  // Rebuilds the budgets app with a memberShareRepo whose update() records the
+  // budgetId it was asked to write, so we can assert it is NEVER reached on a
+  // rejected request (a plain status assertion would pass even if the write
+  // already happened before the response).
+  function buildApp(session: unknown, tenantBudgetId = "budget-001") {
+    const app = new Hono();
+    app.use(async (c: any, next: any) => {
+      c.set("session", session as any);
+      c.set("tenantIds", session ? [tenantBudgetId] : []);
+      await next();
+    });
+
+    const updatedBudgets: string[] = [];
+    const { budgetsRoutesFactory } = require("../../src/routes/budgets");
+    const fakeDeps = {
+      tenancy: {
+        workspaceRepo: {
+          findById: async () => null,
+          listForUser: async () => [],
+          listMembers: async () => [
+            { userId: "user-owner", role: "owner" },
+            { userId: "user-member", role: "member" },
+          ],
+        },
+        memberShareRepo: {
+          list: async () => [],
+          update: async (budgetId: string) => {
+            updatedBudgets.push(budgetId);
+          },
+        },
+      },
+      identity: { userRepo: {}, auth: { api: {} } },
+      emailSender: { send: async () => {} },
+      env: { APP_URL: "http://localhost:3000" },
+      budgeting: {},
+    } as any;
+
+    app.route("/budgets", budgetsRoutesFactory(fakeDeps));
+    return { app, updatedBudgets };
+  }
+
+  const body = JSON.stringify({
+    shares: [{ userId: "user-attacker", percentage: "100" }],
+  });
+  const put = {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body,
+  };
+
+  it("owner of the budget → 200 (no regression)", async () => {
+    const { app, updatedBudgets } = buildApp({ user: { id: "user-owner" } });
+    const res = await app.request("/budgets/budget-001/shares", put);
+    expect(res.status).toBe(200);
+    expect(updatedBudgets).toEqual(["budget-001"]);
+  });
+
+  it("cross-tenant: writing a budget the caller is NOT a member of → 404, no write", async () => {
+    // Attacker's verified tenant is budget-001; they target other-budget via the URL.
+    const { app, updatedBudgets } = buildApp({ user: { id: "user-owner" } });
+    const res = await app.request("/budgets/other-budget/shares", put);
+    expect(res.status).toBe(404);
+    expect(updatedBudgets).toEqual([]); // update() must never be reached
+  });
+
+  it("non-owner member of the budget → 403, no write", async () => {
+    const { app, updatedBudgets } = buildApp({ user: { id: "user-member" } });
+    const res = await app.request("/budgets/budget-001/shares", put);
+    expect(res.status).toBe(403);
+    expect(updatedBudgets).toEqual([]);
+  });
+
+  it("unauthenticated → 401", async () => {
+    const { app } = buildApp(null);
+    const res = await app.request("/budgets/budget-001/shares", put);
+    expect(res.status).toBe(401);
   });
 });

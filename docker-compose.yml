@@ -24,7 +24,14 @@ services:
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
       - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     ports:
-      - "5432:5432"
+      # SEC: bind to loopback only. "5432:5432" publishes on 0.0.0.0 (every host
+      # interface) — on a host without an external firewall that exposes Postgres
+      # to the LAN/internet, guarded only by role passwords. 127.0.0.1 keeps the
+      # port reachable for local psql + CI (which connects host→localhost:5432,
+      # ci.yml migration step) while removing all off-host exposure. Prod
+      # api/worker/migrator reach the DB over the compose network (@db:5432),
+      # never via the host, so nothing production needs this mapping.
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d budget"]
       interval: 2s

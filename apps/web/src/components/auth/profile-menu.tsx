@@ -60,7 +60,11 @@ import {
 } from "@/components/settings/theme-toggle";
 import { signOut } from "@/lib/auth-client";
 import { initialsOf } from "@/lib/initials";
-import { clearQueryCache, dropLegacyBudgetCache } from "@/lib/query-persist";
+import {
+  clearQueryCache,
+  dropLegacyBudgetCache,
+  clearAuthSwCaches,
+} from "@/lib/query-persist";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -222,7 +226,11 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
       // Tenant safety: clear the per-browser caches so the next user on this
       // device never sees this user's cached budget data — the persisted React
       // Query cache + the removed legacy offline-cache IDB.
-      await Promise.allSettled([clearQueryCache(), dropLegacyBudgetCache()]);
+      await Promise.allSettled([
+        clearQueryCache(),
+        dropLegacyBudgetCache(),
+        clearAuthSwCaches(),
+      ]);
       await signOut();
       router.push(`/${locale}/sign-in`);
       router.refresh();

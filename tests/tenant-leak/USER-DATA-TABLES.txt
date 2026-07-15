@@ -41,6 +41,17 @@ tenancy.budget_share_links                TENANT-SCOPED # budget_share_links_ten
 tenancy.onboarding_progress               USER-SCOPED   # onboarding_progress_owner_only policy (app.current_user_id); ONBD-07, Phase 6
 shared_kernel.push_subscriptions          TENANT-SCOPED # push_subscriptions_tenant_isolation policy (app.tenant_ids); T-08-01-01, Phase 8
 shared_kernel.notification_prefs          TENANT-SCOPED # notification_prefs_tenant_isolation policy (app.tenant_ids); T-08-01-01, Phase 8
+shared_kernel.idempotency_keys            TENANT-SCOPED # idempotency_keys_tenant_isolation policy (app.tenant_ids)
+budgeting.wallets                         TENANT-SCOPED # wallets_tenant_isolation policy (app.tenant_ids)
+budgeting.categories                      TENANT-SCOPED # categories_tenant_isolation policy (app.tenant_ids)
+budgeting.category_limits                 TENANT-SCOPED # category_limits_tenant_isolation policy (app.tenant_ids)
+budgeting.category_share_overrides        TENANT-SCOPED # category_share_overrides_tenant_isolation policy (app.tenant_ids)
+budgeting.incomes                         TENANT-SCOPED # incomes_tenant_isolation policy (app.tenant_ids)
+budgeting.recurring_rules                 TENANT-SCOPED # recurring_rules_tenant_isolation policy (app.tenant_ids)
+budgeting.budget_templates                TENANT-SCOPED # budget_templates_tenant_isolation policy (app.tenant_ids)
+budgeting.budget_template_items           TENANT-SCOPED # budget_template_items_tenant_isolation policy (app.tenant_ids)
+budgeting.budget_wealth_snapshots         TENANT-SCOPED # budget_wealth_snapshots_tenant_isolation policy (app.tenant_ids)
+budgeting.spending_by_category_month      TENANT-SCOPED # spending_by_category_month_tenant_isolation policy (app.tenant_ids)
 
 # ============================================================
 # EXCLUDED — infrastructure, NOT under RLS (Pitfall 10)
@@ -49,6 +60,15 @@ shared_kernel.notification_prefs          TENANT-SCOPED # notification_prefs_ten
 shared_kernel.outbox                      EXCLUDED      # Pitfall 10: GRANT-restricted infrastructure (app_role INSERT only, worker_role SELECT/UPDATE only); no FORCE RLS by design
 identity.verifications                    EXCLUDED      # token-keyed lookups; the token IS the credential; no row-level filtering needed
 tenancy.budget_invitations                EXCLUDED      # token-keyed; same pattern as identity.verifications
+# Global reference / shared-catalog data — same for every tenant, no per-row owner (no RLS by design):
+budgeting.fx_rates                        EXCLUDED      # FX rate cache — global reference data, identical for all tenants
+budgeting.supported_currencies            EXCLUDED      # supported-currency catalogue — global reference
+budgeting.instruments                     EXCLUDED      # instrument (ticker) catalogue — global reference
+budgeting.instrument_price_cache          EXCLUDED      # live price cache — global reference, keyed by instrument not tenant
+budgeting.instrument_price_snapshots      EXCLUDED      # historical price snapshots — global reference
+# Infrastructure counters / dirty-flags (GRANT-scoped, no tenant financial data):
+budgeting.api_rate_limits                 EXCLUDED      # per-user on-demand price-fetch rate counters; infra, keyed by user_id
+budgeting.budget_share_dirty              EXCLUDED      # internal share-recompute dirty flags; infra
 identity.users                            EXCLUDED      # Phase 1: SELECT permissive (Better Auth needs pre-auth lookups for sign-in / duplicate-check / verify). UPDATE/DELETE still RLS-gated by app.current_user_id. PII at rest is the email_encrypted/name_encrypted columns (D-16 crypto-shredding); plain email/name are compat-only and slated for removal in Phase 6.
 identity.accounts                         EXCLUDED      # Phase 1: SELECT permissive for Better Auth password-hash lookup during sign-in. Password column is hashed (argon2/bcrypt). UPDATE/DELETE remain RLS-gated.
 # pgboss.*                               EXCLUDED      # job queue infrastructure (separate pgboss schema)

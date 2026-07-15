@@ -29,8 +29,25 @@ export function createBudgetSettingsRoute(deps: BootedDeps) {
     }
 
     const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
+
+    // SEC: owner-only. Budget mode is a settings-level change; its twin entrance
+    // (budget-identity PATCH cushion_mode_enabled → same toggleBudgetMode
+    // service) is owner-gated, so this route must be too. pickTenant is the
+    // membership-verified tenantIds[0], so the caller is a member — we only need
+    // to confirm they are an OWNER.
+    let members: { userId: string; role: string }[];
+    try {
+      members = await deps.tenancy.workspaceRepo.listMembers(tenantId);
+    } catch (e) {
+      console.error("[budget-mode] listMembers failed:", e);
+      return c.json({ error: "internal" }, 500);
+    }
+    const caller = members.find((m) => m.userId === userId);
+    if (!caller) return c.json({ error: "not_found" }, 404);
+    if (caller.role !== "owner") return c.json({ error: "forbidden" }, 403);
 
     const r = await deps.budgeting.toggleBudgetMode({
       tenantId,

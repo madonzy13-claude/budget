@@ -55,14 +55,16 @@ vi.mock("@/components/common/user-timezone-provider", () => ({
 const renderCards = (amountPrivacyEnabled = true) =>
   render(
     <BdpUiStateProvider>
-      <OverviewCards budgetId="b1" amountPrivacyEnabled={amountPrivacyEnabled} />
+      <OverviewCards
+        budgetId="b1"
+        amountPrivacyEnabled={amountPrivacyEnabled}
+      />
     </BdpUiStateProvider>,
   );
 
 const heroText = () =>
-  screen
-    .getByTestId("overview-card-capitalization")
-    .querySelector(".num")!.textContent ?? "";
+  screen.getByTestId("overview-card-capitalization").querySelector(".num")!
+    .textContent ?? "";
 
 describe("Overview amount privacy", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -70,21 +72,22 @@ describe("Overview amount privacy", () => {
   it("starts hidden: redaction bars cover the figures + Show-amounts eye", () => {
     renderCards();
     expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
-    expect(screen.getByTestId("privacy-toggle").getAttribute("aria-label")).toBe(
-      "cards.privacyShow",
-    );
+    expect(
+      screen.getByTestId("privacy-toggle").getAttribute("aria-label"),
+    ).toBe("cards.privacyShow");
     // Figures are covered by redaction bars.
     expect(screen.getAllByTestId("redaction-bar").length).toBeGreaterThan(0);
-    // Zero-jump cover: the real number stays mounted but is rendered invisible
-    // (reserves the exact box) with the bar overlaid — so toggling never shifts
-    // the layout. The hero .num therefore holds both a bar and the (hidden) digits.
+    // SECURITY (not-in-DOM): when hidden the real digits must be ABSENT from the
+    // DOM — a bullet placeholder reserves the box (no layout jump) and the bar
+    // overlays it. The hero .num holds a bar + bullets, never the actual number.
     const heroNum = screen
       .getByTestId("overview-card-capitalization")
       .querySelector(".num")!;
     expect(
       heroNum.querySelector('[data-testid="redaction-bar"]'),
     ).not.toBeNull();
-    expect(heroNum.querySelector(".invisible")?.textContent ?? "").toMatch(/\d/);
+    expect(heroNum.textContent ?? "").not.toMatch(/\d/);
+    expect(heroNum.textContent ?? "").toContain("•");
   });
 
   it("reveals the real amount on click and re-covers on a second click", () => {
