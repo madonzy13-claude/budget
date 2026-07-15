@@ -10,7 +10,8 @@ import { type Page, type Locator } from "@playwright/test";
  * Testids from wizard components:
  *   data-testid="onboarding-step-title"   — wizard-page.tsx / step heading
  *   data-testid="wizard-stepper"          — wizard-stepper.tsx
- *   data-testid="onboarding-push-switch"  — step-features.tsx (push FeatureRow)
+ *
+ * (Push opt-in was moved out of the wizard into Settings → Notifications, r37.)
  *
  * Navigation buttons (wizard-layout.tsx) have no testids; located by role/text:
  *   "Next" / "Create budget" — yellow filled button (onNext)
@@ -27,11 +28,6 @@ export class OnboardingPo {
   /** The wizard stepper indicator bar. */
   stepper(): Locator {
     return this.page.getByTestId("wizard-stepper");
-  }
-
-  /** The push-notifications enable/disable switch (on the Features step). */
-  pushStepSwitch(): Locator {
-    return this.page.getByTestId("onboarding-push-switch");
   }
 
   /**

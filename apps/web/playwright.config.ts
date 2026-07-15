@@ -44,7 +44,12 @@ export default defineConfig({
   // a feature file occasionally hits "bddTestData not found" when picked up by
   // a fresh worker before its bdd-data registry is populated. A single retry
   // masks the race reliably. Removable once playwright-bdd ships a fix.
-  retries: 1,
+  //
+  // On CI, allow 2 retries: the box is contended (fresh-user scenarios against a
+  // just-built stack) and a couple of scenarios have documented cold-cache/
+  // cover-dialog timing flakes (reserves golden timeline, share-link generate).
+  // A retried test must still pass — this absorbs non-determinism, not real bugs.
+  retries: process.env["CI"] ? 2 : 1,
   reporter: [["list"]],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",

@@ -77,19 +77,6 @@ When(
 );
 
 Then(
-  "the push opt-in switch is present on the features step",
-  async ({ page }) => {
-    const onboarding = new OnboardingPo(page);
-    await expect(onboarding.pushStepSwitch()).toBeVisible({ timeout: 8000 });
-  },
-);
-
-When("I enable push on the features step", async ({ page }) => {
-  const onboarding = new OnboardingPo(page);
-  await onboarding.pushStepSwitch().click();
-});
-
-Then(
   "the wizard page does not overflow the mobile viewport",
   async ({ page }) => {
     // 260618 UAT fix: the wizard <main> dropped min-h-screen so a short step
