@@ -10,10 +10,6 @@ Feature: Recurring drafts — confirm and dismiss flows in Spendings
     Then the draft row for rule "Rent" is visible
     And the draft confirm button is visible
 
-  # @ci-only: confirm→disappear is load-sensitive (RSC re-render race under a
-  # contended runner); passes 6/6 locally. Runs in CI (with retries), skipped
-  # in local runs. See playwright.config.ts grepInvert.
-  @ci-only
   Scenario: Confirming a draft removes it from the draft section
     Given a recurring rule "Rent" is due this month in budget "My E2E Budget"
     When I open the spendings tab for "My E2E Budget"

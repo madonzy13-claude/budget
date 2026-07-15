@@ -80,12 +80,15 @@ When(
     // Reveal the action buttons via tap-reveal (works on all viewports;
     // hover-reveal only exists above the `sm` breakpoint).
     await row.click();
-    // Wait for the revealed confirm button before clicking — under CI load the
-    // reveal + button mount can lag, and clicking a not-yet-actionable button
-    // silently no-ops, leaving the draft in place (flaky "still visible").
     const confirmBtn = spendings.draftConfirmButton();
     await expect(confirmBtn).toBeVisible({ timeout: 8000 });
-    await confirmBtn.click();
+    // dispatchEvent('click') instead of .click(): confirming fires
+    // useConfirmDraft, which removes the draft and UNMOUNTS this row. Playwright's
+    // normal .click() re-checks actionability and sees the element detach
+    // mid-gesture, then retries until the 30s test timeout (deterministic hang on
+    // a slower CI-chromium re-render; passes locally). A dispatched click fires
+    // the React onClick directly, no hover/stability dance to lose the element to.
+    await confirmBtn.dispatchEvent("click");
   },
 );
 
