@@ -32,6 +32,18 @@ export interface BudgetRepo {
     role?: "owner" | "member",
   ): Promise<void>;
   /**
+   * Set an existing member's role (promote to owner / demote to member).
+   * The org plugin only READS the role column, so a direct write is correct;
+   * callers enforce the owner-only + last-owner guards. Used by
+   * POST /budgets/:id/members/:memberId/role.
+   */
+  setMemberRole(
+    budgetId: string,
+    userId: string,
+    role: "owner" | "member",
+    actorUserId: string,
+  ): Promise<void>;
+  /**
    * Remove `userId` from `budgetId` membership. Throws `Error("last_owner")`
    * if the user is the sole remaining owner — callers map that to 409.
    * Used by the Leave-budget flow where Better Auth's leaveOrganization
