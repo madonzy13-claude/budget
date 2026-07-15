@@ -97,6 +97,7 @@ export function ShareUrlField({ budgetId }: ShareUrlFieldProps) {
     return (
       <Button
         variant="outline"
+        data-testid="generate-share-link"
         className="border-[var(--hairline-on-dark)] text-[var(--body)]"
         onClick={generate}
         disabled={generating}

@@ -3,6 +3,10 @@ node_modules/
 dist/
 coverage/
 .env.local
+# Production secrets live here (never committed). The tracked `.env` is the
+# non-secret dev placeholder; prod uses `.env.prod` via `--env-file .env.prod`.
+.env.prod
+.env.*.local
 *.log
 .turbo/
 playwright-report/

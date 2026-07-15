@@ -132,6 +132,69 @@ export function PushPrefsSection({
     });
   }
 
+  // r37: app-icon BADGE opt-out for THIS budget (default ON). Independent of the
+  // push master — the badge is the PWA icon count, not a push notification, so it
+  // shows above the master and works without notification permission.
+  const badgeEnabled = useMemo(() => {
+    const p = prefsQuery.data?.preferences.find(
+      (x) => x.notificationType === "BADGE",
+    );
+    // Opt-in: OFF until the user turns it on.
+    return p ? p.enabled : false;
+  }, [prefsQuery.data]);
+
+  function setBadgeCache(enabled: boolean) {
+    qc.setQueryData<PushPreferencesData>(pushPrefsKey(budgetId), (old) => {
+      const prefs = (old?.preferences ?? []).slice();
+      const idx = prefs.findIndex((p) => p.notificationType === "BADGE");
+      if (idx >= 0) prefs[idx] = { ...prefs[idx]!, enabled };
+      else prefs.push({ notificationType: "BADGE", enabled });
+      return { preferences: prefs };
+    });
+  }
+
+  // Update the per-budget map that <AppBadge> aggregates (keyed
+  // ["badge-prefs", <sorted budget ids>]) so the app-icon count changes INSTANTLY
+  // when this budget's opt-in flips — no reload/refetch needed.
+  function setBadgePrefCache(enabled: boolean) {
+    qc.setQueriesData<Record<string, boolean>>(
+      { queryKey: ["badge-prefs"] },
+      (old) => ({ ...(old ?? {}), [budgetId]: enabled }),
+    );
+  }
+
+  async function handleBadgeToggle(checked: boolean) {
+    // Turning the badge ON needs notification permission — the App Badging API
+    // only paints the icon count for an installed PWA that's allowed to notify
+    // (required on iOS). Ask before enabling; if it's not granted, leave it OFF.
+    if (checked) {
+      if (typeof Notification === "undefined") {
+        toast.error(t("unsupported"));
+        return;
+      }
+      let perm = Notification.permission;
+      if (perm === "default") perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        toast.error(t("permissionDenied"));
+        return;
+      }
+    }
+    const previous = badgeEnabled;
+    setBadgeCache(checked);
+    setBadgePrefCache(checked); // instant app-icon update
+    try {
+      const res = await api.push.preferences.$patch({
+        json: { budgetId, notificationType: "BADGE", enabled: checked },
+      });
+      if (!res.ok) throw new Error("Patch failed");
+      toast.success(t("saved"));
+    } catch {
+      setBadgeCache(previous);
+      setBadgePrefCache(previous);
+      toast.error(t("subscribeError"));
+    }
+  }
+
   // r32: budget-update reminder — enabled + selected weekdays (default all 7).
   const reminder = useMemo(() => {
     const p = prefsQuery.data?.preferences.find(
@@ -226,6 +289,25 @@ export function PushPrefsSection({
       if (result === "subscribed") {
         setMasterCache(true);
         toast.success(t("saved"));
+        // Auto-enable the app-icon badge the first time push is turned on —
+        // permission is now granted. Only when prefs have LOADED and there's no
+        // BADGE row yet, so a manual choice (on OR off) is never overridden and we
+        // never guess from a not-yet-loaded cache.
+        const prefs = prefsQuery.data;
+        const badgePref = prefs?.preferences.find(
+          (p) => p.notificationType === "BADGE",
+        );
+        if (prefs && !badgePref) {
+          setBadgeCache(true);
+          setBadgePrefCache(true); // instant app-icon update
+          try {
+            await api.push.preferences.$patch({
+              json: { budgetId, notificationType: "BADGE", enabled: true },
+            });
+          } catch {
+            /* best-effort */
+          }
+        }
       } else {
         setMasterCache(false);
         // Distinct causes: an explicit permission block vs. push not available on
@@ -285,6 +367,26 @@ export function PushPrefsSection({
           disabled={isLoading}
           onCheckedChange={handleMasterToggle}
           aria-label={t("enableLabel")}
+        />
+      </div>
+
+      {/* r37: app-icon Badge — BELOW push. Enabling push auto-enables this (push
+          grants the notification permission the badge needs) UNLESS the user has
+          already set it manually. */}
+      <div className="flex items-center justify-between border-t border-[var(--hairline-on-dark)] pt-4">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium text-[var(--body-on-dark)]">
+            {t("badge.label")}
+          </p>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {t("badge.description")}
+          </p>
+        </div>
+        <Switch
+          data-testid="push-badge-switch"
+          checked={badgeEnabled}
+          onCheckedChange={handleBadgeToggle}
+          aria-label={t("badge.label")}
         />
       </div>
 

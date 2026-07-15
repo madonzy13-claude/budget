@@ -59,7 +59,12 @@ import {
   type Theme,
 } from "@/components/settings/theme-toggle";
 import { signOut } from "@/lib/auth-client";
-import { clearQueryCache, dropLegacyBudgetCache } from "@/lib/query-persist";
+import { initialsOf } from "@/lib/initials";
+import {
+  clearQueryCache,
+  dropLegacyBudgetCache,
+  clearAuthSwCaches,
+} from "@/lib/query-persist";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -75,16 +80,6 @@ export interface ProfileMenuProps {
     name: string;
     email: string;
   };
-}
-
-function initialsOf(name: string, email: string): string {
-  const source = (name || email || "").trim();
-  if (!source) return "?";
-  const parts = source.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2 && parts[0] && parts[1]) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return source.slice(0, 2).toUpperCase();
 }
 
 export function ProfileMenu({ locale, user }: ProfileMenuProps) {
@@ -231,7 +226,11 @@ export function ProfileMenu({ locale, user }: ProfileMenuProps) {
       // Tenant safety: clear the per-browser caches so the next user on this
       // device never sees this user's cached budget data — the persisted React
       // Query cache + the removed legacy offline-cache IDB.
-      await Promise.allSettled([clearQueryCache(), dropLegacyBudgetCache()]);
+      await Promise.allSettled([
+        clearQueryCache(),
+        dropLegacyBudgetCache(),
+        clearAuthSwCaches(),
+      ]);
       await signOut();
       router.push(`/${locale}/sign-in`);
       router.refresh();

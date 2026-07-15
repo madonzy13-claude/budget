@@ -80,7 +80,10 @@ export type AccountDto = WalletDto;
  * (the old account_balance_adjustments table was dropped by migration 0013).
  */
 export const setBalanceSchema = z.object({
-  amount: z.string().regex(/^-?\d+(\.\d+)?$/), // signed decimal (negative allowed for overdraft)
+  // SEC: digit-capped so magnitude stays under Number.MAX_SAFE_INTEGER once
+  // multiplied to cents (Big(amount)*100). Integer part ≤13 digits ($10T),
+  // ≤4 decimals for crypto. Negative allowed for overdraft/credit-card wallets.
+  amount: z.string().regex(/^-?\d{1,13}(\.\d{1,4})?$/),
   currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
 });
 
@@ -140,18 +143,24 @@ export interface CategoryDto {
 // ---------------------------------------------------------------------------
 
 export const setLimitSchema = z.object({
-  normalAmount: z.string().regex(/^\d+$/), // bigint cents as string
+  normalAmount: z.string().regex(/^\d{1,15}$/), // bigint cents as string
   // 0061: the needs/wants split of normalAmount (= needs + wants). Optional —
   // the slider sends them so the split survives reopen; omitted → columns NULL.
-  needsAmount: z.string().regex(/^\d+$/).optional(),
-  wantsAmount: z.string().regex(/^\d+$/).optional(),
+  needsAmount: z
+    .string()
+    .regex(/^\d{1,15}$/)
+    .optional(),
+  wantsAmount: z
+    .string()
+    .regex(/^\d{1,15}$/)
+    .optional(),
   // Currencies optional — when omitted the API derives both from the active
   // workspace's default_currency. The form does not ask the user to pick.
   normalCurrency: z
     .string()
     .regex(/^[A-Z0-9]{3,5}$/)
     .optional(),
-  cushionAmount: z.string().regex(/^\d+$/),
+  cushionAmount: z.string().regex(/^\d{1,15}$/),
   cushionCurrency: z
     .string()
     .regex(/^[A-Z0-9]{3,5}$/)
@@ -187,9 +196,9 @@ export interface CategoryLimitDto {
 
 export const templateItemSchema = z.object({
   categoryId: z.string().uuid(),
-  normalAmount: z.string().regex(/^\d+$/),
+  normalAmount: z.string().regex(/^\d{1,15}$/),
   normalCurrency: z.string().regex(/^[A-Z0-9]{3,5}$/),
-  cushionAmount: z.string().regex(/^\d+$/),
+  cushionAmount: z.string().regex(/^\d{1,15}$/),
   cushionCurrency: z.string().regex(/^[A-Z0-9]{3,5}$/),
 });
 
@@ -378,7 +387,10 @@ export const confirmDraftSchema = z.object({});
 
 const draftEditsSchema = z
   .object({
-    amountOriginalCents: z.string().regex(/^\d+$/).optional(),
+    amountOriginalCents: z
+      .string()
+      .regex(/^\d{1,15}$/)
+      .optional(),
     currency: z
       .string()
       .regex(/^[A-Z0-9]{3,5}$/)

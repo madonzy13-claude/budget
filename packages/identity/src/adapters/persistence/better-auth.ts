@@ -160,8 +160,26 @@ export async function purgeUserData(uid: string): Promise<void> {
       member_count: number | string;
     }>;
 
-    // kind-removal: a budget is "shared" purely by having more than one member.
-    const blocked = ownedRows.find((b) => Number(b.member_count) > 1);
+    // Multi-owner handoff: find a co-owner (another 'owner' membership) for each
+    // owned budget. A co-owned budget is NOT solely owned — it is handed to the
+    // co-owner below instead of blocking deletion (the collision the role-change
+    // feature would otherwise create for a demoted/co-owning creator).
+    const coOwner = new Map<string, string>();
+    for (const b of ownedRows) {
+      const res = await tx.execute(
+        sql`SELECT user_id FROM tenancy.budget_members
+             WHERE budget_id = ${b.id}::uuid AND role = 'owner' AND user_id <> ${uid}::uuid
+             ORDER BY created_at ASC LIMIT 1`,
+      );
+      const heir = (res.rows[0] as { user_id?: string } | undefined)?.user_id;
+      if (heir) coOwner.set(b.id, heir);
+    }
+
+    // Block ONLY when the user SOLELY owns a budget that still has other members
+    // (they would be orphaned). Co-owned budgets are handed off, not blocked.
+    const blocked = ownedRows.find(
+      (b) => Number(b.member_count) > 1 && !coOwner.has(b.id),
+    );
     if (blocked) {
       throw new APIError("BAD_REQUEST", {
         message:
@@ -171,6 +189,19 @@ export async function purgeUserData(uid: string): Promise<void> {
 
     for (const b of ownedRows) {
       const bid = b.id;
+      const heir = coOwner.get(bid);
+      if (heir) {
+        // Hand the shared budget to the co-owner: repoint the legacy owner column
+        // and decrement the cached member count. The user's own membership row is
+        // removed by the blanket delete below; all budget data stays intact.
+        await tx.execute(
+          sql`UPDATE tenancy.budgets
+                 SET owner_user_id = ${heir}::uuid,
+                     member_count = GREATEST(member_count - 1, 0)
+               WHERE id = ${bid}::uuid`,
+        );
+        continue;
+      }
       // FK → categories is NO ACTION, so adjustments must go before categories.
       await tx.execute(
         sql`DELETE FROM budgeting.category_reserve_adjustments WHERE tenant_id = ${bid}::uuid`,
@@ -246,6 +277,17 @@ export function createAuth(opts: CreateAuthOptions) {
     advanced: {
       database: {
         generateId: () => crypto.randomUUID(),
+      },
+      // SEC: pin the rate-limiter's client-IP resolution to Cloudflare's
+      // cf-connecting-ip. Better Auth's default reads the leftmost X-Forwarded-For,
+      // which a client can spoof per-request to rotate their apparent IP and defeat
+      // the per-IP brute-force throttle on sign-in/reset. Prod sits behind the
+      // cloudflared tunnel, which sets cf-connecting-ip to the true client IP
+      // un-spoofably (it overwrites any inbound value) and the Next.js /auth/*
+      // rewrite forwards it to the API. In dev (no Cloudflare) the header is
+      // absent and Better Auth falls back to the socket peer address.
+      ipAddress: {
+        ipAddressHeaders: ["cf-connecting-ip"],
       },
     },
     emailAndPassword: {

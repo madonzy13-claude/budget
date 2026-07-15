@@ -1,0 +1,166 @@
+# docker-compose.prod.yml — production deployment (pulls prebuilt images from GHCR).
+#
+# Unlike docker-compose.yml (which BUILDS from source for local dev), this file
+# PULLS the release images published to the GitHub Container Registry by the
+# Release workflow (.github/workflows/release.yml) on every `vX.Y.Z` tag.
+#
+# Quick start on a fresh server:
+#   git clone https://github.com/madonzy13-claude/budget.git && cd budget
+#   cp .env.prod.example .env.prod && chmod 600 .env.prod   # fill in real secrets
+#   #  (.env.prod is git-ignored — the tracked .env is the dev placeholder)
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml pull
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+#
+# Pin a release by setting BUDGET_VERSION=v1.0.0 in .env.prod (or track :latest).
+# Upgrade: bump BUDGET_VERSION (or re-pull :latest), then `pull` + `up -d`.
+# The named volume budget-db-data survives `down`/upgrades.
+#
+# TLS: `web` listens on :3000 (plain HTTP). Put a reverse proxy (Caddy, nginx,
+# Traefik) or a Cloudflare Tunnel in front of it for HTTPS — a service worker,
+# Web Push, and installable-PWA all require a secure context.
+
+# Every app service resolves ghcr.io/madonzy13-claude/budget-<svc>:${BUDGET_VERSION}.
+# Pin a release (recommended) via `export BUDGET_VERSION=v1.0.0`, or leave unset to
+# follow the latest published release (:latest).
+services:
+  # ─── Postgres 17 ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: budget
+      # Forwarded to infra/postgres/init/00-roles.sh, which creates the
+      # NOBYPASSRLS app_role / worker_role / migrator_role on first boot.
+      APP_ROLE_PASSWORD: ${APP_ROLE_PASSWORD}
+      WORKER_ROLE_PASSWORD: ${WORKER_ROLE_PASSWORD}
+      MIGRATOR_ROLE_PASSWORD: ${MIGRATOR_ROLE_PASSWORD}
+    volumes:
+      - budget-db-data:/var/lib/postgresql/data
+      # Role/schema bootstrap + tuned config — shipped in the repo you cloned.
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    # No host port published — the DB is reachable only over the compose network.
+    # For admin access use `docker compose -f docker-compose.prod.yml exec db psql`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d budget"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  # ─── Migrator (one-shot) ──────────────────────────────────────────────────────
+  # Runs drizzle-kit migrate + post-migration.sql (FORCE RLS + grants), guarded by
+  # a pg advisory lock, then exits. api/worker wait for it to complete.
+  migrator:
+    image: ghcr.io/madonzy13-claude/budget-migrator:${BUDGET_VERSION:-latest}
+    restart: "no"
+    environment:
+      DATABASE_URL_MIGRATOR: ${DATABASE_URL_MIGRATOR}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ─── API (Hono / Bun) ────────────────────────────────────────────────────────
+  api:
+    image: ghcr.io/madonzy13-claude/budget-api:${BUDGET_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL_APP: ${DATABASE_URL_APP}
+      DATABASE_URL_WORKER: ${DATABASE_URL_WORKER}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      BUDGET_KEK: ${BUDGET_KEK}
+      APP_URL: ${APP_URL}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS}
+      REGION: ${REGION:-eu-central-1}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      # Web push (server-side signing). Must be the private half of the keypair
+      # whose public half was baked into the web image at build time.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      # Investment price providers (optional; each *_API_KEYS takes a CSV list for
+      # round-robin failover). Without them, auto price fetch degrades gracefully.
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      FINNHUB_API_KEYS: ${FINNHUB_API_KEYS:-}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      TWELVE_DATA_API_KEYS: ${TWELVE_DATA_API_KEYS:-}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      COINGECKO_API_KEYS: ${COINGECKO_API_KEYS:-}
+      METALS_DEV_API_KEY: ${METALS_DEV_API_KEY:-}
+      OTEL_SERVICE_NAME: api
+      # NOTE: ALLOW_TEST_CLOCK / AUTH_RATE_LIMIT_DISABLED are DEV/CI-only and are
+      # intentionally absent here → the test clock 404s and the brute-force
+      # rate limiter stays enabled in production.
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    # api is NOT published — public traffic reaches it through `web`, which
+    # reverse-proxies /auth/* and /api/* to http://api:4000 on the internal net.
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ─── Web (Next.js PWA) ────────────────────────────────────────────────────────
+  web:
+    image: ghcr.io/madonzy13-claude/budget-web:${BUDGET_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      # Server-side (RSC) fetches + the /auth,/api rewrites target the api service
+      # over the internal network. (NEXT_PUBLIC_* values are baked at image build.)
+      API_INTERNAL_URL: http://api:4000
+      NEXT_PUBLIC_API_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # Front this with a TLS-terminating reverse proxy. Bind to loopback if the
+      # proxy runs on the same host: "127.0.0.1:3000:3000".
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:3000/en/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ─── Worker (pg-boss background jobs) ────────────────────────────────────────
+  worker:
+    image: ghcr.io/madonzy13-claude/budget-worker:${BUDGET_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL_WORKER: ${DATABASE_URL_WORKER}
+      DATABASE_URL_APP: ${DATABASE_URL_APP}
+      BUDGET_KEK: ${BUDGET_KEK}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      PRICE_SCAN_CRON: "${PRICE_SCAN_CRON:-0 * * * *}"
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      FINNHUB_API_KEYS: ${FINNHUB_API_KEYS:-}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      TWELVE_DATA_API_KEYS: ${TWELVE_DATA_API_KEYS:-}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      COINGECKO_API_KEYS: ${COINGECKO_API_KEYS:-}
+      METALS_DEV_API_KEY: ${METALS_DEV_API_KEY:-}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+
+volumes:
+  budget-db-data:

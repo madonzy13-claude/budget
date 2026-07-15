@@ -107,6 +107,11 @@ export function createApp(deps: BootedDeps) {
   // PATCH/DELETE without reshaping the read surface.
   app.route("/budgets/:budgetId/tasks", createTasksRoute(deps));
   // Phase 9: Investments — CRUD + search + reorder + on-add fetch under the budget namespace.
+  // SEC: requireWorkspace so an unbound caller gets a clean 403 instead of a raw
+  // 500 (pickTenant→"" → withTenantTx rejects empty tenant). Matches every other
+  // budget-scoped sub-router; tenant isolation itself is via pickTenant=tenantIds[0].
+  app.use("/budgets/:budgetId/investments", requireWorkspace);
+  app.use("/budgets/:budgetId/investments/*", requireWorkspace);
   app.route("/budgets/:budgetId/investments", createInvestmentsRoute(deps));
 
   // Phase 4: budget-scoped routes under /budgets/:budgetId/

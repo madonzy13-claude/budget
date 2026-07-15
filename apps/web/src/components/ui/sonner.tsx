@@ -28,16 +28,28 @@ function useHtmlTheme(): "dark" | "light" {
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const appTheme = useHtmlTheme();
-  // INVERTED: a LIGHT toast on the dark UI (dark on light) — high contrast so the
-  // notification is clearly visible, instead of a dark pill that blends into the
-  // dark page. Sonner's own theme palette renders it; we don't override bg/text.
-  const toastTheme = appTheme === "dark" ? "light" : "dark";
+  // The toast uses the ELEVATED surface token so it reads as a soft GREY pill that
+  // flips with the theme (dark-grey on the dark UI, light-grey on the light UI) —
+  // the previous inverted palette rendered a near-black toast in light mode, which
+  // looked heavy. Tokens keep it on-brand + theme-correct.
   return (
     <SonnerToaster
-      theme={toastTheme}
+      theme={appTheme}
       className="toaster group"
+      // Sonner reads these CSS vars for the toast surface — point them at the
+      // elevated tokens so the toast is a soft GREY that flips with the theme
+      // (grey on light, dark-grey on dark). Setting the vars beats sonner's own
+      // CSS, which a Tailwind bg utility does not.
+      style={
+        {
+          "--normal-bg": "var(--surface-elevated-dark)",
+          "--normal-text": "var(--body-on-dark)",
+          "--normal-border": "var(--hairline-on-dark)",
+        } as React.CSSProperties
+      }
       toastOptions={{
         classNames: {
+          description: "group-[.toast]:text-[var(--muted-foreground)]",
           actionButton:
             "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
           cancelButton:

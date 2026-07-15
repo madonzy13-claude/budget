@@ -35,9 +35,13 @@ export type NotificationKind =
   // per-kind created toggles.
   | "TASK_COMPLETED"
   // r32: recurring "update your budget" reminder (config carries days + tz).
-  | "BUDGET_REMINDER";
+  | "BUDGET_REMINDER"
+  // r37: per-user-per-budget app-icon badge opt-in (NOT a push notification —
+  // controls whether this budget feeds the PWA icon count). Must be in this list
+  // so getPreferences returns/persists it; defaults OFF (opt-in) below.
+  | "BADGE";
 
-/** All kinds surfaced in Settings (order = render order). */
+/** All kinds persisted via getPreferences (order = render order). */
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   "RESERVE_TOPUP",
   "CONFIRM_DRAFT",
@@ -45,6 +49,7 @@ export const NOTIFICATION_KINDS: NotificationKind[] = [
   "INCOME_UNDER_PLANNED",
   "TASK_COMPLETED",
   "BUDGET_REMINDER",
+  "BADGE",
 ];
 
 /** Extra per-preference config. BUDGET_REMINDER: {days (ISO 1=Mon..7=Sun), tz}. */
@@ -439,7 +444,8 @@ export async function getPreferences(
       userId,
       budgetId,
       notificationType: kind,
-      enabled: true,
+      // BADGE is opt-in (default OFF); every other kind defaults ON.
+      enabled: kind !== "BADGE",
       config: defaultConfig,
     };
   });

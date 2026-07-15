@@ -44,11 +44,21 @@ export type TransactionRouteDeps =
 // Zod schemas
 // ──────────────────────────────────────────────────────────────────────
 
+// SEC: sane upper bound on a single transaction's magnitude ($100B in cents).
+// z.number().int() alone accepts up to Number.MAX_VALUE, so a crafted amount
+// (a) corrupts every budget/overview/projection sum for the tenant, and
+// (b) once absCents * fxRate exceeds 2^53 the float rounding in create-transaction
+// silently stores a wrong converted value. This ceiling is far above any real
+// household amount yet safely under Number.MAX_SAFE_INTEGER (~9e15), bounding
+// both problems. Applies to the FX product too (principal capped → product stays sane).
+const MAX_TXN_CENTS = 10_000_000_000_000; // 1e13 cents
+const boundedCents = z.number().int().min(-MAX_TXN_CENTS).max(MAX_TXN_CENTS);
+
 const createSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
   category_id: z.string().uuid(),
   /** Signed: negative → INCOME (D-PH2-09) */
-  amount_original_cents: z.number().int(),
+  amount_original_cents: boundedCents,
   currency_original: z.string().length(3).toUpperCase().optional(),
   note: z.string().nullable().optional(),
 });
@@ -60,7 +70,7 @@ const patchSchema = z.object({
     .optional(),
   category_id: z.string().uuid().optional(),
   /** Signed — absolute value stored; kind derived from sign if provided */
-  amount_original_cents: z.number().int().optional(),
+  amount_original_cents: boundedCents.optional(),
   currency_original: z.string().length(3).toUpperCase().optional(),
   note: z.string().nullable().optional(),
   kind: z.enum(["SPENDING", "INCOME"]).optional(),

@@ -84,13 +84,29 @@ export const METAL_TO_SYMBOL: Record<z.infer<typeof metalSchema>, string> = {
 
 const currencyCode = z.string().regex(/^[A-Z0-9]{3,5}$/);
 
+// SEC: reject non-finite / absurd magnitudes at the DTO boundary. These values
+// flow into Big()/BigInt() money math and wealth/net-worth aggregates; an
+// unbounded string like "9e99" or "1e300" is otherwise accepted and poisons
+// every portfolio sum for the tenant. The ceiling is far above any real holding
+// yet finite and safely bounded.
+const SANE_NUMERIC_MAX = 1e15;
+const isSaneMagnitude = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) && Math.abs(n) <= SANE_NUMERIC_MAX;
+};
+
 /** Normalize "1.234,56" / "1,5" → dot-decimal string (big.js-safe). */
 const numericString = z
   .union([z.string(), z.number()])
-  .transform((v) => String(v).replace(/\s/g, "").replace(/,/g, ".").trim());
+  .transform((v) => String(v).replace(/\s/g, "").replace(/,/g, ".").trim())
+  // Refine AFTER normalization — the input may be a locale string ("1,5") whose
+  // raw Number() is NaN; only the dot-decimal result is a valid number to bound.
+  .refine(isSaneMagnitude, "number out of range");
 
 /** Cents value as bigint-string or number (DTO boundary rule). */
-const centsInput = z.union([z.string(), z.number()]);
+const centsInput = z
+  .union([z.string(), z.number()])
+  .refine(isSaneMagnitude, "cents out of range");
 
 export const createHoldingSchema = z.object({
   name: z.string().min(1).max(120),

@@ -13,6 +13,11 @@ import {
   normalizeKeys,
   withKeyFailover,
 } from "../../ports/price-provider";
+import {
+  sanePositiveNumber,
+  assertBodyUnderCap,
+  PRICE_BODY_CAP_BYTES,
+} from "@budget/shared-kernel";
 
 const COINGECKO_HOST = "https://api.coingecko.com";
 const TIMEOUT_MS = 8000;
@@ -41,10 +46,20 @@ export class CoinGeckoPriceProvider implements PriceProvider {
       });
       if (res.status === 429) throw new RateLimited("coingecko");
       if (!res.ok) throw new NoPriceAvailable(id, "coingecko");
+      try {
+        assertBodyUnderCap(res, PRICE_BODY_CAP_BYTES);
+      } catch {
+        throw new NoPriceAvailable(id, "coingecko");
+      }
 
       const body = (await res.json()) as Record<string, { usd?: number }>;
       const usd = body[id]?.usd;
       if (usd === undefined || usd === null) {
+        throw new NoPriceAvailable(id, "coingecko");
+      }
+      try {
+        sanePositiveNumber(usd);
+      } catch {
         throw new NoPriceAvailable(id, "coingecko");
       }
 

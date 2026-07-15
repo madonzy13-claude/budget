@@ -80,7 +80,15 @@ When(
     // Reveal the action buttons via tap-reveal (works on all viewports;
     // hover-reveal only exists above the `sm` breakpoint).
     await row.click();
-    await spendings.draftConfirmButton().click();
+    const confirmBtn = spendings.draftConfirmButton();
+    await expect(confirmBtn).toBeVisible({ timeout: 8000 });
+    // dispatchEvent('click') instead of .click(): confirming fires
+    // useConfirmDraft, which removes the draft and UNMOUNTS this row. Playwright's
+    // normal .click() re-checks actionability and sees the element detach
+    // mid-gesture, then retries until the 30s test timeout (deterministic hang on
+    // a slower CI-chromium re-render; passes locally). A dispatched click fires
+    // the React onClick directly, no hover/stability dance to lose the element to.
+    await confirmBtn.dispatchEvent("click");
   },
 );
 
@@ -88,6 +96,8 @@ Then(
   /^the draft row for rule "(.+?)" is not visible$/,
   async ({ page }, ruleName: string) => {
     const spendings = new SpendingsPo(page);
-    await expect(spendings.draftRow(ruleName)).toBeHidden({ timeout: 8000 });
+    // Generous timeout: the confirm mutation + query invalidation + re-render
+    // can take several seconds on a contended CI runner.
+    await expect(spendings.draftRow(ruleName)).toBeHidden({ timeout: 15000 });
   },
 );

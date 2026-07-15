@@ -78,10 +78,9 @@ export function JoinPageCard({
   }
 
   function handleSignIn() {
-    const returnUrl = encodeURIComponent(
-      typeof window !== "undefined" ? window.location.pathname : "",
-    );
-    router.push(`/${locale}/sign-in?returnUrl=${returnUrl}`);
+    // No returnUrl — sign-in ignores it (hard-navigates to the locale home), and
+    // wiring it up would add open-redirect surface. Just go to sign-in.
+    router.push(`/${locale}/sign-in`);
   }
 
   // ── Not found ─────────────────────────────────────────────────────────────

@@ -264,7 +264,7 @@
       "mode_label": "Tryb poduszki",
       "mode_help_text": "Przełącz bieżący miesiąc na ściślejszy budżet poduszki. W każdej chwili można cofnąć.",
       "targetMonthsLabel": "Docelowe miesiące",
-      "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
+      "targetMonthsError": "Liczba miesięcy musi być między 1 a 60.",
       "saved": "Cel poduszki zapisany",
       "preview": "Masz {actual} z {required} — brakuje {shortfall}",
       "previewMet": "Masz {actual} z {required} — cel osiągnięty",
@@ -286,7 +286,13 @@
       "revoke_confirm": "Usuń",
       "revoke_cancel": "Anuluj",
       "revoked_toast": "Członek usunięty.",
-      "revoke_error": "Nie udało się usunąć członka. Spróbuj ponownie."
+      "revoke_error": "Nie udało się usunąć członka. Spróbuj ponownie.",
+      "make_owner": "Ustaw właścicielem",
+      "make_member": "Ustaw członkiem",
+      "role_changed_toast": "Rola zaktualizowana.",
+      "role_change_error": "Nie udało się zmienić roli. Spróbuj ponownie.",
+      "last_owner_error": "Budżet musi mieć co najmniej jednego właściciela.",
+      "manage_aria": "Zarządzaj: {name}"
     },
     "danger": {
       "section_title": "Strefa niebezpieczna",
@@ -319,6 +325,10 @@
       "sectionTitle": "Powiadomienia",
       "enableLabel": "Powiadomienia push",
       "enableDescription": "Otrzymuj alerty o zadaniach wymagających Twojej uwagi",
+      "badge": {
+        "label": "Pokaż na ikonie aplikacji",
+        "description": "Dodaj oczekujące zadania tego budżetu do licznika na ikonie aplikacji (wymaga zgody na powiadomienia)."
+      },
       "kindsLabel": "Powiadamiaj mnie o",
       "kind": {
         "RESERVE_TOPUP": {
@@ -707,6 +717,7 @@
       }
     },
     "switcher": {
+      "placeholder": "Wybierz budżet",
       "personal": "Osobiste",
       "shared": "Współdzielone",
       "empty": {
@@ -789,7 +800,9 @@
         "investments_label": "Inwestycje",
         "investments_help": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli.",
         "targetMonthsLabel": "Docelowe miesiące",
-        "targetMonthsError": "Liczba miesięcy musi być całkowita między 1 a 60.",
+        "targetMonthsError": "Liczba miesięcy musi być między 1 a 60.",
+        "badge_label": "Pokaż na ikonie aplikacji",
+        "badge_help": "Dodaj oczekujące zadania tego budżetu do licznika na ikonie aplikacji.",
         "push_label": "Włącz powiadomienia push",
         "push_help": "Otrzymuj alerty, gdy zadania wymagają Twojej uwagi — nawet gdy aplikacja jest zamknięta."
       },
@@ -1261,8 +1274,8 @@
           "reservesShort": "Rezerwy poniżej wymaganej kwoty",
           "reservesSurplus": "Więcej rezerw niż potrzeba",
           "reservesOkNote": "Potrzeba <amt>{amount}</amt>",
-          "reservesShortNote": "Za mało. Potrzeba <amt>{amount}</amt>",
-          "reservesSurplusNote": "Za dużo. Potrzeba tylko <amt>{amount}</amt>",
+          "reservesShortNote": "Za mało. Brakuje <amt>{amount}</amt>",
+          "reservesSurplusNote": "Za dużo. Nadwyżka <amt>{amount}</amt>",
           "capitalization": "Kapitalizacja",
           "capitalizationSub": "w tym inwestycje <amt>{amount}</amt>",
           "sinceLastMonth": "od zeszłego miesiąca",

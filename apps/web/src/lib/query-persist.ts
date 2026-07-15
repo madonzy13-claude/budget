@@ -216,3 +216,30 @@ export async function clearQueryCache(): Promise<void> {
     // ignore
   }
 }
+
+/**
+ * Delete the SW Cache Storage buckets that hold AUTHENTICATED content on logout
+ * (tenant safety). clearQueryCache only wipes IndexedDB, but the service worker
+ * also caches authenticated navigation DOCUMENTS (nav-docs-*), RSC flight
+ * payloads (rsc-*), and the pending deep-link (budget-deeplink) — all of which
+ * survive logout and could serve user A's financial pages to user B (or offline)
+ * on a shared device. Prefixes match sw.ts (NAV_CACHE / RSC_CACHE / DEEPLINK_CACHE);
+ * startsWith so a version bump doesn't drift. Static-asset/style caches are
+ * non-sensitive and kept. Best-effort — never blocks logout.
+ */
+export async function clearAuthSwCaches(): Promise<void> {
+  try {
+    if (typeof window === "undefined" || !("caches" in window)) return;
+    for (const key of await caches.keys()) {
+      if (
+        key.startsWith("nav-docs") ||
+        key.startsWith("rsc") ||
+        key === "budget-deeplink"
+      ) {
+        await caches.delete(key);
+      }
+    }
+  } catch {
+    // caches unavailable — ignore, never block logout
+  }
+}

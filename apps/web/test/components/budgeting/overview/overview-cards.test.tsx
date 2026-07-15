@@ -30,8 +30,8 @@ vi.mock("next-intl", () => {
       "cards.overspentMotivation": "Good job — keep it up!",
       "cards.reservesNeeded": "Needed",
       "cards.reservesOkNote": "Needed {amount}",
-      "cards.reservesShortNote": "Not enough. {amount} needed",
-      "cards.reservesSurplusNote": "Too much. Only {amount} needed",
+      "cards.reservesShortNote": "Not enough. {amount} is missing",
+      "cards.reservesSurplusNote": "Too much. {amount} extra",
       "cards.cushionSaved": "Saved",
       "cards.cushionNeeded": "Needed",
       "cards.capitalization": "Capitalization",
@@ -249,6 +249,36 @@ describe("OverviewCards", () => {
       expect(screen.getByTestId(testid)).toBeTruthy();
       unmount();
     }
+  });
+
+  it("reserves short note shows the MISSING amount with cents", () => {
+    mockUse.mockReturnValue({
+      data: {
+        ...DTO,
+        available_reserves_cents: "300000", // $3,000.00
+        reserves: { ...DTO.reserves, status: "short", required_cents: "310050" }, // $3,100.50
+      },
+      isError: false,
+      isPending: false,
+    });
+    render(<OverviewCards budgetId="b1" />);
+    // missing = 310050 - 300000 = 10050 cents → $100.50
+    expect(screen.getByText("Not enough. $100.50 is missing")).toBeTruthy();
+  });
+
+  it("reserves surplus note shows the EXTRA amount with cents", () => {
+    mockUse.mockReturnValue({
+      data: {
+        ...DTO,
+        available_reserves_cents: "310050", // $3,100.50
+        reserves: { ...DTO.reserves, status: "surplus", required_cents: "300000" }, // $3,000.00
+      },
+      isError: false,
+      isPending: false,
+    });
+    render(<OverviewCards budgetId="b1" />);
+    // extra = 310050 - 300000 = 10050 cents → $100.50
+    expect(screen.getByText("Too much. $100.50 extra")).toBeTruthy();
   });
 
   it("shows cushion runway dropping zero components (years/months/days)", () => {

@@ -160,6 +160,30 @@ describe("FrankfurterFxProvider", () => {
     );
   });
 
+  test("spoofed live rate → uses stale prior instead of the bad number", async () => {
+    // Upstream returns a negative rate; the guard rejects it, control falls into the
+    // existing catch → mostRecentPrior fallback (isStale=true). Bad number never math'd.
+    cache.setPrior("USD", "EUR", { rate: "0.84", date: "2026-05-04" });
+    const provider = new FrankfurterFxProvider(
+      cache,
+      makeFetch(200, { date: "2026-05-08", rate: -0.86 }),
+    );
+    const result = await provider.rateAsOf("USD", "EUR", TODAY);
+    expect(result.rate).toBe("0.84");
+    expect(result.isStale).toBe(true);
+    expect(cache.upsertCalls).toHaveLength(0); // bad rate never cached
+  });
+
+  test("spoofed live rate + no prior → NoFxRateAvailable", async () => {
+    const provider = new FrankfurterFxProvider(
+      cache,
+      makeFetch(200, { date: "2026-05-08", rate: Number.POSITIVE_INFINITY }),
+    );
+    await expect(provider.rateAsOf("USD", "EUR", TODAY)).rejects.toBeInstanceOf(
+      NoFxRateAvailable,
+    );
+  });
+
   test("ACL boundary: result.rate is always string, never number", async () => {
     const provider = new FrankfurterFxProvider(
       cache,

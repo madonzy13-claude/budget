@@ -3,8 +3,14 @@
  * (r31 item 2). Uses the Badging API; here we shim navigator.setAppBadge/clearAppBadge.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// r37: AppBadge fetches each budget's BADGE opt-in pref (opt-in, default OFF).
+const getPrefs = vi.fn();
+vi.mock("@/lib/api-client", () => ({
+  api: { push: { preferences: { $get: (...a: unknown[]) => getPrefs(...a) } } },
+}));
 
 vi.mock("@/hooks/use-active-budgets", () => ({ useActiveBudgets: vi.fn() }));
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
@@ -55,6 +61,13 @@ beforeEach(() => {
   navigator.setAppBadge = setAppBadge;
   // @ts-expect-error test shim for the Badging API
   navigator.clearAppBadge = clearAppBadge;
+  // Default: every budget has opted IN to the badge.
+  getPrefs.mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      preferences: [{ notificationType: "BADGE", enabled: true }],
+    }),
+  });
 });
 
 const mockBudgets = (data: unknown) =>
@@ -63,21 +76,38 @@ const mockBudgets = (data: unknown) =>
   });
 
 describe("AppBadge", () => {
-  it("sets the badge to the SUM of pendingTasksCount across budgets", () => {
+  it("sets the badge to the SUM of pending tasks across OPTED-IN budgets", async () => {
     mockBudgets([
-      { pendingTasksCount: 7 },
-      { pendingTasksCount: 4 },
-      { pendingTasksCount: 0 },
+      { id: "b1", pendingTasksCount: 7 },
+      { id: "b2", pendingTasksCount: 4 },
+      { id: "b3", pendingTasksCount: 0 },
     ]);
     renderBadge();
-    expect(setAppBadge).toHaveBeenCalledWith(11);
+    await waitFor(() => expect(setAppBadge).toHaveBeenCalledWith(11));
     expect(clearAppBadge).not.toHaveBeenCalled();
   });
 
-  it("clears the badge when the total is 0", () => {
-    mockBudgets([{ pendingTasksCount: 0 }, { pendingTasksCount: 0 }]);
+  it("clears the badge when no budget has opted in (badge is opt-in)", async () => {
+    getPrefs.mockResolvedValue({
+      ok: true,
+      json: async () => ({ preferences: [] }), // no BADGE pref → OFF
+    });
+    mockBudgets([
+      { id: "b1", pendingTasksCount: 7 },
+      { id: "b2", pendingTasksCount: 4 },
+    ]);
     renderBadge();
-    expect(clearAppBadge).toHaveBeenCalled();
+    await waitFor(() => expect(clearAppBadge).toHaveBeenCalled());
+    expect(setAppBadge).not.toHaveBeenCalled();
+  });
+
+  it("clears the badge when opted-in budgets have zero pending", async () => {
+    mockBudgets([
+      { id: "b1", pendingTasksCount: 0 },
+      { id: "b2", pendingTasksCount: 0 },
+    ]);
+    renderBadge();
+    await waitFor(() => expect(clearAppBadge).toHaveBeenCalled());
     expect(setAppBadge).not.toHaveBeenCalled();
   });
 

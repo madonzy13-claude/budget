@@ -37,7 +37,6 @@ import { StepFeatures } from "./steps/step-features";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
 import { clientApiWrite } from "@/lib/offline-write";
-import { subscribeToPushForBudget } from "@/lib/push-subscribe";
 
 // kind-removal: the Type step is gone. Steps are now
 // 0 Welcome, 1 Basics, 2 Features, 3 Review.
@@ -52,7 +51,6 @@ interface WizardForm {
   investmentsEnabled: boolean;
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
-  pushEnabled: boolean;
 }
 
 interface WizardPageProps {
@@ -112,7 +110,6 @@ export function WizardPage({
     reservesEnabled: true,
     investmentsEnabled: false,
     cushionTargetMonths: 6,
-    pushEnabled: false,
   });
 
   // Update currency with locale guess on client-side mount.
@@ -203,13 +200,8 @@ export function WizardPage({
       }
     }
 
-    // Act on the push opt-in (Features step). The toggle was previously captured
-    // but never honored, so enabling it in the wizard left Settings showing OFF
-    // (260618 UAT). Subscribe THIS device for the new budget — best-effort, so a
-    // permission denial / unsupported browser never blocks budget creation.
-    if (form.pushEnabled) {
-      await subscribeToPushForBudget(budgetId);
-    }
+    // Notifications + app-icon badge are set up in Settings → Notifications, not
+    // the wizard (r37 UX: keep onboarding to budget structure only).
 
     // Mark onboarding complete.
     const completedAt = new Date().toISOString();
@@ -304,8 +296,6 @@ export function WizardPage({
             onChangeCushionTargetMonths={(v) =>
               updateForm("cushionTargetMonths", v)
             }
-            pushEnabled={form.pushEnabled}
-            onChangePush={(v) => updateForm("pushEnabled", v)}
           />
         );
       case 3:

@@ -24,10 +24,6 @@ interface StepFeaturesProps {
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
   onChangeCushionTargetMonths: (v: number) => void;
-  /** Push opt-in, folded into Features (260618 UAT). Captured-intent only —
-   *  the real subscribe happens in Settings → Notifications. */
-  pushEnabled: boolean;
-  onChangePush: (v: boolean) => void;
 }
 
 interface FeatureRowProps {
@@ -79,12 +75,11 @@ export function StepFeatures({
   onChangeInvestments,
   cushionTargetMonths,
   onChangeCushionTargetMonths,
-  pushEnabled,
-  onChangePush,
 }: StepFeaturesProps) {
   const t = useTranslations("onboarding.wizard.features");
+  // Decimals allowed (e.g. 5.5 months) to match the Settings cushion input.
   const monthsInvalid =
-    !Number.isInteger(cushionTargetMonths) ||
+    Number.isNaN(cushionTargetMonths) ||
     cushionTargetMonths < 1 ||
     cushionTargetMonths > 60;
   return (
@@ -120,13 +115,13 @@ export function StepFeatures({
               type="number"
               min={1}
               max={60}
-              step={1}
+              step={0.5}
               // 0 renders as EMPTY so a cleared field stays clearable — showing "0"
               // stuck a leading zero that a typed digit turned into "03". 0 is still
               // flagged invalid by monthsInvalid below.
               value={cushionTargetMonths === 0 ? "" : cushionTargetMonths}
               onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
+                const v = parseFloat(e.target.value);
                 onChangeCushionTargetMonths(Number.isNaN(v) ? 0 : v);
               }}
               aria-invalid={monthsInvalid ? "true" : undefined}
@@ -154,14 +149,6 @@ export function StepFeatures({
           help={t("investments_help")}
           checked={investmentsEnabled}
           onChange={onChangeInvestments}
-        />
-        <FeatureRow
-          id="wizard-feat-push"
-          testId="onboarding-push-switch"
-          label={t("push_label")}
-          help={t("push_help")}
-          checked={pushEnabled}
-          onChange={onChangePush}
         />
       </div>
     </div>

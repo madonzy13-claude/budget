@@ -7,9 +7,11 @@
  * Generate share link reveals ephemeral ShareUrlField.
  * Revoke requires AlertDialog confirm before firing POST.
  */
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { MoreHorizontal } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,10 +25,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ShareUrlField } from "@/components/settings/share-url-field";
 import { api } from "@/lib/api-client";
+import { initialsOf } from "@/lib/initials";
 
 interface Member {
   userId: string;
@@ -54,6 +63,9 @@ export function MembersSection({
 }: MembersSectionProps) {
   const t = useTranslations("settings");
   const queryClient = useQueryClient();
+  // Single controlled remove-confirm (opened from a member's ⋯ menu) — cleaner
+  // than an AlertDialog per row and avoids nesting a dialog inside the dropdown.
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["budget-members", budgetId],
@@ -85,6 +97,10 @@ export function MembersSection({
       const res = await api.budgets[":id"].members[":memberId"].revoke.$post({
         param: { id: budgetId, memberId },
       });
+      if (res.status === 409) {
+        toast.error(t("members.last_owner_error"));
+        return;
+      }
       if (!res.ok) throw new Error("Failed to revoke member");
       await queryClient.invalidateQueries({
         queryKey: ["budget-members", budgetId],
@@ -92,6 +108,31 @@ export function MembersSection({
       toast.success(t("members.revoked_toast"));
     } catch {
       toast.error(t("members.revoke_error"));
+    }
+  };
+
+  // Promote a member to owner, or demote an owner to member. Any owner may do
+  // this to anyone; the server protects the last owner (409 → friendly toast).
+  const handleRoleChange = async (
+    memberId: string,
+    role: "owner" | "member",
+  ) => {
+    try {
+      const res = await api.budgets[":id"].members[":memberId"].role.$post({
+        param: { id: budgetId, memberId },
+        json: { role },
+      });
+      if (res.status === 409) {
+        toast.error(t("members.last_owner_error"));
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to change role");
+      await queryClient.invalidateQueries({
+        queryKey: ["budget-members", budgetId],
+      });
+      toast.success(t("members.role_changed_toast"));
+    } catch {
+      toast.error(t("members.role_change_error"));
     }
   };
 
@@ -104,11 +145,6 @@ export function MembersSection({
     );
   }
 
-  const getInitials = (member: Member) => {
-    const displayName = member.name ?? member.email ?? member.userId;
-    return displayName.slice(0, 2).toUpperCase();
-  };
-
   const getDisplayName = (member: Member) =>
     member.name ?? member.email ?? member.userId;
 
@@ -119,89 +155,132 @@ export function MembersSection({
           {t("members.empty")}
         </p>
       ) : (
-        <ul className="divide-y divide-[var(--hairline-on-dark)] rounded-xl bg-[var(--surface-elevated-dark)]">
+        <ul className="divide-y divide-[var(--hairline-on-dark)] overflow-hidden rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-elevated-dark)]">
           {sortedMembers.map((member) => {
             const isOwnerRow = member.role === "owner";
+            const displayName = getDisplayName(member);
+            // Show the email as a secondary line only when there's a distinct name
+            // above it (otherwise the name row already IS the email).
+            const subline =
+              member.name && member.email ? member.email : null;
             return (
               <li
                 key={member.userId}
-                className="flex items-center justify-between px-4 py-3"
+                className="flex items-center gap-3 px-4 py-3.5"
               >
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-[var(--surface-card-dark)] text-xs text-[var(--body)]">
-                      {getInitials(member)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm text-[var(--body)]">
-                      {getDisplayName(member)}
+                {/* Avatar matches the header profile icon (surface-card bg so the
+                    circle contrasts against the elevated list, hairline ring,
+                    shared word-based initials). */}
+                <Avatar className="size-9 shrink-0 ring-1 ring-[var(--hairline-on-dark)]">
+                  <AvatarFallback className="bg-[var(--surface-card-dark)] text-xs font-semibold text-[var(--body-on-dark)]">
+                    {initialsOf(member.name, member.email)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--body-on-dark)]">
+                    {displayName}
+                  </p>
+                  {subline && (
+                    <p className="truncate text-xs text-[var(--muted-foreground)]">
+                      {subline}
                     </p>
-                  </div>
-                  {/* Owner badge is primary-tinted to read as authority,
-                      member badge stays neutral. Both inline next to the
-                      name rather than in a trailing column — the list is
-                      flat enough that a single horizontal row reads
-                      easier than a two-column table. */}
-                  <Badge
-                    variant="secondary"
-                    className={
-                      isOwnerRow
-                        ? "border border-[var(--primary)]/40 bg-[color-mix(in_oklab,var(--primary)_14%,transparent)] text-[var(--primary)] text-xs"
-                        : "text-xs"
-                    }
-                  >
-                    {isOwnerRow
-                      ? t("members.role_owner")
-                      : t("members.role_member")}
-                  </Badge>
+                  )}
                 </div>
-                {/* Revoke is owner-only AND row-not-owner. The owner row
-                    is informational — there is no "demote owner" action
-                    here; transferring ownership is its own future flow. */}
-                {isOwner && !isOwnerRow && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
+                {/* Owner pill = primary-tinted (authority); member pill = neutral
+                    grey. */}
+                <Badge
+                  variant="secondary"
+                  className={
+                    isOwnerRow
+                      ? "shrink-0 border border-[var(--primary)]/40 bg-[color-mix(in_oklab,var(--primary)_14%,transparent)] text-[var(--primary)] text-xs"
+                      : "shrink-0 border border-[var(--muted-foreground)]/40 bg-[color-mix(in_oklab,var(--muted-foreground)_14%,transparent)] text-[var(--muted-foreground)] text-xs"
+                  }
+                >
+                  {isOwnerRow
+                    ? t("members.role_owner")
+                    : t("members.role_member")}
+                </Badge>
+                {/* Owner-only management in a compact ⋯ menu (promote/demote +
+                    remove). Any owner may act on anyone; the server protects the
+                    LAST owner (409 → friendly toast). */}
+                {isOwner && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="min-h-[44px] text-[var(--trading-down)] hover:bg-[var(--trading-down)]/10 hover:text-[var(--trading-down)]"
+                        size="icon"
+                        data-testid={`member-menu-${member.userId}`}
+                        aria-label={t("members.manage_aria", {
+                          name: displayName,
+                        })}
+                        className="size-8 shrink-0 text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
+                      >
+                        <MoreHorizontal className="size-4" aria-hidden="true" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-44">
+                      <DropdownMenuItem
+                        data-testid={`role-toggle-${member.userId}`}
+                        onClick={() =>
+                          handleRoleChange(
+                            member.userId,
+                            isOwnerRow ? "member" : "owner",
+                          )
+                        }
+                      >
+                        {isOwnerRow
+                          ? t("members.make_member")
+                          : t("members.make_owner")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        data-testid={`member-remove-${member.userId}`}
+                        className="text-[var(--trading-down)] focus:bg-[var(--trading-down)]/10 focus:text-[var(--trading-down)]"
+                        onClick={() => setRemoveTarget(member)}
                       >
                         {t("members.revoke_button")}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          {t("members.revoke_dialog_title", {
-                            name: getDisplayName(member),
-                          })}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {t("members.revoke_dialog_body", {
-                            name: getDisplayName(member),
-                          })}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>
-                          {t("members.revoke_cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-[var(--trading-down)] text-white hover:bg-[var(--trading-down)]/90"
-                          onClick={() => handleRevoke(member.userId)}
-                        >
-                          {t("members.revoke_confirm")}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </li>
             );
           })}
         </ul>
       )}
+
+      {/* One controlled remove-confirm for the whole list. */}
+      <AlertDialog
+        open={removeTarget !== null}
+        onOpenChange={(o) => !o && setRemoveTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("members.revoke_dialog_title", {
+                name: removeTarget ? getDisplayName(removeTarget) : "",
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("members.revoke_dialog_body", {
+                name: removeTarget ? getDisplayName(removeTarget) : "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("members.revoke_cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[var(--trading-down)] text-white hover:bg-[var(--trading-down)]/90"
+              onClick={() => {
+                if (removeTarget) void handleRevoke(removeTarget.userId);
+                setRemoveTarget(null);
+              }}
+            >
+              {t("members.revoke_confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Generate share link — owner only. ShareUrlField owns the
           button↔URL state so a single click on "Generate share link"

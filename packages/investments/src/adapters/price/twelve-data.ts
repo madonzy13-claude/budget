@@ -13,6 +13,11 @@ import {
   normalizeKeys,
   withKeyFailover,
 } from "../../ports/price-provider";
+import {
+  sanePositiveNumber,
+  assertBodyUnderCap,
+  PRICE_BODY_CAP_BYTES,
+} from "@budget/shared-kernel";
 
 const TWELVE_DATA_HOST = "https://api.twelvedata.com";
 const TIMEOUT_MS = 8000;
@@ -41,6 +46,11 @@ export class TwelveDataPriceProvider implements PriceProvider {
       });
       if (res.status === 429) throw new RateLimited("twelve_data");
       if (!res.ok) throw new NoPriceAvailable(symbol, "twelve_data");
+      try {
+        assertBodyUnderCap(res, PRICE_BODY_CAP_BYTES);
+      } catch {
+        throw new NoPriceAvailable(symbol, "twelve_data");
+      }
 
       const body = (await res.json()) as {
         price?: string | number;
@@ -56,6 +66,11 @@ export class TwelveDataPriceProvider implements PriceProvider {
         throw new RateLimited("twelve_data");
       }
       if (body.price === undefined || body.price === null) {
+        throw new NoPriceAvailable(symbol, "twelve_data");
+      }
+      try {
+        sanePositiveNumber(Number(body.price));
+      } catch {
         throw new NoPriceAvailable(symbol, "twelve_data");
       }
 

@@ -42,6 +42,9 @@ const prefsSchema = z.object({
     // r32: task-completed toggle + budget-update reminder (with day/tz config).
     "TASK_COMPLETED",
     "BUDGET_REMINDER",
+    // r37: per-user-per-budget app-icon BADGE opt-out. Not a push notification —
+    // controls whether this budget's pending-task count feeds the PWA app badge.
+    "BADGE",
   ]),
   enabled: z.boolean(),
   config: z
@@ -133,11 +136,15 @@ export function createPushRoute(_deps: BootedDeps) {
       return c.json({ error: "budgetId query param required (UUID)" }, 400);
     }
 
+    // SEC: caller must be a member of the target budget (matches subscribe
+    // handlers). Without this a member could read/write preference rows keyed to
+    // a foreign budgetId inside their own tenant. budget == tenant, so pass
+    // budgetId as the tenant rather than tenantIds[0].
     const tenantIds: string[] = c.get("tenantIds") ?? [];
-    if (tenantIds.length === 0)
-      return c.json({ error: "no active workspace" }, 403);
+    if (!tenantIds.includes(budgetId))
+      return c.json({ error: "forbidden budget" }, 403);
 
-    const prefs = await getPreferences(tenantIds[0], session.user.id, budgetId);
+    const prefs = await getPreferences(budgetId, session.user.id, budgetId);
     return c.json({ preferences: prefs });
   });
 
@@ -147,12 +154,13 @@ export function createPushRoute(_deps: BootedDeps) {
     if (!session) return c.json({ error: "unauthorized" }, 401);
 
     const tenantIds: string[] = c.get("tenantIds") ?? [];
-    if (tenantIds.length === 0)
-      return c.json({ error: "no active workspace" }, 403);
-
     const body = c.req.valid("json");
+    // SEC: caller must be a member of the target budget (matches subscribe).
+    if (!tenantIds.includes(body.budgetId))
+      return c.json({ error: "forbidden budget" }, 403);
+
     await upsertPreference({
-      tenantId: tenantIds[0],
+      tenantId: body.budgetId,
       userId: session.user.id,
       budgetId: body.budgetId,
       notificationType: body.notificationType,

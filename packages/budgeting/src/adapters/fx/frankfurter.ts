@@ -1,4 +1,9 @@
-import type { FxProvider } from "@budget/shared-kernel";
+import {
+  type FxProvider,
+  sanePositiveNumber,
+  assertBodyUnderCap,
+  PRICE_BODY_CAP_BYTES,
+} from "@budget/shared-kernel";
 import type { FxRateCacheRepo } from "../../ports/fx-rate-cache-repo";
 import { formatDateUTC } from "./format-date-utc";
 
@@ -63,7 +68,11 @@ export class FrankfurterFxProvider implements FxProvider {
         `https://api.frankfurter.dev/v2/rate/${from}/${to}?date=${yyyymmdd}`,
       );
       if (!r.ok) throw new Error(`frankfurter http ${r.status}`);
+      assertBodyUnderCap(r, PRICE_BODY_CAP_BYTES);
       const j = (await r.json()) as { date: string; rate: number };
+      // Reject a spoofed/garbage rate (NaN/Inf/<=0/absurd) BEFORE it enters money
+      // math; the throw lands in the catch below → existing stale-fallback path.
+      sanePositiveNumber(j.rate);
       const rateStr = String(j.rate); // ACL: number → string at boundary (ENGR-09)
       await this.cache.upsert(from, to, j.date, rateStr, "frankfurter");
       return {

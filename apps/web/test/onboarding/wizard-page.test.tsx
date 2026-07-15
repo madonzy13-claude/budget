@@ -179,54 +179,24 @@ describe("WizardPage — deferred-create step machine", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // 2 Basics → 3 Features
     await waitFor(() =>
-      expect(screen.getByTestId("onboarding-push-switch")).toBeInTheDocument(),
+      expect(
+        screen.getByTestId("wizard-feature-cushion"),
+      ).toBeInTheDocument(),
     );
   }
 
-  it("features step (3) carries the push switch alongside cushion + reserves", async () => {
+  it("features step (3) shows cushion + reserves (no push/badge — those live in Settings)", async () => {
     await advanceToFeaturesStep();
-    expect(screen.getByTestId("onboarding-push-switch")).toBeInTheDocument();
     expect(screen.getByTestId("wizard-feature-cushion")).toBeInTheDocument();
     expect(screen.getByTestId("wizard-feature-reserves")).toBeInTheDocument();
+    // Notifications + badge were removed from the wizard (r37).
+    expect(screen.queryByTestId("onboarding-push-switch")).toBeNull();
+    expect(screen.queryByTestId("onboarding-badge-switch")).toBeNull();
   });
 
   it("renders no Skip button on any step (skip removed)", async () => {
     await advanceToFeaturesStep();
     expect(screen.queryByRole("button", { name: /^skip$/i })).toBeNull();
-  });
-
-  it("enabling push on Features subscribes the new budget at commit", async () => {
-    const assignSpy = vi
-      .spyOn(window.location, "assign")
-      .mockImplementation(() => {});
-    await advanceToFeaturesStep();
-    // Turn the push toggle ON.
-    fireEvent.click(screen.getByTestId("onboarding-push-switch"));
-    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /create_budget/i }),
-      ).toBeInTheDocument(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
-    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
-    // Push opt-in is HONORED: the new budget id is subscribed.
-    await waitFor(() =>
-      expect(mockSubscribeToPush).toHaveBeenCalledWith("budget-123"),
-    );
-    assignSpy.mockRestore();
-  });
-
-  it("NOT enabling push → no subscribe call at commit", async () => {
-    const assignSpy = vi
-      .spyOn(window.location, "assign")
-      .mockImplementation(() => {});
-    await advanceToFeaturesStep();
-    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
-    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
-    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
-    expect(mockSubscribeToPush).not.toHaveBeenCalled();
-    assignSpy.mockRestore();
   });
 
   it("enabling investments creates the smart Investments category AT COMMIT (not deferred to Settings)", async () => {
