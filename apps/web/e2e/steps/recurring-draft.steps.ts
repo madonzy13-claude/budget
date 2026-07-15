@@ -80,7 +80,12 @@ When(
     // Reveal the action buttons via tap-reveal (works on all viewports;
     // hover-reveal only exists above the `sm` breakpoint).
     await row.click();
-    await spendings.draftConfirmButton().click();
+    // Wait for the revealed confirm button before clicking — under CI load the
+    // reveal + button mount can lag, and clicking a not-yet-actionable button
+    // silently no-ops, leaving the draft in place (flaky "still visible").
+    const confirmBtn = spendings.draftConfirmButton();
+    await expect(confirmBtn).toBeVisible({ timeout: 8000 });
+    await confirmBtn.click();
   },
 );
 
@@ -88,6 +93,8 @@ Then(
   /^the draft row for rule "(.+?)" is not visible$/,
   async ({ page }, ruleName: string) => {
     const spendings = new SpendingsPo(page);
-    await expect(spendings.draftRow(ruleName)).toBeHidden({ timeout: 8000 });
+    // Generous timeout: the confirm mutation + query invalidation + re-render
+    // can take several seconds on a contended CI runner.
+    await expect(spendings.draftRow(ruleName)).toBeHidden({ timeout: 15000 });
   },
 );

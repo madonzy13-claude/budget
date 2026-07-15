@@ -1,4 +1,7 @@
-@tasks-redesign @reserves-golden
+# @ci-only: documented cover-dialog/cold-cache timing flake (per-cell golden
+# replay). Runs in CI with retries; skipped in local runs to avoid false
+# failures. See playwright.config.ts grepInvert.
+@tasks-redesign @reserves-golden @ci-only
 Feature: Reserves golden table — full timeline through the real UI
 
   Drives the canonical reserve golden table (the SAME csv the pure-engine golden
