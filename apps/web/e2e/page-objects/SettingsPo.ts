@@ -83,21 +83,18 @@ export class SettingsPo {
       await trigger.click();
     }
     // Wait for the generate button to be attached inside the expanded section.
+    // Located by testid — a name regex like /share/i also matches the per-member
+    // "Manage {name}" button when a member's display name contains "Shared".
     await this.page
-      .getByRole("button", { name: /invite|generate|share/i })
-      .first()
+      .getByTestId("generate-share-link")
       .waitFor({ state: "attached" });
   }
 
   /**
-   * Click the "Generate invite link" / "Invite member" button in the Members
-   * section to reveal the ShareUrlField. Located by visible text since
-   * members-section.tsx uses no testid on this button.
+   * Click the "Generate share link" button in the Members section to reveal the
+   * ShareUrlField. Located by testid (share-url-field.tsx) — see openMembersSection.
    */
   async clickGenerateInviteLink(): Promise<void> {
-    await this.page
-      .getByRole("button", { name: /invite|generate|share/i })
-      .first()
-      .click();
+    await this.page.getByTestId("generate-share-link").click();
   }
 }
