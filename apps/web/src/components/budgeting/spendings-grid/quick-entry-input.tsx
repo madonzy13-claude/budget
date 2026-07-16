@@ -11,7 +11,6 @@
  */
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { parseDecimal } from "@/lib/decimal";
 import { useCreateTransaction } from "@/hooks/use-create-transaction";
@@ -118,28 +117,17 @@ export function QuickEntryInput({
         placeholder={t("placeholder")}
         aria-label={t("addExpenseAria", { categoryName })}
         style={{ touchAction: "pan-x" }}
-        className="h-9 w-full appearance-none rounded border border-[var(--hairline-dark)] bg-transparent px-3 pr-9 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] [-webkit-tap-highlight-color:transparent] focus:border-[var(--primary)] focus:outline-none focus:shadow-none focus:ring-0 !cursor-pointer focus:!cursor-text"
+        className="h-9 w-full appearance-none rounded border border-[var(--hairline-dark)] bg-transparent px-3 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] [-webkit-tap-highlight-color:transparent] focus:border-[var(--primary)] focus:outline-none focus:shadow-none focus:ring-0 !cursor-pointer focus:!cursor-text"
       />
-      {/* r39 chaining: iOS can't re-show a keyboard after the system Done key
-          dismisses it (programmatic focus is not a page gesture). This in-page
-          save button preventDefaults its pointerdown so the input NEVER blurs
-          — the keyboard stays open and the next amount can be typed
-          immediately. Rendered only while there's something to save. */}
-      {value.trim() !== "" && (
-        <button
-          type="button"
-          data-testid={`${testId}-next`}
-          aria-label={t("saveNextAria", { categoryName })}
-          onPointerDown={(e) => e.preventDefault()}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => submit()}
-          // Same checkmark anatomy as the draft-row confirm action: bare
-          // yellow icon, no fill, hover surface only.
-          className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded text-[var(--primary)] hover:bg-[var(--surface-card-dark)]"
-        >
-          <Check className="h-5 w-5" aria-hidden="true" strokeWidth={3} />
-        </button>
-      )}
+      {/* r40: the in-field save-next (✓) button was removed at the user's
+          request. Research verdict on keeping the keyboard across a save on
+          iOS: impossible without an in-page control — focus() only shows the
+          keyboard inside a page gesture call stack, the system Done key is
+          not interceptable, blur is not cancelable, the decimal pad has no
+          return key, and navigator.virtualKeyboard is Chromium-only. Desktop
+          chains via Enter (focus is kept); mobile cross-category chaining
+          works by tapping the next field directly (input→input focus keeps
+          the keyboard; the blur saves the previous entry). */}
       </div>
     </div>
   );

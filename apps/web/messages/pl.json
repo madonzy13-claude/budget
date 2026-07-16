@@ -1644,8 +1644,7 @@
     "quickEntry": {
       "placeholder": "…",
       "title": "wydatki",
-      "addExpenseAria": "Dodaj wydatek do {categoryName}",
-            "saveNextAria": "Zapisz i dodaj kolejny do {categoryName}"
+      "addExpenseAria": "Dodaj wydatek do {categoryName}"
     },
     "monthNav": {
       "prev": "Poprzedni miesiąc",

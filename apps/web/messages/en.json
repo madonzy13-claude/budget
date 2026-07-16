@@ -1621,8 +1621,7 @@
     "quickEntry": {
       "placeholder": "…",
       "title": "expenses",
-      "addExpenseAria": "Add expense to {categoryName}",
-            "saveNextAria": "Save and add another to {categoryName}"
+      "addExpenseAria": "Add expense to {categoryName}"
     },
     "monthNav": {
       "prev": "Previous month",

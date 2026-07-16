@@ -1644,8 +1644,7 @@
     "quickEntry": {
       "placeholder": "…",
       "title": "витрати",
-      "addExpenseAria": "Додати витрату до {categoryName}",
-            "saveNextAria": "Зберегти й додати ще до {categoryName}"
+      "addExpenseAria": "Додати витрату до {categoryName}"
     },
     "monthNav": {
       "prev": "Попередній місяць",

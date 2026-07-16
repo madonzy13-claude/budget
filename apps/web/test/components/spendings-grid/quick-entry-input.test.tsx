@@ -185,38 +185,35 @@ describe("QuickEntryInput", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  // r39 chaining: iOS cannot re-show a keyboard after the system Done key
-  // dismisses it (programmatic focus is not a page gesture), so chaining runs
-  // through an IN-PAGE save button instead: it preventDefaults its
-  // pointerdown, so the input never blurs, the keyboard never closes, and the
-  // next amount can be typed immediately. Blur (Done / tap-away) stays a
-  // plain save-and-close. Editing an existing transaction never touches this.
-  describe("chaining (r39)", () => {
-    it("shows the save-next button only while a value is typed", async () => {
-      renderInput();
-      expect(screen.queryByTestId("quick-entry-groceries-next")).toBeNull();
-      const input = screen.getByTestId("quick-entry-groceries");
-      await userEvent.type(input, "5.96");
-      expect(screen.getByTestId("quick-entry-groceries-next")).toBeTruthy();
-    });
-
-    it("save-next saves, clears, and keeps focus so the keyboard stays open", async () => {
+  // r40 chaining: desktop chains via Enter — the save must never drop focus,
+  // so the next amount can be typed straight away. On iOS the keyboard
+  // cannot be kept across a save (focus() needs a page gesture, Done is
+  // system UI); blur stays a plain save-and-close and no in-page button
+  // exists (removed at the user's request).
+  describe("chaining (r40)", () => {
+    it("Enter saves, clears, and keeps focus for the next entry (desktop)", async () => {
       renderInput();
       const input = screen.getByTestId(
         "quick-entry-groceries",
       ) as HTMLInputElement;
       await userEvent.type(input, "5.96");
-      const next = screen.getByTestId("quick-entry-groceries-next");
-      // The button must claim the pointer WITHOUT taking focus — a
-      // defaulted pointerdown would blur the input and drop the keyboard.
-      const down = fireEvent.pointerDown(next);
-      expect(down).toBe(false); // preventDefault'ed
-      fireEvent.click(next);
+      expect(document.activeElement).toBe(input);
+      fireEvent.keyDown(input, { key: "Enter" });
       expect(mockMutate).toHaveBeenCalledWith(
         expect.objectContaining({ amountCents: 596 }),
       );
       expect(input.value).toBe("");
+      // Focus retained → user types the next amount immediately.
       expect(document.activeElement).toBe(input);
+      await userEvent.type(input, "7");
+      expect(input.value).toBe("7");
+    });
+
+    it("renders no in-field save button", async () => {
+      renderInput();
+      const input = screen.getByTestId("quick-entry-groceries");
+      await userEvent.type(input, "5.96");
+      expect(screen.queryByTestId("quick-entry-groceries-next")).toBeNull();
     });
 
     it("blur (keyboard Done / tap away) saves WITHOUT refocusing", async () => {
