@@ -324,6 +324,14 @@ export function TransactionRow({
     setEditing(false);
     setHovered(false);
     setRevealed(false);
+    refocusRow();
+  }
+
+  // r40: after a quick edit ends (commit or Escape) focus returns to the ROW
+  // so arrow-key navigation continues without re-entering the list. rAF: the
+  // editor must unmount first or its blur handler re-commits.
+  function refocusRow() {
+    requestAnimationFrame(() => rowRef.current?.focus());
   }
 
   function handleEditKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -335,6 +343,7 @@ export function TransactionRow({
       setEditing(false);
       setHovered(false);
       setRevealed(false);
+      refocusRow();
     }
   }
 
@@ -364,7 +373,9 @@ export function TransactionRow({
       tabIndex={-1}
       className={cn(
         "flex min-h-[40px] items-center gap-2 px-3 py-1",
-        "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]",
+        // Keyboard focus reads exactly like hover — elevated surface, no
+        // accent ring (r40 UAT).
+        "outline-none focus-visible:bg-[var(--surface-elevated-dark)]",
         readOnly ? "cursor-default select-none" : "cursor-pointer select-none",
         roundedBottom && "rounded-b-md",
         showChips && "bg-[var(--surface-elevated-dark)]",

@@ -288,6 +288,36 @@ describe("TransactionRow", () => {
       expect(screen.queryByTestId("txn-row-delete-confirm")).toBeNull();
     });
 
+    it("focus styles the row like hover (elevated bg), no accent ring", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      expect(row.className).toContain(
+        "focus-visible:bg-[var(--surface-elevated-dark)]",
+      );
+      expect(row.className).not.toContain("focus-visible:ring");
+    });
+
+    it("re-focuses the ROW after an Enter-committed quick edit so navigation continues", async () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      const editor = screen.getByDisplayValue("15");
+      fireEvent.change(editor, { target: { value: "20" } });
+      fireEvent.keyDown(editor, { key: "Enter" });
+      await vi.waitFor(() => expect(document.activeElement).toBe(row));
+    });
+
+    it("re-focuses the ROW after Escape cancels the quick edit", async () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      const editor = screen.getByDisplayValue("15");
+      fireEvent.keyDown(editor, { key: "Escape" });
+      await vi.waitFor(() => expect(document.activeElement).toBe(row));
+    });
+
     it("readOnly (archived) rows ignore Enter and Backspace", () => {
       renderRow({ readOnly: true });
       const row = screen.getByTestId("txn-row-1500");

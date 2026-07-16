@@ -58,7 +58,7 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { restoreScroll } from "@/lib/restore-scroll";
 import { handleGridKeyNav } from "@/lib/grid-key-nav";
-import { formatRelativeOrDate } from "@/lib/relative-time";
+import { formatTimestamp } from "@/lib/format-date";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -215,6 +215,33 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   const tDel = useTranslations("grid.deleteCategory");
   const tGrid = useTranslations("grid");
   const locale = useLocale();
+
+  // r40 desktop keyboard nav: Tab cycles quick-add inputs, arrows walk a
+  // column's rows (lib/grid-key-nav.ts). Document-level (capture) so the very
+  // FIRST Tab on a fresh page load (focus on <body>) lands on the first
+  // quick-add input instead of the header logo. Keys pressed while focus is
+  // in the header/nav stay native — only body- or grid-scoped keys are taken.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const root = gridRef.current;
+      if (!root) return;
+      const target = e.target as HTMLElement | null;
+      const fromBody =
+        target === document.body ||
+        target === (document.documentElement as unknown as HTMLElement);
+      if (!fromBody && !(target && root.contains(target))) return;
+      if (
+        handleGridKeyNav(
+          { key: e.key, shiftKey: e.shiftKey, target: e.target },
+          root,
+        )
+      ) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, []);
   const offlineToast = useOfflineWriteToast();
   // 260615-bse: one shared offline dialog for the whole grid. Both the
   // device-knows-offline pre-insert short-circuit (quick-entry) and the
@@ -787,14 +814,6 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       <div
         ref={gridRef}
         onScroll={handleGridScroll}
-        // r40 desktop keyboard nav: Tab cycles quick-add inputs, arrows walk
-        // a column's transaction rows, Enter/Backspace act on the focused row
-        // (handled by the row itself). See lib/grid-key-nav.ts.
-        onKeyDown={(e) => {
-          if (gridRef.current && handleGridKeyNav(e, gridRef.current)) {
-            e.preventDefault();
-          }
-        }}
         data-testid="spendings-grid"
         // Pulling down inside the grid must NOT reload the page — only the month
         // slider above does (it sits outside this container). See pull-to-refresh.tsx.
@@ -827,7 +846,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
         // scrollHeight past the last row instead.
         style={{ overscrollBehavior: "none" }}
-        className="mt-4 overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
+        // flex-col so the "last spending added" line can mt-auto to the
+        // bottom of the visible box when the columns are short (r40).
+        className="mt-4 flex flex-col overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
       >
         <DndContext
           sensors={sensors}
@@ -903,18 +924,21 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
             )}
           </SlideOnChange>
         </DndContext>
-        {/* r40: "last spending added" freshness line. In the VERTICAL flow at
-            the very bottom of the grid content (scrolls with it), but pinned
-            with `sticky left-0` on the horizontal axis so panning the columns
-            sideways never moves it. created_at based — edits don't bump it,
-            deleting the newest entry falls back to the previous one. */}
+        {/* r40: "last spending added" freshness line. `mt-auto` (the scroller
+            is a flex column) pushes it to the BOTTOM of the visible area even
+            when the columns are short; it scrolls with long content (never
+            vertically fixed). Stretch width resolves against the scroller's
+            client box — NOT the horizontal overflow — so `sticky left-0` +
+            text-center keep it centred in the viewport while the columns pan
+            sideways. Exact user-timezone timestamp; created_at based — edits
+            don't bump it, deleting the newest entry falls back. */}
         {summary.data?.lastSpendingAddedAt && (
           <div
             data-testid="last-spending-added"
-            className="sticky left-0 w-fit px-1 pt-3 text-caption text-[var(--muted-foreground)]"
+            className="sticky left-0 mt-auto w-full pt-3 text-center text-caption text-[var(--muted-foreground)]"
           >
             {tGrid("lastAdded", {
-              when: formatRelativeOrDate(
+              when: formatTimestamp(
                 summary.data.lastSpendingAddedAt,
                 locale,
                 userTz,
