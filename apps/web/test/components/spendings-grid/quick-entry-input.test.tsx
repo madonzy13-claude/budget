@@ -185,6 +185,48 @@ describe("QuickEntryInput", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
+  // r39 chaining: after a save the input re-activates so the user can add
+  // more spendings to the same category without tapping the field again.
+  // Only the quick-entry's own save refocuses — editing an existing
+  // transaction never touches this input.
+  describe("chaining (r39)", () => {
+    it("refocuses after a blur-save (keyboard Done) so the next entry can be typed", async () => {
+      renderInput();
+      const input = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      await userEvent.type(input, "5.96");
+      // Real blur (keyboard Done): focus actually leaves, relatedTarget null.
+      input.blur();
+      expect(document.activeElement).not.toBe(input);
+      expect(mockMutate).toHaveBeenCalled();
+      await vi.waitFor(() => expect(document.activeElement).toBe(input));
+    });
+
+    it("does NOT steal focus when the blur moved it to another element", async () => {
+      const { container } = renderInput();
+      const other = document.createElement("button");
+      container.appendChild(other);
+      const input = screen.getByTestId("quick-entry-groceries");
+      await userEvent.type(input, "7");
+      other.focus();
+      fireEvent.blur(input, { relatedTarget: other });
+      expect(mockMutate).toHaveBeenCalled();
+      // Two frames — enough for any (wrong) deferred refocus to have fired.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      expect(document.activeElement).not.toBe(input);
+    });
+
+    it("keeps focus on the input after an Enter-save", async () => {
+      renderInput();
+      const input = screen.getByTestId("quick-entry-groceries");
+      await userEvent.type(input, "5.96");
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(mockMutate).toHaveBeenCalled();
+      await vi.waitFor(() => expect(document.activeElement).toBe(input));
+    });
+  });
+
   it("online Enter: mutates as before and does NOT call onOfflineAttempt", async () => {
     setOnline(true);
     renderInput();

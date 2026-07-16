@@ -53,7 +53,11 @@ export function QuickEntryInput({
   });
 
   // silent = blur path: don't toast on an invalid value, just leave it.
-  function submit(silent = false) {
+  // refocus = r39 chaining: after a successful save, re-activate this input so
+  // the user can add more spendings to the SAME category without tapping the
+  // field again. Callers pass false when the blur moved focus to another
+  // element — a deliberate tap elsewhere must never have its focus stolen.
+  function submit(silent = false, refocus = true) {
     if (!value.trim()) return;
     const cents = parseDecimal(value);
     if (cents === null) {
@@ -77,6 +81,9 @@ export function QuickEntryInput({
       currency: budgetCurrency,
       note: null,
     });
+    if (refocus) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -112,7 +119,10 @@ export function QuickEntryInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        onBlur={() => submit(true)}
+        // relatedTarget === null → keyboard "Done" (focus went nowhere): save
+        // and re-activate for the next entry. A blur that lands on another
+        // element is a deliberate move — save without stealing focus back.
+        onBlur={(e) => submit(true, e.relatedTarget === null)}
         placeholder={t("placeholder")}
         aria-label={t("addExpenseAria", { categoryName })}
         style={{ touchAction: "pan-x" }}
