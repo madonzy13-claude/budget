@@ -185,66 +185,54 @@ describe("QuickEntryInput", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  // r39 chaining: after a save the input re-activates so the user can add
-  // more spendings to the same category without tapping the field again.
-  // Only the quick-entry's own save refocuses — editing an existing
-  // transaction never touches this input.
+  // r39 chaining: iOS cannot re-show a keyboard after the system Done key
+  // dismisses it (programmatic focus is not a page gesture), so chaining runs
+  // through an IN-PAGE save button instead: it preventDefaults its
+  // pointerdown, so the input never blurs, the keyboard never closes, and the
+  // next amount can be typed immediately. Blur (Done / tap-away) stays a
+  // plain save-and-close. Editing an existing transaction never touches this.
   describe("chaining (r39)", () => {
-    it("refocuses SYNCHRONOUSLY after a keyboard-Done blur-save (iOS keeps the keyboard open)", async () => {
+    it("shows the save-next button only while a value is typed", async () => {
+      renderInput();
+      expect(screen.queryByTestId("quick-entry-groceries-next")).toBeNull();
+      const input = screen.getByTestId("quick-entry-groceries");
+      await userEvent.type(input, "5.96");
+      expect(screen.getByTestId("quick-entry-groceries-next")).toBeTruthy();
+    });
+
+    it("save-next saves, clears, and keeps focus so the keyboard stays open", async () => {
       renderInput();
       const input = screen.getByTestId(
         "quick-entry-groceries",
       ) as HTMLInputElement;
       await userEvent.type(input, "5.96");
-      // Keyboard taps are system UI — by Done-time the initial focus-tap's
-      // pointerdown is stale. Let it age past the 300ms freshness window.
-      await new Promise((r) => setTimeout(r, 350));
-      // Keyboard "Done": blur with relatedTarget null, no fresh pointerdown.
-      act(() => input.blur());
-      expect(mockMutate).toHaveBeenCalled();
-      // Synchronous refocus — an async (rAF/setTimeout) focus is outside the
-      // iOS gesture window and the keyboard would stay closed.
+      const next = screen.getByTestId("quick-entry-groceries-next");
+      // The button must claim the pointer WITHOUT taking focus — a
+      // defaulted pointerdown would blur the input and drop the keyboard.
+      const down = fireEvent.pointerDown(next);
+      expect(down).toBe(false); // preventDefault'ed
+      fireEvent.click(next);
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 596 }),
+      );
+      expect(input.value).toBe("");
       expect(document.activeElement).toBe(input);
     });
 
-    it("does NOT refocus when the blur came from tapping the page", async () => {
+    it("blur (keyboard Done / tap away) saves WITHOUT refocusing", async () => {
       renderInput();
       const input = screen.getByTestId(
         "quick-entry-groceries",
       ) as HTMLInputElement;
-      await userEvent.type(input, "9");
-      // A page tap fires a document pointerdown right before the blur —
-      // refocusing would trap the keyboard open with no way to dismiss it.
-      fireEvent.pointerDown(document.body);
+      await userEvent.type(input, "12.50");
       act(() => input.blur());
-      expect(mockMutate).toHaveBeenCalled();
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 1250 }),
+      );
       await new Promise((r) =>
         requestAnimationFrame(() => requestAnimationFrame(r)),
       );
       expect(document.activeElement).not.toBe(input);
-    });
-
-    it("does NOT steal focus when the blur moved it to another element", async () => {
-      const { container } = renderInput();
-      const other = document.createElement("button");
-      container.appendChild(other);
-      const input = screen.getByTestId("quick-entry-groceries");
-      await userEvent.type(input, "7");
-      other.focus();
-      fireEvent.blur(input, { relatedTarget: other });
-      expect(mockMutate).toHaveBeenCalled();
-      // Two frames — enough for any (wrong) deferred refocus to have fired.
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      expect(document.activeElement).not.toBe(input);
-    });
-
-    it("keeps focus on the input after an Enter-save", async () => {
-      renderInput();
-      const input = screen.getByTestId("quick-entry-groceries");
-      await userEvent.type(input, "5.96");
-      fireEvent.keyDown(input, { key: "Enter" });
-      expect(mockMutate).toHaveBeenCalled();
-      await vi.waitFor(() => expect(document.activeElement).toBe(input));
     });
   });
 

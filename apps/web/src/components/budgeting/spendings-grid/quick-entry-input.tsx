@@ -9,8 +9,9 @@
  *
  * NO hover behavior (D-PH4-INT1).
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { parseDecimal } from "@/lib/decimal";
 import { useCreateTransaction } from "@/hooks/use-create-transaction";
@@ -46,19 +47,6 @@ export function QuickEntryInput({
   const tError = useTranslations("grid.error");
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  // r39 chaining: timestamp of the last pointerdown anywhere on the page.
-  // Keyboard "Done" blurs WITHOUT a page pointerdown (the tap lands on system
-  // UI); a blur preceded by a fresh pointerdown means the user tapped the page
-  // and must not have the keyboard forced back open.
-  const lastPointerDownRef = useRef(0);
-  useEffect(() => {
-    const onPointerDown = () => {
-      lastPointerDownRef.current = Date.now();
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () =>
-      document.removeEventListener("pointerdown", onPointerDown, true);
-  }, []);
   // Lying-true case: an OfflineWriteError (timeout / dead link with onLine===true)
   // opens the SAME dialog as the pre-insert path after rolling back.
   const { mutate } = useCreateTransaction(budgetId, month, {
@@ -66,11 +54,7 @@ export function QuickEntryInput({
   });
 
   // silent = blur path: don't toast on an invalid value, just leave it.
-  // refocus = r39 chaining: after a successful save, re-activate this input so
-  // the user can add more spendings to the SAME category without tapping the
-  // field again. Callers pass false when the blur moved focus to another
-  // element — a deliberate tap elsewhere must never have its focus stolen.
-  function submit(silent = false, refocus = true) {
+  function submit(silent = false) {
     if (!value.trim()) return;
     const cents = parseDecimal(value);
     if (cents === null) {
@@ -94,12 +78,6 @@ export function QuickEntryInput({
       currency: budgetCurrency,
       note: null,
     });
-    if (refocus) {
-      // SYNCHRONOUS on purpose: iOS only keeps the keyboard open when the
-      // focus() call happens inside the current event's gesture window — an
-      // rAF/setTimeout refocus lands outside it and the keyboard stays closed.
-      inputRef.current?.focus();
-    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -124,6 +102,7 @@ export function QuickEntryInput({
       <p className="mb-1 text-[10px] text-[var(--muted-foreground)]">
         {t("title")}
       </p>
+      <div className="relative">
       <input
         ref={inputRef}
         data-testid={testId}
@@ -135,26 +114,31 @@ export function QuickEntryInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        // Keyboard "Done" = blur with relatedTarget null AND no page
-        // pointerdown just before it: save and re-activate for the next
-        // entry. A blur from tapping the page (fresh pointerdown) or landing
-        // on another element is a deliberate move — save without stealing
-        // focus back.
-        // A page tap reaches blur within ~100ms of its pointerdown; keyboard
-        // taps are system UI and never touch the page, so by Done-time the
-        // last page pointerdown is stale. 300ms separates the two cleanly.
-        onBlur={(e) =>
-          submit(
-            true,
-            e.relatedTarget === null &&
-              Date.now() - lastPointerDownRef.current > 300,
-          )
-        }
+        onBlur={() => submit(true)}
         placeholder={t("placeholder")}
         aria-label={t("addExpenseAria", { categoryName })}
         style={{ touchAction: "pan-x" }}
-        className="h-9 w-full appearance-none rounded border border-[var(--hairline-dark)] bg-transparent px-3 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] [-webkit-tap-highlight-color:transparent] focus:border-[var(--primary)] focus:outline-none focus:shadow-none focus:ring-0 !cursor-pointer focus:!cursor-text"
+        className="h-9 w-full appearance-none rounded border border-[var(--hairline-dark)] bg-transparent px-3 pr-9 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] [-webkit-tap-highlight-color:transparent] focus:border-[var(--primary)] focus:outline-none focus:shadow-none focus:ring-0 !cursor-pointer focus:!cursor-text"
       />
+      {/* r39 chaining: iOS can't re-show a keyboard after the system Done key
+          dismisses it (programmatic focus is not a page gesture). This in-page
+          save button preventDefaults its pointerdown so the input NEVER blurs
+          — the keyboard stays open and the next amount can be typed
+          immediately. Rendered only while there's something to save. */}
+      {value.trim() !== "" && (
+        <button
+          type="button"
+          data-testid={`${testId}-next`}
+          aria-label={t("saveNextAria", { categoryName })}
+          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => submit()}
+          className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded bg-[var(--primary)] text-black"
+        >
+          <Check className="size-4" aria-hidden="true" />
+        </button>
+      )}
+      </div>
     </div>
   );
 }
