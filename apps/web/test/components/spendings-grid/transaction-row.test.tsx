@@ -249,4 +249,53 @@ describe("TransactionRow", () => {
       "cursor-pointer",
     );
   });
+
+  // r40 desktop keyboard nav: rows are focused programmatically (Arrow keys
+  // via grid-key-nav) and act on Enter / Backspace. Tab order stays with the
+  // quick-add inputs, so the row itself is tabIndex=-1.
+  describe("keyboard interaction (r40)", () => {
+    it("row is out of the tab order but marked for arrow navigation", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      expect(row.getAttribute("tabindex")).toBe("-1");
+      expect(row.hasAttribute("data-txn-nav")).toBe(true);
+    });
+
+    it("Enter on the focused row opens the inline amount editor", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      expect(screen.getByDisplayValue("15")).toBeTruthy();
+    });
+
+    it("Backspace on the focused row opens the delete confirmation", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Backspace" });
+      expect(screen.getByTestId("txn-row-delete-confirm")).toBeTruthy();
+      expect(mockDeleteMutate).not.toHaveBeenCalled(); // confirm first, never direct
+    });
+
+    it("Backspace INSIDE the amount editor edits text, never deletes the row", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      const editor = screen.getByDisplayValue("15");
+      fireEvent.keyDown(editor, { key: "Backspace" });
+      expect(screen.queryByTestId("txn-row-delete-confirm")).toBeNull();
+    });
+
+    it("readOnly (archived) rows ignore Enter and Backspace", () => {
+      renderRow({ readOnly: true });
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      expect(screen.queryByDisplayValue("15")).toBeNull();
+      fireEvent.keyDown(row, { key: "Backspace" });
+      expect(screen.queryByTestId("txn-row-delete-confirm")).toBeNull();
+    });
+  });
 });

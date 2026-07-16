@@ -342,13 +342,29 @@ export function TransactionRow({
     <div
       ref={rowRef}
       data-testid={`txn-row-${txn.amountConvertedCents}`}
+      // r40 keyboard nav: rows are reached with ArrowUp/Down (grid-key-nav),
+      // NOT Tab — the tab order belongs to the quick-add inputs. data-txn-nav
+      // marks arrow-navigable rows; archived (readOnly) rows opt out.
+      {...(readOnly ? {} : { "data-txn-nav": "" })}
       onClick={readOnly ? undefined : handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onKeyDown={(e) => {
+        if (readOnly || editing) return;
+        if (e.target !== e.currentTarget) return; // row itself, not the editor
+        if (e.key === "Enter") {
+          e.preventDefault();
+          startEditing();
+        } else if (e.key === "Backspace" || e.key === "Delete") {
+          e.preventDefault();
+          setDeleteOpen(true);
+        }
+      }}
       role="row"
-      tabIndex={0}
+      tabIndex={-1}
       className={cn(
         "flex min-h-[40px] items-center gap-2 px-3 py-1",
+        "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]",
         readOnly ? "cursor-default select-none" : "cursor-pointer select-none",
         roundedBottom && "rounded-b-md",
         showChips && "bg-[var(--surface-elevated-dark)]",
