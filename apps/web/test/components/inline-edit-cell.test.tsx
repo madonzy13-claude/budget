@@ -286,4 +286,29 @@ describe("InlineEditCell", () => {
       expect(screen.getByTestId("display-value")).toHaveTextContent("42");
     });
   });
+
+  // Regression: on iOS the wallet editors relied on the input's bare
+  // `autoFocus`, which lets Safari auto-scroll the focused input — the row
+  // "jumped too high" on the first edit after a cold app open. The cell must
+  // own focus itself, with preventScroll, so callers don't need autoFocus.
+  describe("keyboard-safe focus ownership", () => {
+    it("focuses the editor input itself (no autoFocus needed)", async () => {
+      renderCell<string>("hello");
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByTestId("editor-input");
+      await waitFor(() => expect(document.activeElement).toBe(input));
+    });
+
+    it("focuses with preventScroll so the browser cannot pan the page", async () => {
+      const focusSpy = vi.spyOn(HTMLElement.prototype, "focus");
+      renderCell<string>("hello");
+      fireEvent.click(screen.getByRole("button"));
+      await waitFor(() => {
+        expect(focusSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ preventScroll: true }),
+        );
+      });
+      focusSpy.mockRestore();
+    });
+  });
 });

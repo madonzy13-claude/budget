@@ -372,7 +372,6 @@ export function ReservesTableRow({
               )}
               renderEditor={(draft, onChange, _onCommit, onCancel) => (
                 <Input
-                  autoFocus
                   type="text"
                   inputMode="decimal"
                   defaultValue={String(draft).replace(/[^0-9.-]/g, "")}
