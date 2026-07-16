@@ -8,6 +8,7 @@
  */
 import * as React from "react";
 import { Loader2, RotateCcw } from "lucide-react";
+import { keyboardScrollDelta } from "@/lib/keyboard-scroll";
 
 export interface InlineEditCellProps<T> {
   value: T;
@@ -72,10 +73,17 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
     function adjustForKeyboard() {
       if (!input || !scroller) return;
       const vv = window.visualViewport;
-      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      const padding = 24;
-      const overflow = input.getBoundingClientRect().bottom - (visibleBottom - padding);
-      if (overflow > 0) scroller.scrollTop += overflow;
+      const rect = input.getBoundingClientRect();
+      // Clamped: scroll only as far as the input's headroom allows, so the
+      // edited row never shoots past the visible top (first attempt scrolled
+      // by the full keyboard overlap and hid the row entirely).
+      const delta = keyboardScrollDelta({
+        inputTop: rect.top,
+        inputBottom: rect.bottom,
+        visibleTop: vv?.offsetTop ?? 0,
+        visibleBottom: vv ? vv.offsetTop + vv.height : window.innerHeight,
+      });
+      if (delta > 0) scroller.scrollTop += delta;
     }
 
     if (document.activeElement !== input) {
