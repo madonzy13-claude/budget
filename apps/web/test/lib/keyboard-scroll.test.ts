@@ -47,13 +47,28 @@ describe("keyboardScrollDelta", () => {
     expect(d).toBe(Math.max(0, 50 - (0 + 24))); // 26 — never more
   });
 
-  it("never returns a negative delta", () => {
+  it("scrolls back UP (negative delta) when the input sits above the visible top", () => {
+    // iOS's async keyboard reveal-scroll can overshoot and push the edited row
+    // above the viewport — the user sees rows far below what they tapped.
+    // The delta must pull the row back down into view.
+    const d = keyboardScrollDelta({
+      inputTop: -300,
+      inputBottom: -260,
+      visibleTop: 0,
+      visibleBottom: 500,
+      padding: 24,
+    });
+    expect(d).toBe(-300 - 24); // scrollTop += -324 → row lands at visibleTop+pad
+  });
+
+  it("returns 0 when the input top merely touches the padded top edge", () => {
     expect(
       keyboardScrollDelta({
-        inputTop: 10,
-        inputBottom: 50,
-        visibleTop: 40,
-        visibleBottom: 800,
+        inputTop: 24,
+        inputBottom: 64,
+        visibleTop: 0,
+        visibleBottom: 500,
+        padding: 24,
       }),
     ).toBe(0);
   });

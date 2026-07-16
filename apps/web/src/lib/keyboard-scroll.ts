@@ -15,8 +15,13 @@ export function keyboardScrollDelta(box: {
   padding?: number;
 }): number {
   const pad = box.padding ?? 24;
+  // Above the visible top (iOS's async keyboard reveal-scroll overshot):
+  // negative delta scrolls back up until the input top re-enters the view.
+  const underflow = box.inputTop - (box.visibleTop + pad);
+  if (underflow < 0) return underflow;
+  // Below the keyboard: scroll down, clamped to the input's headroom so the
+  // row can never leave through the top.
   const overflow = box.inputBottom - (box.visibleBottom - pad);
   if (overflow <= 0) return 0;
-  const headroom = Math.max(0, box.inputTop - (box.visibleTop + pad));
-  return Math.min(overflow, headroom);
+  return Math.min(overflow, underflow);
 }

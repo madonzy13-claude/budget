@@ -89,15 +89,24 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
     if (document.activeElement !== input) {
       input.focus({ preventScroll: true });
     }
+    // iOS runs its own async "reveal focused input" scroll with the keyboard
+    // animation (preventScroll does NOT cover it) and it can overshoot, leaving
+    // the row above the viewport. Re-check across the whole animation window;
+    // keyboardScrollDelta is bidirectional so each pass converges on a visible row.
+    const timers: ReturnType<typeof setTimeout>[] = [];
     requestAnimationFrame(() => {
       if (scroller) scroller.scrollTop = savedTop;
-      // Keyboard geometry settles well after the focus event on iOS.
-      setTimeout(adjustForKeyboard, 350);
+      for (const ms of [350, 700, 1050]) {
+        timers.push(setTimeout(adjustForKeyboard, ms));
+      }
     });
 
     const vv = window.visualViewport;
     vv?.addEventListener("resize", adjustForKeyboard);
-    return () => vv?.removeEventListener("resize", adjustForKeyboard);
+    return () => {
+      vv?.removeEventListener("resize", adjustForKeyboard);
+      for (const t of timers) clearTimeout(t);
+    };
   }, [editing]);
 
   const beginEdit = () => {
