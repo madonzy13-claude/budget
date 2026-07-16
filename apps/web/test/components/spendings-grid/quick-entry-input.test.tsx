@@ -233,6 +233,80 @@ describe("QuickEntryInput", () => {
     });
   });
 
+  // r40b: Left/Right move the caret until the field edge, then save + hop to the
+  // adjacent column's quick input.
+  describe("edge Left/Right column hop (r40b)", () => {
+    function renderPair() {
+      return render(
+        <TestQueryProvider>
+          <QuickEntryInput
+            {...defaultProps}
+            categoryId="cat-1"
+            categoryName="Groceries"
+          />
+          <QuickEntryInput
+            {...defaultProps}
+            categoryId="cat-2"
+            categoryName="Rent"
+          />
+        </TestQueryProvider>,
+      );
+    }
+
+    it("ArrowRight at the right edge saves and focuses the next column", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(first, "5.96"); // caret at end
+      fireEvent.keyDown(first, { key: "ArrowRight" });
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 596 }),
+      );
+      expect(document.activeElement).toBe(second);
+    });
+
+    it("ArrowLeft at the left edge saves and focuses the previous column", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(second, "7");
+      second.setSelectionRange(0, 0); // caret at left edge
+      fireEvent.keyDown(second, { key: "ArrowLeft" });
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 700 }),
+      );
+      expect(document.activeElement).toBe(first);
+    });
+
+    it("ArrowLeft with the caret mid-value moves the caret, does NOT save or hop", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      await userEvent.type(first, "50");
+      first.setSelectionRange(1, 1); // between the two digits
+      fireEvent.keyDown(first, { key: "ArrowLeft" });
+      expect(mockMutate).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(first);
+    });
+
+    it("empty field hops columns without saving", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      first.focus();
+      fireEvent.keyDown(first, { key: "ArrowRight" });
+      expect(mockMutate).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(second);
+    });
+  });
+
   it("online Enter: mutates as before and does NOT call onOfflineAttempt", async () => {
     setOnline(true);
     renderInput();

@@ -42,14 +42,13 @@ export function MonthNavigator({ budgetTz, className }: MonthNavigatorProps) {
       ? formatted.charAt(0).toLocaleUpperCase(locale) + formatted.slice(1)
       : formatted;
 
-  // Cmd/Ctrl+Arrow keyboard shortcut (D-PH4-Q3)
+  // Cmd/Ctrl+SHIFT+Arrow changes month (r40b). Plain Cmd/Ctrl+Arrow now jumps
+  // to the first/last grid COLUMN (lib/grid-key-nav.ts), so the month shortcut
+  // gained Shift to avoid colliding with it. Fires regardless of focus — the
+  // Shift+meta combo never types text, so no input guard is needed.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      const el = document.activeElement as HTMLElement | null;
-      const tag = el?.tagName?.toUpperCase();
-      if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable)
-        return;
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         prev();

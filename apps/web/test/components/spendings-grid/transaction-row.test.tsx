@@ -101,19 +101,34 @@ describe("TransactionRow", () => {
     expect(tip.textContent).not.toContain("Weekly shop");
   });
 
-  it("hover reveals the edit and delete chips; mouse leave hides them", () => {
+  it("hover reveals the edit and delete chips; they persist while focused, hide on blur", () => {
     renderRow();
     const row = screen.getByTestId("txn-row-1500");
     expect(
       document.querySelector('[data-testid="txn-action-edit"]'),
     ).toBeNull();
-    fireEvent.mouseEnter(row);
+    fireEvent.mouseEnter(row); // r40b: focus-follows-mouse focuses the row too
     expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
     expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
+    // r40b: the row stays the nav anchor after the mouse leaves (still focused),
+    // so the chips persist; they only hide once focus actually leaves the row.
     fireEvent.mouseLeave(row);
+    expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
+    fireEvent.blur(row);
     expect(
       document.querySelector('[data-testid="txn-action-edit"]'),
     ).toBeNull();
+  });
+
+  it("keyboard focus (arrow-nav) reveals the chips even without hover", () => {
+    renderRow();
+    const row = screen.getByTestId("txn-row-1500");
+    expect(
+      document.querySelector('[data-testid="txn-action-edit"]'),
+    ).toBeNull();
+    fireEvent.focus(row);
+    expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
+    expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
   });
 
   it("touch (no hover): a tap reveals the chips", () => {
@@ -276,6 +291,18 @@ describe("TransactionRow", () => {
       fireEvent.keyDown(row, { key: "Backspace" });
       expect(screen.getByTestId("txn-row-delete-confirm")).toBeTruthy();
       expect(mockDeleteMutate).not.toHaveBeenCalled(); // confirm first, never direct
+    });
+
+    it("Cmd/Ctrl+Enter opens the FULL editor (pen) instead of the inline edit", () => {
+      const onEdit = vi.fn();
+      renderRow({ onEdit });
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter", metaKey: true });
+      expect(onEdit).toHaveBeenCalledWith(txn.id);
+      expect(screen.queryByDisplayValue("15")).toBeNull(); // NOT inline editing
+      fireEvent.keyDown(row, { key: "Enter", ctrlKey: true });
+      expect(onEdit).toHaveBeenCalledTimes(2);
     });
 
     it("Backspace INSIDE the amount editor edits text, never deletes the row", () => {

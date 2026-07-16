@@ -232,7 +232,13 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       if (!fromBody && !(target && root.contains(target))) return;
       if (
         handleGridKeyNav(
-          { key: e.key, shiftKey: e.shiftKey, target: e.target },
+          {
+            key: e.key,
+            shiftKey: e.shiftKey,
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            target: e.target,
+          },
           root,
         )
       ) {

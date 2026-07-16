@@ -72,6 +72,7 @@ export function TransactionRow({
   const locale = useLocale();
   const [revealed, setRevealed] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -81,7 +82,9 @@ export function TransactionRow({
   const deleteMutation = useDeleteTransaction(budgetId, month);
   const updateMutation = useUpdateTransaction(budgetId, month);
 
-  const showChips = (hovered || revealed) && !editing && !readOnly;
+  // r40b: keyboard-focused rows reveal their action chips too (icons must show
+  // when a row is highlighted via arrow navigation, not only on hover/tap).
+  const showChips = (hovered || revealed || focused) && !editing && !readOnly;
 
   // Inline-edit focus management for iOS Safari.
   //
@@ -356,12 +359,36 @@ export function TransactionRow({
       // marks arrow-navigable rows; archived (readOnly) rows opt out.
       {...(readOnly ? {} : { "data-txn-nav": "" })}
       onClick={readOnly ? undefined : handleClick}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => {
+        setHovered(true);
+        // r40b: focus-follows-mouse. Hovering a row makes it the current nav
+        // anchor so the previously arrow-focused row's highlight clears and the
+        // next arrow press is relative to THIS row. Skip while this row is
+        // editing, on read-only rows, and when the user is typing in a field
+        // (don't steal focus from a quick input / amount editor mid-entry).
+        if (readOnly || editing) return;
+        const ae = document.activeElement as HTMLElement | null;
+        const typingElsewhere =
+          !!ae &&
+          ae !== rowRef.current &&
+          (ae.tagName === "INPUT" ||
+            ae.tagName === "TEXTAREA" ||
+            ae.isContentEditable);
+        if (typingElsewhere) return;
+        rowRef.current?.focus({ preventScroll: true });
+      }}
       onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       onKeyDown={(e) => {
         if (readOnly || editing) return;
         if (e.target !== e.currentTarget) return; // row itself, not the editor
-        if (e.key === "Enter") {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          // r40b: Cmd/Ctrl+Enter opens the FULL editor (same as the pen chip),
+          // distinct from a plain Enter which starts the inline amount edit.
+          e.preventDefault();
+          onEdit(txn.id);
+        } else if (e.key === "Enter") {
           e.preventDefault();
           startEditing();
         } else if (e.key === "Backspace" || e.key === "Delete") {
