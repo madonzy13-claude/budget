@@ -364,17 +364,65 @@ export function ViewportDebug() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [enabled, setEnabled] = useState(false);
 
+  // Hidden toggle: 1.2s hold on an EMPTY spot of the <header> flips the
+  // persisted flag (push deep-links proved unreliable on device; standalone
+  // has no URL bar). Interactive children (links, buttons, inputs) are
+  // excluded so normal header use can never trigger it.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const start = { x: 0, y: 0 };
+    const cancel = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest("header")) return;
+      if (t.closest("a, button, input, select, textarea, [role='button']"))
+        return;
+      start.x = e.clientX;
+      start.y = e.clientY;
+      cancel();
+      timer = setTimeout(() => {
+        const on = toggleVpdbg();
+        setEnabled(on);
+        if (!on) setMetrics(null);
+      }, 1200);
+    };
+    // Fingers jitter a few px during a hold — only a real drag cancels.
+    const onMove = (e: PointerEvent) => {
+      if (!timer) return;
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointerup", cancel, true);
+    document.addEventListener("pointercancel", cancel, true);
+    document.addEventListener("pointermove", onMove, true);
+    return () => {
+      cancel();
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointerup", cancel, true);
+      document.removeEventListener("pointercancel", cancel, true);
+      document.removeEventListener("pointermove", onMove, true);
+    };
+  }, []);
+
   useEffect(() => {
     // Runs unconditionally so a deep link carrying ?vpdbg=1/0 flips the
     // persisted flag even while the overlay is currently off.
     persistVpdbgFromUrl(window.location.search);
-    if (!isVpdbgEnabled()) return;
-    setEnabled(true);
+    if (isVpdbgEnabled()) setEnabled(true);
+  }, []);
+
+  // Polling runs whenever the overlay is on — including when the long-press
+  // gesture enables it long after mount.
+  useEffect(() => {
+    if (!enabled) return;
     const update = () => setMetrics(readMetrics());
     update();
     const id = setInterval(update, 700);
     return () => clearInterval(id);
-  }, []);
+  }, [enabled]);
 
   if (!enabled || !metrics) return null;
 
