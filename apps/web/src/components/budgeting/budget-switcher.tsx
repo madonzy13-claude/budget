@@ -84,7 +84,6 @@ export function BudgetSwitcher({
     return () => mq.removeEventListener("change", update);
   }, []);
 
-
   // UAT-PH5-T3-13: "selected" means the user is currently inside that
   // budget's page (URL carries its UUID). On the home page there is no
   // active budget — the trigger collapses to the chevron with no text and
@@ -205,6 +204,12 @@ export function BudgetSwitcher({
         // dropdown is a navigation menu, not a form — opening it should
         // not preselect any row.
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // r40: don't return focus to the trigger on close. Radix's programmatic
+        // refocus trips :focus-visible (WebKit treats scripted focus as visible),
+        // so tapping the header to close it left a yellow ring on the trigger.
+        // A genuine keyboard Tab to the trigger still shows the ring (a11y kept);
+        // only the close-refocus is suppressed.
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {/* Scrollable budget list — flex-1 + min-h-0 so it takes the remaining
             height and scrolls, leaving the Create row pinned below. */}
