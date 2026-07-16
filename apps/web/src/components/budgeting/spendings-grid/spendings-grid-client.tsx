@@ -928,28 +928,6 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
             )}
           </SlideOnChange>
         </DndContext>
-        {/* r40: "last spending added" freshness line. IN-FLOW (not
-              position-fixed): mt-auto pushes it to the BOTTOM of the visible box
-              when the columns are short, and when they're tall it sits after them
-              and scrolls into view at the very end — it rides the vertical scroll
-              like normal content. sticky left-0 + w-full text-center keep it
-              centred while the columns pan sideways so it never scrolls
-              horizontally. Exact user-tz timestamp; created_at based — edits don't
-              bump it, deleting the newest entry falls back. */}
-        {summary.data?.lastSpendingAddedAt && (
-          <div
-            data-testid="last-spending-added"
-            className="sticky left-0 mt-auto w-full pt-3 text-center text-caption text-[var(--muted-foreground)]"
-          >
-            {tGrid("lastAdded", {
-              when: formatTimestamp(
-                summary.data.lastSpendingAddedAt,
-                locale,
-                userTz,
-              ),
-            })}
-          </div>
-        )}
         {/* iOS WebKit end-of-scroll spacer (SHELL-R8..R10): padding-bottom on
             a scroll container is ignored at the scroll tail on iOS Safari.
             A real in-flow aria-hidden block appended after all content extends
@@ -964,6 +942,30 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           data-grid-tail-spacer
           className="h-[calc(env(safe-area-inset-bottom,0px)+64px)] shrink-0 w-full pointer-events-none"
         />
+        {/* r40: "last spending added" freshness line. LAST child so it sits at
+              the very bottom of the grid box (the spacer no longer lifts it).
+              IN-FLOW (not position-fixed): mt-auto drops it to the bottom edge
+              when the columns are short, and when they're tall it's the final
+              element you scroll to. sticky left-0 + w-full text-center keep it
+              centred while the columns pan sideways so it never scrolls
+              horizontally. opacity-60 fades it toward the canvas in BOTH themes
+              (darker on dark, lighter on light) so it reads as a quiet footnote.
+              pb safe-area clears the iOS home indicator. Per-month, user-tz
+              timestamp; created_at based — edits don't bump it, delete falls back. */}
+        {summary.data?.lastSpendingAddedAt && (
+          <div
+            data-testid="last-spending-added"
+            className="sticky left-0 mt-auto w-full pt-3 pb-[env(safe-area-inset-bottom,0px)] text-center text-caption text-[var(--muted-foreground)] opacity-60"
+          >
+            {tGrid("lastAdded", {
+              when: formatTimestamp(
+                summary.data.lastSpendingAddedAt,
+                locale,
+                userTz,
+              ),
+            })}
+          </div>
+        )}
       </div>
 
       <TransactionSlider

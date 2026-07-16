@@ -440,6 +440,53 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     );
   });
 
+  it("scopes lastSpendingAddedAt to the VIEWED month (per month, not budget-wide)", async () => {
+    const f = await createFixture();
+    const catId = await seedCategory(f.budgetId, f.userId, "PM");
+    const app = await buildApp(f.userId, f.budgetId);
+
+    // A May-dated spending, and a June-dated spending CREATED LATER. Scoping is
+    // by transaction_date (which month the spending belongs to), not created_at.
+    await seedTransactionAt(
+      f.budgetId,
+      f.userId,
+      catId,
+      1000,
+      "2026-05-20",
+      "2026-05-20T10:00:00Z",
+    );
+    await seedTransactionAt(
+      f.budgetId,
+      f.userId,
+      catId,
+      2000,
+      "2026-06-05",
+      "2026-06-15T12:00:00Z",
+    );
+
+    // May reflects ONLY the May spending even though a June one was added later.
+    let res = await app.request(
+      `/budgets/${f.budgetId}/spendings-summary?month=2026-05`,
+    );
+    expect(
+      new Date(((await res.json()) as any).lastSpendingAddedAt).toISOString(),
+    ).toBe("2026-05-20T10:00:00.000Z");
+
+    // June reflects the June spending.
+    res = await app.request(
+      `/budgets/${f.budgetId}/spendings-summary?month=2026-06`,
+    );
+    expect(
+      new Date(((await res.json()) as any).lastSpendingAddedAt).toISOString(),
+    ).toBe("2026-06-15T12:00:00.000Z");
+
+    // A month with no spendings → null.
+    res = await app.request(
+      `/budgets/${f.budgetId}/spendings-summary?month=2026-07`,
+    );
+    expect(((await res.json()) as any).lastSpendingAddedAt).toBeNull();
+  });
+
   it("returns 400 for missing month param (zod-validator)", async () => {
     const app = await buildApp(fix.userId, fix.budgetId);
     const res = await app.request(`/budgets/${fix.budgetId}/spendings-summary`);

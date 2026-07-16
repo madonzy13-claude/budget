@@ -77,14 +77,18 @@ export interface TransactionRepo {
   ): Promise<TransactionRow[]>;
 
   /**
-   * r40: newest created_at over confirmed, NON-deleted spendings — powers the
-   * "last spending added" footer. created_at never changes on edit, and a
+   * r40: newest created_at over confirmed, NON-deleted spendings WHOSE
+   * transaction_date falls in [monthStart, monthEnd) — powers the per-month
+   * "last spending added" footer (viewing May keeps May's date even after a
+   * June spending is added). created_at never changes on edit, and a
    * soft-deleted newest row falls back to the previous one. ISO string or
-   * null for a budget with no confirmed spendings.
+   * null when the viewed month has no confirmed spendings.
    */
   latestSpendingCreatedAt(
     tenantId: string,
     budgetId: string,
+    monthStart: string,
+    monthEnd: string,
   ): Promise<string | null>;
 
   /**

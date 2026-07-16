@@ -293,6 +293,8 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
         await deps.transactionRepo.latestSpendingCreatedAt(
           input.tenantId,
           input.budgetId,
+          monthStart,
+          monthEnd,
         );
 
       return ok({

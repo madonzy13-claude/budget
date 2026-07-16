@@ -350,6 +350,8 @@ export class DrizzleTransactionRepo implements TransactionRepo {
   async latestSpendingCreatedAt(
     tenantId: string,
     budgetId: string,
+    monthStart: string,
+    monthEnd: string,
   ): Promise<string | null> {
     const r = await withTenantTx(
       TenantId(tenantId),
@@ -364,6 +366,8 @@ export class DrizzleTransactionRepo implements TransactionRepo {
             WHERE tenant_id = ${tenantId}::uuid
               AND budget_id = ${budgetId}::uuid
               AND kind = 'SPENDING'
+              AND transaction_date >= ${monthStart}::date
+              AND transaction_date < ${monthEnd}::date
               AND confirmed_at IS NOT NULL
               AND deleted_at IS NULL`,
         );
