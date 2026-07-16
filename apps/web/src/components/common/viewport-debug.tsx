@@ -415,7 +415,11 @@ export function ViewportDebug() {
   return (
     <div
       data-testid="viewport-debug"
-      className="fixed left-1 top-16 z-[9999] rounded bg-black/85 p-2 font-mono text-[10px] leading-snug text-yellow-300"
+      // pointer-events-none: the overlay is read-only — every tap falls
+      // through to the UI beneath, so it can never block navigation.
+      // top-32 clears the header (64px) + BDP pill band so both stay tappable
+      // visually too.
+      className="pointer-events-none fixed left-1 top-32 z-[9999] rounded bg-black/85 p-2 font-mono text-[10px] leading-snug text-yellow-300"
     >
       <div>{BUILD_MARKER}</div>
       <div>
