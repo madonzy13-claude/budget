@@ -7,7 +7,10 @@
  * top above the visible area.
  */
 import { describe, it, expect } from "vitest";
-import { keyboardScrollDelta } from "../../src/lib/keyboard-scroll";
+import {
+  keyboardScrollDelta,
+  editScrollDelta,
+} from "../../src/lib/keyboard-scroll";
 
 describe("keyboardScrollDelta", () => {
   it("returns 0 when the input is already fully visible", () => {
@@ -71,5 +74,44 @@ describe("keyboardScrollDelta", () => {
         padding: 24,
       }),
     ).toBe(0);
+  });
+});
+
+// Pre-focus positioning: iOS standalone runs its own buggy reveal-scroll on
+// focus (preventScroll doesn't cover it, and no visualViewport resize fires in
+// PWA mode to correct after). Strategy: decide the target BEFORE focusing —
+// rows in the keyboard-safe top zone need NO scroll at all; lower rows get one
+// deliberate pre-scroll to a spot no keyboard can cover.
+describe("editScrollDelta", () => {
+  it("returns 0 for a row in the top half — the keyboard cannot cover it", () => {
+    expect(
+      editScrollDelta({ inputTop: 300, inputBottom: 340, viewportHeight: 874 }),
+    ).toBe(0);
+  });
+
+  it("returns 0 for a row right at the top", () => {
+    expect(
+      editScrollDelta({ inputTop: 0, inputBottom: 40, viewportHeight: 874 }),
+    ).toBe(0);
+  });
+
+  it("pre-scrolls a bottom-half row up to ~30% of the viewport", () => {
+    const d = editScrollDelta({
+      inputTop: 700,
+      inputBottom: 740,
+      viewportHeight: 874,
+    });
+    expect(d).toBe(700 - Math.round(874 * 0.3));
+  });
+
+  it("uses the row bottom against the 45% safe line", () => {
+    // Row straddling the line: bottom at 45%+1 → needs the pre-scroll.
+    const vh = 800;
+    const d = editScrollDelta({
+      inputTop: vh * 0.45 - 39,
+      inputBottom: vh * 0.45 + 1,
+      viewportHeight: vh,
+    });
+    expect(d).toBe(vh * 0.45 - 39 - Math.round(vh * 0.3));
   });
 });

@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import { Loader2, RotateCcw } from "lucide-react";
-import { keyboardScrollDelta } from "@/lib/keyboard-scroll";
+import { keyboardScrollDelta, editScrollDelta } from "@/lib/keyboard-scroll";
 
 export interface InlineEditCellProps<T> {
   value: T;
@@ -68,44 +68,73 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
     }
     const scroller =
       container ?? (document.scrollingElement as HTMLElement | null);
-    const savedTop = scroller?.scrollTop ?? 0;
 
+    // Decide the container position BEFORE focusing (iOS standalone runs a
+    // buggy reveal-scroll on focus that preventScroll does NOT suppress, and
+    // PWA mode fires no visualViewport resize afterwards to correct against):
+    // a row already in the keyboard-safe top zone stays put (delta 0); a lower
+    // row is pre-scrolled so its top lands above any possible keyboard.
+    const vvH = window.visualViewport?.height ?? window.innerHeight;
+    const rect0 = input.getBoundingClientRect();
+    let targetTop =
+      (scroller?.scrollTop ?? 0) +
+      editScrollDelta({
+        inputTop: rect0.top,
+        inputBottom: rect0.bottom,
+        viewportHeight: vvH,
+      });
+
+    if (scroller) scroller.scrollTop = targetTop;
+    if (document.activeElement !== input) {
+      input.focus({ preventScroll: true });
+    }
+
+    // HOLD the decided position through the keyboard animation: whatever iOS
+    // scrolls, snap back. 1.2s covers the animation; a user never starts a
+    // real scroll gesture that soon after tapping a cell to edit it.
+    const lockUntil = performance.now() + 1200;
+    let lockRaf = 0;
+    const onScroll = () => {
+      if (!scroller || performance.now() > lockUntil) return;
+      cancelAnimationFrame(lockRaf);
+      lockRaf = requestAnimationFrame(() => {
+        if (Math.abs(scroller.scrollTop - targetTop) > 2) {
+          scroller.scrollTop = targetTop;
+        }
+      });
+    };
+    scroller?.addEventListener("scroll", onScroll);
+    const unlockTimer = setTimeout(
+      () => scroller?.removeEventListener("scroll", onScroll),
+      1300,
+    );
+
+    // Fine-tune when REAL keyboard geometry is known (Safari fires resize;
+    // standalone usually doesn't). Bidirectional: pulls the row back into
+    // view whichever side it ended up on, and updates the held target.
     function adjustForKeyboard() {
       if (!input || !scroller) return;
       const vv = window.visualViewport;
       const rect = input.getBoundingClientRect();
-      // Clamped: scroll only as far as the input's headroom allows, so the
-      // edited row never shoots past the visible top (first attempt scrolled
-      // by the full keyboard overlap and hid the row entirely).
       const delta = keyboardScrollDelta({
         inputTop: rect.top,
         inputBottom: rect.bottom,
         visibleTop: vv?.offsetTop ?? 0,
         visibleBottom: vv ? vv.offsetTop + vv.height : window.innerHeight,
       });
-      if (delta > 0) scroller.scrollTop += delta;
-    }
-
-    if (document.activeElement !== input) {
-      input.focus({ preventScroll: true });
-    }
-    // iOS runs its own async "reveal focused input" scroll with the keyboard
-    // animation (preventScroll does NOT cover it) and it can overshoot, leaving
-    // the row above the viewport. Re-check across the whole animation window;
-    // keyboardScrollDelta is bidirectional so each pass converges on a visible row.
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    requestAnimationFrame(() => {
-      if (scroller) scroller.scrollTop = savedTop;
-      for (const ms of [350, 700, 1050]) {
-        timers.push(setTimeout(adjustForKeyboard, ms));
+      if (delta !== 0) {
+        targetTop = scroller.scrollTop + delta;
+        scroller.scrollTop = targetTop;
       }
-    });
-
+    }
     const vv = window.visualViewport;
     vv?.addEventListener("resize", adjustForKeyboard);
+
     return () => {
       vv?.removeEventListener("resize", adjustForKeyboard);
-      for (const t of timers) clearTimeout(t);
+      scroller?.removeEventListener("scroll", onScroll);
+      clearTimeout(unlockTimer);
+      cancelAnimationFrame(lockRaf);
     };
   }, [editing]);
 

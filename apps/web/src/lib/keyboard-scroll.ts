@@ -7,6 +7,29 @@
  * distance its top can travel up while staying inside the visible area — so
  * repeated calls converge and the row never scrolls out of sight.
  */
+/** Fraction of the viewport the iOS keyboard can never reach (top zone). */
+const SAFE_LINE = 0.45;
+/** Where a pre-scrolled row's top should land (fraction of viewport height). */
+const TARGET_LINE = 0.3;
+
+/**
+ * Pre-focus positioning (iOS standalone). PWA mode gets iOS's buggy
+ * reveal-scroll on focus — preventScroll doesn't suppress it and no
+ * visualViewport resize fires afterwards to correct against. So the container
+ * is positioned BEFORE focus and then held: a row whose bottom is above the
+ * 45% line needs NO scroll (no iPhone keyboard reaches that high); a lower row
+ * is scrolled once so its top lands at 30% of the viewport, safely above any
+ * keyboard. Returns the scrollTop delta to apply before focusing.
+ */
+export function editScrollDelta(box: {
+  inputTop: number;
+  inputBottom: number;
+  viewportHeight: number;
+}): number {
+  if (box.inputBottom <= box.viewportHeight * SAFE_LINE) return 0;
+  return box.inputTop - Math.round(box.viewportHeight * TARGET_LINE);
+}
+
 export function keyboardScrollDelta(box: {
   inputTop: number;
   inputBottom: number;
