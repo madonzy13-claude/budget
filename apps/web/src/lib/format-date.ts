@@ -106,7 +106,7 @@ export function formatTimestamp(
 ): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, {
+  const parts = new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -117,5 +117,11 @@ export function formatTimestamp(
     // on the CI runner while local showed "00:30". h23 pins it everywhere.
     hourCycle: "h23",
     ...(timeZone ? { timeZone } : {}),
-  }).format(date);
+  }).formatToParts(date);
+  const p = (t: Intl.DateTimeFormatPartTypes) =>
+    parts.find((x) => x.type === t)?.value ?? "";
+  // Compose day-first with a comma, independent of the locale's own ordering
+  // (en-US would otherwise emit "February 13, 2026 at 10:44"). Month stays
+  // localized (pl "lutego", uk "лютого"); order matches the design: "13 February 2026, 10:44".
+  return `${p("day")} ${p("month")} ${p("year")}, ${p("hour")}:${p("minute")}`;
 }
