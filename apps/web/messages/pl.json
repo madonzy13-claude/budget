@@ -1641,6 +1641,7 @@
         "failed": "Nie udało się dodać transakcji. Spróbuj ponownie."
       }
     },
+    "lastAdded": "Ostatni wydatek dodano {when}",
     "quickEntry": {
       "placeholder": "…",
       "title": "wydatki",

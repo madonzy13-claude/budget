@@ -16,6 +16,9 @@ export interface SpendingsSummaryDTO {
   /** Budget default currency — server-supplied on the summary response. */
   budgetCurrency: string;
   cushionModeEnabled: boolean;
+  /** r40: newest created_at over confirmed, non-deleted spendings (ISO) —
+   *  budget-wide; null when the budget has no confirmed spendings. */
+  lastSpendingAddedAt: string | null;
   categories: Array<{
     categoryId: string;
     name: string;

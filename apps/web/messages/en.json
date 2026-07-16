@@ -1618,6 +1618,7 @@
         "failed": "Couldn't add the transaction. Please try again."
       }
     },
+    "lastAdded": "Last spending added {when}",
     "quickEntry": {
       "placeholder": "…",
       "title": "expenses",

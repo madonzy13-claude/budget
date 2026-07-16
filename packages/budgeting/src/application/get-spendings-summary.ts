@@ -103,6 +103,10 @@ export interface SpendingsSummaryDTO {
   budgetCurrency: string;
   budgetTz: string; // IANA timezone — resolves D-PH4-Q5 RSC timezone gap
   cushionModeEnabled: boolean;
+  /** r40: newest created_at over confirmed, non-deleted spendings (ISO) —
+   *  the "last spending added" footer. Budget-wide, NOT month-scoped; null
+   *  when the budget has no confirmed spendings. */
+  lastSpendingAddedAt: string | null;
   categories: SpendingsSummaryCategoryDTO[];
 }
 
@@ -285,11 +289,18 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           };
         });
 
+      const lastSpendingAddedAt =
+        await deps.transactionRepo.latestSpendingCreatedAt(
+          input.tenantId,
+          input.budgetId,
+        );
+
       return ok({
         month: input.month,
         budgetCurrency: meta.currency,
         budgetTz: meta.timezone,
         cushionModeEnabled: meta.cushionModeEnabled,
+        lastSpendingAddedAt,
         categories: dtoCategories,
       });
     } catch (e) {

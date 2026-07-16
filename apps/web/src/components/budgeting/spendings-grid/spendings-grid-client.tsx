@@ -39,7 +39,7 @@ import { SlideOnChange } from "@/components/common/slide-on-change";
 import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
 import { InvestmentCategorySlider } from "../investment-category-slider";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import {
@@ -57,6 +57,8 @@ import { useBudget, useCategories } from "@/hooks/use-budget-data";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { restoreScroll } from "@/lib/restore-scroll";
+import { handleGridKeyNav } from "@/lib/grid-key-nav";
+import { formatRelativeOrDate } from "@/lib/relative-time";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -212,6 +214,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   const bdpStore = useBdpUiStore();
   const tDel = useTranslations("grid.deleteCategory");
   const tGrid = useTranslations("grid");
+  const locale = useLocale();
   const offlineToast = useOfflineWriteToast();
   // 260615-bse: one shared offline dialog for the whole grid. Both the
   // device-knows-offline pre-insert short-circuit (quick-entry) and the
@@ -784,6 +787,14 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       <div
         ref={gridRef}
         onScroll={handleGridScroll}
+        // r40 desktop keyboard nav: Tab cycles quick-add inputs, arrows walk
+        // a column's transaction rows, Enter/Backspace act on the focused row
+        // (handled by the row itself). See lib/grid-key-nav.ts.
+        onKeyDown={(e) => {
+          if (gridRef.current && handleGridKeyNav(e, gridRef.current)) {
+            e.preventDefault();
+          }
+        }}
         data-testid="spendings-grid"
         // Pulling down inside the grid must NOT reload the page — only the month
         // slider above does (it sits outside this container). See pull-to-refresh.tsx.
@@ -892,6 +903,25 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
             )}
           </SlideOnChange>
         </DndContext>
+        {/* r40: "last spending added" freshness line. In the VERTICAL flow at
+            the very bottom of the grid content (scrolls with it), but pinned
+            with `sticky left-0` on the horizontal axis so panning the columns
+            sideways never moves it. created_at based — edits don't bump it,
+            deleting the newest entry falls back to the previous one. */}
+        {summary.data?.lastSpendingAddedAt && (
+          <div
+            data-testid="last-spending-added"
+            className="sticky left-0 w-fit px-1 pt-3 text-caption text-[var(--muted-foreground)]"
+          >
+            {tGrid("lastAdded", {
+              when: formatRelativeOrDate(
+                summary.data.lastSpendingAddedAt,
+                locale,
+                userTz,
+              ),
+            })}
+          </div>
+        )}
         {/* iOS WebKit end-of-scroll spacer (SHELL-R8..R10): padding-bottom on
             a scroll container is ignored at the scroll tail on iOS Safari.
             A real in-flow aria-hidden block appended after all content extends

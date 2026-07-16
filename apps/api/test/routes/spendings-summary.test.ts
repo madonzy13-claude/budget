@@ -152,6 +152,67 @@ async function seedTransaction(
   }
 }
 
+/** Like seedTransaction but with an explicit created_at; returns the row id. */
+async function seedTransactionAt(
+  budgetId: string,
+  userId: string,
+  categoryId: string,
+  amountCents: number,
+  date: string,
+  createdAt: string,
+): Promise<string> {
+  const pool = new Pool({ connectionString: DB_URL });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{"${budgetId}"}`,
+    ]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
+    const r = await client.query<{ id: string }>(
+      `INSERT INTO budgeting.expense_ledger
+         (tenant_id, budget_id, category_id, amount_original_cents, currency_original,
+          amount_converted_cents, fx_rate, fx_as_of, transaction_date, kind, confirmed_at, created_at)
+       VALUES ($1, $1, $2, $3, 'EUR', $3, 1.0, $4::date, $4::date, 'SPENDING', now(), $5::timestamptz)
+       RETURNING id`,
+      [budgetId, categoryId, amountCents, date, createdAt],
+    );
+    await client.query("COMMIT");
+    return r.rows[0]!.id;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+async function softDeleteTransaction(
+  budgetId: string,
+  userId: string,
+  id: string,
+): Promise<void> {
+  const pool = new Pool({ connectionString: DB_URL });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+      `{"${budgetId}"}`,
+    ]);
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
+    await client.query(
+      `UPDATE budgeting.expense_ledger SET deleted_at = now() WHERE id = $1`,
+      [id],
+    );
+    await client.query("COMMIT");
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
 async function buildApp(userId: string, budgetId: string) {
   const { createSpendingsSummaryRoute } =
     await import("../../src/routes/spendings-summary");
@@ -326,6 +387,57 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     // With effective_from=2026-05-01 (same month), reserve accumulation from prior months = 0.
     // reserveUsed = min(overBy=5000, reserve=0) = 0, so overspentCents = 5000.
     expect(cat.overspentCents).toBe("5000");
+  });
+
+  // r40: "last spending added" footer. MAX(created_at) over confirmed,
+  // NON-deleted spendings — deleting the newest transaction must fall back to
+  // the previous one's timestamp (created_at, never updated_at: edits don't count).
+  it("reports lastSpendingAddedAt from the newest non-deleted transaction", async () => {
+    const f = await createFixture();
+    const catId = await seedCategory(f.budgetId, f.userId, "LSA");
+    const app = await buildApp(f.userId, f.budgetId);
+
+    // Fresh budget → null.
+    let res = await app.request(
+      `/budgets/${f.budgetId}/spendings-summary?month=2026-05`,
+    );
+    expect(((await res.json()) as any).lastSpendingAddedAt).toBeNull();
+
+    // Two txns with distinct created_at; the newest wins.
+    const oldId = await seedTransactionAt(
+      f.budgetId,
+      f.userId,
+      catId,
+      1000,
+      "2026-05-10",
+      "2026-05-10T08:00:00Z",
+    );
+    const newId = await seedTransactionAt(
+      f.budgetId,
+      f.userId,
+      catId,
+      2000,
+      "2026-05-11",
+      "2026-05-11T09:30:00Z",
+    );
+    void oldId;
+    res = await app.request(
+      `/budgets/${f.budgetId}/spendings-summary?month=2026-05`,
+    );
+    let body = (await res.json()) as any;
+    expect(new Date(body.lastSpendingAddedAt).toISOString()).toBe(
+      "2026-05-11T09:30:00.000Z",
+    );
+
+    // Soft-delete the newest → the PREVIOUS created_at surfaces.
+    await softDeleteTransaction(f.budgetId, f.userId, newId);
+    res = await app.request(
+      `/budgets/${f.budgetId}/spendings-summary?month=2026-05`,
+    );
+    body = (await res.json()) as any;
+    expect(new Date(body.lastSpendingAddedAt).toISOString()).toBe(
+      "2026-05-10T08:00:00.000Z",
+    );
   });
 
   it("returns 400 for missing month param (zod-validator)", async () => {

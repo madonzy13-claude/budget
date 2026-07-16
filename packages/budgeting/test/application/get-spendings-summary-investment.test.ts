@@ -69,10 +69,11 @@ function makeDeps(opts: {
   };
   const transactionRepo: Pick<
     TransactionRepo,
-    "spendByCategoryForMonth" | "spendByCategoryByMonth"
+    "spendByCategoryForMonth" | "spendByCategoryByMonth" | "latestSpendingCreatedAt"
   > = {
     spendByCategoryForMonth: async () => opts.spend ?? new Map(),
     spendByCategoryByMonth: async () => new Map(),
+    latestSpendingCreatedAt: async () => null,
   };
   const summaryRepo: SpendingsSummaryRepo = {
     getBudgetMeta: async () => ({
