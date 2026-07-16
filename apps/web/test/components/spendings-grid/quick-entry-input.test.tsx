@@ -2,7 +2,7 @@
  * quick-entry-input.test.tsx — Vitest+RTL tests for QuickEntryInput component.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QuickEntryInput } from "../../../src/components/budgeting/spendings-grid/quick-entry-input";
 import { TestQueryProvider } from "../../setup/query-client";
@@ -190,17 +190,38 @@ describe("QuickEntryInput", () => {
   // Only the quick-entry's own save refocuses — editing an existing
   // transaction never touches this input.
   describe("chaining (r39)", () => {
-    it("refocuses after a blur-save (keyboard Done) so the next entry can be typed", async () => {
+    it("refocuses SYNCHRONOUSLY after a keyboard-Done blur-save (iOS keeps the keyboard open)", async () => {
       renderInput();
       const input = screen.getByTestId(
         "quick-entry-groceries",
       ) as HTMLInputElement;
       await userEvent.type(input, "5.96");
-      // Real blur (keyboard Done): focus actually leaves, relatedTarget null.
-      input.blur();
-      expect(document.activeElement).not.toBe(input);
+      // Keyboard taps are system UI — by Done-time the initial focus-tap's
+      // pointerdown is stale. Let it age past the 300ms freshness window.
+      await new Promise((r) => setTimeout(r, 350));
+      // Keyboard "Done": blur with relatedTarget null, no fresh pointerdown.
+      act(() => input.blur());
       expect(mockMutate).toHaveBeenCalled();
-      await vi.waitFor(() => expect(document.activeElement).toBe(input));
+      // Synchronous refocus — an async (rAF/setTimeout) focus is outside the
+      // iOS gesture window and the keyboard would stay closed.
+      expect(document.activeElement).toBe(input);
+    });
+
+    it("does NOT refocus when the blur came from tapping the page", async () => {
+      renderInput();
+      const input = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      await userEvent.type(input, "9");
+      // A page tap fires a document pointerdown right before the blur —
+      // refocusing would trap the keyboard open with no way to dismiss it.
+      fireEvent.pointerDown(document.body);
+      act(() => input.blur());
+      expect(mockMutate).toHaveBeenCalled();
+      await new Promise((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(r)),
+      );
+      expect(document.activeElement).not.toBe(input);
     });
 
     it("does NOT steal focus when the blur moved it to another element", async () => {

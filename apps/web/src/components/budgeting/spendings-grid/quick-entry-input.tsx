@@ -9,7 +9,7 @@
  *
  * NO hover behavior (D-PH4-INT1).
  */
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { parseDecimal } from "@/lib/decimal";
@@ -46,6 +46,19 @@ export function QuickEntryInput({
   const tError = useTranslations("grid.error");
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // r39 chaining: timestamp of the last pointerdown anywhere on the page.
+  // Keyboard "Done" blurs WITHOUT a page pointerdown (the tap lands on system
+  // UI); a blur preceded by a fresh pointerdown means the user tapped the page
+  // and must not have the keyboard forced back open.
+  const lastPointerDownRef = useRef(0);
+  useEffect(() => {
+    const onPointerDown = () => {
+      lastPointerDownRef.current = Date.now();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
   // Lying-true case: an OfflineWriteError (timeout / dead link with onLine===true)
   // opens the SAME dialog as the pre-insert path after rolling back.
   const { mutate } = useCreateTransaction(budgetId, month, {
@@ -82,7 +95,10 @@ export function QuickEntryInput({
       note: null,
     });
     if (refocus) {
-      requestAnimationFrame(() => inputRef.current?.focus());
+      // SYNCHRONOUS on purpose: iOS only keeps the keyboard open when the
+      // focus() call happens inside the current event's gesture window — an
+      // rAF/setTimeout refocus lands outside it and the keyboard stays closed.
+      inputRef.current?.focus();
     }
   }
 
@@ -119,10 +135,21 @@ export function QuickEntryInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        // relatedTarget === null → keyboard "Done" (focus went nowhere): save
-        // and re-activate for the next entry. A blur that lands on another
-        // element is a deliberate move — save without stealing focus back.
-        onBlur={(e) => submit(true, e.relatedTarget === null)}
+        // Keyboard "Done" = blur with relatedTarget null AND no page
+        // pointerdown just before it: save and re-activate for the next
+        // entry. A blur from tapping the page (fresh pointerdown) or landing
+        // on another element is a deliberate move — save without stealing
+        // focus back.
+        // A page tap reaches blur within ~100ms of its pointerdown; keyboard
+        // taps are system UI and never touch the page, so by Done-time the
+        // last page pointerdown is stale. 300ms separates the two cleanly.
+        onBlur={(e) =>
+          submit(
+            true,
+            e.relatedTarget === null &&
+              Date.now() - lastPointerDownRef.current > 300,
+          )
+        }
         placeholder={t("placeholder")}
         aria-label={t("addExpenseAria", { categoryName })}
         style={{ touchAction: "pan-x" }}
