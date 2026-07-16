@@ -37,3 +37,12 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     And I press "ArrowRight" in the grid
     Then the "rent" quick input is focused
     And a confirmed transaction row for 300 cents is visible in the grid
+
+  Scenario: Type-ahead jumps to the uniquely-identified category's quick input
+    Given the budget has a category "Housing" with a monthly limit of 100000 cents
+    And the budget has a category "Food & Home" with a monthly limit of 100000 cents
+    When I open the spendings tab for the budget
+    And I type the letters "hom" in the grid
+    Then the "food & home" quick input is focused
+    When I type the letters "g" in the grid
+    Then the "groceries" quick input is focused

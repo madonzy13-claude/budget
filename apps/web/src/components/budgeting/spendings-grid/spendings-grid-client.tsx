@@ -58,6 +58,7 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { restoreScroll } from "@/lib/restore-scroll";
 import { handleGridKeyNav } from "@/lib/grid-key-nav";
+import { typeaheadStep } from "@/lib/grid-typeahead";
 import { formatTimestamp } from "@/lib/format-date";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -243,6 +244,51 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         )
       ) {
         e.preventDefault();
+        return;
+      }
+
+      // r40b type-ahead: a bare letter (no Ctrl/Meta/Alt) jumps to the column
+      // whose name it can uniquely identify and focuses its quick-add field.
+      // DIGITS are never hijacked — they belong in the amount field.
+      if (
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        e.key.length === 1 &&
+        /\p{L}/u.test(e.key)
+      ) {
+        // Never hijack the inline amount editor (an INPUT that is NOT a quick
+        // input) or any other real text field — only body / rows / quick inputs.
+        const inQuickInput = !!target?.matches?.(
+          'input[data-testid^="quick-entry-"]',
+        );
+        const inOtherField =
+          !!target &&
+          !inQuickInput &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable);
+        if (inOtherField) return;
+
+        const now = Date.now();
+        if (now - typeaheadTimeRef.current > 5000)
+          typeaheadBufferRef.current = "";
+        typeaheadTimeRef.current = now;
+        const { buffer, jumpTo } = typeaheadStep(
+          typeaheadBufferRef.current,
+          e.key,
+          typeaheadNamesRef.current,
+        );
+        typeaheadBufferRef.current = buffer;
+        // Swallow the letter so it never lands in a numeric quick input.
+        e.preventDefault();
+        if (jumpTo) {
+          root
+            .querySelector<HTMLElement>(
+              `[data-testid="quick-entry-${jumpTo.toLowerCase()}"]`,
+            )
+            ?.focus();
+        }
       }
     };
     document.addEventListener("keydown", onKey, true);
@@ -403,6 +449,12 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // transaction row is hidden behind the sticky header band. A txn row is
   // min-h-[40px] + py-1 ≈ 48px; threshold at 20px = ~half-row hidden.
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // Type-ahead category jump (r40b): buffer + last-keystroke time (5s idle reset)
+  // + the latest visible category names (kept in a ref so the empty-dep keydown
+  // listener always sees the current columns without re-attaching).
+  const typeaheadBufferRef = useRef("");
+  const typeaheadTimeRef = useRef(0);
+  const typeaheadNamesRef = useRef<string[]>([]);
   const [gridScrolled, setGridScrolled] = useState(false);
   function handleGridScroll() {
     const t = (gridRef.current?.scrollTop ?? 0) > 20;
@@ -798,6 +850,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       }),
     [effectiveCategoryOrder, summaryByCatId, transactionsByCatId],
   );
+  // Feed the current column names to the type-ahead listener (see the keydown
+  // effect). Render-time ref write is fine — no state, no re-render.
+  typeaheadNamesRef.current = visibleCategories.map((c) => c.name);
 
   // Cold load = no cached summary/categories yet. A warm re-nav has both from
   // the persisted React Query cache → real columns render immediately (zero

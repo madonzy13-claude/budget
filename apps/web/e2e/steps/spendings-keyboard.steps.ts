@@ -27,6 +27,13 @@ When(
   },
 );
 
+When(
+  /^I type the letters "(.+?)" in the grid$/,
+  async ({ page }, letters: string) => {
+    for (const ch of letters) await page.keyboard.press(ch);
+  },
+);
+
 Then("the focused row shows its action chips", async ({ page }) => {
   // Chips render only for the hovered/focused row, so a single set is visible.
   await expect(page.getByTestId("txn-action-edit").first()).toBeVisible({
