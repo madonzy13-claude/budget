@@ -290,10 +290,15 @@ export async function getUserTimezones(
 ): Promise<Record<string, string>> {
   if (userIds.length === 0) return {};
   const result = await withInfraTx(async (tx) => {
+    // drizzle's sql template expands a JS array inline (ANY($1, $2, …)), which
+    // Postgres rejects — bind each id as its own scalar param via IN (…).
     const res = (await tx.execute(
       sql`SELECT id::text AS id, timezone
             FROM identity.users
-           WHERE id::text = ANY(${userIds})`,
+           WHERE id::text IN (${sql.join(
+             userIds.map((id) => sql`${id}`),
+             sql`, `,
+           )})`,
     )) as unknown as { rows: { id: string; timezone: string | null }[] };
     const out: Record<string, string> = {};
     for (const r of res.rows) if (r.timezone) out[r.id] = r.timezone;
@@ -316,10 +321,15 @@ export async function getUserLocales(
 ): Promise<Record<string, string>> {
   if (userIds.length === 0) return {};
   const result = await withInfraTx(async (tx) => {
+    // drizzle's sql template expands a JS array inline (ANY($1, $2, …)), which
+    // Postgres rejects — bind each id as its own scalar param via IN (…).
     const res = (await tx.execute(
       sql`SELECT id::text AS id, locale
             FROM identity.users
-           WHERE id::text = ANY(${userIds})`,
+           WHERE id::text IN (${sql.join(
+             userIds.map((id) => sql`${id}`),
+             sql`, `,
+           )})`,
     )) as unknown as { rows: { id: string; locale: string | null }[] };
     const out: Record<string, string> = {};
     for (const r of res.rows) if (r.locale) out[r.id] = r.locale;
