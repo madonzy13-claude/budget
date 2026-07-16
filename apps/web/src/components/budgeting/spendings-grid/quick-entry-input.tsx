@@ -133,9 +133,11 @@ export function QuickEntryInput({
           onPointerDown={(e) => e.preventDefault()}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => submit()}
-          className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded bg-[var(--primary)] text-black"
+          // Same checkmark anatomy as the draft-row confirm action: bare
+          // yellow icon, no fill, hover surface only.
+          className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded text-[var(--primary)] hover:bg-[var(--surface-card-dark)]"
         >
-          <Check className="size-4" aria-hidden="true" />
+          <Check className="h-5 w-5" aria-hidden="true" strokeWidth={3} />
         </button>
       )}
       </div>

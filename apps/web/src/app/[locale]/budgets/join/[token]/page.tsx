@@ -12,6 +12,7 @@
  */
 import { getTranslations } from "next-intl/server";
 import { BrandMark } from "@/components/common/brand-mark";
+import { InstallBanner } from "@/components/common/install-banner";
 import { Toaster } from "@/components/ui/sonner";
 import {
   JoinPageCard,
@@ -76,6 +77,9 @@ export default async function JoinPage({ params }: PageProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)]">
+      {/* r40: install nudge reaches logged-out users too — invited family
+          members land here on a fresh device. */}
+      <InstallBanner />
       <header className="border-b border-[var(--hairline-dark)]">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center px-4 sm:px-6">
           <BrandMark href={`/${locale}`} />
