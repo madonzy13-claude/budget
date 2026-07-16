@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useNavRouter } from "@/components/common/nav-pending";
+import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { useTranslations } from "next-intl";
 import { ChevronDown, Plus, User, Users } from "lucide-react";
 import {
@@ -53,7 +54,7 @@ export interface BudgetSwitcherProps {
  * top nav (`z-50`) AND any BDP sticky wrapper (`z-40`, Plan 03-06).
  */
 export function BudgetSwitcher({
-  budgets,
+  budgets: budgetsProp,
   activeBudgetId: activeBudgetIdProp,
   locale,
 }: BudgetSwitcherProps) {
@@ -61,6 +62,13 @@ export function BudgetSwitcher({
   const router = useNavRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // The (app) layout persists across soft navigations, so the SSR `budgets`
+  // prop goes stale — a budget joined via share link stayed invisible here
+  // until a full reload. Overlay the live ["active-budgets"] query (fetch on
+  // mount + window focus); the prop is only the first-paint fallback.
+  const { data: liveBudgets } = useActiveBudgets();
+  const budgets = liveBudgets ?? budgetsProp;
 
   // Mobile centers the dropdown on the viewport instead of anchoring it under the
   // (left-of-centre) trigger. We render a full-width PopoverAnchor across the
@@ -102,12 +110,6 @@ export function BudgetSwitcher({
   const sharedB = budgets.filter(isSharedBudget);
   const isEmpty = budgets.length === 0;
 
-  // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
-  // hidden entirely. The home page renders its own "Create your first
-  // budget" empty state, so the header stays clean and the create flow lives
-  // there instead of behind a switcher dropdown.
-  if (isEmpty) return null;
-
   const onPick = useCallback(
     (id: string) => {
       setOpen(false);
@@ -116,6 +118,13 @@ export function BudgetSwitcher({
     },
     [router, locale, activeBudgetId],
   );
+
+  // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
+  // hidden entirely. The home page renders its own "Create your first
+  // budget" empty state, so the header stays clean and the create flow lives
+  // there instead of behind a switcher dropdown. Must stay BELOW every hook —
+  // the live query can flip `isEmpty` across renders of a mounted instance.
+  if (isEmpty) return null;
 
   // UAT-PH5-T3-13: trigger label only renders when a budget is actually
   // active. No active → chevron-only trigger.
