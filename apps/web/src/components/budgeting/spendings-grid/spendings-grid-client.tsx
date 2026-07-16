@@ -578,7 +578,11 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         isIOS,
       });
 
-      el!.style.setProperty(
+      // Set on the WRAPPER (parent). The scroller is now flex-1 inside a
+      // fixed-height flex column whose last child is the pinned footer, so the
+      // measured height must drive the wrapper; the scroller flexes to fill what
+      // the footer leaves. Fallback to el if there's no parent (defensive).
+      (el!.parentElement ?? el!).style.setProperty(
         "--grid-max-h",
         `max(160px, calc(100lvh - ${top}px + ${ext}px))`,
       );
@@ -811,131 +815,159 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           above) so its default month + isCurrentMonth never disagree with the
           summary query key — see the budgetTz circular-dependency note. */}
       <MonthNavigator month={month} />
-      <div
-        ref={gridRef}
-        onScroll={handleGridScroll}
-        data-testid="spendings-grid"
-        // Pulling down inside the grid must NOT reload the page — only the month
-        // slider above does (it sits outside this container). See pull-to-refresh.tsx.
-        data-no-pull-refresh=""
-        // The grid is its own scroll container for both axes. Bounded height
-        // (viewport minus the top app-bar + month nav, ~160px) lets the
-        // sticky column-header band stick to the top of THIS container while
-        // transactions scroll vertically and long category rows scroll
-        // horizontally. Page body itself does not scroll horizontally.
-        // pt-6 here would create a visible padding strip above the sticky
-        // header band — scrolled content showed through it. Use mt-4 for the
-        // breathing-room gap (lives OUTSIDE the scroll container so the
-        // sticky band still pins flush at the wrapper's top edge).
-        // overscroll-behavior: none keeps both rapid vertical swipes AND
-        // diagonal horizontal swipes from bleeding into the page —
-        // "contain" still let iOS Safari trigger pull-to-refresh when the
-        // user's gesture had a slight downward angle during column
-        // horizontal swipes (UAT round 9). "none" blocks the bounce
-        // entirely on this element.
-        // Architecture (a) — measured bound (quick-260612-e82 R3, see ResizeObserver effect above).
-        // --grid-max-h is written by the effect: visualViewport.height − scrollerTop.
-        // Because scrollerTop is MEASURED (getBoundingClientRect) it self-corrects for every band
-        // above the grid (header inset, BDP band, banner) — killing the constant-rot bug.
-        // SHELL-R14: FIXED height (h-, not max-h-) so the scroller box always
-        // reaches the vv bottom even when content is shorter than the available
-        // space — the whole screen below the band is the scroll surface (no
-        // dead band where touch gestures hit the static page instead).
-        // Fallback 80vh applies only pre-measure / SSR.
-        // iOS WebKit ignores pb-* on scroll containers at end-of-scroll
-        // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
-        // scrollHeight past the last row instead.
-        style={{ overscrollBehavior: "none" }}
-        // flex-col so the "last spending added" line can mt-auto to the
-        // bottom of the visible box when the columns are short (r40).
-        className="mt-4 flex flex-col overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
-      >
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
+      {/* r40: fixed-height flex column (--grid-max-h measured onto THIS wrapper
+          via el.parentElement above). The scroller flexes to fill it; the
+          "last spending added" footer is a shrink-0 sibling below the scroller,
+          so it stays pinned to the very bottom of the grid area and never rides
+          the vertical scroll (UAT: "on a very bottom, not attached to columns").
+          mt-4 lives here (was on the scroller) — the scroller's measured top is
+          unchanged since it sits flush at the wrapper's content-box top. */}
+      <div className="mt-4 flex flex-col h-[var(--grid-max-h,80vh)]">
+        <div
+          ref={gridRef}
+          onScroll={handleGridScroll}
+          data-testid="spendings-grid"
+          // Pulling down inside the grid must NOT reload the page — only the month
+          // slider above does (it sits outside this container). See pull-to-refresh.tsx.
+          data-no-pull-refresh=""
+          // The grid is its own scroll container for both axes. Bounded height
+          // (viewport minus the top app-bar + month nav, ~160px) lets the
+          // sticky column-header band stick to the top of THIS container while
+          // transactions scroll vertically and long category rows scroll
+          // horizontally. Page body itself does not scroll horizontally.
+          // pt-6 here would create a visible padding strip above the sticky
+          // header band — scrolled content showed through it. Use mt-4 for the
+          // breathing-room gap (lives OUTSIDE the scroll container so the
+          // sticky band still pins flush at the wrapper's top edge).
+          // overscroll-behavior: none keeps both rapid vertical swipes AND
+          // diagonal horizontal swipes from bleeding into the page —
+          // "contain" still let iOS Safari trigger pull-to-refresh when the
+          // user's gesture had a slight downward angle during column
+          // horizontal swipes (UAT round 9). "none" blocks the bounce
+          // entirely on this element.
+          // Architecture (a) — measured bound (quick-260612-e82 R3, see ResizeObserver effect above).
+          // --grid-max-h is written by the effect: visualViewport.height − scrollerTop.
+          // Because scrollerTop is MEASURED (getBoundingClientRect) it self-corrects for every band
+          // above the grid (header inset, BDP band, banner) — killing the constant-rot bug.
+          // SHELL-R14: FIXED height (h-, not max-h-) so the scroller box always
+          // reaches the vv bottom even when content is shorter than the available
+          // space — the whole screen below the band is the scroll surface (no
+          // dead band where touch gestures hit the static page instead).
+          // Fallback 80vh applies only pre-measure / SSR.
+          // iOS WebKit ignores pb-* on scroll containers at end-of-scroll
+          // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
+          // scrollHeight past the last row instead.
+          style={{ overscrollBehavior: "none" }}
+          // flex-col so the "last spending added" line can mt-auto to the
+          // bottom of the visible box when the columns are short (r40).
+          className="flex flex-col overflow-auto flex-1 min-h-0 px-3 sm:px-6"
         >
-          <SlideOnChange
-            token={monthSlideToken}
-            className="flex gap-2 w-fit mx-auto"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
           >
-            {isColdLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <ColumnSkeleton key={i} />
-              ))
-            ) : (
-              <>
-                <SortableContext
-                  items={visibleCategories.map((c) => c.id)}
-                  strategy={horizontalListSortingStrategy}
-                >
-                  {visibleCategories.map((c) => (
-                    <CategoryColumn
-                      key={c.id}
-                      category={c}
-                      summary={
-                        summaryByCatId.get(c.id) ?? defaultEmptySummary(c.id)
+            <SlideOnChange
+              token={monthSlideToken}
+              className="flex gap-2 w-fit mx-auto"
+            >
+              {isColdLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <ColumnSkeleton key={i} />
+                ))
+              ) : (
+                <>
+                  <SortableContext
+                    items={visibleCategories.map((c) => c.id)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {visibleCategories.map((c) => (
+                      <CategoryColumn
+                        key={c.id}
+                        category={c}
+                        summary={
+                          summaryByCatId.get(c.id) ?? defaultEmptySummary(c.id)
+                        }
+                        cushionModeEnabled={
+                          summary.data?.cushionModeEnabled ?? false
+                        }
+                        budgetCurrency={budgetCurrency}
+                        transactions={transactionsByCatId.get(c.id) ?? []}
+                        drafts={draftsByCatId.get(c.id) ?? []}
+                        gridScrolled={gridScrolled}
+                        budgetId={budgetId}
+                        month={month}
+                        resolvedQuickEntryDate={resolvedQuickEntryDate}
+                        reservesEnabled={reservesEnabled}
+                        onEditTxn={(txId) =>
+                          setTxSlider({ open: true, mode: "edit", txId })
+                        }
+                        onEditDraft={(draftId) =>
+                          setTxSlider({
+                            open: true,
+                            mode: "edit",
+                            txId: draftId,
+                          })
+                        }
+                        onEditCategory={(categoryId) =>
+                          setCatSlider({ open: true, mode: "edit", categoryId })
+                        }
+                        onPermanentDelete={() =>
+                          setDeleteCat({ id: c.id, name: c.name })
+                        }
+                        onUnarchive={() => void unarchiveCategory(c.id)}
+                        onOfflineAttempt={() => setOfflineDialogOpen(true)}
+                      />
+                    ))}
+                  </SortableContext>
+                  {/*
+                   * AddCategoryColumn is a sibling of SortableContext children,
+                   * NOT registered as a sortable item (D-PH4-D4).
+                   * It does NOT call useSortable — it is outside the items list.
+                   *
+                   * sticky top-0 pins it to the top of the scroll viewport on
+                   * vertical scroll, so it stays visible as transactions
+                   * scroll up. self-start prevents flex stretch from inflating
+                   * it to row height. On horizontal scroll it still moves with
+                   * the row (sticky only applies on the axis with offset set).
+                   */}
+                  <div className="sticky top-0 self-start z-10">
+                    <AddCategoryColumn
+                      onClick={() =>
+                        setCatSlider({ open: true, mode: "create" })
                       }
-                      cushionModeEnabled={
-                        summary.data?.cushionModeEnabled ?? false
-                      }
-                      budgetCurrency={budgetCurrency}
-                      transactions={transactionsByCatId.get(c.id) ?? []}
-                      drafts={draftsByCatId.get(c.id) ?? []}
-                      gridScrolled={gridScrolled}
-                      budgetId={budgetId}
-                      month={month}
-                      resolvedQuickEntryDate={resolvedQuickEntryDate}
-                      reservesEnabled={reservesEnabled}
-                      onEditTxn={(txId) =>
-                        setTxSlider({ open: true, mode: "edit", txId })
-                      }
-                      onEditDraft={(draftId) =>
-                        setTxSlider({ open: true, mode: "edit", txId: draftId })
-                      }
-                      onEditCategory={(categoryId) =>
-                        setCatSlider({ open: true, mode: "edit", categoryId })
-                      }
-                      onPermanentDelete={() =>
-                        setDeleteCat({ id: c.id, name: c.name })
-                      }
-                      onUnarchive={() => void unarchiveCategory(c.id)}
-                      onOfflineAttempt={() => setOfflineDialogOpen(true)}
                     />
-                  ))}
-                </SortableContext>
-                {/*
-                 * AddCategoryColumn is a sibling of SortableContext children,
-                 * NOT registered as a sortable item (D-PH4-D4).
-                 * It does NOT call useSortable — it is outside the items list.
-                 *
-                 * sticky top-0 pins it to the top of the scroll viewport on
-                 * vertical scroll, so it stays visible as transactions
-                 * scroll up. self-start prevents flex stretch from inflating
-                 * it to row height. On horizontal scroll it still moves with
-                 * the row (sticky only applies on the axis with offset set).
-                 */}
-                <div className="sticky top-0 self-start z-10">
-                  <AddCategoryColumn
-                    onClick={() => setCatSlider({ open: true, mode: "create" })}
-                  />
-                </div>
-              </>
-            )}
-          </SlideOnChange>
-        </DndContext>
-        {/* r40: "last spending added" freshness line. `mt-auto` (the scroller
-            is a flex column) pushes it to the BOTTOM of the visible area even
-            when the columns are short; it scrolls with long content (never
-            vertically fixed). Stretch width resolves against the scroller's
-            client box — NOT the horizontal overflow — so `sticky left-0` +
-            text-center keep it centred in the viewport while the columns pan
-            sideways. Exact user-timezone timestamp; created_at based — edits
-            don't bump it, deleting the newest entry falls back. */}
+                  </div>
+                </>
+              )}
+            </SlideOnChange>
+          </DndContext>
+          {/* iOS WebKit end-of-scroll spacer (SHELL-R8..R10): padding-bottom on
+            a scroll container is ignored at the scroll tail on iOS Safari.
+            A real in-flow aria-hidden block appended after all content extends
+            scrollHeight so the last transaction row is reachable with clearance.
+            Height: env+64px fallback here (= standalone, user-approved R14);
+            browser mode gets an env+96px override in global.css
+            ([data-grid-tail-spacer], unlayered) — the box now extends UNDER
+            the Safari bar (lvh bottom), so the last fully-scrolled row needs
+            bar height (~50px) + indicator-zone room to clear the VISIBLE area. */}
+          <div
+            aria-hidden
+            data-grid-tail-spacer
+            className="h-[calc(env(safe-area-inset-bottom,0px)+64px)] shrink-0 w-full pointer-events-none"
+          />
+        </div>
+        {/* r40: "last spending added" freshness line — a shrink-0 sibling BELOW
+            the scroller (outside it), so it's pinned to the very bottom of the
+            grid area and never rides the vertical scroll. Being outside the
+            horizontal scroller it never pans sideways either; w-full + text-center
+            centres it. pb safe-area lifts it clear of the iOS home indicator.
+            Exact user-timezone timestamp; created_at based — edits don't bump it,
+            deleting the newest entry falls back. */}
         {summary.data?.lastSpendingAddedAt && (
           <div
             data-testid="last-spending-added"
-            className="sticky left-0 mt-auto w-full pt-3 text-center text-caption text-[var(--muted-foreground)]"
+            className="shrink-0 w-full pt-3 pb-[env(safe-area-inset-bottom,0px)] text-center text-caption text-[var(--muted-foreground)]"
           >
             {tGrid("lastAdded", {
               when: formatTimestamp(
@@ -946,20 +978,6 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
             })}
           </div>
         )}
-        {/* iOS WebKit end-of-scroll spacer (SHELL-R8..R10): padding-bottom on
-            a scroll container is ignored at the scroll tail on iOS Safari.
-            A real in-flow aria-hidden block appended after all content extends
-            scrollHeight so the last transaction row is reachable with clearance.
-            Height: env+64px fallback here (= standalone, user-approved R14);
-            browser mode gets an env+96px override in global.css
-            ([data-grid-tail-spacer], unlayered) — the box now extends UNDER
-            the Safari bar (lvh bottom), so the last fully-scrolled row needs
-            bar height (~50px) + indicator-zone room to clear the VISIBLE area. */}
-        <div
-          aria-hidden
-          data-grid-tail-spacer
-          className="h-[calc(env(safe-area-inset-bottom,0px)+64px)] shrink-0 w-full pointer-events-none"
-        />
       </div>
 
       <TransactionSlider
