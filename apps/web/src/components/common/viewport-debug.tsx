@@ -368,43 +368,28 @@ export function ViewportDebug() {
   // persisted flag (push deep-links proved unreliable on device; standalone
   // has no URL bar). Interactive children (links, buttons, inputs) are
   // excluded so normal header use can never trigger it.
+  // Hidden toggle: 13 RAPID taps on the profile-menu trigger flip the
+  // persisted flag (push deep-links proved unreliable on device; standalone
+  // has no URL bar). Gap > 800ms between taps resets the chain — the count is
+  // deliberately absurd so it can never fire accidentally.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const start = { x: 0, y: 0 };
-    const cancel = () => {
-      if (timer) clearTimeout(timer);
-      timer = null;
-    };
-    const onDown = (e: PointerEvent) => {
+    let count = 0;
+    let lastTap = 0;
+    const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null;
-      if (!t?.closest("header")) return;
-      if (t.closest("a, button, input, select, textarea, [role='button']"))
-        return;
-      start.x = e.clientX;
-      start.y = e.clientY;
-      cancel();
-      timer = setTimeout(() => {
+      if (!t?.closest('[data-testid="profile-menu-trigger"]')) return;
+      const now = Date.now();
+      count = now - lastTap <= 800 ? count + 1 : 1;
+      lastTap = now;
+      if (count >= 13) {
+        count = 0;
         const on = toggleVpdbg();
         setEnabled(on);
         if (!on) setMetrics(null);
-      }, 1200);
+      }
     };
-    // Fingers jitter a few px during a hold — only a real drag cancels.
-    const onMove = (e: PointerEvent) => {
-      if (!timer) return;
-      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel();
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    document.addEventListener("pointerup", cancel, true);
-    document.addEventListener("pointercancel", cancel, true);
-    document.addEventListener("pointermove", onMove, true);
-    return () => {
-      cancel();
-      document.removeEventListener("pointerdown", onDown, true);
-      document.removeEventListener("pointerup", cancel, true);
-      document.removeEventListener("pointercancel", cancel, true);
-      document.removeEventListener("pointermove", onMove, true);
-    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
   }, []);
 
   useEffect(() => {

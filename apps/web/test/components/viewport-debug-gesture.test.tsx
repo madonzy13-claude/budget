@@ -1,25 +1,35 @@
 /**
- * viewport-debug-gesture.test.tsx — hidden long-press toggle for the vpdbg
- * overlay. Push deep-links proved unreliable on device and standalone PWA has
- * no URL bar, so a 1.2s hold on an empty header spot flips the persisted flag.
+ * viewport-debug-gesture.test.tsx — hidden vpdbg toggle: 13 RAPID taps on the
+ * profile-menu trigger flip the persisted flag. Push deep-links proved
+ * unreliable on device and standalone PWA has no URL bar; the tap count is
+ * deliberately absurd so it can never fire accidentally.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import { ViewportDebug } from "../../src/components/common/viewport-debug";
 
-function renderWithHeader() {
+function renderWithTrigger() {
   return render(
     <div>
-      <header data-testid="hdr">
-        <span data-testid="hdr-bg">Budget</span>
-        <button data-testid="hdr-btn">menu</button>
+      <header>
+        <button data-testid="profile-menu-trigger">
+          <span data-testid="avatar-initials">AY</span>
+        </button>
+        <button data-testid="other-button">menu</button>
       </header>
       <ViewportDebug />
     </div>,
   );
 }
 
-describe("vpdbg long-press toggle", () => {
+function tap(el: Element, times: number, gapMs = 100) {
+  for (let i = 0; i < times; i++) {
+    fireEvent.click(el);
+    act(() => vi.advanceTimersByTime(gapMs));
+  }
+}
+
+describe("vpdbg 13-tap profile toggle", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
@@ -28,34 +38,36 @@ describe("vpdbg long-press toggle", () => {
     vi.useRealTimers();
   });
 
-  it("1.2s hold on header background flips the flag on", () => {
-    const { getByTestId } = renderWithHeader();
-    fireEvent.pointerDown(getByTestId("hdr-bg"));
-    act(() => vi.advanceTimersByTime(1300));
+  it("13 rapid taps on the profile trigger flip the flag on", () => {
+    const { getByTestId } = renderWithTrigger();
+    tap(getByTestId("avatar-initials"), 13);
     expect(localStorage.getItem("vpdbg")).toBe("1");
   });
 
-  it("hold on an interactive header child does NOT toggle", () => {
-    const { getByTestId } = renderWithHeader();
-    fireEvent.pointerDown(getByTestId("hdr-btn"));
-    act(() => vi.advanceTimersByTime(1300));
+  it("12 rapid taps do NOT toggle", () => {
+    const { getByTestId } = renderWithTrigger();
+    tap(getByTestId("avatar-initials"), 12);
     expect(localStorage.getItem("vpdbg")).toBeNull();
   });
 
-  it("releasing before 1.2s does NOT toggle", () => {
-    const { getByTestId } = renderWithHeader();
-    fireEvent.pointerDown(getByTestId("hdr-bg"));
-    act(() => vi.advanceTimersByTime(600));
-    fireEvent.pointerUp(getByTestId("hdr-bg"));
-    act(() => vi.advanceTimersByTime(1000));
+  it("a slow gap resets the count", () => {
+    const { getByTestId } = renderWithTrigger();
+    tap(getByTestId("avatar-initials"), 8);
+    act(() => vi.advanceTimersByTime(2000)); // user paused — chain broken
+    tap(getByTestId("avatar-initials"), 8);
     expect(localStorage.getItem("vpdbg")).toBeNull();
   });
 
-  it("second long-press flips the flag back off", () => {
+  it("rapid taps elsewhere do NOT toggle", () => {
+    const { getByTestId } = renderWithTrigger();
+    tap(getByTestId("other-button"), 13);
+    expect(localStorage.getItem("vpdbg")).toBeNull();
+  });
+
+  it("13 rapid taps flip the flag back off", () => {
     localStorage.setItem("vpdbg", "1");
-    const { getByTestId } = renderWithHeader();
-    fireEvent.pointerDown(getByTestId("hdr-bg"));
-    act(() => vi.advanceTimersByTime(1300));
+    const { getByTestId } = renderWithTrigger();
+    tap(getByTestId("avatar-initials"), 13);
     expect(localStorage.getItem("vpdbg")).toBe("0");
   });
 });

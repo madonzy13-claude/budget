@@ -636,8 +636,8 @@ describe("Round 6 — shell canvas extends under the bar + keyboard remeasure fr
     expect(viewportDebug).toMatch(/shellRootMinH/);
   });
 
-  it("R6-D: BUILD_MARKER is the current chain marker SHELL-R18 [bumped each shell round]", () => {
-    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R18["']/);
+  it("R6-D: BUILD_MARKER is the current chain marker SHELL-R19 [bumped each shell round]", () => {
+    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R19["']/);
   });
 
   // T2: Keyboard-aware remeasure freeze
@@ -747,8 +747,8 @@ describe("Round 7 — grid box to physical screen bottom (SHELL-R17)", () => {
     expect(standaloneBlock).not.toMatch(/data-grid-tail-spacer/);
   });
 
-  it("R7-I: BUILD_MARKER == SHELL-R18 exactly; overlay reports screenH/lvhPx/screenExt/spacer probes", () => {
-    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R18["']/);
+  it("R7-I: BUILD_MARKER == SHELL-R19 exactly; overlay reports screenH/lvhPx/screenExt/spacer probes", () => {
+    expect(viewportDebug).toMatch(/BUILD_MARKER\s*=\s*["']SHELL-R19["']/);
     // Overlay must expose the new R17 diagnostic fields.
     expect(viewportDebug).toMatch(/screenH/);
     expect(viewportDebug).toMatch(/lvhPx|lvh/);
