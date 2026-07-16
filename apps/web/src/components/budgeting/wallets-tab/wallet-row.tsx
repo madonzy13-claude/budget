@@ -471,6 +471,7 @@ function PersistedRow({
             )}
             renderEditor={(draft, onChange) => (
               <Input
+                autoFocus
                 value={draft}
                 onChange={(e) => onChange(e.target.value)}
                 className="h-9"
@@ -549,6 +550,7 @@ function PersistedRow({
             )}
             renderEditor={(draft, onChange) => (
               <Input
+                autoFocus
                 type="text"
                 inputMode="decimal"
                 defaultValue={draft}

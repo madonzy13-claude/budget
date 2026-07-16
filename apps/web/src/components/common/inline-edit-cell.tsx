@@ -8,7 +8,6 @@
  */
 import * as React from "react";
 import { Loader2, RotateCcw } from "lucide-react";
-import { keyboardScrollDelta, editScrollDelta } from "@/lib/keyboard-scroll";
 
 export interface InlineEditCellProps<T> {
   value: T;
@@ -48,95 +47,6 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
   // session in a ref so subsequent commits within the same session
   // no-op until the next beginEdit cycle.
   const committedRef = React.useRef(false);
-  const editorRef = React.useRef<HTMLDivElement | null>(null);
-
-  // iOS focus management (same disease as spendings-grid transaction-row):
-  // a bare `autoFocus` lets Safari auto-scroll the focused input, so the
-  // wallet row "jumped too high" on the first edit after a cold app open.
-  // The cell owns focus instead: preventScroll, restore the scroll container,
-  // then nudge only as far as the keyboard actually requires.
-  React.useEffect(() => {
-    if (!editing) return;
-    const editor = editorRef.current;
-    const input = editor?.querySelector<HTMLElement>("input, textarea");
-    if (!input) return;
-
-    let container: HTMLElement | null = editor?.parentElement ?? null;
-    while (container) {
-      if (/(auto|scroll)/.test(getComputedStyle(container).overflowY)) break;
-      container = container.parentElement;
-    }
-    const scroller =
-      container ?? (document.scrollingElement as HTMLElement | null);
-
-    // Decide the container position BEFORE focusing (iOS standalone runs a
-    // buggy reveal-scroll on focus that preventScroll does NOT suppress, and
-    // PWA mode fires no visualViewport resize afterwards to correct against):
-    // a row already in the keyboard-safe top zone stays put (delta 0); a lower
-    // row is pre-scrolled so its top lands above any possible keyboard.
-    const vvH = window.visualViewport?.height ?? window.innerHeight;
-    const rect0 = input.getBoundingClientRect();
-    let targetTop =
-      (scroller?.scrollTop ?? 0) +
-      editScrollDelta({
-        inputTop: rect0.top,
-        inputBottom: rect0.bottom,
-        viewportHeight: vvH,
-      });
-
-    if (scroller) scroller.scrollTop = targetTop;
-    if (document.activeElement !== input) {
-      input.focus({ preventScroll: true });
-    }
-
-    // HOLD the decided position through the keyboard animation: whatever iOS
-    // scrolls, snap back. 1.2s covers the animation; a user never starts a
-    // real scroll gesture that soon after tapping a cell to edit it.
-    const lockUntil = performance.now() + 1200;
-    let lockRaf = 0;
-    const onScroll = () => {
-      if (!scroller || performance.now() > lockUntil) return;
-      cancelAnimationFrame(lockRaf);
-      lockRaf = requestAnimationFrame(() => {
-        if (Math.abs(scroller.scrollTop - targetTop) > 2) {
-          scroller.scrollTop = targetTop;
-        }
-      });
-    };
-    scroller?.addEventListener("scroll", onScroll);
-    const unlockTimer = setTimeout(
-      () => scroller?.removeEventListener("scroll", onScroll),
-      1300,
-    );
-
-    // Fine-tune when REAL keyboard geometry is known (Safari fires resize;
-    // standalone usually doesn't). Bidirectional: pulls the row back into
-    // view whichever side it ended up on, and updates the held target.
-    function adjustForKeyboard() {
-      if (!input || !scroller) return;
-      const vv = window.visualViewport;
-      const rect = input.getBoundingClientRect();
-      const delta = keyboardScrollDelta({
-        inputTop: rect.top,
-        inputBottom: rect.bottom,
-        visibleTop: vv?.offsetTop ?? 0,
-        visibleBottom: vv ? vv.offsetTop + vv.height : window.innerHeight,
-      });
-      if (delta !== 0) {
-        targetTop = scroller.scrollTop + delta;
-        scroller.scrollTop = targetTop;
-      }
-    }
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", adjustForKeyboard);
-
-    return () => {
-      vv?.removeEventListener("resize", adjustForKeyboard);
-      scroller?.removeEventListener("scroll", onScroll);
-      clearTimeout(unlockTimer);
-      cancelAnimationFrame(lockRaf);
-    };
-  }, [editing]);
 
   const beginEdit = () => {
     if (props.disabled || saving) return;
@@ -248,7 +158,6 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
 
   return (
     <div
-      ref={editorRef}
       data-testid={props.testId ? `${props.testId}-editor` : undefined}
       // UAT-PH5-T3-36: ancestor scroll containers (e.g. the mobile
       // wallet row swipe wrapper) read this attribute to relax their
