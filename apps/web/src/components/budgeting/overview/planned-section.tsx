@@ -20,6 +20,8 @@ import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
+import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
 import { overspendHeat } from "@/lib/overspend-heat";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -43,6 +45,52 @@ function trimLeadingEmpty<T extends Record<string, unknown>>(
 function ChartLabel({ children }: { children: React.ReactNode }) {
   return (
     <p className="text-caption text-[var(--muted-foreground)]">{children}</p>
+  );
+}
+
+/** Planned-spend donut: each category's average planned amount over the selected
+ * range (the same planned_avg_cents the over/under bar uses as its reference).
+ * Colors follow the category's persisted colorKey; colorless categories cycle
+ * the shared palette so adjacent slices stay distinct. */
+function PlannedByCategoryPie({
+  rows,
+  categories,
+  title,
+  allLabel,
+  formatValue,
+}: {
+  rows: { name: string; planned_avg_cents: string }[];
+  categories: { name: string; colorKey?: unknown }[];
+  title: string;
+  allLabel: string;
+  formatValue: (n: number) => string;
+}) {
+  const data = rows
+    .map((c) => ({ name: c.name, planned: Number(c.planned_avg_cents) }))
+    .filter((r) => r.planned > 0)
+    .sort((a, b) => b.planned - a.planned);
+  if (data.length === 0) return null;
+
+  const colorByName = new Map<string, string>(
+    data.map((r, i) => {
+      const cat = categories.find((c) => c.name === r.name);
+      const hex = hexForColorKey((cat?.colorKey as string | null) ?? null);
+      return [r.name, hex ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length].hex];
+    }),
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ChartLabel>{title}</ChartLabel>
+      <OverviewPieChart
+        data={data}
+        nameKey="name"
+        valueKey="planned"
+        colorFor={(name) => colorByName.get(name) ?? CATEGORY_COLORS[7].hex}
+        formatValue={formatValue}
+        allLabel={allLabel}
+      />
+    </div>
   );
 }
 
@@ -233,6 +281,17 @@ export function PlannedSection({
               />
             </div>
           )}
+
+          {/* Planned-spend share pie — how the range-averaged planned budget
+              splits across categories. Sits directly below the over/under
+              chart so the reference (planned averages) reads in both shapes. */}
+          <PlannedByCategoryPie
+            rows={data.plannedAvgVsReal}
+            categories={categories}
+            title={t("planned.avgPie")}
+            allLabel={t("planned.allCategories")}
+            formatValue={fmtTooltip}
+          />
 
           {/* Recurring per month — current config (NOT range-scoped, D-14).
               Simple area chart (single series). */}

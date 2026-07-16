@@ -1326,6 +1326,7 @@
           "recurringPerCategory": "Płatności cykliczne wg kategorii",
           "timelineTitle": "Plan a rzeczywiste wydatki w czasie",
           "avgByCategory": "Przekroczenie / oszczędność wg kategorii",
+          "avgPie": "Planowane wydatki wg kategorii",
           "difference": "Różnica"
         },
         "wealth": {

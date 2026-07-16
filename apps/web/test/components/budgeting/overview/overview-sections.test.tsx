@@ -168,6 +168,16 @@ describe("OverviewSections", () => {
     expect(after).not.toBe(before);
   });
 
+  it("expanding Planned mounts the planned-by-category pie below the over/under chart", async () => {
+    const user = userEvent.setup();
+    renderSections();
+    await user.click(screen.getByRole("button", { name: "sections.planned" }));
+    // The pie (average planned spend per category over the selected range)
+    // renders with its own label; Wealth stays collapsed so this is the only pie.
+    expect(screen.getByText("planned.avgPie")).toBeTruthy();
+    expect(screen.getByTestId("pie-chart")).toBeTruthy();
+  });
+
   it("toggling Wealth to investments switches the view and shows the pie", async () => {
     const user = userEvent.setup();
     renderSections();

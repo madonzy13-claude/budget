@@ -1303,6 +1303,7 @@
           "recurringPerCategory": "Recurring bills, by category",
           "timelineTitle": "Planned vs actual spending, over time",
           "avgByCategory": "Over / under budget, by category",
+          "avgPie": "Planned spendings, by category",
           "difference": "Difference"
         },
         "wealth": {
