@@ -120,10 +120,10 @@ describe("DashedAddButton", () => {
     expect(btn.className).not.toContain("text-[var(--on-primary)]");
   });
 
-  it("has focus-visible:ring with info color", () => {
+  it("has a focus-visible ring in the brand accent (yellow, not blue)", () => {
     render(<DashedAddButton onClick={vi.fn()} label="Add" />);
     const btn = screen.getByRole("button");
-    expect(btn.className).toContain("focus-visible:ring-[var(--info)]");
+    expect(btn.className).toContain("focus-visible:ring-[var(--primary)]");
   });
 
   it("renders custom Icon prop when provided", () => {

@@ -62,7 +62,7 @@ const SelectTrigger = React.forwardRef<
       "[&>span]:line-clamp-1 placeholder:text-[var(--muted-foreground)]",
       "transition-colors",
       "focus-visible:outline-2 focus-visible:outline-offset-2",
-      "focus-visible:outline-[var(--info)]",
+      "focus-visible:outline-[var(--primary)]",
       "disabled:cursor-not-allowed disabled:opacity-50",
       className,
     )}

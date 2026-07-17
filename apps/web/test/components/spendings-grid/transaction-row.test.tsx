@@ -82,8 +82,7 @@ describe("TransactionRow", () => {
     expect(row.textContent).toContain("15");
   });
 
-  it("tooltip shows the CREATION date (date-only, day-first) not the spending date", async () => {
-    const user = userEvent.setup();
+  it("on focus shows an inline meta line: CREATION date (date-only) + note, no tooltip", () => {
     renderRow({
       txn: {
         ...txn,
@@ -92,21 +91,31 @@ describe("TransactionRow", () => {
         note: "Weekly shop",
       },
     });
-    await user.hover(screen.getByText("15"));
-    const tip = await screen.findByTestId("txn-tooltip");
-    expect(tip.textContent).toContain("13 February 2026"); // created date
-    expect(tip.textContent).not.toContain("15:43"); // NO time
-    expect(tip.textContent).not.toContain("5/14/2026"); // NOT the spending date
-    expect(tip.textContent).toContain("Weekly shop");
+    // No tooltip primitive is used anymore.
+    expect(document.querySelector('[data-testid="txn-tooltip"]')).toBeNull();
+    const row = screen.getByTestId("txn-row-1500");
+    fireEvent.focus(row);
+    const meta = screen.getByTestId("txn-row-meta");
+    expect(meta.textContent).toContain("13 February 2026"); // created date
+    expect(meta.textContent).not.toContain("15:43"); // NO time
+    expect(meta.textContent).not.toContain("5/14/2026"); // NOT the spending date
+    expect(meta.textContent).toContain("Weekly shop"); // note included
   });
 
-  it("tooltip omits the note line when the transaction has no note", async () => {
-    const user = userEvent.setup();
+  it("meta line shows the date only (no ' · note') when the transaction has no note", () => {
     renderRow({ txn: { ...txn, note: null } });
-    await user.hover(screen.getByText("15"));
-    const tip = await screen.findByTestId("txn-tooltip");
-    expect(tip.textContent).toContain("13 February 2026");
-    expect(tip.textContent).not.toContain("Weekly shop");
+    const row = screen.getByTestId("txn-row-1500");
+    fireEvent.focus(row);
+    const meta = screen.getByTestId("txn-row-meta");
+    expect(meta.textContent).toContain("13 February 2026");
+    expect(meta.textContent).not.toContain("·");
+  });
+
+  it("resting (unfocused) row shows no meta line", () => {
+    renderRow({ txn: { ...txn, note: "Weekly shop" } });
+    expect(
+      document.querySelector('[data-testid="txn-row-meta"]'),
+    ).toBeNull();
   });
 
   it("hover reveals the edit and delete chips; they persist while focused, hide on blur", () => {

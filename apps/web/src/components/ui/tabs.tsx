@@ -30,7 +30,7 @@ const tabsListVariants = cva("inline-flex items-center justify-start", {
 const tabsTriggerVariants = cva(
   [
     "inline-flex cursor-pointer items-center whitespace-nowrap transition-colors",
-    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]",
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
     "disabled:cursor-not-allowed disabled:pointer-events-none disabled:opacity-50",
   ].join(" "),
   {

@@ -139,7 +139,10 @@ export function BdpTabs({
             aria-label={label}
             className={cn(
               "relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-pill)] px-3 transition-colors",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]",
+              // No focus outline on pills — the yellow fill already marks the
+              // focused/active pill (Tab immediately activates it). outline-none
+              // also overrides the global :focus-visible ring for this element.
+              "focus-visible:outline-none",
               "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
               active
                 ? "text-[var(--on-primary)] text-sm font-semibold"

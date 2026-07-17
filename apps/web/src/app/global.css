@@ -206,7 +206,7 @@
     --success-foreground: var(--on-dark);
     --border: var(--hairline-dark);
     --input: var(--hairline-dark);
-    --ring: var(--info);
+    --ring: var(--primary);
   }
 
   /* ── Light theme (DESIGN.md "transactional surfaces" palette) ──────────────
@@ -357,9 +357,11 @@
     cursor: pointer;
   }
 
-  /* Focus ring — single source of truth, info-blue at 50% alpha */
+  /* Focus ring — single source of truth. The brand accent (yellow), NOT blue:
+     DESIGN.md mandates a single yellow accent, so focus never shows a blue
+     border on any element. */
   :focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--info) 60%, transparent);
+    outline: 2px solid color-mix(in oklab, var(--primary) 60%, transparent);
     outline-offset: 2px;
   }
 

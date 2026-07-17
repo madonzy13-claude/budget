@@ -155,7 +155,7 @@ export function CurrencyPicker({
             "[background-image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>\")]",
             "[background-position:right_10px_center]",
             "pr-9",
-            "focus:outline-2 focus:outline-offset-2 focus:outline-[var(--info)]",
+            "focus:outline-2 focus:outline-offset-2 focus:outline-[var(--primary)]",
           ]
         : // Original inline-cell styling — preserves the bare-text
           // appearance used by inline-edit cells in wallet rows.

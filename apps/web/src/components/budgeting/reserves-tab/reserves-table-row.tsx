@@ -336,7 +336,7 @@ export function ReservesTableRow({
                 data-testid={`reserves-pending-edit-${row.categoryId}`}
                 onClick={handleEditPenClick}
                 aria-label={tRoot("reserves.actions.editBalance")}
-                className="inline-flex h-6 w-6 items-center justify-center rounded text-[var(--muted)] hover:text-[var(--body-on-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--info-ring)]"
+                className="inline-flex h-6 w-6 items-center justify-center rounded text-[var(--muted)] hover:text-[var(--body-on-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               >
                 <PencilLine className="h-4 w-4" aria-hidden="true" />
               </button>

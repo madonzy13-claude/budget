@@ -41,7 +41,7 @@ export function SettingsConfigProgress({
           data-testid="settings-config-progress"
           data-percent={percent}
           aria-label={t("title")}
-          className="mb-4 block w-full cursor-pointer rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)] px-5 py-3 text-left transition-colors hover:bg-[var(--surface-elevated-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]"
+          className="mb-4 block w-full cursor-pointer rounded-xl border border-[var(--hairline-on-dark)] bg-[var(--surface-card-dark)] px-5 py-3 text-left transition-colors hover:bg-[var(--surface-elevated-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
         >
           {/* items-center + leading-none so the title isn't pushed low by the
               taller percent line-box — keeps the visual top/bottom padding equal. */}

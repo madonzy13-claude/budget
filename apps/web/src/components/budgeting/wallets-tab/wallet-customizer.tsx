@@ -103,7 +103,7 @@ export function WalletCustomizer({
               ? "border border-transparent"
               : "border border-dashed border-[var(--muted-foreground)]/60",
             "hover:bg-[var(--surface-elevated-dark)]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--info)]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
           )}
           style={{ color: triggerColor }}
         >

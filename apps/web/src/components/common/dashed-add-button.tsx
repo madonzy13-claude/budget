@@ -39,7 +39,7 @@ export function DashedAddButton({
     "rounded-[var(--radius-lg)] border border-dashed border-[var(--muted-foreground)] " +
     "bg-transparent hover:bg-[var(--secondary)]/40 hover:border-[var(--foreground)] " +
     "cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 " +
-    "focus-visible:ring-offset-2 focus-visible:ring-[var(--info)] " +
+    "focus-visible:ring-offset-2 focus-visible:ring-[var(--primary)] " +
     "text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]";
 
   return (

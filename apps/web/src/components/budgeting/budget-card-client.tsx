@@ -42,7 +42,7 @@ export function BudgetCardClient({ budget, locale }: BudgetCardClientProps) {
     <NavLink
       href={`/${locale}/budgets/${budget.id}/overview`}
       aria-label={t("card.openAria", { budgetName: budget.name })}
-      className="relative group block rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-transparent transition-all hover:border-[var(--primary)] hover:scale-[1.01] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--info-ring)] focus-visible:outline-offset-2"
+      className="relative group block rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-transparent transition-all hover:border-[var(--primary)] hover:scale-[1.01] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)] focus-visible:outline-offset-2"
     >
       {/* Corner badge — absolute-positioned, needs `relative` on NavLink wrapper */}
       <span className="absolute top-3 right-3 pointer-events-none">

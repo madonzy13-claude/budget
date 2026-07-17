@@ -152,7 +152,7 @@ export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
         <DialogTrigger asChild>
           <button
             type="button"
-            className="shrink-0 text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]"
+            className="shrink-0 text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
           >
             {t("bdp.tasks.more")}
           </button>

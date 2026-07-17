@@ -21,12 +21,6 @@ import { formatInstantDate } from "@/lib/format-date";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { cn } from "@/lib/utils";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -486,34 +480,33 @@ export function TransactionRow({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
-                  <span className="shrink-0">{formattedAmount}</span>
-                  {/* Inline note — hidden while chips are revealed to keep the
-                      revealed state clean. Tooltip still renders the note on
-                      hover/long-press. */}
-                  {txn.note && !showChips ? (
-                    <span
-                      data-testid="txn-row-note"
-                      className="min-w-0 truncate text-xs text-[var(--muted-foreground)]"
-                    >
-                      {txn.note}
-                    </span>
-                  ) : null}
+          <span className="flex min-w-0 flex-1 flex-col justify-center">
+            <span className="flex items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
+              <span className="shrink-0">{formattedAmount}</span>
+              {/* Inline note only while the row is RESTING — keeps it compact.
+                  An ACTIVE row shows the fuller meta line (date · note) below. */}
+              {txn.note && !showChips ? (
+                <span
+                  data-testid="txn-row-note"
+                  className="min-w-0 truncate text-xs text-[var(--muted-foreground)]"
+                >
+                  {txn.note}
                 </span>
-              </TooltipTrigger>
-              <TooltipContent data-testid="txn-tooltip">
-                <div className="num text-xs">{formattedDate}</div>
-                {txn.note ? (
-                  <div className="text-xs text-[var(--muted-foreground)]">
-                    {txn.note}
-                  </div>
-                ) : null}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              ) : null}
+            </span>
+            {/* r40b: on focus / hover / tap-reveal (active) render the CREATION
+                date + note inline in a small muted line — replaces the removed
+                hover tooltip, and works for keyboard focus too. */}
+            {showChips && (
+              <span
+                data-testid="txn-row-meta"
+                className="min-w-0 truncate text-[10px] leading-tight text-[var(--muted-foreground)]"
+              >
+                {formattedDate}
+                {txn.note ? ` · ${txn.note}` : ""}
+              </span>
+            )}
+          </span>
         )}
       </div>
 
