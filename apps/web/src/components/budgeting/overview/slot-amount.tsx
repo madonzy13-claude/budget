@@ -30,7 +30,6 @@ import {
 const TICK_MS = 42;
 const TICKS = 12; // ~0.5s total scramble
 const BLUR_MS = 500; // matches the scramble so blur + shuffle finish together
-const HIDDEN_BLUR = "blur(1.6px)"; // "just a very little bit"
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
 const randUpper = () =>
@@ -63,9 +62,12 @@ function useSlotReveal(): SlotRevealState {
 export function SlotAmount({
   value,
   className,
+  blurPx = 3.5,
 }: {
   value: string;
   className?: string;
+  /** Blur radius (px) for the hidden digits — bigger for bigger numbers. */
+  blurPx?: number;
 }) {
   const { revealed, toggle } = useSlotReveal();
 
@@ -157,11 +159,29 @@ export function SlotAmount({
         cursor: "pointer",
         userSelect: "none",
         display: "inline-block",
-        filter: revealed ? "none" : HIDDEN_BLUR,
-        transition: `filter ${BLUR_MS}ms ease`,
+        // Horizontal breathing room = the blur radius, so the fuzzy edges of the
+        // outermost hidden digit aren't clipped left/right by a tight box.
+        paddingInline: `${blurPx}px`,
+        overflow: "visible",
       }}
     >
-      {display.join("")}
+      {display.map((ch, i) => {
+        // Only the scrambled DIGIT slots blur — the currency symbol/code,
+        // separators and sign stay sharp ("do not blur currency"). Blur fades
+        // out on reveal, in on hide, in step with the scramble.
+        const scramble = isDigit(chars[i]!);
+        return (
+          <span
+            key={i}
+            style={{
+              filter: !revealed && scramble ? `blur(${blurPx}px)` : "none",
+              transition: `filter ${BLUR_MS}ms ease`,
+            }}
+          >
+            {ch}
+          </span>
+        );
+      })}
     </span>
   );
 }

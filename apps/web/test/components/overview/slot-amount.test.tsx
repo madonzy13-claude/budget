@@ -23,8 +23,16 @@ describe("SlotAmount", () => {
     vi.useRealTimers();
   });
 
-  it("starts hidden: real digits absent, uppercase random mask, currency + separators kept, blurred", () => {
-    render(<SlotAmount value="$1,234" />);
+  // The per-char spans hold the blur; the currency ("$") span stays sharp.
+  const charSpans = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll("span"));
+  const blurredChars = (el: HTMLElement) =>
+    charSpans(el).filter((s) => s.style.filter.includes("blur"));
+  const currencySpan = (el: HTMLElement) =>
+    charSpans(el).find((s) => s.textContent === "$");
+
+  it("starts hidden: real digits absent, uppercase random mask, currency + separators kept; only digits blur", () => {
+    render(<SlotAmount value="$1,234" blurPx={3.5} />);
     const el = screen.getByTestId("slot-amount");
     expect(el.dataset.revealed).toBe("false");
     expect(el.textContent).not.toMatch(/\d/); // real digits NOT in the DOM
@@ -32,20 +40,23 @@ describe("SlotAmount", () => {
     expect(el.textContent).toContain(","); // separator kept
     expect(el.textContent).not.toMatch(/[a-z]/); // uppercase only
     expect(el.textContent).toMatch(/[A-Z]/); // random uppercase chars present
-    expect(el.style.filter).toContain("blur"); // slightly blurred while hidden
+    // Digits blurred at the requested radius; the currency stays sharp.
+    expect(blurredChars(el).length).toBe(4); // 1,2,3,4 → 4 digit slots
+    expect(blurredChars(el)[0]!.style.filter).toContain("3.5px");
+    expect(currencySpan(el)!.style.filter).toBe("none"); // currency NOT blurred
   });
 
-  it("reveals the real value on click (sharp, no blur), re-hides on a second click", () => {
+  it("reveals the real value on click (all sharp), re-hides on a second click", () => {
     render(<SlotAmount value="$1,234" />);
     const el = screen.getByTestId("slot-amount");
     clickAndSettle(el);
     expect(el.dataset.revealed).toBe("true");
     expect(el.textContent).toBe("$1,234");
-    expect(el.style.filter).toBe("none"); // sharp when revealed
+    expect(blurredChars(el).length).toBe(0); // nothing blurred when revealed
     clickAndSettle(el);
     expect(el.dataset.revealed).toBe("false");
     expect(el.textContent).not.toMatch(/\d/);
-    expect(el.style.filter).toContain("blur");
+    expect(blurredChars(el).length).toBeGreaterThan(0); // digits blurred again
   });
 
   it("Enter toggles the reveal", () => {

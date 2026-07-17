@@ -75,14 +75,22 @@ function Redactable({
   enabled,
   children,
   mask,
+  blurPx,
 }: {
   enabled: boolean;
   children: React.ReactNode;
   mask?: string;
+  blurPx?: number;
 }) {
   if (!enabled) return <>{children}</>;
-  return <SlotAmount value={mask ?? ""} />;
+  return <SlotAmount value={mask ?? ""} blurPx={blurPx} />;
 }
+
+// Blur radius per figure size (item 2): big hero, medium card figures, small
+// sub-lines. Bigger glyphs need a bigger blur to read as "hidden".
+const BLUR_BIG = 5.5;
+const BLUR_MED = 3.5;
+const BLUR_SMALL = 2.3;
 
 /**
  * Cushion runway as years/months/days, dropping any zero component (UAT round,
@@ -211,16 +219,24 @@ export function OverviewCards({
   const fmtRounded = (cents: string) => centsToRounded(cents, ccy, "en", true);
   // Node formatters — count-tween the figure when privacy is OFF; when ON the
   // figure becomes a tap-to-reveal SlotAmount (see Redactable).
-  const animMoney = (cents: string) => (
-    <Redactable enabled={amountPrivacyEnabled} mask={fmtMoney(cents)}>
+  const animMoney = (cents: string, blurPx: number = BLUR_MED) => (
+    <Redactable
+      enabled={amountPrivacyEnabled}
+      mask={fmtMoney(cents)}
+      blurPx={blurPx}
+    >
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtMoney(String(Math.round(n)))}
       />
     </Redactable>
   );
-  const animRounded = (cents: string) => (
-    <Redactable enabled={amountPrivacyEnabled} mask={fmtRounded(cents)}>
+  const animRounded = (cents: string, blurPx: number = BLUR_MED) => (
+    <Redactable
+      enabled={amountPrivacyEnabled}
+      mask={fmtRounded(cents)}
+      blurPx={blurPx}
+    >
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtRounded(String(Math.round(n)))}
@@ -343,7 +359,7 @@ export function OverviewCards({
                           ),
                         )}
                       >
-                        {animRounded(data.capitalization_cents)}
+                        {animRounded(data.capitalization_cents, BLUR_BIG)}
                       </p>
                       {hasInvestments && (
                         <p className="text-caption text-[var(--muted-foreground)]">
@@ -354,6 +370,7 @@ export function OverviewCards({
                               <Redactable
                                 enabled={amountPrivacyEnabled}
                                 mask={fmtRounded(data.investment_value_cents)}
+                                blurPx={BLUR_SMALL}
                               >
                                 {chunks}
                               </Redactable>
@@ -399,7 +416,7 @@ export function OverviewCards({
                           </Redactable>
                         </span>
                         <span className="num">
-                          {animRounded(pl.delta_cents)}
+                          {animRounded(pl.delta_cents, BLUR_SMALL)}
                         </span>
                         <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
                           {t("cards.sinceYesterday")}
@@ -564,6 +581,7 @@ export function OverviewCards({
                       <Redactable
                         enabled={amountPrivacyEnabled}
                         mask={reservesNoteAmount}
+                        blurPx={BLUR_SMALL}
                       >
                         {chunks}
                       </Redactable>
