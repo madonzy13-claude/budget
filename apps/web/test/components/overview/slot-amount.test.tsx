@@ -73,12 +73,13 @@ describe("SlotAmount", () => {
     expect(el.textContent).toBe("42");
   });
 
-  it("negative sign is preserved (not scrambled)", () => {
+  it("the sign is scrambled too (masked to 'I'); the currency code stays", () => {
     render(<SlotAmount value="-50 zł" />);
     const el = screen.getByTestId("slot-amount");
-    expect(el.textContent).toContain("-");
+    expect(el.textContent).not.toContain("-"); // sign hidden
     expect(el.textContent).toContain("zł"); // currency code kept
     expect(el.textContent).not.toMatch(/\d/);
+    expect(charSpans(el)[0]!.textContent).toBe("I"); // "-" slot → "I"
   });
 
   it("shared provider: clicking ONE reveals ALL", () => {

@@ -35,7 +35,8 @@ const isDigit = (c: string) => c >= "0" && c <= "9";
 // Blur the whole NUMBER — digits AND its separators (comma / dot) — so the
 // grouping doesn't peek through; only the currency symbol/code and sign stay
 // sharp ("do not blur currency").
-const isBlurable = (c: string) => isDigit(c) || c === "," || c === ".";
+const isBlurable = (c: string) =>
+  isDigit(c) || c === "," || c === "." || c === "-" || c === "+";
 const randUpper = () =>
   String.fromCharCode(65 + Math.floor(Math.random() * 26));
 // Mask char for a scrambled slot: a random uppercase letter for a digit; a
@@ -70,7 +71,7 @@ function useSlotReveal(): SlotRevealState {
 export function SlotAmount({
   value,
   className,
-  blurEm = 0.22,
+  blurEm = 0.2,
 }: {
   value: string;
   className?: string;

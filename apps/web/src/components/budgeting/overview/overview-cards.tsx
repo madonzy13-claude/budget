@@ -323,7 +323,7 @@ export function OverviewCards({
                     column flex-shrinks (min-w-0) and the hero number / its privacy
                     cover (max-w-full) cap within it — otherwise a wide redaction
                     bar wrapped the P/L onto its own line (privacy mode). */}
-                  <div className="mt-1 flex flex-nowrap items-start justify-between gap-x-3">
+                  <div className="mt-1 flex flex-nowrap items-center justify-between gap-x-3">
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <p
                         // Inline color: tailwind-merge can't tell the custom
@@ -367,10 +367,9 @@ export function OverviewCards({
                     {pl && pl.delta_pct !== null && (
                       <div
                         className={cn(
-                          // Top-aligned tight stack: the P/L % sits level with the top
-                          // of the hero number, $ and "since" hug beneath it. mt-0.5
-                          // nudges it just clear of the privacy eye in the corner.
-                          "text-caption mt-0.5 flex shrink-0 flex-col items-end gap-0.5 text-right",
+                          // Tight P/L stack (%, $, "since"), vertically centred
+                          // against the hero number (the row is items-center).
+                          "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
                           Number(pl.delta_cents) >= 0
                             ? "text-[var(--trading-up)]"
                             : "text-[var(--trading-down)]",
