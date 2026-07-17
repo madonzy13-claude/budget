@@ -439,7 +439,9 @@ export function TransactionRow({
       role="row"
       tabIndex={-1}
       className={cn(
-        "flex min-h-[40px] items-center gap-2 px-3 py-1",
+        // flex-col so the meta line (line 2) spans the FULL row width, using the
+        // free space BELOW the vertically-centred action chips on line 1.
+        "flex min-h-[40px] flex-col justify-center gap-0.5 px-3 py-1",
         // Keyboard focus reads exactly like hover — elevated surface, no
         // accent ring (r40 UAT).
         "outline-none focus-visible:bg-[var(--surface-elevated-dark)]",
@@ -448,43 +450,44 @@ export function TransactionRow({
         showChips && "bg-[var(--surface-elevated-dark)]",
       )}
     >
-      {/* Amount cell. */}
-      <div
-        ref={cellRef}
-        data-amount-cell
-        onDoubleClick={readOnly ? undefined : handleAmountDoubleClick}
-        style={{
-          touchAction: "manipulation",
-          WebkitUserSelect: "none",
-          WebkitTouchCallout: "none",
-        }}
-        className={cn(
-          "flex min-w-0 flex-1 items-center",
-          // UAT round 22: amount cell always reads as pointer. Earlier
-          // round 21 flipped to `cursor-text` once chips were revealed,
-          // but the cell is still a click target at that point (the
-          // double-click on the AMOUNT span enters edit; the wrapper
-          // cell behaves like a button). Only the inner input during
-          // edit mode shows the I-beam — and that's the native
-          // <input> getting `cursor: text` from the global rule.
-          "cursor-pointer",
-        )}
-      >
-        {editing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="decimal"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={handleEditKeyDown}
-            onBlur={commitEdit}
-            className="min-w-0 flex-1 rounded border border-[var(--primary)] bg-transparent px-2 py-0.5 text-base sm:text-sm"
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <span className="flex min-w-0 flex-1 flex-col justify-center">
-            <span className="flex items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
+      {/* Line 1 — amount + action chips. */}
+      <div className="flex items-center gap-2">
+        {/* Amount cell. */}
+        <div
+          ref={cellRef}
+          data-amount-cell
+          onDoubleClick={readOnly ? undefined : handleAmountDoubleClick}
+          style={{
+            touchAction: "manipulation",
+            WebkitUserSelect: "none",
+            WebkitTouchCallout: "none",
+          }}
+          className={cn(
+            "flex min-w-0 flex-1 items-center",
+            // UAT round 22: amount cell always reads as pointer. Earlier
+            // round 21 flipped to `cursor-text` once chips were revealed,
+            // but the cell is still a click target at that point (the
+            // double-click on the AMOUNT span enters edit; the wrapper
+            // cell behaves like a button). Only the inner input during
+            // edit mode shows the I-beam — and that's the native
+            // <input> getting `cursor: text` from the global rule.
+            "cursor-pointer",
+          )}
+        >
+          {editing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="decimal"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleEditKeyDown}
+              onBlur={commitEdit}
+              className="min-w-0 flex-1 rounded border border-[var(--primary)] bg-transparent px-2 py-0.5 text-base sm:text-sm"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
               <span className="shrink-0">{formattedAmount}</span>
               {/* Inline note only while the row is RESTING — keeps it compact.
                   An ACTIVE row shows the fuller meta line (date · note) below. */}
@@ -497,58 +500,59 @@ export function TransactionRow({
                 </span>
               ) : null}
             </span>
-            {/* r40b: on focus / hover / tap-reveal (active) render the CREATION
-                date ("13 Feb", no year) + note inline in a small muted line —
-                replaces the removed hover tooltip, works for keyboard focus. */}
-            {showChips && (
-              <span
-                data-testid="txn-row-meta"
-                className="min-w-0 truncate text-[10px] leading-tight text-[var(--muted-foreground)]"
-              >
-                {formattedDate}
-                {txn.note ? ` · ${txn.note}` : ""}
-              </span>
-            )}
-          </span>
+          )}
+        </div>
+
+        {/* Action chips — shown on hover (desktop) or tap-reveal (touch) */}
+        {showChips && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              data-testid="txn-action-edit"
+              aria-label={t("action.delete")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(txn.id);
+                setRevealed(false);
+              }}
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
+            >
+              <Pencil
+                className="h-4 w-4 text-[var(--body-on-dark)]"
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              data-testid="txn-action-delete"
+              aria-label={t("action.delete")}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteOpen(true);
+                setRevealed(false);
+              }}
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
+            >
+              <Trash2
+                className="h-4 w-4 text-[var(--destructive)]"
+                aria-hidden="true"
+              />
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Action chips — shown on hover (desktop) or tap-reveal (touch) */}
-      {showChips && (
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            data-testid="txn-action-edit"
-            aria-label={t("action.delete")}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(txn.id);
-              setRevealed(false);
-            }}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
-          >
-            <Pencil
-              className="h-4 w-4 text-[var(--body-on-dark)]"
-              aria-hidden="true"
-            />
-          </button>
-          <button
-            type="button"
-            data-testid="txn-action-delete"
-            aria-label={t("action.delete")}
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeleteOpen(true);
-              setRevealed(false);
-            }}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
-          >
-            <Trash2
-              className="h-4 w-4 text-[var(--destructive)]"
-              aria-hidden="true"
-            />
-          </button>
-        </div>
+      {/* Line 2 (full row width) — created date + note on focus/hover/tap. It
+          sits UNDER the vertically-centred chips, so it uses the whole width the
+          chips leave free instead of truncating early beside them. */}
+      {showChips && !editing && (
+        <span
+          data-testid="txn-row-meta"
+          className="block min-w-0 truncate text-[10px] leading-tight text-[var(--muted-foreground)]"
+        >
+          {formattedDate}
+          {txn.note ? ` · ${txn.note}` : ""}
+        </span>
       )}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
