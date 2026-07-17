@@ -147,6 +147,13 @@ export function createOrganizationPlugin(deps: OrgDeps) {
           (member as { user_id?: string; userId?: string }).user_id ??
           (member as { userId?: string }).userId ??
           "";
+        // Task 5: this hook fires on org creation too (Better Auth's
+        // createOrganization internally calls addMember for the creator with
+        // role "owner"), which is the only point where the owner's
+        // tenancy.budget_members row exists to patch. The column DEFAULT (0)
+        // is correct for every other add (invited members) — only the owner
+        // needs the bump to 100%.
+        const memberRole = (member as { role?: string }).role;
         const r = await withTenantTx(
           TenantId(org.id),
           UserId(memberUserId),
@@ -156,6 +163,13 @@ export function createOrganizationPlugin(deps: OrgDeps) {
               VALUES (${org.id}, ${memberUserId}, 0)
               ON CONFLICT DO NOTHING
             `);
+            if (memberRole === "owner") {
+              await tx.execute(sql`
+                UPDATE tenancy.budget_members
+                   SET ownership_share_pct = 100
+                 WHERE budget_id = ${org.id}::uuid AND user_id = ${memberUserId}::uuid
+              `);
+            }
           },
         );
         if (r.isErr()) throw r.error;

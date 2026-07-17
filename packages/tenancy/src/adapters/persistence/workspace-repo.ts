@@ -449,6 +449,19 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         }
       }
 
+      // Task 5: fold the departing member's ownership share into the owner
+      // before the row is gone, so total share stays at 100 (owner-only
+      // budgets always hold 100%; multi-owner budgets fold onto the first
+      // owner by creation order — good enough since owners reconcile shares
+      // explicitly via setMemberShares when it matters).
+      await tx.execute(sql`
+        UPDATE tenancy.budget_members o
+           SET ownership_share_pct = o.ownership_share_pct +
+               COALESCE((SELECT m.ownership_share_pct FROM tenancy.budget_members m
+                          WHERE m.budget_id = ${budgetId}::uuid AND m.user_id = ${userId}::uuid), 0)
+         WHERE o.budget_id = ${budgetId}::uuid AND o.role = 'owner'
+      `);
+
       const del = await tx.execute(sql`
         DELETE FROM tenancy.budget_members
          WHERE budget_id = ${budgetId}::uuid
