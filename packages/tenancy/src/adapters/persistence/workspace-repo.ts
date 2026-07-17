@@ -245,9 +245,10 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         created_at: Date;
         name: string | null;
         email: string | null;
+        ownership_share_pct: number;
       }>(
         sql`SELECT bm.budget_id, bm.user_id, bm.role, bm.created_at,
-                   u.name, u.email
+                   u.name, u.email, bm.ownership_share_pct
             FROM tenancy.budget_members bm
             LEFT JOIN identity.users u ON u.id = bm.user_id
             WHERE bm.budget_id = ${budgetId}`,
@@ -262,6 +263,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       joinedAt: row.created_at,
       name: row.name ?? undefined,
       email: row.email ?? undefined,
+      ownership_share_pct: Number(row.ownership_share_pct),
     }));
   }
 

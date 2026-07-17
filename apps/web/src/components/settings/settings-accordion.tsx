@@ -33,6 +33,8 @@ import { DangerZoneSection } from "@/components/settings/danger-zone-section";
 import { PushPrefsSection } from "@/components/settings/push-prefs-section";
 import { OwnerGate } from "@/components/settings/owner-gate";
 import { AggregationSection } from "@/components/settings/aggregation-section";
+import { OwnershipSharesSection } from "@/components/settings/ownership-shares-section";
+import { api } from "@/lib/api-client";
 
 export interface SettingsBudget {
   id: string;
@@ -54,6 +56,8 @@ export interface SettingsBudget {
   includeInAggregation?: boolean;
   hasTransactions: boolean;
   currentUserRole: "owner" | "member";
+  /** Task 12: gates the ownership-share editor (only meaningful when shared, i.e. >1). */
+  memberCount?: number;
 }
 
 export interface SettingsAccordionProps {
@@ -113,6 +117,34 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
     select: (rows) => rows.length > 0,
     staleTime: 0,
   });
+
+  // Task 12: members list for the ownership-share editor — same queryKey as
+  // MembersSection so the cache is shared (no double-fetch). Only needed for
+  // shared budgets (memberCount > 1).
+  const isShared = (budget.memberCount ?? 1) > 1;
+  const membersQ = useQuery({
+    queryKey: ["budget-members", budget.id],
+    queryFn: async () => {
+      const res = await api.budgets[":id"].members.$get({
+        param: { id: budget.id },
+      });
+      if (!res.ok) throw new Error("Failed to load members");
+      return res.json() as Promise<{
+        members: {
+          userId: string;
+          name?: string;
+          email?: string;
+          ownership_share_pct?: number;
+        }[];
+      }>;
+    },
+    enabled: isShared,
+  });
+  const ownershipMembers = (membersQ.data?.members ?? []).map((m) => ({
+    userId: m.userId,
+    name: m.name ?? m.email ?? m.userId,
+    pct: m.ownership_share_pct ?? 0,
+  }));
 
   const wallets = walletsQ.data ?? [];
   const hasCushionWallet = wallets.some((w) => w.walletType === "CUSHION");
@@ -290,6 +322,18 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
               budgetId={budget.id}
               currentUserRole={budget.currentUserRole}
             />
+            {/* Task 12: owner ownership-share editor — only meaningful once the
+                budget has >1 member (a solo budget is trivially 100% owned). */}
+            {isShared && ownershipMembers.length > 0 && (
+              <div className="mt-4 border-t border-[var(--hairline-on-dark)] pt-4">
+                <OwnerGate isOwner={isOwner}>
+                  <OwnershipSharesSection
+                    budgetId={budget.id}
+                    members={ownershipMembers}
+                  />
+                </OwnerGate>
+              </div>
+            )}
             {/* Bug #1: members have no Danger Zone, so their "Leave budget"
                 action lives here. Reuses DangerZoneSection's non-owner branch
                 (the Leave button + confirm dialog + 409 last-owner handling)

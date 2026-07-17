@@ -42,6 +42,8 @@ interface BudgetApiShape {
   has_transactions?: boolean;
   currentUserRole?: "owner" | "member";
   current_user_role?: "owner" | "member";
+  memberCount?: number;
+  member_count?: number;
 }
 
 function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
@@ -64,6 +66,7 @@ function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
       raw.includeInAggregation ?? raw.include_in_aggregation ?? true,
     hasTransactions: raw.hasTransactions ?? raw.has_transactions ?? false,
     currentUserRole: raw.currentUserRole ?? raw.current_user_role ?? "member",
+    memberCount: raw.memberCount ?? raw.member_count ?? 1,
   };
 }
 

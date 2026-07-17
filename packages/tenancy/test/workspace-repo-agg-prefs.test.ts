@@ -103,3 +103,13 @@ test("listMemberShares returns the owner at 100", async () => {
   const shares = await repo.listMemberShares(budgetId);
   expect(shares).toContainEqual({ userId: ownerUserId, pct: 100 });
 });
+
+// Task 12: the owner ownership-share editor reads current shares off
+// listMembers (not listMemberShares) — MemberDTO must carry the column.
+test("listMembers includes ownership_share_pct for the owner", async () => {
+  const { budgetId, ownerUserId } = await createTestBudgetWithOwner();
+  const repo = new DrizzleBudgetRepo();
+  const members = await repo.listMembers(budgetId);
+  const owner = members.find((m) => m.userId === ownerUserId);
+  expect(owner?.ownership_share_pct).toBe(100);
+});
