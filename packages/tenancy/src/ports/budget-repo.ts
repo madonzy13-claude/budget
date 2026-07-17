@@ -51,6 +51,15 @@ export interface BudgetRepo {
    * the route layer doesn't carry forward cleanly).
    */
   leaveAsMember(budgetId: string, userId: string): Promise<void>;
+  /**
+   * Fold `departingUserId`'s current ownership_share_pct into the SINGLE
+   * canonical owner (tenancy.budgets.owner_user_id) — not every row with
+   * role='owner', so a multi-owner budget doesn't over-credit every owner.
+   * Does NOT delete the departing row. Callers run this immediately before
+   * removing a member so total share stays at 100. Shared by both removal
+   * surfaces: leaveAsMember (self-leave) and the owner-initiated revoke route.
+   */
+  foldShareIntoOwner(budgetId: string, departingUserId: string): Promise<void>;
   /** Soft-delete: sets archived_at = now(). One-way in v1.1 — no unarchive. */
   archive(
     budgetId: string,

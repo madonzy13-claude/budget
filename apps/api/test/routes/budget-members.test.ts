@@ -36,6 +36,7 @@ describe("Budget member routes (SETT-05, SETT-07)", () => {
           ],
           setMemberRole: async () => {},
           reconcileOwnerUserId: async () => {},
+          foldShareIntoOwner: async () => {},
         },
       },
       identity: {
@@ -86,6 +87,45 @@ describe("Budget member routes (SETT-05, SETT-07)", () => {
       { method: "POST" },
     );
     expect(res.status).toBe(401);
+  });
+
+  it("POST .../revoke folds share into owner BEFORE removeMember (critical finding regression)", async () => {
+    const calls: string[] = [];
+    const app = buildApp({ user: { id: "user-owner" } }, "budget-001", {
+      tenancy: {
+        workspaceRepo: {
+          listMembers: async () => [
+            { userId: "user-owner", role: "owner" },
+            { userId: "user-member", role: "member" },
+          ],
+          foldShareIntoOwner: async (
+            budgetId: string,
+            departingUserId: string,
+          ) => {
+            expect(budgetId).toBe("budget-001");
+            expect(departingUserId).toBe("user-member");
+            calls.push("fold");
+          },
+        },
+      },
+      identity: {
+        auth: {
+          api: {
+            removeMember: async () => {
+              calls.push("removeMember");
+              return {};
+            },
+          },
+        },
+      },
+    });
+    const res = await app.request(
+      "/budgets/budget-001/members/user-member/revoke",
+      { method: "POST" },
+    );
+    expect(res.status).toBe(200);
+    // fold must run BEFORE the member row is removed (it reads the row's share)
+    expect(calls).toEqual(["fold", "removeMember"]);
   });
 
   it("revoke last owner → 409 (last_owner guard, T-06-03-02)", async () => {

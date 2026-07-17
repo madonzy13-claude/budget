@@ -78,6 +78,13 @@ export function budgetMembersRoutesFactory(deps: MembersDeps) {
       }
     }
 
+    // Task 5 fix: fold the departing member's ownership share into the
+    // single canonical owner BEFORE removing them — the member row must
+    // still exist to read its current share. leaveAsMember already folds
+    // on self-leave; this route is the other removal surface and previously
+    // skipped the fold entirely, permanently leaving Σ share < 100.
+    await deps.tenancy.workspaceRepo.foldShareIntoOwner(budgetId, memberId);
+
     // Remove the member via Better Auth org plugin
     const auth = deps.identity.auth as any;
 

@@ -15,6 +15,34 @@ import type { BudgetDTO, MemberDTO, MemberShareDTO } from "../../contracts/api";
 import type { BudgetRepo } from "../../ports/budget-repo";
 import type { MemberShareRepo } from "../../ports/member-repo";
 
+// Derived from withBootstrapUserContext's own callback param — no separate
+// Tx type is exported by @budget/platform to import instead.
+type Tx = Parameters<Parameters<typeof withBootstrapUserContext>[1]>[0];
+
+/**
+ * Task 5 fix: fold `departingUserId`'s current share into the SINGLE
+ * canonical owner row (tenancy.budgets.owner_user_id) — NOT `WHERE
+ * role='owner'`, which would credit every owner on a multi-owner budget and
+ * push Σ over 100. Runs inside the caller's already-open tx (which must
+ * already have app.tenant_ids set for FORCE RLS). If departingUserId is
+ * itself the resolved owner (single-owner leave), this is a harmless
+ * self-add — that row is about to be deleted anyway.
+ */
+async function foldShareIntoOwnerSql(
+  tx: Tx,
+  budgetId: string,
+  departingUserId: string,
+): Promise<void> {
+  await tx.execute(sql`
+    UPDATE tenancy.budget_members
+       SET ownership_share_pct = ownership_share_pct +
+           COALESCE((SELECT m.ownership_share_pct FROM tenancy.budget_members m
+                     WHERE m.budget_id = ${budgetId}::uuid AND m.user_id = ${departingUserId}::uuid), 0)
+     WHERE budget_id = ${budgetId}::uuid
+       AND user_id = (SELECT owner_user_id FROM tenancy.budgets WHERE id = ${budgetId}::uuid)
+  `);
+}
+
 export class DrizzleBudgetRepo implements BudgetRepo {
   async findById(id: string): Promise<BudgetDTO | null> {
     // withInfraTx: infrastructure carve-out (PC-04). findById is called in bootstrap paths
@@ -449,18 +477,12 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         }
       }
 
-      // Task 5: fold the departing member's ownership share into the owner
-      // before the row is gone, so total share stays at 100 (owner-only
-      // budgets always hold 100%; multi-owner budgets fold onto the first
-      // owner by creation order — good enough since owners reconcile shares
-      // explicitly via setMemberShares when it matters).
-      await tx.execute(sql`
-        UPDATE tenancy.budget_members o
-           SET ownership_share_pct = o.ownership_share_pct +
-               COALESCE((SELECT m.ownership_share_pct FROM tenancy.budget_members m
-                          WHERE m.budget_id = ${budgetId}::uuid AND m.user_id = ${userId}::uuid), 0)
-         WHERE o.budget_id = ${budgetId}::uuid AND o.role = 'owner'
-      `);
+      // Task 5: fold the departing member's ownership share into the single
+      // canonical owner before the row is gone, so total share stays at 100.
+      // Shared with foldShareIntoOwner (used by the owner-revoke route) —
+      // reused here (not called as a separate tx) so the fold + last-owner
+      // check + DELETE all stay atomic in this one transaction.
+      await foldShareIntoOwnerSql(tx, budgetId, userId);
 
       const del = await tx.execute(sql`
         DELETE FROM tenancy.budget_members
@@ -478,6 +500,32 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         `);
       }
     });
+    if (r.isErr()) throw r.error;
+  }
+
+  /**
+   * Standalone entry point for foldShareIntoOwnerSql — used by callers that
+   * don't already hold an open tx (the owner-initiated revoke route, which
+   * calls this BEFORE auth.api.removeMember so the member row still exists
+   * to read its share from). leaveAsMember reuses the SQL directly inside
+   * its own tx instead of calling this, to keep fold + delete atomic.
+   * Same withBootstrapUserContext + manual SET LOCAL app.tenant_ids pattern
+   * as leaveAsMember — the budget_members_tenant_update RLS policy only
+   * checks app.tenant_ids, not app.current_user_id, so it works regardless
+   * of whose id the GUC carries.
+   */
+  async foldShareIntoOwner(
+    budgetId: string,
+    departingUserId: string,
+  ): Promise<void> {
+    const safeId = budgetId.replace(/[^a-fA-F0-9-]/g, "");
+    const r = await withBootstrapUserContext(
+      UserId(departingUserId),
+      async (tx) => {
+        await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeId}}'`));
+        await foldShareIntoOwnerSql(tx, budgetId, departingUserId);
+      },
+    );
     if (r.isErr()) throw r.error;
   }
 
