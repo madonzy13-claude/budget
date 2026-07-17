@@ -33,6 +33,7 @@ import {
 } from "@/components/budgeting/overview/slot-amount";
 import { centsToRounded } from "@/lib/cents-format";
 import { AggregateComposition } from "@/components/budgeting/aggregate/aggregate-composition";
+import { AggregateTrend } from "@/components/budgeting/aggregate/aggregate-trend";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
@@ -217,6 +218,9 @@ export function AggregateOverview() {
           currency={ccy}
           locale={locale}
         />
+
+        {/* NET-WORTH TREND */}
+        <AggregateTrend includeIds={included.map((b) => b.id)} />
 
         {/* ATTENTION */}
         {attention.length > 0 && (

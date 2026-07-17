@@ -76,12 +76,18 @@ vi.mock("@/hooks/use-budgets-aggregate", () => ({
     isError: false,
   }),
   useSetAggregationFlag: () => ({ mutate: setFlagMutate }),
+  // AggregateTrend (Task 15) calls this itself — stub so this suite stays a
+  // pure unit test of AggregateOverview's render/sum logic, no real fetch.
+  useAggregateWealth: () => ({ data: undefined, isPending: false }),
 }));
 // The composition pie renders recharts (ResponsiveContainer/ResizeObserver),
 // which jsdom doesn't support — stub it like every other pie-chart caller's
 // tests do (see overview-sections.test.tsx).
 vi.mock("@/components/budgeting/charts/pie-chart", () => ({
   OverviewPieChart: () => <div data-testid="pie-chart" />,
+}));
+vi.mock("@/components/budgeting/charts/line-chart", () => ({
+  OverviewLineChart: () => <div data-testid="line-chart" />,
 }));
 
 beforeEach(() => {

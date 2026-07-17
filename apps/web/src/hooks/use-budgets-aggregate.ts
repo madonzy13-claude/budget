@@ -51,6 +51,37 @@ export function useBudgetsAggregate() {
   });
 }
 
+export interface AggregateWealthSeriesPoint {
+  label: string;
+  value_cents: string;
+}
+
+export interface AggregateWealth {
+  display_currency: string;
+  series: AggregateWealthSeriesPoint[];
+  grow: { delta_cents: string; delta_pct: number };
+}
+
+export function useAggregateWealth(includeIds: string[], range: string) {
+  return useQuery({
+    queryKey: [
+      "budgets",
+      "aggregate",
+      "wealth",
+      range,
+      [...includeIds].sort().join(","),
+    ],
+    enabled: includeIds.length > 0,
+    queryFn: async (): Promise<AggregateWealth> => {
+      const res = await clientApiFetch(
+        `/budgets/aggregate/wealth?range=${range}&include=${includeIds.join(",")}`,
+      );
+      if (!res.ok) throw new Error("aggregate wealth failed");
+      return res.json();
+    },
+  });
+}
+
 export function useSetAggregationFlag() {
   const qc = useQueryClient();
   return useMutation({
