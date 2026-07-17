@@ -57,7 +57,7 @@ import { useBudget, useCategories } from "@/hooks/use-budget-data";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { restoreScroll } from "@/lib/restore-scroll";
-import { handleGridKeyNav } from "@/lib/grid-key-nav";
+import { handleGridKeyNav, isGridNavEligibleTarget } from "@/lib/grid-key-nav";
 import { typeaheadStep } from "@/lib/grid-typeahead";
 import { formatTimestamp } from "@/lib/format-date";
 import { useMonthParam } from "@/hooks/use-month-param";
@@ -258,10 +258,11 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       const root = gridRef.current;
       if (!root) return;
       const target = e.target as HTMLElement | null;
-      const fromBody =
-        target === document.body ||
-        target === (document.documentElement as unknown as HTMLElement);
-      if (!fromBody && !(target && root.contains(target))) return;
+      // Take the key when focus is inside the grid OR resting on a plain
+      // element (body, or a BDP tab pill that kept focus after a pushState tab
+      // switch — the bug where arrows did nothing until you clicked the page).
+      // Skip real text fields / open menus / dialogs elsewhere.
+      if (!isGridNavEligibleTarget(e.target, root)) return;
       if (
         handleGridKeyNav(
           {

@@ -28,6 +28,35 @@ const QUICK_INPUTS = 'input[data-testid^="quick-entry-"]';
 const ROWS = "[data-txn-nav]";
 const COLUMN = '[data-testid^="category-column-"]';
 const ARROWS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+const MENU_LIKE = '[role="menu"],[role="listbox"],[role="dialog"]';
+
+/**
+ * Should the document-level grid key listener act on a key, given what's focused?
+ *
+ * The listener is capture-phase on `document`, so it sees keys before anything
+ * else. It must claim arrows / type-ahead when focus is "nowhere relevant" —
+ * `<body>`, or a BDP tab pill that KEPT focus after a pushState tab switch (the
+ * bug where arrows did nothing until you first clicked the page) — and when
+ * focus is already inside the grid. It must NOT steal keys from a text field or
+ * an open menu / listbox / dialog / popover, which own their own arrow handling.
+ */
+export function isGridNavEligibleTarget(
+  target: EventTarget | null,
+  root: HTMLElement,
+): boolean {
+  if (!target) return true; // nothing focused → enter the grid
+  const el = target as HTMLElement;
+  if (root.contains(el)) return true; // already inside the grid
+  if (
+    el.tagName === "INPUT" ||
+    el.tagName === "TEXTAREA" ||
+    el.tagName === "SELECT" ||
+    el.isContentEditable
+  )
+    return false; // a real text field elsewhere — leave it alone
+  if (el.closest?.(MENU_LIKE)) return false; // open menu/dialog owns its keys
+  return true; // a plain non-editable element (body, a lingering nav pill…)
+}
 
 interface KeyLike {
   key: string;

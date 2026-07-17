@@ -12,6 +12,26 @@ import { test } from "../fixtures/fresh-user-per-scenario";
 
 const { When, Then } = createBdd(test);
 
+When(
+  /^I switch to the spendings tab by clicking its pill$/,
+  async ({ page, freshUser }) => {
+    // Land on a DIFFERENT tab first so the pill click is a real tab switch.
+    await page.goto(`/en/budgets/${freshUser.budgetId}/overview`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+    const pill = page.getByTestId("bdp-tab-spendings");
+    await pill.click();
+    // The bug: focus STAYS on the pill after the click; arrows were dead until a
+    // page click moved focus off it. Wait for the grid to mount WITHOUT touching
+    // it, and assert the pill still owns focus so the next arrow tests the fix.
+    await page
+      .getByTestId("quick-entry-groceries")
+      .waitFor({ state: "attached", timeout: 10000 });
+    await expect(pill).toBeFocused();
+  },
+);
+
 When(/^I focus the "(.+?)" quick input$/, async ({ page }, name: string) => {
   await page.getByTestId(`quick-entry-${name.toLowerCase()}`).click();
 });

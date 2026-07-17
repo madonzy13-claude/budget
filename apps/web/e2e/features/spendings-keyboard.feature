@@ -30,6 +30,13 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     And I press "Backspace" in the grid
     Then the delete confirmation dialog is visible
 
+  Scenario: Arrows work immediately after switching to the spendings tab via its pill (no prior page click)
+    # Regression: clicking the Spendings pill leaves focus on the pill (a <button>
+    # outside the grid), so the first arrow did nothing until you clicked the page.
+    When I switch to the spendings tab by clicking its pill
+    And I press "ArrowRight" in the grid
+    Then the "groceries" quick input is focused
+
   Scenario: Left/Right at a quick-input edge saves the entry and moves to the neighbouring column
     When I open the spendings tab for the budget
     And I focus the "Groceries" quick input

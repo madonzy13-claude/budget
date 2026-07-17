@@ -9,7 +9,10 @@
  * editor or a quick input's caret.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { handleGridKeyNav } from "../../src/lib/grid-key-nav";
+import {
+  handleGridKeyNav,
+  isGridNavEligibleTarget,
+} from "../../src/lib/grid-key-nav";
 
 function buildGrid(): HTMLElement {
   document.body.innerHTML = `
@@ -54,6 +57,40 @@ describe("Tab is no longer intercepted", () => {
   it("returns false for Tab (native tab order handles it now)", () => {
     expect(handleGridKeyNav(key("Tab", document.body), grid)).toBe(false);
     expect(handleGridKeyNav(key("Tab", el("qa"), true), grid)).toBe(false);
+  });
+});
+
+describe("isGridNavEligibleTarget — which focused element lets the grid claim keys", () => {
+  it("true when nothing is focused (null target)", () => {
+    expect(isGridNavEligibleTarget(null, grid)).toBe(true);
+  });
+
+  it("true for <body> and an element inside the grid", () => {
+    expect(isGridNavEligibleTarget(document.body, grid)).toBe(true);
+    expect(isGridNavEligibleTarget(el("a1"), grid)).toBe(true);
+  });
+
+  it("true for a nav pill that KEPT focus after a pushState tab switch (the arrows-dead-until-you-click bug)", () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<nav><button id="pill" data-testid="bdp-tab-spendings"></button></nav>',
+    );
+    expect(isGridNavEligibleTarget(el("pill"), grid)).toBe(true);
+  });
+
+  it("false for a text field OUTSIDE the grid (never steal typing)", () => {
+    document.body.insertAdjacentHTML("beforeend", '<input id="search" />');
+    expect(isGridNavEligibleTarget(el("search"), grid)).toBe(false);
+  });
+
+  it("false inside an open menu / listbox / dialog (they own their arrows)", () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<div role="menu"><button id="mi"></button></div>' +
+        '<div role="dialog"><button id="di"></button></div>',
+    );
+    expect(isGridNavEligibleTarget(el("mi"), grid)).toBe(false);
+    expect(isGridNavEligibleTarget(el("di"), grid)).toBe(false);
   });
 });
 
