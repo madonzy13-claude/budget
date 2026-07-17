@@ -76,4 +76,18 @@ export interface BudgetRepo {
   listMemberShares(
     budgetId: string,
   ): Promise<{ userId: string; pct: number }[]>;
+  /**
+   * Batch-set every member's ownership_share_pct in one tx. Caller
+   * (owner-only route, Task 8) pre-validates the shares sum to 100.
+   */
+  setMemberShares(
+    budgetId: string,
+    shares: { userId: string; pct: number }[],
+  ): Promise<void>;
+  /** Set one member's include_in_aggregation flag (self-service). */
+  setMemberAggregation(
+    budgetId: string,
+    userId: string,
+    included: boolean,
+  ): Promise<void>;
 }

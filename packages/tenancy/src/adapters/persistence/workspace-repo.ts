@@ -672,6 +672,56 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       pct: Number(row.ownership_share_pct),
     }));
   }
+
+  /**
+   * Batch UPDATE, one statement per member, in ONE withTenantTx (same
+   * write path as setMemberRole — budget_members has FORCE RLS, so a bare
+   * appDb() write silently affects 0 rows). No actorUserId in the port
+   * signature: the tenant_isolation write policy on budget_members only
+   * checks budget_id ∈ app.tenant_ids, not app.current_user_id, so any
+   * member of the batch is a valid GUC subject. Caller (Task 8) is
+   * owner-gated and pre-validates the shares sum to 100.
+   */
+  async setMemberShares(
+    budgetId: string,
+    shares: { userId: string; pct: number }[],
+  ): Promise<void> {
+    if (shares.length === 0) return;
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(shares[0]!.userId),
+      async (tx) => {
+        for (const s of shares) {
+          await tx.execute(sql`
+            UPDATE tenancy.budget_members
+               SET ownership_share_pct = ${s.pct}
+             WHERE budget_id = ${budgetId}::uuid AND user_id = ${s.userId}::uuid
+          `);
+        }
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
+
+  /** Self-service: userId is both the tx actor and the row being updated. */
+  async setMemberAggregation(
+    budgetId: string,
+    userId: string,
+    included: boolean,
+  ): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) => {
+        await tx.execute(sql`
+          UPDATE tenancy.budget_members
+             SET include_in_aggregation = ${included}
+           WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
 }
 
 // Backward-compat alias
