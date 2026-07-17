@@ -21,5 +21,19 @@ export function budgetsAggregateRoutesFactory(deps: AggregateDeps) {
     return c.json(out);
   });
 
+  // Task 9: combined net-worth trend across included budgets.
+  r.get("/aggregate/wealth", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const range = c.req.query("range") ?? "6M";
+    const include = (c.req.query("include") ?? "").split(",").filter(Boolean);
+    const out = await deps.budgeting.getAggregateWealthTrend({
+      userId: session.user.id,
+      range,
+      includeIds: include,
+    });
+    return c.json(out);
+  });
+
   return r;
 }
