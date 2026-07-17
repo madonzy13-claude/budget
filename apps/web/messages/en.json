@@ -347,8 +347,8 @@
           "7": "Sun"
         }
       },
-      "permissionDenied": "Notifications are blocked. On iPhone: remove the app from your Home Screen, add it again, then allow. On desktop: allow them in the site settings.",
-      "unsupported": "Push notifications aren't available on this device or browser. On iPhone, add the app to your Home Screen first.",
+      "permissionDenied": "Notifications are blocked. If you installed the app, remove it from your Home Screen, add it again, then allow — otherwise allow them in your browser or site settings.",
+      "unsupported": "Push notifications aren't available on this device or browser. Install the app to your Home Screen first, then try again.",
       "subscribeError": "Couldn't enable notifications. Please try again.",
       "saved": "Notification preferences saved."
     },

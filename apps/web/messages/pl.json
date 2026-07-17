@@ -374,8 +374,8 @@
           "7": "Nd"
         }
       },
-      "permissionDenied": "Powiadomienia są zablokowane. Na iPhonie: usuń aplikację z ekranu początkowego, dodaj ją ponownie, a następnie zezwól. Na komputerze: zezwól na nie w ustawieniach witryny.",
-      "unsupported": "Powiadomienia push nie są dostępne na tym urządzeniu lub w tej przeglądarce. Na iPhonie najpierw dodaj aplikację do ekranu początkowego.",
+      "permissionDenied": "Powiadomienia są zablokowane. Jeśli aplikacja jest zainstalowana, usuń ją z ekranu początkowego, dodaj ponownie, a następnie zezwól — w przeciwnym razie zezwól na nie w ustawieniach przeglądarki lub witryny.",
+      "unsupported": "Powiadomienia push nie są dostępne na tym urządzeniu lub w tej przeglądarce. Najpierw zainstaluj aplikację na ekranie początkowym, a potem spróbuj ponownie.",
       "subscribeError": "Nie udało się włączyć powiadomień. Spróbuj ponownie.",
       "saved": "Preferencje powiadomień zapisane."
     },
