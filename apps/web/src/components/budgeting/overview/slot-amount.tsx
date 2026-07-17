@@ -66,27 +66,31 @@ function useSlotReveal(): SlotRevealState {
 export function SlotAmount({
   value,
   className,
-  blurPx = 3.5,
+  blurEm = 0.34,
 }: {
   value: string;
   className?: string;
-  /** Blur radius (px) for the hidden digits — bigger for bigger numbers. */
-  blurPx?: number;
+  /** Blur radius as a FRACTION of the font size (em) so every figure looks
+   *  equally hidden regardless of its size. */
+  blurEm?: number;
 }) {
   const { revealed, toggle } = useSlotReveal();
 
   const chars = useMemo(() => value.split(""), [value]);
-  const digitIdx = useMemo(
-    () => chars.flatMap((c, i) => (isDigit(c) ? [i] : [])),
+  // Scramble the whole NUMBER — digits AND its separators (comma/dot) — so the
+  // grouping (e.g. thousands split) can't be read off the mask; only the
+  // currency symbol/code and sign are kept verbatim.
+  const scrambleIdx = useMemo(
+    () => chars.flatMap((c, i) => (isBlurable(c) ? [i] : [])),
     [chars],
   );
   // Stable random mask for the resting HIDDEN state (regenerated only when the
   // value changes) so it doesn't flicker between renders.
   const frozenMask = useMemo(() => {
     const arr = [...chars];
-    for (const i of digitIdx) arr[i] = randUpper();
+    for (const i of scrambleIdx) arr[i] = randUpper();
     return arr;
-  }, [chars, digitIdx]);
+  }, [chars, scrambleIdx]);
 
   const [display, setDisplay] = useState<string[]>(() =>
     revealed ? chars : frozenMask,
@@ -101,9 +105,9 @@ export function SlotAmount({
       let tick = 0;
       timerRef.current = setInterval(() => {
         tick += 1;
-        const settled = Math.floor((tick / TICKS) * digitIdx.length);
-        const arr = [...chars]; // non-digits verbatim (currency / separators / sign)
-        digitIdx.forEach((idx, k) => {
+        const settled = Math.floor((tick / TICKS) * scrambleIdx.length);
+        const arr = [...chars]; // currency + sign verbatim; number scrambled
+        scrambleIdx.forEach((idx, k) => {
           arr[idx] = k < settled ? target[idx]! : randUpper();
         });
         setDisplay(arr);
@@ -114,7 +118,7 @@ export function SlotAmount({
         }
       }, TICK_MS);
     },
-    [chars, digitIdx, frozenMask],
+    [chars, scrambleIdx, frozenMask],
   );
 
   // Animate whenever the (shared) reveal state flips.
@@ -163,9 +167,9 @@ export function SlotAmount({
         cursor: "pointer",
         userSelect: "none",
         display: "inline-block",
-        // Horizontal breathing room = the blur radius, so the fuzzy edges of the
-        // outermost hidden digit aren't clipped left/right by a tight box.
-        paddingInline: `${blurPx}px`,
+        // Horizontal breathing room = the blur radius (em, so it scales with the
+        // font) — keeps the fuzzy edges of the outer digits from being clipped.
+        paddingInline: `${blurEm}em`,
         overflow: "visible",
       }}
     >
@@ -178,7 +182,7 @@ export function SlotAmount({
           <span
             key={i}
             style={{
-              filter: !revealed && blurThis ? `blur(${blurPx}px)` : "none",
+              filter: !revealed && blurThis ? `blur(${blurEm}em)` : "none",
               transition: `filter ${BLUR_MS}ms ease`,
             }}
           >

@@ -31,22 +31,19 @@ describe("SlotAmount", () => {
   const currencySpan = (el: HTMLElement) =>
     charSpans(el).find((s) => s.textContent === "$");
 
-  it("starts hidden: real digits absent, uppercase random mask, currency + separators kept; only digits blur", () => {
-    render(<SlotAmount value="$1,234" blurPx={3.5} />);
+  it("starts hidden: number (digits AND separators) scrambled to uppercase + blurred; currency kept sharp", () => {
+    render(<SlotAmount value="$1,234" />);
     const el = screen.getByTestId("slot-amount");
     expect(el.dataset.revealed).toBe("false");
     expect(el.textContent).not.toMatch(/\d/); // real digits NOT in the DOM
+    expect(el.textContent).not.toContain(","); // the comma is scrambled too (split hidden)
     expect(el.textContent).toContain("$"); // currency not scrambled
-    expect(el.textContent).toContain(","); // separator kept
     expect(el.textContent).not.toMatch(/[a-z]/); // uppercase only
     expect(el.textContent).toMatch(/[A-Z]/); // random uppercase chars present
-    // Digits AND the comma blur at the requested radius; the currency stays sharp.
-    expect(blurredChars(el).length).toBe(5); // 1 , 2 3 4 → 4 digits + comma
-    expect(blurredChars(el)[0]!.style.filter).toContain("3.5px");
+    // Every number slot (4 digits + the comma position = 5) is blurred (em radius).
+    expect(blurredChars(el).length).toBe(5);
+    expect(blurredChars(el)[0]!.style.filter).toContain("em");
     expect(currencySpan(el)!.style.filter).toBe("none"); // currency NOT blurred
-    // The comma is blurred too.
-    const comma = charSpans(el).find((s) => s.textContent === ",");
-    expect(comma!.style.filter).toContain("blur");
   });
 
   it("reveals the real value on click (all sharp), re-hides on a second click", () => {
