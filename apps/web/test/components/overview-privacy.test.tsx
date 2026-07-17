@@ -84,22 +84,34 @@ describe("Overview amount privacy (per-figure slot reveal, r41)", () => {
     expect(hero.textContent ?? "").not.toMatch(/[a-z]/); // uppercase only
   });
 
-  it("tapping a figure reveals its real value; tapping again re-hides it", () => {
+  it("tapping ONE figure reveals ALL of them; tapping again re-hides all", () => {
     vi.useFakeTimers();
     renderCards();
     const hero = heroSlot()!;
-    act(() => {
-      fireEvent.click(hero);
-      vi.runAllTimers();
-    });
-    expect(hero.getAttribute("data-revealed")).toBe("true");
+    act(() => fireEvent.click(hero)); // flush the click + its scramble effect
+    act(() => vi.runAllTimers()); // settle the scramble
+    // Every figure toggled together (shared reveal).
+    const slots = screen.getAllByTestId("slot-amount");
+    slots.forEach((s) => expect(s.dataset.revealed).toBe("true"));
     expect(hero.textContent ?? "").toMatch(/\d/); // real digits now shown
-    act(() => {
-      fireEvent.click(hero);
-      vi.runAllTimers();
-    });
-    expect(hero.getAttribute("data-revealed")).toBe("false");
+    act(() => fireEvent.click(hero));
+    act(() => vi.runAllTimers());
+    screen
+      .getAllByTestId("slot-amount")
+      .forEach((s) => expect(s.dataset.revealed).toBe("false"));
     expect(hero.textContent ?? "").not.toMatch(/\d/); // hidden again
+  });
+
+  it("the cushion runway (a duration) is NOT masked — shown verbatim while amounts hide", () => {
+    renderCards();
+    // real_months 6 → "6m" renders as plain text even though the SAVED/NEEDED
+    // MONEY figures in the same card are masked SlotAmounts. A masked runway
+    // would show random uppercase, not "6m".
+    const cushion = screen.getByTestId("overview-card-cushion");
+    // The runway's real digit "6" is shown; the masked MONEY figures in the card
+    // carry no digits (uppercase mask), so any digit here IS the unmasked runway.
+    expect(cushion.textContent ?? "").toMatch(/6/);
+    expect(cushion.textContent ?? "").not.toContain("3,000"); // needed amount stays masked
   });
 
   it("privacy flag OFF → real amounts visible, no SlotAmount, no eye", () => {
