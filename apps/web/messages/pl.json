@@ -467,6 +467,22 @@
       "saving": "Zapisywanie...",
       "audit_hint": "Każda zmiana jest rejestrowana."
     },
+    "aggregation": {
+      "feature_label": "Uwzględniaj w sumie wszystkich budżetów",
+      "feature_help_text": "Licz ten budżet do łącznego majątku.",
+      "feature_on_toast": "Uwzględniono w Twojej sumie",
+      "feature_off_toast": "Wykluczono z Twojej sumy",
+      "error_save": "Nie udało się zapisać. Spróbuj ponownie."
+    },
+    "ownership": {
+      "title": "Podział własności",
+      "help_text": "Ustaw udział każdego członka w majątku tego budżetu. Udziały muszą sumować się do 100%.",
+      "total_label": "Suma",
+      "must_be_100": "Udziały muszą sumować się do 100%.",
+      "save": "Zapisz udziały",
+      "saved_toast": "Udziały własności zapisane",
+      "error_save": "Nie udało się zapisać udziałów."
+    },
     "invite": {
       "heading": "Zaproś członka",
       "email": {
@@ -684,6 +700,22 @@
         "pl": "Zysk/strata"
       }
     }
+  },
+  "aggregate": {
+    "title": "Wszystkie budżety",
+    "hero_label": "Łączny majątek",
+    "investments": "Inwestycje",
+    "cash": "Gotówka",
+    "reserves": "Rezerwy",
+    "composition_title": "Gdzie jest twój majątek",
+    "trend_title": "Majątek w czasie",
+    "attention_title": "Wymaga uwagi",
+    "flow_title": "W tym miesiącu",
+    "spent": "Wydano",
+    "left": "Pozostało",
+    "my_share": "twój udział: {pct}%",
+    "rate_unavailable": "Kurs wymiany niedostępny — wykluczony z sum",
+    "empty": "Brak uwzględnionych budżetów. Włącz opcję w ustawieniach budżetu."
   },
   "state": {
     "empty": {

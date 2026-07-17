@@ -467,6 +467,22 @@
       "saving": "Saving...",
       "audit_hint": "Every change is logged."
     },
+    "aggregation": {
+      "feature_label": "Include in all-budgets total",
+      "feature_help_text": "Count this budget toward your combined net worth.",
+      "feature_on_toast": "Included in your total",
+      "feature_off_toast": "Excluded from your total",
+      "error_save": "Couldn't save. Try again."
+    },
+    "ownership": {
+      "title": "Ownership split",
+      "help_text": "Set each member's share of this budget's wealth. Must total 100%.",
+      "total_label": "Total",
+      "must_be_100": "Shares must total 100%.",
+      "save": "Save shares",
+      "saved_toast": "Ownership shares saved",
+      "error_save": "Couldn't save shares."
+    },
     "invite": {
       "heading": "Invite a member",
       "email": {
@@ -684,6 +700,22 @@
         "pl": "P/L"
       }
     }
+  },
+  "aggregate": {
+    "title": "All budgets",
+    "hero_label": "Total net worth",
+    "investments": "Investments",
+    "cash": "Cash",
+    "reserves": "Reserves",
+    "composition_title": "Where your wealth is",
+    "trend_title": "Net worth over time",
+    "attention_title": "Needs attention",
+    "flow_title": "This month",
+    "spent": "Spent",
+    "left": "Left",
+    "my_share": "your {pct}%",
+    "rate_unavailable": "Exchange rate unavailable — excluded from totals",
+    "empty": "No budgets included. Enable one in its settings."
   },
   "state": {
     "empty": {
