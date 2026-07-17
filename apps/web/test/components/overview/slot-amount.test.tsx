@@ -40,10 +40,13 @@ describe("SlotAmount", () => {
     expect(el.textContent).toContain(","); // separator kept
     expect(el.textContent).not.toMatch(/[a-z]/); // uppercase only
     expect(el.textContent).toMatch(/[A-Z]/); // random uppercase chars present
-    // Digits blurred at the requested radius; the currency stays sharp.
-    expect(blurredChars(el).length).toBe(4); // 1,2,3,4 → 4 digit slots
+    // Digits AND the comma blur at the requested radius; the currency stays sharp.
+    expect(blurredChars(el).length).toBe(5); // 1 , 2 3 4 → 4 digits + comma
     expect(blurredChars(el)[0]!.style.filter).toContain("3.5px");
     expect(currencySpan(el)!.style.filter).toBe("none"); // currency NOT blurred
+    // The comma is blurred too.
+    const comma = charSpans(el).find((s) => s.textContent === ",");
+    expect(comma!.style.filter).toContain("blur");
   });
 
   it("reveals the real value on click (all sharp), re-hides on a second click", () => {

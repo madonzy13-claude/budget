@@ -32,6 +32,10 @@ const TICKS = 12; // ~0.5s total scramble
 const BLUR_MS = 500; // matches the scramble so blur + shuffle finish together
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
+// Blur the whole NUMBER — digits AND its separators (comma / dot) — so the
+// grouping doesn't peek through; only the currency symbol/code and sign stay
+// sharp ("do not blur currency").
+const isBlurable = (c: string) => isDigit(c) || c === "," || c === ".";
 const randUpper = () =>
   String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
@@ -166,15 +170,15 @@ export function SlotAmount({
       }}
     >
       {display.map((ch, i) => {
-        // Only the scrambled DIGIT slots blur — the currency symbol/code,
-        // separators and sign stay sharp ("do not blur currency"). Blur fades
-        // out on reveal, in on hide, in step with the scramble.
-        const scramble = isDigit(chars[i]!);
+        // Digits AND separators (comma/dot) blur; the currency symbol/code and
+        // sign stay sharp. Blur fades out on reveal / in on hide, in step with
+        // the scramble.
+        const blurThis = isBlurable(chars[i]!);
         return (
           <span
             key={i}
             style={{
-              filter: !revealed && scramble ? `blur(${blurPx}px)` : "none",
+              filter: !revealed && blurThis ? `blur(${blurPx}px)` : "none",
               transition: `filter ${BLUR_MS}ms ease`,
             }}
           >

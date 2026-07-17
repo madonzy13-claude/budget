@@ -488,7 +488,9 @@ export function OverviewCards({
                   aria-label={t("cards.spendNeutral")}
                 />
               )}
-              <span className="truncate">
+              {/* whitespace-nowrap, NOT truncate: `overflow:hidden` clips the
+                  blurred edges of the hidden amount (r41). */}
+              <span className="whitespace-nowrap">
                 {animRounded(data.spendings.wallet_cents)}
               </span>
             </p>
@@ -562,7 +564,8 @@ export function OverviewCards({
                     aria-label={t("cards.reservesSurplus")}
                   />
                 )}
-                <span className="truncate">
+                {/* whitespace-nowrap, NOT truncate (overflow clips the blur). */}
+                <span className="whitespace-nowrap">
                   {animMoney(data.available_reserves_cents)}
                 </span>
               </p>
