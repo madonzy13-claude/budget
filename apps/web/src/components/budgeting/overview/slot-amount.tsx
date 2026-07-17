@@ -70,7 +70,7 @@ function useSlotReveal(): SlotRevealState {
 export function SlotAmount({
   value,
   className,
-  blurEm = 0.28,
+  blurEm = 0.26,
 }: {
   value: string;
   className?: string;
