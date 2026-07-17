@@ -67,11 +67,8 @@ vi.mock("next-intl", () => {
   };
 });
 
-// Privacy masking defaults to HIDDEN; reveal it so amount assertions see the
-// numbers, not redaction bars.
-vi.mock("@/components/budgeting/bdp-ui-state", () => ({
-  usePrivacyReveal: () => ({ revealed: true, toggle: vi.fn() }),
-}));
+// These tests verify amount FORMATTING, so every render passes
+// amountPrivacyEnabled={false} (amounts render as real values, not SlotAmounts).
 
 const mockUse = vi.fn();
 vi.mock("@/hooks/use-overview-cards", () => ({
@@ -142,7 +139,7 @@ describe("OverviewCards", () => {
 
   it("renders the five cards with default_currency amounts", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
 
     for (const id of [
       "overview-card-capitalization",
@@ -166,7 +163,9 @@ describe("OverviewCards", () => {
   it("shows the spend good/bad indicator from the projection (item 1)", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     // Default projection mock is good → green check.
-    const { unmount } = render(<OverviewCards budgetId="b1" />);
+    const { unmount } = render(
+      <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+    );
     expect(screen.getByTestId("spend-good")).toBeTruthy();
     unmount();
 
@@ -174,7 +173,7 @@ describe("OverviewCards", () => {
     mockProjection.mockReturnValue({
       data: { spend_health: { good: false, surplus_deficit_cents: "-5000" } },
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByTestId("spend-bad")).toBeTruthy();
   });
 
@@ -183,7 +182,7 @@ describe("OverviewCards", () => {
     mockProjection.mockReturnValue({
       data: { spend_health: { good: null, surplus_deficit_cents: null } },
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     // Grey dot, not green/red.
     expect(screen.getByTestId("spend-neutral")).toBeTruthy();
     expect(screen.queryByTestId("spend-good")).toBeNull();
@@ -197,7 +196,9 @@ describe("OverviewCards", () => {
   it("shows surplus (green) or deficit (red) from the nearest income", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     // Default: income exists, +$400 surplus.
-    const { unmount } = render(<OverviewCards budgetId="b1" />);
+    const { unmount } = render(
+      <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+    );
     expect(screen.getByText("Surplus")).toBeTruthy();
     expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
       "$400",
@@ -208,7 +209,7 @@ describe("OverviewCards", () => {
     mockProjection.mockReturnValue({
       data: { spend_health: { good: false, surplus_deficit_cents: "-25000" } },
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByText("Deficit")).toBeTruthy();
     expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
       "250",
@@ -226,7 +227,9 @@ describe("OverviewCards", () => {
       mockProjection.mockReturnValue({
         data: { spend_health: { good: true, surplus_deficit_cents: cents } },
       });
-      const { unmount } = render(<OverviewCards budgetId="b1" />);
+      const { unmount } = render(
+        <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+      );
       expect(screen.getByTestId("spend-surplus-deficit").style.color).toBe(
         color,
       );
@@ -245,7 +248,9 @@ describe("OverviewCards", () => {
         isError: false,
         isPending: false,
       });
-      const { unmount } = render(<OverviewCards budgetId="b1" />);
+      const { unmount } = render(
+        <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+      );
       expect(screen.getByTestId(testid)).toBeTruthy();
       unmount();
     }
@@ -256,12 +261,16 @@ describe("OverviewCards", () => {
       data: {
         ...DTO,
         available_reserves_cents: "300000", // $3,000.00
-        reserves: { ...DTO.reserves, status: "short", required_cents: "310050" }, // $3,100.50
+        reserves: {
+          ...DTO.reserves,
+          status: "short",
+          required_cents: "310050",
+        }, // $3,100.50
       },
       isError: false,
       isPending: false,
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     // missing = 310050 - 300000 = 10050 cents → $100.50
     expect(screen.getByText("Not enough. $100.50 is missing")).toBeTruthy();
   });
@@ -271,12 +280,16 @@ describe("OverviewCards", () => {
       data: {
         ...DTO,
         available_reserves_cents: "310050", // $3,100.50
-        reserves: { ...DTO.reserves, status: "surplus", required_cents: "300000" }, // $3,000.00
+        reserves: {
+          ...DTO.reserves,
+          status: "surplus",
+          required_cents: "300000",
+        }, // $3,000.00
       },
       isError: false,
       isPending: false,
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     // extra = 310050 - 300000 = 10050 cents → $100.50
     expect(screen.getByText("Too much. $100.50 extra")).toBeTruthy();
   });
@@ -295,7 +308,9 @@ describe("OverviewCards", () => {
         isError: false,
         isPending: false,
       });
-      const { unmount } = render(<OverviewCards budgetId="b1" />);
+      const { unmount } = render(
+        <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+      );
       expect(screen.getByText(expected)).toBeTruthy();
       unmount();
     }
@@ -318,7 +333,7 @@ describe("OverviewCards", () => {
       isError: false,
       isPending: false,
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByTestId("cushion-unlimited")).toBeTruthy();
     expect(screen.getByText("∞")).toBeTruthy();
     expect(screen.queryByText("0d")).toBeNull();
@@ -326,7 +341,9 @@ describe("OverviewCards", () => {
 
   it("flags whether the cushion covers the required limit", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    const { unmount } = render(<OverviewCards budgetId="b1" />);
+    const { unmount } = render(
+      <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+    );
     expect(screen.getByTestId("cushion-covered")).toBeTruthy();
     unmount();
 
@@ -335,13 +352,19 @@ describe("OverviewCards", () => {
       isError: false,
       isPending: false,
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByTestId("cushion-short")).toBeTruthy();
   });
 
   it("hides 'incl. investments' when the Investments feature is off", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    render(<OverviewCards budgetId="b1" investmentsEnabled={false} />);
+    render(
+      <OverviewCards
+        budgetId="b1"
+        amountPrivacyEnabled={false}
+        investmentsEnabled={false}
+      />,
+    );
     expect(screen.queryByText(/incl\. investments/)).toBeNull();
   });
 
@@ -351,19 +374,25 @@ describe("OverviewCards", () => {
       isError: false,
       isPending: false,
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.queryByTestId("overview-card-cushion")).toBeNull();
   });
 
   it("hides the available-reserves card when reserves are disabled", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    render(<OverviewCards budgetId="b1" reservesEnabled={false} />);
+    render(
+      <OverviewCards
+        budgetId="b1"
+        amountPrivacyEnabled={false}
+        reservesEnabled={false}
+      />,
+    );
     expect(screen.queryByTestId("overview-card-available-reserves")).toBeNull();
   });
 
   it("shows the total overspend + category list when over (item 5)", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByText("$80")).toBeTruthy(); // total overspend
     expect(screen.getByText("Food · Transport")).toBeTruthy();
     expect(screen.getByTestId("overspent-bad")).toBeTruthy();
@@ -382,7 +411,7 @@ describe("OverviewCards", () => {
         ],
       },
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     // Δ = 8,325,000 − 7,575,000 = 750,000¢ (+9.9%). Stacks: percent + amount.
     expect(screen.getByText(/\+9\.9%/)).toBeTruthy();
     expect(screen.getByText("$7,500")).toBeTruthy();
@@ -391,7 +420,7 @@ describe("OverviewCards", () => {
 
   it("keeps the capitalization hero row inline (nowrap) so the P/L never drops below", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     const card = screen.getByTestId("overview-card-capitalization");
     // The hero row (number + since-yesterday P/L) must not wrap — in privacy mode a
     // wide redaction bar previously pushed the P/L onto its own line.
@@ -408,7 +437,7 @@ describe("OverviewCards", () => {
       isError: false,
       isPending: false,
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByText("$0")).toBeTruthy();
     expect(screen.getByText("Good job — keep it up!")).toBeTruthy();
     expect(screen.getByTestId("overspent-ok")).toBeTruthy();
@@ -416,7 +445,9 @@ describe("OverviewCards", () => {
 
   it("shows the retirement runway banner, hidden when planned spend is 0 (item 5)", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    const { unmount } = render(<OverviewCards budgetId="b1" />);
+    const { unmount } = render(
+      <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+    );
     expect(screen.getByTestId("overview-card-retirement")).toBeTruthy();
     // 30 months → full localized "2 years and 6 months" on the flip back.
     expect(screen.getByText("2 years and 6 months")).toBeTruthy();
@@ -427,7 +458,7 @@ describe("OverviewCards", () => {
       isError: false,
       isPending: false,
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.queryByTestId("overview-card-retirement")).toBeNull();
   });
 
@@ -447,7 +478,7 @@ describe("OverviewCards", () => {
         ],
       },
     });
-    render(<OverviewCards budgetId="b1" />);
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByText("$7,075,137")).toBeTruthy(); // rounded, no cents
     expect(screen.getByText("$7,067,537")).toBeTruthy(); // P/L rounded
   });

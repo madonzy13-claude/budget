@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
 import { BdpUiStateProvider } from "@/components/budgeting/bdp-ui-state";
 
 // next-intl: passthrough t() returns the key; t.rich() invokes the amt-tag
-// callback with the amount so the redaction path is exercised in tests.
+// callback with the amount so the privacy path is exercised in tests.
 vi.mock("next-intl", () => {
   const t = (k: string) => k;
   (t as unknown as { rich: unknown }).rich = (
@@ -62,53 +62,53 @@ const renderCards = (amountPrivacyEnabled = true) =>
     </BdpUiStateProvider>,
   );
 
-const heroText = () =>
-  screen.getByTestId("overview-card-capitalization").querySelector(".num")!
-    .textContent ?? "";
+const heroSlot = () =>
+  screen
+    .getByTestId("overview-card-capitalization")
+    .querySelector('[data-testid="slot-amount"]') as HTMLElement | null;
 
-describe("Overview amount privacy", () => {
+describe("Overview amount privacy (per-figure slot reveal, r41)", () => {
   beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.useRealTimers()); // no-op unless a test enabled fake timers
 
-  it("starts hidden: redaction bars cover the figures + Show-amounts eye", () => {
+  it("starts hidden: figures are SlotAmounts with no real digits, and there is NO eye toggle", () => {
     renderCards();
-    expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
-    expect(
-      screen.getByTestId("privacy-toggle").getAttribute("aria-label"),
-    ).toBe("cards.privacyShow");
-    // Figures are covered by redaction bars.
-    expect(screen.getAllByTestId("redaction-bar").length).toBeGreaterThan(0);
-    // SECURITY (not-in-DOM): when hidden the real digits must be ABSENT from the
-    // DOM — a bullet placeholder reserves the box (no layout jump) and the bar
-    // overlays it. The hero .num holds a bar + bullets, never the actual number.
+    expect(screen.queryByTestId("privacy-toggle")).toBeNull(); // eye removed
+    const slots = screen.getAllByTestId("slot-amount");
+    expect(slots.length).toBeGreaterThan(0);
+    slots.forEach((s) => expect(s.dataset.revealed).toBe("false"));
+    // The hero figure shows an uppercase random mask, no real digits.
+    const hero = heroSlot()!;
+    expect(hero.textContent ?? "").not.toMatch(/\d/);
+    expect(hero.textContent ?? "").toMatch(/[A-Z]/);
+    expect(hero.textContent ?? "").not.toMatch(/[a-z]/); // uppercase only
+  });
+
+  it("tapping a figure reveals its real value; tapping again re-hides it", () => {
+    vi.useFakeTimers();
+    renderCards();
+    const hero = heroSlot()!;
+    act(() => {
+      fireEvent.click(hero);
+      vi.runAllTimers();
+    });
+    expect(hero.getAttribute("data-revealed")).toBe("true");
+    expect(hero.textContent ?? "").toMatch(/\d/); // real digits now shown
+    act(() => {
+      fireEvent.click(hero);
+      vi.runAllTimers();
+    });
+    expect(hero.getAttribute("data-revealed")).toBe("false");
+    expect(hero.textContent ?? "").not.toMatch(/\d/); // hidden again
+  });
+
+  it("privacy flag OFF → real amounts visible, no SlotAmount, no eye", () => {
+    renderCards(false);
+    expect(screen.queryByTestId("privacy-toggle")).toBeNull();
+    expect(screen.queryAllByTestId("slot-amount")).toHaveLength(0);
     const heroNum = screen
       .getByTestId("overview-card-capitalization")
       .querySelector(".num")!;
-    expect(
-      heroNum.querySelector('[data-testid="redaction-bar"]'),
-    ).not.toBeNull();
-    expect(heroNum.textContent ?? "").not.toMatch(/\d/);
-    expect(heroNum.textContent ?? "").toContain("•");
-  });
-
-  it("reveals the real amount on click and re-covers on a second click", () => {
-    renderCards();
-    const btn = screen.getByTestId("privacy-toggle");
-    act(() => btn.click());
-    expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("false");
-    expect(btn.getAttribute("aria-label")).toBe("cards.privacyHide");
-    expect(screen.queryAllByTestId("redaction-bar")).toHaveLength(0);
-    expect(heroText()).toMatch(/\d/);
-    act(() => btn.click());
-    expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("true");
-    expect(btn.getAttribute("aria-label")).toBe("cards.privacyShow");
-    expect(screen.getAllByTestId("redaction-bar").length).toBeGreaterThan(0);
-  });
-
-  it("privacy flag OFF → amounts always visible, no eye, no bars", () => {
-    renderCards(false);
-    expect(screen.queryByTestId("privacy-toggle")).toBeNull();
-    expect(screen.queryAllByTestId("redaction-bar")).toHaveLength(0);
-    expect(screen.getByTestId("overview-cards").dataset.hidden).toBe("false");
-    expect(heroText()).toMatch(/\d/);
+    expect(heroNum.textContent ?? "").toMatch(/\d/);
   });
 });
