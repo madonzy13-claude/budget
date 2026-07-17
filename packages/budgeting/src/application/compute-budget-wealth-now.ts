@@ -64,8 +64,9 @@ export interface BudgetWealthNow {
   currency: string;
 }
 
-/** bigint cents → Money via decimal string (no float loss). Mirrors get-budget-home-summary. */
-function centsToMoney(amountCents: bigint, currency: string): Money {
+/** bigint cents → Money via decimal string (no float loss). Mirrors get-budget-home-summary.
+ *  Exported for reuse by getAllBudgetsAggregate's FX hop (same banker's-rounding path). */
+export function centsToMoney(amountCents: bigint, currency: string): Money {
   const negative = amountCents < 0n;
   const abs = negative ? -amountCents : amountCents;
   const whole = abs / 100n;
@@ -75,7 +76,7 @@ function centsToMoney(amountCents: bigint, currency: string): Money {
 }
 
 /** Money decimal → integer cents (banker's rounding via Big global RM). */
-function moneyToCents(m: Money): bigint {
+export function moneyToCents(m: Money): bigint {
   return BigInt(m.amount.times(100).toFixed(0));
 }
 
