@@ -88,7 +88,7 @@ function Redactable({
 
 // Blur radius per figure size (item 2): big hero, medium card figures, small
 // sub-lines. Bigger glyphs need a bigger blur to read as "hidden".
-const BLUR_BIG = 5.5;
+const BLUR_BIG = 7.5;
 const BLUR_MED = 3.5;
 const BLUR_SMALL = 2.3;
 
