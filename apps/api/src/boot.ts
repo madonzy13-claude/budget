@@ -37,6 +37,7 @@ import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-
 import { listPendingTasks } from "@budget/budgeting/src/application/list-pending-tasks";
 import { resolveTask } from "@budget/budgeting/src/application/resolve-task";
 import { getCushionSummary } from "@budget/budgeting/src/application/get-cushion-summary";
+import { getAllBudgetsAggregate } from "@budget/budgeting/src/application/get-all-budgets-aggregate";
 import { recomputeCushionTask } from "@budget/budgeting/src/application/recompute-cushion-task";
 import { makeRecomputeIncomeUnderPlannedTask } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 import { withTenantTx } from "@budget/platform";
@@ -118,6 +119,8 @@ export interface BootedDeps {
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
     /** Overview projection timeline (today → end of next month). */
     getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
+    /** Task 7: GET /budgets/aggregate — cross-budget "all budgets" rollup. */
+    getAllBudgetsAggregate: ReturnType<typeof getAllBudgetsAggregate>;
   };
   /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
   investments: ReturnType<typeof createInvestmentsModule>;
@@ -493,6 +496,32 @@ export async function boot(): Promise<BootedDeps> {
     }),
   });
 
+  // Task 7: cross-budget aggregate ("all budgets" overview). Composed AFTER
+  // budgetingFinal so it can reuse the already-composed getOverviewCards
+  // callable (needs holdingsValuation + cushion/spendings/reserves wiring above)
+  // rather than duplicating that composition.
+  const budgetingWithAggregate = Object.assign(budgetingFinal, {
+    getAllBudgetsAggregate: getAllBudgetsAggregate({
+      // BudgetDTO uses camelCase (memberCount); the aggregate service's
+      // deps port wants snake_case (member_count) — adapt at this boundary.
+      listForUser: async (userId: string) => {
+        const rows = await tenancy.workspaceRepo.listForUser(userId);
+        return rows.map((b) => ({
+          id: b.id,
+          name: b.name,
+          default_currency: b.default_currency,
+          member_count: b.memberCount,
+          pendingTasksCount: b.pendingTasksCount,
+        }));
+      },
+      getOverviewCardsForTenant: budgetingFinal.getOverviewCards,
+      getAggPrefsForUser: (userId: string) =>
+        tenancy.workspaceRepo.getAggPrefsForUser(userId),
+      displayCurrencyReader,
+      fxProvider: baseBudgeting.fxProvider,
+    }),
+  });
+
   logger.info({ region: env.REGION }, "apps/api booted");
 
   return {
@@ -502,7 +531,7 @@ export async function boot(): Promise<BootedDeps> {
     emailSender,
     identity,
     tenancy,
-    budgeting: budgetingFinal,
+    budgeting: budgetingWithAggregate,
     investments,
   };
 }

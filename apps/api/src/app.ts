@@ -20,6 +20,7 @@ import { requireAuth } from "./middleware/require-auth";
 import { requireWorkspace } from "./middleware/require-workspace";
 import { authRoutes } from "./routes/auth";
 import { budgetsRoutesFactory } from "./routes/budgets";
+import { budgetsAggregateRoutesFactory } from "./routes/budgets-aggregate";
 import { settingsRoutesFactory } from "./routes/settings";
 import { createFxRoute } from "./routes/fx";
 import { createWalletsRoute } from "./routes/wallets";
@@ -93,6 +94,9 @@ export function createApp(deps: BootedDeps) {
   app.use("/currencies/*", requireAuth);
   app.use("/settings/*", requireAuth);
   app.use("/push/*", requireAuth);
+  // Task 7: aggregate sub-router mounted BEFORE budgetsRoutesFactory so the
+  // literal "aggregate" segment is not swallowed by the /:id param handler.
+  app.route("/budgets", budgetsAggregateRoutesFactory(deps));
   // SETT-05/07: budget members sub-router mounted BEFORE budgetsRoutesFactory
   // so /:id/members is not swallowed by the /:id param handler in budgetsRoutesFactory.
   app.route("/budgets", budgetMembersRoutesFactory(deps));
