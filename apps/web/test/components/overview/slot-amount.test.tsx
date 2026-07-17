@@ -44,6 +44,8 @@ describe("SlotAmount", () => {
     expect(blurredChars(el).length).toBe(5);
     expect(blurredChars(el)[0]!.style.filter).toContain("em");
     expect(currencySpan(el)!.style.filter).toBe("none"); // currency NOT blurred
+    // The comma slot (index 2 of "$1,234") renders a fixed narrow "I".
+    expect(charSpans(el)[2]!.textContent).toBe("I");
   });
 
   it("reveals the real value on click (all sharp), re-hides on a second click", () => {

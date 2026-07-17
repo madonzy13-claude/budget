@@ -38,6 +38,10 @@ const isDigit = (c: string) => c >= "0" && c <= "9";
 const isBlurable = (c: string) => isDigit(c) || c === "," || c === ".";
 const randUpper = () =>
   String.fromCharCode(65 + Math.floor(Math.random() * 26));
+// Mask char for a scrambled slot: a random uppercase letter for a digit; a
+// fixed narrow "I" for a separator (comma/dot) so it barely takes space and the
+// grouping stays hidden.
+const maskChar = (original: string) => (isDigit(original) ? randUpper() : "I");
 
 interface SlotRevealState {
   revealed: boolean;
@@ -66,7 +70,7 @@ function useSlotReveal(): SlotRevealState {
 export function SlotAmount({
   value,
   className,
-  blurEm = 0.34,
+  blurEm = 0.28,
 }: {
   value: string;
   className?: string;
@@ -88,7 +92,7 @@ export function SlotAmount({
   // value changes) so it doesn't flicker between renders.
   const frozenMask = useMemo(() => {
     const arr = [...chars];
-    for (const i of scrambleIdx) arr[i] = randUpper();
+    for (const i of scrambleIdx) arr[i] = maskChar(chars[i]!);
     return arr;
   }, [chars, scrambleIdx]);
 
@@ -108,7 +112,7 @@ export function SlotAmount({
         const settled = Math.floor((tick / TICKS) * scrambleIdx.length);
         const arr = [...chars]; // currency + sign verbatim; number scrambled
         scrambleIdx.forEach((idx, k) => {
-          arr[idx] = k < settled ? target[idx]! : randUpper();
+          arr[idx] = k < settled ? target[idx]! : maskChar(chars[idx]!);
         });
         setDisplay(arr);
         if (tick >= TICKS) {
