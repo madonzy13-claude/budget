@@ -174,6 +174,20 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       console.error("[budgets:get] listMembers failed:", e);
     }
 
+    // Task 11: caller's own include_in_aggregation flag (self-toggle in
+    // Settings). getAggPrefsForUser is the existing user-scoped repo method
+    // (Task 3/4) — reused here rather than extending listMembers' MemberDTO.
+    // Defaults true (matches the column default) if the lookup fails.
+    let includeInAggregation = true;
+    try {
+      const prefs =
+        await deps.tenancy.workspaceRepo.getAggPrefsForUser(actorUserId);
+      includeInAggregation =
+        prefs.get(budgetId)?.include_in_aggregation ?? true;
+    } catch (e) {
+      console.error("[budgets:get] getAggPrefsForUser failed:", e);
+    }
+
     return c.json({
       id: budget.id,
       name: budget.name,
@@ -188,6 +202,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       investmentsEnabled: budget.investmentsEnabled ?? false,
       amountPrivacyEnabled: budget.amountPrivacyEnabled ?? true,
       cushionTargetMonths: budget.cushionTargetMonths ?? 6,
+      includeInAggregation,
       hasTransactions,
       currentUserRole,
     });

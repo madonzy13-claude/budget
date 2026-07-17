@@ -36,6 +36,8 @@ interface BudgetApiShape {
   reserves_enabled?: boolean;
   amountPrivacyEnabled?: boolean;
   amount_privacy_enabled?: boolean;
+  includeInAggregation?: boolean;
+  include_in_aggregation?: boolean;
   hasTransactions?: boolean;
   has_transactions?: boolean;
   currentUserRole?: "owner" | "member";
@@ -58,6 +60,8 @@ function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
     reservesEnabled: raw.reservesEnabled ?? raw.reserves_enabled ?? true,
     amountPrivacyEnabled:
       raw.amountPrivacyEnabled ?? raw.amount_privacy_enabled ?? true,
+    includeInAggregation:
+      raw.includeInAggregation ?? raw.include_in_aggregation ?? true,
     hasTransactions: raw.hasTransactions ?? raw.has_transactions ?? false,
     currentUserRole: raw.currentUserRole ?? raw.current_user_role ?? "member",
   };
