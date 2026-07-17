@@ -210,11 +210,14 @@ export function TransactionRow({
 
   const formattedAmount = centsToBare(txn.amountConvertedCents, locale);
   // r40b (item 8): the focus meta line shows the CREATION date in the user's
-  // timezone, date-only + short month ("13 Feb 2026") — NOT the edit time and
-  // NOT the spending calendar date. Falls back to the spending date if the row
+  // timezone, day + short month, NO year ("13 Feb") — NOT the edit time and NOT
+  // the spending calendar date. Falls back to the spending date if the row
   // predates the created_at wiring.
   const formattedDate = txn.createdAt
-    ? formatInstantDate(txn.createdAt, locale, userTz, { month: "short" })
+    ? formatInstantDate(txn.createdAt, locale, userTz, {
+        month: "short",
+        year: false,
+      })
     : new Date(`${txn.transactionDate}T00:00:00`).toLocaleDateString(locale);
   const confirmAmount = centsToDisplayCompact(
     txn.amountConvertedCents,
@@ -495,14 +498,15 @@ export function TransactionRow({
               ) : null}
             </span>
             {/* r40b: on focus / hover / tap-reveal (active) render the CREATION
-                date inline in a small muted line — replaces the removed hover
-                tooltip, and works for keyboard focus too. Date only (no note). */}
+                date ("13 Feb", no year) + note inline in a small muted line —
+                replaces the removed hover tooltip, works for keyboard focus. */}
             {showChips && (
               <span
                 data-testid="txn-row-meta"
                 className="min-w-0 truncate text-[10px] leading-tight text-[var(--muted-foreground)]"
               >
                 {formattedDate}
+                {txn.note ? ` · ${txn.note}` : ""}
               </span>
             )}
           </span>
