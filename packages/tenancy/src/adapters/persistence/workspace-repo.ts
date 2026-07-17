@@ -512,7 +512,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       TenantId(budgetId),
       UserId(actorUserId),
       async (tx) => {
-      await tx.execute(sql`
+        await tx.execute(sql`
         UPDATE tenancy.budgets b
            SET owner_user_id = (
              SELECT m.user_id FROM tenancy.budget_members m
@@ -530,7 +530,8 @@ export class DrizzleBudgetRepo implements BudgetRepo {
               WHERE mc.budget_id = ${budgetId}::uuid AND mc.role = 'owner'
            )
       `);
-    });
+      },
+    );
     if (r.isErr()) throw r.error;
   }
 
@@ -602,6 +603,74 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       );
     });
     if (r.isErr()) throw r.error;
+  }
+
+  /**
+   * All-budgets aggregation prefs for `userId`, keyed by budgetId. Mirrors
+   * `listForUser`'s `withUserContext` pattern: budget_members' user-scoped
+   * RLS policy lets a user read their own membership rows via
+   * app.current_user_id alone — no per-budget tenant_ids needed.
+   */
+  async getAggPrefsForUser(
+    userId: string,
+  ): Promise<
+    Map<
+      string,
+      { ownership_share_pct: number; include_in_aggregation: boolean }
+    >
+  > {
+    const r = await withUserContext(UserId(userId), async (tx) =>
+      tx.execute<{
+        budget_id: string;
+        ownership_share_pct: number;
+        include_in_aggregation: boolean;
+      }>(sql`
+        SELECT budget_id, ownership_share_pct, include_in_aggregation
+          FROM tenancy.budget_members
+         WHERE user_id = ${userId}::uuid
+      `),
+    );
+    if (r.isErr()) throw r.error;
+    const map = new Map<
+      string,
+      { ownership_share_pct: number; include_in_aggregation: boolean }
+    >();
+    for (const row of r.value.rows) {
+      map.set(row.budget_id, {
+        ownership_share_pct: Number(row.ownership_share_pct),
+        include_in_aggregation: row.include_in_aggregation,
+      });
+    }
+    return map;
+  }
+
+  /**
+   * All members of `budgetId` with their ownership share pct. Same table +
+   * infra carve-out as `listMembers` (SELECT-only, no actor — worker_role
+   * has SELECT-only grants on budget_members): set tenant_ids via SET LOCAL
+   * so the FORCE-RLS open-select policy lets the rows through.
+   */
+  async listMemberShares(
+    budgetId: string,
+  ): Promise<{ userId: string; pct: number }[]> {
+    const safeId = budgetId.replace(/[^a-fA-F0-9-]/g, "");
+    const r = await withInfraTx(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeId}}'`));
+      const result = await tx.execute<{
+        user_id: string;
+        ownership_share_pct: number;
+      }>(
+        sql`SELECT user_id, ownership_share_pct
+              FROM tenancy.budget_members
+             WHERE budget_id = ${budgetId}::uuid`,
+      );
+      return result.rows;
+    });
+    if (r.isErr()) throw r.error;
+    return r.value.map((row) => ({
+      userId: row.user_id,
+      pct: Number(row.ownership_share_pct),
+    }));
   }
 }
 

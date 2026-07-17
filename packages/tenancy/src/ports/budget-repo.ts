@@ -58,4 +58,22 @@ export interface BudgetRepo {
   ): Promise<{ archivedAt: string }>;
   /** Hard-delete: removes the row (and cascades to child tables). */
   hardDelete(budgetId: string, actorUserId: string): Promise<void>;
+  /**
+   * All-budgets aggregation prefs for `userId`, keyed by budgetId. One
+   * user-scoped query (mirrors `listForUser`'s `withUserContext` pattern —
+   * no per-budget tenant context needed since RLS on budget_members already
+   * scopes by user_id).
+   */
+  getAggPrefsForUser(
+    userId: string,
+  ): Promise<
+    Map<
+      string,
+      { ownership_share_pct: number; include_in_aggregation: boolean }
+    >
+  >;
+  /** All members of `budgetId` with their ownership share pct. */
+  listMemberShares(
+    budgetId: string,
+  ): Promise<{ userId: string; pct: number }[]>;
 }
