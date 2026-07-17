@@ -82,7 +82,7 @@ describe("TransactionRow", () => {
     expect(row.textContent).toContain("15");
   });
 
-  it("on focus shows an inline meta line: CREATION date (date-only) + note, no tooltip", () => {
+  it("on focus shows an inline meta line: CREATION date only, short month, no tooltip/note", () => {
     renderRow({
       txn: {
         ...txn,
@@ -96,19 +96,20 @@ describe("TransactionRow", () => {
     const row = screen.getByTestId("txn-row-1500");
     fireEvent.focus(row);
     const meta = screen.getByTestId("txn-row-meta");
-    expect(meta.textContent).toContain("13 February 2026"); // created date
+    expect(meta.textContent?.trim()).toBe("13 Feb 2026"); // short month, date only
     expect(meta.textContent).not.toContain("15:43"); // NO time
     expect(meta.textContent).not.toContain("5/14/2026"); // NOT the spending date
-    expect(meta.textContent).toContain("Weekly shop"); // note included
+    expect(meta.textContent).not.toContain("Weekly shop"); // note NOT rendered
   });
 
-  it("meta line shows the date only (no ' · note') when the transaction has no note", () => {
-    renderRow({ txn: { ...txn, note: null } });
+  it("meta line is date-only even when the transaction has a note", () => {
+    renderRow({ txn: { ...txn, note: "Groceries run" } });
     const row = screen.getByTestId("txn-row-1500");
     fireEvent.focus(row);
     const meta = screen.getByTestId("txn-row-meta");
-    expect(meta.textContent).toContain("13 February 2026");
+    expect(meta.textContent?.trim()).toBe("13 Feb 2026");
     expect(meta.textContent).not.toContain("·");
+    expect(meta.textContent).not.toContain("Groceries run");
   });
 
   it("resting (unfocused) row shows no meta line", () => {
