@@ -29,6 +29,10 @@ function buildGrid(): HTMLElement {
       <div data-testid="category-column-c">
         <input id="qc" data-testid="quick-entry-fun" />
       </div>
+      <div data-testid="category-column-d">
+        <div id="d1" data-txn-nav tabindex="-1"></div>
+        <input id="qd" data-testid="quick-entry-misc" />
+      </div>
     </div>`;
   return document.getElementById("grid")!;
 }
@@ -127,10 +131,16 @@ describe("Arrow Left/Right hop between columns on a ROW", () => {
     expect(document.activeElement).toBe(el("qc"));
   });
 
-  it("does nothing at the left edge (no previous column)", () => {
+  it("wraps at the left edge to the LAST column's row", () => {
     el("a1").focus();
-    expect(handleGridKeyNav(key("ArrowLeft", el("a1")), grid)).toBe(false);
-    expect(document.activeElement).toBe(el("a1"));
+    expect(handleGridKeyNav(key("ArrowLeft", el("a1")), grid)).toBe(true);
+    expect(document.activeElement).toBe(el("d1")); // wrap to last column
+  });
+
+  it("wraps at the right edge back to the FIRST column", () => {
+    el("d1").focus(); // last column
+    handleGridKeyNav(key("ArrowRight", el("d1")), grid);
+    expect(document.activeElement).toBe(el("a1")); // wrap to first column
   });
 
   it("does NOT handle Left/Right on a quick input (the input owns its caret)", () => {
@@ -156,10 +166,10 @@ describe("Cmd/Ctrl modifier jumps", () => {
     ...extra,
   });
 
-  it("Cmd+Right jumps to the LAST column (empty → its quick input)", () => {
+  it("Cmd+Right jumps to the LAST column's row (same index, clamped)", () => {
     el("a1").focus();
     expect(handleGridKeyNav(mod("ArrowRight", el("a1")), grid)).toBe(true);
-    expect(document.activeElement).toBe(el("qc")); // column c has no rows
+    expect(document.activeElement).toBe(el("d1")); // last column, its only row
   });
 
   it("Cmd+Left jumps to the FIRST column at the same row index", () => {

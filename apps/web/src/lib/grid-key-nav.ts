@@ -73,14 +73,15 @@ export function handleGridKeyNav(e: KeyLike, root: HTMLElement): boolean {
     const columns = Array.from(root.querySelectorAll<HTMLElement>(COLUMN));
     const curIdx = columns.indexOf(column);
     const goRight = e.key === "ArrowRight";
-    // Cmd/Ctrl jumps to the FIRST / LAST column; plain moves one column over.
+    // Cmd/Ctrl jumps to the FIRST / LAST column; a plain arrow moves one column
+    // over and WRAPS at the edges (left of the first → last, right of last → first).
     const targetIdx = mod
       ? goRight
         ? columns.length - 1
         : 0
-      : curIdx + (goRight ? 1 : -1);
+      : (curIdx + (goRight ? 1 : -1) + columns.length) % columns.length;
     const nextCol = columns[targetIdx];
-    if (!nextCol || nextCol === column) return false; // no move
+    if (!nextCol || nextCol === column) return false; // single column → no move
 
     const rowIdx = Array.from(
       column.querySelectorAll<HTMLElement>(ROWS),

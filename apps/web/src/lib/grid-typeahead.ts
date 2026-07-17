@@ -44,12 +44,26 @@ export function typeaheadStep(
   names: string[],
 ): TypeaheadResult {
   const c = char.toLowerCase();
-  let seq = buffer + c;
-  let matches = names.filter((n) => wordPrefixMatch(n, seq));
-  if (matches.length === 0) {
-    // The extended candidate is a dead end → restart the sequence from `char`.
-    seq = c;
-    matches = names.filter((n) => wordPrefixMatch(n, seq));
+  const candidate = buffer + c;
+  const matches = names.filter((n) => wordPrefixMatch(n, candidate));
+  if (matches.length >= 1) {
+    // Still matching ≥1 → keep growing the sequence; jump only when unique.
+    return {
+      buffer: candidate,
+      jumpTo: matches.length === 1 ? matches[0]! : null,
+    };
   }
-  return { buffer: seq, jumpTo: matches.length === 1 ? matches[0]! : null };
+  // Dead end → look only at what was typed AFTER the last identification, i.e.
+  // the SUFFIXES of the candidate, longest-first. Example: after "altruism" was
+  // identified by "altr", typing "a" breaks it → try "tra" (→ travel), then
+  // "ra", then "a". The first suffix that matches wins; jump if it's unique.
+  for (let start = 1; start < candidate.length; start++) {
+    const suffix = candidate.slice(start);
+    const m = names.filter((n) => wordPrefixMatch(n, suffix));
+    if (m.length >= 1) {
+      return { buffer: suffix, jumpTo: m.length === 1 ? m[0]! : null };
+    }
+  }
+  // Nothing matched, down to the single char → start fresh from it, no jump.
+  return { buffer: c, jumpTo: null };
 }

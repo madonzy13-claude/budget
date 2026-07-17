@@ -15,6 +15,8 @@ export interface TxnDTO {
   fxAsOf?: string;
   note?: string | null;
   transactionDate: string;
+  /** ISO instant the transaction was CREATED (never bumped on edit). */
+  createdAt?: string;
   confirmedAt: string | null;
   pending?: boolean;
   unsent?: boolean;
@@ -32,6 +34,7 @@ export interface TxnRowSnake {
   note?: string | null;
   date?: string;
   transaction_date?: string;
+  created_at?: string;
   confirmed_at: string | null;
   rule_name?: string;
 }
@@ -52,6 +55,7 @@ export function mapTxnRowToDTO(row: TxnRowSnake): TxnDTO {
     ...(row.fx_as_of != null ? { fxAsOf: row.fx_as_of } : {}),
     note: row.note ?? null,
     transactionDate: row.transaction_date ?? row.date ?? "",
+    ...(row.created_at != null ? { createdAt: row.created_at } : {}),
     confirmedAt: row.confirmed_at,
   };
 }

@@ -17,6 +17,8 @@ import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 import { parseDecimal } from "@/lib/decimal";
+import { formatInstantDate } from "@/lib/format-date";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -46,6 +48,8 @@ export interface TransactionRowProps {
     fxRate?: string;
     fxAsOf?: string;
     note?: string | null;
+    /** ISO instant the transaction was created (for the hover tooltip). */
+    createdAt?: string;
   };
   budgetId: string;
   month: string;
@@ -70,6 +74,7 @@ export function TransactionRow({
   const t = useTranslations("grid.txn");
   const tc = useTranslations("grid.confirm.deleteTxn");
   const locale = useLocale();
+  const userTz = useUserTimezone();
   const [revealed, setRevealed] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -210,9 +215,13 @@ export function TransactionRow({
   }, [revealed]);
 
   const formattedAmount = centsToBare(txn.amountConvertedCents, locale);
-  const formattedDate = new Date(
-    `${txn.transactionDate}T00:00:00`,
-  ).toLocaleDateString(locale);
+  // r40b (item 8): the hover tooltip shows the CREATION date in the user's
+  // timezone, human-readable and date-only ("13 February 2026") — NOT the edit
+  // time and NOT the spending calendar date. Falls back to the spending date if
+  // the row predates the created_at wiring.
+  const formattedDate = txn.createdAt
+    ? formatInstantDate(txn.createdAt, locale, userTz)
+    : new Date(`${txn.transactionDate}T00:00:00`).toLocaleDateString(locale);
   const confirmAmount = centsToDisplayCompact(
     txn.amountConvertedCents,
     txn.currencyConverted,
@@ -316,6 +325,7 @@ export function TransactionRow({
     const original = parseInt(txn.amountConvertedCents, 10);
     // Clearing the field or zeroing the amount deletes the row.
     if (trimmed === "" || cents === 0) {
+      focusAfterDelete();
       deleteMutation.mutate(txn.id);
       setEditing(false);
       return;
@@ -335,6 +345,39 @@ export function TransactionRow({
   // editor must unmount first or its blur handler re-commits.
   function refocusRow() {
     requestAnimationFrame(() => rowRef.current?.focus());
+  }
+
+  // r40b (item 1): after a delete, move focus to the item that slides into the
+  // deleted row's slot (or the last row if it WAS the last); if the column is
+  // now empty, focus its quick-add input. Captures the column + index NOW, then
+  // waits (rAF poll) for React to unmount the row before focusing.
+  function focusAfterDelete() {
+    const row = rowRef.current;
+    const column = row?.closest<HTMLElement>(
+      '[data-testid^="category-column-"]',
+    );
+    if (!row || !column) return;
+    const rowsNow = Array.from(
+      column.querySelectorAll<HTMLElement>("[data-txn-nav]"),
+    );
+    const idx = rowsNow.indexOf(row);
+    const focusNext = (attempt: number) => {
+      const rows = Array.from(
+        column.querySelectorAll<HTMLElement>("[data-txn-nav]"),
+      );
+      if (rows.includes(row) && attempt < 10) {
+        requestAnimationFrame(() => focusNext(attempt + 1));
+        return;
+      }
+      if (rows.length > 0) {
+        rows[Math.min(idx, rows.length - 1)]?.focus();
+      } else {
+        column
+          .querySelector<HTMLElement>('input[data-testid^="quick-entry-"]')
+          ?.focus();
+      }
+    };
+    requestAnimationFrame(() => focusNext(0));
   }
 
   function handleEditKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -534,6 +577,7 @@ export function TransactionRow({
             <AlertDialogAction
               data-testid="txn-row-delete-confirm"
               onClick={() => {
+                focusAfterDelete();
                 deleteMutation.mutate(txn.id);
                 setDeleteOpen(false);
               }}

@@ -81,31 +81,46 @@ export function QuickEntryInput({
       currency: budgetCurrency,
       note: null,
     });
+    // r40b (item 10): a new row inserts at the TOP of its column, which is
+    // hidden when the grid is scrolled down. Snap the grid back to the top so
+    // the just-added transaction is visible below the sticky entry band.
+    inputRef.current
+      ?.closest<HTMLElement>('[data-testid="spendings-grid"]')
+      ?.scrollTo({ top: 0 });
   }
 
-  // r40b: hop to the adjacent column's quick input. Quick inputs are in DOM =
-  // column order, so prev/next sibling == left/right column. Caret lands on the
-  // entering edge (end when arriving from the right, start from the left) so
-  // repeated edge-presses chain in the same direction. Returns false at the
-  // grid edge (no neighbour).
-  function focusAdjacentQuickInput(dir: -1 | 1): boolean {
-    const all = Array.from(
+  /** All quick inputs in DOM (== column) order. */
+  function allQuickInputs(): HTMLInputElement[] {
+    return Array.from(
       document.querySelectorAll<HTMLInputElement>(
         'input[data-testid^="quick-entry-"]',
       ),
     );
-    const idx = all.indexOf(inputRef.current as HTMLInputElement);
-    const next = idx === -1 ? undefined : all[idx + dir];
-    if (!next) return false;
-    next.focus();
-    // dir -1 (moved left) → caret at END of the previous field; dir +1 → START.
-    const caret = dir === -1 ? next.value.length : 0;
+  }
+
+  /** Focus a quick input, placing the caret on the entering edge. */
+  function focusQuickInput(
+    target: HTMLInputElement | undefined,
+    atEnd: boolean,
+  ) {
+    if (!target) return;
+    target.focus();
+    const caret = atEnd ? target.value.length : 0;
     try {
-      next.setSelectionRange(caret, caret);
+      target.setSelectionRange(caret, caret);
     } catch {
       /* number-like inputs may reject setSelectionRange — focus is enough */
     }
-    return true;
+  }
+
+  // r40b: hop to the adjacent column's quick input, WRAPPING at the grid edges
+  // (right of the last → first, left of the first → last). Caret lands on the
+  // entering edge so repeated edge-presses chain in one direction.
+  function focusAdjacentQuickInput(dir: -1 | 1) {
+    const all = allQuickInputs();
+    const idx = all.indexOf(inputRef.current as HTMLInputElement);
+    if (idx === -1) return;
+    focusQuickInput(all[(idx + dir + all.length) % all.length], dir === -1);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -117,32 +132,34 @@ export function QuickEntryInput({
       submit();
       return;
     }
-    // r40b: Left/Right move the caret normally UNTIL it hits the field edge;
-    // AT the edge they save the current entry and jump to the neighbouring
-    // column's quick input. An empty field is at both edges at once, so the
-    // arrows just hop columns (submit is a no-op on empty).
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+
     const input = e.currentTarget;
-    if (e.key === "ArrowLeft") {
-      const atLeftEdge = input.selectionStart === 0 && input.selectionEnd === 0;
-      if (atLeftEdge) {
-        e.preventDefault();
-        submit();
-        justEdgeSubmittedRef.current = true;
-        focusAdjacentQuickInput(-1);
-      }
+    const goRight = e.key === "ArrowRight";
+
+    // Cmd/Ctrl+Left/Right → jump to the FIRST / LAST column's quick input,
+    // saving the current entry on the way.
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      submit();
+      justEdgeSubmittedRef.current = true;
+      const all = allQuickInputs();
+      focusQuickInput(goRight ? all[all.length - 1] : all[0], !goRight);
       return;
     }
-    if (e.key === "ArrowRight") {
-      const len = input.value.length;
-      const atRightEdge =
-        input.selectionStart === len && input.selectionEnd === len;
-      if (atRightEdge) {
-        e.preventDefault();
-        submit();
-        justEdgeSubmittedRef.current = true;
-        focusAdjacentQuickInput(1);
-      }
-      return;
+
+    // Plain Left/Right move the caret normally UNTIL the field edge; AT the edge
+    // they save the entry and hop to the neighbouring column (wrapping). An empty
+    // field is at both edges at once, so the arrows just hop (submit no-ops).
+    const len = input.value.length;
+    const atEdge = goRight
+      ? input.selectionStart === len && input.selectionEnd === len
+      : input.selectionStart === 0 && input.selectionEnd === 0;
+    if (atEdge) {
+      e.preventDefault();
+      submit();
+      justEdgeSubmittedRef.current = true;
+      focusAdjacentQuickInput(goRight ? 1 : -1);
     }
   }
 

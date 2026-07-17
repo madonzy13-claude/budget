@@ -305,6 +305,54 @@ describe("QuickEntryInput", () => {
       expect(mockMutate).not.toHaveBeenCalled();
       expect(document.activeElement).toBe(second);
     });
+
+    it("ArrowRight at the right edge of the LAST column WRAPS to the first", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(second, "7"); // last column, caret at end
+      fireEvent.keyDown(second, { key: "ArrowRight" });
+      expect(document.activeElement).toBe(first); // wrapped
+    });
+
+    it("ArrowLeft at the left edge of the FIRST column WRAPS to the last", () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      first.focus();
+      first.setSelectionRange(0, 0);
+      fireEvent.keyDown(first, { key: "ArrowLeft" });
+      expect(document.activeElement).toBe(second); // wrapped to last
+    });
+
+    it("Cmd+Right jumps to the LAST column's quick input (saving)", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(first, "5.00");
+      fireEvent.keyDown(first, { key: "ArrowRight", metaKey: true });
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 500 }),
+      );
+      expect(document.activeElement).toBe(second);
+    });
+
+    it("Cmd+Left jumps to the FIRST column's quick input", () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      second.focus();
+      fireEvent.keyDown(second, { key: "ArrowLeft", ctrlKey: true });
+      expect(document.activeElement).toBe(first);
+    });
   });
 
   it("online Enter: mutates as before and does NOT call onOfflineAttempt", async () => {

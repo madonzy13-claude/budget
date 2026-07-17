@@ -32,6 +32,7 @@ const txn = {
   amountConvertedCents: "1500",
   currencyConverted: "USD",
   transactionDate: "2026-05-14",
+  createdAt: "2026-02-13T15:43:00Z",
   note: null,
 };
 
@@ -81,23 +82,30 @@ describe("TransactionRow", () => {
     expect(row.textContent).toContain("15");
   });
 
-  it("shows a tooltip with the locale-formatted date and note on hover", async () => {
+  it("tooltip shows the CREATION date (date-only, day-first) not the spending date", async () => {
     const user = userEvent.setup();
     renderRow({
-      txn: { ...txn, transactionDate: "2026-05-14", note: "Weekly shop" },
+      txn: {
+        ...txn,
+        transactionDate: "2026-05-14",
+        createdAt: "2026-02-13T15:43:00Z",
+        note: "Weekly shop",
+      },
     });
     await user.hover(screen.getByText("15"));
     const tip = await screen.findByTestId("txn-tooltip");
-    expect(tip.textContent).toContain("5/14/2026");
+    expect(tip.textContent).toContain("13 February 2026"); // created date
+    expect(tip.textContent).not.toContain("15:43"); // NO time
+    expect(tip.textContent).not.toContain("5/14/2026"); // NOT the spending date
     expect(tip.textContent).toContain("Weekly shop");
   });
 
   it("tooltip omits the note line when the transaction has no note", async () => {
     const user = userEvent.setup();
-    renderRow({ txn: { ...txn, transactionDate: "2026-05-14", note: null } });
+    renderRow({ txn: { ...txn, note: null } });
     await user.hover(screen.getByText("15"));
     const tip = await screen.findByTestId("txn-tooltip");
-    expect(tip.textContent).toContain("5/14/2026");
+    expect(tip.textContent).toContain("13 February 2026");
     expect(tip.textContent).not.toContain("Weekly shop");
   });
 
@@ -291,6 +299,15 @@ describe("TransactionRow", () => {
       fireEvent.keyDown(row, { key: "Backspace" });
       expect(screen.getByTestId("txn-row-delete-confirm")).toBeTruthy();
       expect(mockDeleteMutate).not.toHaveBeenCalled(); // confirm first, never direct
+    });
+
+    it("Delete key also opens the delete confirmation (item 7)", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Delete" });
+      expect(screen.getByTestId("txn-row-delete-confirm")).toBeTruthy();
+      expect(mockDeleteMutate).not.toHaveBeenCalled();
     });
 
     it("Cmd/Ctrl+Enter opens the FULL editor (pen) instead of the inline edit", () => {

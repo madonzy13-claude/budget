@@ -153,6 +153,37 @@ function seedCategoryOrder(data: unknown): CategoryDTO[] {
     .sort((a, b) => a.sortIndex - b.sortIndex);
 }
 
+/**
+ * r40b (items 3/4): keep the just-focused keyboard nav target visible inside the
+ * grid scroller. The quick-entry field lives in a sticky top band; transactions
+ * scroll underneath it, so the browser's native focus-scroll leaves a row
+ * hidden BEHIND the band (it thinks the row is "in view"). We correct for the
+ * band height, and snap to the top when landing on a quick input so the next
+ * ArrowDown reveals the first row (and a wrap from the bottom row isn't lost).
+ */
+function ensureNavTargetVisible(root: HTMLElement): void {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return;
+  if (el.matches('input[data-testid^="quick-entry-"]')) {
+    root.scrollTo({ top: 0 });
+    return;
+  }
+  if (!el.matches("[data-txn-nav]")) return;
+  const gridRect = root.getBoundingClientRect();
+  const band = el
+    .closest('[data-testid^="category-column-"]')
+    ?.querySelector('[data-testid^="column-sticky-"]');
+  const bandBottom = band ? band.getBoundingClientRect().bottom : gridRect.top;
+  const elRect = el.getBoundingClientRect();
+  const margin = 8;
+  if (elRect.top < bandBottom + margin) {
+    // Hidden behind (or above) the sticky band → scroll it down into view.
+    root.scrollTop -= bandBottom + margin - elRect.top;
+  } else if (elRect.bottom > gridRect.bottom - margin) {
+    root.scrollTop += elRect.bottom - (gridRect.bottom - margin);
+  }
+}
+
 function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
   return {
     categoryId,
@@ -244,6 +275,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         )
       ) {
         e.preventDefault();
+        ensureNavTargetVisible(root);
         return;
       }
 
@@ -288,6 +320,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
               `[data-testid="quick-entry-${jumpTo.toLowerCase()}"]`,
             )
             ?.focus();
+          ensureNavTargetVisible(root);
         }
       }
     };

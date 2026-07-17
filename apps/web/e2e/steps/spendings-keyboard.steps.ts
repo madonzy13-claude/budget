@@ -79,6 +79,10 @@ Then("the row amount editor is open", async ({ page }) => {
   ).toBeVisible({ timeout: 5000 });
 });
 
+When("I confirm the delete", async ({ page }) => {
+  await page.getByTestId("txn-row-delete-confirm").click();
+});
+
 Then("the delete confirmation dialog is visible", async ({ page }) => {
   await expect(page.getByTestId("txn-row-delete-confirm")).toBeVisible({
     timeout: 5000,

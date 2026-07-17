@@ -38,6 +38,21 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     Then the "rent" quick input is focused
     And a confirmed transaction row for 300 cents is visible in the grid
 
+  Scenario: Deleting a transaction focuses the next row, then the quick input when none remain
+    When I open the spendings tab for the budget
+    And I type a quick-entry of "500" cents into the "Groceries" column
+    And I type a quick-entry of "700" cents into the "Groceries" column
+    Then a confirmed transaction row for 500 cents is visible in the grid
+    And a confirmed transaction row for 700 cents is visible in the grid
+    When I focus the "Groceries" quick input
+    And I press "ArrowDown" in the grid
+    And I press "Delete" in the grid
+    And I confirm the delete
+    Then a transaction row is focused
+    When I press "Delete" in the grid
+    And I confirm the delete
+    Then the "groceries" quick input is focused
+
   Scenario: Type-ahead jumps to the uniquely-identified category's quick input
     Given the budget has a category "Housing" with a monthly limit of 100000 cents
     And the budget has a category "Food & Home" with a monthly limit of 100000 cents

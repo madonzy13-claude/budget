@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -91,6 +92,34 @@ export function BdpTabs({
   const visibleTabs = reservesEnabled
     ? TABS
     : TABS.filter((tab) => tab.slug !== "reserves");
+
+  // r40b (item 9): Tab / Shift+Tab cycle the pills (next / previous, wrapping).
+  // Guarded so it never hijacks real form Tab-order: skipped when focus is in a
+  // dialog/sheet (they trap their own Tab) or in a text field OTHER than the
+  // grid's numeric quick-entry inputs (which use arrows for in-grid nav).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Tab" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae?.closest('[role="dialog"]')) return;
+      const inFormField =
+        !!ae &&
+        !ae.matches('input[data-testid^="quick-entry-"]') &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.tagName === "SELECT" ||
+          ae.isContentEditable);
+      if (inFormField) return;
+      const slugs = visibleTabs.map((tab) => tab.slug);
+      const cur = slugs.indexOf(activeTab);
+      if (cur === -1) return;
+      e.preventDefault();
+      const dir = e.shiftKey ? -1 : 1;
+      onSelect(slugs[(cur + dir + slugs.length) % slugs.length]!);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visibleTabs, activeTab, onSelect]);
 
   return (
     <nav

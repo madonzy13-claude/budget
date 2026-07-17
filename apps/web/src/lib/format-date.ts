@@ -125,3 +125,27 @@ export function formatTimestamp(
   // localized (pl "lutego", uk "лютого"); order matches the design: "13 February 2026, 10:44".
   return `${p("day")} ${p("month")} ${p("year")}, ${p("hour")}:${p("minute")}`;
 }
+
+/**
+ * Format an INSTANT as a day-first date only (no time) in the given timezone:
+ * "13 February 2026". Month stays localized (pl "lutego", uk "лютого"); ordering
+ * is forced day-first regardless of the locale's own (en-US would emit
+ * "February 13, 2026"). Returns "" for an unparseable value.
+ */
+export function formatInstantDate(
+  value: Date | number | string,
+  locale: string,
+  timeZone?: string,
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    ...(timeZone ? { timeZone } : {}),
+  }).formatToParts(date);
+  const p = (t: Intl.DateTimeFormatPartTypes) =>
+    parts.find((x) => x.type === t)?.value ?? "";
+  return `${p("day")} ${p("month")} ${p("year")}`;
+}

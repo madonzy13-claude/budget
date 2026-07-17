@@ -55,6 +55,29 @@ describe("typeaheadStep — the worked example", () => {
   });
 });
 
+describe("typeaheadStep — suffix fallback on a broken sequence", () => {
+  const AT = ["Altruism", "Travel"];
+
+  it('"altra" breaks "altruism" and jumps to "travel" via the "tra" suffix', () => {
+    // a→al→alt→altr all stay on Altruism; the 5th char breaks it.
+    let s = { buffer: "", jumpTo: null as string | null };
+    for (const ch of "altr") s = typeaheadStep(s.buffer, ch, AT);
+    expect(s.jumpTo).toBe("Altruism");
+    expect(s.buffer).toBe("altr");
+    s = typeaheadStep(s.buffer, "a", AT); // "altra" → dead end → "tra" → travel
+    expect(s.jumpTo).toBe("Travel");
+    expect(s.buffer).toBe("tra");
+  });
+
+  it("tries suffixes longest-first (the first matching one wins)", () => {
+    // "xtra": candidate "xtra"(0) → suffix "tra"(travel) chosen, not "ra"/"a".
+    let acc = { buffer: "", jumpTo: null as string | null };
+    for (const ch of "xtra") acc = typeaheadStep(acc.buffer, ch, AT);
+    expect(acc.buffer).toBe("tra");
+    expect(acc.jumpTo).toBe("Travel");
+  });
+});
+
 describe("typeaheadStep — units", () => {
   it("keeps extending while the longer sequence still matches ≥1", () => {
     // h(2) → ho(2) → hom(1) — buffer grows, only jumps at the unique step.

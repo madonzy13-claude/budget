@@ -69,6 +69,33 @@ describe("BdpTabs", () => {
     ]);
   });
 
+  it("Tab cycles to the next pill; Shift+Tab to the previous; wrapping (item 9)", () => {
+    const onSelect = vi.fn();
+    renderTabs({ activeTab: "wallets", onSelect });
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(onSelect).toHaveBeenLastCalledWith("spendings"); // wallets → spendings
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(onSelect).toHaveBeenLastCalledWith("overview"); // wallets → overview
+  });
+
+  it("Tab wraps from the last pill back to the first", () => {
+    const onSelect = vi.fn();
+    renderTabs({ activeTab: "settings", onSelect });
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(onSelect).toHaveBeenLastCalledWith("overview");
+  });
+
+  it("Tab does NOT cycle pills while a real form field is focused", () => {
+    const onSelect = vi.fn();
+    renderTabs({ activeTab: "wallets", onSelect });
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(onSelect).not.toHaveBeenCalled();
+    input.remove();
+  });
+
   it("each pill is a <button>, not an anchor", () => {
     renderTabs({ activeTab: "spendings" });
     const pills = screen.getAllByRole("button");
