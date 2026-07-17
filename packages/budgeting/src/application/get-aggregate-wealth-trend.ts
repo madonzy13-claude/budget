@@ -173,7 +173,8 @@ const MS_PER_DAY = 86_400_000;
 /** range code ("1M"/"3M"/"6M"/"1Y"/"All") → {from,to} YYYY-MM-DD, today-relative.
  *  Plain-Date equivalent of apps/web's overview-range.ts resolveRange (no shared
  *  package across the web/api boundary); unrecognized codes fall back to 6M.
- *  "All" caps at 5 years back to respect get-overview-wealth's MAX_SPAN_DAYS guard. */
+ *  "All" caps at 5 years back — an arbitrary upper bound (get-overview-wealth has
+ *  no span guard; it only switches bucket granularity at 31/93/366 days). */
 export function rangeToFromTo(
   range: string,
   now: Date,
