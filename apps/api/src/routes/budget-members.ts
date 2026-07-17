@@ -11,9 +11,21 @@
  *   T-06-03-03: tenant gate (tenantIds.includes → 404, no existence leak)
  */
 import { Hono } from "hono";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
+import {
+  validateShares,
+  InvalidShareTotal,
+} from "@budget/tenancy/src/domain/ownership-shares";
 import type { BootedDeps } from "../boot";
 
 type MembersDeps = Pick<BootedDeps, "tenancy" | "identity">;
+
+const aggregationSchema = z.object({ included: z.boolean() });
+
+const sharesWriteSchema = z.object({
+  shares: z.array(z.object({ userId: z.string().min(1), pct: z.number() })),
+});
 
 export function budgetMembersRoutesFactory(deps: MembersDeps) {
   const r = new Hono();
@@ -182,6 +194,101 @@ export function budgetMembersRoutesFactory(deps: MembersDeps) {
 
     return c.json({ ok: true }, 200);
   });
+
+  // PUT /:id/aggregation — self-service include-in-aggregation flag (Task 8).
+  // NOT owner-gated: any member may toggle their own row. setMemberAggregation
+  // binds the caller's own userId as both tx actor and target row, so this
+  // route can never write another member's row.
+  r.put(
+    "/:id/aggregation",
+    zValidator("json", aggregationSchema),
+    async (c) => {
+      const session = c.get("session");
+      if (!session) return c.json({ error: "unauthorized" }, 401);
+
+      const budgetId = c.req.param("id");
+      const tenantIds = c.get("tenantIds") as string[] | undefined;
+      if (!tenantIds || !tenantIds.includes(budgetId)) {
+        return c.json({ error: "not_found" }, 404);
+      }
+
+      const body = c.req.valid("json");
+      const members = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+      if (!members.some((m) => m.userId === session.user.id)) {
+        return c.json({ error: "forbidden" }, 403);
+      }
+
+      await deps.tenancy.workspaceRepo.setMemberAggregation(
+        budgetId,
+        session.user.id,
+        body.included,
+      );
+      return c.json({ ok: true }, 200);
+    },
+  );
+
+  // PUT /:id/members/shares — owner-gated ownership-share rewrite (Task 8).
+  // CRITICAL (Task 4/5 review): setMemberShares' write RLS is tenant-scoped,
+  // NOT actor-scoped (any member of the batch is a valid GUC subject — see
+  // workspace-repo.ts comment on setMemberShares), so THIS owner gate is the
+  // only real authorization standing between a non-owner and the write.
+  r.put(
+    "/:id/members/shares",
+    zValidator("json", sharesWriteSchema),
+    async (c) => {
+      const session = c.get("session");
+      if (!session) return c.json({ error: "unauthorized" }, 401);
+
+      const budgetId = c.req.param("id");
+      const tenantIds = c.get("tenantIds") as string[] | undefined;
+      if (!tenantIds || !tenantIds.includes(budgetId)) {
+        return c.json({ error: "not_found" }, 404);
+      }
+
+      const body = c.req.valid("json");
+
+      let members: { userId: string; role: string }[];
+      try {
+        members = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+      } catch (e) {
+        console.error("[member-shares] listMembers failed:", e);
+        return c.json({ error: "internal" }, 500);
+      }
+      const callerEntry = members.find((m) => m.userId === session.user.id);
+      if (!callerEntry) return c.json({ error: "Member not found" }, 404);
+      if (callerEntry.role !== "owner") {
+        return c.json({ error: "forbidden" }, 403);
+      }
+
+      // Every current member must be present exactly once — no partial
+      // rewrites, no phantom userIds smuggled into the ownership table.
+      const memberIds = new Set(members.map((m) => m.userId));
+      const givenIds = body.shares.map((s) => s.userId);
+      const givenSet = new Set(givenIds);
+      if (
+        givenIds.length !== givenSet.size ||
+        memberIds.size !== givenSet.size ||
+        [...memberIds].some((id) => !givenSet.has(id))
+      ) {
+        return c.json(
+          { error: "shares must cover every member exactly once" },
+          422,
+        );
+      }
+
+      try {
+        validateShares(body.shares);
+      } catch (e) {
+        if (e instanceof InvalidShareTotal) {
+          return c.json({ error: e.message }, 422);
+        }
+        throw e;
+      }
+
+      await deps.tenancy.workspaceRepo.setMemberShares(budgetId, body.shares);
+      return c.json({ ok: true }, 200);
+    },
+  );
 
   return r;
 }
