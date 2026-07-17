@@ -9,16 +9,17 @@
  * `display_currency` by the API (Task 6/7) — summing them as BigInt then
  * formatting once is correct because every row shares that one currency.
  *
- * Exclude is a single `excluded` Set of budget ids currently OFF, seeded once
- * from the server's `!included` and toggled directly from then on — every
- * other consumer (health dot, sums, row style) just checks Set membership, no
- * dual "local override vs server state" bookkeeping.
+ * Inclusion is race-free: `overrides` is a Map of budget id → user-toggled
+ * state for THIS session only. Effective inclusion (`effIncluded`) is the
+ * override if one exists, else the server's `included` — no seeding effect,
+ * so there is no render where a server-excluded budget is transiently
+ * summed in before an effect corrects it.
  *
  * fx_unavailable rows (FX miss OR card-fetch error — Task 6) are never summed
  * and never shown with a health dot / net-worth figure, since `health` on
  * those rows can be a meaningless "green".
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import {
@@ -44,23 +45,25 @@ function sumCents(rows: AggregateBudgetRow[], key: keyof AggregateBudgetRow) {
   return rows.reduce((total, r) => total + BigInt(r[key] as string), 0n);
 }
 
+/** Mirrors overview-cards.tsx's heroFontClass: shrink the hero number as the
+ * formatted string grows so a big combined total doesn't overflow the card. */
+function heroFontClass(s: string): string {
+  if (s.length >= 13) return "text-[24px] font-bold leading-[1.1]";
+  if (s.length >= 10) return "text-[32px] font-bold leading-[1.1]";
+  return "text-num-display";
+}
+
 export function AggregateOverview() {
   const t = useTranslations("aggregate");
   const locale = useLocale();
   const { data, isPending, isError } = useBudgetsAggregate();
   const setFlag = useSetAggregationFlag();
 
-  // `excluded` = ids currently OFF (seeded once from server `!included`, then
-  // toggled directly — the single source of truth for "is this row off").
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
-  const seeded = useRef(false);
-  useEffect(() => {
-    if (!data || seeded.current) return;
-    seeded.current = true;
-    setExcluded(
-      new Set(data.budgets.filter((b) => !b.included).map((b) => b.id)),
-    );
-  }, [data]);
+  // Session-only toggles, keyed by budget id. Absent = defer to server truth.
+  const [overrides, setOverrides] = useState<Map<string, boolean>>(new Map());
+  const effIncluded = (b: AggregateBudgetRow) =>
+    !b.fx_unavailable &&
+    (overrides.has(b.id) ? overrides.get(b.id)! : b.included);
 
   if (isPending)
     return (
@@ -78,19 +81,15 @@ export function AggregateOverview() {
   const fmt = (cents: string | bigint) =>
     centsToRounded(cents, ccy, "en", true);
 
-  const included = rows.filter((b) => !excluded.has(b.id) && !b.fx_unavailable);
+  const included = rows.filter(effIncluded);
   const netWorth = sumCents(included, "net_worth_cents");
   const attention = included.filter((b) => b.health !== "green");
+  const heroValue = fmt(netWorth);
 
-  function toggle(id: string) {
-    const willBeOff = !excluded.has(id);
-    setExcluded((prev) => {
-      const next = new Set(prev);
-      if (willBeOff) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-    setFlag.mutate({ budgetId: id, included: !willBeOff });
+  function toggle(b: AggregateBudgetRow) {
+    const next = !effIncluded(b);
+    setOverrides((prev) => new Map(prev).set(b.id, next));
+    setFlag.mutate({ budgetId: b.id, included: next });
   }
 
   return (
@@ -103,9 +102,9 @@ export function AggregateOverview() {
           </p>
           <p
             data-testid="aggregate-hero"
-            className="num text-[var(--num-hero)] text-[length:var(--number-display)] font-bold"
+            className={`num text-[var(--num-hero)] ${heroFontClass(heroValue)}`}
           >
-            <SlotAmount value={fmt(netWorth)} />
+            <SlotAmount value={heroValue} />
           </p>
           <div className="mt-2 grid grid-cols-3 gap-2 text-caption">
             <div>
@@ -143,9 +142,9 @@ export function AggregateOverview() {
         {/* PER-BUDGET BREAKDOWN */}
         <section className="space-y-2">
           {rows.map((b) => {
-            const off = excluded.has(b.id);
+            const off = !effIncluded(b);
             const shareOfTotal =
-              !off && !b.fx_unavailable && netWorth > 0n
+              effIncluded(b) && netWorth > 0n
                 ? Number((BigInt(b.net_worth_cents) * 10000n) / netWorth) / 100
                 : null;
             return (
@@ -175,13 +174,13 @@ export function AggregateOverview() {
                 {b.my_share_pct < 100 && (
                   <span
                     data-testid={`aggregate-share-${b.id}`}
-                    className="text-caption text-[var(--muted-foreground)]"
+                    className="num text-caption text-[var(--muted-foreground)]"
                   >
                     {t("my_share", { pct: b.my_share_pct })}
                   </span>
                 )}
                 {shareOfTotal !== null && (
-                  <span className="text-caption text-[var(--muted-foreground)]">
+                  <span className="num text-caption text-[var(--muted-foreground)]">
                     {shareOfTotal}%
                   </span>
                 )}
@@ -190,15 +189,17 @@ export function AggregateOverview() {
                     <SlotAmount value={fmt(BigInt(b.net_worth_cents))} />
                   </span>
                 )}
-                <button
-                  type="button"
-                  data-testid={`aggregate-exclude-${b.id}`}
-                  onClick={() => toggle(b.id)}
-                  aria-pressed={!off}
-                  className="shrink-0 text-caption text-[var(--muted-foreground)]"
-                >
-                  {off ? "＋" : "－"}
-                </button>
+                {!b.fx_unavailable && (
+                  <button
+                    type="button"
+                    data-testid={`aggregate-exclude-${b.id}`}
+                    onClick={() => toggle(b)}
+                    aria-pressed={!off}
+                    className="shrink-0 text-caption text-[var(--muted-foreground)]"
+                  >
+                    {off ? "＋" : "－"}
+                  </button>
+                )}
               </div>
             );
           })}
