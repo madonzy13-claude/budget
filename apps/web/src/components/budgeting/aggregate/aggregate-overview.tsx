@@ -32,6 +32,7 @@ import {
   SlotRevealProvider,
 } from "@/components/budgeting/overview/slot-amount";
 import { centsToRounded } from "@/lib/cents-format";
+import { AggregateComposition } from "@/components/budgeting/aggregate/aggregate-composition";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
@@ -204,6 +205,18 @@ export function AggregateOverview() {
             );
           })}
         </section>
+
+        {/* WEALTH COMPOSITION */}
+        <AggregateComposition
+          cashCents={sumCents(included, "cash_cents").toString()}
+          investmentsCents={sumCents(included, "investments_cents").toString()}
+          reservesCents={(
+            sumCents(included, "reserves_cents") +
+            sumCents(included, "cushion_cents")
+          ).toString()}
+          currency={ccy}
+          locale={locale}
+        />
 
         {/* ATTENTION */}
         {attention.length > 0 && (

@@ -77,6 +77,12 @@ vi.mock("@/hooks/use-budgets-aggregate", () => ({
   }),
   useSetAggregationFlag: () => ({ mutate: setFlagMutate }),
 }));
+// The composition pie renders recharts (ResponsiveContainer/ResizeObserver),
+// which jsdom doesn't support — stub it like every other pie-chart caller's
+// tests do (see overview-sections.test.tsx).
+vi.mock("@/components/budgeting/charts/pie-chart", () => ({
+  OverviewPieChart: () => <div data-testid="pie-chart" />,
+}));
 
 beforeEach(() => {
   dataRef.current = DATA;
