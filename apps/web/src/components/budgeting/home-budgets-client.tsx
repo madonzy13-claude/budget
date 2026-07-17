@@ -13,10 +13,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { LAST_BUDGET_KEY } from "@/lib/last-budget";
-import { BudgetCardClient } from "@/components/budgeting/budget-card-client";
 import { BudgetCardSkeleton } from "@/components/budgeting/budget-card-skeleton";
 import { BdpOverviewSkeleton } from "@/components/budgeting/bdp-overview-skeleton";
 import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
+import { AggregateOverview } from "@/components/budgeting/aggregate/aggregate-overview";
 
 export function HomeBudgetsClient({ locale }: { locale: string }) {
   const t = useTranslations("home");
@@ -77,15 +77,19 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
       <h1 className="text-title-lg text-[var(--body-on-dark)] mb-6">
         {t("heading")}
       </h1>
-      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {showSkeleton
-          ? Array.from({ length: 3 }).map((_, i) => (
-              <BudgetCardSkeleton key={i} />
-            ))
-          : budgets.map((b) => (
-              <BudgetCardClient key={b.id} budget={b} locale={locale} />
-            ))}
-      </div>
+      {/* Task 16: the resolved explicit-list view (≥2 budgets — the only real
+       * (non-skeleton) budgets.length this branch ever sees, since 1 budget
+       * always redirects above) renders the cross-budget AggregateOverview
+       * instead of individual BudgetCardClient cards. */}
+      {showSkeleton ? (
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <BudgetCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <AggregateOverview />
+      )}
     </main>
   );
 }
