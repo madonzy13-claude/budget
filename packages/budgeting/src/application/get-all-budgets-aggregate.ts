@@ -41,6 +41,12 @@ export interface AggregateBudgetRow {
    *  on the Available-reserves and Cushion cards, matching the BDP overview. */
   reserves_required_cents: string;
   cushion_required_cents: string;
+  /** Cushion FULL saved + required (NO ownership share) — the cushion coverage
+   *  card is a household safety check ("do ALL cushion wallets cover ALL expected
+   *  cushion months across every applied budget?"), not a "my share of wealth"
+   *  figure, so these are un-fractionalized full amounts. */
+  cushion_saved_full_cents: string;
+  cushion_required_full_cents: string;
   /** Cushion runway in months (per-budget ratio, NOT scaled) — the client
    *  weight-combines these into an aggregate runway. */
   cushion_real_months: number;
@@ -161,6 +167,8 @@ function zeroRow(
     reserves_status: "ok",
     reserves_required_cents: "0",
     cushion_required_cents: "0",
+    cushion_saved_full_cents: "0",
+    cushion_required_full_cents: "0",
     cushion_real_months: 0,
     health,
     fx_unavailable: fxUnavailable,
@@ -295,6 +303,18 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             rate,
             displayCcy,
             s,
+          ),
+          cushion_saved_full_cents: toDisplayCcyFlow(
+            c.cushion.total_cents,
+            ccy,
+            rate,
+            displayCcy,
+          ),
+          cushion_required_full_cents: toDisplayCcyFlow(
+            c.cushion.required_cents,
+            ccy,
+            rate,
+            displayCcy,
           ),
           cushion_real_months: c.cushion.real_months,
           health: deriveHealth(c),

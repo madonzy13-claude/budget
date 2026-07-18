@@ -33,6 +33,8 @@ export interface AggregateBudgetRow {
   reserves_status: "ok" | "short" | "surplus";
   reserves_required_cents: string;
   cushion_required_cents: string;
+  cushion_saved_full_cents: string;
+  cushion_required_full_cents: string;
   cushion_real_months: number;
   pending_tasks: number;
   health: "red" | "amber" | "green";

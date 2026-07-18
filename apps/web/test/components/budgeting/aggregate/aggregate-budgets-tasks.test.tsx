@@ -1,12 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregate-budgets-tasks";
+
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (k: string) => k,
   useLocale: () => "en",
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
 }));
 vi.mock("@/lib/budget-fetch", () => ({
   clientApiFetch: vi.fn(async (url: string) => ({
@@ -45,9 +50,10 @@ describe("AggregateBudgetsTasks", () => {
       screen.getByTestId("aggregate-bt-budget-b1").getAttribute("href"),
     ).toBe("/en/budgets/b1/overview");
 
-    // b1's RESERVE_TOPUP task → the reserves pill (pillFor)
-    const taskLink = await screen.findByTestId("aggregate-bt-task-t1");
-    expect(taskLink.getAttribute("href")).toBe("/en/budgets/b1/reserves");
+    // b1's RESERVE_TOPUP task → clicking navigates to the reserves pill (pillFor).
+    const taskRow = await screen.findByTestId("aggregate-bt-task-t1");
+    fireEvent.click(taskRow);
+    expect(pushMock).toHaveBeenCalledWith("/en/budgets/b1/reserves");
 
     // b2 has no pending tasks
     expect(await screen.findByText("no_tasks")).toBeTruthy();

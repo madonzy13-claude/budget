@@ -10,6 +10,7 @@
 import { type ReactNode } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { pillFor } from "@/components/budgeting/tasks/kind-pill-map";
@@ -19,10 +20,10 @@ import {
 } from "@/components/budgeting/task-banner-row";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
-// Single sunken ("underground") surface for the whole banner — budgets + their
-// tasks sit directly on it, separated by spacing, NOT bordered sub-boxes.
+// Normal card surface — the budget rows sit on it; only their TASK lists drop to
+// the sunken "underground" lane below.
 const CARD =
-  "rounded-[var(--radius-xl)] bg-[var(--surface-sunken-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
+  "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
 
 /** Split a title on its money substrings, rendering each as a maskable
  *  SlotAmount so amounts hide until revealed while the words stay readable. */
@@ -51,19 +52,36 @@ function TaskLine({
   budgetId: string;
   locale: string;
 }) {
+  const router = useRouter();
   const { title, amounts } = useTaskTitle(task, budgetId);
+  const href = `/${locale}/budgets/${budgetId}/${pillFor(task.kind)}`;
+  // NOT an <a>: a native anchor navigates on any child click, so tapping a
+  // blurred amount jumped to the budget instead of revealing it. A div + router
+  // lets the amount's SlotAmount (which stopPropagation()s) reveal in place,
+  // while a tap anywhere else on the row navigates to the task's pill.
   return (
-    <Link
-      href={`/${locale}/budgets/${budgetId}/${pillFor(task.kind)}`}
+    <div
+      role="link"
+      tabIndex={0}
       data-testid={`aggregate-bt-task-${task.id}`}
-      className="flex min-h-7 items-center gap-2 pl-4 text-sm text-[var(--muted-foreground)] hover:text-[var(--primary)]"
+      onClick={() => router.push(href)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          router.push(href);
+        }
+      }}
+      className="flex min-h-7 cursor-pointer items-start gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--primary)]"
     >
       <span
-        className="size-1 shrink-0 rounded-full bg-[var(--primary)]"
+        className="mt-[0.5em] size-1 shrink-0 rounded-full bg-[var(--primary)]"
         aria-hidden="true"
       />
-      <span className="num truncate">{maskAmounts(title, amounts)}</span>
-    </Link>
+      {/* Wrap (no truncate) so the full task message shows. */}
+      <span className="num min-w-0 flex-1 whitespace-normal break-words">
+        {maskAmounts(title, amounts)}
+      </span>
+    </div>
   );
 }
 
@@ -94,7 +112,8 @@ function BudgetRow({
   const list = tasks ?? [];
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
+      {/* Budget header — normal (sits on the card surface). */}
       <Link
         href={`/${locale}/budgets/${id}/overview`}
         className="flex items-center justify-between gap-2"
@@ -110,11 +129,14 @@ function BudgetRow({
         )}
       </Link>
       {list.length > 0 ? (
-        list.map((task) => (
-          <TaskLine key={task.id} task={task} budgetId={id} locale={locale} />
-        ))
+        // Only the TASKS drop to the sunken "underground" lane.
+        <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-sunken-dark)] p-2.5">
+          {list.map((task) => (
+            <TaskLine key={task.id} task={task} budgetId={id} locale={locale} />
+          ))}
+        </div>
       ) : (
-        <p className="pl-4 text-caption text-[var(--muted-foreground)]">
+        <p className="text-caption text-[var(--muted-foreground)]">
           {t("no_tasks")}
         </p>
       )}

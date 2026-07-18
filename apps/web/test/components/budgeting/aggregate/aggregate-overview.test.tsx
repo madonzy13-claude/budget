@@ -30,6 +30,8 @@ function makeBudget(overrides: Record<string, unknown>) {
     reserves_status: "ok",
     reserves_required_cents: "120000",
     cushion_required_cents: "0",
+    cushion_saved_full_cents: "50000",
+    cushion_required_full_cents: "0",
     cushion_real_months: 0,
     pending_tasks: 1,
     health: "green",
