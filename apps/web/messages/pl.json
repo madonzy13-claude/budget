@@ -472,7 +472,7 @@
       "feature_help_text": "Licz ten budżet do łącznego majątku.",
       "feature_on_toast": "Uwzględniono w Twojej sumie",
       "feature_off_toast": "Wykluczono z Twojej sumy",
-      "share_label": "Twój udział",
+      "share_label": "Procent majątku w podsumowaniu budżetów",
       "share_help": "Jaka część majątku tego budżetu liczy się do Twojej sumy (0-100%).",
       "error_save": "Nie udało się zapisać. Spróbuj ponownie."
     },
