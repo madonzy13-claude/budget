@@ -62,19 +62,27 @@ export interface AggregateWealth {
   grow: { delta_cents: string; delta_pct: number };
 }
 
-export function useAggregateWealth(includeIds: string[], range: string) {
+/** Combined net-worth trend over an explicit [from, to] window (YYYY-MM-DD).
+ *  The hero P/L passes a today-only window; the chart passes the range selector's
+ *  window. `grow` comes back range-scoped (last − first). */
+export function useAggregateWealth(
+  includeIds: string[],
+  from: string,
+  to: string,
+) {
   return useQuery({
     queryKey: [
       "budgets",
       "aggregate",
       "wealth",
-      range,
+      from,
+      to,
       [...includeIds].sort().join(","),
     ],
-    enabled: includeIds.length > 0,
+    enabled: includeIds.length > 0 && !!from && !!to,
     queryFn: async (): Promise<AggregateWealth> => {
       const res = await clientApiFetch(
-        `/budgets/aggregate/wealth?range=${range}&include=${includeIds.join(",")}`,
+        `/budgets/aggregate/wealth?from=${from}&to=${to}&include=${includeIds.join(",")}`,
       );
       if (!res.ok) throw new Error("aggregate wealth failed");
       return res.json();

@@ -541,13 +541,23 @@ export async function boot(): Promise<BootedDeps> {
       },
       getAggPrefsForUser: (userId: string) =>
         tenancy.workspaceRepo.getAggPrefsForUser(userId),
-      getWealthForBudget: async ({ tenantId, budgetId, range }) => {
-        const { from, to } = rangeToFromTo(range, new Date());
+      getWealthForBudget: async ({
+        tenantId,
+        budgetId,
+        range,
+        from: fromArg,
+        to: toArg,
+      }) => {
+        // Explicit window wins over the range code (custom range / today P/L).
+        const win =
+          fromArg && toArg
+            ? { from: fromArg, to: toArg }
+            : rangeToFromTo(range, new Date());
         const result = await budgetingFinal.getOverviewWealth({
           tenantId,
           budgetId,
-          from,
-          to,
+          from: win.from,
+          to: win.to,
           view: "capitalization",
         });
         if (result.isErr()) {

@@ -42,11 +42,15 @@ export interface GetAggregateWealthTrendDeps {
       { ownership_share_pct: number; include_in_aggregation: boolean }
     >
   >;
-  /** Per-budget Financial-Wealth series (adapts get-overview-wealth). */
+  /** Per-budget Financial-Wealth series (adapts get-overview-wealth). When
+   *  `from`/`to` (YYYY-MM-DD) are given they win over the `range` code — lets
+   *  callers pass an explicit window (custom range, or a today-only P/L slice). */
   getWealthForBudget: (input: {
     tenantId: string;
     budgetId: string;
     range: string;
+    from?: string;
+    to?: string;
   }) => Promise<{
     currency: string;
     series: { label: string; value_cents: bigint }[];
@@ -63,6 +67,9 @@ export interface GetAggregateWealthTrendInput {
   userId: string;
   range: string;
   includeIds: string[];
+  /** Explicit window (YYYY-MM-DD); wins over `range` when both present. */
+  from?: string;
+  to?: string;
 }
 
 /** FX hop (today's rate) + ownership share — mirrors getAllBudgetsAggregate's
@@ -102,6 +109,8 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
           tenantId: b.id,
           budgetId: b.id,
           range: input.range,
+          ...(input.from ? { from: input.from } : {}),
+          ...(input.to ? { to: input.to } : {}),
         });
         const { rate } = await deps.fxProvider.rateAsOf(
           w.currency as Currency,

@@ -6,6 +6,9 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (k: string) => k,
   useLocale: () => "en",
 }));
+vi.mock("@/components/common/user-timezone-provider", () => ({
+  useUserTimezone: () => "UTC",
+}));
 vi.mock("@/hooks/use-budgets-aggregate", () => ({
   useAggregateWealth: () => ({
     data: {
@@ -19,16 +22,25 @@ vi.mock("@/hooks/use-budgets-aggregate", () => ({
     isPending: false,
   }),
 }));
-vi.mock("@/components/budgeting/charts/line-chart", () => ({
-  OverviewLineChart: ({ data }: { data: any[] }) => (
-    <div data-testid="line">{data.length}</div>
+// BDP wealth section renders an AREA chart (not line) + the shared range selector.
+vi.mock("@/components/budgeting/charts/area-chart", () => ({
+  OverviewAreaChart: ({ data }: { data: any[] }) => (
+    <div data-testid="area">{data.length}</div>
   ),
+}));
+vi.mock("@/components/budgeting/overview/range-selector", () => ({
+  RangeSelector: () => <div data-testid="range-selector" />,
 }));
 
 describe("AggregateTrend", () => {
-  it("renders the combined series", () => {
+  it("renders the area chart + range selector + grow badge", () => {
     render(<AggregateTrend includeIds={["b1", "b2"]} />);
     expect(screen.getByTestId("aggregate-trend")).toBeTruthy();
-    expect(screen.getByTestId("line").textContent).toBe("2");
+    expect(screen.getByTestId("range-selector")).toBeTruthy();
+    expect(screen.getByTestId("area").textContent).toBe("2");
+    // range-scoped grow badge (amount + signed %)
+    expect(screen.getByTestId("aggregate-trend-grow").textContent).toMatch(
+      /130\.0%/,
+    );
   });
 });

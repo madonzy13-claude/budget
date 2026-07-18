@@ -26,11 +26,15 @@ export function budgetsAggregateRoutesFactory(deps: AggregateDeps) {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
     const range = c.req.query("range") ?? "6M";
+    const from = c.req.query("from");
+    const to = c.req.query("to");
     const include = (c.req.query("include") ?? "").split(",").filter(Boolean);
     const out = await deps.budgeting.getAggregateWealthTrend({
       userId: session.user.id,
       range,
       includeIds: include,
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
     });
     return c.json(out);
   });
