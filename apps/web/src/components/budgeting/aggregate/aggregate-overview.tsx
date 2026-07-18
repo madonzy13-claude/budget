@@ -189,11 +189,13 @@ export function AggregateOverview() {
       : Infinity;
   const runwayUnits = { y: t("runway_y"), m: t("runway_m"), d: t("runway_d") };
 
-  // Net-worth flip back (#5): how long the combined net worth lasts at the
-  // current total monthly spend across all budgets (netWorth ÷ Σspend).
+  // Net-worth flip back: how long the combined net worth lasts at the monthly
+  // PLANNED spend (cushion-aware — activeBudget swaps to the cushion amount in
+  // cushion mode; excludes Investments), NOT spent-this-month. netWorth ÷ Σplanned.
+  const plannedTotal = sumCents(summable, "monthly_planned_cents");
   const nwRunwayMonths =
-    spentTotal > 0n ? Number(netWorth) / Number(spentTotal) : Infinity;
-  const nwUnlimited = spentTotal <= 0n && netWorth > 0n;
+    plannedTotal > 0n ? Number(netWorth) / Number(plannedTotal) : Infinity;
+  const nwUnlimited = plannedTotal <= 0n && netWorth > 0n;
   const canFlip = summable.length > 0 && netWorth > 0n;
 
   // Full-words duration ("13 years and 6 months"), zero components dropped —

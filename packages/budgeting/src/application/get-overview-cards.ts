@@ -126,6 +126,11 @@ export interface OverviewCards {
    * — "how long could I survive if I retire now" (item 5). null = no planned spend
    * (would last forever). */
   retirement_months: number | null;
+  /** Effective monthly planned spend = Σ active-budget of non-Investment
+   * categories (activeBudget = the category's cushion amount when the budget is in
+   * cushion mode, else its normal planned). This is the "money runway" burn rate —
+   * planned spend, cushion-aware — NOT spent-this-month. */
+  monthly_planned_cents: bigint;
   /** Annual inflation % baked into the retirement simulation (item 8). */
   retirement_inflation_pct: number;
   available_reserves_cents: bigint;
@@ -276,6 +281,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // availableToSpend. "good" = wallets cover what's left.
       let spentThisMonth = 0n;
       let monthlyPlanned = 0n;
+      let monthlyEffectivePlanned = 0n;
       let leftToSpend = 0n;
       for (const c of spendings.categories) {
         if (c.archived) continue;
@@ -283,6 +289,10 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         // Retirement spend EXCLUDES the Investments category: once retired there's
         // no income, so you stop investing — its planned amount isn't a cost.
         if (!c.isInvestment) monthlyPlanned += BigInt(c.plannedCents);
+        // Effective planned = active budget (cushion amount in cushion mode, else
+        // planned) — the money-runway burn rate. Also excludes Investments.
+        if (!c.isInvestment)
+          monthlyEffectivePlanned += BigInt(c.activeBudgetCents);
         const leftover = BigInt(c.activeBudgetCents) - BigInt(c.spentCents);
         const leftoverPos = leftover > 0n ? leftover : 0n;
         const catUpcoming = upcoming.get(c.categoryId) ?? 0n;
@@ -342,6 +352,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       return ok({
         default_currency: defaultCcy,
         available_to_spend_cents: availableToSpend,
+        monthly_planned_cents: monthlyEffectivePlanned,
         spendings: {
           spent_cents: spentThisMonth,
           left_cents: leftToSpend,

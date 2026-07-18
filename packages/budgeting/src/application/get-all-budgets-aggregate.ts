@@ -55,6 +55,9 @@ export interface AggregateBudgetRow {
   cushion_monthly_cents: string;
   /** Cushion runway in months (per-budget ratio, NOT scaled). */
   cushion_real_months: number;
+  /** Effective monthly planned spend (cushion-aware, share-scaled to match net
+   *  worth) — the net-worth "money runway" divisor: netWorth ÷ Σ planned. */
+  monthly_planned_cents: string;
   pending_tasks: number;
   health: "red" | "amber" | "green";
   included: boolean;
@@ -178,6 +181,7 @@ function zeroRow(
     cushion_required_full_cents: "0",
     cushion_monthly_cents: "0",
     cushion_real_months: 0,
+    monthly_planned_cents: "0",
     health,
     fx_unavailable: fxUnavailable,
   };
@@ -342,6 +346,13 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             displayCcy,
           ),
           cushion_real_months: c.cushion.real_months,
+          monthly_planned_cents: toDisplayCcyShared(
+            c.monthly_planned_cents,
+            ccy,
+            rate,
+            displayCcy,
+            s,
+          ),
           health: deriveHealth(c),
           fx_unavailable: false,
         };

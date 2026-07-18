@@ -17,6 +17,7 @@ import { getAllBudgetsAggregate } from "../src/application/get-all-budgets-aggre
 const cards = (over: Partial<any> = {}) => ({
   default_currency: "EUR",
   available_to_spend_cents: 100000n,
+  monthly_planned_cents: 80000n,
   capitalization_cents: 1000000n,
   investment_value_cents: 400000n,
   available_reserves_cents: 200000n,
