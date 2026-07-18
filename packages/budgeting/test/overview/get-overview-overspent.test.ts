@@ -195,6 +195,57 @@ describe("getOverviewOverspent", () => {
     expect(c.overspent_cents).toBe("15000");
   });
 
+  test("excludes the Investments category — over-investing is not overspending", async () => {
+    const investRepo: GetOverviewOverspentDeps["overviewRepo"] = {
+      async monthlySpendByCategory() {
+        return [
+          { category_id: "A", month: "2026-01", spent_cents: 25000n }, // Food over by 5000
+          { category_id: "INV", month: "2026-01", spent_cents: 99999n }, // Investments "over" — MUST be excluded
+        ];
+      },
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "A", month: "2026-01", planned_cents: 20000n },
+          { category_id: "INV", month: "2026-01", planned_cents: 10000n },
+        ];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "Food",
+            created_month: "2025-06",
+            archived_month: null,
+            is_investment: false,
+          },
+          {
+            category_id: "INV",
+            name: "Investments",
+            created_month: "2025-06",
+            archived_month: null,
+            is_investment: true,
+          },
+        ];
+      },
+    };
+    const dto = (
+      await getOverviewOverspent({ ...deps(), overviewRepo: investRepo })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+      })
+    )._unsafeUnwrap();
+    // The Investments category is never "overspent" — excluded from the bar + total.
+    expect(dto.overspent_by_category.map((c) => c.category_id)).not.toContain(
+      "INV",
+    );
+    expect(dto.overspent_by_category).toEqual([
+      { category_id: "A", name: "Food", overspent_cents: "5000" },
+    ]);
+    expect(dto.overspent_total_cents).toBe("5000");
+  });
+
   test("reserves_by_category mirrors get-reserves-summary rows[].reserveCents", async () => {
     const dto = (
       await getOverviewOverspent(deps())({

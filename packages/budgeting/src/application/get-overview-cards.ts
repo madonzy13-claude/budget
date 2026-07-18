@@ -310,7 +310,12 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // Overspent: after-reserves overspent from the spendings grid, archived
       // categories excluded (D-06), top-N + total count.
       const overspentCats = spendings.categories
-        .filter((c) => !c.archived && BigInt(c.overspentCents) > 0n)
+        // Investments excluded — over-investing isn't overspending (mirrors the
+        // retirement-runway "Excludes Investments" filter above).
+        .filter(
+          (c) =>
+            !c.archived && !c.isInvestment && BigInt(c.overspentCents) > 0n,
+        )
         .sort((a, b) =>
           BigInt(b.overspentCents) > BigInt(a.overspentCents)
             ? 1
