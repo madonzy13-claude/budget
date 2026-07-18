@@ -99,8 +99,9 @@ export async function createTestBudgetWithOwner(): Promise<{
 /**
  * Adds a second member to `budgetId` via the same RLS-safe write path the
  * share-link accept flow uses (`joinAsMember`). The accepted member's row
- * gets `ownership_share_pct` from the column DEFAULT (0) — untouched by
- * this helper or by production code (Task 5 scope: default handles it).
+ * gets `ownership_share_pct` from the column DEFAULT (100) — untouched by
+ * this helper or by production code; each member self-sets their own share
+ * later if they want a different value.
  */
 export async function addMemberViaAccept(budgetId: string): Promise<string> {
   const sender = new StdoutEmailSender();

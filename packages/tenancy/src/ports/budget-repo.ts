@@ -51,15 +51,6 @@ export interface BudgetRepo {
    * the route layer doesn't carry forward cleanly).
    */
   leaveAsMember(budgetId: string, userId: string): Promise<void>;
-  /**
-   * Fold `departingUserId`'s current ownership_share_pct into the SINGLE
-   * canonical owner (tenancy.budgets.owner_user_id) — not every row with
-   * role='owner', so a multi-owner budget doesn't over-credit every owner.
-   * Does NOT delete the departing row. Callers run this immediately before
-   * removing a member so total share stays at 100. Shared by both removal
-   * surfaces: leaveAsMember (self-leave) and the owner-initiated revoke route.
-   */
-  foldShareIntoOwner(budgetId: string, departingUserId: string): Promise<void>;
   /** Soft-delete: sets archived_at = now(). One-way in v1.1 — no unarchive. */
   archive(
     budgetId: string,
@@ -86,17 +77,14 @@ export interface BudgetRepo {
     budgetId: string,
   ): Promise<{ userId: string; pct: number }[]>;
   /**
-   * Batch-set every member's ownership_share_pct in one tx. Caller
-   * (owner-only route, Task 8) pre-validates the shares sum to 100.
+   * Self-service: set one member's include_in_aggregation flag and,
+   * optionally, their own ownership_share_pct. No cross-member Σ=100
+   * constraint — each member freely picks how much of THIS budget's
+   * wealth counts toward THEIR all-budgets total (default 100).
    */
-  setMemberShares(
-    budgetId: string,
-    shares: { userId: string; pct: number }[],
-  ): Promise<void>;
-  /** Set one member's include_in_aggregation flag (self-service). */
-  setMemberAggregation(
+  setMemberAggregationSettings(
     budgetId: string,
     userId: string,
-    included: boolean,
+    settings: { included: boolean; sharePct?: number },
   ): Promise<void>;
 }

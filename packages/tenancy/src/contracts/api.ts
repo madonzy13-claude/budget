@@ -40,8 +40,6 @@ export interface MemberDTO {
   name?: string;
   /** Email from identity.users — undefined if row missing */
   email?: string;
-  /** Task 12: this member's ownership share of the budget (0..100, Σ=100 across members). */
-  ownership_share_pct: number;
 }
 
 export interface MemberShareDTO {

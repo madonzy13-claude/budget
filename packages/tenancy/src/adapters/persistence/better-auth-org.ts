@@ -135,8 +135,13 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         await assertCurrencyChangeAllowed({ orgId, actorUserId });
       },
 
-      // Budget gains member → insert 0% share row (kind-removal: every budget,
-      // not just SHARED — a budget becomes "shared" simply by having >1 member).
+      // Budget gains member → insert 0% legacy contribution-split row
+      // (kind-removal: every budget, not just SHARED — a budget becomes
+      // "shared" simply by having >1 member). This is the separate, untouched
+      // legacy shared_budget_member_shares system (packages/tenancy/src/domain/share.ts).
+      // ownership_share_pct (the new self-set all-budgets-aggregate share)
+      // needs no hook here — its column DEFAULT (100) handles every member,
+      // owner and invitee alike.
       // PC-03: use withTenantTx(budgetId, userId, fn) — extended signature sets BOTH
       // app.tenant_ids AND app.current_user_id GUCs in same SET LOCAL pair.
       afterAddMember: async ({ member, organization }) => {
@@ -147,13 +152,6 @@ export function createOrganizationPlugin(deps: OrgDeps) {
           (member as { user_id?: string; userId?: string }).user_id ??
           (member as { userId?: string }).userId ??
           "";
-        // Task 5: this hook fires on org creation too (Better Auth's
-        // createOrganization internally calls addMember for the creator with
-        // role "owner"), which is the only point where the owner's
-        // tenancy.budget_members row exists to patch. The column DEFAULT (0)
-        // is correct for every other add (invited members) — only the owner
-        // needs the bump to 100%.
-        const memberRole = (member as { role?: string }).role;
         const r = await withTenantTx(
           TenantId(org.id),
           UserId(memberUserId),
@@ -163,13 +161,6 @@ export function createOrganizationPlugin(deps: OrgDeps) {
               VALUES (${org.id}, ${memberUserId}, 0)
               ON CONFLICT DO NOTHING
             `);
-            if (memberRole === "owner") {
-              await tx.execute(sql`
-                UPDATE tenancy.budget_members
-                   SET ownership_share_pct = 100
-                 WHERE budget_id = ${org.id}::uuid AND user_id = ${memberUserId}::uuid
-              `);
-            }
           },
         );
         if (r.isErr()) throw r.error;

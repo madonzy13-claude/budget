@@ -1,12 +1,11 @@
 /**
- * Task 3: repo reads for member aggregation prefs.
+ * Repo reads for member aggregation prefs.
  * Integration test — runs against testcontainer Postgres.
  *
- * Note: a freshly-created budget's owner share defaults to 0 (Task 5, which
- * sets it to 100 on create, is not done yet). We seed a budget+owner via the
- * normal create path, then raw-UPDATE the owner's row to a known state
- * (100 / included) so this test exercises the READ path (column mapping)
- * without depending on Task 5's create-time default.
+ * We seed a budget+owner via the normal create path, then raw-UPDATE the
+ * owner's row to a known state (100 / included) so this test exercises the
+ * READ path (column mapping) explicitly rather than relying on the column
+ * DEFAULT (also 100, since Task 5).
  */
 import { test, expect, beforeAll } from "bun:test";
 import { sql } from "drizzle-orm";
@@ -102,14 +101,4 @@ test("listMemberShares returns the owner at 100", async () => {
   const repo = new DrizzleBudgetRepo();
   const shares = await repo.listMemberShares(budgetId);
   expect(shares).toContainEqual({ userId: ownerUserId, pct: 100 });
-});
-
-// Task 12: the owner ownership-share editor reads current shares off
-// listMembers (not listMemberShares) — MemberDTO must carry the column.
-test("listMembers includes ownership_share_pct for the owner", async () => {
-  const { budgetId, ownerUserId } = await createTestBudgetWithOwner();
-  const repo = new DrizzleBudgetRepo();
-  const members = await repo.listMembers(budgetId);
-  const owner = members.find((m) => m.userId === ownerUserId);
-  expect(owner?.ownership_share_pct).toBe(100);
 });

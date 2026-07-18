@@ -1,7 +1,7 @@
 /**
- * Task 4: repo WRITE methods for member aggregation (setMemberShares,
- * setMemberAggregation). Integration test — runs against testcontainer
- * Postgres.
+ * Repo WRITE method for member aggregation self-settings
+ * (setMemberAggregationSettings). Integration test — runs against
+ * testcontainer Postgres.
  *
  * No `createSharedBudgetWithTwoMembers` helper exists yet — seed via the
  * same path Task 3's test used (signUpHelper + createWorkspace) for the
@@ -87,26 +87,41 @@ async function createSharedBudgetWithTwoMembers() {
   return { budgetId, ownerUserId, memberUserId };
 }
 
-test("setMemberShares persists a 60/40 split", async () => {
+test("setMemberAggregationSettings flips only the caller's include flag", async () => {
   const { budgetId, ownerUserId, memberUserId } =
     await createSharedBudgetWithTwoMembers();
   const repo = new DrizzleBudgetRepo();
-  await repo.setMemberShares(budgetId, [
-    { userId: ownerUserId, pct: 60 },
-    { userId: memberUserId, pct: 40 },
-  ]);
-  const shares = await repo.listMemberShares(budgetId);
-  expect(shares).toContainEqual({ userId: ownerUserId, pct: 60 });
-  expect(shares).toContainEqual({ userId: memberUserId, pct: 40 });
-});
-
-test("setMemberAggregation flips only the caller's row", async () => {
-  const { budgetId, ownerUserId, memberUserId } =
-    await createSharedBudgetWithTwoMembers();
-  const repo = new DrizzleBudgetRepo();
-  await repo.setMemberAggregation(budgetId, memberUserId, false);
+  await repo.setMemberAggregationSettings(budgetId, memberUserId, {
+    included: false,
+  });
   const prefs = await repo.getAggPrefsForUser(memberUserId);
   expect(prefs.get(budgetId)?.include_in_aggregation).toBe(false);
   const ownerPrefs = await repo.getAggPrefsForUser(ownerUserId);
   expect(ownerPrefs.get(budgetId)?.include_in_aggregation).toBe(true);
+});
+
+test("setMemberAggregationSettings persists sharePct alongside included (self, no Σ=100 check)", async () => {
+  const { budgetId, memberUserId } = await createSharedBudgetWithTwoMembers();
+  const repo = new DrizzleBudgetRepo();
+  await repo.setMemberAggregationSettings(budgetId, memberUserId, {
+    included: true,
+    sharePct: 42,
+  });
+  const prefs = await repo.getAggPrefsForUser(memberUserId);
+  expect(prefs.get(budgetId)).toEqual({
+    ownership_share_pct: 42,
+    include_in_aggregation: true,
+  });
+});
+
+test("setMemberAggregationSettings without sharePct leaves the share unchanged", async () => {
+  const { budgetId, memberUserId } = await createSharedBudgetWithTwoMembers();
+  const repo = new DrizzleBudgetRepo();
+  const before = await repo.getAggPrefsForUser(memberUserId);
+  const sharePctBefore = before.get(budgetId)?.ownership_share_pct;
+  await repo.setMemberAggregationSettings(budgetId, memberUserId, {
+    included: false,
+  });
+  const after = await repo.getAggPrefsForUser(memberUserId);
+  expect(after.get(budgetId)?.ownership_share_pct).toBe(sharePctBefore!);
 });

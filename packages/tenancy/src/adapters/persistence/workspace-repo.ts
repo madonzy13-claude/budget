@@ -15,34 +15,6 @@ import type { BudgetDTO, MemberDTO, MemberShareDTO } from "../../contracts/api";
 import type { BudgetRepo } from "../../ports/budget-repo";
 import type { MemberShareRepo } from "../../ports/member-repo";
 
-// Derived from withBootstrapUserContext's own callback param — no separate
-// Tx type is exported by @budget/platform to import instead.
-type Tx = Parameters<Parameters<typeof withBootstrapUserContext>[1]>[0];
-
-/**
- * Task 5 fix: fold `departingUserId`'s current share into the SINGLE
- * canonical owner row (tenancy.budgets.owner_user_id) — NOT `WHERE
- * role='owner'`, which would credit every owner on a multi-owner budget and
- * push Σ over 100. Runs inside the caller's already-open tx (which must
- * already have app.tenant_ids set for FORCE RLS). If departingUserId is
- * itself the resolved owner (single-owner leave), this is a harmless
- * self-add — that row is about to be deleted anyway.
- */
-async function foldShareIntoOwnerSql(
-  tx: Tx,
-  budgetId: string,
-  departingUserId: string,
-): Promise<void> {
-  await tx.execute(sql`
-    UPDATE tenancy.budget_members
-       SET ownership_share_pct = ownership_share_pct +
-           COALESCE((SELECT m.ownership_share_pct FROM tenancy.budget_members m
-                     WHERE m.budget_id = ${budgetId}::uuid AND m.user_id = ${departingUserId}::uuid), 0)
-     WHERE budget_id = ${budgetId}::uuid
-       AND user_id = (SELECT owner_user_id FROM tenancy.budgets WHERE id = ${budgetId}::uuid)
-  `);
-}
-
 export class DrizzleBudgetRepo implements BudgetRepo {
   async findById(id: string): Promise<BudgetDTO | null> {
     // withInfraTx: infrastructure carve-out (PC-04). findById is called in bootstrap paths
@@ -245,10 +217,9 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         created_at: Date;
         name: string | null;
         email: string | null;
-        ownership_share_pct: number;
       }>(
         sql`SELECT bm.budget_id, bm.user_id, bm.role, bm.created_at,
-                   u.name, u.email, bm.ownership_share_pct
+                   u.name, u.email
             FROM tenancy.budget_members bm
             LEFT JOIN identity.users u ON u.id = bm.user_id
             WHERE bm.budget_id = ${budgetId}`,
@@ -263,7 +234,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       joinedAt: row.created_at,
       name: row.name ?? undefined,
       email: row.email ?? undefined,
-      ownership_share_pct: Number(row.ownership_share_pct),
     }));
   }
 
@@ -479,13 +449,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         }
       }
 
-      // Task 5: fold the departing member's ownership share into the single
-      // canonical owner before the row is gone, so total share stays at 100.
-      // Shared with foldShareIntoOwner (used by the owner-revoke route) —
-      // reused here (not called as a separate tx) so the fold + last-owner
-      // check + DELETE all stay atomic in this one transaction.
-      await foldShareIntoOwnerSql(tx, budgetId, userId);
-
       const del = await tx.execute(sql`
         DELETE FROM tenancy.budget_members
          WHERE budget_id = ${budgetId}::uuid
@@ -502,32 +465,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         `);
       }
     });
-    if (r.isErr()) throw r.error;
-  }
-
-  /**
-   * Standalone entry point for foldShareIntoOwnerSql — used by callers that
-   * don't already hold an open tx (the owner-initiated revoke route, which
-   * calls this BEFORE auth.api.removeMember so the member row still exists
-   * to read its share from). leaveAsMember reuses the SQL directly inside
-   * its own tx instead of calling this, to keep fold + delete atomic.
-   * Same withBootstrapUserContext + manual SET LOCAL app.tenant_ids pattern
-   * as leaveAsMember — the budget_members_tenant_update RLS policy only
-   * checks app.tenant_ids, not app.current_user_id, so it works regardless
-   * of whose id the GUC carries.
-   */
-  async foldShareIntoOwner(
-    budgetId: string,
-    departingUserId: string,
-  ): Promise<void> {
-    const safeId = budgetId.replace(/[^a-fA-F0-9-]/g, "");
-    const r = await withBootstrapUserContext(
-      UserId(departingUserId),
-      async (tx) => {
-        await tx.execute(sql.raw(`SET LOCAL app.tenant_ids = '{${safeId}}'`));
-        await foldShareIntoOwnerSql(tx, budgetId, departingUserId);
-      },
-    );
     if (r.isErr()) throw r.error;
   }
 
@@ -737,50 +674,35 @@ export class DrizzleBudgetRepo implements BudgetRepo {
   }
 
   /**
-   * Batch UPDATE, one statement per member, in ONE withTenantTx (same
-   * write path as setMemberRole — budget_members has FORCE RLS, so a bare
-   * appDb() write silently affects 0 rows). No actorUserId in the port
-   * signature: the tenant_isolation write policy on budget_members only
-   * checks budget_id ∈ app.tenant_ids, not app.current_user_id, so any
-   * member of the batch is a valid GUC subject. Caller (Task 8) is
-   * owner-gated and pre-validates the shares sum to 100.
+   * Self-service: userId is both the tx actor and the row being updated, so
+   * this can never write another member's row. `sharePct`, when provided,
+   * is the caller's own self-set ownership_share_pct — no Σ=100 constraint
+   * across a budget's members (each member picks their own share of THIS
+   * budget's wealth that counts toward THEIR all-budgets total).
    */
-  async setMemberShares(
-    budgetId: string,
-    shares: { userId: string; pct: number }[],
-  ): Promise<void> {
-    if (shares.length === 0) return;
-    const r = await withTenantTx(
-      TenantId(budgetId),
-      UserId(shares[0]!.userId),
-      async (tx) => {
-        for (const s of shares) {
-          await tx.execute(sql`
-            UPDATE tenancy.budget_members
-               SET ownership_share_pct = ${s.pct}
-             WHERE budget_id = ${budgetId}::uuid AND user_id = ${s.userId}::uuid
-          `);
-        }
-      },
-    );
-    if (r.isErr()) throw r.error;
-  }
-
-  /** Self-service: userId is both the tx actor and the row being updated. */
-  async setMemberAggregation(
+  async setMemberAggregationSettings(
     budgetId: string,
     userId: string,
-    included: boolean,
+    settings: { included: boolean; sharePct?: number },
   ): Promise<void> {
     const r = await withTenantTx(
       TenantId(budgetId),
       UserId(userId),
       async (tx) => {
-        await tx.execute(sql`
-          UPDATE tenancy.budget_members
-             SET include_in_aggregation = ${included}
-           WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
-        `);
+        if (settings.sharePct !== undefined) {
+          await tx.execute(sql`
+            UPDATE tenancy.budget_members
+               SET include_in_aggregation = ${settings.included},
+                   ownership_share_pct = ${settings.sharePct}
+             WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+          `);
+        } else {
+          await tx.execute(sql`
+            UPDATE tenancy.budget_members
+               SET include_in_aggregation = ${settings.included}
+             WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+          `);
+        }
       },
     );
     if (r.isErr()) throw r.error;

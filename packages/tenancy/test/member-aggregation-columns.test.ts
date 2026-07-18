@@ -8,7 +8,7 @@ beforeAll(async () => {
 }, 120_000);
 
 describe("budget_members aggregation columns", () => {
-  it("has ownership_share_pct (default 0) and include_in_aggregation (default true)", async () => {
+  it("has ownership_share_pct (default 100) and include_in_aggregation (default true)", async () => {
     const cols = await appDb().execute<{
       column_name: string;
       column_default: string;
@@ -23,6 +23,6 @@ describe("budget_members aggregation columns", () => {
     expect(byName["include_in_aggregation"]?.is_nullable).toBe("NO");
     expect(byName["include_in_aggregation"]?.column_default).toContain("true");
     expect(byName["ownership_share_pct"]?.is_nullable).toBe("NO");
-    expect(byName["ownership_share_pct"]?.column_default).toContain("0");
+    expect(byName["ownership_share_pct"]?.column_default).toContain("100");
   });
 });
