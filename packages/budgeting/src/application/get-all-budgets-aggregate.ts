@@ -31,8 +31,19 @@ export interface AggregateBudgetRow {
   left_month_cents: string;
   overspent_total_cents: string;
   overspent_count: number;
+  /** Top overspent category (single highest across the budget) — for the
+   *  Overspent card caption. null when nothing is overspent. */
+  overspent_top_name: string | null;
+  overspent_top_cents: string;
   cushion_breached: boolean;
   reserves_status: "ok" | "short" | "surplus";
+  /** Reserve required vs cushion required (share-scaled) — the "Needed" lines
+   *  on the Available-reserves and Cushion cards, matching the BDP overview. */
+  reserves_required_cents: string;
+  cushion_required_cents: string;
+  /** Cushion runway in months (per-budget ratio, NOT scaled) — the client
+   *  weight-combines these into an aggregate runway. */
+  cushion_real_months: number;
   pending_tasks: number;
   health: "red" | "amber" | "green";
   included: boolean;
@@ -144,8 +155,13 @@ function zeroRow(
     left_month_cents: "0",
     overspent_total_cents: "0",
     overspent_count: 0,
+    overspent_top_name: null,
+    overspent_top_cents: "0",
     cushion_breached: false,
     reserves_status: "ok",
+    reserves_required_cents: "0",
+    cushion_required_cents: "0",
+    cushion_real_months: 0,
     health,
     fx_unavailable: fxUnavailable,
   };
@@ -255,8 +271,32 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             displayCcy,
           ),
           overspent_count: c.overspent.count,
+          overspent_top_name: c.overspent.top[0]?.name ?? null,
+          overspent_top_cents: c.overspent.top[0]
+            ? toDisplayCcyFlow(
+                c.overspent.top[0].over_amount_cents,
+                ccy,
+                rate,
+                displayCcy,
+              )
+            : "0",
           cushion_breached: c.cushion.enabled && !c.cushion.covered,
           reserves_status: c.reserves.status,
+          reserves_required_cents: toDisplayCcyShared(
+            c.reserves.required_cents,
+            ccy,
+            rate,
+            displayCcy,
+            s,
+          ),
+          cushion_required_cents: toDisplayCcyShared(
+            c.cushion.required_cents,
+            ccy,
+            rate,
+            displayCcy,
+            s,
+          ),
+          cushion_real_months: c.cushion.real_months,
           health: deriveHealth(c),
           fx_unavailable: false,
         };

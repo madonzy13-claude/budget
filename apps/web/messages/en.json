@@ -737,7 +737,17 @@
     "left": "Left",
     "my_share": "your {pct}%",
     "rate_unavailable": "Exchange rate unavailable — excluded from totals",
-    "empty": "No budgets included. Enable one in its settings."
+    "empty": "No budgets included. Enable one in its settings.",
+    "available_to_spend": "Available to spend",
+    "available_reserves": "Available reserves",
+    "overspent": "Overspent",
+    "needed": "Needed",
+    "saved": "Saved",
+    "overspent_ok": "Good job — keep it up!",
+    "since_yesterday": "since yesterday",
+    "runway_y": "y",
+    "runway_m": "m",
+    "runway_d": "d"
   },
   "state": {
     "empty": {

@@ -27,8 +27,13 @@ export interface AggregateBudgetRow {
   left_month_cents: string;
   overspent_total_cents: string;
   overspent_count: number;
+  overspent_top_name: string | null;
+  overspent_top_cents: string;
   cushion_breached: boolean;
   reserves_status: "ok" | "short" | "surplus";
+  reserves_required_cents: string;
+  cushion_required_cents: string;
+  cushion_real_months: number;
   pending_tasks: number;
   health: "red" | "amber" | "green";
   included: boolean;

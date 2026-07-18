@@ -737,7 +737,17 @@
     "left": "Pozostało",
     "my_share": "twój udział: {pct}%",
     "rate_unavailable": "Kurs wymiany niedostępny — wykluczony z sum",
-    "empty": "Brak uwzględnionych budżetów. Włącz opcję w ustawieniach budżetu."
+    "empty": "Brak uwzględnionych budżetów. Włącz opcję w ustawieniach budżetu.",
+    "available_to_spend": "Dostępne do wydania",
+    "available_reserves": "Dostępne rezerwy",
+    "overspent": "Przekroczono",
+    "needed": "Potrzeba",
+    "saved": "Zebrano",
+    "overspent_ok": "Dobra robota — tak trzymaj!",
+    "since_yesterday": "od wczoraj",
+    "runway_y": "l",
+    "runway_m": "m",
+    "runway_d": "d"
   },
   "state": {
     "empty": {

@@ -24,8 +24,13 @@ function makeBudget(overrides: Record<string, unknown>) {
     left_month_cents: "40000",
     overspent_total_cents: "0",
     overspent_count: 0,
+    overspent_top_name: null,
+    overspent_top_cents: "0",
     cushion_breached: false,
     reserves_status: "ok",
+    reserves_required_cents: "120000",
+    cushion_required_cents: "0",
+    cushion_real_months: 0,
     pending_tasks: 1,
     health: "green",
     included: true,
@@ -136,7 +141,7 @@ describe("AggregateOverview", () => {
     expect(screen.getByText("cushion")).toBeTruthy();
   });
 
-  it("renders the day P/L block from the today-window grow", () => {
+  it("renders the day P/L block from the today-window grow (masked until revealed)", async () => {
     wealthRef.current = {
       display_currency: "USD",
       series: [{ label: "a", value_cents: "100" }],
@@ -144,8 +149,17 @@ describe("AggregateOverview", () => {
     };
     render(<AggregateOverview />);
     const pl = screen.getByTestId("aggregate-hero-pl");
-    expect(pl.textContent).toMatch(/2\.5%/);
-    expect(pl.textContent).toMatch(/50/); // +$50
+    // P/L is now privacy-masked (SlotAmount) like BDP — reveal, then read the
+    // real values off the slots' aria-labels.
+    fireEvent.click(within(pl).getAllByTestId("slot-amount")[0]);
+    await waitFor(() => {
+      const labels = within(pl)
+        .getAllByTestId("slot-amount")
+        .map((s) => s.getAttribute("aria-label"))
+        .join(" ");
+      expect(labels).toMatch(/2\.5%/);
+      expect(labels).toMatch(/50/); // +$50
+    });
   });
 
   it("fx_unavailable budget is excluded from the hero sum", async () => {

@@ -111,7 +111,14 @@ function buildTitleParams(
   }
 }
 
-export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
+/**
+ * useTaskTitle — the localized task title + its component amount strings.
+ * Extracted so the all-budgets aggregate banner can render the SAME full task
+ * message (not a generic kind label) with its amounts individually maskable.
+ * `amounts` are the formatted money substrings inside the title, for callers
+ * that mask each one (privacy) by splitting the title on them.
+ */
+export function useTaskTitle(task: TaskSummary, budgetId: string) {
   const t = useTranslations();
   const locale = useLocale();
 
@@ -137,6 +144,19 @@ export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
   const detailKey = `bdp.tasks.detail.${task.kind}${directionSuffix}` as const;
   const titleParams = buildTitleParams(task, locale, categoryName);
   const title = t(titleKey, titleParams);
+  const amounts = [
+    titleParams.amount,
+    titleParams.shortfall,
+    titleParams.income,
+    titleParams.available,
+    titleParams.planned,
+  ].filter((a): a is string => !!a);
+
+  return { t, title, detailKey, titleParams, amounts };
+}
+
+export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
+  const { t, title, detailKey, titleParams } = useTaskTitle(task, budgetId);
 
   return (
     <div

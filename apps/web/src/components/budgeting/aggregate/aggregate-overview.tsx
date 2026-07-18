@@ -3,10 +3,11 @@
  * aggregate-overview.tsx — cross-budget "all budgets" overview.
  *
  * Mirrors the single-budget BDP Overview tab: a net-worth hero banner (big
- * yellow figure + "incl. investments" sub-line + a day P/L block, like the
- * capitalization card) + a grid-cols-2 stat grid (cash / reserves / cushion /
- * this-month) + the wealth-composition pie + a SEPARATE range selector driving
- * the net-worth-over-time area chart + a Budgets & tasks banner.
+ * yellow figure + "incl. investments" sub-line + a masked day P/L block, like
+ * the capitalization card) + a grid-cols-2 stat grid (Available-to-spend /
+ * Available reserves / Overspent / Cushion, with the same indicators + Needed/
+ * Saved sub-lines) + a Budgets & tasks banner + a SEPARATE range selector
+ * driving the net-worth-over-time area chart + view-driven pie.
  *
  * Only budgets the member INCLUDES are summed into the totals (`b.included`);
  * the Budgets & tasks banner lists ALL of the user's budgets. Every figure is
@@ -17,6 +18,7 @@ import { useTranslations } from "next-intl";
 import {
   CircleAlert,
   CircleCheck,
+  CirclePlus,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -51,32 +53,63 @@ function heroFontClass(s: string): string {
   return "text-num-display";
 }
 
-/** A BDP-overview stat card: (optional icon +) caption label, a big figure, an
- *  optional sub-line — same shape/tokens as overview-cards' grid cards. */
+// ponytail: copy of overview-cards.tsx's formatRunway (a private fn there) —
+// duplicating 15 lines beats exporting from that big "use client" module.
+function formatRunway(
+  realMonths: number,
+  units: { y: string; m: string; d: string },
+): string {
+  const safe = Number.isFinite(realMonths) ? Math.max(0, realMonths) : 0;
+  let months = Math.floor(safe);
+  let days = Math.round((safe - months) * 30.44);
+  if (days >= 30) {
+    months += 1;
+    days = 0;
+  }
+  const years = Math.floor(months / 12);
+  months = months % 12;
+  const parts: string[] = [];
+  if (years) parts.push(`${years}${units.y}`);
+  if (months) parts.push(`${months}${units.m}`);
+  if (days) parts.push(`${days}${units.d}`);
+  return parts.length ? parts.join(" ") : `0${units.d}`;
+}
+
+/** A BDP-overview stat card: (optional icon on the figure line +) caption label,
+ *  a big figure (any node — callers pass a masked SlotAmount or a plain runway),
+ *  and an optional sub-line — same shape/tokens as overview-cards' grid cards. */
 function StatCard({
   label,
   value,
   icon,
   sub,
+  testid,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   icon?: ReactNode;
   sub?: ReactNode;
+  testid?: string;
 }) {
   return (
-    <section className={CARD}>
-      <div className="flex items-center gap-1.5">
+    <section className={CARD} data-testid={testid}>
+      <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
+      <p className="num text-title-md mt-1 flex items-center gap-1.5 whitespace-nowrap text-[var(--body-on-dark)]">
         {icon}
-        <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
-      </div>
-      <p className="num text-title-md mt-1 whitespace-nowrap text-[var(--body-on-dark)]">
-        <SlotAmount value={value} />
+        <span className="min-w-0 truncate">{value}</span>
       </p>
       {sub}
     </section>
   );
 }
+
+const ICON = "size-4 shrink-0";
+const iconOk = (
+  <CircleCheck className={`${ICON} text-[var(--trading-up)]`} aria-hidden />
+);
+const iconBad = (
+  <CircleAlert className={`${ICON} text-[var(--trading-down)]`} aria-hidden />
+);
 
 export function AggregateOverview() {
   const t = useTranslations("aggregate");
@@ -108,8 +141,47 @@ export function AggregateOverview() {
   const summable = data.budgets.filter((b) => b.included && !b.fx_unavailable);
   const netWorth = sumCents(summable, "net_worth_cents");
   const investments = sumCents(summable, "investments_cents");
-  const anyCushionBreached = summable.some((b) => b.cushion_breached);
   const heroValue = fmt(netWorth);
+
+  // ── BDP-parity stat cards: sum every per-budget figure, derive each card's
+  //    good/short/surplus indicator from the summed totals. ─────────────────
+  const cashTotal = sumCents(summable, "cash_cents");
+  const spentTotal = sumCents(summable, "spent_month_cents");
+  const leftTotal = sumCents(summable, "left_month_cents");
+  const reservesTotal = sumCents(summable, "reserves_cents");
+  const reservesReq = sumCents(summable, "reserves_required_cents");
+  const cushionSaved = sumCents(summable, "cushion_cents");
+  const cushionReq = sumCents(summable, "cushion_required_cents");
+  const overspentTotal = sumCents(summable, "overspent_total_cents");
+  const overspentCount = summable.reduce((n, b) => n + b.overspent_count, 0);
+  // Top overspent category across every budget (highest single-category overspend).
+  const overspentTop = summable
+    .filter((b) => b.overspent_top_name && BigInt(b.overspent_top_cents) > 0n)
+    .sort((a, b) =>
+      BigInt(b.overspent_top_cents) > BigInt(a.overspent_top_cents) ? 1 : -1,
+    )[0];
+
+  const spendGood = cashTotal >= leftTotal;
+  const anyReserves = reservesTotal > 0n || reservesReq > 0n;
+  const reservesShort = reservesTotal < reservesReq;
+  const reservesSurplus = reservesTotal > reservesReq;
+  const anyCushion = cushionSaved > 0n || cushionReq > 0n;
+  const cushionCovered = cushionSaved >= cushionReq;
+  const cushionUnlimited = cushionReq === 0n && cushionSaved > 0n;
+  // Weighted household runway: Σsaved ÷ Σ(monthly cushion need). Each budget's
+  // monthly need = its saved ÷ its own runway (need = saved/real_months); a
+  // budget with no need (∞ runway) contributes 0, pushing the combined runway up.
+  const cushionMonthlyNeed = summable.reduce((acc, b) => {
+    const rm = b.cushion_real_months;
+    return (
+      acc + (rm > 0 && Number.isFinite(rm) ? Number(b.cushion_cents) / rm : 0)
+    );
+  }, 0);
+  const cushionRunwayMonths =
+    cushionMonthlyNeed > 0
+      ? Number(cushionSaved) / cushionMonthlyNeed
+      : Infinity;
+  const runwayUnits = { y: t("runway_y"), m: t("runway_m"), d: t("runway_d") };
 
   const plGrow = pl.data && pl.data.series.length > 0 ? pl.data.grow : null;
   const plUp = plGrow ? Number(plGrow.delta_cents) >= 0 : false;
@@ -153,62 +225,131 @@ export function AggregateOverview() {
               >
                 <span className="num flex items-center gap-1">
                   <PlIcon className="size-3.5 shrink-0" aria-hidden="true" />
-                  {plUp ? "+" : ""}
-                  {plGrow.delta_pct.toFixed(1)}%
+                  <SlotAmount
+                    value={`${plUp ? "+" : ""}${plGrow.delta_pct.toFixed(1)}%`}
+                  />
                 </span>
                 <span className="num">
-                  {plUp ? "+" : ""}
-                  {fmt(plGrow.delta_cents)}
+                  <SlotAmount
+                    value={`${plUp ? "+" : ""}${fmt(plGrow.delta_cents)}`}
+                  />
                 </span>
                 <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
-                  {t("pl_today")}
+                  {t("since_yesterday")}
                 </span>
               </div>
             )}
           </div>
         </section>
 
-        {/* STAT GRID — equal-height cards (auto-rows-fr) */}
+        {/* STAT GRID — BDP-overview parity: Available-to-spend / Available
+            reserves / Overspent / Cushion, equal-height (auto-rows-fr). */}
         <div className="grid auto-rows-fr grid-cols-2 gap-3">
+          {/* Available to spend — cash on top, spent + left below. */}
           <StatCard
-            label={t("cash")}
-            value={fmt(sumCents(summable, "cash_cents"))}
-          />
-          <StatCard
-            label={t("reserves")}
-            value={fmt(sumCents(summable, "reserves_cents"))}
-          />
-          <StatCard
-            label={t("cushion")}
-            value={fmt(sumCents(summable, "cushion_cents"))}
-            icon={
-              anyCushionBreached ? (
-                <CircleAlert
-                  className="size-4 shrink-0 text-[var(--trading-down)]"
-                  aria-hidden="true"
-                />
-              ) : (
-                <CircleCheck
-                  className="size-4 shrink-0 text-[var(--trading-up)]"
-                  aria-hidden="true"
-                />
-              )
-            }
-          />
-          <StatCard
-            label={t("flow_title")}
-            value={fmt(sumCents(summable, "spent_month_cents"))}
+            testid="aggregate-card-available-to-spend"
+            label={t("available_to_spend")}
+            icon={spendGood ? iconOk : iconBad}
+            value={<SlotAmount value={fmt(cashTotal)} />}
             sub={
-              <dl className="text-caption mt-1.5 flex items-center justify-between gap-2 text-[var(--muted-foreground)]">
-                <dt>{t("left")}</dt>
-                <dd className="num text-[var(--body-on-dark)]">
-                  <SlotAmount
-                    value={fmt(sumCents(summable, "left_month_cents"))}
-                  />
-                </dd>
+              <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
+                <div className="flex items-center justify-between gap-2">
+                  <dt>{t("spent")}</dt>
+                  <dd className="num text-[var(--body-on-dark)]">
+                    <SlotAmount value={fmt(spentTotal)} />
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt>{t("left")}</dt>
+                  <dd className="num text-[var(--body-on-dark)]">
+                    <SlotAmount value={fmt(leftTotal)} />
+                  </dd>
+                </div>
               </dl>
             }
           />
+
+          {/* Available reserves — shown only when some budget uses reserves. */}
+          {anyReserves && (
+            <StatCard
+              testid="aggregate-card-reserves"
+              label={t("available_reserves")}
+              icon={
+                reservesShort ? (
+                  iconBad
+                ) : reservesSurplus ? (
+                  <CirclePlus
+                    className={`${ICON} text-[var(--warning)]`}
+                    aria-hidden
+                  />
+                ) : (
+                  iconOk
+                )
+              }
+              value={<SlotAmount value={fmt(reservesTotal)} />}
+              sub={
+                <dl className="text-caption mt-1.5 flex items-center justify-between gap-2 text-[var(--muted-foreground)]">
+                  <dt>{t("needed")}</dt>
+                  <dd className="num text-[var(--body-on-dark)]">
+                    <SlotAmount value={fmt(reservesReq)} />
+                  </dd>
+                </dl>
+              }
+            />
+          )}
+
+          {/* Overspent — green "0" + motivation when clean, else red total + top category. */}
+          <StatCard
+            testid="aggregate-card-overspent"
+            label={t("overspent")}
+            icon={overspentCount === 0 ? iconOk : iconBad}
+            value={
+              overspentCount === 0 ? (
+                fmt(0n)
+              ) : (
+                <SlotAmount value={fmt(overspentTotal)} />
+              )
+            }
+            sub={
+              <p className="text-caption mt-1.5 truncate text-[var(--muted-foreground)]">
+                {overspentCount === 0
+                  ? t("overspent_ok")
+                  : (overspentTop?.overspent_top_name ?? "")}
+              </p>
+            }
+          />
+
+          {/* Cushion — runway (never masked, it's a duration) + saved/needed. */}
+          {anyCushion && (
+            <StatCard
+              testid="aggregate-card-cushion"
+              label={t("cushion")}
+              icon={cushionCovered ? iconOk : iconBad}
+              value={
+                cushionUnlimited ? (
+                  <span data-testid="aggregate-cushion-unlimited">∞</span>
+                ) : (
+                  formatRunway(cushionRunwayMonths, runwayUnits)
+                )
+              }
+              sub={
+                <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <dt>{t("saved")}</dt>
+                    <dd className="num text-[var(--body-on-dark)]">
+                      <SlotAmount value={fmt(cushionSaved)} />
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt>{t("needed")}</dt>
+                    <dd className="num text-[var(--body-on-dark)]">
+                      <SlotAmount value={fmt(cushionReq)} />
+                    </dd>
+                  </div>
+                </dl>
+              }
+            />
+          )}
         </div>
 
         {/* BUDGETS & TASKS — all budgets, each with its pending tasks */}

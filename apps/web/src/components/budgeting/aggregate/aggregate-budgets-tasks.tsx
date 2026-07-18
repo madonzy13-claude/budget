@@ -1,20 +1,65 @@
 "use client";
 /**
- * aggregate-budgets-tasks.tsx — "Budgets & tasks" banner for the all-budgets
- * page. Lists every budget; clicking a budget opens its overview. Under each
- * budget its pending tasks are listed; clicking a task jumps straight to the
- * BDP pill that task belongs to (pillFor(kind)). Task lists are fetched per
- * budget with the SAME query key BdpTabs uses, so the cache is shared.
+ * aggregate-budgets-tasks.tsx — per-budget task banner for the all-budgets page.
+ * Lists every budget; clicking a budget opens its overview. Under each budget its
+ * pending tasks render as draft-styled rows (sunken bg + dashed accent, like the
+ * spendings drafts) showing the FULL task message (via useTaskTitle) with every
+ * money amount masked as a tap-to-reveal SlotAmount; clicking a task jumps to the
+ * BDP pill it belongs to (pillFor(kind)). Task lists share BdpTabs' query key.
  */
+import { type ReactNode } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { pillFor } from "@/components/budgeting/tasks/kind-pill-map";
-import type { TaskSummary } from "@/components/budgeting/task-banner-row";
+import {
+  useTaskTitle,
+  type TaskSummary,
+} from "@/components/budgeting/task-banner-row";
+import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
+
+/** Split a title on its money substrings, rendering each as a maskable
+ *  SlotAmount so amounts hide until revealed while the words stay readable. */
+function maskAmounts(title: string, amounts: string[]): ReactNode {
+  const uniq = [...new Set(amounts.filter(Boolean))].sort(
+    (a, b) => b.length - a.length,
+  );
+  if (uniq.length === 0) return title;
+  const escaped = uniq.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const parts = title.split(new RegExp(`(${escaped.join("|")})`, "g"));
+  return parts.map((part, i) =>
+    part && uniq.includes(part) ? (
+      <SlotAmount key={i} value={part} />
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
+function TaskLine({
+  task,
+  budgetId,
+  locale,
+}: {
+  task: TaskSummary;
+  budgetId: string;
+  locale: string;
+}) {
+  const { title, amounts } = useTaskTitle(task, budgetId);
+  return (
+    <Link
+      href={`/${locale}/budgets/${budgetId}/${pillFor(task.kind)}`}
+      data-testid={`aggregate-bt-task-${task.id}`}
+      className="flex min-h-9 items-center rounded-[var(--radius-lg)] border-l-[3px] border-dashed border-[var(--primary)] bg-[var(--surface-sunken-dark)] px-3 py-1.5 text-sm text-[var(--body-on-dark)] shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:bg-[var(--surface-elevated-dark)]"
+    >
+      <span className="num truncate">{maskAmounts(title, amounts)}</span>
+    </Link>
+  );
+}
 
 function BudgetRow({
   id,
@@ -59,23 +104,11 @@ function BudgetRow({
         )}
       </Link>
       {list.length > 0 ? (
-        <ul className="mt-1.5 space-y-1">
+        <div className="mt-2 flex flex-col gap-1.5">
           {list.map((task) => (
-            <li key={task.id}>
-              <Link
-                href={`/${locale}/budgets/${id}/${pillFor(task.kind)}`}
-                className="flex items-center gap-2 text-caption text-[var(--muted-foreground)] hover:text-[var(--body)]"
-                data-testid={`aggregate-bt-task-${task.id}`}
-              >
-                <span
-                  className="size-1.5 shrink-0 rounded-full bg-[var(--primary)]"
-                  aria-hidden="true"
-                />
-                <span className="truncate">{t(`task_kind.${task.kind}`)}</span>
-              </Link>
-            </li>
+            <TaskLine key={task.id} task={task} budgetId={id} locale={locale} />
           ))}
-        </ul>
+        </div>
       ) : (
         <p className="mt-0.5 text-caption text-[var(--muted-foreground)]">
           {t("no_tasks")}
@@ -90,14 +123,10 @@ export function AggregateBudgetsTasks({
 }: {
   budgets: { id: string; name: string }[];
 }) {
-  const t = useTranslations("aggregate");
   const locale = useLocale();
   if (budgets.length === 0) return null;
   return (
     <section className={CARD} data-testid="aggregate-budgets-tasks">
-      <p className="mb-1 text-sm font-semibold text-[var(--body)]">
-        {t("budgets_tasks_title")}
-      </p>
       <div>
         {budgets.map((b) => (
           <BudgetRow key={b.id} id={b.id} name={b.name} locale={locale} />
