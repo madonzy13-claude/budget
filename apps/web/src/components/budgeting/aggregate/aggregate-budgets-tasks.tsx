@@ -19,8 +19,10 @@ import {
 } from "@/components/budgeting/task-banner-row";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
+// Single sunken ("underground") surface for the whole banner — budgets + their
+// tasks sit directly on it, separated by spacing, NOT bordered sub-boxes.
 const CARD =
-  "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
+  "rounded-[var(--radius-xl)] bg-[var(--surface-sunken-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
 
 /** Split a title on its money substrings, rendering each as a maskable
  *  SlotAmount so amounts hide until revealed while the words stay readable. */
@@ -54,8 +56,12 @@ function TaskLine({
     <Link
       href={`/${locale}/budgets/${budgetId}/${pillFor(task.kind)}`}
       data-testid={`aggregate-bt-task-${task.id}`}
-      className="flex min-h-9 items-center rounded-[var(--radius-lg)] border-l-[3px] border-dashed border-[var(--primary)] bg-[var(--surface-sunken-dark)] px-3 py-1.5 text-sm text-[var(--body-on-dark)] shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:bg-[var(--surface-elevated-dark)]"
+      className="flex min-h-7 items-center gap-2 pl-4 text-sm text-[var(--muted-foreground)] hover:text-[var(--primary)]"
     >
+      <span
+        className="size-1 shrink-0 rounded-full bg-[var(--primary)]"
+        aria-hidden="true"
+      />
       <span className="num truncate">{maskAmounts(title, amounts)}</span>
     </Link>
   );
@@ -88,7 +94,7 @@ function BudgetRow({
   const list = tasks ?? [];
 
   return (
-    <div className="border-b border-[var(--hairline-dark)] py-2.5 last:border-0">
+    <div className="flex flex-col gap-1.5">
       <Link
         href={`/${locale}/budgets/${id}/overview`}
         className="flex items-center justify-between gap-2"
@@ -104,13 +110,11 @@ function BudgetRow({
         )}
       </Link>
       {list.length > 0 ? (
-        <div className="mt-2 flex flex-col gap-1.5">
-          {list.map((task) => (
-            <TaskLine key={task.id} task={task} budgetId={id} locale={locale} />
-          ))}
-        </div>
+        list.map((task) => (
+          <TaskLine key={task.id} task={task} budgetId={id} locale={locale} />
+        ))
       ) : (
-        <p className="mt-0.5 text-caption text-[var(--muted-foreground)]">
+        <p className="pl-4 text-caption text-[var(--muted-foreground)]">
           {t("no_tasks")}
         </p>
       )}
@@ -127,7 +131,7 @@ export function AggregateBudgetsTasks({
   if (budgets.length === 0) return null;
   return (
     <section className={CARD} data-testid="aggregate-budgets-tasks">
-      <div>
+      <div className="flex flex-col gap-3">
         {budgets.map((b) => (
           <BudgetRow key={b.id} id={b.id} name={b.name} locale={locale} />
         ))}

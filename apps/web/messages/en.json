@@ -747,7 +747,8 @@
     "since_yesterday": "since yesterday",
     "runway_y": "y",
     "runway_m": "m",
-    "runway_d": "d"
+    "runway_d": "d",
+    "grow_since": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} last12Months {over the last 12 months} all {all time} other {over the selected range}}"
   },
   "state": {
     "empty": {

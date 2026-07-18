@@ -122,7 +122,8 @@ export function AggregateTrend({
     cushion: BUCKET_CUSHION,
   };
 
-  const viewBtn = (v: WealthView, label: string) => (
+  // Centered underline tab — exact BDP wealth-section `toggle` style.
+  const tab = (v: WealthView, label: string) => (
     <button
       type="button"
       onClick={() => {
@@ -132,10 +133,10 @@ export function AggregateTrend({
       aria-pressed={view === v}
       data-testid={`aggregate-view-${v}`}
       className={cn(
-        "rounded-[var(--radius-pill)] px-3 py-1 text-num-sm transition-colors",
+        "border-b-2 px-3 py-1.5 text-num-sm min-h-[44px] sm:min-h-0",
         view === v
-          ? "bg-[var(--primary)] font-semibold text-[var(--on-primary)]"
-          : "text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+          ? "border-[var(--primary)] text-[var(--body-on-dark)]"
+          : "border-transparent text-[var(--muted-foreground)]",
       )}
     >
       {label}
@@ -144,135 +145,168 @@ export function AggregateTrend({
 
   return (
     <section className={CARD} data-testid="aggregate-trend">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-[var(--body)]">
-          {t("trend_title")}
-        </p>
-        <div className="flex items-center gap-1 rounded-[var(--radius-pill)] bg-[var(--surface-elevated-dark)] p-0.5">
-          {viewBtn("capitalization", t("capitalization"))}
-          {viewBtn("investments", t("investments"))}
-        </div>
+      {/* Capitalization/Investments — centered underline tabs (BDP parity). */}
+      <div role="group" className="flex items-center justify-center gap-1">
+        {tab("capitalization", t("capitalization"))}
+        {tab("investments", t("investments"))}
       </div>
-
-      {hasSeries && (
-        <div className="mt-2 flex flex-wrap items-start justify-center gap-6">
-          <div className="flex flex-col items-center gap-0.5">
-            <p className="text-caption text-[var(--muted-foreground)]">
-              {up ? t("grow") : t("loss")}
-            </p>
-            <span
-              className={cn(
-                "num text-num-md",
-                up ? "text-[var(--trading-up)]" : "text-[var(--trading-down)]",
-              )}
-              data-testid="aggregate-trend-grow"
-            >
-              {fmtSigned(data.grow.delta_cents)}
-            </span>
-          </div>
-          <PctStat label={t("grow")} pct={data.grow.delta_pct} />
-          {view === "investments" && data?.invested_cents != null && (
-            <div className="flex flex-col items-center gap-0.5">
-              <p className="text-caption text-[var(--muted-foreground)]">
-                {t("invested")}
-              </p>
-              <span className="num text-num-md text-[var(--body-on-dark)]">
-                {fmt(data.invested_cents)}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {view === "investments" && investedPositive && (
-        <div className="mt-2 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setNet((n) => !n)}
-            aria-pressed={net}
-            data-testid="aggregate-net-toggle"
-            className="rounded-[var(--radius-pill)] border border-[var(--hairline-dark)] px-3 py-1 text-num-sm text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
-          >
-            {net ? t("excl_contributions") : t("incl_contributions")}
-          </button>
-        </div>
-      )}
 
       {isPending || !data || !hasSeries ? (
         <div
-          className="flex h-[220px] items-center justify-center text-caption text-[var(--muted-foreground)]"
+          className="mt-3 flex h-[220px] items-center justify-center text-caption text-[var(--muted-foreground)]"
           data-testid="aggregate-trend-empty"
         >
           {isPending ? "" : t("empty")}
         </div>
       ) : (
-        <div className="mt-2">
-          <OverviewAreaChart
-            data={data.series.map((p) => ({
-              label: p.label,
-              value: Number(p.value_cents),
-            }))}
-            xKey="label"
-            series={[{ key: "value", label: t("trend_title") }]}
-            formatY={chartCompactCents}
-            formatTooltip={(n) => fmt(String(Math.round(n)))}
-            xTickFormat={(v) => formatChartDate(String(v), locale)}
-            height={220}
-          />
-        </div>
-      )}
+        <>
+          <div className="mt-3 flex flex-col gap-2">
+            {/* Range-scoped growth stats — centered, like BDP. */}
+            <div className="flex flex-wrap items-start justify-center gap-6">
+              <div className="flex flex-col items-center gap-0.5">
+                <p className="text-caption text-[var(--muted-foreground)]">
+                  {up ? t("grow") : t("loss")}
+                </p>
+                <span
+                  className={cn(
+                    "num text-num-md",
+                    up
+                      ? "text-[var(--trading-up)]"
+                      : "text-[var(--trading-down)]",
+                  )}
+                  data-testid="aggregate-trend-grow"
+                >
+                  {fmtSigned(data.grow.delta_cents)}
+                </span>
+              </div>
+              <PctStat label={t("grow")} pct={data.grow.delta_pct} />
+              {view === "investments" && data.invested_cents != null && (
+                <div className="flex flex-col items-center gap-0.5">
+                  <p className="text-caption text-[var(--muted-foreground)]">
+                    {t("invested")}
+                  </p>
+                  <span className="num text-num-md text-[var(--body-on-dark)]">
+                    {fmt(data.invested_cents)}
+                  </span>
+                </div>
+              )}
+            </div>
 
-      {/* View-driven pie: capitalization pools vs per-holding-type. */}
-      {view === "capitalization" && capBuckets.length > 0 && (
-        <div
-          className="mt-3 flex flex-col gap-2"
-          data-testid="aggregate-cap-pie"
-        >
-          <p className="text-caption text-[var(--muted-foreground)]">
-            {t("by_bucket")}
-          </p>
-          <OverviewPieChart
-            data={capBuckets}
-            nameKey="name"
-            valueKey="value"
-            colorFor={(n: string) => capColor[n] ?? NEUTRAL}
-            formatName={(n: string) => t(n === "cushion" ? "cushion" : n)}
-            formatValue={fmtPieValue}
-            allLabel={t("by_bucket")}
-          />
-        </div>
-      )}
-      {view === "investments" && (
-        <div
-          className="mt-3 flex flex-col gap-2"
-          data-testid="aggregate-invest-pie"
-        >
-          <p className="text-caption text-[var(--muted-foreground)]">
-            {t("by_type")}
-          </p>
-          {data?.pie && data.pie.length > 0 ? (
-            <OverviewPieChart
-              data={data.pie.map((p) => ({
-                holding_type: p.holding_type,
+            {/* Incl./Excl.-contributions — segmented control (BDP style). */}
+            {view === "investments" && investedPositive && (
+              <div
+                role="group"
+                data-testid="aggregate-net-toggle"
+                className="mx-auto inline-flex rounded-full border border-[var(--hairline-dark)] p-0.5 text-caption"
+              >
+                <button
+                  type="button"
+                  onClick={() => setNet(false)}
+                  aria-pressed={!net}
+                  className={cn(
+                    "rounded-full px-3 py-1 transition-colors",
+                    !net
+                      ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
+                      : "text-[var(--muted-foreground)]",
+                  )}
+                >
+                  {t("incl_contributions")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNet(true)}
+                  aria-pressed={net}
+                  className={cn(
+                    "rounded-full px-3 py-1 transition-colors",
+                    net
+                      ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
+                      : "text-[var(--muted-foreground)]",
+                  )}
+                >
+                  {t("excl_contributions")}
+                </button>
+              </div>
+            )}
+
+            {/* Growth is over the SELECTED range ("since month start" on 1M). */}
+            <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
+              {t("grow_since", { preset: range.preset })}
+            </p>
+
+            <OverviewAreaChart
+              data={data.series.map((p) => ({
+                label: p.label,
                 value: Number(p.value_cents),
               }))}
-              nameKey="holding_type"
-              valueKey="value"
-              colorFor={(ht: string) =>
-                UI_TYPE_COLOR[deriveUiType(ht, ht, false)]
-              }
-              formatName={(ht: string) =>
-                tInvest(`uitype.${deriveUiType(ht, ht, false)}`)
-              }
-              formatValue={fmtPieValue}
-              allLabel={t("by_type")}
+              xKey="label"
+              series={[
+                {
+                  key: "value",
+                  label:
+                    view === "investments"
+                      ? t("investments")
+                      : t("capitalization"),
+                },
+              ]}
+              formatY={chartCompactCents}
+              formatTooltip={(n) => fmt(String(Math.round(n)))}
+              xTickFormat={(v) => formatChartDate(String(v), locale)}
             />
-          ) : (
-            <p className="text-num-sm text-[var(--muted-foreground)]">
-              {t("empty")}
-            </p>
+          </div>
+
+          {/* View-driven pie: capitalization pools vs per-holding-type. */}
+          {view === "capitalization" && capBuckets.length > 0 && (
+            <div
+              className="mt-3 flex flex-col gap-2"
+              data-testid="aggregate-cap-pie"
+            >
+              <p className="text-caption text-[var(--muted-foreground)]">
+                {t("by_bucket")}
+              </p>
+              <OverviewPieChart
+                data={capBuckets}
+                nameKey="name"
+                valueKey="value"
+                colorFor={(n: string) => capColor[n] ?? NEUTRAL}
+                formatName={(n: string) => t(n === "cushion" ? "cushion" : n)}
+                formatValue={fmtPieValue}
+                allLabel={t("by_bucket")}
+              />
+            </div>
           )}
-        </div>
+          {view === "investments" && (
+            <div
+              className="mt-3 flex flex-col gap-2"
+              data-testid="aggregate-invest-pie"
+            >
+              <p className="text-caption text-[var(--muted-foreground)]">
+                {t("by_type")}
+              </p>
+              {data.pie && data.pie.length > 0 ? (
+                <OverviewPieChart
+                  data={data.pie.map((p) => ({
+                    holding_type: p.holding_type,
+                    value: Number(p.value_cents),
+                  }))}
+                  nameKey="holding_type"
+                  valueKey="value"
+                  colorFor={(ht: string) =>
+                    UI_TYPE_COLOR[deriveUiType(ht, ht, false)]
+                  }
+                  formatName={(ht: string) =>
+                    tInvest(`uitype.${deriveUiType(ht, ht, false)}`)
+                  }
+                  formatValue={fmtPieValue}
+                  allLabel={t("by_type")}
+                />
+              ) : (
+                <p className="text-num-sm text-[var(--muted-foreground)]">
+                  {t("empty")}
+                </p>
+              )}
+            </div>
+          )}
+        </>
       )}
     </section>
   );

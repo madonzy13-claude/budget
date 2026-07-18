@@ -747,7 +747,8 @@
     "since_yesterday": "з учора",
     "runway_y": "р",
     "runway_m": "м",
-    "runway_d": "д"
+    "runway_d": "д",
+    "grow_since": "{preset, select, thisMonth {з початку місяця} last3Months {за останні 3 місяці} last6Months {за останні 6 місяців} last12Months {за останні 12 місяців} all {за весь час} other {за вибраний період}}"
   },
   "state": {
     "empty": {
