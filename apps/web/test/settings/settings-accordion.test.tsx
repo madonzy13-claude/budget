@@ -55,29 +55,9 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// Task 12: controllable ["budget-members", budgetId] query result — keyed by
-// queryKey so it can return real members with ownership_share_pct without
-// disturbing every other useQuery call in the accordion (recurring/incomes/
-// MembersSection's own query), which keep the old blanket {members:[]} default.
-const membersQueryMock = vi.hoisted(() => ({
-  current: {
-    members: [] as Array<{
-      userId: string;
-      name?: string;
-      email?: string;
-      ownership_share_pct?: number;
-    }>,
-  },
-}));
-
 // react-query mock
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: vi.fn((opts: { queryKey?: unknown[] }) => {
-    if (opts?.queryKey?.[0] === "budget-members") {
-      return { data: membersQueryMock.current, isLoading: false };
-    }
-    return { data: { members: [] }, isLoading: false };
-  }),
+  useQuery: vi.fn(() => ({ data: { members: [] }, isLoading: false })),
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
   QueryClient: vi.fn(),
   QueryClientProvider: ({ children }: { children: React.ReactNode }) =>
@@ -213,56 +193,6 @@ describe("SettingsAccordion — config-progress banner (r34 flicker)", () => {
     // default mock: loaded (isLoading:false) with empty data → percent < 100
     render(<SettingsAccordion budget={sharedBudget} />);
     expect(screen.getByTestId("settings-config-progress")).toBeInTheDocument();
-  });
-});
-
-describe("SettingsAccordion — ownership-share editor gating (Task 12)", () => {
-  beforeEach(() => {
-    membersQueryMock.current = { members: [] };
-  });
-
-  it("shows the ownership editor for an owner on a SHARED budget", () => {
-    membersQueryMock.current = {
-      members: [
-        { userId: "u1", name: "Alice", ownership_share_pct: 60 },
-        { userId: "u2", name: "Bob", ownership_share_pct: 40 },
-      ],
-    };
-    render(<SettingsAccordion budget={{ ...sharedBudget, memberCount: 2 }} />);
-    // Members section is collapsed by default — open it so its content mounts.
-    fireEvent.click(screen.getByText("sections.members"));
-    expect(screen.getByTestId("ownership-save")).toBeInTheDocument();
-    expect(screen.getByTestId("ownership-total")).toBeInTheDocument();
-  });
-
-  it("hides the ownership editor on a PRIVATE (single-member) budget", () => {
-    membersQueryMock.current = {
-      members: [{ userId: "u1", name: "Alice", ownership_share_pct: 100 }],
-    };
-    render(<SettingsAccordion budget={{ ...sharedBudget, memberCount: 1 }} />);
-    fireEvent.click(screen.getByText("sections.members"));
-    expect(screen.queryByTestId("ownership-save")).toBeNull();
-  });
-
-  it("renders the ownership editor inside a disabled fieldset for non-owner members", () => {
-    membersQueryMock.current = {
-      members: [
-        { userId: "u1", name: "Alice", ownership_share_pct: 60 },
-        { userId: "u2", name: "Bob", ownership_share_pct: 40 },
-      ],
-    };
-    render(
-      <SettingsAccordion
-        budget={{
-          ...sharedBudget,
-          memberCount: 2,
-          currentUserRole: "member" as const,
-        }}
-      />,
-    );
-    fireEvent.click(screen.getByText("sections.members"));
-    const saveButton = screen.getByTestId("ownership-save");
-    expect(saveButton.closest("fieldset[disabled]")).not.toBeNull();
   });
 });
 

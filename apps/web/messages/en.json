@@ -472,6 +472,8 @@
       "feature_help_text": "Count this budget toward your combined net worth.",
       "feature_on_toast": "Included in your total",
       "feature_off_toast": "Excluded from your total",
+      "share_label": "Your share",
+      "share_help": "How much of this budget's wealth counts toward your total (0-100%).",
       "error_save": "Couldn't save. Try again."
     },
     "ownership": {

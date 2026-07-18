@@ -38,6 +38,11 @@ interface BudgetApiShape {
   amount_privacy_enabled?: boolean;
   includeInAggregation?: boolean;
   include_in_aggregation?: boolean;
+  /** R2: caller's self-set ownership share % (0..100), default 100. Only
+   *  returned snake_case by GET /budgets/:id today; camelCase kept for the
+   *  same forward-compat reason as the other dual-key fields above. */
+  sharePct?: number;
+  ownership_share_pct?: number;
   hasTransactions?: boolean;
   has_transactions?: boolean;
   currentUserRole?: "owner" | "member";
@@ -64,6 +69,7 @@ function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
       raw.amountPrivacyEnabled ?? raw.amount_privacy_enabled ?? true,
     includeInAggregation:
       raw.includeInAggregation ?? raw.include_in_aggregation ?? true,
+    sharePct: raw.sharePct ?? raw.ownership_share_pct ?? 100,
     hasTransactions: raw.hasTransactions ?? raw.has_transactions ?? false,
     currentUserRole: raw.currentUserRole ?? raw.current_user_role ?? "member",
     memberCount: raw.memberCount ?? raw.member_count ?? 1,
