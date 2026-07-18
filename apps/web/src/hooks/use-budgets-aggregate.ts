@@ -60,15 +60,21 @@ export interface AggregateWealth {
   display_currency: string;
   series: AggregateWealthSeriesPoint[];
   grow: { delta_cents: string; delta_pct: number };
+  /** Investments view only. */
+  invested_cents: string | null;
+  pie: { holding_type: string; value_cents: string }[] | null;
 }
 
 /** Combined net-worth trend over an explicit [from, to] window (YYYY-MM-DD).
  *  The hero P/L passes a today-only window; the chart passes the range selector's
- *  window. `grow` comes back range-scoped (last − first). */
+ *  window. `view` picks capitalization vs investments; `net` subtracts
+ *  contributions (investments view). `grow` comes back range-scoped. */
 export function useAggregateWealth(
   includeIds: string[],
   from: string,
   to: string,
+  view: "capitalization" | "investments" = "capitalization",
+  net = false,
 ) {
   return useQuery({
     queryKey: [
@@ -77,13 +83,20 @@ export function useAggregateWealth(
       "wealth",
       from,
       to,
+      view,
+      net,
       [...includeIds].sort().join(","),
     ],
     enabled: includeIds.length > 0 && !!from && !!to,
     queryFn: async (): Promise<AggregateWealth> => {
-      const res = await clientApiFetch(
-        `/budgets/aggregate/wealth?from=${from}&to=${to}&include=${includeIds.join(",")}`,
-      );
+      const params = new URLSearchParams({
+        from,
+        to,
+        view,
+        include: includeIds.join(","),
+      });
+      if (net) params.set("net", "1");
+      const res = await clientApiFetch(`/budgets/aggregate/wealth?${params}`);
       if (!res.ok) throw new Error("aggregate wealth failed");
       return res.json();
     },

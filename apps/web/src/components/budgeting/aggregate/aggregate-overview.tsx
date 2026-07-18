@@ -13,7 +13,7 @@
  * STRING cents already FX-converted into `display_currency` by the API.
  */
 import { type ReactNode, useState } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useTranslations } from "next-intl";
 import {
   CircleAlert,
   CircleCheck,
@@ -31,7 +31,6 @@ import {
   SlotRevealProvider,
 } from "@/components/budgeting/overview/slot-amount";
 import { centsToRounded } from "@/lib/cents-format";
-import { AggregateComposition } from "@/components/budgeting/aggregate/aggregate-composition";
 import { AggregateTrend } from "@/components/budgeting/aggregate/aggregate-trend";
 import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregate-budgets-tasks";
 import { RangeSelector } from "@/components/budgeting/overview/range-selector";
@@ -81,7 +80,6 @@ function StatCard({
 
 export function AggregateOverview() {
   const t = useTranslations("aggregate");
-  const locale = useLocale();
   const tz = useUserTimezone();
   const { data, isPending, isError } = useBudgetsAggregate();
 
@@ -218,25 +216,24 @@ export function AggregateOverview() {
           budgets={data.budgets.map((b) => ({ id: b.id, name: b.name }))}
         />
 
-        {/* WEALTH COMPOSITION */}
-        <AggregateComposition
-          cashCents={sumCents(summable, "cash_cents").toString()}
-          investmentsCents={investments.toString()}
-          reservesCents={(
-            sumCents(summable, "reserves_cents") +
-            sumCents(summable, "cushion_cents")
-          ).toString()}
-          currency={ccy}
-          locale={locale}
-        />
-
         {/* RANGE SELECTOR — a SEPARATE piece (not inside the chart), like BDP's band */}
         <div className="py-1" data-testid="aggregate-range">
           <RangeSelector value={range} onChange={setRange} />
         </div>
 
-        {/* NET WORTH OVER TIME — growth row + area chart */}
-        <AggregateTrend includeIds={summable.map((b) => b.id)} range={range} />
+        {/* NET WORTH OVER TIME — view toggle (cap/invest) + contributions +
+            growth + area chart + a view-driven pie (cap pools vs holding type) */}
+        <AggregateTrend
+          includeIds={summable.map((b) => b.id)}
+          range={range}
+          currency={ccy}
+          capitalization={{
+            investmentsCents: investments.toString(),
+            cashCents: sumCents(summable, "cash_cents").toString(),
+            reservesCents: sumCents(summable, "reserves_cents").toString(),
+            cushionCents: sumCents(summable, "cushion_cents").toString(),
+          }}
+        />
 
         {summable.length === 0 && (
           <p className="text-center text-caption text-[var(--muted-foreground)]">

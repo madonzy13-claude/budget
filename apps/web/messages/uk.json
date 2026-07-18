@@ -717,6 +717,12 @@
     "cushion": "Подушка",
     "grow": "Зростання",
     "loss": "Втрата",
+    "capitalization": "Статки",
+    "by_bucket": "Розподіл",
+    "by_type": "За типом",
+    "incl_contributions": "З внесками",
+    "excl_contributions": "Без внесків",
+    "invested": "Інвестовано",
     "budgets_tasks_title": "Бюджети та завдання",
     "no_tasks": "Немає завдань",
     "task_kind": {

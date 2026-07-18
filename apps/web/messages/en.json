@@ -717,6 +717,12 @@
     "cushion": "Cushion",
     "grow": "Growth",
     "loss": "Loss",
+    "capitalization": "Net worth",
+    "by_bucket": "Where it sits",
+    "by_type": "By type",
+    "incl_contributions": "Incl. contributions",
+    "excl_contributions": "Excl. contributions",
+    "invested": "Invested",
     "budgets_tasks_title": "Budgets & tasks",
     "no_tasks": "No tasks",
     "task_kind": {

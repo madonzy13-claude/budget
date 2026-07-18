@@ -547,25 +547,34 @@ export async function boot(): Promise<BootedDeps> {
         range,
         from: fromArg,
         to: toArg,
+        view,
+        net,
       }) => {
         // Explicit window wins over the range code (custom range / today P/L).
         const win =
           fromArg && toArg
             ? { from: fromArg, to: toArg }
             : rangeToFromTo(range, new Date());
+        const v = view === "investments" ? "investments" : "capitalization";
         const result = await budgetingFinal.getOverviewWealth({
           tenantId,
           budgetId,
           from: win.from,
           to: win.to,
-          view: "capitalization",
+          view: v,
+          net: net ?? false,
         });
         if (result.isErr()) {
           // Budget vanished mid-fan-out (shouldn't happen — budgetId came from
           // listForUser). Degrade to a same-currency no-op rather than fail the
           // whole aggregate (mirrors getAllBudgetsAggregate's zeroRow pattern).
           const meta = await summaryRepo.getBudgetMeta(budgetId);
-          return { currency: meta?.default_currency ?? "USD", series: [] };
+          return {
+            currency: meta?.default_currency ?? "USD",
+            series: [],
+            invested_cents: null,
+            pie: null,
+          };
         }
         return {
           currency: result.value.currency,
@@ -573,6 +582,16 @@ export async function boot(): Promise<BootedDeps> {
             label: p.label,
             value_cents: BigInt(p.value_cents),
           })),
+          invested_cents:
+            result.value.invested_cents != null
+              ? BigInt(result.value.invested_cents)
+              : null,
+          pie: result.value.pie
+            ? result.value.pie.map((s) => ({
+                holding_type: s.holding_type,
+                value_cents: BigInt(s.value_cents),
+              }))
+            : null,
         };
       },
       displayCurrencyReader,

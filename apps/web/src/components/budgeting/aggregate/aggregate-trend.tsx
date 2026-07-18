@@ -1,22 +1,40 @@
 "use client";
 /**
- * aggregate-trend.tsx — combined net-worth-over-time for the all-budgets page.
- * Mirrors the BDP Overview wealth section: a centered growth row (signed amount
- * + PctStat %) above an AREA chart with the same month/date label formatting.
- * The range comes from a SEPARATE selector owned by the parent (like BDP's band).
+ * aggregate-trend.tsx — combined "Net worth over time" wealth section for the
+ * all-budgets page, mirroring the single-budget BDP wealth section:
+ *   - Capitalization / Investments view toggle (drives the ?view param).
+ *   - Investments view: Incl./Excl.-contributions toggle (net), an "Invested"
+ *     metric, and a per-holding-type pie (UI_TYPE_COLOR).
+ *   - Capitalization view: a "where it sits" pie (investments/cash/reserves/
+ *     cushion) built from the aggregate row sums.
+ *   - Centered growth row (signed amount + PctStat %) + AREA chart with the
+ *     same month/date label formatting. Range comes from a SEPARATE parent
+ *     selector (like BDP's band).
  */
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAggregateWealth } from "@/hooks/use-budgets-aggregate";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
+import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import type { OverviewRange } from "@/lib/overview-range";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { chartCompactCents } from "@/lib/chart-format";
 import { centsToRounded } from "@/lib/cents-format";
+import { UI_TYPE_COLOR } from "@/lib/investment-icons";
+import { deriveUiType } from "@/lib/investment-types";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
+// Capitalization pie pools (mirror wealth-section): distinct chart colors.
+const BUCKET_INVEST = "var(--chart-bar-1)";
+const BUCKET_SPEND = "var(--primary)";
+const BUCKET_RESERVE = "var(--chart-bar-2)";
+const BUCKET_CUSHION = "var(--chart-bar-3)";
+const NEUTRAL = "var(--muted-foreground)";
+
+type WealthView = "capitalization" | "investments";
 
 /** BDP wealth-section PctStat: label + arrow + signed %. */
 function PctStat({ label, pct }: { label: string; pct: number | null }) {
@@ -50,31 +68,91 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
 export function AggregateTrend({
   includeIds,
   range,
+  currency,
+  capitalization,
 }: {
   includeIds: string[];
   range: OverviewRange;
+  currency: string;
+  capitalization: {
+    investmentsCents: string;
+    cashCents: string;
+    reservesCents: string;
+    cushionCents: string;
+  };
 }) {
   const t = useTranslations("aggregate");
+  const tInvest = useTranslations("budget.investments");
   const locale = useLocale();
+  const [view, setView] = useState<WealthView>("capitalization");
+  const [net, setNet] = useState(false);
   const { data, isPending } = useAggregateWealth(
     includeIds,
     range.from,
     range.to,
+    view,
+    view === "investments" && net,
   );
+
+  const ccy = data?.display_currency ?? currency;
+  const fmt = (c: string) => centsToRounded(BigInt(c), ccy, locale, true);
+  const fmtSigned = (c: string) => {
+    const n = BigInt(c);
+    const abs = n < 0n ? -n : n;
+    return `${n >= 0n ? "+" : "−"}${centsToRounded(abs, ccy, locale, true)}`;
+  };
+  const fmtPieValue = (v: number) =>
+    centsToRounded(BigInt(Math.round(v)), ccy, locale, true);
 
   const hasSeries = !!data && data.series.length > 0;
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
-  const fmtSigned = (cents: string) => {
-    const n = BigInt(cents);
-    const abs = n < 0n ? -n : n;
-    return `${n >= 0n ? "+" : "−"}${centsToRounded(abs, data!.display_currency, locale, true)}`;
+  const investedPositive =
+    data?.invested_cents != null && Number(data.invested_cents) > 0;
+
+  const capBuckets = [
+    { name: "investments", value: Number(capitalization.investmentsCents) },
+    { name: "cash", value: Number(capitalization.cashCents) },
+    { name: "reserves", value: Number(capitalization.reservesCents) },
+    { name: "cushion", value: Number(capitalization.cushionCents) },
+  ].filter((b) => b.value > 0);
+  const capColor: Record<string, string> = {
+    investments: BUCKET_INVEST,
+    cash: BUCKET_SPEND,
+    reserves: BUCKET_RESERVE,
+    cushion: BUCKET_CUSHION,
   };
+
+  const viewBtn = (v: WealthView, label: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        setView(v);
+        if (v !== "investments") setNet(false);
+      }}
+      aria-pressed={view === v}
+      data-testid={`aggregate-view-${v}`}
+      className={cn(
+        "rounded-[var(--radius-pill)] px-3 py-1 text-num-sm transition-colors",
+        view === v
+          ? "bg-[var(--primary)] font-semibold text-[var(--on-primary)]"
+          : "text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+      )}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <section className={CARD} data-testid="aggregate-trend">
-      <p className="text-sm font-semibold text-[var(--body)]">
-        {t("trend_title")}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-[var(--body)]">
+          {t("trend_title")}
+        </p>
+        <div className="flex items-center gap-1 rounded-[var(--radius-pill)] bg-[var(--surface-elevated-dark)] p-0.5">
+          {viewBtn("capitalization", t("capitalization"))}
+          {viewBtn("investments", t("investments"))}
+        </div>
+      </div>
 
       {hasSeries && (
         <div className="mt-2 flex flex-wrap items-start justify-center gap-6">
@@ -93,6 +171,30 @@ export function AggregateTrend({
             </span>
           </div>
           <PctStat label={t("grow")} pct={data.grow.delta_pct} />
+          {view === "investments" && data?.invested_cents != null && (
+            <div className="flex flex-col items-center gap-0.5">
+              <p className="text-caption text-[var(--muted-foreground)]">
+                {t("invested")}
+              </p>
+              <span className="num text-num-md text-[var(--body-on-dark)]">
+                {fmt(data.invested_cents)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {view === "investments" && investedPositive && (
+        <div className="mt-2 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setNet((n) => !n)}
+            aria-pressed={net}
+            data-testid="aggregate-net-toggle"
+            className="rounded-[var(--radius-pill)] border border-[var(--hairline-dark)] px-3 py-1 text-num-sm text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
+          >
+            {net ? t("excl_contributions") : t("incl_contributions")}
+          </button>
         </div>
       )}
 
@@ -113,17 +215,63 @@ export function AggregateTrend({
             xKey="label"
             series={[{ key: "value", label: t("trend_title") }]}
             formatY={chartCompactCents}
-            formatTooltip={(n) =>
-              centsToRounded(
-                BigInt(Math.round(n)),
-                data.display_currency,
-                locale,
-                true,
-              )
-            }
+            formatTooltip={(n) => fmt(String(Math.round(n)))}
             xTickFormat={(v) => formatChartDate(String(v), locale)}
             height={220}
           />
+        </div>
+      )}
+
+      {/* View-driven pie: capitalization pools vs per-holding-type. */}
+      {view === "capitalization" && capBuckets.length > 0 && (
+        <div
+          className="mt-3 flex flex-col gap-2"
+          data-testid="aggregate-cap-pie"
+        >
+          <p className="text-caption text-[var(--muted-foreground)]">
+            {t("by_bucket")}
+          </p>
+          <OverviewPieChart
+            data={capBuckets}
+            nameKey="name"
+            valueKey="value"
+            colorFor={(n: string) => capColor[n] ?? NEUTRAL}
+            formatName={(n: string) => t(n === "cushion" ? "cushion" : n)}
+            formatValue={fmtPieValue}
+            allLabel={t("by_bucket")}
+          />
+        </div>
+      )}
+      {view === "investments" && (
+        <div
+          className="mt-3 flex flex-col gap-2"
+          data-testid="aggregate-invest-pie"
+        >
+          <p className="text-caption text-[var(--muted-foreground)]">
+            {t("by_type")}
+          </p>
+          {data?.pie && data.pie.length > 0 ? (
+            <OverviewPieChart
+              data={data.pie.map((p) => ({
+                holding_type: p.holding_type,
+                value: Number(p.value_cents),
+              }))}
+              nameKey="holding_type"
+              valueKey="value"
+              colorFor={(ht: string) =>
+                UI_TYPE_COLOR[deriveUiType(ht, ht, false)]
+              }
+              formatName={(ht: string) =>
+                tInvest(`uitype.${deriveUiType(ht, ht, false)}`)
+              }
+              formatValue={fmtPieValue}
+              allLabel={t("by_type")}
+            />
+          ) : (
+            <p className="text-num-sm text-[var(--muted-foreground)]">
+              {t("empty")}
+            </p>
+          )}
         </div>
       )}
     </section>

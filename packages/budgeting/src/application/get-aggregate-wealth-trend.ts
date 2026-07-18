@@ -28,6 +28,12 @@ export interface AggregateWealthTrend {
   display_currency: string;
   series: AggregateWealthPoint[];
   grow: { delta_cents: string; delta_pct: number };
+  /** Investments view: Σ money paid into investments over the range (the
+   *  Excl.-contributions baseline). null in capitalization view. */
+  invested_cents: string | null;
+  /** Investments view: Σ current value per holding_type across budgets (the
+   *  investments pie). null in capitalization view. */
+  pie: { holding_type: string; value_cents: string }[] | null;
 }
 
 export interface GetAggregateWealthTrendDeps {
@@ -51,9 +57,13 @@ export interface GetAggregateWealthTrendDeps {
     range: string;
     from?: string;
     to?: string;
+    view?: string;
+    net?: boolean;
   }) => Promise<{
     currency: string;
     series: { label: string; value_cents: bigint }[];
+    invested_cents: bigint | null;
+    pie: { holding_type: string; value_cents: bigint }[] | null;
   }>;
   displayCurrencyReader: {
     getDisplayCurrency: (userId: string) => Promise<string | null>;
@@ -70,6 +80,10 @@ export interface GetAggregateWealthTrendInput {
   /** Explicit window (YYYY-MM-DD); wins over `range` when both present. */
   from?: string;
   to?: string;
+  /** "capitalization" (default) | "investments" — picks the per-budget field. */
+  view?: string;
+  /** Investments view: subtract contributions from every value. */
+  net?: boolean;
 }
 
 /** FX hop (today's rate) + ownership share — mirrors getAllBudgetsAggregate's
@@ -111,6 +125,8 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
           range: input.range,
           ...(input.from ? { from: input.from } : {}),
           ...(input.to ? { to: input.to } : {}),
+          ...(input.view ? { view: input.view } : {}),
+          ...(input.net ? { net: input.net } : {}),
         });
         const { rate } = await deps.fxProvider.rateAsOf(
           w.currency as Currency,
@@ -118,28 +134,27 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
           now,
         );
         const share = prefs.get(b.id)?.ownership_share_pct ?? 100;
+        const conv = (c: bigint) =>
+          toDisplayCcyShared(c, w.currency, rate, displayCcy, share);
         const byLabel = new Map<string, bigint>();
-        for (const pt of w.series) {
-          byLabel.set(
-            pt.label,
-            toDisplayCcyShared(
-              pt.value_cents,
-              w.currency,
-              rate,
-              displayCcy,
-              share,
-            ),
-          );
-        }
-        return byLabel;
+        for (const pt of w.series) byLabel.set(pt.label, conv(pt.value_cents));
+        const invested =
+          w.invested_cents != null ? conv(w.invested_cents) : null;
+        const pie = w.pie
+          ? w.pie.map((s) => ({
+              holding_type: s.holding_type,
+              value_cents: conv(s.value_cents),
+            }))
+          : null;
+        return { byLabel, invested, pie };
       }),
     );
 
     // Union of labels, first-seen order across budgets.
     const labels: string[] = [];
     const seen = new Set<string>();
-    for (const m of perBudget) {
-      for (const label of m.keys()) {
+    for (const pb of perBudget) {
+      for (const label of pb.byLabel.keys()) {
         if (!seen.has(label)) {
           seen.add(label);
           labels.push(label);
@@ -149,10 +164,10 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
 
     // Forward-fill each budget's projection across the full label axis (missing
     // leading buckets stay 0; a label after the last known point carries it).
-    const projections = perBudget.map((m) => {
+    const projections = perBudget.map((pb) => {
       let carried = 0n;
       return labels.map((label) => {
-        if (m.has(label)) carried = m.get(label)!;
+        if (pb.byLabel.has(label)) carried = pb.byLabel.get(label)!;
         return carried;
       });
     });
@@ -173,7 +188,36 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
       delta_pct: first === 0n ? 0 : (Number(delta) * 100) / Number(first),
     };
 
-    return { display_currency: displayCcy, series, grow };
+    // Investments view: Σ invested + Σ current value per holding_type (the pie).
+    // All bigint cents (already FX+share converted per budget above).
+    const isInvestView = input.view === "investments";
+    const invested = isInvestView
+      ? perBudget.reduce((acc, pb) => acc + (pb.invested ?? 0n), 0n)
+      : null;
+    const pieByType = new Map<string, bigint>();
+    for (const pb of perBudget) {
+      if (pb.pie)
+        for (const s of pb.pie)
+          pieByType.set(
+            s.holding_type,
+            (pieByType.get(s.holding_type) ?? 0n) + s.value_cents,
+          );
+    }
+    const pie =
+      isInvestView && pieByType.size > 0
+        ? [...pieByType.entries()].map(([holding_type, v]) => ({
+            holding_type,
+            value_cents: v.toString(),
+          }))
+        : null;
+
+    return {
+      display_currency: displayCcy,
+      series,
+      grow,
+      invested_cents: invested != null ? invested.toString() : null,
+      pie,
+    };
   };
 }
 

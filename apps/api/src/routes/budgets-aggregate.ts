@@ -28,6 +28,8 @@ export function budgetsAggregateRoutesFactory(deps: AggregateDeps) {
     const range = c.req.query("range") ?? "6M";
     const from = c.req.query("from");
     const to = c.req.query("to");
+    const view = c.req.query("view");
+    const net = c.req.query("net") === "1";
     const include = (c.req.query("include") ?? "").split(",").filter(Boolean);
     const out = await deps.budgeting.getAggregateWealthTrend({
       userId: session.user.id,
@@ -35,6 +37,8 @@ export function budgetsAggregateRoutesFactory(deps: AggregateDeps) {
       includeIds: include,
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
+      ...(view ? { view } : {}),
+      ...(net ? { net } : {}),
     });
     return c.json(out);
   });

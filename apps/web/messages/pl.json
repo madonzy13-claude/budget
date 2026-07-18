@@ -717,6 +717,12 @@
     "cushion": "Poduszka",
     "grow": "Wzrost",
     "loss": "Strata",
+    "capitalization": "Majątek",
+    "by_bucket": "Rozkład",
+    "by_type": "Wg typu",
+    "incl_contributions": "Z wpłatami",
+    "excl_contributions": "Bez wpłat",
+    "invested": "Zainwestowano",
     "budgets_tasks_title": "Budżety i zadania",
     "no_tasks": "Brak zadań",
     "task_kind": {
