@@ -12,6 +12,7 @@
  */
 import { useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Sector } from "recharts";
+import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
 export function OverviewPieChart({
   data,
@@ -22,6 +23,7 @@ export function OverviewPieChart({
   formatValue,
   formatName,
   allLabel = "All",
+  maskValue = false,
 }: {
   data: Array<Record<string, unknown>>;
   nameKey: string;
@@ -35,6 +37,9 @@ export function OverviewPieChart({
   formatName?: (name: string) => string;
   /** Centre label shown when NO slice is selected — the whole pie (total · 100%). */
   allLabel?: string;
+  /** Privacy: render the centre VALUE as a tap-to-reveal SlotAmount (the % stays
+   *  visible). Reveal is shared via SlotRevealProvider. */
+  maskValue?: boolean;
 }) {
   // hover = transient (desktop); tapped = persistent (mobile). Active is either —
   // so a mobile mouseleave-after-touch can't clear a tapped selection.
@@ -119,7 +124,14 @@ export function OverviewPieChart({
             {centreName}
           </span>
           <span className="num text-num-sm font-semibold text-[var(--body-on-dark)]">
-            {formatValue ? formatValue(centreVal) : String(centreVal)}
+            {(() => {
+              const v = formatValue
+                ? formatValue(centreVal)
+                : String(centreVal);
+              // pointer-events-none on the overlay → no own tap, but the shared
+              // reveal (from any other SlotAmount) drives it in sync.
+              return maskValue ? <SlotAmount value={v} /> : v;
+            })()}
           </span>
           <span className="text-caption text-[var(--muted-foreground)]">
             {centrePct}%

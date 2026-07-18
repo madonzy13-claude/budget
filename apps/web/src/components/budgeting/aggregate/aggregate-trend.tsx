@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAggregateWealth } from "@/hooks/use-budgets-aggregate";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import type { OverviewRange } from "@/lib/overview-range";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { chartCompactCents } from "@/lib/chart-format";
@@ -176,7 +177,7 @@ export function AggregateTrend({
                   )}
                   data-testid="aggregate-trend-grow"
                 >
-                  {fmtSigned(data.grow.delta_cents)}
+                  <SlotAmount value={fmtSigned(data.grow.delta_cents)} />
                 </span>
               </div>
               <PctStat label={t("grow")} pct={data.grow.delta_pct} />
@@ -186,7 +187,7 @@ export function AggregateTrend({
                     {t("invested")}
                   </p>
                   <span className="num text-num-md text-[var(--body-on-dark)]">
-                    {fmt(data.invested_cents)}
+                    <SlotAmount value={fmt(data.invested_cents)} />
                   </span>
                 </div>
               )}
@@ -251,6 +252,7 @@ export function AggregateTrend({
               formatY={chartCompactCents}
               formatTooltip={(n) => fmt(String(Math.round(n)))}
               xTickFormat={(v) => formatChartDate(String(v), locale)}
+              maskAmounts
             />
           </div>
 
@@ -271,6 +273,7 @@ export function AggregateTrend({
                 formatName={(n: string) => t(n === "cushion" ? "cushion" : n)}
                 formatValue={fmtPieValue}
                 allLabel={t("by_bucket")}
+                maskValue
               />
             </div>
           )}
@@ -298,6 +301,7 @@ export function AggregateTrend({
                   }
                   formatValue={fmtPieValue}
                   allLabel={t("by_type")}
+                  maskValue
                 />
               ) : (
                 <p className="text-num-sm text-[var(--muted-foreground)]">

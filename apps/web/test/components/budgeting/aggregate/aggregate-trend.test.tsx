@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { AggregateTrend } from "@/components/budgeting/aggregate/aggregate-trend";
 
 const wealth = vi.fn(() => ({
@@ -63,9 +63,11 @@ describe("AggregateTrend", () => {
   it("capitalization view: growth row + area chart + a where-it-sits pie", () => {
     renderTrend();
     expect(screen.getByTestId("area").textContent).toBe("2");
-    expect(screen.getByTestId("aggregate-trend-grow").textContent).toMatch(
-      /\+.*1,?300/,
-    );
+    // The growth metric is a privacy SlotAmount — reveal it, then read aria-label.
+    const grow = screen.getByTestId("aggregate-trend-grow");
+    const slot = within(grow).getByTestId("slot-amount");
+    fireEvent.click(slot);
+    expect(slot.getAttribute("aria-label")).toMatch(/\+.*1,?300/);
     // capitalization pie built from the row sums (investments + cash)
     expect(screen.getByTestId("aggregate-cap-pie")).toBeTruthy();
     expect(screen.getByTestId("pie").textContent).toContain("investments");

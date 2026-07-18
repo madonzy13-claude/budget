@@ -60,8 +60,9 @@ export function SlotRevealProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Shared reveal when under a provider; otherwise isolated local state. */
-function useSlotReveal(): SlotRevealState {
+/** Shared reveal when under a provider; otherwise isolated local state. Exported
+ *  so non-SlotAmount surfaces (e.g. chart Y-axis blur) can follow the same toggle. */
+export function useSlotReveal(): SlotRevealState {
   const ctx = useContext(SlotRevealCtx);
   const [local, setLocal] = useState(false);
   const localToggle = useCallback(() => setLocal((r) => !r), []);
