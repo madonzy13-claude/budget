@@ -242,6 +242,31 @@ When(
   },
 );
 
+When(
+  /^I set my ownership share of the "(.+?)" budget to (\d+) percent$/,
+  async ({ page, freshUser }, name: string, pctStr: string) => {
+    const budgetId = registryFor(freshUser).get(name) ?? freshUser.budgetId;
+    await page.goto(`/en/budgets/${budgetId}/settings`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+    // Budget-Identity (General) accordion is open by default, so the aggregation
+    // toggle + share field render without expanding anything. Include defaults
+    // ON for a new budget → the share field is visible; ensure it before typing.
+    const toggle = page.getByTestId("settings-aggregation-toggle");
+    await toggle.waitFor({ state: "visible", timeout: 10000 });
+    if ((await toggle.getAttribute("aria-checked")) !== "true") {
+      await toggle.click();
+    }
+    const share = page.getByTestId("settings-aggregation-share");
+    await share.waitFor({ state: "visible", timeout: 5000 });
+    await share.fill(String(pctStr)); // bdd coerces \d+ to a number; fill needs a string
+    await share.blur(); // triggers the self-write PUT { included, share_pct }
+    // The input disables while the PUT is in flight and re-enables on settle.
+    await expect(share).toBeEnabled({ timeout: 5000 });
+  },
+);
+
 Then("the include-in-aggregation toggle is not visible", async ({ page }) => {
   const count = await page.getByTestId("settings-aggregation-toggle").count();
   if (count !== 0) {
