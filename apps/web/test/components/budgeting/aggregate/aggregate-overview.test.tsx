@@ -81,6 +81,9 @@ vi.mock("@/components/budgeting/charts/area-chart", () => ({
 vi.mock("@/components/budgeting/overview/range-selector", () => ({
   RangeSelector: () => <div data-testid="range-selector" />,
 }));
+vi.mock("@/components/budgeting/aggregate/aggregate-budgets-tasks", () => ({
+  AggregateBudgetsTasks: () => <div data-testid="budgets-tasks" />,
+}));
 
 beforeEach(() => {
   dataRef.current = DATA;

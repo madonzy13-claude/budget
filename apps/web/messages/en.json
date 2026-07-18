@@ -715,6 +715,16 @@
     "incl_investments": "incl. investments",
     "pl_today": "today",
     "cushion": "Cushion",
+    "grow": "Growth",
+    "loss": "Loss",
+    "budgets_tasks_title": "Budgets & tasks",
+    "no_tasks": "No tasks",
+    "task_kind": {
+      "RESERVE_TOPUP": "Top up reserve",
+      "CUSHION_BELOW_TARGET": "Cushion below target",
+      "CONFIRM_DRAFT": "Confirm spending",
+      "INCOME_UNDER_PLANNED": "Review spendings"
+    },
     "attention_title": "Needs attention",
     "flow_title": "This month",
     "spent": "Spent",

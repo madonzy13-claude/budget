@@ -6,9 +6,6 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (k: string) => k,
   useLocale: () => "en",
 }));
-vi.mock("@/components/common/user-timezone-provider", () => ({
-  useUserTimezone: () => "UTC",
-}));
 vi.mock("@/hooks/use-budgets-aggregate", () => ({
   useAggregateWealth: () => ({
     data: {
@@ -22,25 +19,28 @@ vi.mock("@/hooks/use-budgets-aggregate", () => ({
     isPending: false,
   }),
 }));
-// BDP wealth section renders an AREA chart (not line) + the shared range selector.
 vi.mock("@/components/budgeting/charts/area-chart", () => ({
   OverviewAreaChart: ({ data }: { data: any[] }) => (
     <div data-testid="area">{data.length}</div>
   ),
 }));
-vi.mock("@/components/budgeting/overview/range-selector", () => ({
-  RangeSelector: () => <div data-testid="range-selector" />,
-}));
+
+const RANGE = {
+  preset: "last6Months" as const,
+  from: "2026-01-01",
+  to: "2026-06-30",
+};
 
 describe("AggregateTrend", () => {
-  it("renders the area chart + range selector + grow badge", () => {
-    render(<AggregateTrend includeIds={["b1", "b2"]} />);
+  it("renders the growth row (signed amount + %) and the area chart; no inline range selector", () => {
+    render(<AggregateTrend includeIds={["b1", "b2"]} range={RANGE} />);
     expect(screen.getByTestId("aggregate-trend")).toBeTruthy();
-    expect(screen.getByTestId("range-selector")).toBeTruthy();
     expect(screen.getByTestId("area").textContent).toBe("2");
-    // range-scoped grow badge (amount + signed %)
+    // signed amount block + PctStat %
     expect(screen.getByTestId("aggregate-trend-grow").textContent).toMatch(
-      /130\.0%/,
+      /\+.*1,?300/,
     );
+    // the range selector is a SEPARATE piece owned by the parent — not here
+    expect(screen.queryByTestId("overview-range-selector")).toBeNull();
   });
 });

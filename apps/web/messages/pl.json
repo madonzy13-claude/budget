@@ -715,6 +715,16 @@
     "incl_investments": "w tym inwestycje",
     "pl_today": "dziś",
     "cushion": "Poduszka",
+    "grow": "Wzrost",
+    "loss": "Strata",
+    "budgets_tasks_title": "Budżety i zadania",
+    "no_tasks": "Brak zadań",
+    "task_kind": {
+      "RESERVE_TOPUP": "Uzupełnij rezerwę",
+      "CUSHION_BELOW_TARGET": "Poduszka poniżej celu",
+      "CONFIRM_DRAFT": "Potwierdź wydatek",
+      "INCOME_UNDER_PLANNED": "Przejrzyj wydatki"
+    },
     "attention_title": "Wymaga uwagi",
     "flow_title": "W tym miesiącu",
     "spent": "Wydano",

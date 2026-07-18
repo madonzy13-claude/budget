@@ -715,6 +715,16 @@
     "incl_investments": "у т.ч. інвестиції",
     "pl_today": "сьогодні",
     "cushion": "Подушка",
+    "grow": "Зростання",
+    "loss": "Втрата",
+    "budgets_tasks_title": "Бюджети та завдання",
+    "no_tasks": "Немає завдань",
+    "task_kind": {
+      "RESERVE_TOPUP": "Поповнити резерв",
+      "CUSHION_BELOW_TARGET": "Подушка нижче цілі",
+      "CONFIRM_DRAFT": "Підтвердити витрату",
+      "INCOME_UNDER_PLANNED": "Переглянути витрати"
+    },
     "attention_title": "Потребує уваги",
     "flow_title": "Цього місяця",
     "spent": "Витрачено",

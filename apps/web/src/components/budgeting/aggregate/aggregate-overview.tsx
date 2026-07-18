@@ -2,26 +2,25 @@
 /**
  * aggregate-overview.tsx — cross-budget "all budgets" overview.
  *
- * Mirrors the single-budget BDP Overview tab (overview-cards.tsx): a net-worth
- * hero banner (big yellow figure + "incl. investments" sub-line + a day P/L
- * block, exactly like the capitalization card) + a grid-cols-2 stat grid
- * (cash / reserves / cushion / this-month) + the wealth-composition pie + the
- * net-worth-over-time area chart with its range selector.
+ * Mirrors the single-budget BDP Overview tab: a net-worth hero banner (big
+ * yellow figure + "incl. investments" sub-line + a day P/L block, like the
+ * capitalization card) + a grid-cols-2 stat grid (cash / reserves / cushion /
+ * this-month) + the wealth-composition pie + a SEPARATE range selector driving
+ * the net-worth-over-time area chart + a Budgets & tasks banner.
  *
- * Only budgets the member INCLUDES are rendered/summed (`b.included`) —
- * inclusion is a per-budget self-setting on each budget's Settings → General
- * page. Every figure is STRING cents already FX-converted into
- * `display_currency` by the API; summing as BigInt then formatting once is
- * correct because every row shares that one currency.
+ * Only budgets the member INCLUDES are summed into the totals (`b.included`);
+ * the Budgets & tasks banner lists ALL of the user's budgets. Every figure is
+ * STRING cents already FX-converted into `display_currency` by the API.
  */
+import { type ReactNode, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import Link from "next/link";
 import {
   CircleAlert,
   CircleCheck,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   useBudgetsAggregate,
   useAggregateWealth,
@@ -34,8 +33,10 @@ import {
 import { centsToRounded } from "@/lib/cents-format";
 import { AggregateComposition } from "@/components/budgeting/aggregate/aggregate-composition";
 import { AggregateTrend } from "@/components/budgeting/aggregate/aggregate-trend";
+import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregate-budgets-tasks";
+import { RangeSelector } from "@/components/budgeting/overview/range-selector";
+import { makeRange, todayInTz, type OverviewRange } from "@/lib/overview-range";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
-import { todayInTz } from "@/lib/overview-range";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
@@ -44,22 +45,36 @@ function sumCents(rows: AggregateBudgetRow[], key: keyof AggregateBudgetRow) {
   return rows.reduce((total, r) => total + BigInt(r[key] as string), 0n);
 }
 
-/** Mirrors overview-cards.tsx's heroFontClass: shrink the hero number as the
- * formatted string grows so a big combined total doesn't overflow the card. */
+/** Mirrors overview-cards.tsx's heroFontClass. */
 function heroFontClass(s: string): string {
   if (s.length >= 13) return "text-[28px] font-bold leading-[1.1]";
   if (s.length >= 10) return "text-[36px] font-bold leading-[1.1]";
   return "text-num-display";
 }
 
-/** One BDP-overview-style stat card: caption label + a single big figure. */
-function StatCard({ label, value }: { label: string; value: string }) {
+/** A BDP-overview stat card: (optional icon +) caption label, a big figure, an
+ *  optional sub-line — same shape/tokens as overview-cards' grid cards. */
+function StatCard({
+  label,
+  value,
+  icon,
+  sub,
+}: {
+  label: string;
+  value: string;
+  icon?: ReactNode;
+  sub?: ReactNode;
+}) {
   return (
     <section className={CARD}>
-      <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
-      <p className="num mt-1 text-[20px] font-semibold text-[var(--body)]">
+      <div className="flex items-center gap-1.5">
+        {icon}
+        <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
+      </div>
+      <p className="num text-title-md mt-1 whitespace-nowrap text-[var(--body-on-dark)]">
         <SlotAmount value={value} />
       </p>
+      {sub}
     </section>
   );
 }
@@ -70,10 +85,13 @@ export function AggregateOverview() {
   const tz = useUserTimezone();
   const { data, isPending, isError } = useBudgetsAggregate();
 
-  // Hooks must run unconditionally (before any early return). The day-P/L reuses
-  // the aggregate wealth trend over a today-only window — its `grow` is the
-  // combined net-worth change since local midnight, like the BDP hero P/L.
-  const today = todayInTz(tz).toString(); // Temporal.PlainDate → "YYYY-MM-DD"
+  // Hooks run unconditionally (before early returns). Range for the chart lives
+  // here (a SEPARATE selector, like the BDP band) so it isn't merged into the
+  // chart card. The day P/L reuses the wealth trend over a today-only window.
+  const [range, setRange] = useState<OverviewRange>(() =>
+    makeRange("last6Months", tz),
+  );
+  const today = todayInTz(tz).toString();
   const summableIds = (data?.budgets ?? [])
     .filter((b) => b.included && !b.fx_unavailable)
     .map((b) => b.id);
@@ -92,11 +110,9 @@ export function AggregateOverview() {
   const summable = data.budgets.filter((b) => b.included && !b.fx_unavailable);
   const netWorth = sumCents(summable, "net_worth_cents");
   const investments = sumCents(summable, "investments_cents");
-  const attention = summable.filter((b) => b.health !== "green");
   const anyCushionBreached = summable.some((b) => b.cushion_breached);
   const heroValue = fmt(netWorth);
 
-  // Day P/L: combined net-worth grow over today (mirrors overview-cards' day-close).
   const plGrow = pl.data && pl.data.series.length > 0 ? pl.data.grow : null;
   const plUp = plGrow ? Number(plGrow.delta_cents) >= 0 : false;
   const PlIcon = plUp ? TrendingUp : TrendingDown;
@@ -104,9 +120,9 @@ export function AggregateOverview() {
   return (
     <SlotRevealProvider>
       <div className="mx-auto flex max-w-2xl flex-col gap-3">
-        {/* HERO — combined net worth (yellow), incl. investments, day P/L block */}
+        {/* HERO — net worth (yellow) + incl. investments + day P/L (like BDP cap card) */}
         <section className={CARD} data-testid="aggregate-hero-card">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-caption text-[var(--muted-foreground)]">
                 {t("hero_label")}
@@ -121,7 +137,7 @@ export function AggregateOverview() {
               {investments > 0n && (
                 <p className="mt-0.5 text-caption text-[var(--muted-foreground)]">
                   {t("incl_investments")}{" "}
-                  <span className="num text-[var(--body)]">
+                  <span className="num text-[var(--body-on-dark)]">
                     <SlotAmount value={fmt(investments)} />
                   </span>
                 </p>
@@ -129,33 +145,33 @@ export function AggregateOverview() {
             </div>
             {plGrow && (
               <div
-                className="shrink-0 text-right"
+                className={cn(
+                  "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
+                  plUp
+                    ? "text-[var(--trading-up)]"
+                    : "text-[var(--trading-down)]",
+                )}
                 data-testid="aggregate-hero-pl"
-                style={{
-                  color: plUp ? "var(--trading-up)" : "var(--trading-down)",
-                }}
               >
-                <div className="flex items-center justify-end gap-1">
-                  <PlIcon className="size-4 shrink-0" aria-hidden="true" />
-                  <span className="num text-sm font-semibold">
-                    {plUp ? "+" : ""}
-                    {plGrow.delta_pct.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="num text-sm">
+                <span className="num flex items-center gap-1">
+                  <PlIcon className="size-3.5 shrink-0" aria-hidden="true" />
+                  {plUp ? "+" : ""}
+                  {plGrow.delta_pct.toFixed(1)}%
+                </span>
+                <span className="num">
                   {plUp ? "+" : ""}
                   {fmt(plGrow.delta_cents)}
-                </div>
-                <div className="text-caption text-[var(--muted-foreground)]">
+                </span>
+                <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
                   {t("pl_today")}
-                </div>
+                </span>
               </div>
             )}
           </div>
         </section>
 
-        {/* STAT GRID — mirrors the BDP overview's grid-cols-2 stat cards */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* STAT GRID — equal-height cards (auto-rows-fr) */}
+        <div className="grid auto-rows-fr grid-cols-2 gap-3">
           <StatCard
             label={t("cash")}
             value={fmt(sumCents(summable, "cash_cents"))}
@@ -164,10 +180,11 @@ export function AggregateOverview() {
             label={t("reserves")}
             value={fmt(sumCents(summable, "reserves_cents"))}
           />
-          {/* Cushion — Σ saved, with a covered/attention icon (like the BDP cushion card). */}
-          <section className={CARD}>
-            <div className="flex items-center gap-1.5">
-              {anyCushionBreached ? (
+          <StatCard
+            label={t("cushion")}
+            value={fmt(sumCents(summable, "cushion_cents"))}
+            icon={
+              anyCushionBreached ? (
                 <CircleAlert
                   className="size-4 shrink-0 text-[var(--trading-down)]"
                   aria-hidden="true"
@@ -177,34 +194,23 @@ export function AggregateOverview() {
                   className="size-4 shrink-0 text-[var(--trading-up)]"
                   aria-hidden="true"
                 />
-              )}
-              <p className="text-caption text-[var(--muted-foreground)]">
-                {t("cushion")}
-              </p>
-            </div>
-            <p className="num mt-1 text-[20px] font-semibold text-[var(--body)]">
-              <SlotAmount value={fmt(sumCents(summable, "cushion_cents"))} />
-            </p>
-          </section>
-          {/* This-month flow: spent as the big figure, left as a sub-line. */}
-          <section className={CARD}>
-            <p className="text-caption text-[var(--muted-foreground)]">
-              {t("flow_title")}
-            </p>
-            <p className="num mt-1 text-[20px] font-semibold text-[var(--body)]">
-              <SlotAmount
-                value={fmt(sumCents(summable, "spent_month_cents"))}
-              />
-            </p>
-            <p className="text-caption text-[var(--muted-foreground)]">
-              {t("left")}{" "}
-              <span className="num text-[var(--body)]">
-                <SlotAmount
-                  value={fmt(sumCents(summable, "left_month_cents"))}
-                />
-              </span>
-            </p>
-          </section>
+              )
+            }
+          />
+          <StatCard
+            label={t("flow_title")}
+            value={fmt(sumCents(summable, "spent_month_cents"))}
+            sub={
+              <dl className="text-caption mt-1.5 flex items-center justify-between gap-2 text-[var(--muted-foreground)]">
+                <dt>{t("left")}</dt>
+                <dd className="num text-[var(--body-on-dark)]">
+                  <SlotAmount
+                    value={fmt(sumCents(summable, "left_month_cents"))}
+                  />
+                </dd>
+              </dl>
+            }
+          />
         </div>
 
         {/* WEALTH COMPOSITION */}
@@ -219,34 +225,18 @@ export function AggregateOverview() {
           locale={locale}
         />
 
-        {/* NET-WORTH OVER TIME — area chart + range selector */}
-        <AggregateTrend includeIds={summable.map((b) => b.id)} />
+        {/* RANGE SELECTOR — a SEPARATE piece (not inside the chart), like BDP's band */}
+        <div className="py-1" data-testid="aggregate-range">
+          <RangeSelector value={range} onChange={setRange} />
+        </div>
 
-        {/* ATTENTION */}
-        {attention.length > 0 && (
-          <section className={CARD}>
-            <p className="text-sm font-semibold text-[var(--body)]">
-              {t("attention_title")}
-            </p>
-            <ul className="mt-2 space-y-1">
-              {attention.map((b) => (
-                <li key={b.id}>
-                  <Link
-                    href={`/${locale}/budgets/${b.id}/overview`}
-                    className="flex justify-between text-caption"
-                  >
-                    <span className="truncate">{b.name}</span>
-                    <span className="num text-[var(--trading-down)]">
-                      {b.overspent_count > 0
-                        ? fmt(b.overspent_total_cents)
-                        : "•"}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {/* NET WORTH OVER TIME — growth row + area chart */}
+        <AggregateTrend includeIds={summable.map((b) => b.id)} range={range} />
+
+        {/* BUDGETS & TASKS — all budgets, each with its pending tasks */}
+        <AggregateBudgetsTasks
+          budgets={data.budgets.map((b) => ({ id: b.id, name: b.name }))}
+        />
 
         {summable.length === 0 && (
           <p className="text-center text-caption text-[var(--muted-foreground)]">
