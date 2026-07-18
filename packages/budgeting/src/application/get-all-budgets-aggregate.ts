@@ -37,18 +37,23 @@ export interface AggregateBudgetRow {
   overspent_top_cents: string;
   cushion_breached: boolean;
   reserves_status: "ok" | "short" | "surplus";
-  /** Reserve required vs cushion required (share-scaled) — the "Needed" lines
-   *  on the Available-reserves and Cushion cards, matching the BDP overview. */
+  /** FULL (NO ownership share) available-to-spend + reserves + reserve required —
+   *  the Available-to-spend / Available-reserves / Overspent cards are operational
+   *  household figures, not "my share of wealth", so they are un-fractionalized.
+   *  (The share-scaled cash_cents/reserves_cents above still feed the wealth pie.) */
+  cash_full_cents: string;
+  reserves_full_cents: string;
   reserves_required_cents: string;
   cushion_required_cents: string;
-  /** Cushion FULL saved + required (NO ownership share) — the cushion coverage
-   *  card is a household safety check ("do ALL cushion wallets cover ALL expected
-   *  cushion months across every applied budget?"), not a "my share of wealth"
-   *  figure, so these are un-fractionalized full amounts. */
+  /** Cushion FULL saved + required + monthly need (NO ownership share) — the
+   *  cushion coverage card is a household safety check ("do ALL cushion wallets
+   *  cover ALL expected cushion months across every applied budget?"). monthly =
+   *  required ÷ target_months (balance-independent) so an unfunded-but-budgeted
+   *  cushion still adds its monthly need to the combined runway. */
   cushion_saved_full_cents: string;
   cushion_required_full_cents: string;
-  /** Cushion runway in months (per-budget ratio, NOT scaled) — the client
-   *  weight-combines these into an aggregate runway. */
+  cushion_monthly_cents: string;
+  /** Cushion runway in months (per-budget ratio, NOT scaled). */
   cushion_real_months: number;
   pending_tasks: number;
   health: "red" | "amber" | "green";
@@ -165,10 +170,13 @@ function zeroRow(
     overspent_top_cents: "0",
     cushion_breached: false,
     reserves_status: "ok",
+    cash_full_cents: "0",
+    reserves_full_cents: "0",
     reserves_required_cents: "0",
     cushion_required_cents: "0",
     cushion_saved_full_cents: "0",
     cushion_required_full_cents: "0",
+    cushion_monthly_cents: "0",
     cushion_real_months: 0,
     health,
     fx_unavailable: fxUnavailable,
@@ -290,12 +298,23 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             : "0",
           cushion_breached: c.cushion.enabled && !c.cushion.covered,
           reserves_status: c.reserves.status,
-          reserves_required_cents: toDisplayCcyShared(
+          cash_full_cents: toDisplayCcyFlow(
+            c.available_to_spend_cents,
+            ccy,
+            rate,
+            displayCcy,
+          ),
+          reserves_full_cents: toDisplayCcyFlow(
+            c.available_reserves_cents,
+            ccy,
+            rate,
+            displayCcy,
+          ),
+          reserves_required_cents: toDisplayCcyFlow(
             c.reserves.required_cents,
             ccy,
             rate,
             displayCcy,
-            s,
           ),
           cushion_required_cents: toDisplayCcyShared(
             c.cushion.required_cents,
@@ -312,6 +331,12 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
           ),
           cushion_required_full_cents: toDisplayCcyFlow(
             c.cushion.required_cents,
+            ccy,
+            rate,
+            displayCcy,
+          ),
+          cushion_monthly_cents: toDisplayCcyFlow(
+            c.cushion.monthly_cents,
             ccy,
             rate,
             displayCcy,

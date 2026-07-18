@@ -19,6 +19,7 @@ import {
   CircleAlert,
   CircleCheck,
   CirclePlus,
+  Hourglass,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -46,10 +47,10 @@ function sumCents(rows: AggregateBudgetRow[], key: keyof AggregateBudgetRow) {
   return rows.reduce((total, r) => total + BigInt(r[key] as string), 0n);
 }
 
-/** Mirrors overview-cards.tsx's heroFontClass. */
+/** Exact copy of overview-cards.tsx's heroFontClass (BDP capitalization card). */
 function heroFontClass(s: string): string {
-  if (s.length >= 13) return "text-[28px] font-bold leading-[1.1]";
-  if (s.length >= 10) return "text-[36px] font-bold leading-[1.1]";
+  if (s.length >= 13) return "text-[24px] font-bold leading-[1.1]";
+  if (s.length >= 10) return "text-[32px] font-bold leading-[1.1]";
   return "text-num-display";
 }
 
@@ -147,11 +148,12 @@ export function AggregateOverview() {
   const heroValue = fmt(netWorth);
 
   // ── BDP-parity stat cards: sum every per-budget figure, derive each card's
-  //    good/short/surplus indicator from the summed totals. ─────────────────
-  const cashTotal = sumCents(summable, "cash_cents");
+  //    good/short/surplus indicator from the summed totals. These operational
+  //    cards use FULL household amounts (NOT ownership-share-scaled). ─────────
+  const cashTotal = sumCents(summable, "cash_full_cents");
   const spentTotal = sumCents(summable, "spent_month_cents");
   const leftTotal = sumCents(summable, "left_month_cents");
-  const reservesTotal = sumCents(summable, "reserves_cents");
+  const reservesTotal = sumCents(summable, "reserves_full_cents");
   const reservesReq = sumCents(summable, "reserves_required_cents");
   // Cushion coverage is a HOUSEHOLD safety check → FULL cushion wallets vs FULL
   // required across every applied budget (NOT the member's ownership share).
@@ -173,18 +175,14 @@ export function AggregateOverview() {
   const anyCushion = cushionSaved > 0n || cushionReq > 0n;
   const cushionCovered = cushionSaved >= cushionReq;
   const cushionUnlimited = cushionReq === 0n && cushionSaved > 0n;
-  // Weighted household runway: Σsaved ÷ Σ(monthly cushion need). Each budget's
-  // monthly need = its saved ÷ its own runway (need = saved/real_months); a
-  // budget with no need (∞ runway) contributes 0, pushing the combined runway up.
-  const cushionMonthlyNeed = summable.reduce((acc, b) => {
-    const rm = b.cushion_real_months;
-    return (
-      acc +
-      (rm > 0 && Number.isFinite(rm)
-        ? Number(b.cushion_saved_full_cents) / rm
-        : 0)
-    );
-  }, 0);
+  // Household cushion runway = Σ(all cushion wallets) ÷ Σ(monthly cushion need
+  // across every applied budget). monthly need = required ÷ target_months, so a
+  // budget that BUDGETS a cushion but hasn't funded its wallet still adds its
+  // need (the old saved/real_months form silently dropped it at 0 balance).
+  const cushionMonthlyNeed = summable.reduce(
+    (acc, b) => acc + Number(b.cushion_monthly_cents),
+    0,
+  );
   const cushionRunwayMonths =
     cushionMonthlyNeed > 0
       ? Number(cushionSaved) / cushionMonthlyNeed
@@ -197,6 +195,18 @@ export function AggregateOverview() {
     spentTotal > 0n ? Number(netWorth) / Number(spentTotal) : Infinity;
   const nwUnlimited = spentTotal <= 0n && netWorth > 0n;
   const canFlip = summable.length > 0 && netWorth > 0n;
+
+  // Full-words duration ("13 years and 6 months"), zero components dropped —
+  // matches the BDP retirement flip back.
+  const durationFull = (totalMonths: number): string => {
+    const total = Math.max(0, Math.round(totalMonths));
+    const years = Math.floor(total / 12);
+    const months = total % 12;
+    const y = years ? t("years", { count: years }) : null;
+    const m = months ? t("months", { count: months }) : null;
+    if (y && m) return `${y} ${t("and")} ${m}`;
+    return y ?? m ?? t("months", { count: 0 });
+  };
 
   const plGrow = pl.data && pl.data.series.length > 0 ? pl.data.grow : null;
   const plUp = plGrow ? Number(plGrow.delta_cents) >= 0 : false;
@@ -236,70 +246,81 @@ export function AggregateOverview() {
                 canFlip && flipped ? "rotateY(180deg)" : "rotateY(0deg)",
             }}
           >
-            {/* FRONT — in flow, so it sets the card height (taller, BDP parity). */}
-            <div className="flex min-h-[104px] items-center justify-between gap-3 [backface-visibility:hidden]">
-              <div className="min-w-0">
-                <p className="text-caption text-[var(--muted-foreground)]">
-                  {t("hero_label")}
-                </p>
-                <p
-                  data-testid="aggregate-hero"
-                  className={`num ${heroFontClass(heroValue)}`}
-                  style={{ color: "var(--num-hero)" }}
-                >
-                  <SlotAmount value={heroValue} />
-                </p>
-                {investments > 0n && (
-                  <p className="mt-0.5 text-caption text-[var(--muted-foreground)]">
-                    {t("incl_investments")}{" "}
-                    <span className="num text-[var(--muted-foreground)]">
-                      <SlotAmount value={fmt(investments)} />
-                    </span>
+            {/* FRONT — in flow (sets the card height). Mirrors the BDP
+                capitalization card layout exactly so paddings read identically. */}
+            <div className="[backface-visibility:hidden]">
+              <p className="text-caption text-[var(--muted-foreground)]">
+                {t("hero_label")}
+              </p>
+              <div className="mt-1 flex flex-nowrap items-center justify-between gap-x-3">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <p
+                    data-testid="aggregate-hero"
+                    className={`num ${heroFontClass(heroValue)}`}
+                    style={{ color: "var(--num-hero)" }}
+                  >
+                    <SlotAmount value={heroValue} />
                   </p>
+                  {investments > 0n && (
+                    <p className="text-caption text-[var(--muted-foreground)]">
+                      {t("incl_investments")}{" "}
+                      <span className="num text-[var(--muted-foreground)]">
+                        <SlotAmount value={fmt(investments)} />
+                      </span>
+                    </p>
+                  )}
+                </div>
+                {plGrow && (
+                  <div
+                    className={cn(
+                      "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
+                      plUp
+                        ? "text-[var(--trading-up)]"
+                        : "text-[var(--trading-down)]",
+                    )}
+                    data-testid="aggregate-hero-pl"
+                  >
+                    <span className="num flex items-center gap-1">
+                      <PlIcon
+                        className="size-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <SlotAmount
+                        value={`${plUp ? "+" : ""}${plGrow.delta_pct.toFixed(1)}%`}
+                      />
+                    </span>
+                    <span className="num">
+                      <SlotAmount
+                        value={`${plUp ? "+" : ""}${fmt(plGrow.delta_cents)}`}
+                      />
+                    </span>
+                    <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
+                      {t("since_yesterday")}
+                    </span>
+                  </div>
                 )}
               </div>
-              {plGrow && (
-                <div
-                  className={cn(
-                    "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
-                    plUp
-                      ? "text-[var(--trading-up)]"
-                      : "text-[var(--trading-down)]",
-                  )}
-                  data-testid="aggregate-hero-pl"
-                >
-                  <span className="num flex items-center gap-1">
-                    <PlIcon className="size-3.5 shrink-0" aria-hidden="true" />
-                    <SlotAmount
-                      value={`${plUp ? "+" : ""}${plGrow.delta_pct.toFixed(1)}%`}
-                    />
-                  </span>
-                  <span className="num">
-                    <SlotAmount
-                      value={`${plUp ? "+" : ""}${fmt(plGrow.delta_cents)}`}
-                    />
-                  </span>
-                  <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
-                    {t("since_yesterday")}
-                  </span>
-                </div>
-              )}
             </div>
 
-            {/* BACK — money runway (netWorth ÷ Σspend), pre-rotated + overlaid. */}
+            {/* BACK — money runway (netWorth ÷ Σspend). Same style as the BDP
+                retirement flip: hourglass + full-words duration + a note. */}
             {canFlip && (
               <div
                 data-testid="aggregate-hero-runway"
-                className="absolute inset-0 flex min-h-[104px] flex-col justify-center gap-1 [backface-visibility:hidden] [transform:rotateY(180deg)]"
+                className="absolute inset-0 flex flex-col justify-between [backface-visibility:hidden] [transform:rotateY(180deg)]"
               >
                 <p className="text-caption text-[var(--muted-foreground)]">
                   {t("lasts_label")}
                 </p>
-                <p className="num text-num-display text-[var(--body-on-dark)]">
-                  {nwUnlimited
-                    ? "∞"
-                    : formatRunway(nwRunwayMonths, runwayUnits)}
-                </p>
+                <div className="flex items-center gap-2">
+                  <Hourglass
+                    className="size-5 shrink-0 text-[var(--primary)]"
+                    aria-hidden="true"
+                  />
+                  <span className="text-title-md font-semibold text-[var(--body-on-dark)]">
+                    {nwUnlimited ? "∞" : durationFull(nwRunwayMonths)}
+                  </span>
+                </div>
                 <p className="text-caption text-[var(--muted-foreground)]">
                   {t("lasts_note")}
                 </p>

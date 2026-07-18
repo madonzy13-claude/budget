@@ -7,7 +7,7 @@
  * money amount masked as a tap-to-reveal SlotAmount; clicking a task jumps to the
  * BDP pill it belongs to (pillFor(kind)). Task lists share BdpTabs' query key.
  */
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,10 +20,17 @@ import {
 } from "@/components/budgeting/task-banner-row";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
-// Normal card surface — the budget rows sit on it; only their TASK lists drop to
-// the sunken "underground" lane below.
+// Normal card surface — the budget headers sit on it; only their TASK lists drop
+// to the full-width sunken "underground" lane. overflow-hidden clips the
+// edge-to-edge lanes to the card's rounded corners.
 const CARD =
-  "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
+  "overflow-hidden rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
+
+// Full-bleed recessed lane: -mx-4 cancels the card's side padding (full banner
+// width), px-4 restores inner content padding, and the inset top+bottom shadow
+// reads as sunk beneath the surface.
+const LANE =
+  "-mx-4 bg-[var(--surface-sunken-dark)] px-4 py-2.5 shadow-[inset_0_3px_5px_-3px_rgba(0,0,0,0.6),inset_0_-3px_5px_-3px_rgba(0,0,0,0.6)]";
 
 /** Split a title on its money substrings, rendering each as a maskable
  *  SlotAmount so amounts hide until revealed while the words stay readable. */
@@ -55,6 +62,11 @@ function TaskLine({
   const router = useRouter();
   const { title, amounts } = useTaskTitle(task, budgetId);
   const href = `/${locale}/budgets/${budgetId}/${pillFor(task.kind)}`;
+  // Warm the destination so the tap navigates instantly (a <Link> would prefetch
+  // for us, but we can't use one here — see below).
+  useEffect(() => {
+    router.prefetch(href);
+  }, [href, router]);
   // NOT an <a>: a native anchor navigates on any child click, so tapping a
   // blurred amount jumped to the budget instead of revealing it. A div + router
   // lets the amount's SlotAmount (which stopPropagation()s) reveal in place,
@@ -128,15 +140,16 @@ function BudgetRow({
           </span>
         )}
       </Link>
+      {/* Both the task list AND the empty "no tasks" note drop to the recessed
+          full-width lane (item 1). */}
       {list.length > 0 ? (
-        // Only the TASKS drop to the sunken "underground" lane.
-        <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-sunken-dark)] p-2.5">
+        <div className={`flex flex-col gap-2 ${LANE}`}>
           {list.map((task) => (
             <TaskLine key={task.id} task={task} budgetId={id} locale={locale} />
           ))}
         </div>
       ) : (
-        <p className="text-caption text-[var(--muted-foreground)]">
+        <p className={`text-caption text-[var(--muted-foreground)] ${LANE}`}>
           {t("no_tasks")}
         </p>
       )}

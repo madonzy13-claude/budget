@@ -750,7 +750,10 @@
     "runway_d": "d",
     "grow_since": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} last12Months {over the last 12 months} all {all time} other {over the selected range}}",
     "lasts_label": "Your money lasts",
-    "lasts_note": "at current monthly spending"
+    "lasts_note": "at current monthly spending",
+    "years": "{count, plural, one {# year} other {# years}}",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "and": "and"
   },
   "state": {
     "empty": {

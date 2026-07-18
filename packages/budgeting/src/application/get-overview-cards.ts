@@ -142,6 +142,11 @@ export interface OverviewCards {
     total_cents: bigint;
     /** Required cushion to cover the threshold — for the "have vs needed" line. */
     required_cents: bigint;
+    /** Monthly cushion need = Σ(category cushion amounts) = required ÷ target_months.
+     *  Independent of the wallet balance, so a budget that BUDGETS a cushion but
+     *  hasn't funded its wallet still contributes its monthly need to an aggregate
+     *  runway (required/real_months would drop it — real_months is 0 at 0 balance). */
+    monthly_cents: bigint;
     /** actual ≥ required — cushion fully covers its required limit (D-08). */
     covered: boolean;
   };
@@ -254,6 +259,12 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
           ? 0
           : Number(actualCents) /
             (Number(requiredCents) / cushion.target_months);
+      // Monthly cushion need = required ÷ target_months (= Σ category cushion
+      // amounts). Balance-independent, unlike real_months.
+      const monthlyCushionCents =
+        cushion.target_months > 0
+          ? BigInt(Math.round(Number(requiredCents) / cushion.target_months))
+          : 0n;
 
       // Available-to-spend breakdown (item 1). Spent this month + "upcoming" (what
       // you still expect to pay). Per category (r36, user's "max per category"
@@ -352,6 +363,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
           real_months: realMonths,
           total_cents: actualCents,
           required_cents: requiredCents,
+          monthly_cents: monthlyCushionCents,
           // Covered = saved cushion meets the required limit. requiredCents===0n
           // (no requirement) reads as covered.
           covered: actualCents >= requiredCents,

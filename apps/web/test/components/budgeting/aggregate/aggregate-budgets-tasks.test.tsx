@@ -11,7 +11,7 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, prefetch: vi.fn() }),
 }));
 vi.mock("@/lib/budget-fetch", () => ({
   clientApiFetch: vi.fn(async (url: string) => ({

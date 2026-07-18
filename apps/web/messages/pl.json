@@ -750,7 +750,10 @@
     "runway_d": "d",
     "grow_since": "{preset, select, thisMonth {od początku miesiąca} last3Months {za ostatnie 3 miesiące} last6Months {za ostatnie 6 miesięcy} last12Months {za ostatnie 12 miesięcy} all {cały czas} other {w wybranym zakresie}}",
     "lasts_label": "Twoje pieniądze wystarczą na",
-    "lasts_note": "przy obecnych miesięcznych wydatkach"
+    "lasts_note": "przy obecnych miesięcznych wydatkach",
+    "years": "{count, plural, one {# rok} few {# lata} many {# lat} other {# roku}}",
+    "months": "{count, plural, one {# miesiąc} few {# miesiące} many {# miesięcy} other {# miesiąca}}",
+    "and": "i"
   },
   "state": {
     "empty": {

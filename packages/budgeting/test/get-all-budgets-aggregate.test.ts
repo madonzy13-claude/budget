@@ -36,6 +36,7 @@ const cards = (over: Partial<any> = {}) => ({
     real_months: 6,
     total_cents: 300000n,
     required_cents: 300000n,
+    monthly_cents: 50000n,
     covered: true,
   },
   overspent: { count: 0, currency: "EUR", total_cents: 0n, top: [] },
