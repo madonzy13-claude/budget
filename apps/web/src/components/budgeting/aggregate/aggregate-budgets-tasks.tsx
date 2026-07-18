@@ -20,17 +20,19 @@ import {
 } from "@/components/budgeting/task-banner-row";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
-// Normal card surface — the budget headers sit on it; only their TASK lists drop
-// to the full-width sunken "underground" lane. overflow-hidden clips the
-// edge-to-edge lanes to the card's rounded corners.
+// The whole banner is edge-to-edge alternating bands (NO card padding, so no
+// extra top padding above the first header and no grey strip below the last
+// lane). overflow-hidden clips the bands to the rounded corners.
 const CARD =
-  "overflow-hidden rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
+  "overflow-hidden rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] min-w-0";
 
-// Full-bleed recessed lane: -mx-4 cancels the card's side padding (full banner
-// width), px-4 restores inner content padding, and the inset top+bottom shadow
-// reads as sunk beneath the surface.
+// Budget header band — its own py so the name is vertically centered/aligned.
+const HEADER = "flex items-center justify-between gap-2 px-4 py-3";
+
+// Recessed task lane (full banner width, own padding) with an inset top+bottom
+// shadow so it reads as sunk beneath the header bands.
 const LANE =
-  "-mx-4 bg-[var(--surface-sunken-dark)] px-4 py-2.5 shadow-[inset_0_3px_5px_-3px_rgba(0,0,0,0.6),inset_0_-3px_5px_-3px_rgba(0,0,0,0.6)]";
+  "bg-[var(--surface-sunken-dark)] px-4 py-2.5 shadow-[inset_0_3px_5px_-3px_rgba(0,0,0,0.6),inset_0_-3px_5px_-3px_rgba(0,0,0,0.6)]";
 
 /** Split a title on its money substrings, rendering each as a maskable
  *  SlotAmount so amounts hide until revealed while the words stay readable. */
@@ -124,11 +126,11 @@ function BudgetRow({
   const list = tasks ?? [];
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Budget header — normal (sits on the card surface). */}
+    <div>
+      {/* Budget header band (card surface) — name vertically centered. */}
       <Link
         href={`/${locale}/budgets/${id}/overview`}
-        className="flex items-center justify-between gap-2"
+        className={HEADER}
         data-testid={`aggregate-bt-budget-${id}`}
       >
         <span className="truncate text-sm font-semibold text-[var(--body)]">
@@ -141,7 +143,7 @@ function BudgetRow({
         )}
       </Link>
       {/* Both the task list AND the empty "no tasks" note drop to the recessed
-          full-width lane (item 1). */}
+          full-width lane, flush under the header. */}
       {list.length > 0 ? (
         <div className={`flex flex-col gap-2 ${LANE}`}>
           {list.map((task) => (
@@ -166,11 +168,9 @@ export function AggregateBudgetsTasks({
   if (budgets.length === 0) return null;
   return (
     <section className={CARD} data-testid="aggregate-budgets-tasks">
-      <div className="flex flex-col gap-3">
-        {budgets.map((b) => (
-          <BudgetRow key={b.id} id={b.id} name={b.name} locale={locale} />
-        ))}
-      </div>
+      {budgets.map((b) => (
+        <BudgetRow key={b.id} id={b.id} name={b.name} locale={locale} />
+      ))}
     </section>
   );
 }
