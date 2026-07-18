@@ -11,7 +11,7 @@
 import { useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
-import { LAST_BUDGET_KEY } from "@/lib/last-budget";
+import { LAST_BUDGET_KEY, ALL_BUDGETS_VIEW } from "@/lib/last-budget";
 import { BudgetCardSkeleton } from "@/components/budgeting/budget-card-skeleton";
 import { BdpOverviewSkeleton } from "@/components/budgeting/bdp-overview-skeleton";
 import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
@@ -36,6 +36,8 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
     }
     if (wantsList || typeof window === "undefined") return null;
     const last = window.localStorage.getItem(LAST_BUDGET_KEY);
+    // "all" sentinel = the user was last on the all-budgets view → land there.
+    if (last === ALL_BUDGETS_VIEW) return null;
     return last && budgets.some((b) => b.id === last)
       ? `/${locale}/budgets/${last}/overview`
       : null;
@@ -44,6 +46,23 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
   useEffect(() => {
     if (redirectTo) router.replace(redirectTo);
   }, [redirectTo, router]);
+
+  // Remember that the all-budgets view is the last place the user was, so a
+  // plain home reopen lands here (mirrors rememberLastBudget on a budget page).
+  useEffect(() => {
+    if (
+      q.isSuccess &&
+      budgets.length > 1 &&
+      redirectTo === null &&
+      typeof window !== "undefined"
+    ) {
+      try {
+        window.localStorage.setItem(LAST_BUDGET_KEY, ALL_BUDGETS_VIEW);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [q.isSuccess, budgets.length, redirectTo]);
 
   // Resolved with no budgets → full-bleed empty hero (matches the old page).
   if (q.isSuccess && budgets.length === 0) {

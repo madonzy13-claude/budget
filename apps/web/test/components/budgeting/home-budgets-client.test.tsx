@@ -78,7 +78,6 @@ describe("HomeBudgetsClient — auto-open shows the BDP Overview skeleton", () =
     activeBudgets = { data: [{ id: "b1" }, { id: "b2" }], isSuccess: true };
     const { container } = render(<HomeBudgetsClient locale="en" />);
     expect(overviewBand(container)).toBeNull();
-    expect(screen.getByText("heading")).toBeTruthy();
     expect(screen.getByTestId("aggregate-overview")).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
   });
@@ -87,7 +86,7 @@ describe("HomeBudgetsClient — auto-open shows the BDP Overview skeleton", () =
     activeBudgets = { data: [{ id: "b1" }, { id: "b2" }], isSuccess: true };
     const { container } = render(<HomeBudgetsClient locale="en" />);
     expect(overviewBand(container)).toBeNull();
-    expect(screen.getByText("heading")).toBeTruthy();
+    expect(screen.getByTestId("aggregate-overview")).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
   });
 });

@@ -213,6 +213,11 @@ export function AggregateOverview() {
           />
         </div>
 
+        {/* BUDGETS & TASKS — all budgets, each with its pending tasks */}
+        <AggregateBudgetsTasks
+          budgets={data.budgets.map((b) => ({ id: b.id, name: b.name }))}
+        />
+
         {/* WEALTH COMPOSITION */}
         <AggregateComposition
           cashCents={sumCents(summable, "cash_cents").toString()}
@@ -232,11 +237,6 @@ export function AggregateOverview() {
 
         {/* NET WORTH OVER TIME — growth row + area chart */}
         <AggregateTrend includeIds={summable.map((b) => b.id)} range={range} />
-
-        {/* BUDGETS & TASKS — all budgets, each with its pending tasks */}
-        <AggregateBudgetsTasks
-          budgets={data.budgets.map((b) => ({ id: b.id, name: b.name }))}
-        />
 
         {summable.length === 0 && (
           <p className="text-center text-caption text-[var(--muted-foreground)]">

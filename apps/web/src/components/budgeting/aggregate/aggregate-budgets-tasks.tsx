@@ -29,7 +29,12 @@ function BudgetRow({
   const { data: tasks } = useQuery({
     queryKey: ["tasks", id, "pending"],
     queryFn: async (): Promise<TaskSummary[]> => {
-      const res = await clientApiFetch(`/budgets/${id}/tasks?status=pending`);
+      // On the all-budgets page the pathname carries no budget id, so
+      // clientApiFetch can't auto-set X-Budget-ID (the tenant guard needs it) —
+      // set it explicitly to THIS budget or the tasks route 404s → empty.
+      const res = await clientApiFetch(`/budgets/${id}/tasks?status=pending`, {
+        headers: { "X-Budget-ID": id },
+      });
       if (!res.ok) return [];
       const body = (await res.json()) as { tasks?: TaskSummary[] };
       return body.tasks ?? [];
