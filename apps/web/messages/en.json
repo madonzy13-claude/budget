@@ -755,7 +755,8 @@
     "months": "{count, plural, one {# month} other {# months}}",
     "and": "and",
     "retire_label": "If you retire now, your money will last for",
-    "retire_inflation": "incl. {pct}% annual inflation"
+    "retire_inflation": "incl. {pct}% annual inflation",
+    "avg_change": "Avg change"
   },
   "state": {
     "empty": {

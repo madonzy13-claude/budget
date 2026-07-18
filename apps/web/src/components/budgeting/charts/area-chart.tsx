@@ -70,6 +70,10 @@ export function OverviewAreaChart({
     hidden && realTooltipFmt
       ? (n: number) => maskDigits(realTooltipFmt(n))
       : realTooltipFmt;
+  // Also mask the Y-axis tick LABELS when hidden — the CSS blur below is a
+  // best-effort visual; masking the digits guarantees the scale is hidden.
+  const yFmt =
+    hidden && formatY ? (n: number) => maskDigits(formatY(n)) : formatY;
   const chart = (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart
@@ -88,7 +92,7 @@ export function OverviewAreaChart({
           {...(xTickFormat ? { tickFormatter: xTickFormat } : {})}
         />
         <YAxis
-          tickFormatter={formatY}
+          tickFormatter={yFmt}
           width={48}
           {...chartAxis}
           tick={leftAlignedYTick(48)}

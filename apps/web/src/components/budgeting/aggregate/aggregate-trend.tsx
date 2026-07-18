@@ -17,11 +17,15 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAggregateWealth } from "@/hooks/use-budgets-aggregate";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
+import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
-import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
+import {
+  SlotAmount,
+  useSlotReveal,
+} from "@/components/budgeting/overview/slot-amount";
 import type { OverviewRange } from "@/lib/overview-range";
 import { formatChartDate } from "@/lib/chart-date-format";
-import { chartCompactCents } from "@/lib/chart-format";
+import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { centsToRounded } from "@/lib/cents-format";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
@@ -34,6 +38,9 @@ const BUCKET_SPEND = "var(--primary)";
 const BUCKET_RESERVE = "var(--chart-bar-2)";
 const BUCKET_CUSHION = "var(--chart-bar-3)";
 const NEUTRAL = "var(--muted-foreground)";
+const UP = "var(--trading-up)";
+const DOWN = "var(--trading-down)";
+const maskDigits = (s: string) => s.replace(/\d/g, "•");
 
 type WealthView = "capitalization" | "investments";
 
@@ -106,8 +113,34 @@ export function AggregateTrend({
   };
   const fmtPieValue = (v: number) =>
     centsToRounded(BigInt(Math.round(v)), ccy, locale, true);
+  const fmtSignedPct = (n: number) =>
+    `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}%`;
+  const { revealed } = useSlotReveal();
 
   const hasSeries = !!data && data.series.length > 0;
+  // Per-bucket "avg change" (dynamics) — consecutive % change of the aggregate
+  // series, mirroring the BDP wealth dynamics bar chart. Same green/red split.
+  const dynamics =
+    hasSeries && data
+      ? data.series.flatMap((p, i) => {
+          if (i === 0) return [];
+          const prev = Number(data.series[i - 1]!.value_cents);
+          const cur = Number(p.value_cents);
+          return [
+            {
+              label: p.label,
+              pct: prev === 0 ? null : ((cur - prev) / prev) * 100,
+              delta_cents: cur - prev,
+            },
+          ];
+        })
+      : [];
+  const avgPct = (() => {
+    const vals = dynamics
+      .map((d) => d.pct)
+      .filter((p): p is number => p !== null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  })();
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
   const investedPositive =
     data?.invested_cents != null && Number(data.invested_cents) > 0;
@@ -257,6 +290,45 @@ export function AggregateTrend({
               maskAmounts
             />
           </div>
+
+          {/* Avg change (dynamics) — per-bucket % change bar chart, green/red
+              split like BDP. Y-axis is %, so it stays visible; the tooltip's
+              money delta is masked with the shared reveal. */}
+          {dynamics.length > 0 && (
+            <div
+              className="mt-3 flex flex-col gap-2"
+              data-testid="aggregate-dynamics"
+            >
+              <div className="flex flex-wrap items-start justify-center gap-6">
+                <PctStat label={t("avg_change")} pct={avgPct} />
+              </div>
+              <OverviewBarChart
+                data={dynamics.map((d) => ({
+                  label: d.label,
+                  pct: d.pct ?? 0,
+                  raw: d.pct,
+                  delta_cents: d.delta_cents,
+                }))}
+                xKey="label"
+                series={[{ key: "pct", label: "" }]}
+                colorByPoint={(row) =>
+                  row.raw === null ? NEUTRAL : Number(row.pct) >= 0 ? UP : DOWN
+                }
+                formatValue={pctAxisTick}
+                formatTooltip={fmtSignedPct}
+                tooltipExtra={(row) => {
+                  const amt = fmtSigned(
+                    String(Math.round(Number(row.delta_cents ?? 0))),
+                  );
+                  return [
+                    { label: "", value: revealed ? amt : maskDigits(amt) },
+                  ];
+                }}
+                xTickFormat={(v) => formatChartDate(String(v), locale)}
+                labelFormat={(v) => formatChartDate(String(v), locale)}
+              />
+            </div>
+          )}
 
           {/* View-driven pie: capitalization pools vs per-holding-type. */}
           {view === "capitalization" && capBuckets.length > 0 && (

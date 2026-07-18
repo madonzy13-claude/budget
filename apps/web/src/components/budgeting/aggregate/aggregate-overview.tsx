@@ -190,23 +190,22 @@ export function AggregateOverview() {
   const runwayUnits = { y: t("runway_y"), m: t("runway_m"), d: t("runway_d") };
 
   // Net-worth flip back = the BDP retirement runway, aggregated: how long the
-  // FULL household net worth lasts at the FULL monthly PLANNED spend (cushion-
-  // aware; excludes Investments), spending GROWING at 4.5%/yr inflation. Full
-  // (no ownership share) on BOTH sides — the runway is a household figure.
+  // net worth lasts at the monthly PLANNED spend (cushion-aware; excludes
+  // Investments), spending GROWING at 4.5%/yr inflation. BOTH sides share-scaled
+  // (the runway is fractionalized by ownership like the hero net worth).
   const RETIRE_INFLATION_PCT = 4.5;
-  const netWorthFull = sumCents(summable, "net_worth_full_cents");
   const plannedTotal = sumCents(summable, "monthly_planned_cents");
   const nwRunwayMonths = (() => {
     if (plannedTotal <= 0n) return Infinity;
     // N = ln(1 + W·r/s) / ln(1+r), r = monthly inflation (same closed form as
     // get-overview-cards' retirement_months).
-    const W = Number(netWorthFull);
+    const W = Number(netWorth);
     const s = Number(plannedTotal);
     const r = Math.pow(1 + RETIRE_INFLATION_PCT / 100, 1 / 12) - 1;
     return Math.log(1 + (W * r) / s) / Math.log(1 + r);
   })();
-  const nwUnlimited = plannedTotal <= 0n && netWorthFull > 0n;
-  const canFlip = summable.length > 0 && netWorthFull > 0n;
+  const nwUnlimited = plannedTotal <= 0n && netWorth > 0n;
+  const canFlip = summable.length > 0 && netWorth > 0n;
 
   // Full-words duration ("13 years and 6 months"), zero components dropped —
   // matches the BDP retirement flip back.

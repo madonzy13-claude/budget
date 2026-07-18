@@ -755,7 +755,8 @@
     "months": "{count, plural, one {# місяць} few {# місяці} many {# місяців} other {# місяця}}",
     "and": "і",
     "retire_label": "Якщо вийти на пенсію зараз, грошей вистачить на",
-    "retire_inflation": "з урахуванням {pct}% річної інфляції"
+    "retire_inflation": "з урахуванням {pct}% річної інфляції",
+    "avg_change": "Сер. зміна"
   },
   "state": {
     "empty": {

@@ -55,10 +55,9 @@ export interface AggregateBudgetRow {
   cushion_monthly_cents: string;
   /** Cushion runway in months (per-budget ratio, NOT scaled). */
   cushion_real_months: number;
-  /** Net worth + effective monthly planned spend, BOTH FULL (no ownership share)
-   *  — the "money runway" is a household figure (full net worth ÷ full planned),
-   *  NOT fractionalized by share. planned is cushion-aware (activeBudget). */
-  net_worth_full_cents: string;
+  /** Effective monthly planned spend (cushion-aware; activeBudget = the cushion
+   *  amount in cushion mode, else planned), SHARE-scaled to match net_worth_cents
+   *  — the retirement runway divides the (share-scaled) net worth by this. */
   monthly_planned_cents: string;
   pending_tasks: number;
   health: "red" | "amber" | "green";
@@ -183,7 +182,6 @@ function zeroRow(
     cushion_required_full_cents: "0",
     cushion_monthly_cents: "0",
     cushion_real_months: 0,
-    net_worth_full_cents: "0",
     monthly_planned_cents: "0",
     health,
     fx_unavailable: fxUnavailable,
@@ -349,19 +347,14 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             displayCcy,
           ),
           cushion_real_months: c.cushion.real_months,
-          // Runway = FULL household figures (no ownership share): full net worth
-          // ÷ full planned. Share only scales the "my wealth" hero, not the runway.
-          net_worth_full_cents: toDisplayCcyFlow(
-            c.capitalization_cents,
-            ccy,
-            rate,
-            displayCcy,
-          ),
-          monthly_planned_cents: toDisplayCcyFlow(
+          // Runway shares BOTH sides: net worth (share-scaled hero) ÷ planned
+          // (share-scaled) — the runway is fractionalized by ownership like wealth.
+          monthly_planned_cents: toDisplayCcyShared(
             c.monthly_planned_cents,
             ccy,
             rate,
             displayCcy,
+            s,
           ),
           health: deriveHealth(c),
           fx_unavailable: false,

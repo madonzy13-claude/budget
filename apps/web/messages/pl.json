@@ -755,7 +755,8 @@
     "months": "{count, plural, one {# miesiąc} few {# miesiące} many {# miesięcy} other {# miesiąca}}",
     "and": "i",
     "retire_label": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
-    "retire_inflation": "z {pct}% roczną inflacją"
+    "retire_inflation": "z {pct}% roczną inflacją",
+    "avg_change": "Śr. zmiana"
   },
   "state": {
     "empty": {

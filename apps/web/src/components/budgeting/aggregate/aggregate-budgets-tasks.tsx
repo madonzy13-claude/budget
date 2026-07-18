@@ -29,10 +29,10 @@ const CARD =
 // Budget header band — its own py so the name is vertically centered/aligned.
 const HEADER = "flex items-center justify-between gap-2 px-4 py-3";
 
-// Recessed task lane (full banner width, own padding) with an inset top+bottom
-// shadow so it reads as sunk beneath the header bands.
+// Recessed task lane — same soft inset shadow the settings accordion sections
+// use (top only, gentle; bottom shadow essentially absent).
 const LANE =
-  "bg-[var(--surface-sunken-dark)] px-4 py-2.5 shadow-[inset_0_3px_5px_-3px_rgba(0,0,0,0.6),inset_0_-3px_5px_-3px_rgba(0,0,0,0.6)]";
+  "bg-[var(--surface-sunken-dark)] px-4 py-2.5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]";
 
 /** Split a title on its money substrings, rendering each as a maskable
  *  SlotAmount so amounts hide until revealed while the words stay readable. */
@@ -88,7 +88,7 @@ function TaskLine({
       className="flex min-h-7 cursor-pointer items-start gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--primary)]"
     >
       <span
-        className="mt-[0.5em] size-1 shrink-0 rounded-full bg-[var(--primary)]"
+        className="mt-[0.5em] size-1.5 shrink-0 rounded-full bg-[var(--trading-down)]"
         aria-hidden="true"
       />
       {/* Wrap (no truncate) so the full task message shows. */}
@@ -137,7 +137,7 @@ function BudgetRow({
           {name}
         </span>
         {list.length > 0 && (
-          <span className="num shrink-0 rounded-[var(--radius-pill)] bg-[var(--primary)] px-1.5 text-[11px] font-semibold text-[var(--on-primary)]">
+          <span className="num shrink-0 rounded-[var(--radius-pill)] bg-[var(--trading-down)] px-1.5 text-[11px] font-semibold text-white">
             {list.length}
           </span>
         )}
@@ -151,9 +151,15 @@ function BudgetRow({
           ))}
         </div>
       ) : (
-        <p className={`text-caption text-[var(--muted-foreground)] ${LANE}`}>
+        <div
+          className={`flex items-center gap-2 text-caption text-[var(--muted-foreground)] ${LANE}`}
+        >
+          <span
+            className="size-1.5 shrink-0 rounded-full bg-[var(--trading-up)]"
+            aria-hidden="true"
+          />
           {t("no_tasks")}
-        </p>
+        </div>
       )}
     </div>
   );

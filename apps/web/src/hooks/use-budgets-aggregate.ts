@@ -39,7 +39,6 @@ export interface AggregateBudgetRow {
   cushion_required_full_cents: string;
   cushion_monthly_cents: string;
   cushion_real_months: number;
-  net_worth_full_cents: string;
   monthly_planned_cents: string;
   pending_tasks: number;
   health: "red" | "amber" | "green";
