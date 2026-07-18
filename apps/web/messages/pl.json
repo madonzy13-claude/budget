@@ -753,7 +753,9 @@
     "lasts_note": "przy obecnych miesięcznych wydatkach",
     "years": "{count, plural, one {# rok} few {# lata} many {# lat} other {# roku}}",
     "months": "{count, plural, one {# miesiąc} few {# miesiące} many {# miesięcy} other {# miesiąca}}",
-    "and": "i"
+    "and": "i",
+    "retire_label": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
+    "retire_inflation": "z {pct}% roczną inflacją"
   },
   "state": {
     "empty": {

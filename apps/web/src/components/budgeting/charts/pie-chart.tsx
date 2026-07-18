@@ -128,9 +128,14 @@ export function OverviewPieChart({
               const v = formatValue
                 ? formatValue(centreVal)
                 : String(centreVal);
-              // pointer-events-none on the overlay → no own tap, but the shared
-              // reveal (from any other SlotAmount) drives it in sync.
-              return maskValue ? <SlotAmount value={v} /> : v;
+              // pointer-events-auto re-enables tapping the value (the overlay is
+              // pointer-events-none) so tapping it toggles the shared reveal — it
+              // sits in the donut hole, so it never blocks slice interaction.
+              return maskValue ? (
+                <SlotAmount value={v} className="pointer-events-auto" />
+              ) : (
+                v
+              );
             })()}
           </span>
           <span className="text-caption text-[var(--muted-foreground)]">

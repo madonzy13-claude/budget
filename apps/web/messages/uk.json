@@ -753,7 +753,9 @@
     "lasts_note": "за поточних місячних витрат",
     "years": "{count, plural, one {# рік} few {# роки} many {# років} other {# року}}",
     "months": "{count, plural, one {# місяць} few {# місяці} many {# місяців} other {# місяця}}",
-    "and": "і"
+    "and": "і",
+    "retire_label": "Якщо вийти на пенсію зараз, грошей вистачить на",
+    "retire_inflation": "з урахуванням {pct}% річної інфляції"
   },
   "state": {
     "empty": {

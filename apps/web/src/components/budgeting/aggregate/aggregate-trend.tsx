@@ -58,7 +58,9 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
         ) : (
           <>
             <Arrow className="size-3.5" aria-hidden="true" />
-            {`${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`}
+            <SlotAmount
+              value={`${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`}
+            />
           </>
         )}
       </span>

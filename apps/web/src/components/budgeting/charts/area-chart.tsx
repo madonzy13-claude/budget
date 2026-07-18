@@ -134,9 +134,8 @@ export function OverviewAreaChart({
   return (
     <div
       className={cn(
-        "[&_.recharts-yAxis_.recharts-cartesian-axis-tick-value]:transition-[filter] [&_.recharts-yAxis_.recharts-cartesian-axis-tick-value]:duration-500",
-        hidden &&
-          "[&_.recharts-yAxis_.recharts-cartesian-axis-tick-value]:blur-[5px]",
+        "[&_.recharts-yAxis]:transition-[filter] [&_.recharts-yAxis]:duration-500",
+        hidden && "[&_.recharts-yAxis]:blur-[5px]",
       )}
     >
       {chart}

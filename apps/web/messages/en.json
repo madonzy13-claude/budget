@@ -753,7 +753,9 @@
     "lasts_note": "at current monthly spending",
     "years": "{count, plural, one {# year} other {# years}}",
     "months": "{count, plural, one {# month} other {# months}}",
-    "and": "and"
+    "and": "and",
+    "retire_label": "If you retire now, your money will last for",
+    "retire_inflation": "incl. {pct}% annual inflation"
   },
   "state": {
     "empty": {
