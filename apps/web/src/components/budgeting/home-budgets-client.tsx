@@ -10,7 +10,6 @@
  */
 import { useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { LAST_BUDGET_KEY } from "@/lib/last-budget";
 import { BudgetCardSkeleton } from "@/components/budgeting/budget-card-skeleton";
@@ -19,7 +18,6 @@ import { HomeEmptyHero } from "@/components/budgeting/home-empty-hero";
 import { AggregateOverview } from "@/components/budgeting/aggregate/aggregate-overview";
 
 export function HomeBudgetsClient({ locale }: { locale: string }) {
-  const t = useTranslations("home");
   const router = useRouter();
   const searchParams = useSearchParams();
   const q = useActiveBudgets();
@@ -73,10 +71,7 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
   const showSkeleton = budgets.length === 0;
 
   return (
-    <main className="pb-shell-safe mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12">
-      <h1 className="text-title-lg text-[var(--body-on-dark)] mb-6">
-        {t("heading")}
-      </h1>
+    <main className="pb-shell-safe mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-6">
       {/* Task 16: the resolved explicit-list view (≥2 budgets — the only real
        * (non-skeleton) budgets.length this branch ever sees, since 1 budget
        * always redirects above) renders the cross-budget AggregateOverview

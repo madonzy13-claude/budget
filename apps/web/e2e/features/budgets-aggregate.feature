@@ -10,6 +10,7 @@ Feature: All-budgets aggregate overview
     When I open the all-budgets view
     Then the aggregate hero shows a combined net worth greater than 500000 minor units
     When I exclude the "Travel" budget from the aggregate
+    And I open the all-budgets view
     Then the aggregate hero decreases
 
   Scenario: Lowering my self-set ownership share shrinks that budget's contribution

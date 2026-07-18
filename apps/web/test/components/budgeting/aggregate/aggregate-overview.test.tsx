@@ -55,12 +55,7 @@ const DATA = {
   ],
 };
 
-// vi.hoisted: these must exist before the vi.mock factory below runs (Vitest
-// hoists vi.mock calls above regular module code) — a module-level mutable
-// data ref (so individual tests can swap the fixture) and a mock-mutate fn
-// tests assert against directly.
-const { setFlagMutate, dataRef } = vi.hoisted(() => ({
-  setFlagMutate: vi.fn(),
+const { dataRef } = vi.hoisted(() => ({
   dataRef: { current: undefined as any },
 }));
 
@@ -75,14 +70,8 @@ vi.mock("@/hooks/use-budgets-aggregate", () => ({
     isPending: false,
     isError: false,
   }),
-  useSetAggregationFlag: () => ({ mutate: setFlagMutate }),
-  // AggregateTrend (Task 15) calls this itself — stub so this suite stays a
-  // pure unit test of AggregateOverview's render/sum logic, no real fetch.
   useAggregateWealth: () => ({ data: undefined, isPending: false }),
 }));
-// The composition pie renders recharts (ResponsiveContainer/ResizeObserver),
-// which jsdom doesn't support — stub it like every other pie-chart caller's
-// tests do (see overview-sections.test.tsx).
 vi.mock("@/components/budgeting/charts/pie-chart", () => ({
   OverviewPieChart: () => <div data-testid="pie-chart" />,
 }));
@@ -92,13 +81,11 @@ vi.mock("@/components/budgeting/charts/line-chart", () => ({
 
 beforeEach(() => {
   dataRef.current = DATA;
-  setFlagMutate.mockClear();
 });
 
 // Amounts render behind SlotAmount (masked by default, r41 privacy) — reveal
 // (shared across every SlotAmount under one SlotRevealProvider); the
-// mask→real scramble runs on a ~500ms interval, so wait for it to settle
-// before reading digits out of textContent.
+// mask→real scramble runs on a ~500ms interval, so wait for it to settle.
 function reveal(el: HTMLElement) {
   fireEvent.click(within(el).getByTestId("slot-amount"));
 }
@@ -112,20 +99,38 @@ describe("AggregateOverview", () => {
     await waitFor(() => expect(hero.textContent).toMatch(/10,?000/));
   });
 
-  it("excluding a budget drops it from the hero total", async () => {
+  it("does NOT render a budget the member has excluded (included:false)", () => {
+    dataRef.current = {
+      display_currency: "USD",
+      budgets: [
+        makeBudget({}),
+        makeBudget({ id: "b2", name: "Travel", included: false }),
+      ],
+    };
     render(<AggregateOverview />);
-    // exclude Travel BEFORE revealing — SlotAmount's mask/reveal only
-    // resyncs to a new value on a reveal-state flip, so toggle first, then
-    // reveal once to read the settled total.
-    fireEvent.click(screen.getByTestId("aggregate-exclude-b2"));
+    expect(screen.getByText("Home")).toBeTruthy();
+    expect(screen.queryByText("Travel")).toBeNull(); // excluded → not rendered at all
+  });
+
+  it("an excluded budget is not summed into the hero either", async () => {
+    dataRef.current = {
+      display_currency: "USD",
+      budgets: [
+        makeBudget({}),
+        makeBudget({
+          id: "b2",
+          name: "Travel",
+          net_worth_cents: "340000",
+          included: false,
+        }),
+      ],
+    };
+    render(<AggregateOverview />);
     const hero = screen.getByTestId("aggregate-hero");
     reveal(hero);
-    // 660000 cents = $6,600
+    // only b1 (660000 = $6,600), never 660000+340000 = $10,000
     await waitFor(() => expect(hero.textContent).toMatch(/6,?600/));
-    expect(setFlagMutate).toHaveBeenCalledWith({
-      budgetId: "b2",
-      included: false,
-    });
+    expect(hero.textContent).not.toMatch(/10,?000/);
   });
 
   it("renders a my-share badge when share < 100", () => {
@@ -149,42 +154,15 @@ describe("AggregateOverview", () => {
       ],
     };
     render(<AggregateOverview />);
-    const row = screen.getByText("Broken").closest("div")!;
+    // Row is an <li> in the breakdown card.
+    const row = screen.getByText("Broken").closest("li")!;
     expect(within(row).getByText(/rate_unavailable|unavailable/i)).toBeTruthy();
-    // no health dot for an fx_unavailable row
-    expect(row.querySelector(".rounded-full")).toBeNull();
-    // no net-worth figure (no SlotAmount) rendered for this row
-    expect(within(row).queryByTestId("slot-amount")).toBeNull();
-    // no exclude toggle either — nothing to include/exclude on a row that's
-    // never summable
-    expect(screen.queryByTestId("aggregate-exclude-b3")).toBeNull();
+    expect(row.querySelector(".rounded-full")).toBeNull(); // no health dot
+    expect(within(row).queryByTestId("slot-amount")).toBeNull(); // no net-worth figure
 
     const hero = screen.getByTestId("aggregate-hero");
     reveal(hero);
-    // only b1 (660000 = $6,600) sums in — b3 is never included regardless of
-    // its (huge) net_worth_cents
+    // only b1 (660000 = $6,600) sums in — b3 never, despite its huge cents
     await waitFor(() => expect(hero.textContent).toMatch(/6,?600/));
-  });
-
-  it("a server-excluded budget is NOT summed into the hero on first render (mount-race guard)", async () => {
-    dataRef.current = {
-      display_currency: "USD",
-      budgets: [
-        makeBudget({}),
-        makeBudget({
-          id: "b2",
-          name: "Travel",
-          net_worth_cents: "340000",
-          included: false, // server says: excluded
-        }),
-      ],
-    };
-    render(<AggregateOverview />);
-    const hero = screen.getByTestId("aggregate-hero");
-    reveal(hero);
-    // FIRST render must already reflect the server exclusion: only b1 sums
-    // in (660000 = $6,600), never the transient 660000+340000=$10,000.
-    await waitFor(() => expect(hero.textContent).toMatch(/6,?600/));
-    expect(hero.textContent).not.toMatch(/10,?000/);
   });
 });

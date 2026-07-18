@@ -215,7 +215,21 @@ When(
   async ({ page, freshUser }, name: string) => {
     const budgetId = registryFor(freshUser).get(name);
     if (!budgetId) throw new Error(`Unknown budget '${name}' — not seeded`);
-    await page.getByTestId(`aggregate-exclude-${budgetId}`).click();
+    // Inclusion is a per-budget self-setting in Settings → General (the
+    // aggregate page itself no longer has inline toggles). Turn the include
+    // switch OFF for this budget.
+    await page.goto(`/en/budgets/${budgetId}/settings`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+    const toggle = page.getByTestId("settings-aggregation-toggle");
+    await toggle.waitFor({ state: "visible", timeout: 10000 });
+    if ((await toggle.getAttribute("aria-checked")) === "true") {
+      await toggle.click();
+    }
+    await expect(toggle).toHaveAttribute("aria-checked", "false", {
+      timeout: 5000,
+    });
   },
 );
 
