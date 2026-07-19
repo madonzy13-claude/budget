@@ -37,12 +37,11 @@ const isDigit = (c: string) => c >= "0" && c <= "9";
 // sharp ("do not blur currency").
 const isBlurable = (c: string) =>
   isDigit(c) || c === "," || c === "." || c === "-" || c === "+";
-const randUpper = () =>
-  String.fromCharCode(65 + Math.floor(Math.random() * 26));
-// Mask char for a scrambled slot: a random uppercase letter for a digit; a
-// fixed narrow "I" for a separator (comma/dot) so it barely takes space and the
-// grouping stays hidden.
-const maskChar = (original: string) => (isDigit(original) ? randUpper() : "I");
+// Mask char for every scrambled slot: a narrow "I". Using ONE narrow glyph
+// (instead of random wide A–Z) keeps the masked width close to the real number's
+// and near-constant, so revealing/hiding barely shifts width — WITHOUT pinning
+// each slot to a fixed 1ch box (which padded the commas out and looked ugly).
+const maskChar = (_original?: string) => "I";
 
 interface SlotRevealState {
   revealed: boolean;
@@ -177,9 +176,9 @@ export function SlotAmount({
         // font) — keeps the fuzzy edges of the outer digits from being clipped.
         paddingInline: `${blurEm}em`,
         overflow: "visible",
-        // Tabular figures: every digit is exactly 1ch, so the masked chars (also
-        // pinned to 1ch below) occupy the SAME width as the real number → no
-        // horizontal jump when revealing/hiding.
+        // Tabular figures so the real digits are even-width (the narrow "I" mask
+        // sits close to them) — but no per-slot fixed width, so commas keep their
+        // natural narrow size.
         fontVariantNumeric: "tabular-nums",
       }}
     >
@@ -194,15 +193,6 @@ export function SlotAmount({
             style={{
               filter: !revealed && blurThis ? `blur(${blurEm}em)` : "none",
               transition: `filter ${BLUR_MS}ms ease`,
-              // Each scrambled slot is pinned to one digit-width (1ch) and centred,
-              // so a random letter mask never changes the total width.
-              ...(blurThis
-                ? {
-                    display: "inline-block",
-                    width: "1ch",
-                    textAlign: "center" as const,
-                  }
-                : {}),
             }}
           >
             {ch}

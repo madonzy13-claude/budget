@@ -117,23 +117,31 @@ export function AggregateTrend({
   const { revealed } = useSlotReveal();
 
   const hasSeries = !!data && data.series.length > 0;
-  // Per-bucket "avg change" (dynamics) — consecutive % change of the aggregate
-  // series, mirroring the BDP wealth dynamics bar chart. Same green/red split.
-  const dynamics =
+  // Avg change (dynamics): FIRST bucket the fine wealth series down to one point
+  // per period (day on 1M, else month) so the bars are fat like BDP — computing
+  // on the raw weekly/daily series gave dozens of razor-thin spikes. Then take
+  // the consecutive % change of the bucketed points.
+  const dynBucketLen = range.preset === "thisMonth" ? 10 : 7; // "YYYY-MM-DD" | "YYYY-MM"
+  const dynPoints =
     hasSeries && data
-      ? data.series.flatMap((p, i) => {
-          if (i === 0) return [];
-          const prev = Number(data.series[i - 1]!.value_cents);
-          const cur = Number(p.value_cents);
-          return [
-            {
-              label: p.label,
-              pct: prev === 0 ? null : ((cur - prev) / prev) * 100,
-              delta_cents: cur - prev,
-            },
-          ];
-        })
+      ? (() => {
+          const byBucket = new Map<string, number>();
+          for (const p of data.series)
+            byBucket.set(p.label.slice(0, dynBucketLen), Number(p.value_cents));
+          return [...byBucket.entries()];
+        })()
       : [];
+  const dynamics = dynPoints.flatMap(([label, cur], i) => {
+    if (i === 0) return [];
+    const prev = dynPoints[i - 1]![1];
+    return [
+      {
+        label,
+        pct: prev === 0 ? null : ((cur - prev) / prev) * 100,
+        delta_cents: cur - prev,
+      },
+    ];
+  });
   const avgPct = (() => {
     const vals = dynamics
       .map((d) => d.pct)
