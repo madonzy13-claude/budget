@@ -90,6 +90,7 @@ export function WizardPage({
   const tActions = useTranslations("onboarding.wizard.actions");
   const tErrors = useTranslations("onboarding.wizard.errors");
   const tInvest = useTranslations("budget.investments");
+  const tPush = useTranslations("settings.push");
 
   // Defer-create model: a mid-wizard refresh restarts from step 0/1
   // rather than resuming a server-stored step pointer. The layout guard
@@ -131,6 +132,43 @@ export function WizardPage({
   ) => {
     setForm((f) => ({ ...f, [key]: value }));
   };
+
+  /**
+   * Enabling the notifications toggle REQUESTS OS permission right here (the click
+   * is the required user gesture), so the prompt appears during onboarding — and
+   * the user gets immediate feedback if push isn't available (iOS Safari must
+   * install the PWA first) rather than a silent no-op after "Create budget", where
+   * a toast would be lost to the redirect. Only flip the toggle ON once permission
+   * is actually granted; the commit then subscribes without re-prompting.
+   */
+  async function handleToggleNotifications(v: boolean): Promise<void> {
+    if (!v) {
+      updateForm("notificationsEnabled", false);
+      return;
+    }
+    const supported =
+      typeof Notification !== "undefined" &&
+      typeof navigator !== "undefined" &&
+      "serviceWorker" in navigator &&
+      !!process.env["NEXT_PUBLIC_VAPID_PUBLIC_KEY"];
+    if (!supported) {
+      toast.error(tPush("unsupported"));
+      return; // leave the toggle OFF — nothing to enable on this device
+    }
+    let permission: NotificationPermission = Notification.permission;
+    if (permission === "default") {
+      try {
+        permission = await Notification.requestPermission();
+      } catch {
+        permission = "denied";
+      }
+    }
+    if (permission !== "granted") {
+      toast.error(tPush("permissionDenied"));
+      return;
+    }
+    updateForm("notificationsEnabled", true);
+  }
 
   /**
    * Final-step write path. POST budget → PATCH feature toggles only when
@@ -317,7 +355,7 @@ export function WizardPage({
             investmentsEnabled={form.investmentsEnabled}
             onChangeInvestments={(v) => updateForm("investmentsEnabled", v)}
             notificationsEnabled={form.notificationsEnabled}
-            onChangeNotifications={(v) => updateForm("notificationsEnabled", v)}
+            onChangeNotifications={(v) => void handleToggleNotifications(v)}
             cushionTargetMonths={form.cushionTargetMonths}
             onChangeCushionTargetMonths={(v) =>
               updateForm("cushionTargetMonths", v)

@@ -78,6 +78,23 @@ vi.mock("@/lib/offline-write", () => ({
 describe("WizardPage — deferred-create step machine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The notifications toggle is permission-gated: it only turns ON when push is
+    // supported AND permission is granted. happy-dom lacks these — provide them so
+    // the toggle can enable in tests (real devices go through the same gate).
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = "test-vapid-key";
+    Object.defineProperty(globalThis, "Notification", {
+      configurable: true,
+      value: {
+        permission: "granted",
+        requestPermission: vi.fn().mockResolvedValue("granted"),
+      },
+    });
+    if (!("serviceWorker" in navigator)) {
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: {},
+      });
+    }
   });
 
   it("renders welcome step 0 with a Get started CTA on initial render", () => {
@@ -209,6 +226,12 @@ describe("WizardPage — deferred-create step machine", () => {
       .mockImplementation(() => {});
     await advanceToFeaturesStep();
     fireEvent.click(screen.getByTestId("wizard-feature-notifications"));
+    // The toggle is permission-gated + async — wait until it commits to ON.
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("wizard-feature-notifications"),
+      ).toHaveAttribute("data-state", "checked"),
+    );
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
     await waitFor(() =>
       expect(
