@@ -26,9 +26,9 @@ import { useDismissTooltip } from "./use-dismiss-tooltip";
 import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { cn } from "@/lib/utils";
 
-/** Replace every digit with a bullet so the tooltip amount is hidden while the
- *  date label + currency symbol stay readable. */
-const maskDigits = (s: string) => s.replace(/\d/g, "•");
+/** A fixed 3-dot mask — hides the amount entirely (magnitude, K/M suffix, and
+ *  all) with a constant width regardless of the real number. */
+const AMOUNT_MASK = "•••";
 
 export function OverviewAreaChart({
   data,
@@ -65,15 +65,11 @@ export function OverviewAreaChart({
     useDismissTooltip();
   const { revealed } = useSlotReveal();
   const hidden = maskAmounts && !revealed;
-  const realTooltipFmt = formatTooltip ?? formatY;
-  const tooltipFmt =
-    hidden && realTooltipFmt
-      ? (n: number) => maskDigits(realTooltipFmt(n))
-      : realTooltipFmt;
-  // Also mask the Y-axis tick LABELS when hidden — the CSS blur below is a
-  // best-effort visual; masking the digits guarantees the scale is hidden.
-  const yFmt =
-    hidden && formatY ? (n: number) => maskDigits(formatY(n)) : formatY;
+  // When hidden, both the Y-axis ticks and the tooltip value become "•••" (the
+  // CSS blur below still applies on top). Fixed mask → the whole magnitude + any
+  // K/M suffix are gone.
+  const tooltipFmt = hidden ? () => AMOUNT_MASK : (formatTooltip ?? formatY);
+  const yFmt = hidden ? () => AMOUNT_MASK : formatY;
   const chart = (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart

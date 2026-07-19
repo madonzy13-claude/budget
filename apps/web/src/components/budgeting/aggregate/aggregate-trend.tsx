@@ -40,7 +40,6 @@ const BUCKET_CUSHION = "var(--chart-bar-3)";
 const NEUTRAL = "var(--muted-foreground)";
 const UP = "var(--trading-up)";
 const DOWN = "var(--trading-down)";
-const maskDigits = (s: string) => s.replace(/\d/g, "•");
 
 type WealthView = "capitalization" | "investments";
 
@@ -316,13 +315,12 @@ export function AggregateTrend({
                 }
                 formatValue={pctAxisTick}
                 formatTooltip={fmtSignedPct}
+                maskAmounts
                 tooltipExtra={(row) => {
                   const amt = fmtSigned(
                     String(Math.round(Number(row.delta_cents ?? 0))),
                   );
-                  return [
-                    { label: "", value: revealed ? amt : maskDigits(amt) },
-                  ];
+                  return [{ label: "", value: revealed ? amt : "•••" }];
                 }}
                 xTickFormat={(v) => formatChartDate(String(v), locale)}
                 labelFormat={(v) => formatChartDate(String(v), locale)}

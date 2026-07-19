@@ -177,6 +177,10 @@ export function SlotAmount({
         // font) — keeps the fuzzy edges of the outer digits from being clipped.
         paddingInline: `${blurEm}em`,
         overflow: "visible",
+        // Tabular figures: every digit is exactly 1ch, so the masked chars (also
+        // pinned to 1ch below) occupy the SAME width as the real number → no
+        // horizontal jump when revealing/hiding.
+        fontVariantNumeric: "tabular-nums",
       }}
     >
       {display.map((ch, i) => {
@@ -190,6 +194,15 @@ export function SlotAmount({
             style={{
               filter: !revealed && blurThis ? `blur(${blurEm}em)` : "none",
               transition: `filter ${BLUR_MS}ms ease`,
+              // Each scrambled slot is pinned to one digit-width (1ch) and centred,
+              // so a random letter mask never changes the total width.
+              ...(blurThis
+                ? {
+                    display: "inline-block",
+                    width: "1ch",
+                    textAlign: "center" as const,
+                  }
+                : {}),
             }}
           >
             {ch}

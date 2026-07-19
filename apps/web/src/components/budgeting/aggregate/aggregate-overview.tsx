@@ -97,7 +97,9 @@ function StatCard({
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
       <p className="num text-title-md mt-1 flex items-center gap-1.5 whitespace-nowrap text-[var(--body-on-dark)]">
         {icon}
-        <span className="min-w-0 truncate">{value}</span>
+        {/* NOT truncate/overflow-hidden: it clips the blur's vertical spread and
+            trims the masked amount top/bottom (BDP just uses whitespace-nowrap). */}
+        <span className="whitespace-nowrap">{value}</span>
       </p>
       {sub}
     </section>
