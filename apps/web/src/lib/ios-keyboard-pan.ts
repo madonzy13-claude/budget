@@ -50,8 +50,7 @@ export function useIosKeyboardPanFix(
     if (typeof window === "undefined") return;
     const vv = window.visualViewport;
     if (!vv) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const correctNow = () => {
+    const correct = () => {
       const input = inputRef.current;
       if (!input || document.activeElement !== input) return;
       const rect = input.getBoundingClientRect();
@@ -61,30 +60,20 @@ export function useIosKeyboardPanFix(
         vvOffsetTop: vv.offsetTop,
         vvHeight: vv.height,
       });
-      // instant, not the page's scroll-behavior: a smooth/animated scroll here
-      // reads as the input SLIDING up the screen.
-      if (delta !== 0)
-        window.scrollBy({ top: delta, left: 0, behavior: "instant" });
+      if (delta !== 0) window.scrollBy(0, delta);
     };
-    // DEBOUNCE to a SINGLE correction after the viewport settles. Correcting on
-    // every intermediate vv event during the keyboard-open animation scrolled the
-    // window frame-by-frame — a visible bottom-to-top slide. One reposition once
-    // the keyboard has finished animating is all that's needed.
-    const schedule = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(correctNow, 250);
-    };
-    // Only the input's own focus arms it (the keyboard is for THIS field); the
-    // vv resize that follows the keyboard open re-arms so we fire after it settles.
+    // Backstop: the FIRST keyboard open can settle without a final vv event, so
+    // run once shortly after this input gains focus (mirrors InlineEditCell).
     const onFocusIn = (e: FocusEvent) => {
-      if (e.target === inputRef.current) schedule();
+      if (e.target === inputRef.current) window.setTimeout(correct, 450);
     };
-    vv.addEventListener("resize", schedule);
+    vv.addEventListener("resize", correct);
+    vv.addEventListener("scroll", correct);
     document.addEventListener("focusin", onFocusIn);
     return () => {
-      vv.removeEventListener("resize", schedule);
+      vv.removeEventListener("resize", correct);
+      vv.removeEventListener("scroll", correct);
       document.removeEventListener("focusin", onFocusIn);
-      if (timer) clearTimeout(timer);
     };
   }, [inputRef]);
 }

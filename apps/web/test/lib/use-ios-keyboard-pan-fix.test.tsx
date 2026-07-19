@@ -5,7 +5,7 @@
  * resize scrolls the WINDOW by the correction; a no-op when the input isn't
  * focused. The math itself is covered by ios-keyboard-pan.test.ts.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import { useRef } from "react";
 import { useIosKeyboardPanFix } from "@/lib/ios-keyboard-pan";
@@ -33,7 +33,6 @@ describe("useIosKeyboardPanFix", () => {
   let vv: EventTarget & { offsetTop: number; height: number };
 
   beforeEach(() => {
-    vi.useFakeTimers();
     vv = Object.assign(new EventTarget(), { offsetTop: 120, height: 515 });
     Object.defineProperty(window, "visualViewport", {
       configurable: true,
@@ -41,36 +40,15 @@ describe("useIosKeyboardPanFix", () => {
     });
     window.scrollBy = vi.fn();
   });
-  afterEach(() => vi.useRealTimers());
 
-  it("corrects (instant, debounced) once the viewport settles after a focused overshoot", () => {
+  it("scrolls the window by the correction when the FOCUSED input overshot above the view", () => {
     const { getByTestId } = render(<Harness />);
     const inp = getByTestId("inp") as HTMLInputElement;
     inp.getBoundingClientRect = () => rect(97, 133); // visualTop = 97-120 = -23
     inp.focus();
     vv.dispatchEvent(new Event("resize"));
-    expect(window.scrollBy).not.toHaveBeenCalled(); // debounced, not fired yet
-    vi.advanceTimersByTime(300);
-    // visualTop -23 < pad 16 → delta = -23 - 16 = -39, INSTANT (no slide).
-    expect(window.scrollBy).toHaveBeenCalledWith({
-      top: -39,
-      left: 0,
-      behavior: "instant",
-    });
-  });
-
-  it("fires ONCE for a burst of vv events (debounce → no frame-by-frame slide)", () => {
-    const { getByTestId } = render(<Harness />);
-    const inp = getByTestId("inp") as HTMLInputElement;
-    inp.getBoundingClientRect = () => rect(97, 133);
-    inp.focus();
-    for (let i = 0; i < 6; i++) {
-      vv.dispatchEvent(new Event("resize"));
-      vi.advanceTimersByTime(30); // faster than the 250ms debounce
-    }
-    expect(window.scrollBy).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(300);
-    expect(window.scrollBy).toHaveBeenCalledTimes(1);
+    // visualTop -23 < pad 16 → delta = -23 - 16 = -39.
+    expect(window.scrollBy).toHaveBeenCalledWith(0, -39);
   });
 
   it("is a no-op when the input is NOT focused (page scroll near it)", () => {
@@ -79,7 +57,6 @@ describe("useIosKeyboardPanFix", () => {
     inp.getBoundingClientRect = () => rect(97, 133);
     inp.blur();
     vv.dispatchEvent(new Event("resize"));
-    vi.advanceTimersByTime(300);
     expect(window.scrollBy).not.toHaveBeenCalled();
   });
 });
