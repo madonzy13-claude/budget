@@ -31,12 +31,13 @@ const TICK_MS = 42;
 const TICKS = 12; // ~0.5s total scramble
 const BLUR_MS = 500; // matches the scramble so blur + shuffle finish together
 
-const isDigit = (c: string) => c >= "0" && c <= "9";
-// Only DIGITS scramble/blur. Separators (comma/dot), sign and currency stay
-// verbatim — each digit slot is pinned to 1ch (tabular width) below so a mask
-// char occupies EXACTLY the width of the real digit; leaving the commas/sign at
-// their natural width (no 1ch box) avoids the ugly comma padding.
-const isBlurable = (c: string) => isDigit(c);
+// Mask EVERYTHING except spaces — digits, separators (comma/dot), sign (+/−) AND
+// the currency symbol — so a glance can't read the magnitude, sign or currency.
+// Every masked slot is pinned to 1ch (tabular width) below, in BOTH states, so a
+// masked letter occupies the same space as whatever it hides and the total width
+// never changes on reveal/hide (the digits are tabular = 1ch already; commas /
+// currency sit centred in their 1ch slot).
+const isBlurable = (c: string) => c !== " ";
 // Mask alphabet: uppercase letters, EXCLUDING the two widest glyphs (M, W) so a
 // masked letter never overflows its 1ch box. Every digit is replaced by one of
 // these (kept uppercase — no lowercase/real digits leak while hidden).
@@ -134,10 +135,14 @@ export function SlotAmount({
     run(revealed);
   }, [revealed, run]);
 
-  // Refresh the resting mask if the value changes while hidden and idle.
+  // Re-sync the display when the VALUE changes while idle (not mid-scramble):
+  // to the real chars when revealed, to the fresh mask when hidden. Without the
+  // revealed branch, an amount that updates in place while revealed (e.g. the pie
+  // centre read-out as you click slices) kept showing the OLD value.
   useEffect(() => {
-    if (!revealed && timerRef.current === null) setDisplay(frozenMask);
-  }, [frozenMask, revealed]);
+    if (timerRef.current !== null) return; // mid-animation — let it settle
+    setDisplay(revealed ? chars : frozenMask);
+  }, [chars, frozenMask, revealed]);
 
   // Cleanup on unmount.
   useEffect(

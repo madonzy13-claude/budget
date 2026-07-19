@@ -255,29 +255,6 @@ export function AggregateTrend({
               )}
             </div>
 
-            {/* Investments view legend: contributions (grey) + profit (yellow). */}
-            {view === "investments" && investStack.length > 0 && (
-              <div
-                className="mx-auto flex items-center gap-4 text-caption text-[var(--muted-foreground)]"
-                data-testid="aggregate-invest-legend"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <span
-                    className="size-2.5 rounded-sm"
-                    style={{ background: "var(--muted-foreground)" }}
-                  />
-                  {t("contributions")}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span
-                    className="size-2.5 rounded-sm"
-                    style={{ background: "var(--primary)" }}
-                  />
-                  {t("profit")}
-                </span>
-              </div>
-            )}
-
             {/* Growth is over the SELECTED range ("since month start" on 1M). */}
             <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
               {t("grow_since", { preset: range.preset })}

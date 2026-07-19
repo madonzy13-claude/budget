@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useNavRouter } from "@/components/common/nav-pending";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { useTranslations } from "next-intl";
-import { ChevronDown, Plus, User, Users } from "lucide-react";
+import { ChevronDown, LayoutGrid, Plus, User, Users } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -108,6 +108,11 @@ export function BudgetSwitcher({
   const privateB = budgets.filter((b) => !isSharedBudget(b));
   const sharedB = budgets.filter(isSharedBudget);
   const isEmpty = budgets.length === 0;
+  // The all-budgets aggregate page (home `?list=1`) exists once there are ≥2
+  // budgets. It's "active" whenever no specific budget is in the path (a budget
+  // page always carries its UUID; the aggregate/home does not).
+  const showAllBudgets = budgets.length > 1;
+  const allBudgetsActive = activeBudgetId === null;
 
   const onPick = useCallback(
     (id: string) => {
@@ -117,6 +122,10 @@ export function BudgetSwitcher({
     },
     [router, locale, activeBudgetId],
   );
+  const onPickAllBudgets = useCallback(() => {
+    setOpen(false);
+    router.push(`/${locale}/?list=1`);
+  }, [router, locale]);
 
   // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
   // hidden entirely. The home page renders its own "Create your first
@@ -211,6 +220,38 @@ export function BudgetSwitcher({
         // only the close-refocus is suppressed.
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {/* All-budgets aggregate — pinned at the TOP (≥2 budgets). Active dot when
+            the user is on it (no budget in the path). */}
+        {showAllBudgets && (
+          <>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={allBudgetsActive}
+              data-testid="switcher-all-budgets"
+              onClick={onPickAllBudgets}
+              className={cn(
+                "flex h-10 w-full shrink-0 items-center gap-2 px-4 text-left",
+                "hover:bg-[var(--surface-elevated-dark)] cursor-pointer",
+              )}
+            >
+              {allBudgetsActive && (
+                <span
+                  className="size-2 shrink-0 rounded-full bg-[var(--primary)]"
+                  aria-hidden="true"
+                />
+              )}
+              <LayoutGrid
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
+              <span className="flex-1 truncate text-body-md text-[var(--on-dark)]">
+                {t("nav.switcher.allBudgets")}
+              </span>
+            </button>
+            <div className="h-px shrink-0 bg-[var(--hairline-dark)]" />
+          </>
+        )}
         {/* Scrollable budget list — flex-1 + min-h-0 so it takes the remaining
             height and scrolls, leaving the Create row pinned below. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

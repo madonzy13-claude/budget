@@ -23,29 +23,33 @@ describe("SlotAmount", () => {
     vi.useRealTimers();
   });
 
-  // The per-char spans hold the blur; the currency ("$") span stays sharp.
   const charSpans = (el: HTMLElement) =>
     Array.from(el.querySelectorAll("span"));
   const blurredChars = (el: HTMLElement) =>
     charSpans(el).filter((s) => s.style.filter.includes("blur"));
-  const currencySpan = (el: HTMLElement) =>
-    charSpans(el).find((s) => s.textContent === "$");
 
-  it("starts hidden: number (digits AND separators) scrambled to uppercase + blurred; currency kept sharp", () => {
+  it("starts hidden: EVERY non-space char (digits, separators, sign, currency) scrambled to uppercase + blurred", () => {
     render(<SlotAmount value="$1,234" />);
     const el = screen.getByTestId("slot-amount");
     expect(el.dataset.revealed).toBe("false");
     expect(el.textContent).not.toMatch(/\d/); // real digits NOT in the DOM
-    expect(el.textContent).not.toContain(","); // the comma is scrambled too (split hidden)
-    expect(el.textContent).toContain("$"); // currency not scrambled
+    expect(el.textContent).not.toContain(","); // separator hidden (magnitude)
+    expect(el.textContent).not.toContain("$"); // currency hidden too
     expect(el.textContent).not.toMatch(/[a-z]/); // uppercase only
     expect(el.textContent).toMatch(/[A-Z]/); // random uppercase chars present
-    // Every number slot (4 digits + the comma position = 5) is blurred (em radius).
-    expect(blurredChars(el).length).toBe(5);
+    // All 6 non-space chars of "$1,234" are masked + blurred.
+    expect(blurredChars(el).length).toBe(6);
     expect(blurredChars(el)[0]!.style.filter).toContain("em");
-    expect(currencySpan(el)!.style.filter).toBe("none"); // currency NOT blurred
-    // The comma slot (index 2 of "$1,234") renders a fixed narrow "I".
-    expect(charSpans(el)[2]!.textContent).toBe("I");
+  });
+
+  it("keeps a SPACE verbatim (not masked) so width/structure holds", () => {
+    render(<SlotAmount value="-50 zł" />);
+    const el = screen.getByTestId("slot-amount");
+    expect(el.textContent).not.toContain("-"); // sign hidden
+    expect(el.textContent).not.toContain("zł"); // currency hidden
+    expect(el.textContent).not.toMatch(/\d/);
+    expect(el.textContent).toContain(" "); // the single space is preserved
+    expect(blurredChars(el).length).toBe(5); // "-","5","0","z","ł" — space excluded
   });
 
   it("reveals the real value on click (all sharp), re-hides on a second click", () => {
@@ -58,28 +62,27 @@ describe("SlotAmount", () => {
     clickAndSettle(el);
     expect(el.dataset.revealed).toBe("false");
     expect(el.textContent).not.toMatch(/\d/);
-    expect(blurredChars(el).length).toBeGreaterThan(0); // digits blurred again
+    expect(blurredChars(el).length).toBeGreaterThan(0); // masked again
   });
 
   it("Enter toggles the reveal", () => {
     render(<SlotAmount value="42" />);
     const el = screen.getByTestId("slot-amount");
-    act(() => {
-      fireEvent.keyDown(el, { key: "Enter" });
-    });
-    act(() => {
-      vi.runAllTimers();
-    });
+    act(() => fireEvent.keyDown(el, { key: "Enter" }));
+    act(() => vi.runAllTimers());
     expect(el.textContent).toBe("42");
   });
 
-  it("the sign is scrambled too (masked to 'I'); the currency code stays", () => {
-    render(<SlotAmount value="-50 zł" />);
+  it("updates the SHOWN amount when the value changes while REVEALED (pie-slice click)", () => {
+    // Regression: clicking pie slices swaps the centre value in place; a revealed
+    // SlotAmount used to keep showing the OLD value (only the mask refreshed).
+    const { rerender } = render(<SlotAmount value="$10" />);
     const el = screen.getByTestId("slot-amount");
-    expect(el.textContent).not.toContain("-"); // sign hidden
-    expect(el.textContent).toContain("zł"); // currency code kept
-    expect(el.textContent).not.toMatch(/\d/);
-    expect(charSpans(el)[0]!.textContent).toBe("I"); // "-" slot → "I"
+    clickAndSettle(el); // reveal
+    expect(el.textContent).toBe("$10");
+    rerender(<SlotAmount value="$20" />); // value changes while still revealed
+    act(() => vi.runAllTimers());
+    expect(el.textContent).toBe("$20"); // NOT the stale "$10"
   });
 
   it("shared provider: clicking ONE reveals ALL", () => {

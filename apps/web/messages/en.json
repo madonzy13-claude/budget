@@ -799,7 +799,8 @@
         "trigger": "No budgets yet",
         "body": "Use + to create your first budget.",
         "cta": "Create budget"
-      }
+      },
+      "allBudgets": "All budgets"
     },
     "newBudget": "New budget",
     "newBudgetTooltip": "Create new budget"

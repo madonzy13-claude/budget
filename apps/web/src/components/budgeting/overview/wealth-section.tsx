@@ -319,29 +319,6 @@ export function WealthSection({
                           </div>
                         )}
                       </div>
-                      {/* Investments legend: contributions (grey) + profit
-                          (yellow) — the two stacked bands of the area below. */}
-                      {investStack.length > 0 && (
-                        <div
-                          className="mx-auto flex items-center gap-4 text-caption text-[var(--muted-foreground)]"
-                          data-testid="wealth-invest-legend"
-                        >
-                          <span className="inline-flex items-center gap-1.5">
-                            <span
-                              className="size-2.5 rounded-sm"
-                              style={{ background: "var(--muted-foreground)" }}
-                            />
-                            {t("wealth.contributions")}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <span
-                              className="size-2.5 rounded-sm"
-                              style={{ background: "var(--primary)" }}
-                            />
-                            {t("wealth.profit")}
-                          </span>
-                        </div>
-                      )}
                     </>
                   );
                 })()}

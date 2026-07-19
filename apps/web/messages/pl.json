@@ -799,7 +799,8 @@
         "trigger": "Brak budżetów",
         "body": "Użyj +, aby utworzyć pierwszy budżet.",
         "cta": "Utwórz budżet"
-      }
+      },
+      "allBudgets": "Wszystkie budżety"
     },
     "newBudget": "Nowy budżet",
     "newBudgetTooltip": "Utwórz nowy budżet"
