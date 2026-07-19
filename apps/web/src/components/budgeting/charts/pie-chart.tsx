@@ -7,10 +7,11 @@
  * Interactive: hover (desktop) / tap (mobile) highlights the slice (enlarge +
  * dim the rest) and shows its "name / value / %" in the donut's CENTRE hole — a
  * center read-out instead of a floating tooltip so it never covers other slices.
- * Re-tap the same slice clears it. Colors via `colorFor`; `formatValue` renders
- * the value.
+ * Interaction is pointer-up based (iOS never fires `click` on the re-rendering
+ * chart): ring = select, centre = toggle the masked blur, outside = clear. Colors
+ * via `colorFor`; `formatValue` renders the value.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Sector } from "recharts";
 import {
   SlotAmount,
@@ -48,15 +49,29 @@ export function OverviewPieChart({
   // so a mobile mouseleave-after-touch can't clear a tapped selection.
   const [hover, setHover] = useState<number | undefined>(undefined);
   const [tapped, setTapped] = useState<number | undefined>(undefined);
-  const active = hover ?? tapped;
-  // Was the CURRENT press inside the donut hole? Recorded on pointer-down (capture
-  // phase, before recharts) so the Pie's onClick can IGNORE a hole tap. On iOS
-  // Safari a tap in the hole is routed by recharts to the nearest sector and fires
-  // that sector's onClick → it toggled the selected slice off ("centre tap resets
-  // to All"). Chromium never routed a hole tap to a sector, which is why this only
-  // reproduced on WebKit. The hole is served by the reveal disc / amount; recharts
-  // must not treat a hole press as a slice click at all.
-  const pressInHoleRef = useRef(false);
+  // Touch devices synthesize a `mouseenter` AFTER the tap (so `hover` re-populates
+  // right after pointer-up clears it) and never a real hover — so on touch the
+  // selection is `tapped` ALONE; letting `hover` win made a deselected slice keep
+  // showing via stale hover. Desktop keeps hover-as-preview over the committed tap.
+  // Set after mount to avoid an SSR/hydration mismatch (server can't detect touch).
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    setIsTouch(
+      typeof window !== "undefined" &&
+        ("ontouchstart" in window || navigator.maxTouchPoints > 0),
+    );
+  }, []);
+  const active = isTouch ? tapped : (hover ?? tapped);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  // The slice the pointer is currently over, tracked from recharts' onMouseEnter/
+  // Leave (which DO fire on iOS touch — unlike onClick, which iOS cancels because
+  // the hover re-render swaps the sector element mid-tap). The pointer-up handler
+  // commits this to the persistent `tapped` selection.
+  const hoverRef = useRef<number | undefined>(undefined);
+  // Dedupe a double pointer-up from ONE tap (some engines emit both a touch- and a
+  // mouse-derived pointerup a few ms apart; without this a re-tap toggles off then
+  // straight back on). Uses the event timeStamp — no Date.now.
+  const lastUpRef = useRef(-1);
   // Shared privacy reveal — the centre value toggles it on tap (below).
   const { toggle } = useSlotReveal();
 
@@ -78,36 +93,43 @@ export function OverviewPieChart({
     // relative → the centre read-out overlays the hole. Suppress the browser focus
     // ring / tap-highlight recharts otherwise shows on tap (the blue border).
     <div
+      ref={wrapperRef}
       className="relative [&_:focus]:outline-none [&_:focus-visible]:outline-none"
       style={{ WebkitTapHighlightColor: "transparent" }}
-      // Record whether the press landed inside the donut HOLE, in the capture phase
-      // so it's set before recharts' own handlers run. innerRadius = 55% of the pie
-      // maxRadius (min(w,h)/2). A hole press must never change the slice selection.
-      onPointerDownCapture={(e) => {
-        const box = e.currentTarget.getBoundingClientRect();
+      // ALL pie interaction runs on pointer-up, NOT click: iOS Safari never fires a
+      // `click` on the chart (the hover re-render swaps the sector element between
+      // touchstart and touchend, so the browser cancels the synthesized click),
+      // which is why every click-based handler was dead on iOS and the selection —
+      // held only by transient `hover` — reset the moment the finger moved to the
+      // centre. pointer-up fires on both touch and mouse. By radius:
+      //   • centre (the amount or the hole) → toggle the blur, never touch selection
+      //   • ring → select the slice under the pointer (re-tap same → deselect)
+      //   • outside the donut → reset to "All"
+      onPointerUp={(e) => {
+        if (e.timeStamp - lastUpRef.current < 60) return; // ignore the twin event
+        lastUpRef.current = e.timeStamp;
+        const box = wrapperRef.current?.getBoundingClientRect();
+        if (!box) return;
         const dx = e.clientX - (box.left + box.width / 2);
         const dy = e.clientY - (box.top + box.height / 2);
-        const innerR = (0.55 * Math.min(box.width, box.height)) / 2;
-        pressInHoleRef.current = Math.hypot(dx, dy) <= innerR;
-      }}
-      // Click OUTSIDE a slice (the hole / empty area) resets to "All". A click ON a
-      // slice is handled by the Pie's onClick (re-tapping the same slice clears it).
-      // Clear hover too: on touch a tap leaves `hover` set (no mouseleave fires), so
-      // clearing only `tapped` would leave `active = hover` still showing the slice.
-      onClick={(e) => {
-        // Reset to "All" ONLY when the tap is OUTSIDE the donut's outer circle (the
-        // chart corners / empty area). ANY tap INSIDE the circle keeps the current
-        // selection: the centre amount toggles its own blur (SlotAmount), the hole
-        // toggles it via the disc, and a slice deselects itself by a re-tap through
-        // the Pie's own onClick. This is the robust rule — it doesn't depend on the
-        // amount's width vs the hole (a wide amount overflowing onto the ring no
-        // longer counts as a slice tap). Center ≈ the chart box center (the pie is
-        // centered in the container); outer radius = the 82% Pie outerRadius.
-        const box = e.currentTarget.getBoundingClientRect();
-        const dx = e.clientX - (box.left + box.width / 2);
-        const dy = e.clientY - (box.top + box.height / 2);
-        const outerR = (0.82 * Math.min(box.width, box.height)) / 2;
-        if (Math.hypot(dx, dy) <= outerR) return; // inside the circle → keep it
+        const dist = Math.hypot(dx, dy);
+        const R = Math.min(box.width, box.height) / 2;
+        const onAmount = !!(e.target as HTMLElement).closest?.(
+          '[data-testid="slot-amount"]',
+        );
+        if (onAmount || dist <= 0.55 * R) {
+          if (maskValue) toggle();
+          return;
+        }
+        if (dist <= 0.82 * R) {
+          // Always SELECT the slice under the pointer (idempotent — a duplicate
+          // pointer-up from one tap can't toggle it back off). Deselect is a tap
+          // OUTSIDE the donut; switching is a tap on another slice.
+          const idx = hoverRef.current;
+          if (idx != null) setTapped(idx);
+          setHover(undefined);
+          return;
+        }
         setTapped(undefined);
         setHover(undefined);
       }}
@@ -131,18 +153,19 @@ export function OverviewPieChart({
                 outerRadius={(Number(props.outerRadius) || 0) + 6}
               />
             )}
-            onMouseEnter={(_, index) => setHover(index)}
-            onMouseLeave={() => setHover(undefined)}
-            onClick={(_, index) => {
-              // Ignore a click whose press was in the HOLE — on iOS recharts routes
-              // a hole tap to the nearest sector and fires this, which would toggle
-              // the selected slice off (the "centre tap resets" bug). The hole is
-              // the reveal target, never a slice click.
-              if (pressInHoleRef.current) return;
-              // Clear any lingering (touch) hover so re-tapping the SAME slice
-              // reliably falls back to "All" instead of `active` reading `hover`.
+            // enter/leave DO fire on iOS touch (unlike click). Track the slice under
+            // the pointer in a ref so the wrapper's pointer-up can commit it, and
+            // drive the desktop hover-preview + dim via `hover`.
+            onMouseEnter={(_, index) => {
+              hoverRef.current = index;
+              setHover(index);
+            }}
+            onMouseLeave={() => {
+              // Keep hoverRef = the last slice the pointer was over so pointer-up can
+              // still commit it — on a quick re-tap iOS may not re-fire mouseenter
+              // before pointer-up, and clearing it here dropped the selection. Only
+              // the transient dim (`hover`) clears on leave.
               setHover(undefined);
-              setTapped((prev) => (prev === index ? undefined : index));
             }}
           >
             {data.map((d, i) => (
@@ -159,41 +182,15 @@ export function OverviewPieChart({
 
       {data.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-          {/* Reveal hit-target: a clickable disc filling the donut HOLE (the text
-              is tiny + the overlay is pointer-events-none, so tapping the amount
-              usually missed it and fell through to the reset). Sized to the inner
-              radius (55% of maxRadius ≈ 0.55·height for these wide cards) so it
-              covers the WHOLE hole — a wide amount overflows a smaller disc, and
-              those overflow taps were the ones still landing on the reset. Sits
-              BEHIND the read-out text (pointer-events-none), so taps pass through
-              to this. The wrapper no longer resets on masked pies either, so even
-              an edge tap can't reset. */}
-          {maskValue && (
-            <button
-              type="button"
-              aria-label="Toggle amount"
-              data-testid="pie-reveal"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggle();
-              }}
-              style={{
-                width: Math.round(height * 0.55),
-                height: Math.round(height * 0.55),
-              }}
-              className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full"
-            />
-          )}
           <span className="pointer-events-none text-caption text-[var(--muted-foreground)]">
             {centreName}
           </span>
-          {/* The masked amount is its OWN tap target (pointer-events-auto): a wide
-              value overflows the donut hole onto the ring, and a pointer-events-none
-              amount let those overflow taps fall THROUGH to the slice underneath —
-              recharts then re-selected/cleared the slice instead of toggling the
-              blur (the reported "jumps to All, still blurred" bug). SlotAmount's own
-              onClick stops propagation + toggles, and being on top it swallows the
-              tap so the sector never sees it. */}
+          {/* The masked amount stays pointer-events-auto so the wrapper's pointer-up
+              can recognise a tap ON the amount (a wide value overflows the hole onto
+              the ring) as a reveal, not a slice select. SlotAmount is NON-interactive
+              here (interactive={false}): the pie owns the reveal via pointer-up —
+              iOS never fires a click on the chart, and a self-toggling amount would
+              double-fire on desktop where both click and pointer-up run. */}
           <span
             className={`num text-num-sm font-semibold text-[var(--body-on-dark)] ${
               maskValue ? "pointer-events-auto" : "pointer-events-none"
@@ -203,7 +200,11 @@ export function OverviewPieChart({
               const v = formatValue
                 ? formatValue(centreVal)
                 : String(centreVal);
-              return maskValue ? <SlotAmount value={v} /> : v;
+              return maskValue ? (
+                <SlotAmount value={v} interactive={false} />
+              ) : (
+                v
+              );
             })()}
           </span>
           <span className="pointer-events-none text-caption text-[var(--muted-foreground)]">

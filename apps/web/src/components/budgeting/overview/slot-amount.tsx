@@ -78,12 +78,19 @@ export function SlotAmount({
   value,
   className,
   blurEm = 0.22,
+  interactive = true,
 }: {
   value: string;
   className?: string;
   /** Blur radius as a FRACTION of the font size (em) so every figure looks
    *  equally hidden regardless of its size. */
   blurEm?: number;
+  /** When false the amount does NOT handle its own tap (no onClick/keyboard, not a
+   *  button) — the PARENT drives the reveal. The pie uses this: iOS never fires
+   *  `click` on the re-rendering chart, so the pie toggles the shared reveal from a
+   *  pointer handler instead, and a self-toggling SlotAmount would double-fire on
+   *  desktop. */
+  interactive?: boolean;
 }) {
   const { revealed, toggle } = useSlotReveal();
 
@@ -170,16 +177,16 @@ export function SlotAmount({
 
   return (
     <span
-      role="button"
-      tabIndex={0}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
       data-testid="slot-amount"
       data-revealed={revealed}
-      onClick={onClick}
-      onKeyDown={onKeyDown}
+      onClick={interactive ? onClick : undefined}
+      onKeyDown={interactive ? onKeyDown : undefined}
       aria-label={revealed ? value : "Amount hidden — tap to reveal"}
       className={className}
       style={{
-        cursor: "pointer",
+        cursor: interactive ? "pointer" : "inherit",
         userSelect: "none",
         display: "inline-block",
         // Horizontal breathing room = the blur radius (em, so it scales with the

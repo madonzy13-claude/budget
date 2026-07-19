@@ -295,7 +295,10 @@ describe("Overview charts", () => {
     });
   });
 
-  it("tapping the masked pie CENTRE reveals the amount (not reset)", () => {
+  it("pointer-up in the masked pie CENTRE reveals the amount (iOS-safe; no click)", () => {
+    // iOS Safari never fires `click` on the re-rendering chart, so the pie drives
+    // the reveal from pointer-up. Centre of the shimmed 400×240 box = (200,120);
+    // dist 0 ≤ 0.55·min/2 → the "centre" branch → toggle reveal.
     vi.useFakeTimers();
     const { container } = box(
       <SlotRevealProvider>
@@ -312,11 +315,9 @@ describe("Overview charts", () => {
     const slot = container.querySelector(
       '[data-testid="slot-amount"]',
     ) as HTMLElement;
-    const disc = container.querySelector(
-      '[data-testid="pie-reveal"]',
-    ) as HTMLElement;
+    const wrap = container.querySelector(".relative") as HTMLElement;
     expect(slot.dataset.revealed).toBe("false");
-    act(() => fireEvent.click(disc)); // tap the centre hole
+    act(() => fireEvent.pointerUp(wrap, { clientX: 200, clientY: 120 }));
     act(() => vi.runAllTimers()); // settle the scramble
     expect(slot.dataset.revealed).toBe("true"); // revealed, NOT reset
     vi.useRealTimers();
@@ -347,7 +348,10 @@ describe("Overview charts", () => {
     expect(wrapper.className).not.toContain("pointer-events-none");
   });
 
-  it("tapping the masked pie AMOUNT itself (not just the hole disc) toggles reveal", () => {
+  it("pointer-up whose target is the masked AMOUNT reveals it (overflow tap = reveal, not select)", () => {
+    // A wide amount overflows the hole onto the ring; a pointer-up whose target is
+    // the amount is treated as a reveal (the `onAmount` branch) regardless of the
+    // radius, so an overflow tap can't be mistaken for a slice select.
     vi.useFakeTimers();
     const { container } = box(
       <SlotRevealProvider>
@@ -365,7 +369,9 @@ describe("Overview charts", () => {
       '[data-testid="slot-amount"]',
     ) as HTMLElement;
     expect(slot.dataset.revealed).toBe("false");
-    act(() => fireEvent.click(slot)); // tap the amount text directly
+    // Fire on the amount (bubbles to the wrapper's onPointerUp with target=slot),
+    // off-centre coords → the reveal must come from the target check, not radius.
+    act(() => fireEvent.pointerUp(slot, { clientX: 380, clientY: 120 }));
     act(() => vi.runAllTimers());
     expect(slot.dataset.revealed).toBe("true");
     vi.useRealTimers();
