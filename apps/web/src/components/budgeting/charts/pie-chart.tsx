@@ -77,16 +77,21 @@ export function OverviewPieChart({
       // Clear hover too: on touch a tap leaves `hover` set (no mouseleave fires), so
       // clearing only `tapped` would leave `active = hover` still showing the slice.
       onClick={(e) => {
-        // Masked pies: the centre HOLE toggles the reveal (the disc below), and a
-        // slice deselects by re-tapping it — so a background/centre click must
-        // NEVER reset here (that was stealing the reveal when the tap landed just
-        // off the disc). Non-masked pies keep the click-outside-slice → "All".
-        if (maskValue) return;
-        const el = e.target as HTMLElement;
-        if (!el.closest(".recharts-sector")) {
-          setTapped(undefined);
-          setHover(undefined);
-        }
+        // Reset to "All" ONLY when the tap is OUTSIDE the donut's outer circle (the
+        // chart corners / empty area). ANY tap INSIDE the circle keeps the current
+        // selection: the centre amount toggles its own blur (SlotAmount), the hole
+        // toggles it via the disc, and a slice deselects itself by a re-tap through
+        // the Pie's own onClick. This is the robust rule — it doesn't depend on the
+        // amount's width vs the hole (a wide amount overflowing onto the ring no
+        // longer counts as a slice tap). Center ≈ the chart box center (the pie is
+        // centered in the container); outer radius = the 82% Pie outerRadius.
+        const box = e.currentTarget.getBoundingClientRect();
+        const dx = e.clientX - (box.left + box.width / 2);
+        const dy = e.clientY - (box.top + box.height / 2);
+        const outerR = (0.82 * Math.min(box.width, box.height)) / 2;
+        if (Math.hypot(dx, dy) <= outerR) return; // inside the circle → keep it
+        setTapped(undefined);
+        setHover(undefined);
       }}
     >
       <ResponsiveContainer width="100%" height={height}>
