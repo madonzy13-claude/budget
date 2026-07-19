@@ -16,7 +16,6 @@ import {
   SlotAmount,
   useSlotReveal,
 } from "@/components/budgeting/overview/slot-amount";
-import { cn } from "@/lib/utils";
 
 export function OverviewPieChart({
   data,
@@ -130,28 +129,32 @@ export function OverviewPieChart({
 
       {data.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-          <span className="text-caption text-[var(--muted-foreground)]">
+          {/* Reveal hit-target: a clickable disc filling the donut HOLE (the text
+              is tiny + the overlay is pointer-events-none, so tapping the amount
+              usually missed it and fell through to the reset). Sized to 45% of the
+              chart height — smaller than the ~55% inner radius — so it covers the
+              whole hole yet never overlaps a slice. Sits BEHIND the read-out text
+              (which is pointer-events-none, so taps pass through to this). */}
+          {maskValue && (
+            <button
+              type="button"
+              aria-label="Toggle amount"
+              data-testid="pie-reveal"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggle();
+              }}
+              style={{
+                width: Math.round(height * 0.45),
+                height: Math.round(height * 0.45),
+              }}
+              className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full"
+            />
+          )}
+          <span className="pointer-events-none text-caption text-[var(--muted-foreground)]">
             {centreName}
           </span>
-          <span
-            className={cn(
-              "num text-num-sm font-semibold text-[var(--body-on-dark)]",
-              // The WHOLE value area (not just the tiny text) is a reveal target:
-              // pointer-events-auto lifts it out of the overlay's -none, and its
-              // onClick stops the wrapper's click-outside-slice reset. It sits in
-              // the donut hole, so it never blocks slice clicks.
-              maskValue &&
-                "pointer-events-auto cursor-pointer rounded px-3 py-0.5",
-            )}
-            onClick={
-              maskValue
-                ? (e) => {
-                    e.stopPropagation();
-                    toggle();
-                  }
-                : undefined
-            }
-          >
+          <span className="num pointer-events-none text-num-sm font-semibold text-[var(--body-on-dark)]">
             {(() => {
               const v = formatValue
                 ? formatValue(centreVal)
@@ -159,7 +162,7 @@ export function OverviewPieChart({
               return maskValue ? <SlotAmount value={v} /> : v;
             })()}
           </span>
-          <span className="text-caption text-[var(--muted-foreground)]">
+          <span className="pointer-events-none text-caption text-[var(--muted-foreground)]">
             {centrePct}%
           </span>
         </div>

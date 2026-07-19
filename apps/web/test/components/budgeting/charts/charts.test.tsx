@@ -6,14 +6,15 @@
  * assertions stay at smoke level (mounts without throwing) per the plan — NOT pixel
  * geometry, which recharts + happy-dom cannot measure.
  */
-import { describe, it, expect, beforeAll } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+import { render, fireEvent, act } from "@testing-library/react";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
 import { ChartTooltipContent } from "@/components/budgeting/charts/chart-tooltip";
+import { SlotRevealProvider } from "@/components/budgeting/overview/slot-amount";
 
 beforeAll(() => {
   // Give ResponsiveContainer a non-zero box in happy-dom.
@@ -249,7 +250,11 @@ describe("Overview charts", () => {
           label="Dining"
           series={[{ key: "real", label: "Real" }]}
           extra={() => [
-            { label: "Difference", value: "+$2,388 · +1194%", color: "rgb(1, 2, 3)" },
+            {
+              label: "Difference",
+              value: "+$2,388 · +1194%",
+              color: "rgb(1, 2, 3)",
+            },
           ]}
         />,
       );
@@ -288,6 +293,33 @@ describe("Overview charts", () => {
       );
       expect(container.firstElementChild).toBeNull();
     });
+  });
+
+  it("tapping the masked pie CENTRE reveals the amount (not reset)", () => {
+    vi.useFakeTimers();
+    const { container } = box(
+      <SlotRevealProvider>
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          maskValue
+          formatValue={(n) => `$${n}`}
+        />
+      </SlotRevealProvider>,
+    );
+    const slot = container.querySelector(
+      '[data-testid="slot-amount"]',
+    ) as HTMLElement;
+    const disc = container.querySelector(
+      '[data-testid="pie-reveal"]',
+    ) as HTMLElement;
+    expect(slot.dataset.revealed).toBe("false");
+    act(() => fireEvent.click(disc)); // tap the centre hole
+    act(() => vi.runAllTimers()); // settle the scramble
+    expect(slot.dataset.revealed).toBe("true"); // revealed, NOT reset
+    vi.useRealTimers();
   });
 
   it("handles a pie slice tap without throwing (active-index path)", () => {

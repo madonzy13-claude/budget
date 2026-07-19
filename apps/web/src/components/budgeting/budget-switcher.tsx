@@ -35,12 +35,12 @@ function isSharedBudget(b: BudgetSummary): boolean {
   return (b.memberCount ?? 1) > 1;
 }
 
-// Active dropdown row: a faint yellow-tinted BACKGROUND marks the selection — no
-// leading dot, no underline, no coloured text — so rows never mis-align and it's
-// clearly the selected one. (Base row bg is transparent; hover deepens it.)
+// Active dropdown row: a soft neutral-GREY background marks the selection — no
+// leading dot, underline, or coloured text — so rows never mis-align and it reads
+// as selected without a loud yellow. Hover deepens the same neutral surface.
 const ROW_BASE =
   "flex h-10 w-full items-center gap-2 px-4 text-left cursor-pointer hover:bg-[var(--surface-elevated-dark)]";
-const ROW_ACTIVE_BG = "bg-[color-mix(in_srgb,var(--primary)_16%,transparent)]";
+const ROW_ACTIVE_BG = "bg-[var(--surface-elevated-dark)]";
 function rowLabelClass(active: boolean): string {
   return cn(
     "flex-1 truncate text-body-md text-[var(--on-dark)]",
