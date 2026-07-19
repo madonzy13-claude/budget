@@ -25,9 +25,10 @@ const repo = new DrizzleInstrumentRepo(pool);
 
 beforeAll(async () => {
   // Clean any leftovers from a prior aborted run.
-  await pool.query(`DELETE FROM budgeting.instruments WHERE provider = $1`, [
-    TEST_PROVIDER,
-  ]);
+  await pool.query(
+    `DELETE FROM budgeting.instruments WHERE provider = $1 OR symbol LIKE 'QQZZ%'`,
+    [TEST_PROVIDER],
+  );
   // Unique "QQZZ" marker symbols/names so assertions don't collide with the ~219k
   // real instruments the 9.2 universe seed loads into the shared dev DB.
   await repo.upsert({
@@ -77,12 +78,22 @@ beforeAll(async () => {
     quoteCurrency: "USD",
     rank: 5,
   });
+  // A non-US, un-priceable row (stored as manual:<MIC>). Search must NOT surface it.
+  await repo.upsert({
+    symbol: "QQZZMAN",
+    displayName: "Qqzz Warsaw Listed SA",
+    provider: "manual:XWAR",
+    assetClass: "equities",
+    quoteCurrency: "PLN",
+    rank: 70,
+  });
 });
 
 afterAll(async () => {
-  await pool.query(`DELETE FROM budgeting.instruments WHERE provider = $1`, [
-    TEST_PROVIDER,
-  ]);
+  await pool.query(
+    `DELETE FROM budgeting.instruments WHERE provider = $1 OR symbol LIKE 'QQZZ%'`,
+    [TEST_PROVIDER],
+  );
   await pool.end();
 });
 
@@ -119,6 +130,16 @@ describe("DrizzleInstrumentRepo.search (local trigram, INV-07)", () => {
   it("never returns an inactive instrument", async () => {
     const r = await repo.search("QQZZAP_OLD");
     expect(r.find((i) => i.symbol === "QQZZAP_OLD")).toBeUndefined();
+  });
+
+  it("never returns a manual (non-US, un-priceable) instrument", async () => {
+    // Direct symbol hit AND a broad prefix — both must exclude the manual row.
+    expect((await repo.search("QQZZMAN")).map((i) => i.symbol)).not.toContain(
+      "QQZZMAN",
+    );
+    expect((await repo.search("QQZZ")).map((i) => i.symbol)).not.toContain(
+      "QQZZMAN",
+    );
   });
 
   it("findById returns the matching instrument", async () => {

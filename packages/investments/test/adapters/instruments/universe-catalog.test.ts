@@ -40,61 +40,38 @@ describe("classifyTdRow (stocks/ETF → provider + rank)", () => {
     expect(r.rank).toBe(100);
   });
 
-  it("Warsaw (GPW) equities → manual qualified by exchange, PLN, mid rank", () => {
-    const r = classifyTdRow(gpw, "equities")!;
-    // Exchange-qualified so a same-ticker Toronto/London listing won't collide.
-    expect(r.provider).toBe("manual:XWAR");
-    expect(r.quoteCurrency).toBe("PLN");
-    expect(r.rank).toBe(70);
+  it("non-US equities are DROPPED (null) — we have no live quote for them", () => {
+    // Warsaw (GPW), by country and by MIC-only, both drop.
+    expect(classifyTdRow(gpw, "equities")).toBeNull();
+    expect(
+      classifyTdRow(
+        { symbol: "CDR", name: "Cardero", mic_code: "XTSE", country: "Canada" },
+        "equities",
+      ),
+    ).toBeNull();
   });
 
-  it("the same ticker on two exchanges yields two distinct providers (no collision)", () => {
-    const warsaw = classifyTdRow(gpw, "equities")!;
-    const toronto = classifyTdRow(
-      {
-        symbol: "CDR",
-        name: "Cardero Resource",
-        currency: "CAD",
-        mic_code: "XTSE",
-        country: "Canada",
-      },
-      "equities",
-    )!;
-    expect(warsaw.symbol).toBe(toronto.symbol); // same ticker
-    expect(warsaw.provider).not.toBe(toronto.provider); // different (symbol,provider) key
+  it("a non-US ETF (e.g. London) is DROPPED — the /etf bulk call is global", () => {
+    expect(
+      classifyTdRow(
+        {
+          symbol: "VUSA",
+          name: "Vanguard S&P 500",
+          currency: "GBP",
+          mic_code: "XLON",
+          country: "United Kingdom",
+        },
+        "etf",
+      ),
+    ).toBeNull();
   });
 
-  it("a London ETF → manual:XLON, ranked above Warsaw", () => {
-    const lse = classifyTdRow(
-      {
-        symbol: "VUSA",
-        name: "Vanguard S&P 500",
-        currency: "GBP",
-        mic_code: "XLON",
-        country: "United Kingdom",
-      },
-      "etf",
-    )!;
-    expect(lse.provider).toBe("manual:XLON");
-    expect(lse.assetClass).toBe("etf");
-    expect(lse.rank).toBe(80);
-    expect(lse.rank ?? 0).toBeGreaterThan(
-      classifyTdRow(gpw, "equities")!.rank ?? 0,
-    );
-  });
-
-  it("an unknown exchange falls back to the rank floor (still manual-qualified)", () => {
+  it("a US-MIC row with no country is KEPT (isUsListed by exchange rank)", () => {
     const r = classifyTdRow(
-      {
-        symbol: "ZZZ",
-        name: "Obscure Co",
-        mic_code: "XZZZ",
-        country: "Nowhere",
-      },
+      { symbol: "MSFT", name: "Microsoft", mic_code: "XNAS" },
       "equities",
     )!;
-    expect(r.rank).toBe(10);
-    expect(r.provider).toBe("manual:XZZZ");
+    expect(r.provider).toBe("finnhub");
   });
 
   it("rows missing a symbol or name are dropped", () => {
@@ -250,7 +227,7 @@ describe("buildUniverse (assembly + resilience)", () => {
     return Promise.resolve(new Response("[]", { status: 200 }));
   }) as unknown as typeof fetch;
 
-  it("combines metals + stocks + ETF + crypto and routes providers correctly", async () => {
+  it("combines metals + US stocks + US ETF + crypto; drops non-US", async () => {
     const u = await buildUniverse({
       twelveDataKey: "k",
       fetchFn: fakeFetch,
@@ -259,14 +236,17 @@ describe("buildUniverse (assembly + resilience)", () => {
     });
     const bySym = Object.fromEntries(u.map((i) => [i.symbol, i]));
     expect(bySym["AAPL"].provider).toBe("finnhub");
-    expect(bySym["CDR"].provider).toBe("manual:XWAR");
     expect(bySym["VOO"].provider).toBe("finnhub");
     expect(bySym["bitcoin"].provider).toBe("coingecko");
+    // Poland is no longer fetched (UNIVERSE_COUNTRIES = US only) AND non-US rows are
+    // dropped in classify → CD Projekt (Warsaw) is absent, never a manual row.
+    expect(bySym["CDR"]).toBeUndefined();
     // Metals always present (auto-priced via gold-api.com — free + keyless).
     expect(bySym["XAU/USD"].provider).toBe("gold_api");
     // Palladium (260626) is seeded alongside gold/silver/platinum.
     expect(bySym["XPD/USD"].provider).toBe("gold_api");
-    expect(u.length).toBe(METALS_UNIVERSE.length + 3 + 1);
+    // US equity (AAPL) + US ETF (VOO) + bitcoin — CDR dropped.
+    expect(u.length).toBe(METALS_UNIVERSE.length + 2 + 1);
   });
 
   it("a failing sub-feed is skipped, not fatal (metals + crypto still returned)", async () => {
