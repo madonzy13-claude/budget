@@ -14,6 +14,7 @@ import { useTranslations } from "next-intl";
 import { Loader2, PlusCircle, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { useIosKeyboardPanFix } from "@/lib/ios-keyboard-pan";
 import { isAutoPriced } from "@/lib/investment-types";
 
 /** Short, human label for a suggestion's listing venue. Manual instruments carry
@@ -91,6 +92,10 @@ export function InstrumentSearchInput({
   // the field (open the dropdown / show the spinner) before the user changes
   // anything. The first real keystroke clears the flag and search resumes.
   const justSelectedRef = useRef(name.trim().length > 0);
+  // iOS standalone first-keyboard-open window-pan overshoot (same fix as the
+  // wallet inline editor) — keep the asset-name field inside the visual viewport.
+  const searchRef = useRef<HTMLInputElement>(null);
+  useIosKeyboardPanFix(searchRef);
 
   async function runSearch(q: string) {
     const query = q.trim();
@@ -148,6 +153,7 @@ export function InstrumentSearchInput({
   return (
     <div className="relative">
       <Input
+        ref={searchRef}
         data-testid="holding-sheet-name"
         autoFocus={autoFocus}
         disabled={disabled}

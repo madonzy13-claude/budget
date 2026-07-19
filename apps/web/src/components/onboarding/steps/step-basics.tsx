@@ -5,9 +5,11 @@
  *
  * All copy is i18n through `onboarding.wizard.basics.*`.
  */
+import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
+import { useIosKeyboardPanFix } from "@/lib/ios-keyboard-pan";
 
 interface StepBasicsProps {
   name: string;
@@ -25,6 +27,10 @@ export function StepBasics({
   onChangeCurrency,
 }: StepBasicsProps) {
   const t = useTranslations("onboarding.wizard.basics");
+  // iOS standalone first-keyboard-open window-pan overshoot (same fix as the
+  // wallet inline editor) — keep the name field inside the visual viewport.
+  const nameRef = useRef<HTMLInputElement>(null);
+  useIosKeyboardPanFix(nameRef);
   return (
     <div className="space-y-6">
       <div>
@@ -44,6 +50,7 @@ export function StepBasics({
           {t("name_label")}
         </label>
         <Input
+          ref={nameRef}
           id="wizard-basics-name"
           type="text"
           data-testid="wizard-step1-name"
