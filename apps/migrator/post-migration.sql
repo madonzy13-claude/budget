@@ -755,6 +755,18 @@ CREATE POLICY push_subscriptions_tenant_isolation ON shared_kernel.push_subscrip
   USING   (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
+-- r32 FIX: the hourly budget-reminder cron reads push_subscriptions cross-tenant via
+-- withInfraTx (worker_role, no app.tenant_ids) to find every budget with a subscriber
+-- (getAllSubscribedTenantIds). Without a worker SELECT scan policy, FORCE RLS matched
+-- ZERO rows → the reminder iterated an empty list and NEVER sent (nor did any push,
+-- since the whole delivery loop starts from this scan). Mirrors wallets_worker_cron_scan
+-- / investments_worker_cron_scan — SELECT-only, permissive, worker_role only. Writes
+-- still flow through withTenantTx (GUC set; tenant_isolation WITH CHECK applies).
+DROP POLICY IF EXISTS push_subscriptions_worker_cron_scan ON shared_kernel.push_subscriptions;
+CREATE POLICY push_subscriptions_worker_cron_scan ON shared_kernel.push_subscriptions
+  AS PERMISSIVE FOR SELECT TO worker_role
+  USING (true);
+
 DROP POLICY IF EXISTS notification_prefs_tenant_isolation ON shared_kernel.notification_prefs;
 CREATE POLICY notification_prefs_tenant_isolation ON shared_kernel.notification_prefs
   AS PERMISSIVE FOR ALL TO app_role, worker_role
