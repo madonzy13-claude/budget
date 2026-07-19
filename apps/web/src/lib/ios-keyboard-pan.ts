@@ -14,8 +14,6 @@
  * viewport — they shift with window scroll, not with the vv pan);
  * vvOffsetTop/vvHeight from window.visualViewport.
  */
-import { useEffect, type RefObject } from "react";
-
 export function windowPanCorrection(box: {
   inputTop: number;
   inputBottom: number;
@@ -33,47 +31,4 @@ export function windowPanCorrection(box: {
   const overlap = visualBottom - (box.vvHeight - pad);
   if (overlap > 0) return Math.min(overlap, visualTop - pad);
   return 0;
-}
-
-/**
- * Attach the first-keyboard-open window-pan correction to ONE standalone text
- * input — the wizard budget-name and the investment asset-name search, which are
- * NOT wrapped in InlineEditCell (that component has this built in). While the input
- * holds focus, a visualViewport resize/scroll scrolls the WINDOW so the input stays
- * inside the visual viewport, fixing iOS standalone's first-open overshoot. No-op
- * off iOS (no visualViewport) and whenever the input is already visible.
- */
-export function useIosKeyboardPanFix(
-  inputRef: RefObject<HTMLElement | null>,
-): void {
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const correct = () => {
-      const input = inputRef.current;
-      if (!input || document.activeElement !== input) return;
-      const rect = input.getBoundingClientRect();
-      const delta = windowPanCorrection({
-        inputTop: rect.top,
-        inputBottom: rect.bottom,
-        vvOffsetTop: vv.offsetTop,
-        vvHeight: vv.height,
-      });
-      if (delta !== 0) window.scrollBy(0, delta);
-    };
-    // Backstop: the FIRST keyboard open can settle without a final vv event, so
-    // run once shortly after this input gains focus (mirrors InlineEditCell).
-    const onFocusIn = (e: FocusEvent) => {
-      if (e.target === inputRef.current) window.setTimeout(correct, 450);
-    };
-    vv.addEventListener("resize", correct);
-    vv.addEventListener("scroll", correct);
-    document.addEventListener("focusin", onFocusIn);
-    return () => {
-      vv.removeEventListener("resize", correct);
-      vv.removeEventListener("scroll", correct);
-      document.removeEventListener("focusin", onFocusIn);
-    };
-  }, [inputRef]);
 }
