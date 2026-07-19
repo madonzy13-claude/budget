@@ -875,6 +875,8 @@
         "reserves_help": "Roll unused category budget into a per-category reserve at month-end.",
         "investments_label": "Investments",
         "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section.",
+        "notifications_label": "Notifications",
+        "notifications_help": "Get reminders and task alerts on this device, and show a count badge on the app icon.",
         "targetMonthsLabel": "Target months",
         "targetMonthsError": "Months must be between 1 and 60.",
         "badge_label": "Show in app icon badge",

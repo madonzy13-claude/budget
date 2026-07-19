@@ -21,6 +21,11 @@ interface StepFeaturesProps {
   /** Phase 9: opt into the Investments wallet section. Default off. */
   investmentsEnabled: boolean;
   onChangeInvestments: (v: boolean) => void;
+  /** Push notifications (reminders, tasks) + app-icon badge. Default off; the
+   *  browser permission prompt fires on "Create budget" if left on. Enabling it
+   *  also turns on the app-icon badge in the background (no separate toggle). */
+  notificationsEnabled: boolean;
+  onChangeNotifications: (v: boolean) => void;
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
   onChangeCushionTargetMonths: (v: number) => void;
@@ -73,6 +78,8 @@ export function StepFeatures({
   onChangeReserves,
   investmentsEnabled,
   onChangeInvestments,
+  notificationsEnabled,
+  onChangeNotifications,
   cushionTargetMonths,
   onChangeCushionTargetMonths,
 }: StepFeaturesProps) {
@@ -149,6 +156,14 @@ export function StepFeatures({
           help={t("investments_help")}
           checked={investmentsEnabled}
           onChange={onChangeInvestments}
+        />
+        <FeatureRow
+          id="wizard-feat-notifications"
+          testId="wizard-feature-notifications"
+          label={t("notifications_label")}
+          help={t("notifications_help")}
+          checked={notificationsEnabled}
+          onChange={onChangeNotifications}
         />
       </div>
     </div>

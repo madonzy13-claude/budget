@@ -32,6 +32,9 @@ const mockProgressPut = vi.fn().mockResolvedValue({
 const mockBudgetsPatch = vi
   .fn()
   .mockResolvedValue({ ok: true, json: async () => ({}) });
+const mockPushPreferencesPatch = vi
+  .fn()
+  .mockResolvedValue({ ok: true, json: async () => ({}) });
 
 vi.mock("@/lib/api-client", () => ({
   api: {
@@ -44,6 +47,11 @@ vi.mock("@/lib/api-client", () => ({
     onboarding: {
       progress: {
         $put: (...args: unknown[]) => mockProgressPut(...args),
+      },
+    },
+    push: {
+      preferences: {
+        $patch: (...args: unknown[]) => mockPushPreferencesPatch(...args),
       },
     },
   },
@@ -179,19 +187,69 @@ describe("WizardPage — deferred-create step machine", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // 2 Basics → 3 Features
     await waitFor(() =>
-      expect(
-        screen.getByTestId("wizard-feature-cushion"),
-      ).toBeInTheDocument(),
+      expect(screen.getByTestId("wizard-feature-cushion")).toBeInTheDocument(),
     );
   }
 
-  it("features step (3) shows cushion + reserves (no push/badge — those live in Settings)", async () => {
+  it("features step (3) shows cushion + reserves + notifications (badge is background-only)", async () => {
     await advanceToFeaturesStep();
     expect(screen.getByTestId("wizard-feature-cushion")).toBeInTheDocument();
     expect(screen.getByTestId("wizard-feature-reserves")).toBeInTheDocument();
-    // Notifications + badge were removed from the wizard (r37).
-    expect(screen.queryByTestId("onboarding-push-switch")).toBeNull();
-    expect(screen.queryByTestId("onboarding-badge-switch")).toBeNull();
+    // Notifications toggle IS present now; the badge has NO separate row (enabled
+    // in the background when notifications are turned on).
+    expect(
+      screen.getByTestId("wizard-feature-notifications"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("wizard-feature-badge")).toBeNull();
+  });
+
+  it("enabling notifications at commit → subscribes THIS budget + silently enables the BADGE pref", async () => {
+    const assignSpy = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => {});
+    await advanceToFeaturesStep();
+    fireEvent.click(screen.getByTestId("wizard-feature-notifications"));
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /create_budget/i }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
+    await waitFor(() =>
+      expect(mockSubscribeToPush).toHaveBeenCalledWith("budget-123"),
+    );
+    await waitFor(() =>
+      expect(mockPushPreferencesPatch).toHaveBeenCalledWith(
+        {
+          json: {
+            budgetId: "budget-123",
+            notificationType: "BADGE",
+            enabled: true,
+          },
+        },
+        { headers: { "X-Budget-ID": "budget-123" } },
+      ),
+    );
+    assignSpy.mockRestore();
+  });
+
+  it("NOT enabling notifications → no push subscribe, no badge pref", async () => {
+    const assignSpy = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => {});
+    await advanceToFeaturesStep();
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /create_budget/i }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
+    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
+    expect(mockSubscribeToPush).not.toHaveBeenCalled();
+    expect(mockPushPreferencesPatch).not.toHaveBeenCalled();
+    assignSpy.mockRestore();
   });
 
   it("renders no Skip button on any step (skip removed)", async () => {

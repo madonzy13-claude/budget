@@ -875,6 +875,8 @@
         "reserves_help": "Przenoś niewykorzystany budżet kategorii do rezerwy na koniec miesiąca.",
         "investments_label": "Inwestycje",
         "investments_help": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli.",
+        "notifications_label": "Powiadomienia",
+        "notifications_help": "Otrzymuj przypomnienia i alerty o zadaniach na tym urządzeniu oraz licznik na ikonie aplikacji.",
         "targetMonthsLabel": "Docelowe miesiące",
         "targetMonthsError": "Liczba miesięcy musi być między 1 a 60.",
         "badge_label": "Pokaż na ikonie aplikacji",
