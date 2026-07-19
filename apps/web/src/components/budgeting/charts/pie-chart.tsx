@@ -72,7 +72,11 @@ export function OverviewPieChart({
       // Clear hover too: on touch a tap leaves `hover` set (no mouseleave fires), so
       // clearing only `tapped` would leave `active = hover` still showing the slice.
       onClick={(e) => {
-        if (!(e.target as HTMLElement).closest(".recharts-sector")) {
+        const el = e.target as HTMLElement;
+        // Tapping the centre VALUE (a maskable SlotAmount) must reveal it, NOT
+        // reset the selection — so ignore clicks inside it here.
+        if (el.closest('[data-testid="slot-amount"]')) return;
+        if (!el.closest(".recharts-sector")) {
           setTapped(undefined);
           setHover(undefined);
         }

@@ -34,11 +34,11 @@ describe("SlotAmount", () => {
     expect(el.dataset.revealed).toBe("false");
     expect(el.textContent).not.toMatch(/\d/); // real digits NOT in the DOM
     expect(el.textContent).not.toContain(","); // separator hidden (magnitude)
-    expect(el.textContent).not.toContain("$"); // currency hidden too
+    expect(el.textContent).toContain("$"); // currency STAYS visible
     expect(el.textContent).not.toMatch(/[a-z]/); // uppercase only
     expect(el.textContent).toMatch(/[A-Z]/); // random uppercase chars present
-    // All 6 non-space chars of "$1,234" are masked + blurred.
-    expect(blurredChars(el).length).toBe(6);
+    // The 5 number chars of "$1,234" (1 , 2 3 4) are masked; "$" is not.
+    expect(blurredChars(el).length).toBe(5);
     expect(blurredChars(el)[0]!.style.filter).toContain("em");
   });
 
@@ -57,14 +57,14 @@ describe("SlotAmount", () => {
     expect(spans[7]!.textContent).toBe("I"); // "1"
   });
 
-  it("keeps a SPACE verbatim (not masked) so width/structure holds", () => {
+  it("hides the sign but keeps the currency + space verbatim", () => {
     render(<SlotAmount value="-50 zł" />);
     const el = screen.getByTestId("slot-amount");
     expect(el.textContent).not.toContain("-"); // sign hidden
-    expect(el.textContent).not.toContain("zł"); // currency hidden
-    expect(el.textContent).not.toMatch(/\d/);
+    expect(el.textContent).toContain("zł"); // currency STAYS visible
     expect(el.textContent).toContain(" "); // the single space is preserved
-    expect(blurredChars(el).length).toBe(5); // "-","5","0","z","ł" — space excluded
+    expect(el.textContent).not.toMatch(/\d/);
+    expect(blurredChars(el).length).toBe(3); // "-","5","0" — currency + space excluded
   });
 
   it("reveals the real value on click (all sharp), re-hides on a second click", () => {

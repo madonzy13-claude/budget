@@ -66,9 +66,10 @@ export function OverviewBarChart({
 }) {
   const vertical = layout === "vertical";
   const { revealed } = useSlotReveal();
-  // Numeric axis tick formatter — masked to "•••" when hidden (the avg-change
-  // chart's % scale hides too, per the privacy pass).
-  const numFmt = maskAmounts && !revealed ? () => "•••" : formatValue;
+  const hideAmt = maskAmounts && !revealed;
+  // Numeric axis + tooltip value — both masked to "•••" when hidden.
+  const numFmt = hideAmt ? () => "•••" : formatValue;
+  const tipFmt = hideAmt ? () => "•••" : (formatTooltip ?? formatValue);
   // Vertical (category) charts: scale height with the row count so 2-line wrapped
   // labels don't overlap in thin bands (UAT). Horizontal keeps the passed height.
   const chartHeight = vertical
@@ -161,7 +162,7 @@ export function OverviewBarChart({
           cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
           content={
             <ChartTooltipContent
-              formatY={formatTooltip ?? formatValue}
+              formatY={tipFmt}
               series={series}
               labelFormat={labelFormat}
               // Single-series per-point bars (up/down, per-category): the marker

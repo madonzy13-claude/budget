@@ -35,14 +35,18 @@ function isSharedBudget(b: BudgetSummary): boolean {
   return (b.memberCount ?? 1) > 1;
 }
 
-/** Dropdown row label — the ACTIVE row is marked with a yellow underline (no
- *  leading dot, so the text never indents relative to inactive rows). */
+/** Dropdown row: the ACTIVE row reads in the yellow accent (icon + name), NO
+ *  leading dot / underline — so rows never mis-align and it stays clean. */
 function rowLabelClass(active: boolean): string {
   return cn(
     "flex-1 truncate text-body-md",
-    active
-      ? "font-medium text-[var(--primary)] underline decoration-[var(--primary)] underline-offset-4"
-      : "text-[var(--on-dark)]",
+    active ? "font-medium text-[var(--primary)]" : "text-[var(--on-dark)]",
+  );
+}
+function rowIconClass(active: boolean): string {
+  return cn(
+    "size-4",
+    active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]",
   );
 }
 
@@ -255,7 +259,7 @@ export function BudgetSwitcher({
               )}
             >
               <LayoutGrid
-                className="size-4 text-[var(--muted-foreground)]"
+                className={rowIconClass(allBudgetsActive)}
                 aria-hidden="true"
               />
               <span className={rowLabelClass(allBudgetsActive)}>
@@ -369,15 +373,9 @@ function BudgetGroup({
                 ACTIVE row is marked by a yellow underline on its name (below),
                 NOT a leading dot — so active/inactive rows never mis-align. */}
             {isSharedBudget(b) ? (
-              <Users
-                className="size-4 text-[var(--muted-foreground)]"
-                aria-hidden="true"
-              />
+              <Users className={rowIconClass(isActive)} aria-hidden="true" />
             ) : (
-              <User
-                className="size-4 text-[var(--muted-foreground)]"
-                aria-hidden="true"
-              />
+              <User className={rowIconClass(isActive)} aria-hidden="true" />
             )}
             <span className={rowLabelClass(isActive)}>{b.name}</span>
             {/* r35: pending-task count badge (red) instead of the currency —

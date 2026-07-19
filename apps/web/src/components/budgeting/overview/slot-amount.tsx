@@ -31,9 +31,12 @@ const TICK_MS = 42;
 const TICKS = 12; // ~0.5s total scramble
 const BLUR_MS = 500; // matches the scramble so blur + shuffle finish together
 
-// Mask EVERYTHING except spaces — digits, separators (comma/dot), sign (+/−) AND
-// the currency symbol — so a glance can't read the magnitude, sign or currency.
-const isBlurable = (c: string) => c !== " ";
+// Mask the digits, separators (comma/dot) and sign (+/−) — enough to hide the
+// magnitude. The CURRENCY symbol/code (and spaces) stay verbatim so the amount
+// still reads as "money in zł/$"; only the number itself is hidden.
+const isDigit = (c: string) => c >= "0" && c <= "9";
+const isBlurable = (c: string) =>
+  isDigit(c) || c === "," || c === "." || c === "+" || c === "-" || c === "−";
 // Width-matched masks (NO fixed-width box — that padded the commas out and looked
 // ugly). The narrow glyphs comma, dot and the digit "1" are replaced by a narrow
 // "I"; every other char (digits 0/2–9, sign, currency) by a MEDIUM-width uppercase

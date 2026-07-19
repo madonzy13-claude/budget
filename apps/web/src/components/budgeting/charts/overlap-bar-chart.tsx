@@ -70,7 +70,9 @@ export function OverviewOverlapBarChart({
   maskAmounts?: boolean;
 }) {
   const { revealed } = useSlotReveal();
-  const numFmt = maskAmounts && !revealed ? () => "•••" : formatValue;
+  const hideAmt = maskAmounts && !revealed;
+  const numFmt = hideAmt ? () => "•••" : formatValue;
+  const tipFmt = hideAmt ? () => "•••" : (formatTooltip ?? formatValue);
   // Hover/tap state — mirrors bar-chart.tsx.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeRef = useRef<number | null>(null);
@@ -137,7 +139,7 @@ export function OverviewOverlapBarChart({
           cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
           content={
             <ChartTooltipContent
-              formatY={formatTooltip ?? formatValue}
+              formatY={tipFmt}
               series={[base, overlay]}
               labelFormat={labelFormat}
               // Overlay row's marker uses the SAME per-category heat colour as its
