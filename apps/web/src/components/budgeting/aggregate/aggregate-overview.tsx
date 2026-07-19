@@ -458,7 +458,12 @@ export function AggregateOverview() {
         />
 
         {/* RANGE SELECTOR — a SEPARATE piece (not inside the chart), like BDP's band */}
-        <div className="py-1" data-testid="aggregate-range">
+        {/* Sticky like the BDP range band: stays pinned so the range stays
+            reachable after scrolling past this section. */}
+        <div
+          className="sticky top-0 z-30 bg-[var(--canvas-dark)] py-2"
+          data-testid="aggregate-range"
+        >
           <RangeSelector value={range} onChange={setRange} />
         </div>
 

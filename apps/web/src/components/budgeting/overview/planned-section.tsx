@@ -21,6 +21,7 @@ import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
 import { overspendHeat } from "@/lib/overspend-heat";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
@@ -58,12 +59,14 @@ function PlannedByCategoryPie({
   title,
   allLabel,
   formatValue,
+  maskValue = false,
 }: {
   rows: { name: string; planned_avg_cents: string }[];
   categories: { name: string; colorKey?: unknown }[];
   title: string;
   allLabel: string;
   formatValue: (n: number) => string;
+  maskValue?: boolean;
 }) {
   const data = rows
     .map((c) => ({ name: c.name, planned: Number(c.planned_avg_cents) }))
@@ -89,6 +92,7 @@ function PlannedByCategoryPie({
         colorFor={(name) => colorByName.get(name) ?? CATEGORY_COLORS[7].hex}
         formatValue={formatValue}
         allLabel={allLabel}
+        maskValue={maskValue}
       />
     </div>
   );
@@ -105,6 +109,9 @@ export function PlannedSection({
 }) {
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
+  // Privacy: mask money in the chart tooltips to "•••" until the shared reveal.
+  const { revealed } = useSlotReveal();
+  const hideMoney = amountPrivacyEnabled && !revealed;
   // Full localized month name for the recurring tooltip (item 2): 8 → "August" /
   // "Серпень" / "sierpień".
   const monthName = (m: string | number) =>
@@ -275,12 +282,13 @@ export function PlannedSection({
                   return [
                     {
                       label: t("planned.difference"),
-                      value: `${sign}${fmtTooltip(Math.abs(diff))} · ${pctSign}${Math.abs(Math.round(pct))}%`,
+                      value: `${hideMoney ? "•••" : `${sign}${fmtTooltip(Math.abs(diff))}`} · ${pctSign}${Math.abs(Math.round(pct))}%`,
                     },
                   ];
                 }}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
+                maskAmounts={amountPrivacyEnabled}
               />
             </div>
           )}
@@ -294,6 +302,7 @@ export function PlannedSection({
             title={t("planned.avgPie")}
             allLabel={t("planned.allCategories")}
             formatValue={fmtTooltip}
+            maskValue={amountPrivacyEnabled}
           />
 
           {/* Recurring per month — current config (NOT range-scoped, D-14).
@@ -322,7 +331,9 @@ export function PlannedSection({
                   (row.items as { name: string; amount_cents: string }[]) ?? [];
                 return items.map((it) => ({
                   label: it.name || "—",
-                  value: fmtTooltip(Number(it.amount_cents)),
+                  value: hideMoney
+                    ? "•••"
+                    : fmtTooltip(Number(it.amount_cents)),
                 }));
               }}
             />
@@ -351,6 +362,7 @@ export function PlannedSection({
                 ]}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
+                maskAmounts={amountPrivacyEnabled}
               />
             </div>
           )}

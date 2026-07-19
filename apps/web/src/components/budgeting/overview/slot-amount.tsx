@@ -32,16 +32,17 @@ const TICKS = 12; // ~0.5s total scramble
 const BLUR_MS = 500; // matches the scramble so blur + shuffle finish together
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
-// Blur the whole NUMBER — digits AND its separators (comma / dot) — so the
-// grouping doesn't peek through; only the currency symbol/code and sign stay
-// sharp ("do not blur currency").
-const isBlurable = (c: string) =>
-  isDigit(c) || c === "," || c === "." || c === "-" || c === "+";
-// Mask char for every scrambled slot: a narrow "I". Using ONE narrow glyph
-// (instead of random wide A–Z) keeps the masked width close to the real number's
-// and near-constant, so revealing/hiding barely shifts width — WITHOUT pinning
-// each slot to a fixed 1ch box (which padded the commas out and looked ugly).
-const maskChar = (_original?: string) => "I";
+// Only DIGITS scramble/blur. Separators (comma/dot), sign and currency stay
+// verbatim — each digit slot is pinned to 1ch (tabular width) below so a mask
+// char occupies EXACTLY the width of the real digit; leaving the commas/sign at
+// their natural width (no 1ch box) avoids the ugly comma padding.
+const isBlurable = (c: string) => isDigit(c);
+// Mask alphabet: uppercase letters, EXCLUDING the two widest glyphs (M, W) so a
+// masked letter never overflows its 1ch box. Every digit is replaced by one of
+// these (kept uppercase — no lowercase/real digits leak while hidden).
+const MASK_ALPHABET = "ABCDEFGHIJKLNOPQRSTUVXYZ";
+const maskChar = (_original?: string) =>
+  MASK_ALPHABET[Math.floor(Math.random() * MASK_ALPHABET.length)]!;
 
 interface SlotRevealState {
   revealed: boolean;
@@ -193,6 +194,16 @@ export function SlotAmount({
             style={{
               filter: !revealed && blurThis ? `blur(${blurEm}em)` : "none",
               transition: `filter ${BLUR_MS}ms ease`,
+              // Digit slots only: pin to one tabular digit-width and centre, so a
+              // masked letter and the real digit occupy identical space (no jump).
+              // Separators/sign keep their natural width (no comma padding).
+              ...(blurThis
+                ? {
+                    display: "inline-block",
+                    width: "1ch",
+                    textAlign: "center" as const,
+                  }
+                : {}),
             }}
           >
             {ch}
