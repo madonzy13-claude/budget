@@ -12,7 +12,11 @@
  */
 import { useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Sector } from "recharts";
-import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
+import {
+  SlotAmount,
+  useSlotReveal,
+} from "@/components/budgeting/overview/slot-amount";
+import { cn } from "@/lib/utils";
 
 export function OverviewPieChart({
   data,
@@ -46,6 +50,8 @@ export function OverviewPieChart({
   const [hover, setHover] = useState<number | undefined>(undefined);
   const [tapped, setTapped] = useState<number | undefined>(undefined);
   const active = hover ?? tapped;
+  // Shared privacy reveal — the centre value toggles it on tap (below).
+  const { toggle } = useSlotReveal();
 
   const total =
     data.reduce((sum, d) => sum + (Number(d[valueKey]) || 0), 0) || 1;
@@ -127,19 +133,30 @@ export function OverviewPieChart({
           <span className="text-caption text-[var(--muted-foreground)]">
             {centreName}
           </span>
-          <span className="num text-num-sm font-semibold text-[var(--body-on-dark)]">
+          <span
+            className={cn(
+              "num text-num-sm font-semibold text-[var(--body-on-dark)]",
+              // The WHOLE value area (not just the tiny text) is a reveal target:
+              // pointer-events-auto lifts it out of the overlay's -none, and its
+              // onClick stops the wrapper's click-outside-slice reset. It sits in
+              // the donut hole, so it never blocks slice clicks.
+              maskValue &&
+                "pointer-events-auto cursor-pointer rounded px-3 py-0.5",
+            )}
+            onClick={
+              maskValue
+                ? (e) => {
+                    e.stopPropagation();
+                    toggle();
+                  }
+                : undefined
+            }
+          >
             {(() => {
               const v = formatValue
                 ? formatValue(centreVal)
                 : String(centreVal);
-              // pointer-events-auto re-enables tapping the value (the overlay is
-              // pointer-events-none) so tapping it toggles the shared reveal — it
-              // sits in the donut hole, so it never blocks slice interaction.
-              return maskValue ? (
-                <SlotAmount value={v} className="pointer-events-auto" />
-              ) : (
-                v
-              );
+              return maskValue ? <SlotAmount value={v} /> : v;
             })()}
           </span>
           <span className="text-caption text-[var(--muted-foreground)]">

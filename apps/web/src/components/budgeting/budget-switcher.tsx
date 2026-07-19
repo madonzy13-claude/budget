@@ -35,18 +35,16 @@ function isSharedBudget(b: BudgetSummary): boolean {
   return (b.memberCount ?? 1) > 1;
 }
 
-/** Dropdown row: the ACTIVE row reads in the yellow accent (icon + name), NO
- *  leading dot / underline — so rows never mis-align and it stays clean. */
+// Active dropdown row: a faint yellow-tinted BACKGROUND marks the selection — no
+// leading dot, no underline, no coloured text — so rows never mis-align and it's
+// clearly the selected one. (Base row bg is transparent; hover deepens it.)
+const ROW_BASE =
+  "flex h-10 w-full items-center gap-2 px-4 text-left cursor-pointer hover:bg-[var(--surface-elevated-dark)]";
+const ROW_ACTIVE_BG = "bg-[color-mix(in_srgb,var(--primary)_16%,transparent)]";
 function rowLabelClass(active: boolean): string {
   return cn(
-    "flex-1 truncate text-body-md",
-    active ? "font-medium text-[var(--primary)]" : "text-[var(--on-dark)]",
-  );
-}
-function rowIconClass(active: boolean): string {
-  return cn(
-    "size-4",
-    active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]",
+    "flex-1 truncate text-body-md text-[var(--on-dark)]",
+    active && "font-medium",
   );
 }
 
@@ -254,12 +252,13 @@ export function BudgetSwitcher({
               data-testid="switcher-all-budgets"
               onClick={onPickAllBudgets}
               className={cn(
-                "flex h-10 w-full shrink-0 items-center gap-2 px-4 text-left",
-                "hover:bg-[var(--surface-elevated-dark)] cursor-pointer",
+                ROW_BASE,
+                "shrink-0",
+                allBudgetsActive && ROW_ACTIVE_BG,
               )}
             >
               <LayoutGrid
-                className={rowIconClass(allBudgetsActive)}
+                className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
               />
               <span className={rowLabelClass(allBudgetsActive)}>
@@ -360,12 +359,7 @@ function BudgetGroup({
             role="menuitemradio"
             aria-checked={isActive}
             onClick={() => onPick(b.id)}
-            className={cn(
-              "flex h-10 w-full items-center gap-2 px-4 text-left",
-              "hover:bg-[var(--surface-elevated-dark)]",
-              // UAT-PH5-T3-19: clickable affordance on every dropdown row.
-              "cursor-pointer",
-            )}
+            className={cn(ROW_BASE, isActive && ROW_ACTIVE_BG)}
           >
             {/* Per-row glyph: single User for private (1 member), Users
                 (couple) for shared (>1 member). Both glyphs are 16px and
@@ -373,9 +367,15 @@ function BudgetGroup({
                 ACTIVE row is marked by a yellow underline on its name (below),
                 NOT a leading dot — so active/inactive rows never mis-align. */}
             {isSharedBudget(b) ? (
-              <Users className={rowIconClass(isActive)} aria-hidden="true" />
+              <Users
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
             ) : (
-              <User className={rowIconClass(isActive)} aria-hidden="true" />
+              <User
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
             )}
             <span className={rowLabelClass(isActive)}>{b.name}</span>
             {/* r35: pending-task count badge (red) instead of the currency —
