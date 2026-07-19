@@ -10,7 +10,7 @@
  * Re-tap the same slice clears it. Colors via `colorFor`; `formatValue` renders
  * the value.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Sector } from "recharts";
 import {
   SlotAmount,
@@ -49,6 +49,14 @@ export function OverviewPieChart({
   const [hover, setHover] = useState<number | undefined>(undefined);
   const [tapped, setTapped] = useState<number | undefined>(undefined);
   const active = hover ?? tapped;
+  // Was the CURRENT press inside the donut hole? Recorded on pointer-down (capture
+  // phase, before recharts) so the Pie's onClick can IGNORE a hole tap. On iOS
+  // Safari a tap in the hole is routed by recharts to the nearest sector and fires
+  // that sector's onClick → it toggled the selected slice off ("centre tap resets
+  // to All"). Chromium never routed a hole tap to a sector, which is why this only
+  // reproduced on WebKit. The hole is served by the reveal disc / amount; recharts
+  // must not treat a hole press as a slice click at all.
+  const pressInHoleRef = useRef(false);
   // Shared privacy reveal — the centre value toggles it on tap (below).
   const { toggle } = useSlotReveal();
 
@@ -72,6 +80,16 @@ export function OverviewPieChart({
     <div
       className="relative [&_:focus]:outline-none [&_:focus-visible]:outline-none"
       style={{ WebkitTapHighlightColor: "transparent" }}
+      // Record whether the press landed inside the donut HOLE, in the capture phase
+      // so it's set before recharts' own handlers run. innerRadius = 55% of the pie
+      // maxRadius (min(w,h)/2). A hole press must never change the slice selection.
+      onPointerDownCapture={(e) => {
+        const box = e.currentTarget.getBoundingClientRect();
+        const dx = e.clientX - (box.left + box.width / 2);
+        const dy = e.clientY - (box.top + box.height / 2);
+        const innerR = (0.55 * Math.min(box.width, box.height)) / 2;
+        pressInHoleRef.current = Math.hypot(dx, dy) <= innerR;
+      }}
       // Click OUTSIDE a slice (the hole / empty area) resets to "All". A click ON a
       // slice is handled by the Pie's onClick (re-tapping the same slice clears it).
       // Clear hover too: on touch a tap leaves `hover` set (no mouseleave fires), so
@@ -116,6 +134,11 @@ export function OverviewPieChart({
             onMouseEnter={(_, index) => setHover(index)}
             onMouseLeave={() => setHover(undefined)}
             onClick={(_, index) => {
+              // Ignore a click whose press was in the HOLE — on iOS recharts routes
+              // a hole tap to the nearest sector and fires this, which would toggle
+              // the selected slice off (the "centre tap resets" bug). The hole is
+              // the reveal target, never a slice click.
+              if (pressInHoleRef.current) return;
               // Clear any lingering (touch) hover so re-tapping the SAME slice
               // reliably falls back to "All" instead of `active` reading `hover`.
               setHover(undefined);
