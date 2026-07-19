@@ -35,6 +35,17 @@ function isSharedBudget(b: BudgetSummary): boolean {
   return (b.memberCount ?? 1) > 1;
 }
 
+/** Dropdown row label — the ACTIVE row is marked with a yellow underline (no
+ *  leading dot, so the text never indents relative to inactive rows). */
+function rowLabelClass(active: boolean): string {
+  return cn(
+    "flex-1 truncate text-body-md",
+    active
+      ? "font-medium text-[var(--primary)] underline decoration-[var(--primary)] underline-offset-4"
+      : "text-[var(--on-dark)]",
+  );
+}
+
 export interface BudgetSwitcherProps {
   budgets: BudgetSummary[];
   activeBudgetId: string | null;
@@ -134,9 +145,11 @@ export function BudgetSwitcher({
   // the live query can flip `isEmpty` across renders of a mounted instance.
   if (isEmpty) return null;
 
-  // UAT-PH5-T3-13: trigger label only renders when a budget is actually
-  // active. No active → chevron-only trigger.
-  const triggerLabel = active?.name ?? null;
+  // Trigger label: the active budget's name, or "All budgets" when the user is on
+  // the aggregate page (≥2 budgets, no budget in the path). Else chevron-only.
+  const onAllBudgets = showAllBudgets && allBudgetsActive;
+  const triggerLabel =
+    active?.name ?? (onAllBudgets ? t("nav.switcher.allBudgets") : null);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -165,8 +178,8 @@ export function BudgetSwitcher({
               SHARED. Both glyphs ride at --muted-foreground so the
               active budget name carries the visual weight — the icon is
               a quick-scan kind cue, not a competing element. */}
-          {active &&
-            (isSharedBudget(active) ? (
+          {active ? (
+            isSharedBudget(active) ? (
               <Users
                 className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
@@ -176,7 +189,13 @@ export function BudgetSwitcher({
                 className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
               />
-            ))}
+            )
+          ) : onAllBudgets ? (
+            <LayoutGrid
+              className="size-4 text-[var(--muted-foreground)]"
+              aria-hidden="true"
+            />
+          ) : null}
           {/* An active budget shows its name (prominent). With NO active budget
               (home/settings) show a MUTED, normal-weight placeholder so it reads
               as "no budget selected" — not a dimmed selection — instead of a bare
@@ -235,17 +254,11 @@ export function BudgetSwitcher({
                 "hover:bg-[var(--surface-elevated-dark)] cursor-pointer",
               )}
             >
-              {allBudgetsActive && (
-                <span
-                  className="size-2 shrink-0 rounded-full bg-[var(--primary)]"
-                  aria-hidden="true"
-                />
-              )}
               <LayoutGrid
                 className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
               />
-              <span className="flex-1 truncate text-body-md text-[var(--on-dark)]">
+              <span className={rowLabelClass(allBudgetsActive)}>
                 {t("nav.switcher.allBudgets")}
               </span>
             </button>
@@ -350,19 +363,11 @@ function BudgetGroup({
               "cursor-pointer",
             )}
           >
-            {/* UAT-PH5-T3-13 / T3-31: active row carries a small yellow dot
-                instead of a check glyph — same role as a radio "selected"
-                indicator but quieter visually. Inactive rows have no
-                leading marker (no spacer column either). */}
-            {isActive && (
-              <span
-                className="size-2 shrink-0 rounded-full bg-[var(--primary)]"
-                aria-hidden="true"
-              />
-            )}
             {/* Per-row glyph: single User for private (1 member), Users
                 (couple) for shared (>1 member). Both glyphs are 16px and
-                muted so they read as metadata, not a competing icon row. */}
+                muted so they read as metadata, not a competing icon row. The
+                ACTIVE row is marked by a yellow underline on its name (below),
+                NOT a leading dot — so active/inactive rows never mis-align. */}
             {isSharedBudget(b) ? (
               <Users
                 className="size-4 text-[var(--muted-foreground)]"
@@ -374,9 +379,7 @@ function BudgetGroup({
                 aria-hidden="true"
               />
             )}
-            <span className="flex-1 truncate text-body-md text-[var(--on-dark)]">
-              {b.name}
-            </span>
+            <span className={rowLabelClass(isActive)}>{b.name}</span>
             {/* r35: pending-task count badge (red) instead of the currency —
                 hidden when 0 (PillBadge returns null for count ≤ 0). */}
             <PillBadge count={b.pendingTasksCount} />

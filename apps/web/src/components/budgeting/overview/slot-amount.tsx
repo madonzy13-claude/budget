@@ -33,17 +33,18 @@ const BLUR_MS = 500; // matches the scramble so blur + shuffle finish together
 
 // Mask EVERYTHING except spaces — digits, separators (comma/dot), sign (+/−) AND
 // the currency symbol — so a glance can't read the magnitude, sign or currency.
-// Every masked slot is pinned to 1ch (tabular width) below, in BOTH states, so a
-// masked letter occupies the same space as whatever it hides and the total width
-// never changes on reveal/hide (the digits are tabular = 1ch already; commas /
-// currency sit centred in their 1ch slot).
 const isBlurable = (c: string) => c !== " ";
-// Mask alphabet: uppercase letters, EXCLUDING the two widest glyphs (M, W) so a
-// masked letter never overflows its 1ch box. Every digit is replaced by one of
-// these (kept uppercase — no lowercase/real digits leak while hidden).
-const MASK_ALPHABET = "ABCDEFGHIJKLNOPQRSTUVXYZ";
-const maskChar = (_original?: string) =>
-  MASK_ALPHABET[Math.floor(Math.random() * MASK_ALPHABET.length)]!;
+// Width-matched masks (NO fixed-width box — that padded the commas out and looked
+// ugly). The narrow glyphs comma, dot and the digit "1" are replaced by a narrow
+// "I"; every other char (digits 0/2–9, sign, currency) by a MEDIUM-width uppercase
+// letter from a curated set (no too-wide M/W, no too-narrow I/J so widths stay
+// close to a real digit). Kept uppercase so no lowercase/real digits leak.
+const NARROW = ",.1";
+const MASK_ALPHABET = "ERTYUPASDFHJKLZXVN";
+const maskChar = (original?: string) =>
+  original && NARROW.includes(original)
+    ? "I"
+    : MASK_ALPHABET[Math.floor(Math.random() * MASK_ALPHABET.length)]!;
 
 interface SlotRevealState {
   revealed: boolean;
@@ -182,16 +183,13 @@ export function SlotAmount({
         // font) — keeps the fuzzy edges of the outer digits from being clipped.
         paddingInline: `${blurEm}em`,
         overflow: "visible",
-        // Tabular figures so the real digits are even-width (the narrow "I" mask
-        // sits close to them) — but no per-slot fixed width, so commas keep their
-        // natural narrow size.
-        fontVariantNumeric: "tabular-nums",
+        // NOTE: proportional figures (no tabular-nums) so the real "1" is narrow
+        // and matches its "I" mask; the medium-letter masks match the wider digits.
       }}
     >
       {display.map((ch, i) => {
-        // Digits AND separators (comma/dot) blur; the currency symbol/code and
-        // sign stay sharp. Blur fades out on reveal / in on hide, in step with
-        // the scramble.
+        // Every non-space char blurs while hidden. No fixed-width box — the mask
+        // char is picked to roughly match the width of what it hides.
         const blurThis = isBlurable(chars[i]!);
         return (
           <span
@@ -199,16 +197,6 @@ export function SlotAmount({
             style={{
               filter: !revealed && blurThis ? `blur(${blurEm}em)` : "none",
               transition: `filter ${BLUR_MS}ms ease`,
-              // Digit slots only: pin to one tabular digit-width and centre, so a
-              // masked letter and the real digit occupy identical space (no jump).
-              // Separators/sign keep their natural width (no comma padding).
-              ...(blurThis
-                ? {
-                    display: "inline-block",
-                    width: "1ch",
-                    textAlign: "center" as const,
-                  }
-                : {}),
             }}
           >
             {ch}

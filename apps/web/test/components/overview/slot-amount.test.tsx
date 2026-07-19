@@ -42,6 +42,21 @@ describe("SlotAmount", () => {
     expect(blurredChars(el)[0]!.style.filter).toContain("em");
   });
 
+  it("masks with ONLY the allowed glyphs — comma / dot / '1' → 'I', others from the set", () => {
+    render(<SlotAmount value="$1,204.10" />);
+    const el = screen.getByTestId("slot-amount");
+    const allowed = new Set(("I" + "ERTYUPASDFHJKLZXVN").split(""));
+    blurredChars(el).forEach((s) =>
+      expect(allowed.has(s.textContent!)).toBe(true),
+    );
+    // "$ 1 , 2 0 4 . 1 0" → the narrow glyphs (1, comma, dot) always render "I".
+    const spans = charSpans(el);
+    expect(spans[1]!.textContent).toBe("I"); // "1"
+    expect(spans[2]!.textContent).toBe("I"); // ","
+    expect(spans[6]!.textContent).toBe("I"); // "."
+    expect(spans[7]!.textContent).toBe("I"); // "1"
+  });
+
   it("keeps a SPACE verbatim (not masked) so width/structure holds", () => {
     render(<SlotAmount value="-50 zł" />);
     const el = screen.getByTestId("slot-amount");
