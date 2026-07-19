@@ -77,10 +77,12 @@ export function OverviewPieChart({
       // Clear hover too: on touch a tap leaves `hover` set (no mouseleave fires), so
       // clearing only `tapped` would leave `active = hover` still showing the slice.
       onClick={(e) => {
+        // Masked pies: the centre HOLE toggles the reveal (the disc below), and a
+        // slice deselects by re-tapping it — so a background/centre click must
+        // NEVER reset here (that was stealing the reveal when the tap landed just
+        // off the disc). Non-masked pies keep the click-outside-slice → "All".
+        if (maskValue) return;
         const el = e.target as HTMLElement;
-        // Tapping the centre VALUE (a maskable SlotAmount) must reveal it, NOT
-        // reset the selection — so ignore clicks inside it here.
-        if (el.closest('[data-testid="slot-amount"]')) return;
         if (!el.closest(".recharts-sector")) {
           setTapped(undefined);
           setHover(undefined);
@@ -131,10 +133,13 @@ export function OverviewPieChart({
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           {/* Reveal hit-target: a clickable disc filling the donut HOLE (the text
               is tiny + the overlay is pointer-events-none, so tapping the amount
-              usually missed it and fell through to the reset). Sized to 45% of the
-              chart height — smaller than the ~55% inner radius — so it covers the
-              whole hole yet never overlaps a slice. Sits BEHIND the read-out text
-              (which is pointer-events-none, so taps pass through to this). */}
+              usually missed it and fell through to the reset). Sized to the inner
+              radius (55% of maxRadius ≈ 0.55·height for these wide cards) so it
+              covers the WHOLE hole — a wide amount overflows a smaller disc, and
+              those overflow taps were the ones still landing on the reset. Sits
+              BEHIND the read-out text (pointer-events-none), so taps pass through
+              to this. The wrapper no longer resets on masked pies either, so even
+              an edge tap can't reset. */}
           {maskValue && (
             <button
               type="button"
@@ -145,8 +150,8 @@ export function OverviewPieChart({
                 toggle();
               }}
               style={{
-                width: Math.round(height * 0.45),
-                height: Math.round(height * 0.45),
+                width: Math.round(height * 0.55),
+                height: Math.round(height * 0.55),
               }}
               className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full"
             />
