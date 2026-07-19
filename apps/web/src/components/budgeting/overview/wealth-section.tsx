@@ -23,6 +23,10 @@ import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import {
+  SlotAmount,
+  useSlotReveal,
+} from "@/components/budgeting/overview/slot-amount";
+import {
   useOverviewWealth,
   type WealthView,
 } from "@/hooks/use-overview-wealth";
@@ -45,10 +49,20 @@ const BUCKET_SPEND = "var(--primary)"; // yellow
 const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
 const BUCKET_CUSHION = "var(--chart-bar-3)"; // purple (distinct from teal)
 
-function PctStat({ label, pct }: { label: string; pct: number | null }) {
+function PctStat({
+  label,
+  pct,
+  mask = false,
+}: {
+  label: string;
+  pct: number | null;
+  mask?: boolean;
+}) {
   const up = pct !== null && pct >= 0;
   const down = pct !== null && pct < 0;
   const Arrow = up ? ArrowUp : ArrowDown;
+  const pctStr =
+    pct === null ? "" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
@@ -65,7 +79,7 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
         ) : (
           <>
             <Arrow className="size-3.5" aria-hidden="true" />
-            {`${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`}
+            {mask ? <SlotAmount value={pctStr} /> : pctStr}
           </>
         )}
       </span>
@@ -77,10 +91,12 @@ export function WealthSection({
   budgetId,
   range,
   investmentsEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
   investmentsEnabled?: boolean;
+  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   // Investment type labels (uitype.*) live under budget.investments — same source
@@ -132,6 +148,11 @@ export function WealthSection({
   const fmtY = chartCompactCents;
   // Chart TOOLTIP (on tap): the FULL value WITH currency, no cents.
   const fmtTooltip = (n: number) => fmtRounded(BigInt(Math.round(n)));
+  // Privacy (r41, BDP-wide): wrap any inline money figure in a masked SlotAmount
+  // when enabled; `revealed` masks the dynamics tooltip's money delta to "•••".
+  const { revealed } = useSlotReveal();
+  const money = (s: string) =>
+    amountPrivacyEnabled ? <SlotAmount value={s} /> : s;
   // Pie centre read-out: whole currency, NO cents.
   const fmtPieValue = (n: number) => fmtRounded(BigInt(Math.round(n)));
 
@@ -257,12 +278,13 @@ export function WealthSection({
                                 : "text-[var(--trading-down)]",
                             )}
                           >
-                            {fmtSigned(growth.delta_cents)}
+                            {money(fmtSigned(growth.delta_cents))}
                           </span>
                         </div>
                         <PctStat
                           label={t("wealth.grow")}
                           pct={growth.delta_pct}
+                          mask={amountPrivacyEnabled}
                         />
                         {/* Invested over the period (Investments-category spend). */}
                         {hasInvestCat && (
@@ -271,7 +293,7 @@ export function WealthSection({
                               {t("wealth.invested")}
                             </p>
                             <span className="num text-num-md text-[var(--body-on-dark)]">
-                              {fmtRounded(data.invested_cents!)}
+                              {money(fmtRounded(data.invested_cents!))}
                             </span>
                           </div>
                         )}
@@ -340,6 +362,7 @@ export function WealthSection({
                   formatY={fmtY}
                   formatTooltip={fmtTooltip}
                   xTickFormat={(v) => formatChartDate(v, locale)}
+                  maskAmounts={amountPrivacyEnabled}
                 />
               </div>
 
@@ -352,6 +375,7 @@ export function WealthSection({
                     <PctStat
                       label={t("wealth.monthlyAvg")}
                       pct={data.monthly_avg_grow_pct}
+                      mask={amountPrivacyEnabled}
                     />
                   </div>
                   <OverviewBarChart
@@ -376,10 +400,14 @@ export function WealthSection({
                     formatTooltip={fmtSignedPct}
                     // The money change on its own line — signed, sign-tight, no cents,
                     // no label (just the % above and the amount below).
+                    maskAmounts={amountPrivacyEnabled}
                     tooltipExtra={(row) => [
                       {
                         label: "",
-                        value: fmtSigned(String(row.delta_cents ?? "0")),
+                        value:
+                          amountPrivacyEnabled && !revealed
+                            ? "•••"
+                            : fmtSigned(String(row.delta_cents ?? "0")),
                       },
                     ]}
                     xTickFormat={(v) => formatChartDate(v, locale)}
@@ -405,6 +433,7 @@ export function WealthSection({
                     colorFor={(n) => capColorMap[n] ?? NEUTRAL}
                     formatValue={fmtPieValue}
                     allLabel={t("range.all")}
+                    maskValue={amountPrivacyEnabled}
                   />
                 </div>
               )}
@@ -436,6 +465,7 @@ export function WealthSection({
                       }
                       formatValue={fmtPieValue}
                       allLabel={t("range.all")}
+                      maskValue={amountPrivacyEnabled}
                     />
                   ) : (
                     <p className="text-num-sm text-[var(--muted-foreground)]">

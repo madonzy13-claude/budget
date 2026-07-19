@@ -97,9 +97,11 @@ function PlannedByCategoryPie({
 export function PlannedSection({
   budgetId,
   range,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
+  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
@@ -226,6 +228,7 @@ export function PlannedSection({
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
                 xTickFormat={(v) => formatChartDate(v, locale)}
+                maskAmounts={amountPrivacyEnabled}
               />
             )}
           </div>
@@ -311,6 +314,7 @@ export function PlannedSection({
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}
               labelFormat={monthName}
+              maskAmounts={amountPrivacyEnabled}
               // Tooltip lists each planned payment for the month (the series row
               // already shows the total).
               tooltipExtra={(row) => {

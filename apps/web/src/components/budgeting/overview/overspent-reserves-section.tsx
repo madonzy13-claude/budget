@@ -17,16 +17,19 @@ import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents } from "@/lib/chart-format";
 import { hexForColorKey } from "@/lib/category-colors";
+import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import type { OverviewRange } from "@/lib/overview-range";
 
 export function OverspentReservesSection({
   budgetId,
   range,
   reservesEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
   reservesEnabled?: boolean;
+  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const [overspentOpen, toggleOverspent] = usePersistedSectionOpen("overspent");
@@ -81,7 +84,18 @@ export function OverspentReservesSection({
                   {t("total")}
                 </p>
                 <span className="num text-num-md text-[var(--trading-down)]">
-                  {centsToRounded(data.overspent_total_cents, ccy, "en", true)}
+                  {amountPrivacyEnabled ? (
+                    <SlotAmount
+                      value={centsToRounded(
+                        data.overspent_total_cents,
+                        ccy,
+                        "en",
+                        true,
+                      )}
+                    />
+                  ) : (
+                    centsToRounded(data.overspent_total_cents, ccy, "en", true)
+                  )}
                 </span>
               </div>
             </div>
@@ -103,6 +117,7 @@ export function OverspentReservesSection({
               colorByPoint={(row) => colorOf(String(row.category_id), BAR_TEAL)}
               formatValue={fmtY}
               formatTooltip={fmtTooltip}
+              maskAmounts={amountPrivacyEnabled}
             />
           </>
         )}
@@ -148,6 +163,7 @@ export function OverspentReservesSection({
                 }
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
+                maskAmounts={amountPrivacyEnabled}
               />
             </div>
           )}

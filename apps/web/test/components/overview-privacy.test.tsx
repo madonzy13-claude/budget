@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
 import { BdpUiStateProvider } from "@/components/budgeting/bdp-ui-state";
+import { SlotRevealProvider } from "@/components/budgeting/overview/slot-amount";
 
 // next-intl: passthrough t() returns the key; t.rich() invokes the amt-tag
 // callback with the amount so the privacy path is exercised in tests.
@@ -54,12 +55,14 @@ vi.mock("@/components/common/user-timezone-provider", () => ({
 
 const renderCards = (amountPrivacyEnabled = true) =>
   render(
-    <BdpUiStateProvider>
-      <OverviewCards
-        budgetId="b1"
-        amountPrivacyEnabled={amountPrivacyEnabled}
-      />
-    </BdpUiStateProvider>,
+    <SlotRevealProvider>
+      <BdpUiStateProvider>
+        <OverviewCards
+          budgetId="b1"
+          amountPrivacyEnabled={amountPrivacyEnabled}
+        />
+      </BdpUiStateProvider>
+    </SlotRevealProvider>,
   );
 
 const heroSlot = () =>

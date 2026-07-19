@@ -23,10 +23,7 @@ import {
   CirclePlus,
   Hourglass,
 } from "lucide-react";
-import {
-  SlotAmount,
-  SlotRevealProvider,
-} from "@/components/budgeting/overview/slot-amount";
+import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
@@ -271,411 +268,409 @@ export function OverviewCards({
   );
 
   return (
-    // r41b: one shared reveal — tapping ANY amount reveals/hides them ALL.
-    <SlotRevealProvider>
-      <div
-        data-testid="overview-cards"
-        // Privacy (r41): amounts are tap-to-reveal SlotAmounts (blurred random
-        // chars → real on tap); there's no card-wide filter (which would defeat the
-        // capitalization flip's backface-visibility).
-        className="flex flex-col gap-3"
-        data-privacy={amountPrivacyEnabled}
-      >
-        {/* Hero: Capitalization (net worth) — a FLIP card. Front = the big yellow
+    // r41b: one shared reveal — tapping ANY amount reveals/hides them ALL. The
+    // <SlotRevealProvider> now lives at overview-tab so the reveal is shared with
+    // the projection + every section too (BDP-wide, r41 parity with all-budgets).
+    <div
+      data-testid="overview-cards"
+      // Privacy (r41): amounts are tap-to-reveal SlotAmounts (blurred random
+      // chars → real on tap); there's no card-wide filter (which would defeat the
+      // capitalization flip's backface-visibility).
+      className="flex flex-col gap-3"
+      data-privacy={amountPrivacyEnabled}
+    >
+      {/* Hero: Capitalization (net worth) — a FLIP card. Front = the big yellow
           figure + P/L; tapping it rotates horizontally to the back, which shows the
           retirement runway ("if you retire now …"). The front sits in normal flow
           so it sets the card height; the back is absolutely overlaid + pre-rotated
           (UAT item 9). Only flippable when a retirement runway exists. */}
-        {(() => {
-          const canFlip = data.retirement_months !== null;
-          const isFlipped = canFlip && flipped;
-          return (
-            <section
-              data-testid="overview-card-capitalization"
-              className={cn(
-                CARD,
-                "relative [perspective:1200px]",
-                canFlip && "cursor-pointer select-none",
-              )}
-              {...(canFlip && {
-                role: "button",
-                tabIndex: 0,
-                "aria-label": t("cards.flipToRetirement"),
-                onClick: () => setFlipped((f) => !f),
-                onKeyDown: (e: React.KeyboardEvent) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setFlipped((f) => !f);
-                  }
-                },
-              })}
+      {(() => {
+        const canFlip = data.retirement_months !== null;
+        const isFlipped = canFlip && flipped;
+        return (
+          <section
+            data-testid="overview-card-capitalization"
+            className={cn(
+              CARD,
+              "relative [perspective:1200px]",
+              canFlip && "cursor-pointer select-none",
+            )}
+            {...(canFlip && {
+              role: "button",
+              tabIndex: 0,
+              "aria-label": t("cards.flipToRetirement"),
+              onClick: () => setFlipped((f) => !f),
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setFlipped((f) => !f);
+                }
+              },
+            })}
+          >
+            <div
+              className="relative transition-transform duration-500 [transform-style:preserve-3d]"
+              style={{
+                transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+              }}
             >
-              <div
-                className="relative transition-transform duration-500 [transform-style:preserve-3d]"
-                style={{
-                  transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-                }}
-              >
-                {/* FRONT — capitalization (in flow → defines the card height) */}
-                <div className="[backface-visibility:hidden]">
-                  <CardLabel>{t("cards.capitalization")}</CardLabel>
-                  {/* nowrap: the P/L stays inline (right) at all times. The left
+              {/* FRONT — capitalization (in flow → defines the card height) */}
+              <div className="[backface-visibility:hidden]">
+                <CardLabel>{t("cards.capitalization")}</CardLabel>
+                {/* nowrap: the P/L stays inline (right) at all times. The left
                     column flex-shrinks (min-w-0) and the hero number / its privacy
                     cover (max-w-full) cap within it — otherwise a wide redaction
                     bar wrapped the P/L onto its own line (privacy mode). */}
-                  <div className="mt-1 flex flex-nowrap items-center justify-between gap-x-3">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <p
-                        // Inline color: tailwind-merge can't tell the custom
-                        // `text-num-display` size class from a text-color and was
-                        // dropping the color class, rendering the number grey. An
-                        // inline style bypasses the merge entirely (UAT item 3).
-                        // --num-hero = brand yellow (dark) → dark gold (light) so it
-                        // stays legible on the pale light card.
-                        style={{ color: "var(--num-hero)" }}
-                        className={cn(
-                          "num",
-                          heroFontClass(
-                            centsToRounded(
-                              data.capitalization_cents,
-                              ccy,
-                              "en",
-                              true,
-                            ),
+                <div className="mt-1 flex flex-nowrap items-center justify-between gap-x-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <p
+                      // Inline color: tailwind-merge can't tell the custom
+                      // `text-num-display` size class from a text-color and was
+                      // dropping the color class, rendering the number grey. An
+                      // inline style bypasses the merge entirely (UAT item 3).
+                      // --num-hero = brand yellow (dark) → dark gold (light) so it
+                      // stays legible on the pale light card.
+                      style={{ color: "var(--num-hero)" }}
+                      className={cn(
+                        "num",
+                        heroFontClass(
+                          centsToRounded(
+                            data.capitalization_cents,
+                            ccy,
+                            "en",
+                            true,
                           ),
-                        )}
-                      >
-                        {animRounded(data.capitalization_cents)}
-                      </p>
-                      {hasInvestments && (
-                        <p className="text-caption text-[var(--muted-foreground)]">
-                          {t.rich("cards.capitalizationSub", {
-                            // No cents — match the hero capitalization number.
-                            amount: fmtRounded(data.investment_value_cents),
-                            amt: (chunks) => (
-                              <Redactable
-                                enabled={amountPrivacyEnabled}
-                                mask={fmtRounded(data.investment_value_cents)}
-                              >
-                                {chunks}
-                              </Redactable>
-                            ),
-                          })}
-                        </p>
+                        ),
                       )}
-                    </div>
-                    {pl && pl.delta_pct !== null && (
-                      <div
-                        className={cn(
-                          // Tight P/L stack (%, $, "since"), vertically centred
-                          // against the hero number (the row is items-center).
-                          "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
-                          Number(pl.delta_cents) >= 0
-                            ? "text-[var(--trading-up)]"
-                            : "text-[var(--trading-down)]",
-                        )}
-                      >
-                        <span className="num flex items-center gap-1">
-                          {Number(pl.delta_cents) >= 0 ? (
-                            <TrendingUp
-                              className="size-3.5 shrink-0"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <TrendingDown
-                              className="size-3.5 shrink-0"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <Redactable
-                            enabled={amountPrivacyEnabled}
-                            mask={`${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`}
-                          >
-                            <AnimatedFigure
-                              value={pl.delta_pct}
-                              format={(n) =>
-                                `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
-                              }
-                            />
-                          </Redactable>
-                        </span>
-                        <span className="num">
-                          {animRounded(pl.delta_cents)}
-                        </span>
-                        <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
-                          {t("cards.sinceYesterday")}
-                        </span>
-                      </div>
+                    >
+                      {animRounded(data.capitalization_cents)}
+                    </p>
+                    {hasInvestments && (
+                      <p className="text-caption text-[var(--muted-foreground)]">
+                        {t.rich("cards.capitalizationSub", {
+                          // No cents — match the hero capitalization number.
+                          amount: fmtRounded(data.investment_value_cents),
+                          amt: (chunks) => (
+                            <Redactable
+                              enabled={amountPrivacyEnabled}
+                              mask={fmtRounded(data.investment_value_cents)}
+                            >
+                              {chunks}
+                            </Redactable>
+                          ),
+                        })}
+                      </p>
                     )}
                   </div>
-                </div>
-
-                {/* BACK — retirement runway ("if you retire now, your money will last
-                  for {N years and M months}"), inflation-adjusted (item 8). */}
-                {canFlip && (
-                  <div
-                    data-testid="overview-card-retirement"
-                    className="absolute inset-0 flex flex-col justify-between [backface-visibility:hidden] [transform:rotateY(180deg)]"
-                  >
-                    <CardLabel>{t("cards.retirementRunway")}</CardLabel>
-                    <div className="flex items-center gap-2">
-                      <Hourglass
-                        className="size-5 shrink-0 text-[var(--primary)]"
-                        aria-hidden="true"
-                      />
-                      <span className="text-title-md font-semibold text-[var(--body-on-dark)]">
-                        {retirementFull(data.retirement_months as number)}
+                  {pl && pl.delta_pct !== null && (
+                    <div
+                      className={cn(
+                        // Tight P/L stack (%, $, "since"), vertically centred
+                        // against the hero number (the row is items-center).
+                        "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
+                        Number(pl.delta_cents) >= 0
+                          ? "text-[var(--trading-up)]"
+                          : "text-[var(--trading-down)]",
+                      )}
+                    >
+                      <span className="num flex items-center gap-1">
+                        {Number(pl.delta_cents) >= 0 ? (
+                          <TrendingUp
+                            className="size-3.5 shrink-0"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <TrendingDown
+                            className="size-3.5 shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <Redactable
+                          enabled={amountPrivacyEnabled}
+                          mask={`${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`}
+                        >
+                          <AnimatedFigure
+                            value={pl.delta_pct}
+                            format={(n) =>
+                              `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
+                            }
+                          />
+                        </Redactable>
+                      </span>
+                      <span className="num">{animRounded(pl.delta_cents)}</span>
+                      <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
+                        {t("cards.sinceYesterday")}
                       </span>
                     </div>
-                    <p className="text-caption text-[var(--muted-foreground)]">
-                      {t("cards.retirementInflation", {
-                        pct: data.retirement_inflation_pct,
-                      })}
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </section>
-          );
-        })()}
 
-        <div className="grid grid-cols-2 gap-3">
-          {/* Available to spend (item 1): wallet cash on top with a good/bad dot.
+              {/* BACK — retirement runway ("if you retire now, your money will last
+                  for {N years and M months}"), inflation-adjusted (item 8). */}
+              {canFlip && (
+                <div
+                  data-testid="overview-card-retirement"
+                  className="absolute inset-0 flex flex-col justify-between [backface-visibility:hidden] [transform:rotateY(180deg)]"
+                >
+                  <CardLabel>{t("cards.retirementRunway")}</CardLabel>
+                  <div className="flex items-center gap-2">
+                    <Hourglass
+                      className="size-5 shrink-0 text-[var(--primary)]"
+                      aria-hidden="true"
+                    />
+                    <span className="text-title-md font-semibold text-[var(--body-on-dark)]">
+                      {retirementFull(data.retirement_months as number)}
+                    </span>
+                  </div>
+                  <p className="text-caption text-[var(--muted-foreground)]">
+                    {t("cards.retirementInflation", {
+                      pct: data.retirement_inflation_pct,
+                    })}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        );
+      })()}
+
+      <div className="grid grid-cols-2 gap-3">
+        {/* Available to spend (item 1): wallet cash on top with a good/bad dot.
             The dot + surplus/deficit come from the cash-flow projection, so they
             account for upcoming income through the last pay-day of the window
             (green when no shortfall in that window, red when it runs short). Below:
             spent-this-month + the projected surplus/deficit right before that last
             pay-day (end of current month when there's no income). */}
-          <section
-            data-testid="overview-card-available-to-spend"
-            className={CARD}
-          >
-            <CardLabel>{t("cards.availableToSpend")}</CardLabel>
-            <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
-              {spendGood === true ? (
-                <CircleCheck
-                  data-testid="spend-good"
-                  className="size-4 shrink-0 text-[var(--trading-up)]"
-                  aria-label={t("cards.spendGood")}
-                />
-              ) : spendGood === false ? (
-                <CircleAlert
-                  data-testid="spend-bad"
-                  className="size-4 shrink-0 text-[var(--trading-down)]"
-                  aria-label={t("cards.spendBad")}
-                />
-              ) : (
-                // No upcoming income (or projection not loaded) → neutral grey dot.
-                <Circle
-                  data-testid="spend-neutral"
-                  className="size-4 shrink-0 text-[var(--muted-foreground)]"
-                  aria-label={t("cards.spendNeutral")}
-                />
-              )}
-              {/* whitespace-nowrap, NOT truncate: `overflow:hidden` clips the
+        <section
+          data-testid="overview-card-available-to-spend"
+          className={CARD}
+        >
+          <CardLabel>{t("cards.availableToSpend")}</CardLabel>
+          <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
+            {spendGood === true ? (
+              <CircleCheck
+                data-testid="spend-good"
+                className="size-4 shrink-0 text-[var(--trading-up)]"
+                aria-label={t("cards.spendGood")}
+              />
+            ) : spendGood === false ? (
+              <CircleAlert
+                data-testid="spend-bad"
+                className="size-4 shrink-0 text-[var(--trading-down)]"
+                aria-label={t("cards.spendBad")}
+              />
+            ) : (
+              // No upcoming income (or projection not loaded) → neutral grey dot.
+              <Circle
+                data-testid="spend-neutral"
+                className="size-4 shrink-0 text-[var(--muted-foreground)]"
+                aria-label={t("cards.spendNeutral")}
+              />
+            )}
+            {/* whitespace-nowrap, NOT truncate: `overflow:hidden` clips the
                   blurred edges of the hidden amount (r41). */}
-              <span className="whitespace-nowrap">
-                {animRounded(data.spendings.wallet_cents)}
-              </span>
-            </p>
-            <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
+            <span className="whitespace-nowrap">
+              {animRounded(data.spendings.wallet_cents)}
+            </span>
+          </p>
+          <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
+            <div className="flex items-center justify-between gap-2">
+              <dt>{t("cards.spentThisMonth")}</dt>
+              <dd className="num text-[var(--body-on-dark)]">
+                {animRounded(data.spendings.spent_cents)}
+              </dd>
+            </div>
+            {surplusDeficit !== null ? (
               <div className="flex items-center justify-between gap-2">
-                <dt>{t("cards.spentThisMonth")}</dt>
-                <dd className="num text-[var(--body-on-dark)]">
-                  {animRounded(data.spendings.spent_cents)}
+                <dt>{isDeficit ? t("cards.deficit") : t("cards.surplus")}</dt>
+                {/* Inline color (tailwind-merge drops text-[var()] color): red
+                    deficit (<0), white when exactly 0, green surplus (>0). */}
+                <dd
+                  data-testid="spend-surplus-deficit"
+                  className="num"
+                  style={{
+                    color:
+                      surplusDeficit < 0n
+                        ? "var(--trading-down)"
+                        : surplusDeficit === 0n
+                          ? "var(--body-on-dark)"
+                          : "var(--trading-up)",
+                  }}
+                >
+                  {/* Whole units only — no cents (parity with the hero figures). */}
+                  {animRounded(String(surplusDeficit))}
                 </dd>
               </div>
-              {surplusDeficit !== null ? (
-                <div className="flex items-center justify-between gap-2">
-                  <dt>{isDeficit ? t("cards.deficit") : t("cards.surplus")}</dt>
-                  {/* Inline color (tailwind-merge drops text-[var()] color): red
-                    deficit (<0), white when exactly 0, green surplus (>0). */}
-                  <dd
-                    data-testid="spend-surplus-deficit"
-                    className="num"
-                    style={{
-                      color:
-                        surplusDeficit < 0n
-                          ? "var(--trading-down)"
-                          : surplusDeficit === 0n
-                            ? "var(--body-on-dark)"
-                            : "var(--trading-up)",
-                    }}
-                  >
-                    {/* Whole units only — no cents (parity with the hero figures). */}
-                    {animRounded(String(surplusDeficit))}
-                  </dd>
-                </div>
-              ) : (
-                // No upcoming income → keep the original "upcoming" figure.
-                <div className="flex items-center justify-between gap-2">
-                  <dt>{t("cards.leftToSpend")}</dt>
-                  <dd className="num text-[var(--body-on-dark)]">
-                    {animRounded(data.spendings.left_cents)}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </section>
+            ) : (
+              // No upcoming income → keep the original "upcoming" figure.
+              <div className="flex items-center justify-between gap-2">
+                <dt>{t("cards.leftToSpend")}</dt>
+                <dd className="num text-[var(--body-on-dark)]">
+                  {animRounded(data.spendings.left_cents)}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </section>
 
-          {/* Available reserves — hidden when the reserves feature flag is off
+        {/* Available reserves — hidden when the reserves feature flag is off
             (mirrors the hidden Reserves pill + section). Indicator (item 3):
             green when wallets exactly cover the required reserve, red when short,
             yellow when there's more reserve than needed. */}
-          {reservesEnabled && (
-            <section
-              data-testid="overview-card-available-reserves"
-              className={CARD}
-            >
-              <CardLabel>{t("cards.availableReserves")}</CardLabel>
+        {reservesEnabled && (
+          <section
+            data-testid="overview-card-available-reserves"
+            className={CARD}
+          >
+            <CardLabel>{t("cards.availableReserves")}</CardLabel>
+            <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
+              {data.reserves.status === "ok" ? (
+                <CircleCheck
+                  data-testid="reserves-ok"
+                  className="size-4 shrink-0 text-[var(--trading-up)]"
+                  aria-label={t("cards.reservesOk")}
+                />
+              ) : data.reserves.status === "short" ? (
+                <CircleAlert
+                  data-testid="reserves-short"
+                  className="size-4 shrink-0 text-[var(--trading-down)]"
+                  aria-label={t("cards.reservesShort")}
+                />
+              ) : (
+                <CirclePlus
+                  data-testid="reserves-surplus"
+                  className="size-4 shrink-0 text-[var(--warning)]"
+                  aria-label={t("cards.reservesSurplus")}
+                />
+              )}
+              {/* whitespace-nowrap, NOT truncate (overflow clips the blur). */}
+              <span className="whitespace-nowrap">
+                {animMoney(data.available_reserves_cents)}
+              </span>
+            </p>
+            <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
+              {t.rich(
+                data.reserves.status === "surplus"
+                  ? "cards.reservesSurplusNote"
+                  : data.reserves.status === "short"
+                    ? "cards.reservesShortNote"
+                    : "cards.reservesOkNote",
+                {
+                  // short → how much is MISSING, surplus → how much is EXTRA (both
+                  // with cents, matching the spendings tab); ok → the needed amount.
+                  amount: reservesNoteAmount,
+                  amt: (chunks) => (
+                    <Redactable
+                      enabled={amountPrivacyEnabled}
+                      mask={reservesNoteAmount}
+                    >
+                      {chunks}
+                    </Redactable>
+                  ),
+                },
+              )}
+            </p>
+          </section>
+        )}
+
+        {/* Overspent (item 5): clean → green "$0" + a motivational line; over →
+            red TOTAL overspend amount + the list of overspent categories. */}
+        <section data-testid="overview-card-overspent" className={CARD}>
+          <CardLabel>{t("cards.overspent")}</CardLabel>
+          {overspentCount === 0 ? (
+            <>
               <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
-                {data.reserves.status === "ok" ? (
-                  <CircleCheck
-                    data-testid="reserves-ok"
-                    className="size-4 shrink-0 text-[var(--trading-up)]"
-                    aria-label={t("cards.reservesOk")}
-                  />
-                ) : data.reserves.status === "short" ? (
-                  <CircleAlert
-                    data-testid="reserves-short"
-                    className="size-4 shrink-0 text-[var(--trading-down)]"
-                    aria-label={t("cards.reservesShort")}
-                  />
-                ) : (
-                  <CirclePlus
-                    data-testid="reserves-surplus"
-                    className="size-4 shrink-0 text-[var(--warning)]"
-                    aria-label={t("cards.reservesSurplus")}
-                  />
-                )}
-                {/* whitespace-nowrap, NOT truncate (overflow clips the blur). */}
-                <span className="whitespace-nowrap">
-                  {animMoney(data.available_reserves_cents)}
-                </span>
+                <CircleCheck
+                  data-testid="overspent-ok"
+                  className="size-4 shrink-0 text-[var(--trading-up)]"
+                  aria-hidden="true"
+                />
+                {animMoney("0")}
               </p>
               <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
-                {t.rich(
-                  data.reserves.status === "surplus"
-                    ? "cards.reservesSurplusNote"
-                    : data.reserves.status === "short"
-                      ? "cards.reservesShortNote"
-                      : "cards.reservesOkNote",
-                  {
-                    // short → how much is MISSING, surplus → how much is EXTRA (both
-                    // with cents, matching the spendings tab); ok → the needed amount.
-                    amount: reservesNoteAmount,
-                    amt: (chunks) => (
-                      <Redactable
-                        enabled={amountPrivacyEnabled}
-                        mask={reservesNoteAmount}
-                      >
-                        {chunks}
-                      </Redactable>
-                    ),
-                  },
-                )}
+                {t("cards.overspentMotivation")}
               </p>
-            </section>
-          )}
-
-          {/* Overspent (item 5): clean → green "$0" + a motivational line; over →
-            red TOTAL overspend amount + the list of overspent categories. */}
-          <section data-testid="overview-card-overspent" className={CARD}>
-            <CardLabel>{t("cards.overspent")}</CardLabel>
-            {overspentCount === 0 ? (
-              <>
-                <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
-                  <CircleCheck
-                    data-testid="overspent-ok"
-                    className="size-4 shrink-0 text-[var(--trading-up)]"
-                    aria-hidden="true"
-                  />
-                  {animMoney("0")}
-                </p>
+            </>
+          ) : (
+            <>
+              <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
+                <CircleAlert
+                  data-testid="overspent-bad"
+                  className="size-4 shrink-0 text-[var(--trading-down)]"
+                  aria-hidden="true"
+                />
+                {animMoney(data.overspent.total_cents)}
+              </p>
+              {topNames && (
                 <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
-                  {t("cards.overspentMotivation")}
+                  {topNames}
                 </p>
-              </>
-            ) : (
-              <>
-                <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
-                  <CircleAlert
-                    data-testid="overspent-bad"
-                    className="size-4 shrink-0 text-[var(--trading-down)]"
-                    aria-hidden="true"
-                  />
-                  {animMoney(data.overspent.total_cents)}
-                </p>
-                {topNames && (
-                  <p className="text-caption mt-1.5 text-[var(--muted-foreground)]">
-                    {topNames}
-                  </p>
-                )}
-              </>
-            )}
-          </section>
+              )}
+            </>
+          )}
+        </section>
 
-          {/* Cushion — runway as "Xm Yd" + total. Hidden entirely when the
+        {/* Cushion — runway as "Xm Yd" + total. Hidden entirely when the
             cushion feature flag is off (cushion.enabled === false), so no
             cushion-related info shows on budgets that don't use it. */}
-          {data.cushion.enabled && (
-            <section data-testid="overview-card-cushion" className={CARD}>
-              <CardLabel>{t("cards.cushion")}</CardLabel>
-              <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
-                {/* Circle icon to match the other cards (item 6): green check when
+        {data.cushion.enabled && (
+          <section data-testid="overview-card-cushion" className={CARD}>
+            <CardLabel>{t("cards.cushion")}</CardLabel>
+            <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
+              {/* Circle icon to match the other cards (item 6): green check when
                   the cushion meets its required limit, red alert when short. */}
-                {data.cushion.covered ? (
-                  <CircleCheck
-                    data-testid="cushion-covered"
-                    className="size-4 shrink-0 text-[var(--trading-up)]"
-                    aria-label={t("cards.cushionCovered")}
-                  />
-                ) : (
-                  <CircleAlert
-                    data-testid="cushion-short"
-                    className="size-4 shrink-0 text-[var(--trading-down)]"
-                    aria-label={t("cards.cushionShort")}
-                  />
-                )}
-                <span className="truncate">
-                  {(() => {
-                    // No cushion requirement configured but cash IS saved → the runway
-                    // is unbounded (money ÷ a zero monthly need), NOT "0d". Show ∞.
-                    const unlimited =
-                      data.cushion.required_cents === "0" &&
-                      Number(data.cushion.total_cents) > 0;
-                    // r41b (item 4): the runway is a DURATION ("1y 3m 7d"), not a
-                    // money figure — nothing secret, so it is NEVER masked.
-                    return unlimited ? (
-                      <span data-testid="cushion-unlimited">∞</span>
-                    ) : (
-                      <AnimatedFigure
-                        value={data.cushion.real_months}
-                        format={(n) => formatRunway(n, runwayUnits)}
-                      />
-                    );
-                  })()}
-                </span>
-              </p>
-              {/* Have vs needed to cover the threshold (item 5). */}
-              <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
-                <div className="flex items-center justify-between gap-2">
-                  <dt>{t("cards.cushionSaved")}</dt>
-                  <dd className="num text-[var(--body-on-dark)]">
-                    {animRounded(data.cushion.total_cents)}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <dt>{t("cards.cushionNeeded")}</dt>
-                  <dd className="num text-[var(--body-on-dark)]">
-                    {animRounded(data.cushion.required_cents)}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          )}
-        </div>
+              {data.cushion.covered ? (
+                <CircleCheck
+                  data-testid="cushion-covered"
+                  className="size-4 shrink-0 text-[var(--trading-up)]"
+                  aria-label={t("cards.cushionCovered")}
+                />
+              ) : (
+                <CircleAlert
+                  data-testid="cushion-short"
+                  className="size-4 shrink-0 text-[var(--trading-down)]"
+                  aria-label={t("cards.cushionShort")}
+                />
+              )}
+              <span className="truncate">
+                {(() => {
+                  // No cushion requirement configured but cash IS saved → the runway
+                  // is unbounded (money ÷ a zero monthly need), NOT "0d". Show ∞.
+                  const unlimited =
+                    data.cushion.required_cents === "0" &&
+                    Number(data.cushion.total_cents) > 0;
+                  // r41b (item 4): the runway is a DURATION ("1y 3m 7d"), not a
+                  // money figure — nothing secret, so it is NEVER masked.
+                  return unlimited ? (
+                    <span data-testid="cushion-unlimited">∞</span>
+                  ) : (
+                    <AnimatedFigure
+                      value={data.cushion.real_months}
+                      format={(n) => formatRunway(n, runwayUnits)}
+                    />
+                  );
+                })()}
+              </span>
+            </p>
+            {/* Have vs needed to cover the threshold (item 5). */}
+            <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
+              <div className="flex items-center justify-between gap-2">
+                <dt>{t("cards.cushionSaved")}</dt>
+                <dd className="num text-[var(--body-on-dark)]">
+                  {animRounded(data.cushion.total_cents)}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt>{t("cards.cushionNeeded")}</dt>
+                <dd className="num text-[var(--body-on-dark)]">
+                  {animRounded(data.cushion.required_cents)}
+                </dd>
+              </div>
+            </dl>
+          </section>
+        )}
       </div>
-    </SlotRevealProvider>
+    </div>
   );
 }

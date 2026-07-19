@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
 import { centsToDisplayCompact } from "@/lib/cents-format";
+import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { formatShortDate, formatDayMonth } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,13 @@ const clamp = (n: number, lo: number, hi: number) =>
 const roundToUnit = (cents: string): string =>
   String(Math.round(Number(cents) / 100) * 100);
 
-export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
+export function ProjectionTimeline({
+  budgetId,
+  amountPrivacyEnabled = true,
+}: {
+  budgetId: string;
+  amountPrivacyEnabled?: boolean;
+}) {
   const t = useTranslations("bdp.tab.overview.projection");
   const locale = useLocale();
   const { data, isLoading, isError } = useProjection(budgetId);
@@ -197,6 +204,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             currency={data.currency}
             locale={locale}
             t={t}
+            amountPrivacyEnabled={amountPrivacyEnabled}
           />
         )}
       </div>
@@ -220,6 +228,7 @@ function ProjectionTooltip({
   currency,
   locale,
   t,
+  amountPrivacyEnabled,
 }: {
   day: ProjectionDay;
   bills: { name: string; category_id: string | null; amount_cents: string }[];
@@ -228,9 +237,12 @@ function ProjectionTooltip({
   currency: string;
   locale: string;
   t: ReturnType<typeof useTranslations>;
+  amountPrivacyEnabled: boolean;
 }) {
-  const money = (c: string) =>
-    centsToDisplayCompact(roundToUnit(c), currency, "en", true);
+  const money = (c: string) => {
+    const s = centsToDisplayCompact(roundToUnit(c), currency, "en", true);
+    return amountPrivacyEnabled ? <SlotAmount value={s} /> : s;
+  };
   const available = Number(day.available_cents);
   // Anchor the tooltip so it never clips the card edge: pin its LEFT edge to the
   // cursor near the start, its RIGHT edge near the end, else centre it.
@@ -308,7 +320,8 @@ function ProjectionTooltip({
         <span
           className="shrink-0 text-sm font-semibold tabular-nums"
           style={{
-            color: available < 0 ? "var(--trading-down)" : "var(--body-on-dark)",
+            color:
+              available < 0 ? "var(--trading-down)" : "var(--body-on-dark)",
           }}
         >
           {money(day.available_cents)}

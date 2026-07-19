@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
 import { ProjectionTimeline } from "@/components/budgeting/overview/projection-timeline";
 import { OverviewSections } from "@/components/budgeting/overview/overview-sections";
+import { SlotRevealProvider } from "@/components/budgeting/overview/slot-amount";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useViewportFillHeight } from "@/hooks/use-viewport-fill-height";
 import { restoreScroll } from "@/lib/restore-scroll";
@@ -104,20 +105,30 @@ export function OverviewTab({
         innerScroll && "h-[var(--grid-max-h,80vh)] overflow-y-auto",
       )}
     >
-      <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-4 px-4 pt-4 sm:px-6">
-        <OverviewCards
-          budgetId={budgetId}
-          reservesEnabled={reservesEnabled}
-          investmentsEnabled={investmentsEnabled}
-          amountPrivacyEnabled={amountPrivacyEnabled}
-        />
-        <ProjectionTimeline budgetId={budgetId} />
-        <OverviewSections
-          budgetId={budgetId}
-          reservesEnabled={reservesEnabled}
-          investmentsEnabled={investmentsEnabled}
-        />
-      </div>
+      {/* ONE shared reveal for the WHOLE overview tab (r41 BDP-wide): tapping any
+          amount reveals every amount — cards, projection, and all sections +
+          their charts/pies. Masking itself is gated per-figure by
+          amountPrivacyEnabled. */}
+      <SlotRevealProvider>
+        <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-4 px-4 pt-4 sm:px-6">
+          <OverviewCards
+            budgetId={budgetId}
+            reservesEnabled={reservesEnabled}
+            investmentsEnabled={investmentsEnabled}
+            amountPrivacyEnabled={amountPrivacyEnabled}
+          />
+          <ProjectionTimeline
+            budgetId={budgetId}
+            amountPrivacyEnabled={amountPrivacyEnabled}
+          />
+          <OverviewSections
+            budgetId={budgetId}
+            reservesEnabled={reservesEnabled}
+            investmentsEnabled={investmentsEnabled}
+            amountPrivacyEnabled={amountPrivacyEnabled}
+          />
+        </div>
+      </SlotRevealProvider>
       {/* iOS end-of-scroll clearance spacer (env+64 standalone; global.css
           [data-grid-tail-spacer] overrides to env+96 in browser). */}
       <div
