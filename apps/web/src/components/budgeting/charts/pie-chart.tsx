@@ -159,7 +159,18 @@ export function OverviewPieChart({
           <span className="pointer-events-none text-caption text-[var(--muted-foreground)]">
             {centreName}
           </span>
-          <span className="num pointer-events-none text-num-sm font-semibold text-[var(--body-on-dark)]">
+          {/* The masked amount is its OWN tap target (pointer-events-auto): a wide
+              value overflows the donut hole onto the ring, and a pointer-events-none
+              amount let those overflow taps fall THROUGH to the slice underneath —
+              recharts then re-selected/cleared the slice instead of toggling the
+              blur (the reported "jumps to All, still blurred" bug). SlotAmount's own
+              onClick stops propagation + toggles, and being on top it swallows the
+              tap so the sector never sees it. */}
+          <span
+            className={`num text-num-sm font-semibold text-[var(--body-on-dark)] ${
+              maskValue ? "pointer-events-auto" : "pointer-events-none"
+            }`}
+          >
             {(() => {
               const v = formatValue
                 ? formatValue(centreVal)

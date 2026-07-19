@@ -322,6 +322,55 @@ describe("Overview charts", () => {
     vi.useRealTimers();
   });
 
+  it("masked pie centre amount is its OWN tap target (a wide amount's overflow can't fall through to a slice)", () => {
+    const { container } = box(
+      <SlotRevealProvider>
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          maskValue
+          formatValue={(n) => `$${n}`}
+        />
+      </SlotRevealProvider>,
+    );
+    const slot = container.querySelector(
+      '[data-testid="slot-amount"]',
+    ) as HTMLElement;
+    // The amount's wrapper must NOT disable pointer events: a value wider than the
+    // donut hole overflows onto the ring, and a pointer-events-none amount let those
+    // overflow taps fall THROUGH to the sector underneath (recharts then re-selected
+    // the slice instead of toggling the blur — the reported bug).
+    const wrapper = slot.parentElement as HTMLElement;
+    expect(wrapper.className).toContain("pointer-events-auto");
+    expect(wrapper.className).not.toContain("pointer-events-none");
+  });
+
+  it("tapping the masked pie AMOUNT itself (not just the hole disc) toggles reveal", () => {
+    vi.useFakeTimers();
+    const { container } = box(
+      <SlotRevealProvider>
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          maskValue
+          formatValue={(n) => `$${n}`}
+        />
+      </SlotRevealProvider>,
+    );
+    const slot = container.querySelector(
+      '[data-testid="slot-amount"]',
+    ) as HTMLElement;
+    expect(slot.dataset.revealed).toBe("false");
+    act(() => fireEvent.click(slot)); // tap the amount text directly
+    act(() => vi.runAllTimers());
+    expect(slot.dataset.revealed).toBe("true");
+    vi.useRealTimers();
+  });
+
   it("handles a pie slice tap without throwing (active-index path)", () => {
     const { container } = box(
       <OverviewPieChart
