@@ -1,3 +1,5 @@
+import * as React from "react";
+
 /**
  * ios-keyboard-pan.ts — correction for iOS standalone's first-keyboard-open
  * window-pan overshoot.
@@ -31,4 +33,92 @@ export function windowPanCorrection(box: {
   const overlap = visualBottom - (box.vvHeight - pad);
   if (overlap > 0) return Math.min(overlap, visualTop - pad);
   return 0;
+}
+
+/** Min visual/layout height gap (px) that counts as "keyboard open" — above any
+ *  address-bar wobble, below the shortest software keyboard. */
+const KEYBOARD_GAP_PX = 120;
+
+/**
+ * Decide the height (px) to pin the LAYOUT viewport (`html`) to while a field is
+ * focused, or null to leave it at its stylesheet `100lvh`.
+ *
+ * The (app) shell locks `html`/`body` to `100lvh` (global.css) so the layout
+ * viewport is always full-screen tall. On iOS standalone the keyboard shrinks
+ * only the VISUAL viewport, so the focused field ends up behind the keyboard in
+ * layout terms → iOS pans the whole window to reveal it (the first-open
+ * overshoot = the "jump"). Pinning `html` to the visual height removes that
+ * gap: the field is inside the layout viewport, iOS has nothing to pan, and the
+ * inner `<main>` scroller handles any reveal on its own. Restore (null) closes
+ * the keyboard.
+ */
+export function shellFitHeight(
+  innerHeight: number,
+  vvHeight: number,
+): number | null {
+  return innerHeight - vvHeight > KEYBOARD_GAP_PX ? vvHeight : null;
+}
+
+/**
+ * useIosShellKeyboardFit — pins `html` to the visual-viewport height while
+ * `inputRef` is focused in an installed PWA, so opening the keyboard never pans
+ * the window (no jump) and needs no counter-scroll (no slide). Scoped to the one
+ * field: it only touches the shell while that field holds focus and always
+ * restores on blur/unmount, so blast radius is "typing in this input" and the
+ * documented `100lvh` shell geometry is untouched everywhere else.
+ *
+ * Standalone-only: Safari resizes its own layout viewport on keyboard open, so
+ * `100lvh` already tracks the keyboard there and there is nothing to correct.
+ */
+export function useIosShellKeyboardFit(
+  inputRef: React.RefObject<HTMLElement | null>,
+): void {
+  React.useEffect(() => {
+    const el = inputRef.current;
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!el || !vv) return;
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone ===
+        true;
+    if (!standalone) return;
+
+    const html = document.documentElement;
+    let active = false;
+    const restore = () => html.style.removeProperty("height");
+    const fit = () => {
+      if (!active) return;
+      const h = shellFitHeight(window.innerHeight, vv.height);
+      if (h == null) {
+        restore();
+        return;
+      }
+      html.style.height = `${h}px`;
+      // html is now exactly the visual height (body is overflow:hidden), so the
+      // window has no scroll range — this can only scroll the inner <main>, and
+      // brings the field above the keyboard without any window pan.
+      el.scrollIntoView({ block: "nearest", behavior: "auto" });
+    };
+    const onFocus = () => {
+      active = true;
+      fit();
+    };
+    const onBlur = () => {
+      active = false;
+      restore();
+    };
+
+    el.addEventListener("focus", onFocus);
+    el.addEventListener("blur", onBlur);
+    vv.addEventListener("resize", fit);
+    vv.addEventListener("scroll", fit);
+    if (document.activeElement === el) onFocus();
+    return () => {
+      el.removeEventListener("focus", onFocus);
+      el.removeEventListener("blur", onBlur);
+      vv.removeEventListener("resize", fit);
+      vv.removeEventListener("scroll", fit);
+      restore();
+    };
+  }, [inputRef]);
 }
