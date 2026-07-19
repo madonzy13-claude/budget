@@ -63,11 +63,6 @@ export function OverviewPieChart({
   }, []);
   const active = isTouch ? tapped : (hover ?? tapped);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  // The slice the pointer is currently over, tracked from recharts' onMouseEnter/
-  // Leave (which DO fire on iOS touch — unlike onClick, which iOS cancels because
-  // the hover re-render swaps the sector element mid-tap). The pointer-up handler
-  // commits this to the persistent `tapped` selection.
-  const hoverRef = useRef<number | undefined>(undefined);
   // Dedupe a double pointer-up from ONE tap (some engines emit both a touch- and a
   // mouse-derived pointerup a few ms apart; without this a re-tap toggles off then
   // straight back on). Uses the event timeStamp — no Date.now.
@@ -110,28 +105,47 @@ export function OverviewPieChart({
         lastUpRef.current = e.timeStamp;
         const box = wrapperRef.current?.getBoundingClientRect();
         if (!box) return;
-        const dx = e.clientX - (box.left + box.width / 2);
-        const dy = e.clientY - (box.top + box.height / 2);
-        const dist = Math.hypot(dx, dy);
-        const R = Math.min(box.width, box.height) / 2;
-        const onAmount = !!(e.target as HTMLElement).closest?.(
-          '[data-testid="slot-amount"]',
-        );
-        if (onAmount || dist <= 0.55 * R) {
+        // Resolve what's UNDER the release point directly (elementFromPoint) rather
+        // than trusting recharts' hover state — on iOS a fresh tap on another slice
+        // doesn't re-fire mouseenter, so a hover-based index stuck on the old slice
+        // and switching failed.
+        const hit =
+          (document.elementFromPoint(
+            e.clientX,
+            e.clientY,
+          ) as HTMLElement | null) ?? (e.target as HTMLElement | null);
+        // The amount (incl. a wide value's overflow) → toggle the blur, not select.
+        if (hit?.closest?.('[data-testid="slot-amount"]')) {
           if (maskValue) toggle();
           return;
         }
-        if (dist <= 0.82 * R) {
-          // Always SELECT the slice under the pointer (idempotent — a duplicate
-          // pointer-up from one tap can't toggle it back off). Deselect is a tap
-          // OUTSIDE the donut; switching is a tap on another slice.
-          const idx = hoverRef.current;
-          if (idx != null) setTapped(idx);
+        // On a slice → select THAT slice (its index = its order among the sectors,
+        // which is data order). A tap on any other slice therefore always switches.
+        const sector = hit?.closest?.(".recharts-sector");
+        if (sector) {
+          const sectors = Array.from(
+            wrapperRef.current?.querySelectorAll(".recharts-sector") ?? [],
+          );
+          const idx = sectors.indexOf(sector);
+          if (idx >= 0) setTapped(idx);
           setHover(undefined);
           return;
         }
-        setTapped(undefined);
-        setHover(undefined);
+        // Neither amount nor slice → the hole or the empty corners, decided by radius.
+        const dist = Math.hypot(
+          e.clientX - (box.left + box.width / 2),
+          e.clientY - (box.top + box.height / 2),
+        );
+        const R = Math.min(box.width, box.height) / 2;
+        if (dist <= 0.55 * R) {
+          if (maskValue) toggle(); // centre hole → reveal
+          return;
+        }
+        if (dist > 0.82 * R) {
+          setTapped(undefined); // outside the donut → reset to "All"
+          setHover(undefined);
+        }
+        // else: the thin padding gap between slices → keep the current selection
       }}
     >
       <ResponsiveContainer width="100%" height={height}>
@@ -153,20 +167,12 @@ export function OverviewPieChart({
                 outerRadius={(Number(props.outerRadius) || 0) + 6}
               />
             )}
-            // enter/leave DO fire on iOS touch (unlike click). Track the slice under
-            // the pointer in a ref so the wrapper's pointer-up can commit it, and
-            // drive the desktop hover-preview + dim via `hover`.
+            // Desktop hover-preview + dim only (the tap SELECTION is resolved from
+            // the release point in onPointerUp). On touch `active` ignores `hover`.
             onMouseEnter={(_, index) => {
-              hoverRef.current = index;
               setHover(index);
             }}
-            onMouseLeave={() => {
-              // Keep hoverRef = the last slice the pointer was over so pointer-up can
-              // still commit it — on a quick re-tap iOS may not re-fire mouseenter
-              // before pointer-up, and clearing it here dropped the selection. Only
-              // the transient dim (`hover`) clears on leave.
-              setHover(undefined);
-            }}
+            onMouseLeave={() => setHover(undefined)}
           >
             {data.map((d, i) => (
               <Cell
