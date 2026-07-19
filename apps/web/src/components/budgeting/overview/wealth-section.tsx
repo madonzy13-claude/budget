@@ -120,17 +120,26 @@ export function WealthSection({
   const effectiveView: WealthView = investmentsEnabled
     ? view
     : "capitalization";
-  // Investments view: when on, fetch the NET-of-contributions series/growth/dynamics
-  // (money paid in via the Investments category subtracted) → real market movement.
-  const [net, setNet] = useState(false);
-
+  // Investments view now STACKS contributions + profit, so we always fetch the
+  // TOTAL (incl) series here + a SECOND market-only (excl-contributions) series
+  // below; profit = excl, contributions = incl − excl.
   const { data, isPending, isError } = useOverviewWealth(budgetId, {
     from: range.from,
     to: range.to,
     view: effectiveView,
     enabled: open,
-    net: effectiveView === "investments" && net,
+    net: false,
   });
+  const exclQ = useOverviewWealth(budgetId, {
+    from: range.from,
+    to: range.to,
+    view: "investments",
+    enabled: open && effectiveView === "investments",
+    net: true,
+  });
+  const exclByLabel = new Map<string, number>();
+  for (const p of exclQ.data?.series ?? [])
+    exclByLabel.set(p.label, Number(p.value_cents));
 
   const ccy = data?.currency ?? "USD";
   // Overview shows NO cents anywhere (round to whole units).
@@ -246,6 +255,20 @@ export function WealthSection({
                   return first > 0 ? data.series.slice(first) : data.series;
                 })()
               : data.series;
+          // Investments stack: contributions (incl − excl) grey + profit (excl)
+          // yellow, aligned to the rendered (trimmed) points by label.
+          const investStack =
+            effectiveView === "investments"
+              ? seriesPoints.map((p) => {
+                  const incl = Number(p.value_cents);
+                  const excl = exclByLabel.get(p.label) ?? 0;
+                  return {
+                    label: p.label,
+                    contributions: incl - excl,
+                    profit: excl,
+                  };
+                })
+              : [];
           return (
             <>
               {/* VALUE chart + its RANGE-scoped metric: total growth over the whole
@@ -261,8 +284,6 @@ export function WealthSection({
                   const hasInvestCat =
                     effectiveView === "investments" &&
                     data.invested_cents != null;
-                  const canNet =
-                    hasInvestCat && Number(data.invested_cents) > 0;
                   return (
                     <>
                       <div className="flex flex-wrap items-start justify-center gap-6">
@@ -298,42 +319,27 @@ export function WealthSection({
                           </div>
                         )}
                       </div>
-                      {/* Total vs Market-only (net of contributions) — a clear
-                          segmented switch; the active side is filled. Toggling
-                          refetches so EVERY chart below updates too. */}
-                      {canNet && (
+                      {/* Investments legend: contributions (grey) + profit
+                          (yellow) — the two stacked bands of the area below. */}
+                      {investStack.length > 0 && (
                         <div
-                          role="group"
-                          className="mx-auto inline-flex rounded-full border border-[var(--hairline-dark)] p-0.5 text-caption"
+                          className="mx-auto flex items-center gap-4 text-caption text-[var(--muted-foreground)]"
+                          data-testid="wealth-invest-legend"
                         >
-                          <button
-                            type="button"
-                            data-testid="wealth-net-total"
-                            onClick={() => setNet(false)}
-                            aria-pressed={!net}
-                            className={cn(
-                              "rounded-full px-3 py-1 transition-colors",
-                              !net
-                                ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-                                : "text-[var(--muted-foreground)]",
-                            )}
-                          >
-                            {t("wealth.inclContrib")}
-                          </button>
-                          <button
-                            type="button"
-                            data-testid="wealth-net-market"
-                            onClick={() => setNet(true)}
-                            aria-pressed={net}
-                            className={cn(
-                              "rounded-full px-3 py-1 transition-colors",
-                              net
-                                ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-                                : "text-[var(--muted-foreground)]",
-                            )}
-                          >
-                            {t("wealth.exclContrib")}
-                          </button>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              className="size-2.5 rounded-sm"
+                              style={{ background: "var(--muted-foreground)" }}
+                            />
+                            {t("wealth.contributions")}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              className="size-2.5 rounded-sm"
+                              style={{ background: "var(--primary)" }}
+                            />
+                            {t("wealth.profit")}
+                          </span>
                         </div>
                       )}
                     </>
@@ -344,26 +350,49 @@ export function WealthSection({
                 <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
                   {t("wealth.growSince", { preset: range.preset })}
                 </p>
-                <OverviewAreaChart
-                  data={seriesPoints.map((p) => ({
-                    label: p.label,
-                    value: Number(p.value_cents),
-                  }))}
-                  xKey="label"
-                  series={[
-                    {
-                      key: "value",
-                      label:
-                        effectiveView === "investments"
-                          ? t("wealth.investments")
-                          : t("wealth.capitalization"),
-                    },
-                  ]}
-                  formatY={fmtY}
-                  formatTooltip={fmtTooltip}
-                  xTickFormat={(v) => formatChartDate(v, locale)}
-                  maskAmounts={amountPrivacyEnabled}
-                />
+                {investStack.length > 0 ? (
+                  // Stacked like the planned needs/wants chart: contributions
+                  // (grey) + profit (yellow) sum to the total investment value.
+                  <OverviewAreaChart
+                    data={investStack}
+                    xKey="label"
+                    series={[
+                      {
+                        key: "contributions",
+                        label: t("wealth.contributions"),
+                        color: "var(--muted-foreground)",
+                        stack: "inv",
+                        fillOpacity: 0.3,
+                      },
+                      {
+                        key: "profit",
+                        label: t("wealth.profit"),
+                        color: "var(--primary)",
+                        stack: "inv",
+                        fillOpacity: 0.35,
+                      },
+                    ]}
+                    formatY={fmtY}
+                    formatTooltip={fmtTooltip}
+                    xTickFormat={(v) => formatChartDate(v, locale)}
+                    maskAmounts={amountPrivacyEnabled}
+                  />
+                ) : (
+                  <OverviewAreaChart
+                    data={seriesPoints.map((p) => ({
+                      label: p.label,
+                      value: Number(p.value_cents),
+                    }))}
+                    xKey="label"
+                    series={[
+                      { key: "value", label: t("wealth.capitalization") },
+                    ]}
+                    formatY={fmtY}
+                    formatTooltip={fmtTooltip}
+                    xTickFormat={(v) => formatChartDate(v, locale)}
+                    maskAmounts={amountPrivacyEnabled}
+                  />
+                )}
               </div>
 
               {/* CHANGE chart + its PER-PERIOD metric: the average change AT THIS

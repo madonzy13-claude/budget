@@ -756,7 +756,9 @@
     "and": "and",
     "retire_label": "If you retire now, your money will last for",
     "retire_inflation": "incl. {pct}% annual inflation",
-    "avg_change": "Avg change"
+    "avg_change": "Avg change",
+    "contributions": "Contributions",
+    "profit": "Profit"
   },
   "state": {
     "empty": {
@@ -1399,7 +1401,9 @@
           "capSpendings": "Spendings",
           "capReserves": "Reserves",
           "capCushion": "Cushion",
-          "pieShare": "{pct}%"
+          "pieShare": "{pct}%",
+          "contributions": "Contributions",
+          "profit": "Profit"
         },
         "empty": {
           "overspent": "No overspending in this range.",

@@ -756,7 +756,9 @@
     "and": "і",
     "retire_label": "Якщо вийти на пенсію зараз, грошей вистачить на",
     "retire_inflation": "з урахуванням {pct}% річної інфляції",
-    "avg_change": "Сер. зміна"
+    "avg_change": "Сер. зміна",
+    "contributions": "Внески",
+    "profit": "Прибуток"
   },
   "state": {
     "empty": {
@@ -1422,7 +1424,9 @@
           "capSpendings": "Витрати",
           "capReserves": "Резерви",
           "capCushion": "Подушка",
-          "pieShare": "{pct}%"
+          "pieShare": "{pct}%",
+          "contributions": "Внески",
+          "profit": "Прибуток"
         },
         "empty": {
           "overspent": "Немає перевитрат у цьому діапазоні.",

@@ -756,7 +756,9 @@
     "and": "i",
     "retire_label": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
     "retire_inflation": "z {pct}% roczną inflacją",
-    "avg_change": "Śr. zmiana"
+    "avg_change": "Śr. zmiana",
+    "contributions": "Wpłaty",
+    "profit": "Zysk"
   },
   "state": {
     "empty": {
@@ -1422,7 +1424,9 @@
           "capSpendings": "Wydatki",
           "capReserves": "Rezerwy",
           "capCushion": "Poduszka",
-          "pieShare": "{pct}%"
+          "pieShare": "{pct}%",
+          "contributions": "Wpłaty",
+          "profit": "Zysk"
         },
         "empty": {
           "overspent": "Brak przekroczeń w tym zakresie.",

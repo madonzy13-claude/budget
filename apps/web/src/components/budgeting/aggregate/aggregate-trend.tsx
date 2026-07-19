@@ -3,8 +3,9 @@
  * aggregate-trend.tsx — combined "Net worth over time" wealth section for the
  * all-budgets page, mirroring the single-budget BDP wealth section:
  *   - Capitalization / Investments view toggle (drives the ?view param).
- *   - Investments view: Incl./Excl.-contributions toggle (net), an "Invested"
- *     metric, and a per-holding-type pie (UI_TYPE_COLOR).
+ *   - Investments view: a STACKED area (contributions grey + profit yellow,
+ *     reusing incl + excl fetches), an "Invested" metric, and a per-holding-type
+ *     pie (UI_TYPE_COLOR).
  *   - Capitalization view: a "where it sits" pie (investments/cash/reserves/
  *     cushion) built from the aggregate row sums.
  *   - Centered growth row (signed amount + PctStat %) + AREA chart with the
@@ -94,13 +95,23 @@ export function AggregateTrend({
   const tInvest = useTranslations("budget.investments");
   const locale = useLocale();
   const [view, setView] = useState<WealthView>("capitalization");
-  const [net, setNet] = useState(false);
+  // Investments view stacks contributions + profit, so we always fetch the TOTAL
+  // (incl) series; a SECOND fetch gets the market-only (excl-contributions) series
+  // — profit = excl, contributions = incl − excl (reusing the same data the old
+  // toggle showed). The excl fetch is disabled outside the investments view.
   const { data, isPending } = useAggregateWealth(
     includeIds,
     range.from,
     range.to,
     view,
-    view === "investments" && net,
+    false,
+  );
+  const exclQ = useAggregateWealth(
+    view === "investments" ? includeIds : [],
+    range.from,
+    range.to,
+    "investments",
+    true,
   );
 
   const ccy = data?.display_currency ?? currency;
@@ -149,8 +160,20 @@ export function AggregateTrend({
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   })();
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
-  const investedPositive =
-    data?.invested_cents != null && Number(data.invested_cents) > 0;
+
+  // Stacked investments (reuse incl + excl): contributions = incl − excl (grey),
+  // profit = excl (yellow); they stack to the total value. Aligned by label.
+  const exclByLabel = new Map<string, number>();
+  for (const p of exclQ.data?.series ?? [])
+    exclByLabel.set(p.label, Number(p.value_cents));
+  const investStack =
+    view === "investments" && data
+      ? data.series.map((p) => {
+          const incl = Number(p.value_cents);
+          const excl = exclByLabel.get(p.label) ?? 0;
+          return { label: p.label, contributions: incl - excl, profit: excl };
+        })
+      : [];
 
   const capBuckets = [
     { name: "investments", value: Number(capitalization.investmentsCents) },
@@ -169,10 +192,7 @@ export function AggregateTrend({
   const tab = (v: WealthView, label: string) => (
     <button
       type="button"
-      onClick={() => {
-        setView(v);
-        if (v !== "investments") setNet(false);
-      }}
+      onClick={() => setView(v)}
       aria-pressed={view === v}
       data-testid={`aggregate-view-${v}`}
       className={cn(
@@ -235,39 +255,26 @@ export function AggregateTrend({
               )}
             </div>
 
-            {/* Incl./Excl.-contributions — segmented control (BDP style). */}
-            {view === "investments" && investedPositive && (
+            {/* Investments view legend: contributions (grey) + profit (yellow). */}
+            {view === "investments" && investStack.length > 0 && (
               <div
-                role="group"
-                data-testid="aggregate-net-toggle"
-                className="mx-auto inline-flex rounded-full border border-[var(--hairline-dark)] p-0.5 text-caption"
+                className="mx-auto flex items-center gap-4 text-caption text-[var(--muted-foreground)]"
+                data-testid="aggregate-invest-legend"
               >
-                <button
-                  type="button"
-                  onClick={() => setNet(false)}
-                  aria-pressed={!net}
-                  className={cn(
-                    "rounded-full px-3 py-1 transition-colors",
-                    !net
-                      ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-                      : "text-[var(--muted-foreground)]",
-                  )}
-                >
-                  {t("incl_contributions")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNet(true)}
-                  aria-pressed={net}
-                  className={cn(
-                    "rounded-full px-3 py-1 transition-colors",
-                    net
-                      ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-                      : "text-[var(--muted-foreground)]",
-                  )}
-                >
-                  {t("excl_contributions")}
-                </button>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="size-2.5 rounded-sm"
+                    style={{ background: "var(--muted-foreground)" }}
+                  />
+                  {t("contributions")}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="size-2.5 rounded-sm"
+                    style={{ background: "var(--primary)" }}
+                  />
+                  {t("profit")}
+                </span>
               </div>
             )}
 
@@ -276,26 +283,47 @@ export function AggregateTrend({
               {t("grow_since", { preset: range.preset })}
             </p>
 
-            <OverviewAreaChart
-              data={data.series.map((p) => ({
-                label: p.label,
-                value: Number(p.value_cents),
-              }))}
-              xKey="label"
-              series={[
-                {
-                  key: "value",
-                  label:
-                    view === "investments"
-                      ? t("investments")
-                      : t("capitalization"),
-                },
-              ]}
-              formatY={chartCompactCents}
-              formatTooltip={(n) => fmt(String(Math.round(n)))}
-              xTickFormat={(v) => formatChartDate(String(v), locale)}
-              maskAmounts
-            />
+            {view === "investments" && investStack.length > 0 ? (
+              // Stacked like the planned needs/wants chart: contributions (grey)
+              // + profit (yellow) sum to the total investment value.
+              <OverviewAreaChart
+                data={investStack}
+                xKey="label"
+                series={[
+                  {
+                    key: "contributions",
+                    label: t("contributions"),
+                    color: "var(--muted-foreground)",
+                    stack: "inv",
+                    fillOpacity: 0.3,
+                  },
+                  {
+                    key: "profit",
+                    label: t("profit"),
+                    color: "var(--primary)",
+                    stack: "inv",
+                    fillOpacity: 0.35,
+                  },
+                ]}
+                formatY={chartCompactCents}
+                formatTooltip={(n) => fmt(String(Math.round(n)))}
+                xTickFormat={(v) => formatChartDate(String(v), locale)}
+                maskAmounts
+              />
+            ) : (
+              <OverviewAreaChart
+                data={data.series.map((p) => ({
+                  label: p.label,
+                  value: Number(p.value_cents),
+                }))}
+                xKey="label"
+                series={[{ key: "value", label: t("capitalization") }]}
+                formatY={chartCompactCents}
+                formatTooltip={(n) => fmt(String(Math.round(n)))}
+                xTickFormat={(v) => formatChartDate(String(v), locale)}
+                maskAmounts
+              />
+            )}
           </div>
 
           {/* Avg change (dynamics) — per-bucket % change bar chart, green/red
