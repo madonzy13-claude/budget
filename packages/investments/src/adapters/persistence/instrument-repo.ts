@@ -63,6 +63,11 @@ export class DrizzleInstrumentRepo implements InstrumentRepo {
              quote_currency, provider, refresh_cadence, rank
         FROM budgeting.instruments
        WHERE active = true
+         -- Only suggest instruments we can actually PRICE. Non-US equities/ETFs are
+         -- stored as 'manual:<MIC>' (no live price feed), so surfacing them just
+         -- offers assets that will never get a quote. Auto-priced providers
+         -- (finnhub US, coingecko, metals) do NOT start with 'manual'.
+         AND provider NOT LIKE 'manual%'
          AND (${ac}::text IS NULL OR asset_class = ${ac})
          AND (symbol ILIKE ${q} || '%' OR display_name ILIKE '%' || ${q} || '%')
        ORDER BY CASE

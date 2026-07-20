@@ -18,6 +18,14 @@ describe("formatTimestamp", () => {
     expect(out).toContain("10:44"); // +1h vs UTC
   });
 
+  it("renders day-first with a comma separator regardless of locale ordering", () => {
+    // en-US Intl defaults to "February 13, 2026 at 10:44"; we force the
+    // day-first, comma form the design calls for (UAT: "3 February 2026, 13:46").
+    expect(formatTimestamp(INSTANT, "en", "Europe/Warsaw")).toBe(
+      "13 February 2026, 10:44",
+    );
+  });
+
   it("renders the SAME instant differently in another timezone (UTC)", () => {
     const out = formatTimestamp(INSTANT, "en", "UTC");
     expect(out).toContain("09:44");

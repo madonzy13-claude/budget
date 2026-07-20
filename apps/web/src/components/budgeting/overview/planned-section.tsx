@@ -20,6 +20,9 @@ import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
+import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
+import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
 import { overspendHeat } from "@/lib/overspend-heat";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -46,15 +49,69 @@ function ChartLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Planned-spend donut: each category's average planned amount over the selected
+ * range (the same planned_avg_cents the over/under bar uses as its reference).
+ * Colors follow the category's persisted colorKey; colorless categories cycle
+ * the shared palette so adjacent slices stay distinct. */
+function PlannedByCategoryPie({
+  rows,
+  categories,
+  title,
+  allLabel,
+  formatValue,
+  maskValue = false,
+}: {
+  rows: { name: string; planned_avg_cents: string }[];
+  categories: { name: string; colorKey?: unknown }[];
+  title: string;
+  allLabel: string;
+  formatValue: (n: number) => string;
+  maskValue?: boolean;
+}) {
+  const data = rows
+    .map((c) => ({ name: c.name, planned: Number(c.planned_avg_cents) }))
+    .filter((r) => r.planned > 0)
+    .sort((a, b) => b.planned - a.planned);
+  if (data.length === 0) return null;
+
+  const colorByName = new Map<string, string>(
+    data.map((r, i) => {
+      const cat = categories.find((c) => c.name === r.name);
+      const hex = hexForColorKey((cat?.colorKey as string | null) ?? null);
+      return [r.name, hex ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length].hex];
+    }),
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ChartLabel>{title}</ChartLabel>
+      <OverviewPieChart
+        data={data}
+        nameKey="name"
+        valueKey="planned"
+        colorFor={(name) => colorByName.get(name) ?? CATEGORY_COLORS[7].hex}
+        formatValue={formatValue}
+        allLabel={allLabel}
+        maskValue={maskValue}
+      />
+    </div>
+  );
+}
+
 export function PlannedSection({
   budgetId,
   range,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
+  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
+  // Privacy: mask money in the chart tooltips to "•••" until the shared reveal.
+  const { revealed } = useSlotReveal();
+  const hideMoney = amountPrivacyEnabled && !revealed;
   // Full localized month name for the recurring tooltip (item 2): 8 → "August" /
   // "Серпень" / "sierpień".
   const monthName = (m: string | number) =>
@@ -178,6 +235,7 @@ export function PlannedSection({
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
                 xTickFormat={(v) => formatChartDate(v, locale)}
+                maskAmounts={amountPrivacyEnabled}
               />
             )}
           </div>
@@ -224,15 +282,28 @@ export function PlannedSection({
                   return [
                     {
                       label: t("planned.difference"),
-                      value: `${sign}${fmtTooltip(Math.abs(diff))} · ${pctSign}${Math.abs(Math.round(pct))}%`,
+                      value: `${hideMoney ? "•••" : `${sign}${fmtTooltip(Math.abs(diff))}`} · ${pctSign}${Math.abs(Math.round(pct))}%`,
                     },
                   ];
                 }}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
+                maskAmounts={amountPrivacyEnabled}
               />
             </div>
           )}
+
+          {/* Planned-spend share pie — how the range-averaged planned budget
+              splits across categories. Sits directly below the over/under
+              chart so the reference (planned averages) reads in both shapes. */}
+          <PlannedByCategoryPie
+            rows={data.plannedAvgVsReal}
+            categories={categories}
+            title={t("planned.avgPie")}
+            allLabel={t("planned.allCategories")}
+            formatValue={fmtTooltip}
+            maskValue={amountPrivacyEnabled}
+          />
 
           {/* Recurring per month — current config (NOT range-scoped, D-14).
               Simple area chart (single series). */}
@@ -252,6 +323,7 @@ export function PlannedSection({
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}
               labelFormat={monthName}
+              maskAmounts={amountPrivacyEnabled}
               // Tooltip lists each planned payment for the month (the series row
               // already shows the total).
               tooltipExtra={(row) => {
@@ -259,7 +331,9 @@ export function PlannedSection({
                   (row.items as { name: string; amount_cents: string }[]) ?? [];
                 return items.map((it) => ({
                   label: it.name || "—",
-                  value: fmtTooltip(Number(it.amount_cents)),
+                  value: hideMoney
+                    ? "•••"
+                    : fmtTooltip(Number(it.amount_cents)),
                 }));
               }}
             />
@@ -288,6 +362,7 @@ export function PlannedSection({
                 ]}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
+                maskAmounts={amountPrivacyEnabled}
               />
             </div>
           )}

@@ -14,9 +14,25 @@ import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R18";
+const BUILD_MARKER = "SHELL-R19";
 
 const FLAG_KEY = "vpdbg";
+
+/**
+ * Persist the vpdbg flag from a URL search string. Standalone PWA has no URL
+ * bar and its localStorage is separate from Safari's — the only way in is a
+ * deep link (e.g. a push notification url) carrying ?vpdbg=1. Persisting means
+ * the overlay is already on at the NEXT cold start, which is required to
+ * observe first-touch-after-reload bugs. ?vpdbg=0 switches it back off.
+ */
+export function persistVpdbgFromUrl(search: string): void {
+  try {
+    const v = new URLSearchParams(search).get(FLAG_KEY);
+    if (v === "1" || v === "0") localStorage.setItem(FLAG_KEY, v);
+  } catch {
+    /* storage unavailable — overlay just won't persist */
+  }
+}
 
 export function isVpdbgEnabled(): boolean {
   if (typeof window === "undefined") return false;
@@ -93,6 +109,10 @@ interface Metrics {
   // SHELL-R18: scroll-root diagnostics (browser vs standalone)
   winScrollY: number;
   scrollingElTop: number;
+  // SHELL-R19: visual-viewport pan + focused-element probes (wallet-edit jump)
+  vvOff: number;
+  activeTag: string;
+  activeTop: number;
   // SHELL-R18: month-nav vs sticky band occlusion probe
   monthNavTop: number;
   bandBottom: number;
@@ -270,6 +290,18 @@ function readMetrics(): Metrics {
     (document.scrollingElement as HTMLElement | null)?.scrollTop ?? -1,
   );
 
+  // SHELL-R19: is the jump a visual-viewport PAN (vvOff > 0) or a real scroll
+  // of <main> (mainScrollTop grows)? Plus where the focused element actually
+  // sits — activeTop far outside [0, vvH] means the edited input left the view.
+  const vvOff = Math.round(window.visualViewport?.offsetTop ?? -1);
+  const activeEl = document.activeElement as HTMLElement | null;
+  const activeTag =
+    activeEl && activeEl !== document.body ? activeEl.tagName : "none";
+  const activeTop =
+    activeEl && activeEl !== document.body
+      ? Math.round(activeEl.getBoundingClientRect().top)
+      : NaN;
+
   // SHELL-R18: month-nav vs sticky band occlusion probe.
   // monthNavUnderBand > 0 means the nav is hidden under the band (the bug).
   // Reports -1 when elements are absent (e.g. not on the spendings tab).
@@ -293,6 +325,9 @@ function readMetrics(): Metrics {
     bodyH: Math.round(document.body.getBoundingClientRect().height),
     safeTop: probeEnvInset("top"),
     safeBottom: probeEnvInset("bottom"),
+    vvOff,
+    activeTag,
+    activeTop,
     shellRootClientH: shellRootEl?.clientHeight ?? -1,
     shellRootMinH: shellRootEl
       ? getComputedStyle(shellRootEl).minHeight
@@ -329,14 +364,50 @@ export function ViewportDebug() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [enabled, setEnabled] = useState(false);
 
+  // Hidden toggle: 1.2s hold on an EMPTY spot of the <header> flips the
+  // persisted flag (push deep-links proved unreliable on device; standalone
+  // has no URL bar). Interactive children (links, buttons, inputs) are
+  // excluded so normal header use can never trigger it.
+  // Hidden toggle: 13 RAPID taps on the profile-menu trigger flip the
+  // persisted flag (push deep-links proved unreliable on device; standalone
+  // has no URL bar). Gap > 800ms between taps resets the chain — the count is
+  // deliberately absurd so it can never fire accidentally.
   useEffect(() => {
-    if (!isVpdbgEnabled()) return;
-    setEnabled(true);
+    let count = 0;
+    let lastTap = 0;
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest('[data-testid="profile-menu-trigger"]')) return;
+      const now = Date.now();
+      count = now - lastTap <= 800 ? count + 1 : 1;
+      lastTap = now;
+      if (count >= 13) {
+        count = 0;
+        const on = toggleVpdbg();
+        setEnabled(on);
+        if (!on) setMetrics(null);
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
+
+  useEffect(() => {
+    // Runs unconditionally so a deep link carrying ?vpdbg=1/0 flips the
+    // persisted flag even while the overlay is currently off.
+    persistVpdbgFromUrl(window.location.search);
+    if (isVpdbgEnabled()) setEnabled(true);
+  }, []);
+
+  // Polling runs whenever the overlay is on — including when the long-press
+  // gesture enables it long after mount.
+  useEffect(() => {
+    if (!enabled) return;
     const update = () => setMetrics(readMetrics());
     update();
     const id = setInterval(update, 700);
     return () => clearInterval(id);
-  }, []);
+  }, [enabled]);
 
   if (!enabled || !metrics) return null;
 
@@ -344,7 +415,11 @@ export function ViewportDebug() {
   return (
     <div
       data-testid="viewport-debug"
-      className="fixed left-1 top-16 z-[9999] rounded bg-black/85 p-2 font-mono text-[10px] leading-snug text-yellow-300"
+      // pointer-events-none: the overlay is read-only — every tap falls
+      // through to the UI beneath, so it can never block navigation.
+      // top-32 clears the header (64px) + BDP pill band so both stay tappable
+      // visually too.
+      className="pointer-events-none fixed left-1 top-32 z-[9999] rounded bg-black/85 p-2 font-mono text-[10px] leading-snug text-yellow-300"
     >
       <div>{BUILD_MARKER}</div>
       <div>
@@ -369,6 +444,9 @@ export function ViewportDebug() {
       <div>
         winY {m.winScrollY} · seTop {m.scrollingElTop} · mainTop{" "}
         {m.mainScrollTop}
+      </div>
+      <div>
+        vvOff {m.vvOff} · active {m.activeTag} top {m.activeTop}
       </div>
       <div>
         navTop {m.monthNavTop} · bandBot {m.bandBottom} · under{" "}

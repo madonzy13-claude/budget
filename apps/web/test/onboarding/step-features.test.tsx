@@ -14,19 +14,24 @@ vi.mock("next-intl", () => ({
 
 import { StepFeatures } from "@/components/onboarding/steps/step-features";
 
+const noop = {
+  onChangeCushion: vi.fn(),
+  onChangeReserves: vi.fn(),
+  onChangeInvestments: vi.fn(),
+  onChangeNotifications: vi.fn(),
+  onChangeCushionTargetMonths: vi.fn(),
+};
+
 function renderStep(cushionTargetMonths: number, onChange = vi.fn()) {
   render(
     <StepFeatures
       cushionEnabled
-      onChangeCushion={vi.fn()}
       reservesEnabled={false}
-      onChangeReserves={vi.fn()}
       investmentsEnabled={false}
-      onChangeInvestments={vi.fn()}
+      notificationsEnabled={false}
       cushionTargetMonths={cushionTargetMonths}
+      {...noop}
       onChangeCushionTargetMonths={onChange}
-      pushEnabled={false}
-      onChangePush={vi.fn()}
     />,
   );
   return document.getElementById(
@@ -50,5 +55,28 @@ describe("StepFeatures — cushion target months input", () => {
     const input = renderStep(6, onChange);
     fireEvent.change(input, { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith(0);
+  });
+});
+
+describe("StepFeatures — notifications toggle", () => {
+  it("renders a notifications row and reports toggles (no separate badge row)", () => {
+    const onChangeNotifications = vi.fn();
+    const { getByTestId, queryByTestId } = render(
+      <StepFeatures
+        cushionEnabled={false}
+        reservesEnabled={false}
+        investmentsEnabled={false}
+        notificationsEnabled={false}
+        cushionTargetMonths={6}
+        {...noop}
+        onChangeNotifications={onChangeNotifications}
+      />,
+    );
+    const toggle = getByTestId("wizard-feature-notifications");
+    expect(toggle).toBeTruthy();
+    // Badge is enabled in the background — it must NOT appear as its own wizard row.
+    expect(queryByTestId("wizard-feature-badge")).toBeNull();
+    fireEvent.click(toggle);
+    expect(onChangeNotifications).toHaveBeenCalledWith(true);
   });
 });

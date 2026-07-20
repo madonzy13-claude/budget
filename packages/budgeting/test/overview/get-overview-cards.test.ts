@@ -349,4 +349,38 @@ describe("Overview cards", () => {
     expect(dto.overspent.top.map((t) => t.category_id)).toEqual(["a"]);
     expect(dto.overspent.top[0]!.over_amount_cents).toBe(2000n);
   });
+
+  test("overspent card EXCLUDES the Investments category (over-investing is not overspending)", async () => {
+    const d = deps();
+    d.spendingsSummary = async () =>
+      ok({
+        ...spendingsDto,
+        categories: [
+          ...spendingsDto.categories,
+          {
+            categoryId: "inv",
+            name: "Investments",
+            archived: false,
+            isInvestment: true,
+            overspentCents: "99999",
+            spentCents: "99999",
+            activeBudgetCents: "10000",
+            reserveUsedCents: "0",
+            reserveAvailableCents: "0",
+            reserveExcluded: false,
+            plannedCents: "10000",
+            cushionCents: "0",
+            balanceCents: "0",
+            iconKey: null,
+            colorKey: null,
+            sortIndex: 3,
+          },
+        ],
+      }) as Result<typeof spendingsDto, Error>;
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    // The Investments category is never "overspent" — excluded from count/total/top.
+    expect(dto.overspent.top.map((t) => t.category_id)).not.toContain("inv");
+    expect(dto.overspent.count).toBe(1); // only "a"
+    expect(dto.overspent.total_cents).toBe(2000n); // inv's 99999 excluded
+  });
 });

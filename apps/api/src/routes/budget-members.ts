@@ -11,9 +11,16 @@
  *   T-06-03-03: tenant gate (tenantIds.includes → 404, no existence leak)
  */
 import { Hono } from "hono";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
 import type { BootedDeps } from "../boot";
 
 type MembersDeps = Pick<BootedDeps, "tenancy" | "identity">;
+
+const aggregationSchema = z.object({
+  included: z.boolean(),
+  share_pct: z.number().int().min(0).max(100).optional(),
+});
 
 export function budgetMembersRoutesFactory(deps: MembersDeps) {
   const r = new Hono();
@@ -175,6 +182,40 @@ export function budgetMembersRoutesFactory(deps: MembersDeps) {
 
     return c.json({ ok: true }, 200);
   });
+
+  // PUT /:id/aggregation — self-service include-in-aggregation flag + optional
+  // self-set ownership_share_pct. NOT owner-gated: any member may set their own
+  // row only. setMemberAggregationSettings binds the caller's own userId as
+  // both tx actor and target row, so this route can never write another
+  // member's row. No cross-member Σ=100 validation — each member's share is
+  // purely self-set (default 100) and only affects THEIR own all-budgets total.
+  r.put(
+    "/:id/aggregation",
+    zValidator("json", aggregationSchema),
+    async (c) => {
+      const session = c.get("session");
+      if (!session) return c.json({ error: "unauthorized" }, 401);
+
+      const budgetId = c.req.param("id");
+      const tenantIds = c.get("tenantIds") as string[] | undefined;
+      if (!tenantIds || !tenantIds.includes(budgetId)) {
+        return c.json({ error: "not_found" }, 404);
+      }
+
+      const body = c.req.valid("json");
+      const members = await deps.tenancy.workspaceRepo.listMembers(budgetId);
+      if (!members.some((m) => m.userId === session.user.id)) {
+        return c.json({ error: "forbidden" }, 403);
+      }
+
+      await deps.tenancy.workspaceRepo.setMemberAggregationSettings(
+        budgetId,
+        session.user.id,
+        { included: body.included, sharePct: body.share_pct },
+      );
+      return c.json({ ok: true }, 200);
+    },
+  );
 
   return r;
 }

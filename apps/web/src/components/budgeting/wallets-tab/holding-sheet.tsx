@@ -367,11 +367,20 @@ export function HoldingSheet({
     setInstrumentProvider(inst.provider ?? null);
     setSymbol(inst.symbol);
     setName(inst.displayName);
-    // Crypto values its USD quote in the user's chosen currency, so DON'T lock to
-    // the instrument's quote currency — keep what the user picked (default = budget
-    // currency) and fetch the price converted into it (below). Everything else
-    // adopts the instrument's quote currency.
-    if (inst.quoteCurrency && !userChosenCurrency) {
+    // Default the holding's currency on select:
+    //   crypto → DON'T adopt the instrument's quote ccy; keep the user's pick
+    //     (default = budget currency) and FX-convert the USD quote into it.
+    //   equity/ETF/everything else → adopt the instrument's OWN quote currency (the
+    //     asset's native ccy, e.g. USD) as the default. equity/ETF still show the
+    //     picker (usesUserChosenCurrency) so the user can re-denominate afterward.
+    const adoptInstrumentCcy = uiType !== "crypto";
+    // Compute the fetch target explicitly — setBuyCurrency below is async, so
+    // reading `buyCurrency` state here would be stale.
+    const holdingCcy =
+      adoptInstrumentCcy && inst.quoteCurrency
+        ? inst.quoteCurrency
+        : buyCurrency;
+    if (adoptInstrumentCcy && inst.quoteCurrency) {
       setBuyCurrency(inst.quoteCurrency);
       setCurrentPriceCurrency(inst.quoteCurrency);
     }
@@ -379,8 +388,10 @@ export function HoldingSheet({
     // never call the price endpoint (it would 422 → spurious blocked banner).
     if (isAutoPriced(inst.provider)) {
       setCurrentPrice("");
-      // Crypto: ask for the price FX-converted into the chosen currency.
-      void fetchPrice(inst.id, userChosenCurrency ? buyCurrency : undefined);
+      // User-currency types (crypto/equity/etf): ask for the price in the holding's
+      // currency — the server FX-converts when it differs from the provider quote
+      // (equity default = asset ccy → no conversion; a later currency change does).
+      void fetchPrice(inst.id, userChosenCurrency ? holdingCcy : undefined);
     } else {
       setCurrentPrice("");
       setPriceBlocked(false);

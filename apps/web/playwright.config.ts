@@ -66,6 +66,16 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     {
       name: "mobile",
+      // The @reserves-golden timeline is a reserve-MATH golden verification: it
+      // replays dozens of sequential inline-edit actions and asserts every cell
+      // against a fixed golden table. The math is engine/viewport-independent and
+      // is verified deterministically on the chromium project. This project is
+      // Desktop-Chrome at a 390px viewport (no touch — same reveal model as
+      // chromium), so re-running the same replay here adds no logic coverage,
+      // only re-exercises the flake-prone inline-edit harness at a narrow width
+      // where the just-mounted transactions refetch races the dblclick. Scope it
+      // to chromium (mirrors the geometry projects' per-project scoping).
+      grepInvert: /@reserves-golden/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },

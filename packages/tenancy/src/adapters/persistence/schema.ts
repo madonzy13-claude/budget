@@ -6,6 +6,7 @@ import {
   text,
   boolean,
   integer,
+  smallint,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { tenancy, appRole, workerRole } from "@budget/platform";
@@ -80,6 +81,15 @@ export const budgetMembers = tenancy.table(
       .references(() => budgets.id),
     userId: uuid("user_id").notNull(),
     role: text("role").notNull(), // 'owner' | 'member'
+    // All-budgets aggregate overview: per-member self-set share of this
+    // budget's wealth that counts toward THEIR all-budgets total, and
+    // opt-in/out of the cross-budget aggregate. No Σ=100 constraint across
+    // a budget's members — each member picks their own value, default 100
+    // (migration 0064).
+    ownershipSharePct: smallint("ownership_share_pct").notNull().default(100),
+    includeInAggregation: boolean("include_in_aggregation")
+      .notNull()
+      .default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

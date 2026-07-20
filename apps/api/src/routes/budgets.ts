@@ -174,6 +174,25 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       console.error("[budgets:get] listMembers failed:", e);
     }
 
+    // Task 11: caller's own include_in_aggregation flag (self-toggle in
+    // Settings) + self-set ownership_share_pct (no Σ=100 constraint —
+    // each member freely picks how much of THIS budget's wealth counts
+    // toward THEIR all-budgets total). getAggPrefsForUser is the existing
+    // user-scoped repo method (Task 3/4) — reused here rather than
+    // extending listMembers' MemberDTO. Both default to the column
+    // defaults (true / 100) if the lookup fails.
+    let includeInAggregation = true;
+    let ownershipSharePct = 100;
+    try {
+      const prefs =
+        await deps.tenancy.workspaceRepo.getAggPrefsForUser(actorUserId);
+      const mine = prefs.get(budgetId);
+      includeInAggregation = mine?.include_in_aggregation ?? true;
+      ownershipSharePct = mine?.ownership_share_pct ?? 100;
+    } catch (e) {
+      console.error("[budgets:get] getAggPrefsForUser failed:", e);
+    }
+
     return c.json({
       id: budget.id,
       name: budget.name,
@@ -188,6 +207,8 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       investmentsEnabled: budget.investmentsEnabled ?? false,
       amountPrivacyEnabled: budget.amountPrivacyEnabled ?? true,
       cushionTargetMonths: budget.cushionTargetMonths ?? 6,
+      includeInAggregation,
+      ownership_share_pct: ownershipSharePct,
       hasTransactions,
       currentUserRole,
     });

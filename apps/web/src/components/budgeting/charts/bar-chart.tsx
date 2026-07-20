@@ -24,6 +24,7 @@ import {
 } from "./chart-theme";
 import { CategoryTick } from "./category-tick";
 import { ChartTooltipContent } from "./chart-tooltip";
+import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 
 export function OverviewBarChart({
   data,
@@ -37,6 +38,7 @@ export function OverviewBarChart({
   labelFormat,
   xTickFormat,
   tooltipExtra,
+  maskAmounts = false,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -59,8 +61,15 @@ export function OverviewBarChart({
   labelFormat?: (label: string | number) => string;
   /** Format the category X-axis ticks (e.g. ISO date → "12 Feb 2026"). */
   xTickFormat?: (label: string | number) => string;
+  /** Privacy: hide the numeric axis ticks (→ "•••") until the shared reveal. */
+  maskAmounts?: boolean;
 }) {
   const vertical = layout === "vertical";
+  const { revealed } = useSlotReveal();
+  const hideAmt = maskAmounts && !revealed;
+  // Numeric axis + tooltip value — both masked to "•••" when hidden.
+  const numFmt = hideAmt ? () => "•••" : formatValue;
+  const tipFmt = hideAmt ? () => "•••" : (formatTooltip ?? formatValue);
   // Vertical (category) charts: scale height with the row count so 2-line wrapped
   // labels don't overlap in thin bands (UAT). Horizontal keeps the passed height.
   const chartHeight = vertical
@@ -86,7 +95,7 @@ export function OverviewBarChart({
   };
   // Build axes as plain elements (no Fragment) — recharts inspects direct children.
   const xAxis = vertical ? (
-    <XAxis type="number" tickFormatter={formatValue} {...chartAxis} />
+    <XAxis type="number" tickFormatter={numFmt} {...chartAxis} />
   ) : (
     <XAxis
       type="category"
@@ -110,7 +119,7 @@ export function OverviewBarChart({
   ) : (
     <YAxis
       type="number"
-      tickFormatter={formatValue}
+      tickFormatter={numFmt}
       width={48}
       {...chartAxis}
       tick={leftAlignedYTick(48)}
@@ -153,7 +162,7 @@ export function OverviewBarChart({
           cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
           content={
             <ChartTooltipContent
-              formatY={formatTooltip ?? formatValue}
+              formatY={tipFmt}
               series={series}
               labelFormat={labelFormat}
               // Single-series per-point bars (up/down, per-category): the marker

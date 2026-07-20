@@ -135,8 +135,13 @@ export function createOrganizationPlugin(deps: OrgDeps) {
         await assertCurrencyChangeAllowed({ orgId, actorUserId });
       },
 
-      // Budget gains member → insert 0% share row (kind-removal: every budget,
-      // not just SHARED — a budget becomes "shared" simply by having >1 member).
+      // Budget gains member → insert 0% legacy contribution-split row
+      // (kind-removal: every budget, not just SHARED — a budget becomes
+      // "shared" simply by having >1 member). This is the separate, untouched
+      // legacy shared_budget_member_shares system (packages/tenancy/src/domain/share.ts).
+      // ownership_share_pct (the new self-set all-budgets-aggregate share)
+      // needs no hook here — its column DEFAULT (100) handles every member,
+      // owner and invitee alike.
       // PC-03: use withTenantTx(budgetId, userId, fn) — extended signature sets BOTH
       // app.tenant_ids AND app.current_user_id GUCs in same SET LOCAL pair.
       afterAddMember: async ({ member, organization }) => {

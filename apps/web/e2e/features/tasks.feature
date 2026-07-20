@@ -5,22 +5,23 @@ Feature: Tasks redesign — home badge + per-pill badge + per-pill slider
     Given I am signed in as a fresh user
 
   # ───────────────────────────────────────────────────────────────────────
-  # Home page badges
+  # Switcher row badges
   # ───────────────────────────────────────────────────────────────────────
-  # r35: a single-budget user auto-opens their overview; seed a 2nd budget so the
-  # home card listing (where the badge lives) is reachable via ?list=1.
-  Scenario: Home shows red badge "3" on a budget card with 3 pending tasks
+  # r35 + Task 16: the home page no longer shows per-budget cards (≥2 budgets
+  # render the AggregateOverview). The per-budget pending-task count badge now
+  # lives on each row of the header budget switcher (PillBadge on switcher-row).
+  Scenario: Switcher row shows red badge "3" for a budget with 3 pending tasks
     Given a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "EUR"
     And a "CONFIRM_DRAFT" task is seeded for "My E2E Budget" with rule "Rent" amount 100000 cents in "EUR"
     And a "CUSHION_BELOW_TARGET" task is seeded for "My E2E Budget" with shortfall 3000 cents in "EUR"
-    And I also have a budget named "Second E2E Budget"
-    When I open the home budget listing
-    Then the budget card for "My E2E Budget" shows a pending tasks badge "3"
+    When I open the home page
+    And I open the budget switcher
+    Then the switcher row for "My E2E Budget" shows a pending tasks badge "3"
 
-  Scenario: Home shows no badge on a budget with 0 pending tasks
-    Given I also have a budget named "Second E2E Budget"
-    When I open the home budget listing
-    Then the budget card for "My E2E Budget" shows no pending tasks badge
+  Scenario: Switcher row shows no badge for a budget with 0 pending tasks
+    When I open the home page
+    And I open the budget switcher
+    Then the switcher row for "My E2E Budget" shows no pending tasks badge
 
   # ───────────────────────────────────────────────────────────────────────
   # BDP pill badges

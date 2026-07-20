@@ -8,6 +8,7 @@
  */
 import * as React from "react";
 import { Loader2, RotateCcw } from "lucide-react";
+import { windowPanCorrection } from "@/lib/ios-keyboard-pan";
 
 export interface InlineEditCellProps<T> {
   value: T;
@@ -47,6 +48,42 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
   // session in a ref so subsequent commits within the same session
   // no-op until the next beginEdit cycle.
   const committedRef = React.useRef(false);
+  const editorRef = React.useRef<HTMLDivElement | null>(null);
+
+  // iOS standalone pans the WINDOW on keyboard open (vpdbg: winY/seTop moves,
+  // <main> scrollTop stays 0) and the FIRST open after app launch overshoots
+  // several-fold, shoving the edited row under the status bar. Correct the
+  // window scroll — and ONLY the window — whenever the visual viewport
+  // changes while an editor is open. No-op when the input is already visible
+  // (Safari, and every well-behaved later open).
+  React.useEffect(() => {
+    if (!editing) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const input = editorRef.current?.querySelector<HTMLElement>(
+      "input, textarea",
+    );
+    if (!input) return;
+    const correct = () => {
+      const rect = input.getBoundingClientRect();
+      const delta = windowPanCorrection({
+        inputTop: rect.top,
+        inputBottom: rect.bottom,
+        vvOffsetTop: vv.offsetTop,
+        vvHeight: vv.height,
+      });
+      if (delta !== 0) window.scrollBy(0, delta);
+    };
+    vv.addEventListener("resize", correct);
+    vv.addEventListener("scroll", correct);
+    // Backstop in case the keyboard settles without a final vv event.
+    const t = setTimeout(correct, 450);
+    return () => {
+      vv.removeEventListener("resize", correct);
+      vv.removeEventListener("scroll", correct);
+      clearTimeout(t);
+    };
+  }, [editing]);
 
   const beginEdit = () => {
     if (props.disabled || saving) return;
@@ -158,6 +195,7 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
 
   return (
     <div
+      ref={editorRef}
       data-testid={props.testId ? `${props.testId}-editor` : undefined}
       // UAT-PH5-T3-36: ancestor scroll containers (e.g. the mobile
       // wallet row swipe wrapper) read this attribute to relax their

@@ -24,6 +24,7 @@ import {
 import { CHART_THEME, chartAxis, type ChartSeries } from "./chart-theme";
 import { CategoryTick } from "./category-tick";
 import { ChartTooltipContent } from "./chart-tooltip";
+import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 
 const BAR_SIZE = 16;
 // Vertical (category) row height: enough for a 2-line wrapped label + the overlaid
@@ -43,6 +44,7 @@ export function OverviewOverlapBarChart({
   formatValue,
   formatTooltip,
   labelFormat,
+  maskAmounts = false,
 }: {
   data: Array<Record<string, unknown>>;
   /** Category key — the Y axis (vertical layout). */
@@ -64,7 +66,13 @@ export function OverviewOverlapBarChart({
   formatValue?: (n: number) => string;
   formatTooltip?: (n: number) => string;
   labelFormat?: (label: string | number) => string;
+  /** Privacy: hide the numeric X-axis ticks (→ "•••") until the shared reveal. */
+  maskAmounts?: boolean;
 }) {
+  const { revealed } = useSlotReveal();
+  const hideAmt = maskAmounts && !revealed;
+  const numFmt = hideAmt ? () => "•••" : formatValue;
+  const tipFmt = hideAmt ? () => "•••" : (formatTooltip ?? formatValue);
   // Hover/tap state — mirrors bar-chart.tsx.
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeRef = useRef<number | null>(null);
@@ -116,7 +124,7 @@ export function OverviewOverlapBarChart({
           horizontal={false}
           vertical
         />
-        <XAxis type="number" tickFormatter={formatValue} {...chartAxis} />
+        <XAxis type="number" tickFormatter={numFmt} {...chartAxis} />
         <YAxis
           type="category"
           dataKey={xKey}
@@ -131,7 +139,7 @@ export function OverviewOverlapBarChart({
           cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
           content={
             <ChartTooltipContent
-              formatY={formatTooltip ?? formatValue}
+              formatY={tipFmt}
               series={[base, overlay]}
               labelFormat={labelFormat}
               // Overlay row's marker uses the SAME per-category heat colour as its

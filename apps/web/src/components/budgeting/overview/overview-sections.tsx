@@ -38,10 +38,12 @@ export function OverviewSections({
   budgetId,
   reservesEnabled = true,
   investmentsEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   reservesEnabled?: boolean;
   investmentsEnabled?: boolean;
+  amountPrivacyEnabled?: boolean;
 }) {
   // Range persists across pill navigation via the BDP store (item 4): seed from
   // it on mount, write back on every change.
@@ -182,16 +184,22 @@ export function OverviewSections({
       >
         <RangeSelector value={range} onChange={applyRange} />
       </div>
-      <PlannedSection budgetId={budgetId} range={range} />
+      <PlannedSection
+        budgetId={budgetId}
+        range={range}
+        amountPrivacyEnabled={amountPrivacyEnabled}
+      />
       <OverspentReservesSection
         budgetId={budgetId}
         range={range}
         reservesEnabled={reservesEnabled}
+        amountPrivacyEnabled={amountPrivacyEnabled}
       />
       <WealthSection
         budgetId={budgetId}
         range={range}
         investmentsEnabled={investmentsEnabled}
+        amountPrivacyEnabled={amountPrivacyEnabled}
       />
     </div>
   );

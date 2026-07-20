@@ -14,18 +14,14 @@ export function formatChartDate(
   // Also accepts an hourly bucket "YYYY-MM-DDTHH" (the 1D wealth view).
   const m = /^(\d{4})-(\d{2})(?:-(\d{2})(?:T(\d{2}))?)?$/.exec(label);
   if (!m) return label;
-  const [, y, mo, d, h] = m;
-  const date = new Date(
-    Date.UTC(Number(y), Number(mo) - 1, d ? Number(d) : 1, h ? Number(h) : 0),
-  );
+  const [, y, mo, d] = m;
+  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, d ? Number(d) : 1));
   const monthShort = new Intl.DateTimeFormat(locale, {
     month: "short",
     timeZone: "UTC",
   }).format(date);
-  if (h) {
-    // 1h / 12h bucket → "1 Jul 17:00" (UTC hour + date; the date disambiguates the
-    // same hour across days on the multi-day 1M/3M wealth ranges).
-    return `${Number(d)} ${monthShort} ${h}:00`;
-  }
+  // Hourly buckets (1M/3M wealth view) collapse to their DATE — no time (the
+  // axis + tooltip show only the date). Sparse ticks mean same-day hours share a
+  // label, which is fine.
   return d ? `${Number(d)} ${monthShort} ${y}` : `${monthShort} ${y}`;
 }

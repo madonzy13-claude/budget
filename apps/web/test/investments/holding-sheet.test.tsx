@@ -493,12 +493,53 @@ describe("HoldingSheet — type-first", () => {
     });
   });
 
-  it("selecting an instrument hides the currency picker and shows its currency in the price label", () => {
+  it("equity: keeps the currency picker visible WITH an instrument (re-denominate + FX)", () => {
     render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
-    // Default tracked holding has an instrument (i1) → currency is the instrument's,
-    // so the picker is hidden and the price label carries the currency.
-    expect(screen.queryByTestId("currency-stub")).toBeNull();
-    expect(screen.getByText(/field\.currentPrice \(USD\)/)).toBeInTheDocument();
+    // Equity is now user-currency (like crypto): a US stock quoted USD can be
+    // tracked/valued in another currency via FX, so the picker stays available.
+    const picker = screen.getByTestId("currency-stub") as HTMLSelectElement;
+    expect(picker).toBeInTheDocument();
+    expect(picker.value).toBe("USD"); // seeded from the holding's currency
+  });
+
+  it("equity: selecting an instrument defaults the currency to the instrument's own currency", () => {
+    // Start the equity holding in EUR, then pick a USD-quoted instrument (AAPL):
+    // the currency must ADOPT the instrument's USD (found-in-suggestions default).
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "19800", currency: "USD" }),
+    } as unknown as Response);
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({ buyCurrency: "EUR", currentPriceCurrency: "EUR" })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("pick-instrument")); // AAPL / USD
+    expect(
+      (screen.getByTestId("currency-stub") as HTMLSelectElement).value,
+    ).toBe("USD");
+  });
+
+  it("equity: changing the currency re-fetches the price FX-converted to that currency", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "9900", currency: "PLN" }),
+    } as unknown as Response);
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    vi.mocked(clientApiFetch).mockClear();
+    fireEvent.change(screen.getByTestId("currency-stub"), {
+      target: { value: "PLN" },
+    });
+    await waitFor(() => expect(clientApiFetch).toHaveBeenCalled());
+    const call = vi.mocked(clientApiFetch).mock.calls.at(-1);
+    expect(String(call?.[0])).toContain("/investments/price/i1");
+    expect(JSON.parse((call?.[1] as RequestInit).body as string)).toMatchObject(
+      {
+        currency: "PLN",
+      },
+    );
   });
 
   // 260626: crypto is quoted in USD (CoinGecko) but the user values it in a

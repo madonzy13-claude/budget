@@ -39,7 +39,7 @@ import { SlideOnChange } from "@/components/common/slide-on-change";
 import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
 import { InvestmentCategorySlider } from "../investment-category-slider";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import {
@@ -57,6 +57,9 @@ import { useBudget, useCategories } from "@/hooks/use-budget-data";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { restoreScroll } from "@/lib/restore-scroll";
+import { handleGridKeyNav, isGridNavEligibleTarget } from "@/lib/grid-key-nav";
+import { typeaheadStep } from "@/lib/grid-typeahead";
+import { formatTimestamp } from "@/lib/format-date";
 import { useMonthParam } from "@/hooks/use-month-param";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -150,6 +153,37 @@ function seedCategoryOrder(data: unknown): CategoryDTO[] {
     .sort((a, b) => a.sortIndex - b.sortIndex);
 }
 
+/**
+ * r40b (items 3/4): keep the just-focused keyboard nav target visible inside the
+ * grid scroller. The quick-entry field lives in a sticky top band; transactions
+ * scroll underneath it, so the browser's native focus-scroll leaves a row
+ * hidden BEHIND the band (it thinks the row is "in view"). We correct for the
+ * band height, and snap to the top when landing on a quick input so the next
+ * ArrowDown reveals the first row (and a wrap from the bottom row isn't lost).
+ */
+function ensureNavTargetVisible(root: HTMLElement): void {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return;
+  if (el.matches('input[data-testid^="quick-entry-"]')) {
+    root.scrollTo({ top: 0 });
+    return;
+  }
+  if (!el.matches("[data-txn-nav]")) return;
+  const gridRect = root.getBoundingClientRect();
+  const band = el
+    .closest('[data-testid^="category-column-"]')
+    ?.querySelector('[data-testid^="column-sticky-"]');
+  const bandBottom = band ? band.getBoundingClientRect().bottom : gridRect.top;
+  const elRect = el.getBoundingClientRect();
+  const margin = 8;
+  if (elRect.top < bandBottom + margin) {
+    // Hidden behind (or above) the sticky band → scroll it down into view.
+    root.scrollTop -= bandBottom + margin - elRect.top;
+  } else if (elRect.bottom > gridRect.bottom - margin) {
+    root.scrollTop += elRect.bottom - (gridRect.bottom - margin);
+  }
+}
+
 function defaultEmptySummary(categoryId: string): SpendingsSummaryCategoryDTO {
   return {
     categoryId,
@@ -212,6 +246,88 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   const bdpStore = useBdpUiStore();
   const tDel = useTranslations("grid.deleteCategory");
   const tGrid = useTranslations("grid");
+  const locale = useLocale();
+
+  // r40 desktop keyboard nav: Tab cycles quick-add inputs, arrows walk a
+  // column's rows (lib/grid-key-nav.ts). Document-level (capture) so the very
+  // FIRST Tab on a fresh page load (focus on <body>) lands on the first
+  // quick-add input instead of the header logo. Keys pressed while focus is
+  // in the header/nav stay native — only body- or grid-scoped keys are taken.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const root = gridRef.current;
+      if (!root) return;
+      const target = e.target as HTMLElement | null;
+      // Take the key when focus is inside the grid OR resting on a plain
+      // element (body, or a BDP tab pill that kept focus after a pushState tab
+      // switch — the bug where arrows did nothing until you clicked the page).
+      // Skip real text fields / open menus / dialogs elsewhere.
+      if (!isGridNavEligibleTarget(e.target, root)) return;
+      if (
+        handleGridKeyNav(
+          {
+            key: e.key,
+            shiftKey: e.shiftKey,
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            target: e.target,
+          },
+          root,
+        )
+      ) {
+        e.preventDefault();
+        ensureNavTargetVisible(root);
+        return;
+      }
+
+      // r40b type-ahead: a bare letter (no Ctrl/Meta/Alt) jumps to the column
+      // whose name it can uniquely identify and focuses its quick-add field.
+      // DIGITS are never hijacked — they belong in the amount field.
+      if (
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        e.key.length === 1 &&
+        /\p{L}/u.test(e.key)
+      ) {
+        // Never hijack the inline amount editor (an INPUT that is NOT a quick
+        // input) or any other real text field — only body / rows / quick inputs.
+        const inQuickInput = !!target?.matches?.(
+          'input[data-testid^="quick-entry-"]',
+        );
+        const inOtherField =
+          !!target &&
+          !inQuickInput &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable);
+        if (inOtherField) return;
+
+        const now = Date.now();
+        if (now - typeaheadTimeRef.current > 5000)
+          typeaheadBufferRef.current = "";
+        typeaheadTimeRef.current = now;
+        const { buffer, jumpTo } = typeaheadStep(
+          typeaheadBufferRef.current,
+          e.key,
+          typeaheadNamesRef.current,
+        );
+        typeaheadBufferRef.current = buffer;
+        // Swallow the letter so it never lands in a numeric quick input.
+        e.preventDefault();
+        if (jumpTo) {
+          root
+            .querySelector<HTMLElement>(
+              `[data-testid="quick-entry-${jumpTo.toLowerCase()}"]`,
+            )
+            ?.focus();
+          ensureNavTargetVisible(root);
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, []);
   const offlineToast = useOfflineWriteToast();
   // 260615-bse: one shared offline dialog for the whole grid. Both the
   // device-knows-offline pre-insert short-circuit (quick-entry) and the
@@ -367,6 +483,12 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // transaction row is hidden behind the sticky header band. A txn row is
   // min-h-[40px] + py-1 ≈ 48px; threshold at 20px = ~half-row hidden.
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // Type-ahead category jump (r40b): buffer + last-keystroke time (5s idle reset)
+  // + the latest visible category names (kept in a ref so the empty-dep keydown
+  // listener always sees the current columns without re-attaching).
+  const typeaheadBufferRef = useRef("");
+  const typeaheadTimeRef = useRef(0);
+  const typeaheadNamesRef = useRef<string[]>([]);
   const [gridScrolled, setGridScrolled] = useState(false);
   function handleGridScroll() {
     const t = (gridRef.current?.scrollTop ?? 0) > 20;
@@ -762,6 +884,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       }),
     [effectiveCategoryOrder, summaryByCatId, transactionsByCatId],
   );
+  // Feed the current column names to the type-ahead listener (see the keydown
+  // effect). Render-time ref write is fine — no state, no re-render.
+  typeaheadNamesRef.current = visibleCategories.map((c) => c.name);
 
   // Cold load = no cached summary/categories yet. A warm re-nav has both from
   // the persisted React Query cache → real columns render immediately (zero
@@ -816,7 +941,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
         // scrollHeight past the last row instead.
         style={{ overscrollBehavior: "none" }}
-        className="mt-4 overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
+        // flex-col so the "last spending added" line can mt-auto to the
+        // bottom of the visible box when the columns are short (r40).
+        className="mt-4 flex flex-col overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
       >
         <DndContext
           sensors={sensors}
@@ -859,7 +986,11 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
                         setTxSlider({ open: true, mode: "edit", txId })
                       }
                       onEditDraft={(draftId) =>
-                        setTxSlider({ open: true, mode: "edit", txId: draftId })
+                        setTxSlider({
+                          open: true,
+                          mode: "edit",
+                          txId: draftId,
+                        })
                       }
                       onEditCategory={(categoryId) =>
                         setCatSlider({ open: true, mode: "edit", categoryId })
@@ -906,6 +1037,30 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           data-grid-tail-spacer
           className="h-[calc(env(safe-area-inset-bottom,0px)+64px)] shrink-0 w-full pointer-events-none"
         />
+        {/* r40: "last spending added" freshness line. LAST child so it sits at
+              the very bottom of the grid box (the spacer no longer lifts it).
+              IN-FLOW (not position-fixed): mt-auto drops it to the bottom edge
+              when the columns are short, and when they're tall it's the final
+              element you scroll to. sticky left-0 + w-full text-center keep it
+              centred while the columns pan sideways so it never scrolls
+              horizontally. opacity-60 fades it toward the canvas in BOTH themes
+              (darker on dark, lighter on light) so it reads as a quiet footnote.
+              pb safe-area clears the iOS home indicator. Per-month, user-tz
+              timestamp; created_at based — edits don't bump it, delete falls back. */}
+        {summary.data?.lastSpendingAddedAt && (
+          <div
+            data-testid="last-spending-added"
+            className="sticky left-0 mt-auto w-full pt-3 pb-[env(safe-area-inset-bottom,0px)] text-center text-caption text-[var(--muted-foreground)] opacity-60"
+          >
+            {tGrid("lastAdded", {
+              when: formatTimestamp(
+                summary.data.lastSpendingAddedAt,
+                locale,
+                userTz,
+              ),
+            })}
+          </div>
+        )}
       </div>
 
       <TransactionSlider

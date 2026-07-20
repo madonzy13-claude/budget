@@ -20,10 +20,16 @@ vi.mock("@/lib/api-client", () => ({
       ":id": {
         $patch: vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
         members: {
-          $get: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ members: [] }) }),
+          $get: vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ members: [] }),
+          }),
         },
         share: {
-          $post: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ url: "https://example.com/join/abc" }) }),
+          $post: vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ url: "https://example.com/join/abc" }),
+          }),
         },
         archive: {
           $post: vi.fn().mockResolvedValue({ ok: true }),
@@ -54,7 +60,8 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(() => ({ data: { members: [] }, isLoading: false })),
   useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
   QueryClient: vi.fn(),
-  QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
+  QueryClientProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
 }));
 
 // entity hooks the accordion reads for the config checklist — return arrays so
@@ -73,6 +80,14 @@ vi.mock("@/hooks/use-investments", () => ({
 }));
 vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({ data: [] }),
+}));
+
+// Task 11: controllable active-budgets count for the aggregation-toggle gate.
+const activeBudgetsMock = vi.hoisted(() => ({
+  current: { data: [{ id: "budget-1" }] as unknown[] },
+}));
+vi.mock("@/hooks/use-active-budgets", () => ({
+  useActiveBudgets: () => activeBudgetsMock.current,
 }));
 
 const sharedBudget = {
@@ -166,7 +181,10 @@ describe("SettingsAccordion — config-progress banner (r34 flicker)", () => {
   });
 
   it("hides the banner while the config counts are still loading", () => {
-    walletsMock.current = { data: undefined as unknown as unknown[], isLoading: true };
+    walletsMock.current = {
+      data: undefined as unknown as unknown[],
+      isLoading: true,
+    };
     render(<SettingsAccordion budget={sharedBudget} />);
     expect(screen.queryByTestId("settings-config-progress")).toBeNull();
   });
@@ -175,5 +193,23 @@ describe("SettingsAccordion — config-progress banner (r34 flicker)", () => {
     // default mock: loaded (isLoading:false) with empty data → percent < 100
     render(<SettingsAccordion budget={sharedBudget} />);
     expect(screen.getByTestId("settings-config-progress")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsAccordion — aggregation toggle gating (Task 11)", () => {
+  it("hides the toggle when the user has only 1 active budget", () => {
+    activeBudgetsMock.current = { data: [{ id: "budget-1" }] };
+    render(<SettingsAccordion budget={sharedBudget} />);
+    expect(screen.queryByTestId("settings-aggregation-toggle")).toBeNull();
+  });
+
+  it("shows the toggle when the user has 2+ active budgets", () => {
+    activeBudgetsMock.current = {
+      data: [{ id: "budget-1" }, { id: "budget-2" }],
+    };
+    render(<SettingsAccordion budget={sharedBudget} />);
+    expect(
+      screen.getByTestId("settings-aggregation-toggle"),
+    ).toBeInTheDocument();
   });
 });

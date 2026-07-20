@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -92,6 +93,34 @@ export function BdpTabs({
     ? TABS
     : TABS.filter((tab) => tab.slug !== "reserves");
 
+  // r40b (item 9): Tab / Shift+Tab cycle the pills (next / previous, wrapping).
+  // Guarded so it never hijacks real form Tab-order: skipped when focus is in a
+  // dialog/sheet (they trap their own Tab) or in a text field OTHER than the
+  // grid's numeric quick-entry inputs (which use arrows for in-grid nav).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Tab" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae?.closest('[role="dialog"]')) return;
+      const inFormField =
+        !!ae &&
+        !ae.matches('input[data-testid^="quick-entry-"]') &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.tagName === "SELECT" ||
+          ae.isContentEditable);
+      if (inFormField) return;
+      const slugs = visibleTabs.map((tab) => tab.slug);
+      const cur = slugs.indexOf(activeTab);
+      if (cur === -1) return;
+      e.preventDefault();
+      const dir = e.shiftKey ? -1 : 1;
+      onSelect(slugs[(cur + dir + slugs.length) % slugs.length]!);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visibleTabs, activeTab, onSelect]);
+
   return (
     <nav
       aria-label={t("aria")}
@@ -110,7 +139,10 @@ export function BdpTabs({
             aria-label={label}
             className={cn(
               "relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-pill)] px-3 transition-colors",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--info)]",
+              // No focus outline on pills — the yellow fill already marks the
+              // focused/active pill (Tab immediately activates it). outline-none
+              // also overrides the global :focus-visible ring for this element.
+              "focus-visible:outline-none",
               "min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
               active
                 ? "text-[var(--on-primary)] text-sm font-semibold"

@@ -23,6 +23,12 @@ import {
 } from "./chart-theme";
 import { ChartTooltipContent } from "./chart-tooltip";
 import { useDismissTooltip } from "./use-dismiss-tooltip";
+import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
+import { cn } from "@/lib/utils";
+
+/** A fixed 3-dot mask — hides the amount entirely (magnitude, K/M suffix, and
+ *  all) with a constant width regardless of the real number. */
+const AMOUNT_MASK = "•••";
 
 export function OverviewAreaChart({
   data,
@@ -34,6 +40,7 @@ export function OverviewAreaChart({
   xTickFormat,
   labelFormat,
   tooltipExtra,
+  maskAmounts = false,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -50,10 +57,20 @@ export function OverviewAreaChart({
   tooltipExtra?: (
     row: Record<string, unknown>,
   ) => Array<{ label: string; value: string; color?: string }>;
+  /** Privacy: when true, blur the Y-axis amounts + mask the tooltip amount until
+   *  the shared SlotAmount reveal is toggled on (amounts only — dates stay). */
+  maskAmounts?: boolean;
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
-  return (
+  const { revealed } = useSlotReveal();
+  const hidden = maskAmounts && !revealed;
+  // When hidden, both the Y-axis ticks and the tooltip value become "•••" (the
+  // CSS blur below still applies on top). Fixed mask → the whole magnitude + any
+  // K/M suffix are gone.
+  const tooltipFmt = hidden ? () => AMOUNT_MASK : (formatTooltip ?? formatY);
+  const yFmt = hidden ? () => AMOUNT_MASK : formatY;
+  const chart = (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart
         data={data}
@@ -71,7 +88,7 @@ export function OverviewAreaChart({
           {...(xTickFormat ? { tickFormatter: xTickFormat } : {})}
         />
         <YAxis
-          tickFormatter={formatY}
+          tickFormatter={yFmt}
           width={48}
           {...chartAxis}
           tick={leftAlignedYTick(48)}
@@ -81,7 +98,7 @@ export function OverviewAreaChart({
           cursor={hideCursor ? false : chartTooltip.cursor}
           content={
             <ChartTooltipContent
-              formatY={formatTooltip ?? formatY}
+              formatY={tooltipFmt}
               series={series}
               labelFormat={labelFormat ?? xTickFormat}
               extra={tooltipExtra}
@@ -111,5 +128,17 @@ export function OverviewAreaChart({
         })}
       </AreaChart>
     </ResponsiveContainer>
+  );
+  // Blur only the Y-axis amount ticks when hidden (dates on the X-axis stay
+  // sharp). transition matches the SlotAmount reveal feel.
+  return (
+    <div
+      className={cn(
+        "[&_.recharts-yAxis]:transition-[filter] [&_.recharts-yAxis]:duration-500",
+        hidden && "[&_.recharts-yAxis]:blur-[5px]",
+      )}
+    >
+      {chart}
+    </div>
   );
 }

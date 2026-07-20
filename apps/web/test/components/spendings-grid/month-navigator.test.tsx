@@ -142,13 +142,28 @@ describe("MonthNavigator", () => {
     expect(pushStateSpy).not.toHaveBeenCalled();
   });
 
-  it("Cmd+ArrowLeft navigates prev (D-PH4-Q3)", () => {
+  it("Cmd+ArrowLeft WITHOUT shift does NOT change month (that's a column jump now)", () => {
     render(<MonthNavigator month="2026-05" />);
     act(() => {
       window.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "ArrowLeft",
           metaKey: true,
+          bubbles: true,
+        }),
+      );
+    });
+    expect(pushStateSpy).not.toHaveBeenCalled();
+  });
+
+  it("Cmd+Shift+ArrowLeft navigates prev (r40b)", () => {
+    render(<MonthNavigator month="2026-05" />);
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowLeft",
+          metaKey: true,
+          shiftKey: true,
           bubbles: true,
         }),
       );
@@ -160,7 +175,7 @@ describe("MonthNavigator", () => {
     );
   });
 
-  it("Cmd+ArrowRight navigates next", () => {
+  it("Cmd+Shift+ArrowRight navigates next", () => {
     // Past month so next() is not blocked by the no-future-navigation guard.
     mockSearchParamsValue = "month=2026-04";
     render(<MonthNavigator month="2026-04" />);
@@ -169,6 +184,7 @@ describe("MonthNavigator", () => {
         new KeyboardEvent("keydown", {
           key: "ArrowRight",
           metaKey: true,
+          shiftKey: true,
           bubbles: true,
         }),
       );

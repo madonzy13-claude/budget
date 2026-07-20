@@ -114,6 +114,13 @@ describe("Budgets route (renamed from workspaces)", () => {
           listMembers: async () => [],
           hasTransactions: async () => false,
           updateIdentity: async () => {},
+          getAggPrefsForUser: async () =>
+            new Map([
+              [
+                "budget-001",
+                { ownership_share_pct: 100, include_in_aggregation: false },
+              ],
+            ]),
         },
         memberShareRepo: { list: async () => [], update: async () => {} },
       },
@@ -134,6 +141,10 @@ describe("Budgets route (renamed from workspaces)", () => {
     const body = (await res.json()) as any;
     expect(body.reservesEnabled).toBe(true);
     expect(body.id).toBe("budget-001");
+    // Task 11: caller's own include_in_aggregation flag surfaces on GET.
+    expect(body.includeInAggregation).toBe(false);
+    // Self-set ownership share (no Σ=100 constraint) also surfaces on GET.
+    expect(body.ownership_share_pct).toBe(100);
   });
 
   it("GET /budgets/:id returns 404 when budget not in tenantIds", async () => {

@@ -126,6 +126,11 @@ export interface OverviewCards {
    * — "how long could I survive if I retire now" (item 5). null = no planned spend
    * (would last forever). */
   retirement_months: number | null;
+  /** Effective monthly planned spend = Σ active-budget of non-Investment
+   * categories (activeBudget = the category's cushion amount when the budget is in
+   * cushion mode, else its normal planned). This is the "money runway" burn rate —
+   * planned spend, cushion-aware — NOT spent-this-month. */
+  monthly_planned_cents: bigint;
   /** Annual inflation % baked into the retirement simulation (item 8). */
   retirement_inflation_pct: number;
   available_reserves_cents: bigint;
@@ -142,6 +147,11 @@ export interface OverviewCards {
     total_cents: bigint;
     /** Required cushion to cover the threshold — for the "have vs needed" line. */
     required_cents: bigint;
+    /** Monthly cushion need = Σ(category cushion amounts) = required ÷ target_months.
+     *  Independent of the wallet balance, so a budget that BUDGETS a cushion but
+     *  hasn't funded its wallet still contributes its monthly need to an aggregate
+     *  runway (required/real_months would drop it — real_months is 0 at 0 balance). */
+    monthly_cents: bigint;
     /** actual ≥ required — cushion fully covers its required limit (D-08). */
     covered: boolean;
   };
@@ -254,6 +264,12 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
           ? 0
           : Number(actualCents) /
             (Number(requiredCents) / cushion.target_months);
+      // Monthly cushion need = required ÷ target_months (= Σ category cushion
+      // amounts). Balance-independent, unlike real_months.
+      const monthlyCushionCents =
+        cushion.target_months > 0
+          ? BigInt(Math.round(Number(requiredCents) / cushion.target_months))
+          : 0n;
 
       // Available-to-spend breakdown (item 1). Spent this month + "upcoming" (what
       // you still expect to pay). Per category (r36, user's "max per category"
@@ -265,6 +281,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // availableToSpend. "good" = wallets cover what's left.
       let spentThisMonth = 0n;
       let monthlyPlanned = 0n;
+      let monthlyEffectivePlanned = 0n;
       let leftToSpend = 0n;
       for (const c of spendings.categories) {
         if (c.archived) continue;
@@ -272,6 +289,10 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         // Retirement spend EXCLUDES the Investments category: once retired there's
         // no income, so you stop investing — its planned amount isn't a cost.
         if (!c.isInvestment) monthlyPlanned += BigInt(c.plannedCents);
+        // Effective planned = active budget (cushion amount in cushion mode, else
+        // planned) — the money-runway burn rate. Also excludes Investments.
+        if (!c.isInvestment)
+          monthlyEffectivePlanned += BigInt(c.activeBudgetCents);
         const leftover = BigInt(c.activeBudgetCents) - BigInt(c.spentCents);
         const leftoverPos = leftover > 0n ? leftover : 0n;
         const catUpcoming = upcoming.get(c.categoryId) ?? 0n;
@@ -310,7 +331,12 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // Overspent: after-reserves overspent from the spendings grid, archived
       // categories excluded (D-06), top-N + total count.
       const overspentCats = spendings.categories
-        .filter((c) => !c.archived && BigInt(c.overspentCents) > 0n)
+        // Investments excluded — over-investing isn't overspending (mirrors the
+        // retirement-runway "Excludes Investments" filter above).
+        .filter(
+          (c) =>
+            !c.archived && !c.isInvestment && BigInt(c.overspentCents) > 0n,
+        )
         .sort((a, b) =>
           BigInt(b.overspentCents) > BigInt(a.overspentCents)
             ? 1
@@ -326,6 +352,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       return ok({
         default_currency: defaultCcy,
         available_to_spend_cents: availableToSpend,
+        monthly_planned_cents: monthlyEffectivePlanned,
         spendings: {
           spent_cents: spentThisMonth,
           left_cents: leftToSpend,
@@ -347,6 +374,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
           real_months: realMonths,
           total_cents: actualCents,
           required_cents: requiredCents,
+          monthly_cents: monthlyCushionCents,
           // Covered = saved cushion meets the required limit. requiredCents===0n
           // (no requirement) reads as covered.
           covered: actualCents >= requiredCents,

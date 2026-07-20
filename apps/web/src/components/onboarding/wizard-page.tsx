@@ -37,6 +37,7 @@ import { StepFeatures } from "./steps/step-features";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
 import { clientApiWrite } from "@/lib/offline-write";
+import { subscribeToPushForBudget } from "@/lib/push-subscribe";
 
 // kind-removal: the Type step is gone. Steps are now
 // 0 Welcome, 1 Basics, 2 Features, 3 Review.
@@ -49,6 +50,9 @@ interface WizardForm {
   reservesEnabled: boolean;
   /** Phase 9: opt into the Investments wallet section. Default off. */
   investmentsEnabled: boolean;
+  /** Opt into push notifications (reminders/tasks) + the app-icon badge. Default
+   *  off — enabling it triggers the browser permission prompt on Create budget. */
+  notificationsEnabled: boolean;
   /** Phase 7-09: desired cushion runway in months. Default 6. */
   cushionTargetMonths: number;
 }
@@ -86,6 +90,7 @@ export function WizardPage({
   const tActions = useTranslations("onboarding.wizard.actions");
   const tErrors = useTranslations("onboarding.wizard.errors");
   const tInvest = useTranslations("budget.investments");
+  const tPush = useTranslations("settings.push");
 
   // Defer-create model: a mid-wizard refresh restarts from step 0/1
   // rather than resuming a server-stored step pointer. The layout guard
@@ -109,6 +114,7 @@ export function WizardPage({
     cushionEnabled: true,
     reservesEnabled: true,
     investmentsEnabled: false,
+    notificationsEnabled: false,
     cushionTargetMonths: 6,
   });
 
@@ -126,6 +132,43 @@ export function WizardPage({
   ) => {
     setForm((f) => ({ ...f, [key]: value }));
   };
+
+  /**
+   * Enabling the notifications toggle REQUESTS OS permission right here (the click
+   * is the required user gesture), so the prompt appears during onboarding — and
+   * the user gets immediate feedback if push isn't available (iOS Safari must
+   * install the PWA first) rather than a silent no-op after "Create budget", where
+   * a toast would be lost to the redirect. Only flip the toggle ON once permission
+   * is actually granted; the commit then subscribes without re-prompting.
+   */
+  async function handleToggleNotifications(v: boolean): Promise<void> {
+    if (!v) {
+      updateForm("notificationsEnabled", false);
+      return;
+    }
+    const supported =
+      typeof Notification !== "undefined" &&
+      typeof navigator !== "undefined" &&
+      "serviceWorker" in navigator &&
+      !!process.env["NEXT_PUBLIC_VAPID_PUBLIC_KEY"];
+    if (!supported) {
+      toast.error(tPush("unsupported"));
+      return; // leave the toggle OFF — nothing to enable on this device
+    }
+    let permission: NotificationPermission = Notification.permission;
+    if (permission === "default") {
+      try {
+        permission = await Notification.requestPermission();
+      } catch {
+        permission = "denied";
+      }
+    }
+    if (permission !== "granted") {
+      toast.error(tPush("permissionDenied"));
+      return;
+    }
+    updateForm("notificationsEnabled", true);
+  }
 
   /**
    * Final-step write path. POST budget → PATCH feature toggles only when
@@ -193,15 +236,34 @@ export function WizardPage({
             "Content-Type": "application/json",
             "X-Budget-ID": budgetId,
           },
-          body: JSON.stringify({ name: tInvest("smart_category.default_name") }),
+          body: JSON.stringify({
+            name: tInvest("smart_category.default_name"),
+          }),
         });
       } catch {
         /* best-effort — creatable later from Settings */
       }
     }
 
-    // Notifications + app-icon badge are set up in Settings → Notifications, not
-    // the wizard (r37 UX: keep onboarding to budget structure only).
+    // Notifications: opted in → subscribe THIS budget to push (fires the browser
+    // permission prompt) and, on success, silently enable the app-icon BADGE too.
+    // There is intentionally no separate badge toggle in the wizard — enabling
+    // notifications enables the badge in the background. Best-effort: onboarding
+    // must complete even if permission is denied or the network hiccups; the user
+    // can still manage both from Settings → Notifications.
+    if (form.notificationsEnabled) {
+      try {
+        const result = await subscribeToPushForBudget(budgetId);
+        if (result === "subscribed") {
+          await api.push.preferences.$patch(
+            { json: { budgetId, notificationType: "BADGE", enabled: true } },
+            { headers: { "X-Budget-ID": budgetId } },
+          );
+        }
+      } catch {
+        /* best-effort — enable later from Settings → Notifications */
+      }
+    }
 
     // Mark onboarding complete.
     const completedAt = new Date().toISOString();
@@ -292,6 +354,8 @@ export function WizardPage({
             onChangeReserves={(v) => updateForm("reservesEnabled", v)}
             investmentsEnabled={form.investmentsEnabled}
             onChangeInvestments={(v) => updateForm("investmentsEnabled", v)}
+            notificationsEnabled={form.notificationsEnabled}
+            onChangeNotifications={(v) => void handleToggleNotifications(v)}
             cushionTargetMonths={form.cushionTargetMonths}
             onChangeCushionTargetMonths={(v) =>
               updateForm("cushionTargetMonths", v)

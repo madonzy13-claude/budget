@@ -142,6 +142,11 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
 
       const byCategory = windows
         .map((w) => {
+          // Investments excluded — over-investing isn't overspending (mirrors
+          // get-overview-planned's `if (w.is_investment) return null`). Zeroing
+          // `over` lets the `> 0n` filter below drop it, no null handling.
+          if (w.is_investment)
+            return { category_id: w.category_id, name: w.name, overspent: 0n };
           const activeMonths = rangeMonths.filter(
             (m) =>
               m >= w.created_month &&

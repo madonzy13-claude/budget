@@ -6,7 +6,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { TransactionRow } from "../../../src/components/budgeting/spendings-grid/transaction-row";
 import { TestQueryProvider } from "../../setup/query-client";
 
@@ -32,6 +31,7 @@ const txn = {
   amountConvertedCents: "1500",
   currencyConverted: "USD",
   transactionDate: "2026-05-14",
+  createdAt: "2026-02-13T15:43:00Z",
   note: null,
 };
 
@@ -81,39 +81,70 @@ describe("TransactionRow", () => {
     expect(row.textContent).toContain("15");
   });
 
-  it("shows a tooltip with the locale-formatted date and note on hover", async () => {
-    const user = userEvent.setup();
+  it("on focus shows an inline meta line: CREATION date (day + short month, NO year) + note", () => {
     renderRow({
-      txn: { ...txn, transactionDate: "2026-05-14", note: "Weekly shop" },
+      txn: {
+        ...txn,
+        transactionDate: "2026-05-14",
+        createdAt: "2026-02-13T15:43:00Z",
+        note: "Weekly shop",
+      },
     });
-    await user.hover(screen.getByText("15"));
-    const tip = await screen.findByTestId("txn-tooltip");
-    expect(tip.textContent).toContain("5/14/2026");
-    expect(tip.textContent).toContain("Weekly shop");
+    // No tooltip primitive is used anymore.
+    expect(document.querySelector('[data-testid="txn-tooltip"]')).toBeNull();
+    const row = screen.getByTestId("txn-row-1500");
+    fireEvent.focus(row);
+    const meta = screen.getByTestId("txn-row-meta");
+    expect(meta.textContent?.trim()).toBe("13 Feb · Weekly shop"); // no year, + note
+    expect(meta.textContent).not.toContain("2026"); // NO year
+    expect(meta.textContent).not.toContain("15:43"); // NO time
+    expect(meta.textContent).not.toContain("5/14/2026"); // NOT the spending date
   });
 
-  it("tooltip omits the note line when the transaction has no note", async () => {
-    const user = userEvent.setup();
-    renderRow({ txn: { ...txn, transactionDate: "2026-05-14", note: null } });
-    await user.hover(screen.getByText("15"));
-    const tip = await screen.findByTestId("txn-tooltip");
-    expect(tip.textContent).toContain("5/14/2026");
-    expect(tip.textContent).not.toContain("Weekly shop");
+  it("meta line is just the date when the transaction has no note", () => {
+    renderRow({ txn: { ...txn, note: null } });
+    const row = screen.getByTestId("txn-row-1500");
+    fireEvent.focus(row);
+    const meta = screen.getByTestId("txn-row-meta");
+    expect(meta.textContent?.trim()).toBe("13 Feb");
+    expect(meta.textContent).not.toContain("·");
   });
 
-  it("hover reveals the edit and delete chips; mouse leave hides them", () => {
+  it("resting (unfocused) row shows no meta line", () => {
+    renderRow({ txn: { ...txn, note: "Weekly shop" } });
+    expect(
+      document.querySelector('[data-testid="txn-row-meta"]'),
+    ).toBeNull();
+  });
+
+  it("hover reveals the edit and delete chips; they persist while focused, hide on blur", () => {
     renderRow();
     const row = screen.getByTestId("txn-row-1500");
     expect(
       document.querySelector('[data-testid="txn-action-edit"]'),
     ).toBeNull();
-    fireEvent.mouseEnter(row);
+    fireEvent.mouseEnter(row); // r40b: focus-follows-mouse focuses the row too
     expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
     expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
+    // r40b: the row stays the nav anchor after the mouse leaves (still focused),
+    // so the chips persist; they only hide once focus actually leaves the row.
     fireEvent.mouseLeave(row);
+    expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
+    fireEvent.blur(row);
     expect(
       document.querySelector('[data-testid="txn-action-edit"]'),
     ).toBeNull();
+  });
+
+  it("keyboard focus (arrow-nav) reveals the chips even without hover", () => {
+    renderRow();
+    const row = screen.getByTestId("txn-row-1500");
+    expect(
+      document.querySelector('[data-testid="txn-action-edit"]'),
+    ).toBeNull();
+    fireEvent.focus(row);
+    expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
+    expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
   });
 
   it("touch (no hover): a tap reveals the chips", () => {
@@ -248,5 +279,105 @@ describe("TransactionRow", () => {
     expect(screen.getByTestId("txn-action-delete").className).toContain(
       "cursor-pointer",
     );
+  });
+
+  // r40 desktop keyboard nav: rows are focused programmatically (Arrow keys
+  // via grid-key-nav) and act on Enter / Backspace. Tab order stays with the
+  // quick-add inputs, so the row itself is tabIndex=-1.
+  describe("keyboard interaction (r40)", () => {
+    it("row is out of the tab order but marked for arrow navigation", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      expect(row.getAttribute("tabindex")).toBe("-1");
+      expect(row.hasAttribute("data-txn-nav")).toBe(true);
+    });
+
+    it("Enter on the focused row opens the inline amount editor", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      expect(screen.getByDisplayValue("15")).toBeTruthy();
+    });
+
+    it("Backspace on the focused row opens the delete confirmation", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Backspace" });
+      expect(screen.getByTestId("txn-row-delete-confirm")).toBeTruthy();
+      expect(mockDeleteMutate).not.toHaveBeenCalled(); // confirm first, never direct
+    });
+
+    it("Delete key also opens the delete confirmation (item 7)", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Delete" });
+      expect(screen.getByTestId("txn-row-delete-confirm")).toBeTruthy();
+      expect(mockDeleteMutate).not.toHaveBeenCalled();
+    });
+
+    it("Cmd/Ctrl+Enter opens the FULL editor (pen) instead of the inline edit", () => {
+      const onEdit = vi.fn();
+      renderRow({ onEdit });
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter", metaKey: true });
+      expect(onEdit).toHaveBeenCalledWith(txn.id);
+      expect(screen.queryByDisplayValue("15")).toBeNull(); // NOT inline editing
+      fireEvent.keyDown(row, { key: "Enter", ctrlKey: true });
+      expect(onEdit).toHaveBeenCalledTimes(2);
+    });
+
+    it("Backspace INSIDE the amount editor edits text, never deletes the row", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      const editor = screen.getByDisplayValue("15");
+      fireEvent.keyDown(editor, { key: "Backspace" });
+      expect(screen.queryByTestId("txn-row-delete-confirm")).toBeNull();
+    });
+
+    it("focus styles the row like hover (elevated bg), no accent ring", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      expect(row.className).toContain(
+        "focus-visible:bg-[var(--surface-elevated-dark)]",
+      );
+      expect(row.className).not.toContain("focus-visible:ring");
+    });
+
+    it("re-focuses the ROW after an Enter-committed quick edit so navigation continues", async () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      const editor = screen.getByDisplayValue("15");
+      fireEvent.change(editor, { target: { value: "20" } });
+      fireEvent.keyDown(editor, { key: "Enter" });
+      await vi.waitFor(() => expect(document.activeElement).toBe(row));
+    });
+
+    it("re-focuses the ROW after Escape cancels the quick edit", async () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      const editor = screen.getByDisplayValue("15");
+      fireEvent.keyDown(editor, { key: "Escape" });
+      await vi.waitFor(() => expect(document.activeElement).toBe(row));
+    });
+
+    it("readOnly (archived) rows ignore Enter and Backspace", () => {
+      renderRow({ readOnly: true });
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      expect(screen.queryByDisplayValue("15")).toBeNull();
+      fireEvent.keyDown(row, { key: "Backspace" });
+      expect(screen.queryByTestId("txn-row-delete-confirm")).toBeNull();
+    });
   });
 });

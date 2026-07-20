@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useNavRouter } from "@/components/common/nav-pending";
+import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { useTranslations } from "next-intl";
-import { ChevronDown, Plus, User, Users } from "lucide-react";
+import { ChevronDown, LayoutGrid, Plus, User, Users } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -34,6 +35,19 @@ function isSharedBudget(b: BudgetSummary): boolean {
   return (b.memberCount ?? 1) > 1;
 }
 
+// Active dropdown row: a soft neutral-GREY background marks the selection — no
+// leading dot, underline, or coloured text — so rows never mis-align and it reads
+// as selected without a loud yellow. Hover deepens the same neutral surface.
+const ROW_BASE =
+  "flex h-10 w-full items-center gap-2 px-4 text-left cursor-pointer hover:bg-[var(--surface-elevated-dark)]";
+const ROW_ACTIVE_BG = "bg-[var(--surface-elevated-dark)]";
+function rowLabelClass(active: boolean): string {
+  return cn(
+    "flex-1 truncate text-body-md text-[var(--on-dark)]",
+    active && "font-medium",
+  );
+}
+
 export interface BudgetSwitcherProps {
   budgets: BudgetSummary[];
   activeBudgetId: string | null;
@@ -53,7 +67,7 @@ export interface BudgetSwitcherProps {
  * top nav (`z-50`) AND any BDP sticky wrapper (`z-40`, Plan 03-06).
  */
 export function BudgetSwitcher({
-  budgets,
+  budgets: budgetsProp,
   activeBudgetId: activeBudgetIdProp,
   locale,
 }: BudgetSwitcherProps) {
@@ -61,6 +75,13 @@ export function BudgetSwitcher({
   const router = useNavRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // The (app) layout persists across soft navigations, so the SSR `budgets`
+  // prop goes stale — a budget joined via share link stayed invisible here
+  // until a full reload. Overlay the live ["active-budgets"] query (fetch on
+  // mount + window focus); the prop is only the first-paint fallback.
+  const { data: liveBudgets } = useActiveBudgets();
+  const budgets = liveBudgets ?? budgetsProp;
 
   // Mobile centers the dropdown on the viewport instead of anchoring it under the
   // (left-of-centre) trigger. We render a full-width PopoverAnchor across the
@@ -75,7 +96,6 @@ export function BudgetSwitcher({
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
-
 
   // UAT-PH5-T3-13: "selected" means the user is currently inside that
   // budget's page (URL carries its UUID). On the home page there is no
@@ -101,12 +121,11 @@ export function BudgetSwitcher({
   const privateB = budgets.filter((b) => !isSharedBudget(b));
   const sharedB = budgets.filter(isSharedBudget);
   const isEmpty = budgets.length === 0;
-
-  // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
-  // hidden entirely. The home page renders its own "Create your first
-  // budget" empty state, so the header stays clean and the create flow lives
-  // there instead of behind a switcher dropdown.
-  if (isEmpty) return null;
+  // The all-budgets aggregate page (home `?list=1`) exists once there are ≥2
+  // budgets. It's "active" whenever no specific budget is in the path (a budget
+  // page always carries its UUID; the aggregate/home does not).
+  const showAllBudgets = budgets.length > 1;
+  const allBudgetsActive = activeBudgetId === null;
 
   const onPick = useCallback(
     (id: string) => {
@@ -116,10 +135,23 @@ export function BudgetSwitcher({
     },
     [router, locale, activeBudgetId],
   );
+  const onPickAllBudgets = useCallback(() => {
+    setOpen(false);
+    router.push(`/${locale}/?list=1`);
+  }, [router, locale]);
 
-  // UAT-PH5-T3-13: trigger label only renders when a budget is actually
-  // active. No active → chevron-only trigger.
-  const triggerLabel = active?.name ?? null;
+  // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
+  // hidden entirely. The home page renders its own "Create your first
+  // budget" empty state, so the header stays clean and the create flow lives
+  // there instead of behind a switcher dropdown. Must stay BELOW every hook —
+  // the live query can flip `isEmpty` across renders of a mounted instance.
+  if (isEmpty) return null;
+
+  // Trigger label: the active budget's name, or "All budgets" when the user is on
+  // the aggregate page (≥2 budgets, no budget in the path). Else chevron-only.
+  const onAllBudgets = showAllBudgets && allBudgetsActive;
+  const triggerLabel =
+    active?.name ?? (onAllBudgets ? t("nav.switcher.allBudgets") : null);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -148,8 +180,8 @@ export function BudgetSwitcher({
               SHARED. Both glyphs ride at --muted-foreground so the
               active budget name carries the visual weight — the icon is
               a quick-scan kind cue, not a competing element. */}
-          {active &&
-            (isSharedBudget(active) ? (
+          {active ? (
+            isSharedBudget(active) ? (
               <Users
                 className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
@@ -159,7 +191,13 @@ export function BudgetSwitcher({
                 className="size-4 text-[var(--muted-foreground)]"
                 aria-hidden="true"
               />
-            ))}
+            )
+          ) : onAllBudgets ? (
+            <LayoutGrid
+              className="size-4 text-[var(--muted-foreground)]"
+              aria-hidden="true"
+            />
+          ) : null}
           {/* An active budget shows its name (prominent). With NO active budget
               (home/settings) show a MUTED, normal-weight placeholder so it reads
               as "no budget selected" — not a dimmed selection — instead of a bare
@@ -196,7 +234,40 @@ export function BudgetSwitcher({
         // dropdown is a navigation menu, not a form — opening it should
         // not preselect any row.
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // r40: don't return focus to the trigger on close. Radix's programmatic
+        // refocus trips :focus-visible (WebKit treats scripted focus as visible),
+        // so tapping the header to close it left a yellow ring on the trigger.
+        // A genuine keyboard Tab to the trigger still shows the ring (a11y kept);
+        // only the close-refocus is suppressed.
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {/* All-budgets aggregate — pinned at the TOP (≥2 budgets). Active dot when
+            the user is on it (no budget in the path). */}
+        {showAllBudgets && (
+          <>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={allBudgetsActive}
+              data-testid="switcher-all-budgets"
+              onClick={onPickAllBudgets}
+              className={cn(
+                ROW_BASE,
+                "shrink-0",
+                allBudgetsActive && ROW_ACTIVE_BG,
+              )}
+            >
+              <LayoutGrid
+                className="size-4 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
+              <span className={rowLabelClass(allBudgetsActive)}>
+                {t("nav.switcher.allBudgets")}
+              </span>
+            </button>
+            <div className="h-px shrink-0 bg-[var(--hairline-dark)]" />
+          </>
+        )}
         {/* Scrollable budget list — flex-1 + min-h-0 so it takes the remaining
             height and scrolls, leaving the Create row pinned below. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -288,26 +359,13 @@ function BudgetGroup({
             role="menuitemradio"
             aria-checked={isActive}
             onClick={() => onPick(b.id)}
-            className={cn(
-              "flex h-10 w-full items-center gap-2 px-4 text-left",
-              "hover:bg-[var(--surface-elevated-dark)]",
-              // UAT-PH5-T3-19: clickable affordance on every dropdown row.
-              "cursor-pointer",
-            )}
+            className={cn(ROW_BASE, isActive && ROW_ACTIVE_BG)}
           >
-            {/* UAT-PH5-T3-13 / T3-31: active row carries a small yellow dot
-                instead of a check glyph — same role as a radio "selected"
-                indicator but quieter visually. Inactive rows have no
-                leading marker (no spacer column either). */}
-            {isActive && (
-              <span
-                className="size-2 shrink-0 rounded-full bg-[var(--primary)]"
-                aria-hidden="true"
-              />
-            )}
             {/* Per-row glyph: single User for private (1 member), Users
                 (couple) for shared (>1 member). Both glyphs are 16px and
-                muted so they read as metadata, not a competing icon row. */}
+                muted so they read as metadata, not a competing icon row. The
+                ACTIVE row is marked by a yellow underline on its name (below),
+                NOT a leading dot — so active/inactive rows never mis-align. */}
             {isSharedBudget(b) ? (
               <Users
                 className="size-4 text-[var(--muted-foreground)]"
@@ -319,9 +377,7 @@ function BudgetGroup({
                 aria-hidden="true"
               />
             )}
-            <span className="flex-1 truncate text-body-md text-[var(--on-dark)]">
-              {b.name}
-            </span>
+            <span className={rowLabelClass(isActive)}>{b.name}</span>
             {/* r35: pending-task count badge (red) instead of the currency —
                 hidden when 0 (PillBadge returns null for count ≤ 0). */}
             <PillBadge count={b.pendingTasksCount} />

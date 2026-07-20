@@ -146,7 +146,7 @@ export function PillTaskSlider({
               ? t("bdp.pillSlider.collapseAria")
               : t("bdp.pillSlider.expandAria")
           }
-          className="flex h-11 w-full items-center gap-2 px-4 text-sm text-[var(--body-on-dark)] transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--info)]"
+          className="flex h-11 w-full items-center gap-2 px-4 text-sm text-[var(--body-on-dark)] transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--primary)]"
         >
           <Info
             className="h-4 w-4 text-[var(--trading-down)]"

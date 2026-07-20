@@ -106,7 +106,7 @@ export function formatTimestamp(
 ): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, {
+  const parts = new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -117,5 +117,42 @@ export function formatTimestamp(
     // on the CI runner while local showed "00:30". h23 pins it everywhere.
     hourCycle: "h23",
     ...(timeZone ? { timeZone } : {}),
-  }).format(date);
+  }).formatToParts(date);
+  const p = (t: Intl.DateTimeFormatPartTypes) =>
+    parts.find((x) => x.type === t)?.value ?? "";
+  // Compose day-first with a comma, independent of the locale's own ordering
+  // (en-US would otherwise emit "February 13, 2026 at 10:44"). Month stays
+  // localized (pl "lutego", uk "лютого"); order matches the design: "13 February 2026, 10:44".
+  return `${p("day")} ${p("month")} ${p("year")}, ${p("hour")}:${p("minute")}`;
+}
+
+/**
+ * Format an INSTANT as a day-first date only (no time) in the given timezone.
+ * Default long month + year → "13 February 2026"; `{ month: "short" }` →
+ * "13 Feb 2026"; `{ month: "short", year: false }` → "13 Feb" (trailing dot
+ * stripped: uk "лип.", de "Jul." → "лип"/"Jul"). Month stays localized; ordering
+ * is forced day-first regardless of the locale's own (en-US would emit
+ * "February 13"). Returns "" for an unparseable value.
+ */
+export function formatInstantDate(
+  value: Date | number | string,
+  locale: string,
+  timeZone?: string,
+  opts?: { month?: "long" | "short"; year?: boolean },
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const withYear = opts?.year ?? true;
+  const parts = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: opts?.month ?? "long",
+    ...(withYear ? { year: "numeric" as const } : {}),
+    ...(timeZone ? { timeZone } : {}),
+  }).formatToParts(date);
+  const p = (t: Intl.DateTimeFormatPartTypes) =>
+    parts.find((x) => x.type === t)?.value ?? "";
+  const month = p("month").replace(/\.$/, "");
+  return withYear
+    ? `${p("day")} ${month} ${p("year")}`
+    : `${p("day")} ${month}`;
 }

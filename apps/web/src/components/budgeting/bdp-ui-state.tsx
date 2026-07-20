@@ -17,9 +17,7 @@
  */
 import {
   createContext,
-  useCallback,
   useContext,
-  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -49,51 +47,6 @@ export interface BdpUiStore {
 
 const Ctx = createContext<BdpUiStore | null>(null);
 
-/** Amount privacy: whether the sensitive figures are currently revealed. */
-interface PrivacyState {
-  revealed: boolean;
-  toggle: () => void;
-}
-const PrivacyCtx = createContext<PrivacyState | null>(null);
-
-/** Auto-hide amounts after this long with no user interaction. */
-const PRIVACY_INACTIVITY_MS = 30 * 60 * 1000;
-
-/**
- * Reveal state for the Overview amounts. Defaults HIDDEN, so a fresh app visit
- * always starts blurred (state lives in memory only — never persisted). Once
- * revealed, a 30-minute inactivity timer re-hides it; any user interaction
- * (pointer / key / touch / scroll) restarts the countdown. Mounted at
- * BudgetDetail level so the timer spans pill navigation and the state dies only
- * when the user leaves the budget.
- */
-function usePrivacyState(): PrivacyState {
-  const [revealed, setRevealed] = useState(false);
-  const toggle = useCallback(() => setRevealed((r) => !r), []);
-  useEffect(() => {
-    if (!revealed) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const arm = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => setRevealed(false), PRIVACY_INACTIVITY_MS);
-    };
-    const events = [
-      "pointerdown",
-      "keydown",
-      "touchstart",
-      "scroll",
-      "pointermove",
-    ];
-    arm();
-    for (const e of events) window.addEventListener(e, arm, { passive: true });
-    return () => {
-      clearTimeout(timer);
-      for (const e of events) window.removeEventListener(e, arm);
-    };
-  }, [revealed]);
-  return { revealed, toggle };
-}
-
 export function BdpUiStateProvider({ children }: { children: ReactNode }) {
   const ref = useRef<BdpUiStore | null>(null);
   if (ref.current === null) {
@@ -104,23 +57,7 @@ export function BdpUiStateProvider({ children }: { children: ReactNode }) {
       settings: {},
     };
   }
-  const privacy = usePrivacyState();
-  return (
-    <Ctx.Provider value={ref.current}>
-      <PrivacyCtx.Provider value={privacy}>{children}</PrivacyCtx.Provider>
-    </Ctx.Provider>
-  );
-}
-
-/**
- * Amount-reveal state for the Overview cards. Uses the provider's shared state
- * when present (survives pill navigation); falls back to isolated local state
- * outside a provider so component tests still toggle.
- */
-export function usePrivacyReveal(): PrivacyState {
-  const ctx = useContext(PrivacyCtx);
-  const local = usePrivacyState();
-  return ctx ?? local;
+  return <Ctx.Provider value={ref.current}>{children}</Ctx.Provider>;
 }
 
 /** The mutable per-budget UI store; null outside a provider (isolated tests). */

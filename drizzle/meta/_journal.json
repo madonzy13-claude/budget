@@ -435,6 +435,20 @@
       "when": 1782703200000,
       "tag": "0062_snapshot_cost_basis",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1782706800000,
+      "tag": "0063_member_aggregation_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1782710400000,
+      "tag": "0064_member_share_default_100",
+      "breakpoints": true
     }
   ]
 }

@@ -6,14 +6,15 @@
  * assertions stay at smoke level (mounts without throwing) per the plan — NOT pixel
  * geometry, which recharts + happy-dom cannot measure.
  */
-import { describe, it, expect, beforeAll } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+import { render, fireEvent, act } from "@testing-library/react";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
 import { ChartTooltipContent } from "@/components/budgeting/charts/chart-tooltip";
+import { SlotRevealProvider } from "@/components/budgeting/overview/slot-amount";
 
 beforeAll(() => {
   // Give ResponsiveContainer a non-zero box in happy-dom.
@@ -249,7 +250,11 @@ describe("Overview charts", () => {
           label="Dining"
           series={[{ key: "real", label: "Real" }]}
           extra={() => [
-            { label: "Difference", value: "+$2,388 · +1194%", color: "rgb(1, 2, 3)" },
+            {
+              label: "Difference",
+              value: "+$2,388 · +1194%",
+              color: "rgb(1, 2, 3)",
+            },
           ]}
         />,
       );
@@ -288,6 +293,88 @@ describe("Overview charts", () => {
       );
       expect(container.firstElementChild).toBeNull();
     });
+  });
+
+  it("pointer-up in the masked pie CENTRE reveals the amount (iOS-safe; no click)", () => {
+    // iOS Safari never fires `click` on the re-rendering chart, so the pie drives
+    // the reveal from pointer-up. Centre of the shimmed 400×240 box = (200,120);
+    // dist 0 ≤ 0.55·min/2 → the "centre" branch → toggle reveal.
+    vi.useFakeTimers();
+    const { container } = box(
+      <SlotRevealProvider>
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          maskValue
+          formatValue={(n) => `$${n}`}
+        />
+      </SlotRevealProvider>,
+    );
+    const slot = container.querySelector(
+      '[data-testid="slot-amount"]',
+    ) as HTMLElement;
+    const wrap = container.querySelector(".relative") as HTMLElement;
+    expect(slot.dataset.revealed).toBe("false");
+    act(() => fireEvent.pointerUp(wrap, { clientX: 200, clientY: 120 }));
+    act(() => vi.runAllTimers()); // settle the scramble
+    expect(slot.dataset.revealed).toBe("true"); // revealed, NOT reset
+    vi.useRealTimers();
+  });
+
+  it("masked pie centre amount is its OWN tap target (a wide amount's overflow can't fall through to a slice)", () => {
+    const { container } = box(
+      <SlotRevealProvider>
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          maskValue
+          formatValue={(n) => `$${n}`}
+        />
+      </SlotRevealProvider>,
+    );
+    const slot = container.querySelector(
+      '[data-testid="slot-amount"]',
+    ) as HTMLElement;
+    // The amount's wrapper must NOT disable pointer events: a value wider than the
+    // donut hole overflows onto the ring, and a pointer-events-none amount let those
+    // overflow taps fall THROUGH to the sector underneath (recharts then re-selected
+    // the slice instead of toggling the blur — the reported bug).
+    const wrapper = slot.parentElement as HTMLElement;
+    expect(wrapper.className).toContain("pointer-events-auto");
+    expect(wrapper.className).not.toContain("pointer-events-none");
+  });
+
+  it("pointer-up whose target is the masked AMOUNT reveals it (overflow tap = reveal, not select)", () => {
+    // A wide amount overflows the hole onto the ring; a pointer-up whose target is
+    // the amount is treated as a reveal (the `onAmount` branch) regardless of the
+    // radius, so an overflow tap can't be mistaken for a slice select.
+    vi.useFakeTimers();
+    const { container } = box(
+      <SlotRevealProvider>
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          maskValue
+          formatValue={(n) => `$${n}`}
+        />
+      </SlotRevealProvider>,
+    );
+    const slot = container.querySelector(
+      '[data-testid="slot-amount"]',
+    ) as HTMLElement;
+    expect(slot.dataset.revealed).toBe("false");
+    // Fire on the amount (bubbles to the wrapper's onPointerUp with target=slot),
+    // off-centre coords → the reveal must come from the target check, not radius.
+    act(() => fireEvent.pointerUp(slot, { clientX: 380, clientY: 120 }));
+    act(() => vi.runAllTimers());
+    expect(slot.dataset.revealed).toBe("true");
+    vi.useRealTimers();
   });
 
   it("handles a pie slice tap without throwing (active-index path)", () => {

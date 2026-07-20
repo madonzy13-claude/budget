@@ -23,6 +23,10 @@ import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import {
+  SlotAmount,
+  useSlotReveal,
+} from "@/components/budgeting/overview/slot-amount";
+import {
   useOverviewWealth,
   type WealthView,
 } from "@/hooks/use-overview-wealth";
@@ -45,10 +49,20 @@ const BUCKET_SPEND = "var(--primary)"; // yellow
 const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
 const BUCKET_CUSHION = "var(--chart-bar-3)"; // purple (distinct from teal)
 
-function PctStat({ label, pct }: { label: string; pct: number | null }) {
+function PctStat({
+  label,
+  pct,
+  mask = false,
+}: {
+  label: string;
+  pct: number | null;
+  mask?: boolean;
+}) {
   const up = pct !== null && pct >= 0;
   const down = pct !== null && pct < 0;
   const Arrow = up ? ArrowUp : ArrowDown;
+  const pctStr =
+    pct === null ? "" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
@@ -65,7 +79,7 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
         ) : (
           <>
             <Arrow className="size-3.5" aria-hidden="true" />
-            {`${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`}
+            {mask ? <SlotAmount value={pctStr} /> : pctStr}
           </>
         )}
       </span>
@@ -77,10 +91,12 @@ export function WealthSection({
   budgetId,
   range,
   investmentsEnabled = true,
+  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
   investmentsEnabled?: boolean;
+  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   // Investment type labels (uitype.*) live under budget.investments — same source
@@ -104,17 +120,26 @@ export function WealthSection({
   const effectiveView: WealthView = investmentsEnabled
     ? view
     : "capitalization";
-  // Investments view: when on, fetch the NET-of-contributions series/growth/dynamics
-  // (money paid in via the Investments category subtracted) → real market movement.
-  const [net, setNet] = useState(false);
-
+  // Investments view now STACKS contributions + profit, so we always fetch the
+  // TOTAL (incl) series here + a SECOND market-only (excl-contributions) series
+  // below; profit = excl, contributions = incl − excl.
   const { data, isPending, isError } = useOverviewWealth(budgetId, {
     from: range.from,
     to: range.to,
     view: effectiveView,
     enabled: open,
-    net: effectiveView === "investments" && net,
+    net: false,
   });
+  const exclQ = useOverviewWealth(budgetId, {
+    from: range.from,
+    to: range.to,
+    view: "investments",
+    enabled: open && effectiveView === "investments",
+    net: true,
+  });
+  const exclByLabel = new Map<string, number>();
+  for (const p of exclQ.data?.series ?? [])
+    exclByLabel.set(p.label, Number(p.value_cents));
 
   const ccy = data?.currency ?? "USD";
   // Overview shows NO cents anywhere (round to whole units).
@@ -132,6 +157,11 @@ export function WealthSection({
   const fmtY = chartCompactCents;
   // Chart TOOLTIP (on tap): the FULL value WITH currency, no cents.
   const fmtTooltip = (n: number) => fmtRounded(BigInt(Math.round(n)));
+  // Privacy (r41, BDP-wide): wrap any inline money figure in a masked SlotAmount
+  // when enabled; `revealed` masks the dynamics tooltip's money delta to "•••".
+  const { revealed } = useSlotReveal();
+  const money = (s: string) =>
+    amountPrivacyEnabled ? <SlotAmount value={s} /> : s;
   // Pie centre read-out: whole currency, NO cents.
   const fmtPieValue = (n: number) => fmtRounded(BigInt(Math.round(n)));
 
@@ -225,6 +255,20 @@ export function WealthSection({
                   return first > 0 ? data.series.slice(first) : data.series;
                 })()
               : data.series;
+          // Investments stack: contributions (incl − excl) grey + profit (excl)
+          // yellow, aligned to the rendered (trimmed) points by label.
+          const investStack =
+            effectiveView === "investments"
+              ? seriesPoints.map((p) => {
+                  const incl = Number(p.value_cents);
+                  const excl = exclByLabel.get(p.label) ?? 0;
+                  return {
+                    label: p.label,
+                    contributions: incl - excl,
+                    profit: excl,
+                  };
+                })
+              : [];
           return (
             <>
               {/* VALUE chart + its RANGE-scoped metric: total growth over the whole
@@ -240,8 +284,6 @@ export function WealthSection({
                   const hasInvestCat =
                     effectiveView === "investments" &&
                     data.invested_cents != null;
-                  const canNet =
-                    hasInvestCat && Number(data.invested_cents) > 0;
                   return (
                     <>
                       <div className="flex flex-wrap items-start justify-center gap-6">
@@ -257,12 +299,13 @@ export function WealthSection({
                                 : "text-[var(--trading-down)]",
                             )}
                           >
-                            {fmtSigned(growth.delta_cents)}
+                            {money(fmtSigned(growth.delta_cents))}
                           </span>
                         </div>
                         <PctStat
                           label={t("wealth.grow")}
                           pct={growth.delta_pct}
+                          mask={amountPrivacyEnabled}
                         />
                         {/* Invested over the period (Investments-category spend). */}
                         {hasInvestCat && (
@@ -271,49 +314,11 @@ export function WealthSection({
                               {t("wealth.invested")}
                             </p>
                             <span className="num text-num-md text-[var(--body-on-dark)]">
-                              {fmtRounded(data.invested_cents!)}
+                              {money(fmtRounded(data.invested_cents!))}
                             </span>
                           </div>
                         )}
                       </div>
-                      {/* Total vs Market-only (net of contributions) — a clear
-                          segmented switch; the active side is filled. Toggling
-                          refetches so EVERY chart below updates too. */}
-                      {canNet && (
-                        <div
-                          role="group"
-                          className="mx-auto inline-flex rounded-full border border-[var(--hairline-dark)] p-0.5 text-caption"
-                        >
-                          <button
-                            type="button"
-                            data-testid="wealth-net-total"
-                            onClick={() => setNet(false)}
-                            aria-pressed={!net}
-                            className={cn(
-                              "rounded-full px-3 py-1 transition-colors",
-                              !net
-                                ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-                                : "text-[var(--muted-foreground)]",
-                            )}
-                          >
-                            {t("wealth.inclContrib")}
-                          </button>
-                          <button
-                            type="button"
-                            data-testid="wealth-net-market"
-                            onClick={() => setNet(true)}
-                            aria-pressed={net}
-                            className={cn(
-                              "rounded-full px-3 py-1 transition-colors",
-                              net
-                                ? "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-                                : "text-[var(--muted-foreground)]",
-                            )}
-                          >
-                            {t("wealth.exclContrib")}
-                          </button>
-                        </div>
-                      )}
                     </>
                   );
                 })()}
@@ -322,25 +327,49 @@ export function WealthSection({
                 <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
                   {t("wealth.growSince", { preset: range.preset })}
                 </p>
-                <OverviewAreaChart
-                  data={seriesPoints.map((p) => ({
-                    label: p.label,
-                    value: Number(p.value_cents),
-                  }))}
-                  xKey="label"
-                  series={[
-                    {
-                      key: "value",
-                      label:
-                        effectiveView === "investments"
-                          ? t("wealth.investments")
-                          : t("wealth.capitalization"),
-                    },
-                  ]}
-                  formatY={fmtY}
-                  formatTooltip={fmtTooltip}
-                  xTickFormat={(v) => formatChartDate(v, locale)}
-                />
+                {investStack.length > 0 ? (
+                  // Stacked like the planned needs/wants chart: contributions
+                  // (grey) + profit (yellow) sum to the total investment value.
+                  <OverviewAreaChart
+                    data={investStack}
+                    xKey="label"
+                    series={[
+                      {
+                        key: "contributions",
+                        label: t("wealth.contributions"),
+                        color: "var(--muted-foreground)",
+                        stack: "inv",
+                        fillOpacity: 0.3,
+                      },
+                      {
+                        key: "profit",
+                        label: t("wealth.profit"),
+                        color: "var(--primary)",
+                        stack: "inv",
+                        fillOpacity: 0.35,
+                      },
+                    ]}
+                    formatY={fmtY}
+                    formatTooltip={fmtTooltip}
+                    xTickFormat={(v) => formatChartDate(v, locale)}
+                    maskAmounts={amountPrivacyEnabled}
+                  />
+                ) : (
+                  <OverviewAreaChart
+                    data={seriesPoints.map((p) => ({
+                      label: p.label,
+                      value: Number(p.value_cents),
+                    }))}
+                    xKey="label"
+                    series={[
+                      { key: "value", label: t("wealth.capitalization") },
+                    ]}
+                    formatY={fmtY}
+                    formatTooltip={fmtTooltip}
+                    xTickFormat={(v) => formatChartDate(v, locale)}
+                    maskAmounts={amountPrivacyEnabled}
+                  />
+                )}
               </div>
 
               {/* CHANGE chart + its PER-PERIOD metric: the average change AT THIS
@@ -352,6 +381,7 @@ export function WealthSection({
                     <PctStat
                       label={t("wealth.monthlyAvg")}
                       pct={data.monthly_avg_grow_pct}
+                      mask={amountPrivacyEnabled}
                     />
                   </div>
                   <OverviewBarChart
@@ -376,10 +406,14 @@ export function WealthSection({
                     formatTooltip={fmtSignedPct}
                     // The money change on its own line — signed, sign-tight, no cents,
                     // no label (just the % above and the amount below).
+                    maskAmounts={amountPrivacyEnabled}
                     tooltipExtra={(row) => [
                       {
                         label: "",
-                        value: fmtSigned(String(row.delta_cents ?? "0")),
+                        value:
+                          amountPrivacyEnabled && !revealed
+                            ? "•••"
+                            : fmtSigned(String(row.delta_cents ?? "0")),
                       },
                     ]}
                     xTickFormat={(v) => formatChartDate(v, locale)}
@@ -405,6 +439,7 @@ export function WealthSection({
                     colorFor={(n) => capColorMap[n] ?? NEUTRAL}
                     formatValue={fmtPieValue}
                     allLabel={t("range.all")}
+                    maskValue={amountPrivacyEnabled}
                   />
                 </div>
               )}
@@ -436,6 +471,7 @@ export function WealthSection({
                       }
                       formatValue={fmtPieValue}
                       allLabel={t("range.all")}
+                      maskValue={amountPrivacyEnabled}
                     />
                   ) : (
                     <p className="text-num-sm text-[var(--muted-foreground)]">

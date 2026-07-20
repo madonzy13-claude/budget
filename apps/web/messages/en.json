@@ -347,8 +347,8 @@
           "7": "Sun"
         }
       },
-      "permissionDenied": "Notifications are blocked. On iPhone: remove the app from your Home Screen, add it again, then allow. On desktop: allow them in the site settings.",
-      "unsupported": "Push notifications aren't available on this device or browser. On iPhone, add the app to your Home Screen first.",
+      "permissionDenied": "Notifications are blocked. If you installed the app, remove it from your Home Screen, add it again, then allow — otherwise allow them in your browser or site settings.",
+      "unsupported": "Push notifications aren't available on this device or browser. Install the app to your Home Screen first, then try again.",
       "subscribeError": "Couldn't enable notifications. Please try again.",
       "saved": "Notification preferences saved."
     },
@@ -466,6 +466,24 @@
       "save_error": "Failed to save shares. Try again.",
       "saving": "Saving...",
       "audit_hint": "Every change is logged."
+    },
+    "aggregation": {
+      "feature_label": "Include in all-budgets total",
+      "feature_help_text": "Count this budget toward your combined net worth.",
+      "feature_on_toast": "Included in your total",
+      "feature_off_toast": "Excluded from your total",
+      "share_label": "Percent of wealth shown in all-budgets",
+      "share_help": "How much of this budget's wealth counts toward your total (0-100%).",
+      "error_save": "Couldn't save. Try again."
+    },
+    "ownership": {
+      "title": "Ownership split",
+      "help_text": "Set each member's share of this budget's wealth. Must total 100%.",
+      "total_label": "Total",
+      "must_be_100": "Shares must total 100%.",
+      "save": "Save shares",
+      "saved_toast": "Ownership shares saved",
+      "error_save": "Couldn't save shares."
     },
     "invite": {
       "heading": "Invite a member",
@@ -685,6 +703,63 @@
       }
     }
   },
+  "aggregate": {
+    "title": "All budgets",
+    "hero_label": "Total net worth",
+    "investments": "Investments",
+    "cash": "Cash",
+    "reserves": "Reserves",
+    "composition_title": "Where your wealth is",
+    "trend_title": "Net worth over time",
+    "budgets_title": "Budgets",
+    "incl_investments": "incl. investments",
+    "pl_today": "today",
+    "cushion": "Cushion",
+    "grow": "Growth",
+    "loss": "Loss",
+    "capitalization": "Net worth",
+    "by_bucket": "Where it sits",
+    "by_type": "By type",
+    "incl_contributions": "Incl. contributions",
+    "excl_contributions": "Excl. contributions",
+    "invested": "Invested",
+    "budgets_tasks_title": "Budgets & tasks",
+    "no_tasks": "No tasks",
+    "task_kind": {
+      "RESERVE_TOPUP": "Top up reserve",
+      "CUSHION_BELOW_TARGET": "Cushion below target",
+      "CONFIRM_DRAFT": "Confirm spending",
+      "INCOME_UNDER_PLANNED": "Review spendings"
+    },
+    "attention_title": "Needs attention",
+    "flow_title": "This month",
+    "spent": "Spent",
+    "left": "Left",
+    "my_share": "your {pct}%",
+    "rate_unavailable": "Exchange rate unavailable — excluded from totals",
+    "empty": "No budgets included. Enable one in its settings.",
+    "available_to_spend": "Available to spend",
+    "available_reserves": "Available reserves",
+    "overspent": "Overspent",
+    "needed": "Needed",
+    "saved": "Saved",
+    "overspent_ok": "Good job — keep it up!",
+    "since_yesterday": "since yesterday",
+    "runway_y": "y",
+    "runway_m": "m",
+    "runway_d": "d",
+    "grow_since": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} last12Months {over the last 12 months} all {all time} other {over the selected range}}",
+    "lasts_label": "Your money lasts",
+    "lasts_note": "at current monthly spending",
+    "years": "{count, plural, one {# year} other {# years}}",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "and": "and",
+    "retire_label": "If you retire now, your money will last for",
+    "retire_inflation": "incl. {pct}% annual inflation",
+    "avg_change": "Avg change",
+    "contributions": "Contributions",
+    "profit": "Profit"
+  },
   "state": {
     "empty": {
       "heading": "Nothing here yet",
@@ -724,7 +799,8 @@
         "trigger": "No budgets yet",
         "body": "Use + to create your first budget.",
         "cta": "Create budget"
-      }
+      },
+      "allBudgets": "All budgets"
     },
     "newBudget": "New budget",
     "newBudgetTooltip": "Create new budget"
@@ -799,6 +875,8 @@
         "reserves_help": "Roll unused category budget into a per-category reserve at month-end.",
         "investments_label": "Investments",
         "investments_help": "Track stocks, crypto, metals, and other holdings in a wallet section.",
+        "notifications_label": "Notifications",
+        "notifications_help": "Get reminders and task alerts on this device, and show a count badge on the app icon.",
         "targetMonthsLabel": "Target months",
         "targetMonthsError": "Months must be between 1 and 60.",
         "badge_label": "Show in app icon badge",
@@ -1303,6 +1381,7 @@
           "recurringPerCategory": "Recurring bills, by category",
           "timelineTitle": "Planned vs actual spending, over time",
           "avgByCategory": "Over / under budget, by category",
+          "avgPie": "Planned spendings, by category",
           "difference": "Difference"
         },
         "wealth": {
@@ -1325,7 +1404,9 @@
           "capSpendings": "Spendings",
           "capReserves": "Reserves",
           "capCushion": "Cushion",
-          "pieShare": "{pct}%"
+          "pieShare": "{pct}%",
+          "contributions": "Contributions",
+          "profit": "Profit"
         },
         "empty": {
           "overspent": "No overspending in this range.",
@@ -1617,6 +1698,7 @@
         "failed": "Couldn't add the transaction. Please try again."
       }
     },
+    "lastAdded": "Last spending added {when}",
     "quickEntry": {
       "placeholder": "…",
       "title": "expenses",

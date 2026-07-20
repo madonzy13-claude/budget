@@ -22,10 +22,8 @@ import {
   CircleAlert,
   CirclePlus,
   Hourglass,
-  Eye,
-  EyeOff,
 } from "lucide-react";
-import { usePrivacyReveal } from "@/components/budgeting/bdp-ui-state";
+import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
@@ -61,46 +59,28 @@ function CardLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Redactable — covers a hidden amount with a solid rounded bar WITHOUT any layout
- * shift on toggle. SECURITY: the real value must NOT be in the DOM when hidden
- * (devtools/view-source would otherwise reveal it — a cosmetic-only privacy
- * toggle). So the hidden branch renders a `•` placeholder of the SAME character
- * length as the real string (`mask`) instead of the real digits — same reserved
- * box (tabular `.num` → bullet ≈ digit width), zero leak. The bar is an absolute
- * overlay sized to that placeholder box. Revealing swaps in the real value; the
- * geometry matches so the cards never jump. A bar (not a blur): a `filter` on the
- * card breaks the capitalization flip's backface-visibility. The placeholder is
- * aria-hidden so screen readers don't read the mask.
+ * Redactable — amount privacy (r41). When `enabled`, the figure renders as a
+ * SlotAmount: hidden behind random UPPERCASE chars, tap to reveal the real value
+ * with a slot-machine scramble, tap again to re-hide (per-figure, no global eye).
+ * When disabled, the amount renders as-is (the count-tweened `children`).
  *
- * `mask` is the string whose LENGTH sizes the placeholder (never rendered as
- * digits — only its `.length` bullets are). Callers pass the formatted value they
- * already computed; when absent (rich-text chunks whose string isn't at hand) a
- * short fixed run is used, which the bar covers anyway.
+ * `mask` is the real formatted string the SlotAmount reveals/scrambles; every
+ * call site already computes it. SECURITY: the real digits stay out of the DOM
+ * until the user reveals — SlotAmount renders a random-uppercase mask at rest.
  */
 function Redactable({
-  hide,
+  enabled,
   children,
   mask,
 }: {
-  hide: boolean;
+  enabled: boolean;
   children: React.ReactNode;
   mask?: string;
 }) {
-  if (!hide) return <>{children}</>;
-  // Bullet run of the same length as the real string → same width, no digits.
-  const dots = "•".repeat(Math.max(1, mask ? mask.length : 4));
-  return (
-    <span className="relative inline-block max-w-full align-baseline">
-      <span className="invisible" aria-hidden="true">
-        {dots}
-      </span>
-      <span
-        aria-hidden="true"
-        data-testid="redaction-bar"
-        className="absolute inset-x-0 top-1/2 h-[0.7em] -translate-y-1/2 rounded-[var(--radius-sm)] bg-[var(--surface-elevated-dark)]"
-      />
-    </span>
-  );
+  if (!enabled) return <>{children}</>;
+  // Blur scales with each figure's font size (em) inside SlotAmount, so every
+  // amount reads as equally hidden regardless of size — no per-call size needed.
+  return <SlotAmount value={mask ?? ""} />;
 }
 
 /**
@@ -158,11 +138,9 @@ export function OverviewCards({
   const { data: projection } = useProjection(budgetId);
   // Capitalization card flips to reveal the retirement runway on its back (item 9).
   const [flipped, setFlipped] = useState(false);
-  // Amount privacy (per-budget flag). When ON, figures start hidden (redaction
-  // bars) with an eye to reveal (auto-re-hides after 30 min idle — see
-  // usePrivacyReveal). When OFF, amounts are always visible and there's no eye.
-  const { revealed: rawRevealed, toggle: togglePrivacy } = usePrivacyReveal();
-  const revealed = amountPrivacyEnabled ? rawRevealed : true;
+  // Amount privacy (per-budget flag). When ON, each figure is an independently
+  // tappable SlotAmount (hidden behind random chars, tap to reveal). When OFF,
+  // amounts render as-is. Per-figure state lives in each SlotAmount (r41).
 
   /** "5 years and 6 months" — fully localized (ICU plurals) for the flip back. */
   const retirementFull = (totalMonths: number): string => {
@@ -230,15 +208,10 @@ export function OverviewCards({
   // Overview shows NO cents anywhere — every card amount rounds to whole units.
   const fmtMoney = (cents: string) => centsToRounded(cents, ccy, "en", true);
   const fmtRounded = (cents: string) => centsToRounded(cents, ccy, "en", true);
-  // Privacy: when hidden, every figure is covered by a REDACTION BAR — a solid
-  // rounded block overlaid on the real (invisible-but-still-laid-out) number, so
-  // toggling never shifts the layout (see Redactable). A bar (vs blur) leaves NO
-  // `filter` on the card, which is what defeated the capitalization flip.
-  const hide = !revealed;
-  // Node formatters — count-tween the figure; a redaction bar covers it when hidden
-  // (the real number stays mounted, invisible, so the layout doesn't jump).
+  // Node formatters — count-tween the figure when privacy is OFF; when ON the
+  // figure becomes a tap-to-reveal SlotAmount (see Redactable).
   const animMoney = (cents: string) => (
-    <Redactable hide={hide} mask={fmtMoney(cents)}>
+    <Redactable enabled={amountPrivacyEnabled} mask={fmtMoney(cents)}>
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtMoney(String(Math.round(n)))}
@@ -246,7 +219,7 @@ export function OverviewCards({
     </Redactable>
   );
   const animRounded = (cents: string) => (
-    <Redactable hide={hide} mask={fmtRounded(cents)}>
+    <Redactable enabled={amountPrivacyEnabled} mask={fmtRounded(cents)}>
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtRounded(String(Math.round(n)))}
@@ -295,13 +268,16 @@ export function OverviewCards({
   );
 
   return (
+    // r41b: one shared reveal — tapping ANY amount reveals/hides them ALL. The
+    // <SlotRevealProvider> now lives at overview-tab so the reveal is shared with
+    // the projection + every section too (BDP-wide, r41 parity with all-budgets).
     <div
       data-testid="overview-cards"
-      // data-hidden reflects the privacy toggle (used by tests); the actual hiding
-      // is per-figure masking (fmt helpers above), not a CSS filter — a filter on
-      // the card defeats the capitalization flip's backface-visibility.
+      // Privacy (r41): amounts are tap-to-reveal SlotAmounts (blurred random
+      // chars → real on tap); there's no card-wide filter (which would defeat the
+      // capitalization flip's backface-visibility).
       className="flex flex-col gap-3"
-      data-hidden={!revealed}
+      data-privacy={amountPrivacyEnabled}
     >
       {/* Hero: Capitalization (net worth) — a FLIP card. Front = the big yellow
           figure + P/L; tapping it rotates horizontally to the back, which shows the
@@ -332,32 +308,6 @@ export function OverviewCards({
               },
             })}
           >
-            {/* Privacy eye — only when the amount-privacy flag is on. A direct
-                child of the section (OUTSIDE the rotating 3D wrapper) so it stays
-                put during the flip and never rides the rotateY. stopPropagation
-                keeps a tap from also flipping the card. */}
-            {amountPrivacyEnabled && (
-              <button
-                type="button"
-                data-testid="privacy-toggle"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePrivacy();
-                }}
-                onKeyDown={(e) => e.stopPropagation()}
-                aria-pressed={revealed}
-                aria-label={
-                  revealed ? t("cards.privacyHide") : t("cards.privacyShow")
-                }
-                className="absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]"
-              >
-                {revealed ? (
-                  <Eye className="size-4" aria-hidden="true" />
-                ) : (
-                  <EyeOff className="size-4" aria-hidden="true" />
-                )}
-              </button>
-            )}
             <div
               className="relative transition-transform duration-500 [transform-style:preserve-3d]"
               style={{
@@ -371,7 +321,7 @@ export function OverviewCards({
                     column flex-shrinks (min-w-0) and the hero number / its privacy
                     cover (max-w-full) cap within it — otherwise a wide redaction
                     bar wrapped the P/L onto its own line (privacy mode). */}
-                <div className="mt-1 flex flex-nowrap items-start justify-between gap-x-3">
+                <div className="mt-1 flex flex-nowrap items-center justify-between gap-x-3">
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <p
                       // Inline color: tailwind-merge can't tell the custom
@@ -402,7 +352,7 @@ export function OverviewCards({
                           amount: fmtRounded(data.investment_value_cents),
                           amt: (chunks) => (
                             <Redactable
-                              hide={hide}
+                              enabled={amountPrivacyEnabled}
                               mask={fmtRounded(data.investment_value_cents)}
                             >
                               {chunks}
@@ -415,10 +365,9 @@ export function OverviewCards({
                   {pl && pl.delta_pct !== null && (
                     <div
                       className={cn(
-                        // Top-aligned tight stack: the P/L % sits level with the top
-                        // of the hero number, $ and "since" hug beneath it. mt-0.5
-                        // nudges it just clear of the privacy eye in the corner.
-                        "text-caption mt-0.5 flex shrink-0 flex-col items-end gap-0.5 text-right",
+                        // Tight P/L stack (%, $, "since"), vertically centred
+                        // against the hero number (the row is items-center).
+                        "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
                         Number(pl.delta_cents) >= 0
                           ? "text-[var(--trading-up)]"
                           : "text-[var(--trading-down)]",
@@ -437,7 +386,7 @@ export function OverviewCards({
                           />
                         )}
                         <Redactable
-                          hide={hide}
+                          enabled={amountPrivacyEnabled}
                           mask={`${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`}
                         >
                           <AnimatedFigure
@@ -519,7 +468,9 @@ export function OverviewCards({
                 aria-label={t("cards.spendNeutral")}
               />
             )}
-            <span className="truncate">
+            {/* whitespace-nowrap, NOT truncate: `overflow:hidden` clips the
+                  blurred edges of the hidden amount (r41). */}
+            <span className="whitespace-nowrap">
               {animRounded(data.spendings.wallet_cents)}
             </span>
           </p>
@@ -593,7 +544,8 @@ export function OverviewCards({
                   aria-label={t("cards.reservesSurplus")}
                 />
               )}
-              <span className="truncate">
+              {/* whitespace-nowrap, NOT truncate (overflow clips the blur). */}
+              <span className="whitespace-nowrap">
                 {animMoney(data.available_reserves_cents)}
               </span>
             </p>
@@ -609,7 +561,10 @@ export function OverviewCards({
                   // with cents, matching the spendings tab); ok → the needed amount.
                   amount: reservesNoteAmount,
                   amt: (chunks) => (
-                    <Redactable hide={hide} mask={reservesNoteAmount}>
+                    <Redactable
+                      enabled={amountPrivacyEnabled}
+                      mask={reservesNoteAmount}
+                    >
                       {chunks}
                     </Redactable>
                   ),
@@ -685,21 +640,15 @@ export function OverviewCards({
                   const unlimited =
                     data.cushion.required_cents === "0" &&
                     Number(data.cushion.total_cents) > 0;
-                  const node = unlimited ? (
+                  // r41b (item 4): the runway is a DURATION ("1y 3m 7d"), not a
+                  // money figure — nothing secret, so it is NEVER masked.
+                  return unlimited ? (
                     <span data-testid="cushion-unlimited">∞</span>
                   ) : (
                     <AnimatedFigure
                       value={data.cushion.real_months}
                       format={(n) => formatRunway(n, runwayUnits)}
                     />
-                  );
-                  const mask = unlimited
-                    ? "∞"
-                    : formatRunway(data.cushion.real_months, runwayUnits);
-                  return (
-                    <Redactable hide={hide} mask={mask}>
-                      {node}
-                    </Redactable>
                   );
                 })()}
               </span>

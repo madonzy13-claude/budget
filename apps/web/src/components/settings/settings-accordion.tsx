@@ -19,6 +19,7 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useWallets } from "@/hooks/use-wallets";
 import { useInvestments } from "@/hooks/use-investments";
 import { useCategories } from "@/hooks/use-budget-data";
+import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { SettingsConfigProgress } from "@/components/settings/settings-config-progress";
 import { computeSettingsProgress } from "@/lib/settings-progress";
 import { BudgetIdentitySection } from "@/components/settings/budget-identity-section";
@@ -31,6 +32,7 @@ import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
 import { PushPrefsSection } from "@/components/settings/push-prefs-section";
 import { OwnerGate } from "@/components/settings/owner-gate";
+import { AggregationSection } from "@/components/settings/aggregation-section";
 
 export interface SettingsBudget {
   id: string;
@@ -48,8 +50,14 @@ export interface SettingsBudget {
   reservesEnabled?: boolean;
   /** r36: amount-privacy flag; ON = Overview hides amounts by default. Default true. */
   amountPrivacyEnabled?: boolean;
+  /** Task 11: caller's self-toggle — count this budget in the all-budgets aggregate. Default true. */
+  includeInAggregation?: boolean;
+  /** R2: caller's self-set ownership share % (0..100) — feeds AggregationSection's
+   *  share field, shown only while includeInAggregation is on. Default 100. */
+  sharePct?: number;
   hasTransactions: boolean;
   currentUserRole: "owner" | "member";
+  memberCount?: number;
 }
 
 export interface SettingsAccordionProps {
@@ -66,6 +74,9 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   const [open, setOpen] = useState<string[]>(
     () => store?.settings.openSections ?? ["budget-identity"],
   );
+  // Task 11: the all-budgets aggregation self-toggle only makes sense once the
+  // user actually has ≥2 budgets to combine.
+  const budgetCount = useActiveBudgets().data?.length ?? 0;
   const onOpenChange = (v: string[]) => {
     if (store) store.settings.openSections = v;
     setOpen(v);
@@ -181,6 +192,18 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
                 isOwner={isOwner}
               />
             </OwnerGate>
+            {/* Task 11: self-service, NOT owner-gated — any member may include/exclude
+                their own budget from their personal all-budgets aggregate. Only shown
+                once the user has ≥2 budgets (nothing to aggregate with just one). */}
+            {budgetCount >= 2 && (
+              <div className="mt-4 border-t border-[var(--hairline-on-dark)] pt-4">
+                <AggregationSection
+                  budgetId={budget.id}
+                  includeInAggregation={budget.includeInAggregation ?? true}
+                  sharePct={budget.sharePct ?? 100}
+                />
+              </div>
+            )}
           </AccordionContent>
         </AccordionItem>
 

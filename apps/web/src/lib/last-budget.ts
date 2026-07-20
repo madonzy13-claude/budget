@@ -5,6 +5,11 @@
  */
 export const LAST_BUDGET_KEY = "last-budget-id";
 
+/** Sentinel stored under LAST_BUDGET_KEY when the user's last view was the
+ *  cross-budget "all budgets" page (not a specific budget) — a plain home
+ *  reopen then lands on the all-budgets view instead of a budget. */
+export const ALL_BUDGETS_VIEW = "all";
+
 /**
  * Best-effort persist (private mode / disabled storage → no-op). Writes BOTH a
  * cookie (so the RSC home page can server-redirect with NO flicker) and

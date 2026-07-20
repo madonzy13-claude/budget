@@ -2,7 +2,7 @@
  * quick-entry-input.test.tsx — Vitest+RTL tests for QuickEntryInput component.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QuickEntryInput } from "../../../src/components/budgeting/spendings-grid/quick-entry-input";
 import { TestQueryProvider } from "../../setup/query-client";
@@ -183,6 +183,176 @@ describe("QuickEntryInput", () => {
     fireEvent.blur(input);
     expect(mockOnOfflineAttempt).toHaveBeenCalledTimes(1);
     expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  // r40 chaining: desktop chains via Enter — the save must never drop focus,
+  // so the next amount can be typed straight away. On iOS the keyboard
+  // cannot be kept across a save (focus() needs a page gesture, Done is
+  // system UI); blur stays a plain save-and-close and no in-page button
+  // exists (removed at the user's request).
+  describe("chaining (r40)", () => {
+    it("Enter saves, clears, and keeps focus for the next entry (desktop)", async () => {
+      renderInput();
+      const input = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      await userEvent.type(input, "5.96");
+      expect(document.activeElement).toBe(input);
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 596 }),
+      );
+      expect(input.value).toBe("");
+      // Focus retained → user types the next amount immediately.
+      expect(document.activeElement).toBe(input);
+      await userEvent.type(input, "7");
+      expect(input.value).toBe("7");
+    });
+
+    it("renders no in-field save button", async () => {
+      renderInput();
+      const input = screen.getByTestId("quick-entry-groceries");
+      await userEvent.type(input, "5.96");
+      expect(screen.queryByTestId("quick-entry-groceries-next")).toBeNull();
+    });
+
+    it("blur (keyboard Done / tap away) saves WITHOUT refocusing", async () => {
+      renderInput();
+      const input = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      await userEvent.type(input, "12.50");
+      act(() => input.blur());
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 1250 }),
+      );
+      await new Promise((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(r)),
+      );
+      expect(document.activeElement).not.toBe(input);
+    });
+  });
+
+  // r40b: Left/Right move the caret until the field edge, then save + hop to the
+  // adjacent column's quick input.
+  describe("edge Left/Right column hop (r40b)", () => {
+    function renderPair() {
+      return render(
+        <TestQueryProvider>
+          <QuickEntryInput
+            {...defaultProps}
+            categoryId="cat-1"
+            categoryName="Groceries"
+          />
+          <QuickEntryInput
+            {...defaultProps}
+            categoryId="cat-2"
+            categoryName="Rent"
+          />
+        </TestQueryProvider>,
+      );
+    }
+
+    it("ArrowRight at the right edge saves and focuses the next column", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(first, "5.96"); // caret at end
+      fireEvent.keyDown(first, { key: "ArrowRight" });
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 596 }),
+      );
+      expect(document.activeElement).toBe(second);
+    });
+
+    it("ArrowLeft at the left edge saves and focuses the previous column", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(second, "7");
+      second.setSelectionRange(0, 0); // caret at left edge
+      fireEvent.keyDown(second, { key: "ArrowLeft" });
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 700 }),
+      );
+      expect(document.activeElement).toBe(first);
+    });
+
+    it("ArrowLeft with the caret mid-value moves the caret, does NOT save or hop", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      await userEvent.type(first, "50");
+      first.setSelectionRange(1, 1); // between the two digits
+      fireEvent.keyDown(first, { key: "ArrowLeft" });
+      expect(mockMutate).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(first);
+    });
+
+    it("empty field hops columns without saving", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      first.focus();
+      fireEvent.keyDown(first, { key: "ArrowRight" });
+      expect(mockMutate).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(second);
+    });
+
+    it("ArrowRight at the right edge of the LAST column WRAPS to the first", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(second, "7"); // last column, caret at end
+      fireEvent.keyDown(second, { key: "ArrowRight" });
+      expect(document.activeElement).toBe(first); // wrapped
+    });
+
+    it("ArrowLeft at the left edge of the FIRST column WRAPS to the last", () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      first.focus();
+      first.setSelectionRange(0, 0);
+      fireEvent.keyDown(first, { key: "ArrowLeft" });
+      expect(document.activeElement).toBe(second); // wrapped to last
+    });
+
+    it("Cmd+Right jumps to the LAST column's quick input (saving)", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      await userEvent.type(first, "5.00");
+      fireEvent.keyDown(first, { key: "ArrowRight", metaKey: true });
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 500 }),
+      );
+      expect(document.activeElement).toBe(second);
+    });
+
+    it("Cmd+Left jumps to the FIRST column's quick input", () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
+      second.focus();
+      fireEvent.keyDown(second, { key: "ArrowLeft", ctrlKey: true });
+      expect(document.activeElement).toBe(first);
+    });
   });
 
   it("online Enter: mutates as before and does NOT call onOfflineAttempt", async () => {

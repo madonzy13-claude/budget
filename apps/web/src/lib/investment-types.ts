@@ -115,17 +115,19 @@ export function isAutoPriced(provider: string | null | undefined): boolean {
 }
 
 /**
- * Types quoted in a FIXED currency upstream (crypto → USD on CoinGecko) but which
- * the user VALUES in a currency of their choosing — like precious metals. For
- * these the form keeps the currency picker visible even after an instrument is
- * selected (instead of locking to the instrument's quote currency), and the
- * read-only fetched price is FX-converted to the chosen currency. 260626: crypto
- * only; metals are already handled by their `metals` behavior.
+ * Types the user may VALUE in a currency of their choosing, with the fetched price
+ * FX-converted into it. For these the form keeps the currency picker visible even
+ * after an instrument is selected, and changing the currency re-fetches converted.
+ * - crypto: quoted USD on CoinGecko, valued in the user's currency.
+ * - equity / etf: a US stock/ETF is quoted USD (Finnhub) but can be tracked in the
+ *   budget's (or any) currency — default adopts the instrument's own currency when
+ *   found in suggestions, else the budget currency; changing it converts via FX.
+ * Metals are handled separately by their `metals` behavior.
  */
 export function usesUserChosenCurrency(
   uiType: UiType | "" | null | undefined,
 ): boolean {
-  return uiType === "crypto";
+  return uiType === "crypto" || uiType === "equity" || uiType === "etf";
 }
 
 export type Metal = "gold" | "silver" | "platinum" | "palladium";

@@ -17,13 +17,9 @@ import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 import { parseDecimal } from "@/lib/decimal";
+import { formatInstantDate } from "@/lib/format-date";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +42,8 @@ export interface TransactionRowProps {
     fxRate?: string;
     fxAsOf?: string;
     note?: string | null;
+    /** ISO instant the transaction was created (for the hover tooltip). */
+    createdAt?: string;
   };
   budgetId: string;
   month: string;
@@ -70,8 +68,10 @@ export function TransactionRow({
   const t = useTranslations("grid.txn");
   const tc = useTranslations("grid.confirm.deleteTxn");
   const locale = useLocale();
+  const userTz = useUserTimezone();
   const [revealed, setRevealed] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -81,7 +81,9 @@ export function TransactionRow({
   const deleteMutation = useDeleteTransaction(budgetId, month);
   const updateMutation = useUpdateTransaction(budgetId, month);
 
-  const showChips = (hovered || revealed) && !editing && !readOnly;
+  // r40b: keyboard-focused rows reveal their action chips too (icons must show
+  // when a row is highlighted via arrow navigation, not only on hover/tap).
+  const showChips = (hovered || revealed || focused) && !editing && !readOnly;
 
   // Inline-edit focus management for iOS Safari.
   //
@@ -207,9 +209,16 @@ export function TransactionRow({
   }, [revealed]);
 
   const formattedAmount = centsToBare(txn.amountConvertedCents, locale);
-  const formattedDate = new Date(
-    `${txn.transactionDate}T00:00:00`,
-  ).toLocaleDateString(locale);
+  // r40b (item 8): the focus meta line shows the CREATION date in the user's
+  // timezone, day + short month, NO year ("13 Feb") — NOT the edit time and NOT
+  // the spending calendar date. Falls back to the spending date if the row
+  // predates the created_at wiring.
+  const formattedDate = txn.createdAt
+    ? formatInstantDate(txn.createdAt, locale, userTz, {
+        month: "short",
+        year: false,
+      })
+    : new Date(`${txn.transactionDate}T00:00:00`).toLocaleDateString(locale);
   const confirmAmount = centsToDisplayCompact(
     txn.amountConvertedCents,
     txn.currencyConverted,
@@ -313,6 +322,7 @@ export function TransactionRow({
     const original = parseInt(txn.amountConvertedCents, 10);
     // Clearing the field or zeroing the amount deletes the row.
     if (trimmed === "" || cents === 0) {
+      focusAfterDelete();
       deleteMutation.mutate(txn.id);
       setEditing(false);
       return;
@@ -324,6 +334,47 @@ export function TransactionRow({
     setEditing(false);
     setHovered(false);
     setRevealed(false);
+    refocusRow();
+  }
+
+  // r40: after a quick edit ends (commit or Escape) focus returns to the ROW
+  // so arrow-key navigation continues without re-entering the list. rAF: the
+  // editor must unmount first or its blur handler re-commits.
+  function refocusRow() {
+    requestAnimationFrame(() => rowRef.current?.focus());
+  }
+
+  // r40b (item 1): after a delete, move focus to the item that slides into the
+  // deleted row's slot (or the last row if it WAS the last); if the column is
+  // now empty, focus its quick-add input. Captures the column + index NOW, then
+  // waits (rAF poll) for React to unmount the row before focusing.
+  function focusAfterDelete() {
+    const row = rowRef.current;
+    const column = row?.closest<HTMLElement>(
+      '[data-testid^="category-column-"]',
+    );
+    if (!row || !column) return;
+    const rowsNow = Array.from(
+      column.querySelectorAll<HTMLElement>("[data-txn-nav]"),
+    );
+    const idx = rowsNow.indexOf(row);
+    const focusNext = (attempt: number) => {
+      const rows = Array.from(
+        column.querySelectorAll<HTMLElement>("[data-txn-nav]"),
+      );
+      if (rows.includes(row) && attempt < 10) {
+        requestAnimationFrame(() => focusNext(attempt + 1));
+        return;
+      }
+      if (rows.length > 0) {
+        rows[Math.min(idx, rows.length - 1)]?.focus();
+      } else {
+        column
+          .querySelector<HTMLElement>('input[data-testid^="quick-entry-"]')
+          ?.focus();
+      }
+    };
+    requestAnimationFrame(() => focusNext(0));
   }
 
   function handleEditKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -335,6 +386,7 @@ export function TransactionRow({
       setEditing(false);
       setHovered(false);
       setRevealed(false);
+      refocusRow();
     }
   }
 
@@ -342,19 +394,64 @@ export function TransactionRow({
     <div
       ref={rowRef}
       data-testid={`txn-row-${txn.amountConvertedCents}`}
+      // r40 keyboard nav: rows are reached with ArrowUp/Down (grid-key-nav),
+      // NOT Tab — the tab order belongs to the quick-add inputs. data-txn-nav
+      // marks arrow-navigable rows; archived (readOnly) rows opt out.
+      {...(readOnly ? {} : { "data-txn-nav": "" })}
       onClick={readOnly ? undefined : handleClick}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => {
+        setHovered(true);
+        // r40b: focus-follows-mouse. Hovering a row makes it the current nav
+        // anchor so the previously arrow-focused row's highlight clears and the
+        // next arrow press is relative to THIS row. Skip while this row is
+        // editing, on read-only rows, and when the user is typing in a field
+        // (don't steal focus from a quick input / amount editor mid-entry).
+        if (readOnly || editing) return;
+        const ae = document.activeElement as HTMLElement | null;
+        const typingElsewhere =
+          !!ae &&
+          ae !== rowRef.current &&
+          (ae.tagName === "INPUT" ||
+            ae.tagName === "TEXTAREA" ||
+            ae.isContentEditable);
+        if (typingElsewhere) return;
+        rowRef.current?.focus({ preventScroll: true });
+      }}
       onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onKeyDown={(e) => {
+        if (readOnly || editing) return;
+        if (e.target !== e.currentTarget) return; // row itself, not the editor
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          // r40b: Cmd/Ctrl+Enter opens the FULL editor (same as the pen chip),
+          // distinct from a plain Enter which starts the inline amount edit.
+          e.preventDefault();
+          onEdit(txn.id);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          startEditing();
+        } else if (e.key === "Backspace" || e.key === "Delete") {
+          e.preventDefault();
+          setDeleteOpen(true);
+        }
+      }}
       role="row"
-      tabIndex={0}
+      tabIndex={-1}
       className={cn(
-        "flex min-h-[40px] items-center gap-2 px-3 py-1",
+        // flex-col so the meta line (line 2) spans the FULL row width. relative
+        // so the action chips can absolutely-centre against the WHOLE two-line
+        // row height (not just the amount line).
+        "relative flex min-h-[40px] flex-col justify-center gap-0.5 px-3 py-1",
+        // Keyboard focus reads exactly like hover — elevated surface, no
+        // accent ring (r40 UAT).
+        "outline-none focus-visible:bg-[var(--surface-elevated-dark)]",
         readOnly ? "cursor-default select-none" : "cursor-pointer select-none",
         roundedBottom && "rounded-b-md",
         showChips && "bg-[var(--surface-elevated-dark)]",
       )}
     >
-      {/* Amount cell. */}
+      {/* Amount (line 1). */}
       <div
         ref={cellRef}
         data-amount-cell
@@ -365,7 +462,7 @@ export function TransactionRow({
           WebkitTouchCallout: "none",
         }}
         className={cn(
-          "flex min-w-0 flex-1 items-center",
+          "flex min-w-0 items-center",
           // UAT round 22: amount cell always reads as pointer. Earlier
           // round 21 flipped to `cursor-text` once chips were revealed,
           // but the cell is still a click target at that point (the
@@ -389,40 +486,26 @@ export function TransactionRow({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
-                  <span className="shrink-0">{formattedAmount}</span>
-                  {/* Inline note — hidden while chips are revealed to keep the
-                      revealed state clean. Tooltip still renders the note on
-                      hover/long-press. */}
-                  {txn.note && !showChips ? (
-                    <span
-                      data-testid="txn-row-note"
-                      className="min-w-0 truncate text-xs text-[var(--muted-foreground)]"
-                    >
-                      {txn.note}
-                    </span>
-                  ) : null}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent data-testid="txn-tooltip">
-                <div className="num text-xs">{formattedDate}</div>
-                {txn.note ? (
-                  <div className="text-xs text-[var(--muted-foreground)]">
-                    {txn.note}
-                  </div>
-                ) : null}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
+            <span className="shrink-0">{formattedAmount}</span>
+            {/* Inline note only while the row is RESTING — keeps it compact.
+                An ACTIVE row shows the fuller meta line (date · note) below. */}
+            {txn.note && !showChips ? (
+              <span
+                data-testid="txn-row-note"
+                className="min-w-0 truncate text-xs text-[var(--muted-foreground)]"
+              >
+                {txn.note}
+              </span>
+            ) : null}
+          </span>
         )}
       </div>
 
-      {/* Action chips — shown on hover (desktop) or tap-reveal (touch) */}
+      {/* Action chips — absolutely centred on the right so they align to the
+          MIDDLE of the whole two-line row, not just the amount line. */}
       {showChips && (
-        <div className="flex items-center gap-1">
+        <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1">
           <button
             type="button"
             data-testid="txn-action-edit"
@@ -458,6 +541,18 @@ export function TransactionRow({
         </div>
       )}
 
+      {/* Line 2 (full row width) — created date + note on focus/hover/tap. pr-16
+          keeps the text clear of the absolutely-centred chips on the right. */}
+      {showChips && !editing && (
+        <span
+          data-testid="txn-row-meta"
+          className="block min-w-0 truncate pr-16 text-[10px] leading-tight text-[var(--muted-foreground)]"
+        >
+          {formattedDate}
+          {txn.note ? ` · ${txn.note}` : ""}
+        </span>
+      )}
+
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent
           // Focus the destructive action so a single Enter key confirms.
@@ -480,6 +575,7 @@ export function TransactionRow({
             <AlertDialogAction
               data-testid="txn-row-delete-confirm"
               onClick={() => {
+                focusAfterDelete();
                 deleteMutation.mutate(txn.id);
                 setDeleteOpen(false);
               }}

@@ -99,10 +99,11 @@ function makeDeps(overrides: {
 
   const transactionRepo: Pick<
     TransactionRepo,
-    "spendByCategoryForMonth" | "spendByCategoryByMonth"
+    "spendByCategoryForMonth" | "spendByCategoryByMonth" | "latestSpendingCreatedAt"
   > = {
     spendByCategoryForMonth: async () => spend,
     spendByCategoryByMonth: async () => new Map(),
+    latestSpendingCreatedAt: async () => null,
   };
 
   const summaryRepo: SpendingsSummaryRepo = {

@@ -21,7 +21,9 @@ const replace = vi.fn();
 let listParam: string | null = null;
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
-  useSearchParams: () => ({ get: (k: string) => (k === "list" ? listParam : null) }),
+  useSearchParams: () => ({
+    get: (k: string) => (k === "list" ? listParam : null),
+  }),
 }));
 
 // The active-budgets query is the input we vary per scenario.
@@ -30,12 +32,10 @@ vi.mock("@/hooks/use-active-budgets", () => ({
   useActiveBudgets: () => activeBudgets,
 }));
 
-// BudgetCardClient fetches its own summary (RQ); stub it so the listing renders
-// without a QueryClient. A marked stub lets us assert the listing is shown.
-vi.mock("@/components/budgeting/budget-card-client", () => ({
-  BudgetCardClient: ({ budget }: { budget: { id: string } }) => (
-    <div data-testid={`budget-card-${budget.id}`} />
-  ),
+// AggregateOverview (Task 16) fetches its own aggregate summary (RQ); stub it
+// so the resolved ≥2-budget listing renders without a QueryClient.
+vi.mock("@/components/budgeting/aggregate/aggregate-overview", () => ({
+  AggregateOverview: () => <div data-testid="aggregate-overview" />,
 }));
 
 import { HomeBudgetsClient } from "@/components/budgeting/home-budgets-client";
@@ -78,8 +78,7 @@ describe("HomeBudgetsClient — auto-open shows the BDP Overview skeleton", () =
     activeBudgets = { data: [{ id: "b1" }, { id: "b2" }], isSuccess: true };
     const { container } = render(<HomeBudgetsClient locale="en" />);
     expect(overviewBand(container)).toBeNull();
-    expect(screen.getByText("heading")).toBeTruthy();
-    expect(screen.getByTestId("budget-card-b1")).toBeTruthy();
+    expect(screen.getByTestId("aggregate-overview")).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -87,7 +86,7 @@ describe("HomeBudgetsClient — auto-open shows the BDP Overview skeleton", () =
     activeBudgets = { data: [{ id: "b1" }, { id: "b2" }], isSuccess: true };
     const { container } = render(<HomeBudgetsClient locale="en" />);
     expect(overviewBand(container)).toBeNull();
-    expect(screen.getByText("heading")).toBeTruthy();
+    expect(screen.getByTestId("aggregate-overview")).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
   });
 });

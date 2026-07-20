@@ -56,7 +56,7 @@ export const UI_TYPE_COLOR: Record<UiType, string> = {
   real_estate: "#8b5a2b", // brown
   other: "#475569", // dark slate
   precious_metals: "#eab308", // gold
-  cash: "#84cc16", // lime
+  cash: "#52b788", // rgb(82, 183, 136) — green
   broker: "#6366f1", // indigo
   deposit: "#14b8a6", // teal
 };

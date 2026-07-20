@@ -347,6 +347,37 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     return r.value.map(dbRowToTransactionRow);
   }
 
+  async latestSpendingCreatedAt(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ): Promise<string | null> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(tenantId),
+      async (tx) => {
+        const drizzleTx = tx as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        const result = await drizzleTx.execute(
+          sql`SELECT max(created_at) AS latest
+            FROM budgeting.expense_ledger
+            WHERE tenant_id = ${tenantId}::uuid
+              AND budget_id = ${budgetId}::uuid
+              AND kind = 'SPENDING'
+              AND transaction_date >= ${monthStart}::date
+              AND transaction_date < ${monthEnd}::date
+              AND confirmed_at IS NOT NULL
+              AND deleted_at IS NULL`,
+        );
+        return result.rows[0]?.latest ?? null;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value ? new Date(r.value as string | Date).toISOString() : null;
+  }
+
   async spendByCategoryForMonth(
     tenantId: string,
     budgetId: string,

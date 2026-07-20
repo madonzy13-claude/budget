@@ -37,6 +37,11 @@ import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-
 import { listPendingTasks } from "@budget/budgeting/src/application/list-pending-tasks";
 import { resolveTask } from "@budget/budgeting/src/application/resolve-task";
 import { getCushionSummary } from "@budget/budgeting/src/application/get-cushion-summary";
+import { getAllBudgetsAggregate } from "@budget/budgeting/src/application/get-all-budgets-aggregate";
+import {
+  getAggregateWealthTrend,
+  rangeToFromTo,
+} from "@budget/budgeting/src/application/get-aggregate-wealth-trend";
 import { recomputeCushionTask } from "@budget/budgeting/src/application/recompute-cushion-task";
 import { makeRecomputeIncomeUnderPlannedTask } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 import { withTenantTx } from "@budget/platform";
@@ -118,6 +123,10 @@ export interface BootedDeps {
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
     /** Overview projection timeline (today → end of next month). */
     getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
+    /** Task 7: GET /budgets/aggregate — cross-budget "all budgets" rollup. */
+    getAllBudgetsAggregate: ReturnType<typeof getAllBudgetsAggregate>;
+    /** Task 9: GET /budgets/aggregate/wealth — combined net-worth trend. */
+    getAggregateWealthTrend: ReturnType<typeof getAggregateWealthTrend>;
   };
   /** Phase 9: Investments bounded context (CRUD + search + reorder + on-add fetch). */
   investments: ReturnType<typeof createInvestmentsModule>;
@@ -493,6 +502,103 @@ export async function boot(): Promise<BootedDeps> {
     }),
   });
 
+  // Task 7: cross-budget aggregate ("all budgets" overview). Composed AFTER
+  // budgetingFinal so it can reuse the already-composed getOverviewCards
+  // callable (needs holdingsValuation + cushion/spendings/reserves wiring above)
+  // rather than duplicating that composition.
+  const budgetingWithAggregate = Object.assign(budgetingFinal, {
+    getAllBudgetsAggregate: getAllBudgetsAggregate({
+      // BudgetDTO uses camelCase (memberCount); the aggregate service's
+      // deps port wants snake_case (member_count) — adapt at this boundary.
+      listForUser: async (userId: string) => {
+        const rows = await tenancy.workspaceRepo.listForUser(userId);
+        return rows.map((b) => ({
+          id: b.id,
+          name: b.name,
+          default_currency: b.default_currency,
+          member_count: b.memberCount,
+          pendingTasksCount: b.pendingTasksCount,
+        }));
+      },
+      getOverviewCardsForTenant: budgetingFinal.getOverviewCards,
+      getAggPrefsForUser: (userId: string) =>
+        tenancy.workspaceRepo.getAggPrefsForUser(userId),
+      displayCurrencyReader,
+      fxProvider: baseBudgeting.fxProvider,
+    }),
+    // Task 9: combined net-worth trend. Reuses the just-composed getOverviewWealth
+    // (same series the per-budget Financial-Wealth section shows) — adapts its
+    // Result<...>/string-cents DTO into the {currency, series[bigint]} shape
+    // getAggregateWealthTrend wants, and its own FX+share hop (today's rate)
+    // handles the cross-budget conversion.
+    getAggregateWealthTrend: getAggregateWealthTrend({
+      listForUser: async (userId: string) => {
+        const rows = await tenancy.workspaceRepo.listForUser(userId);
+        return rows.map((b) => ({
+          id: b.id,
+          default_currency: b.default_currency,
+        }));
+      },
+      getAggPrefsForUser: (userId: string) =>
+        tenancy.workspaceRepo.getAggPrefsForUser(userId),
+      getWealthForBudget: async ({
+        tenantId,
+        budgetId,
+        range,
+        from: fromArg,
+        to: toArg,
+        view,
+        net,
+      }) => {
+        // Explicit window wins over the range code (custom range / today P/L).
+        const win =
+          fromArg && toArg
+            ? { from: fromArg, to: toArg }
+            : rangeToFromTo(range, new Date());
+        const v = view === "investments" ? "investments" : "capitalization";
+        const result = await budgetingFinal.getOverviewWealth({
+          tenantId,
+          budgetId,
+          from: win.from,
+          to: win.to,
+          view: v,
+          net: net ?? false,
+        });
+        if (result.isErr()) {
+          // Budget vanished mid-fan-out (shouldn't happen — budgetId came from
+          // listForUser). Degrade to a same-currency no-op rather than fail the
+          // whole aggregate (mirrors getAllBudgetsAggregate's zeroRow pattern).
+          const meta = await summaryRepo.getBudgetMeta(budgetId);
+          return {
+            currency: meta?.default_currency ?? "USD",
+            series: [],
+            invested_cents: null,
+            pie: null,
+          };
+        }
+        return {
+          currency: result.value.currency,
+          series: result.value.series.map((p) => ({
+            label: p.label,
+            value_cents: BigInt(p.value_cents),
+          })),
+          invested_cents:
+            result.value.invested_cents != null
+              ? BigInt(result.value.invested_cents)
+              : null,
+          pie: result.value.pie
+            ? result.value.pie.map((s) => ({
+                holding_type: s.holding_type,
+                value_cents: BigInt(s.value_cents),
+              }))
+            : null,
+        };
+      },
+      displayCurrencyReader,
+      fxProvider: baseBudgeting.fxProvider,
+    }),
+  });
+
   logger.info({ region: env.REGION }, "apps/api booted");
 
   return {
@@ -502,7 +608,7 @@ export async function boot(): Promise<BootedDeps> {
     emailSender,
     identity,
     tenancy,
-    budgeting: budgetingFinal,
+    budgeting: budgetingWithAggregate,
     investments,
   };
 }

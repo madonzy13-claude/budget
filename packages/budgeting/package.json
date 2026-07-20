@@ -115,7 +115,9 @@
     "./src/adapters/persistence/reserves-summary-repo": "./src/adapters/persistence/reserves-summary-repo.ts",
     "./src/adapters/persistence/category-reserve-adjustments-repo": "./src/adapters/persistence/category-reserve-adjustments-repo.ts",
     "./src/application/simulate-cashflow-projection": "./src/application/simulate-cashflow-projection.ts",
-    "./src/application/compute-cashflow-projection": "./src/application/compute-cashflow-projection.ts"
+    "./src/application/compute-cashflow-projection": "./src/application/compute-cashflow-projection.ts",
+    "./src/application/get-all-budgets-aggregate": "./src/application/get-all-budgets-aggregate.ts",
+    "./src/application/get-aggregate-wealth-trend": "./src/application/get-aggregate-wealth-trend.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

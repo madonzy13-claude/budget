@@ -18,9 +18,9 @@ describe("formatChartDate", () => {
     expect(formatChartDate("2026-02", "uk")).not.toBe("2026-02");
   });
 
-  it("formats an hourly/12h bucket 'YYYY-MM-DDTHH' as 'D Mon HH:00'", () => {
-    expect(formatChartDate("2026-07-01T17", "en")).toBe("1 Jul 17:00");
-    expect(formatChartDate("2026-07-15T00", "en")).toBe("15 Jul 00:00");
+  it("collapses an hourly/12h bucket 'YYYY-MM-DDTHH' to its DATE (no time)", () => {
+    expect(formatChartDate("2026-07-01T17", "en")).toBe("1 Jul 2026");
+    expect(formatChartDate("2026-07-15T00", "en")).toBe("15 Jul 2026");
   });
 
   it("passes non-date labels through unchanged", () => {

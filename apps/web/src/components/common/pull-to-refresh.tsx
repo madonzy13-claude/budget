@@ -184,17 +184,24 @@ export function PullToRefresh() {
     const onTouchEnd = () => {
       if (startYRef.current !== null && pullRef.current >= PULL_THRESHOLD) {
         setRefreshing(true);
-        // Refetch active queries (SWR). Do NOT await — offline the refetch is
-        // PAUSED by React Query's networkMode and never settles, which would
-        // hang the spinner; cached data stays on screen meanwhile. Online the
-        // refetch lands in the background and swaps in fresh data. Clear the
-        // indicator after a short beat regardless.
-        void qcRef.current.invalidateQueries();
-        setTimeout(() => {
-          pullRef.current = 0;
-          setPull(0);
-          setRefreshing(false);
-        }, 600);
+        const offline =
+          typeof navigator !== "undefined" && navigator.onLine === false;
+        if (offline) {
+          // Offline a HARD reload tears the cached document → blank (data cached
+          // but lost). Keep the SWR refetch (paused by networkMode; cached data
+          // stays) + clear the indicator after a beat.
+          void qcRef.current.invalidateQueries();
+          setTimeout(() => {
+            pullRef.current = 0;
+            setPull(0);
+            setRefreshing(false);
+          }, 600);
+        } else {
+          // Online: a REAL full-page reload (user request) — reloads the document
+          // so nothing is stale. The spinner rides until the navigation replaces
+          // the page.
+          window.location.reload();
+        }
       } else {
         pullRef.current = 0;
         setPull(0);
