@@ -6,7 +6,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { TransactionRow } from "../../../src/components/budgeting/spendings-grid/transaction-row";
 import { TestQueryProvider } from "../../setup/query-client";
 

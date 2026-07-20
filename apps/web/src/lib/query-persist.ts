@@ -140,6 +140,21 @@ export async function restoreQueryCache(client: QueryClient): Promise<void> {
       Date.now() - saved.at < MAX_AGE_MS
     ) {
       hydrate(client, saved.state);
+      // SWR (260625): the hydrated snapshot is a COLD-load restore — its queries
+      // keep their original (possibly stale) dataUpdatedAt, and the read hooks
+      // use staleTime (30–60s) WITHOUT refetchOnMount:"always" (that was removed
+      // because it caused per-nav lag — see use-transactions). So without this,
+      // a reload that restores e.g. a pre-rename budget shows the stale value and
+      // staleTime suppresses the revalidation → the new name/reserve/etc never
+      // appears until staleTime elapses. Invalidate the restored budget-scoped
+      // queries so each revalidates once in the background. This runs ONLY here,
+      // on the one-shot cold restore (QueryProvider mounts once) — soft-nav tab
+      // switches never re-restore, so staleTime still governs them and there is
+      // no nav-lag. Scoped to shouldPersist so auth/unrelated queries are left
+      // alone. Fire-and-forget: never block restoreComplete.
+      void client.invalidateQueries({
+        predicate: (q) => shouldPersist(q.queryKey),
+      });
     }
   } catch {
     // IDB unavailable (private browsing) — skip persistence silently.
