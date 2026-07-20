@@ -99,6 +99,45 @@ export class InvestmentsPo {
     }
   }
 
+  /** Open the Sheet and create a Savings holding (starting + current amount, no
+   *  quantity). Amounts are major units (e.g. "10000" = 10,000.00). */
+  async addSavingsHolding(
+    name: string,
+    starting: string,
+    current: string,
+  ): Promise<void> {
+    await this.addButton().click();
+    await this.sheet().waitFor({ state: "visible" });
+    const savingsOption = this.page.getByTestId("holding-type-savings");
+    if (!(await savingsOption.isVisible().catch(() => false))) {
+      await this.page.getByTestId("holding-sheet-type").click();
+    }
+    await savingsOption.waitFor({ state: "visible" });
+    await savingsOption.click();
+    // Savings reuses the broker field-set: name + starting (deposited) + current
+    // (actual), no quantity. Wait for the starting field before filling.
+    const startingInput = this.page.getByTestId("holding-sheet-deposited");
+    await startingInput.waitFor({ state: "visible" });
+    await this.page.getByTestId("holding-sheet-name").fill(name);
+    await startingInput.fill(starting);
+    await this.page.getByTestId("holding-sheet-actual").fill(current);
+    // Wait for the create POST to land before returning (a following reload would
+    // otherwise cancel the in-flight request — see addCustomHolding).
+    const createPosted = this.page.waitForResponse(
+      (r) =>
+        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
+        r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("holding-sheet-submit").click();
+    const res = await createPosted;
+    if (!res.ok()) {
+      throw new Error(
+        `create savings POST failed: ${res.status()} ${res.url()}`,
+      );
+    }
+  }
+
   /** Drag a holding row onto a group header (HTML5 DnD). */
   async dragIntoGroup(name: string, group: string): Promise<void> {
     await this.row(name).dragTo(this.groupHeader(group));
