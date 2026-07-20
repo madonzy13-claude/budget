@@ -35,21 +35,32 @@ export function windowPanCorrection(box: {
   return 0;
 }
 
+/** Keyboard height (px) = how much the software keyboard shrinks the visual
+ *  viewport below the layout viewport. 0 (clamped) when the keyboard is closed. */
+export function keyboardInset(innerHeight: number, vvHeight: number): number {
+  return Math.max(0, Math.round(innerHeight - vvHeight));
+}
+
+/** Below this the gap is address-bar wobble / rounding, not a keyboard. */
+const KEYBOARD_MIN_PX = 120;
+
 /**
- * useIosShellKeyboardFit — cancels iOS standalone's keyboard-open WINDOW pan
- * while `inputRef` is focused, so the shell never slides up under the status bar
- * (and never uncovers the black band below the shrunk layout).
+ * useIosShellKeyboardFit — while `inputRef` is focused in an installed PWA, give
+ * the shell scroller (`main[data-shell-scroll]`) bottom padding equal to the
+ * keyboard height so it becomes SCROLLABLE.
  *
- * On-device vpdbg (R22) proved the fields we attach this to are top-anchored
- * block flow — the focused input naturally sits ABOVE the keyboard (top 422 <
- * vvH 473) with NO layout change. So the only defect is iOS panning the window
- * to give the field extra margin (the first-open overshoot). We just reset the
- * window to the top; nothing is resized, so there is no reflow slide and no
- * exposed gap. Idempotent — a no-op once winY is already 0, so the scroll
- * listener our own reset would re-fire can't loop.
+ * On-device vpdbg (R23, IMG_3238–3240): the keyboard-open "slide from the
+ * bottom" is iOS PANNING THE VISUAL VIEWPORT (winY stays 0 the whole time — it
+ * is not a window scroll, which is why window.scrollTo could never fix it). iOS
+ * pans because `main` is exactly as tall as its content (747/747) — nothing is
+ * scrollable, so to keep the focused field clear of the keyboard iOS shifts the
+ * whole viewport, then settles. Making `main` scrollable gives iOS a container
+ * to scroll instead: it nudges `main` (smooth, header stays put) or, since the
+ * field already sits above the keyboard, does nothing at all — either way no
+ * viewport pan, no slide. Padding is removed on blur/unmount.
  *
  * Standalone-only: Safari repositions the field inside its own resizing layout
- * viewport, so there is nothing to cancel there.
+ * viewport, so there is nothing to correct there.
  */
 export function useIosShellKeyboardFit(
   inputRef: React.RefObject<HTMLElement | null>,
@@ -63,30 +74,43 @@ export function useIosShellKeyboardFit(
       (window.navigator as unknown as { standalone?: boolean }).standalone ===
         true;
     if (!standalone) return;
+    const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
+    if (!main) return;
 
     let active = false;
-    const pin = () => {
+    const clear = () => main.style.removeProperty("padding-bottom");
+    const apply = () => {
       if (!active) return;
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      const kb = keyboardInset(window.innerHeight, vv.height);
+      if (kb > KEYBOARD_MIN_PX) {
+        main.style.paddingBottom = `${kb}px`;
+      } else {
+        clear();
+      }
     };
     const onFocus = () => {
       active = true;
-      pin();
+      // The keyboard has not opened yet at focus time (vv.height ≈ innerHeight),
+      // so seed a generous inset immediately — the container must already be
+      // scrollable when iOS processes the focus, or iOS commits to panning the
+      // viewport before our resize handler runs. The resize below tightens it to
+      // the real keyboard height.
+      main.style.paddingBottom = `${Math.round(window.innerHeight * 0.5)}px`;
     };
     const onBlur = () => {
       active = false;
+      clear();
     };
 
     el.addEventListener("focus", onFocus);
     el.addEventListener("blur", onBlur);
-    vv.addEventListener("resize", pin);
-    vv.addEventListener("scroll", pin);
+    vv.addEventListener("resize", apply);
     if (document.activeElement === el) onFocus();
     return () => {
       el.removeEventListener("focus", onFocus);
       el.removeEventListener("blur", onBlur);
-      vv.removeEventListener("resize", pin);
-      vv.removeEventListener("scroll", pin);
+      vv.removeEventListener("resize", apply);
+      clear();
     };
   }, [inputRef]);
 }
