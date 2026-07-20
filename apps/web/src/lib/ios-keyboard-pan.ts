@@ -77,16 +77,26 @@ export function useIosShellKeyboardFit(
     const main = document.querySelector<HTMLElement>("main[data-shell-scroll]");
     if (!main) return;
 
+    // DIAGNOSTIC (R26): hardcode the reporter's keyboard height (their vpdbg:
+    // innerH 874 − vvH 473 = 401) so we can PRE-POSITION the field on focus,
+    // BEFORE iOS opens the keyboard. If the first-open slide is caused by iOS
+    // acting on an uncached keyboard height, doing the layout ourselves with a
+    // KNOWN height up front should make the first open clean. If it still slides,
+    // the height was never the cause.
+    const ASSUMED_KB_PX = 401;
+
     let active = false;
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
     const clear = () => main.style.removeProperty("padding-bottom");
-    // Once the keyboard has settled, place the field ourselves. main is now
-    // scrollable and the window has no scroll range, so scrollIntoView moves
-    // ONLY main — centring the field in the visible strip instead of letting
-    // iOS's focus-scroll jam it against the status bar (the "too high").
-    const centre = () => {
+    // Place the field ourselves. main is scrollable and the window has no scroll
+    // range, so scrollIntoView moves ONLY main — centring the field in the strip
+    // that will be visible above the keyboard.
+    const centreFor = (kb: number) => {
       if (!active) return;
-      el.scrollIntoView({ block: "center", behavior: "auto" });
+      const visible = window.innerHeight - kb;
+      const target = Math.round(visible / 2);
+      const cur = el.getBoundingClientRect().top;
+      main.scrollTop += cur - target;
     };
     const apply = () => {
       if (!active) return;
@@ -96,18 +106,18 @@ export function useIosShellKeyboardFit(
       } else {
         clear();
       }
-      // Debounce so we centre once after the open animation, not every frame.
+      // Debounce so we settle once after the open animation, not every frame.
       if (settleTimer) clearTimeout(settleTimer);
-      settleTimer = setTimeout(centre, 150);
+      settleTimer = setTimeout(() => centreFor(kb > KEYBOARD_MIN_PX ? kb : 0), 150);
     };
     const onFocus = () => {
       active = true;
-      // The keyboard has not opened yet at focus time (vv.height ≈ innerHeight),
-      // so seed a generous inset immediately — the container must already be
-      // scrollable when iOS processes the focus, or iOS commits to panning the
-      // viewport before our resize handler runs. The resize below tightens it to
-      // the real keyboard height.
-      main.style.paddingBottom = `${Math.round(window.innerHeight * 0.5)}px`;
+      // Pre-apply the ASSUMED keyboard height SYNCHRONOUSLY, before iOS opens
+      // the keyboard: pad main so it is scrollable, then scroll the field to
+      // where it should sit once the keyboard is up. If the theory holds, iOS
+      // then opens onto an already-correct layout and has nothing to animate.
+      main.style.paddingBottom = `${ASSUMED_KB_PX}px`;
+      centreFor(ASSUMED_KB_PX);
     };
     const onBlur = () => {
       active = false;

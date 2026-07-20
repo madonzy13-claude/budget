@@ -14,7 +14,7 @@ import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R25";
+const BUILD_MARKER = "SHELL-R26-DIAG";
 
 const FLAG_KEY = "vpdbg";
 
