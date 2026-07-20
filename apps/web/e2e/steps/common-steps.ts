@@ -7,7 +7,6 @@ import {
   type ParsedCookie,
 } from "../fixtures/fresh-user-per-scenario";
 import { TopNavPo } from "../page-objects/TopNavPo";
-import { HomePo } from "../page-objects/HomePo";
 import { BdpPo, type BdpTabSlug } from "../page-objects/BdpPo";
 import { SwitcherPo } from "../page-objects/SwitcherPo";
 const { Given, When, Then } = createBdd(test);
@@ -107,18 +106,10 @@ When("I open the home page", async ({ page }) => {
     .catch(() => {});
 });
 
-// r35: a single-budget user auto-opens their overview, so the home LISTING only
-// renders for >1 budget (or ?list=1). Seed a 2nd budget so the card listing is
-// reachable, then this step forces it with ?list=1.
+// Seed an additional budget for the signed-in fresh user (e.g. multi-budget
+// aggregate / switcher scenarios).
 Given("I also have a budget named {string}", async ({ freshUser }, name) => {
   await createBudgetViaHttp(freshUser.baseUrl, freshUser.cookieHeader, name);
-});
-
-When("I open the home budget listing", async ({ page }) => {
-  await page.goto("/en?list=1");
-  await page
-    .waitForLoadState("networkidle", { timeout: 10000 })
-    .catch(() => {});
 });
 
 When(
@@ -201,15 +192,6 @@ When("I click the {string} tab pill", async ({ page }, slug: string) => {
 
 When("I press the browser Back button", async ({ page }) => {
   await page.goBack();
-});
-
-When("I click the card for {string}", async ({ page }, name: string) => {
-  const home = new HomePo(page);
-  const before = page.url();
-  await home.card(name).click();
-  await page
-    .waitForURL((url) => url.toString() !== before, { timeout: 5000 })
-    .catch(() => {});
 });
 
 Then("I see the {string} budget section", async ({ page }, label: string) => {
@@ -324,13 +306,6 @@ Then(
 
 Then("the task banner displays {string}", async ({ page }, text: string) => {
   await page.getByText(text).waitFor({ state: "visible" });
-});
-
-Then("I see a budget card titled {string}", async ({ page }, name: string) => {
-  await page
-    .getByRole("heading", { name })
-    .first()
-    .waitFor({ state: "visible" });
 });
 
 Then("I see the {string} placeholder chart", async ({ page }, text: string) => {

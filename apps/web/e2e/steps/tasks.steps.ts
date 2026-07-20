@@ -4,7 +4,7 @@ import { test } from "../fixtures/fresh-user-per-scenario";
 import { SettingsPo } from "../page-objects/SettingsPo";
 import { BdpTabsPo } from "../page-objects/BdpTabsPo";
 import { PillTaskSliderPo } from "../page-objects/PillTaskSliderPo";
-import { HomePo } from "../page-objects/HomePo";
+import { SwitcherPo } from "../page-objects/SwitcherPo";
 
 const { Given, When, Then } = createBdd(test);
 
@@ -270,22 +270,27 @@ Then("I am navigated to the wallets tab", async ({ page }) => {
 });
 
 // -----------------------------------------------------------------------
-// Then — Home badge assertions
+// Then — Switcher row badge assertions (r35 + Task 16: per-budget pending
+// count moved from the removed home cards to the header switcher rows).
 // -----------------------------------------------------------------------
 
 Then(
-  /^the budget card for "(.+?)" shows a pending tasks badge "(\d+)"$/,
+  /^the switcher row for "(.+?)" shows a pending tasks badge "(\d+)"$/,
   async ({ page }, budgetName: string, count: string) => {
-    const home = new HomePo(page);
-    await home.assertCardBadge(budgetName, Number(count));
+    const sw = new SwitcherPo(page);
+    await expect(sw.budgetRow(budgetName).getByTestId("pill-badge")).toHaveText(
+      String(count),
+    );
   },
 );
 
 Then(
-  /^the budget card for "(.+?)" shows no pending tasks badge$/,
+  /^the switcher row for "(.+?)" shows no pending tasks badge$/,
   async ({ page }, budgetName: string) => {
-    const home = new HomePo(page);
-    await home.assertCardBadge(budgetName, 0);
+    const sw = new SwitcherPo(page);
+    await expect(
+      sw.budgetRow(budgetName).getByTestId("pill-badge"),
+    ).toHaveCount(0);
   },
 );
 
