@@ -14,11 +14,12 @@ import {
   Bitcoin,
   Gem,
   Home,
-  MoreHorizontal,
+  Shapes,
   Coins,
   Banknote,
   Briefcase,
   PiggyBank,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { deriveUiType, type UiType } from "@/lib/investment-types";
@@ -33,11 +34,12 @@ export const UI_TYPE_ICON: Record<UiType, LucideIcon> = {
   treasury_bond: Landmark,
   collectibles: Gem,
   real_estate: Home,
-  other: MoreHorizontal,
+  other: Shapes,
   precious_metals: Coins,
   cash: Banknote,
   broker: Briefcase,
   deposit: PiggyBank,
+  savings: Wallet,
 };
 
 /**
@@ -59,6 +61,7 @@ export const UI_TYPE_COLOR: Record<UiType, string> = {
   cash: "#52b788", // rgb(82, 183, 136) — green
   broker: "#6366f1", // indigo
   deposit: "#14b8a6", // teal
+  savings: "#84cc16", // lime — distinct from the greens (cash/treasury), reads as growth
 };
 
 /** Light silver-grey accent for the non-gold precious metals (silver, platinum,

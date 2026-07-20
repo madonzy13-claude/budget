@@ -21,7 +21,8 @@ export type HoldingType =
   | "cash_fx"
   | "real_estate"
   | "other"
-  | "deposit";
+  | "deposit"
+  | "savings";
 
 /**
  * Enriched holding row returned by GET /investments. Shape mirrors the server

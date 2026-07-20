@@ -7,7 +7,12 @@
  * budget's currency, converted via FX — same as crypto/metals).
  */
 import { describe, it, expect } from "vitest";
-import { usesUserChosenCurrency } from "@/lib/investment-types";
+import {
+  usesUserChosenCurrency,
+  UI_TYPE_META,
+  UI_TYPE_ORDER,
+  deriveUiType,
+} from "@/lib/investment-types";
 
 describe("usesUserChosenCurrency", () => {
   it("equity + ETF are user-currency (FX-converted), like crypto", () => {
@@ -21,7 +26,28 @@ describe("usesUserChosenCurrency", () => {
     expect(usesUserChosenCurrency("cash")).toBe(false);
     expect(usesUserChosenCurrency("broker")).toBe(false);
     expect(usesUserChosenCurrency("collectibles")).toBe(false);
+    expect(usesUserChosenCurrency("savings")).toBe(false);
     expect(usesUserChosenCurrency("")).toBe(false);
     expect(usesUserChosenCurrency(null)).toBe(false);
+  });
+});
+
+describe("savings ui type", () => {
+  it("maps to its own savings holding_type, manual (broker-shaped) behavior", () => {
+    // Own holding_type → own investments-pie slice. Behavior 'broker' reuses the
+    // proven name+starting+current+currency (qty=1) field-set.
+    expect(UI_TYPE_META.savings).toEqual({
+      holdingType: "savings",
+      behavior: "broker",
+    });
+  });
+
+  it("is offered in the type dropdown", () => {
+    expect(UI_TYPE_ORDER).toContain("savings");
+  });
+
+  it("deriveUiType resolves savings from stored ui_type or the holding_type", () => {
+    expect(deriveUiType("savings", "savings", true)).toBe("savings");
+    expect(deriveUiType(null, "savings", true)).toBe("savings");
   });
 });

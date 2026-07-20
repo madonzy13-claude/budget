@@ -24,7 +24,8 @@ export type UiType =
   | "precious_metals"
   | "cash"
   | "broker"
-  | "deposit";
+  | "deposit"
+  | "savings";
 
 export type InvestmentBehavior =
   | "tracked"
@@ -79,6 +80,9 @@ export const UI_TYPE_META: Record<UiType, UiTypeMeta> = {
   cash: { holdingType: "cash_fx", behavior: "cash" },
   broker: { holdingType: "other", behavior: "broker" },
   deposit: { holdingType: "deposit", behavior: "deposit" },
+  // Manual savings pot. Own holding_type (own pie slice); reuses the broker
+  // field-set (name + starting + current + currency, qty=1) — only labels differ.
+  savings: { holdingType: "savings", behavior: "broker" },
 };
 
 /** Dropdown order (tracked first, then manual, then metals/cash/broker; the
@@ -94,6 +98,7 @@ export const UI_TYPE_ORDER: UiType[] = [
   "real_estate",
   "precious_metals",
   "cash",
+  "savings",
   "deposit",
   "broker",
   "other",
@@ -176,6 +181,8 @@ export function deriveUiType(
       return "real_estate";
     case "deposit":
       return "deposit";
+    case "savings":
+      return "savings";
     case "bond":
       return isCustom ? "treasury_bond" : "etb";
     default:

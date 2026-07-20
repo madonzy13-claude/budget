@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { holdingIcon } from "../../src/lib/investment-icons";
+import { Wallet, Shapes } from "lucide-react";
+import { holdingIcon, UI_TYPE_ICON } from "../../src/lib/investment-icons";
 
 describe("holdingIcon — precious-metals accent is metal-aware (260626)", () => {
   const base = {
@@ -35,5 +36,25 @@ describe("holdingIcon — precious-metals accent is metal-aware (260626)", () =>
         isCustom: false,
       }).color,
     ).toBe("#3b82f6");
+  });
+});
+
+describe("savings + other icons (260720)", () => {
+  it("savings uses the Wallet icon", () => {
+    expect(UI_TYPE_ICON.savings).toBe(Wallet);
+  });
+
+  it("other uses Shapes — no more three-dots MoreHorizontal", () => {
+    expect(UI_TYPE_ICON.other).toBe(Shapes);
+  });
+
+  it("holdingIcon resolves a savings holding to Wallet + an accent color", () => {
+    const { Icon, color } = holdingIcon({
+      uiType: "savings",
+      holdingType: "savings",
+      isCustom: true,
+    });
+    expect(Icon).toBe(Wallet);
+    expect(color).toMatch(/^#[0-9a-f]{6}$/i);
   });
 });
