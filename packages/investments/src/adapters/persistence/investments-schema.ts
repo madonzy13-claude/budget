@@ -68,11 +68,11 @@ export const investments = budgeting.table(
   (t) => [
     check(
       "investments_holding_type_chk",
-      sql`${t.holdingType} IN ('equities','etf','bond','crypto','reit','commodity','cash_fx','real_estate','other','deposit')`,
+      sql`${t.holdingType} IN ('equities','etf','bond','crypto','reit','commodity','cash_fx','real_estate','other','deposit','savings')`,
     ),
     check(
       "investments_ui_type_chk",
-      sql`${t.uiType} IS NULL OR ${t.uiType} IN ('equity','etf','etb','reit','crypto','treasury_bond','collectibles','real_estate','other','precious_metals','cash','broker','deposit')`,
+      sql`${t.uiType} IS NULL OR ${t.uiType} IN ('equity','etf','etb','reit','crypto','treasury_bond','collectibles','real_estate','other','precious_metals','cash','broker','deposit','savings')`,
     ),
     check(
       "investments_deposit_cap_frequency_chk",
