@@ -87,18 +87,30 @@ export function useIosShellKeyboardFit(
     const body = document.body;
     const shell = document.querySelector<HTMLElement>("[data-shell-root]");
     let active = false;
+    // Last height applied to the chain (px), or null when restored. The guard
+    // below skips re-applying an unchanged height — WITHOUT it, apply() mutates
+    // layout + scroll, which re-fires the vv events that called it → an infinite
+    // resize/scroll feedback loop (the "infinity jumping").
+    let applied: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const restore = () => {
+      applied = null;
       html.style.removeProperty("height");
       body.style.removeProperty("height");
       shell?.style.removeProperty("height");
     };
-    const fit = () => {
+    const apply = () => {
       if (!active) return;
       const h = shellFitHeight(window.innerHeight, vv.height);
       if (h == null) {
-        restore();
+        if (applied !== null) restore();
         return;
       }
+      // Tolerance, not equality: pinning the chain can make iOS re-report
+      // vv.height a few px off, which would bypass an exact-match guard and
+      // oscillate. Treat anything within 4px of the applied height as settled.
+      if (applied !== null && Math.abs(h - applied) < 4) return;
+      applied = h;
       const px = `${h}px`;
       // Shrink the WHOLE layout chain to the visible height: html + body (the
       // scroll root, both 100lvh in standalone) AND the h-lvh shell container.
@@ -114,25 +126,33 @@ export function useIosShellKeyboardFit(
       if (window.scrollY !== 0) window.scrollTo(0, 0);
       el.scrollIntoView({ block: "center", behavior: "auto" });
     };
+    // Debounce: collapse the burst of resize events during the keyboard-open
+    // animation into ONE apply once the viewport settles. Only vv `resize`
+    // (keyboard open/close) drives it — NOT vv `scroll`, whose events our own
+    // scrollTo/scrollIntoView emit (that was the loop).
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(apply, 120);
+    };
     const onFocus = () => {
       active = true;
-      fit();
+      schedule();
     };
     const onBlur = () => {
       active = false;
+      if (timer) clearTimeout(timer);
       restore();
     };
 
     el.addEventListener("focus", onFocus);
     el.addEventListener("blur", onBlur);
-    vv.addEventListener("resize", fit);
-    vv.addEventListener("scroll", fit);
+    vv.addEventListener("resize", schedule);
     if (document.activeElement === el) onFocus();
     return () => {
       el.removeEventListener("focus", onFocus);
       el.removeEventListener("blur", onBlur);
-      vv.removeEventListener("resize", fit);
-      vv.removeEventListener("scroll", fit);
+      vv.removeEventListener("resize", schedule);
+      if (timer) clearTimeout(timer);
       restore();
     };
   }, [inputRef]);
