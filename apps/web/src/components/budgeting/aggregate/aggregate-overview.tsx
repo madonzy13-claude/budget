@@ -136,7 +136,7 @@ export function AggregateOverview() {
 
   if (isPending)
     return (
-      <div className="mx-auto max-w-2xl p-4" data-testid="aggregate-loading" />
+      <div className="w-full p-4" data-testid="aggregate-loading" />
     );
   if (isError || !data) return null;
 
@@ -227,7 +227,7 @@ export function AggregateOverview() {
 
   return (
     <SlotRevealProvider>
-      <div className="mx-auto flex max-w-2xl flex-col gap-3">
+      <div className="flex w-full min-w-0 flex-col gap-3">
         {/* HERO — net worth (yellow) + incl. investments + day P/L. A FLIP card
             (like the BDP capitalization card): tapping empty space rotates to the
             back = how long the money lasts at current spend. Tapping an amount
