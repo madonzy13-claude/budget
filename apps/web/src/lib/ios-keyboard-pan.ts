@@ -87,18 +87,17 @@ export function useIosShellKeyboardFit(
     const body = document.body;
     const shell = document.querySelector<HTMLElement>("[data-shell-root]");
     let active = false;
-    // Last height applied to the chain (px), or null when restored. The guard
-    // below skips re-applying an unchanged height — WITHOUT it, apply() mutates
-    // layout + scroll, which re-fires the vv events that called it → an infinite
-    // resize/scroll feedback loop (the "infinity jumping").
+    // Last height applied to the chain (px), or null when restored.
     let applied: number | null = null;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const restore = () => {
       applied = null;
       html.style.removeProperty("height");
       body.style.removeProperty("height");
       shell?.style.removeProperty("height");
     };
+    // Idempotent: every branch only mutates when the value actually changed, so
+    // the scroll/resize listeners that our own writes re-fire settle in one more
+    // pass instead of looping forever (the earlier "infinity jumping").
     const apply = () => {
       if (!active) return;
       const h = shellFitHeight(window.innerHeight, vv.height);
@@ -107,52 +106,44 @@ export function useIosShellKeyboardFit(
         return;
       }
       // Tolerance, not equality: pinning the chain can make iOS re-report
-      // vv.height a few px off, which would bypass an exact-match guard and
-      // oscillate. Treat anything within 4px of the applied height as settled.
-      if (applied !== null && Math.abs(h - applied) < 4) return;
-      applied = h;
-      const px = `${h}px`;
-      // Shrink the WHOLE layout chain to the visible height: html + body (the
-      // scroll root, both 100lvh in standalone) AND the h-lvh shell container.
-      // Pinning html alone leaves body + shell full-height, so the document
-      // keeps its scroll range and iOS still pans (the jump). With all three at
-      // the visual height there is no pan range, and the inner <main> shrinks so
-      // it can lift the field above the keyboard on its own.
-      html.style.height = px;
-      body.style.height = px;
-      if (shell) shell.style.height = px;
-      // Undo any pan iOS already applied before we removed the scroll range —
-      // now that html/body have no range this sticks and iOS can't re-pan.
+      // vv.height a few px off; treat within 4px as settled (no re-write).
+      if (applied === null || Math.abs(h - applied) >= 4) {
+        applied = h;
+        const px = `${h}px`;
+        // Shrink body (the scroll root, 100lvh) + the h-lvh shell to the visible
+        // height so the flex column re-lays the field ABOVE the keyboard on its
+        // own — no scrollIntoView (that centred the field by scrolling the
+        // WINDOW, which shoved the header under the notch + exposed a black gap
+        // below). html is pinned too for engines that honour it.
+        html.style.height = px;
+        body.style.height = px;
+        if (shell) shell.style.height = px;
+      }
+      // Keep the shell pinned to the top: iOS's keyboard pan (or a stray scroll)
+      // shifts the window up, sliding the header under the status bar and
+      // uncovering a black band below. Idempotent — once winY is 0 this no-ops,
+      // so the scroll listener can't loop.
       if (window.scrollY !== 0) window.scrollTo(0, 0);
-      el.scrollIntoView({ block: "center", behavior: "auto" });
-    };
-    // Debounce: collapse the burst of resize events during the keyboard-open
-    // animation into ONE apply once the viewport settles. Only vv `resize`
-    // (keyboard open/close) drives it — NOT vv `scroll`, whose events our own
-    // scrollTo/scrollIntoView emit (that was the loop).
-    const schedule = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(apply, 120);
     };
     const onFocus = () => {
       active = true;
-      schedule();
+      apply();
     };
     const onBlur = () => {
       active = false;
-      if (timer) clearTimeout(timer);
       restore();
     };
 
     el.addEventListener("focus", onFocus);
     el.addEventListener("blur", onBlur);
-    vv.addEventListener("resize", schedule);
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
     if (document.activeElement === el) onFocus();
     return () => {
       el.removeEventListener("focus", onFocus);
       el.removeEventListener("blur", onBlur);
-      vv.removeEventListener("resize", schedule);
-      if (timer) clearTimeout(timer);
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
       restore();
     };
   }, [inputRef]);
