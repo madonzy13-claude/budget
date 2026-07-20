@@ -14,7 +14,7 @@ import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R27";
+const BUILD_MARKER = "SHELL-R28-DIAG";
 
 const FLAG_KEY = "vpdbg";
 
@@ -363,6 +363,31 @@ function readMetrics(): Metrics {
 export function ViewportDebug() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [enabled, setEnabled] = useState(false);
+  // Peak capture: the first-open scroll/pan is a fast transient the 700ms poll
+  // misses. On focusin, sample for 700ms every frame and keep the PEAK winY and
+  // vvOffset so the settled screenshot reveals which surface actually moved:
+  // peakWinY > 0 ⇒ WINDOW/document scrolled (fixable via window.scrollTo);
+  // peakVvOff > 0 ⇒ VISUAL VIEWPORT panned (not fixable via scroll).
+  const [peak, setPeak] = useState<{ winY: number; vvOff: number } | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t || (t.tagName !== "INPUT" && t.tagName !== "TEXTAREA")) return;
+      let winY = 0;
+      let vvOff = 0;
+      const start = performance.now();
+      const sample = () => {
+        winY = Math.max(winY, Math.abs(window.scrollY));
+        vvOff = Math.max(vvOff, Math.abs(window.visualViewport?.offsetTop ?? 0));
+        setPeak({ winY: Math.round(winY), vvOff: Math.round(vvOff) });
+        if (performance.now() - start < 700) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, [enabled]);
 
   // Hidden toggle: 1.2s hold on an EMPTY spot of the <header> flips the
   // persisted flag (push deep-links proved unreliable on device; standalone
@@ -444,6 +469,9 @@ export function ViewportDebug() {
       <div>
         winY {m.winScrollY} · seTop {m.scrollingElTop} · mainTop{" "}
         {m.mainScrollTop}
+      </div>
+      <div className="text-yellow-100">
+        PEAK winY {peak?.winY ?? "–"} · vvOff {peak?.vvOff ?? "–"}
       </div>
       <div>
         vvOff {m.vvOff} · active {m.activeTag} top {m.activeTop}
