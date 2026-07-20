@@ -5,11 +5,9 @@
  *
  * All copy is i18n through `onboarding.wizard.basics.*`.
  */
-import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
-import { useIosShellKeyboardFit } from "@/lib/ios-keyboard-pan";
 
 interface StepBasicsProps {
   name: string;
@@ -27,10 +25,6 @@ export function StepBasics({
   onChangeCurrency,
 }: StepBasicsProps) {
   const t = useTranslations("onboarding.wizard.basics");
-  const nameRef = useRef<HTMLInputElement>(null);
-  // iOS PWA: opening the keyboard on this short page pans the whole window
-  // (first-open overshoot). Pin the shell to the visual viewport while focused.
-  useIosShellKeyboardFit(nameRef);
   return (
     <div className="space-y-6">
       <div>
@@ -50,7 +44,6 @@ export function StepBasics({
           {t("name_label")}
         </label>
         <Input
-          ref={nameRef}
           id="wizard-basics-name"
           type="text"
           data-testid="wizard-step1-name"

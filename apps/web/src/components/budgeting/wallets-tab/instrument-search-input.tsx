@@ -15,7 +15,6 @@ import { Loader2, PlusCircle, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { isAutoPriced } from "@/lib/investment-types";
-import { useIosShellKeyboardFit } from "@/lib/ios-keyboard-pan";
 
 /** Short, human label for a suggestion's listing venue. Manual instruments carry
  *  the exchange MIC in the provider (`manual:XWAR`); US is Finnhub; crypto/metals
@@ -81,10 +80,6 @@ export function InstrumentSearchInput({
   const [open, setOpen] = useState(false);
   const [searched, setSearched] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const inputRef = useRef<HTMLInputElement>(null);
-  // iOS PWA: keyboard-open pans the whole window on this sheet's first focus.
-  // Pin the shell to the visual viewport while this field is focused.
-  useIosShellKeyboardFit(inputRef);
   // True when `name` last changed because the user PICKED a suggestion (not
   // typed). Selecting sets the name to the instrument's display name, which would
   // otherwise re-trigger the debounced search and re-open the dropdown. Suppress
@@ -153,7 +148,6 @@ export function InstrumentSearchInput({
   return (
     <div className="relative">
       <Input
-        ref={inputRef}
         data-testid="holding-sheet-name"
         autoFocus={autoFocus}
         disabled={disabled}

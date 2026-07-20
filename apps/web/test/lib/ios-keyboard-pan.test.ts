@@ -10,10 +10,7 @@
  * viewport.
  */
 import { describe, it, expect } from "vitest";
-import {
-  windowPanCorrection,
-  keyboardInset,
-} from "../../src/lib/ios-keyboard-pan";
+import { windowPanCorrection } from "../../src/lib/ios-keyboard-pan";
 
 describe("windowPanCorrection", () => {
   it("returns 0 when the input is visible inside the visual viewport", () => {
@@ -64,17 +61,5 @@ describe("windowPanCorrection", () => {
     });
     // Tall input: full overlap would push its top negative — clamp to top-14.
     expect(d).toBe(30 - 16);
-  });
-});
-
-describe("keyboardInset", () => {
-  it("returns the keyboard height when the viewport is shrunk", () => {
-    // IMG_3240 geometry: innerH 874, vvH 473 → keyboard ≈ 401.
-    expect(keyboardInset(874, 473)).toBe(401);
-  });
-
-  it("clamps to 0 (never negative) when the visual viewport is not smaller", () => {
-    expect(keyboardInset(874, 874)).toBe(0);
-    expect(keyboardInset(874, 880)).toBe(0);
   });
 });
