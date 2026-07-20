@@ -574,6 +574,8 @@
         "premium": "Premium %",
         "depositedValue": "Deposited value",
         "actualValue": "Actual value",
+        "startingAmount": "Starting amount",
+        "currentAmount": "Current amount",
         "principal": "Amount",
         "rate": "Annual rate (%)",
         "capFrequency": "Capitalization",
@@ -595,7 +597,8 @@
         "precious_metals": "Precious metals",
         "cash": "Cash",
         "broker": "Broker",
-        "deposit": "Deposit"
+        "deposit": "Deposit",
+        "savings": "Savings"
       },
       "capFrequency": {
         "daily": "Daily",
@@ -647,6 +650,7 @@
         "deleteAria": "Remove {name}.",
         "dragAria": "Drag to reorder {name}.",
         "qty": "Qty: {qty}",
+        "started": "Started: {amount}",
         "share": "Share: {pct}"
       },
       "rowExpandAria": "Expand {name} details.",
@@ -694,6 +698,7 @@
         "title": "Preview",
         "buyTotal": "Buy total",
         "deposited": "Deposited",
+        "starting": "Starting",
         "principal": "Amount",
         "amount": "Amount",
         "currentValue": "Current value",

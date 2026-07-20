@@ -45,6 +45,7 @@ vi.mock("next-intl", () => ({
         "row.deleteAria": "Archive {name}",
         "uitype.cash": "Cash",
         "row.qty": "Qty: {qty}",
+        "row.started": "Started: {amount}",
         "row.share": "Share: {pct}",
         rowExpandAria: "Expand {name}",
         plAria: "{value} profit/loss",
@@ -102,6 +103,31 @@ describe("InvestmentRow", () => {
     expect(screen.getByText("4,200")).toBeInTheDocument();
     expect(screen.getByText("+12.4%")).toBeInTheDocument();
     expect(screen.getByText("18.0%")).toBeInTheDocument();
+  });
+
+  it("savings row: no qty, shows Started + %change when expanded", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Emergency fund",
+          holdingType: "savings",
+          uiType: "savings",
+          instrumentId: null,
+          quantity: "1",
+          buyPriceCents: "1000000", // started 10,000
+          currentPriceCents: "1250000", // now 12,500
+          valueCents: "1250000",
+          valueInBudgetCents: "1250000",
+          profitLossPct: 25,
+          profitLossCents: "250000",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand Emergency fund"));
+    expect(screen.getByText("Started: 10,000")).toBeInTheDocument();
+    expect(screen.queryByText(/^Qty:/)).toBeNull();
+    // %change renders in both the desktop cluster and the mobile-expanded line.
+    expect(screen.getAllByText("+25.0%").length).toBeGreaterThan(0);
   });
 
   it("tracked stock → desktop 'TICKER (Name)', mobile shows the ticker", () => {

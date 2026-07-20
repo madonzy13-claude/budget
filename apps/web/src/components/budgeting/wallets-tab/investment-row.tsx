@@ -95,16 +95,24 @@ export function InvestmentRow({
   const cashLabel = holding.name.trim() ? holding.name : t("uitype.cash");
 
   // Quantity for the mobile-expanded row — only for holdings where it's meaningful
-  // (tracked / metals). Cash + broker + deposit are single-unit (qty 1), so omit
-  // it. Trim trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
+  // (tracked / metals). Cash + broker + deposit + savings are single-unit (qty 1),
+  // so omit it. Trim trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
   const showQty =
     !isCash &&
     holding.uiType !== "broker" &&
     holding.uiType !== "deposit" &&
+    holding.uiType !== "savings" &&
     holding.holdingType !== "deposit";
   const qtyDisplay = holding.quantity.includes(".")
     ? holding.quantity.replace(/0+$/, "").replace(/\.$/, "")
     : holding.quantity;
+  // Savings: show the starting amount ("Started: $X") in the expanded caption
+  // where qty would go — the %change already shows current-vs-starting.
+  const isSavings = holding.uiType === "savings";
+  const startedDisplay =
+    isSavings && holding.buyPriceCents != null
+      ? centsToBare(holding.buyPriceCents, locale)
+      : null;
   // A tracked (auto-fetch) holding whose `name` the user overrode — it differs
   // from the instrument's own display name. Show that custom name verbatim
   // instead of the auto "TICKER (name)" label.
@@ -276,6 +284,12 @@ export function InvestmentRow({
                 {showQty && (
                   <>
                     <span>{t("row.qty", { qty: qtyDisplay })}</span>
+                    <span aria-hidden="true"> · </span>
+                  </>
+                )}
+                {startedDisplay != null && (
+                  <>
+                    <span>{t("row.started", { amount: startedDisplay })}</span>
                     <span aria-hidden="true"> · </span>
                   </>
                 )}

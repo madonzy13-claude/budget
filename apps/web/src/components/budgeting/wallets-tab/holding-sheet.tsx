@@ -870,9 +870,16 @@ export function HoldingSheet({
               </Field>
             </>
           ) : behavior === "broker" ? (
-            /* 4b. Broker: deposited value + currency + actual value (no quantity). */
+            /* 4b. Broker / Savings: two amounts + currency, no quantity. Savings
+                   relabels them Starting / Current (same field-set). */
             <>
-              <Field label={t("field.depositedValue")}>
+              <Field
+                label={t(
+                  uiType === "savings"
+                    ? "field.startingAmount"
+                    : "field.depositedValue",
+                )}
+              >
                 <NumericInput
                   testId="holding-sheet-deposited"
                   value={buyPrice}
@@ -894,7 +901,13 @@ export function HoldingSheet({
                   aria-label={t("field.currency")}
                 />
               </Field>
-              <Field label={t("field.actualValue")}>
+              <Field
+                label={t(
+                  uiType === "savings"
+                    ? "field.currentAmount"
+                    : "field.actualValue",
+                )}
+              >
                 <NumericInput
                   testId="holding-sheet-actual"
                   value={currentPrice}
@@ -1147,7 +1160,11 @@ export function HoldingSheet({
 
           {/* 8. Preview — "what will be created" sum-up (all types). */}
           {preview && (
-            <HoldingPreviewBlock preview={preview} behavior={behavior} />
+            <HoldingPreviewBlock
+              preview={preview}
+              behavior={behavior}
+              uiType={uiType}
+            />
           )}
         </div>
 
@@ -1199,9 +1216,11 @@ export function HoldingSheet({
 function HoldingPreviewBlock({
   preview,
   behavior,
+  uiType,
 }: {
   preview: HoldingPreview;
   behavior: string | null;
+  uiType: UiType | "" | null;
 }) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
@@ -1233,7 +1252,7 @@ function HoldingPreviewBlock({
     if (preview.buyTotal != null)
       rows.push({
         key: "dep",
-        label: t("preview.deposited"),
+        label: t(uiType === "savings" ? "preview.starting" : "preview.deposited"),
         value: money(preview.buyTotal),
       });
     rows.push({

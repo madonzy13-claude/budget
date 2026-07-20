@@ -206,6 +206,32 @@ describe("HoldingSheet — type-first", () => {
     ).toBeInTheDocument();
   });
 
+  it("savings type: starting + current amount, no quantity/buy-price", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "savings",
+          uiType: "savings",
+          instrumentId: null,
+          name: "Emergency fund",
+          buyPriceCents: "1000000",
+          currentPriceCents: "1250000",
+        })}
+      />,
+    );
+    // reuses the broker field-set (name + two amounts + currency, no quantity)
+    expect(screen.getByTestId("holding-sheet-deposited")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-actual")).toBeInTheDocument();
+    expect(screen.queryByTestId("holding-sheet-quantity")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-buy-price")).toBeNull();
+    // but relabeled: Starting / Current — not Deposited / Actual
+    expect(screen.getByText("field.startingAmount")).toBeInTheDocument();
+    expect(screen.getByText("field.currentAmount")).toBeInTheDocument();
+    expect(screen.queryByText("field.depositedValue")).toBeNull();
+  });
+
   it("precious metals type reveals metal + kind + UoM fields", () => {
     render(
       <HoldingSheet

@@ -574,6 +574,8 @@
         "premium": "Премія %",
         "depositedValue": "Внесена вартість",
         "actualValue": "Поточна вартість",
+        "startingAmount": "Початкова сума",
+        "currentAmount": "Поточна сума",
         "principal": "Сума",
         "rate": "Річна ставка (%)",
         "capFrequency": "Капіталізація",
@@ -595,7 +597,8 @@
         "precious_metals": "Дорогоцінні метали",
         "cash": "Готівка",
         "broker": "Брокерський рахунок",
-        "deposit": "Депозит"
+        "deposit": "Депозит",
+        "savings": "Заощадження"
       },
       "capFrequency": {
         "daily": "Щоденна",
@@ -647,6 +650,7 @@
         "deleteAria": "Видалити {name}.",
         "dragAria": "Перетягніть, щоб змінити порядок {name}.",
         "qty": "Кількість: {qty}",
+        "started": "Початок: {amount}",
         "share": "Частка: {pct}"
       },
       "rowExpandAria": "Розгорнути деталі {name}.",
@@ -694,6 +698,7 @@
         "title": "Перегляд",
         "buyTotal": "Сума купівлі",
         "deposited": "Внесено",
+        "starting": "Початок",
         "principal": "Сума",
         "amount": "Сума",
         "currentValue": "Поточна вартість",

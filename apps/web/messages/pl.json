@@ -574,6 +574,8 @@
         "premium": "Premia %",
         "depositedValue": "Wartość wpłacona",
         "actualValue": "Wartość aktualna",
+        "startingAmount": "Kwota początkowa",
+        "currentAmount": "Kwota bieżąca",
         "principal": "Kwota",
         "rate": "Oprocentowanie roczne (%)",
         "capFrequency": "Kapitalizacja",
@@ -595,7 +597,8 @@
         "precious_metals": "Metale szlachetne",
         "cash": "Gotówka",
         "broker": "Konto maklerskie",
-        "deposit": "Lokata"
+        "deposit": "Lokata",
+        "savings": "Oszczędności"
       },
       "capFrequency": {
         "daily": "Dzienna",
@@ -647,6 +650,7 @@
         "deleteAria": "Usuń {name}.",
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
         "qty": "Ilość: {qty}",
+        "started": "Początek: {amount}",
         "share": "Udział: {pct}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
@@ -694,6 +698,7 @@
         "title": "Podgląd",
         "buyTotal": "Łączny zakup",
         "deposited": "Wpłacono",
+        "starting": "Początek",
         "principal": "Kwota",
         "amount": "Kwota",
         "currentValue": "Wartość bieżąca",
