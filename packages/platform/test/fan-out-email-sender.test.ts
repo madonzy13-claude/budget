@@ -30,12 +30,14 @@ describe("FanOutEmailSender", () => {
     expect(b.sent).toHaveLength(1);
   });
 
-  test("primary (first) failure propagates", async () => {
+  test("primary failure STILL delivers to mirrors, then propagates", async () => {
+    // A flaky real provider (cold TLS, transient reject) must not cost the
+    // mailpit copy — the mirror always runs; the primary error still surfaces.
     const primary = new ThrowingSender("primary");
     const mirror = new StdoutEmailSender();
-    await expect(
-      new FanOutEmailSender([primary, mirror]).send(args),
-    ).rejects.toThrow("primary failed");
+    const fan = new FanOutEmailSender([primary, mirror]);
+    await expect(fan.send(args)).rejects.toThrow("primary failed");
+    expect(mirror.sent).toHaveLength(1);
   });
 
   test("secondary failure is swallowed once primary succeeds", async () => {
