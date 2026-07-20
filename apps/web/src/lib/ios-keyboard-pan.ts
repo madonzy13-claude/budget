@@ -78,7 +78,16 @@ export function useIosShellKeyboardFit(
     if (!main) return;
 
     let active = false;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
     const clear = () => main.style.removeProperty("padding-bottom");
+    // Once the keyboard has settled, place the field ourselves. main is now
+    // scrollable and the window has no scroll range, so scrollIntoView moves
+    // ONLY main — centring the field in the visible strip instead of letting
+    // iOS's focus-scroll jam it against the status bar (the "too high").
+    const centre = () => {
+      if (!active) return;
+      el.scrollIntoView({ block: "center", behavior: "auto" });
+    };
     const apply = () => {
       if (!active) return;
       const kb = keyboardInset(window.innerHeight, vv.height);
@@ -87,6 +96,9 @@ export function useIosShellKeyboardFit(
       } else {
         clear();
       }
+      // Debounce so we centre once after the open animation, not every frame.
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(centre, 150);
     };
     const onFocus = () => {
       active = true;
@@ -99,6 +111,7 @@ export function useIosShellKeyboardFit(
     };
     const onBlur = () => {
       active = false;
+      if (settleTimer) clearTimeout(settleTimer);
       clear();
     };
 
@@ -110,6 +123,7 @@ export function useIosShellKeyboardFit(
       el.removeEventListener("focus", onFocus);
       el.removeEventListener("blur", onBlur);
       vv.removeEventListener("resize", apply);
+      if (settleTimer) clearTimeout(settleTimer);
       clear();
     };
   }, [inputRef]);
