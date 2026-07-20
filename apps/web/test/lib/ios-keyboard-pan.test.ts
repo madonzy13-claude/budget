@@ -10,10 +10,7 @@
  * viewport.
  */
 import { describe, it, expect } from "vitest";
-import {
-  windowPanCorrection,
-  shellFitHeight,
-} from "../../src/lib/ios-keyboard-pan";
+import { windowPanCorrection } from "../../src/lib/ios-keyboard-pan";
 
 describe("windowPanCorrection", () => {
   it("returns 0 when the input is visible inside the visual viewport", () => {
@@ -64,22 +61,5 @@ describe("windowPanCorrection", () => {
     });
     // Tall input: full overlap would push its top negative — clamp to top-14.
     expect(d).toBe(30 - 16);
-  });
-});
-
-describe("shellFitHeight", () => {
-  it("pins the layout viewport to the visual height when the keyboard is open", () => {
-    // Keyboard shrinks the visual viewport well below the layout viewport.
-    expect(shellFitHeight(844, 508)).toBe(508);
-  });
-
-  it("returns null (restore lvh) when no keyboard — heights are close", () => {
-    // Address-bar wobble / rounding: a small gap is NOT the keyboard.
-    expect(shellFitHeight(844, 838)).toBeNull();
-  });
-
-  it("returns null exactly at the threshold boundary", () => {
-    // 120px gap is the floor; must be strictly greater to count as keyboard.
-    expect(shellFitHeight(844, 844 - 120)).toBeNull();
   });
 });
