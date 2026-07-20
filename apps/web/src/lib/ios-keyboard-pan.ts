@@ -32,4 +32,3 @@ export function windowPanCorrection(box: {
   if (overlap > 0) return Math.min(overlap, visualTop - pad);
   return 0;
 }
-
