@@ -21,7 +21,9 @@ const schema = z.object({
   TRUSTED_ORIGINS: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
-  SMTP_FROM: z.string().email().optional(),
+  // Accepts a bare address OR the RFC-5322 `Name <addr>` display-name form
+  // (nodemailer-valid); a strict .email() would reject the latter.
+  SMTP_FROM: z.string().min(1).optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   // Mailpit mirror: when MAILPIT_ENABLED === "true", every mail is ALSO sent to

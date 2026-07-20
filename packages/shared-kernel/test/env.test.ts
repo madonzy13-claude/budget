@@ -46,6 +46,16 @@ test("invalid LOG_LEVEL throws", () => {
   expect(() => parseEnv({ ...valid, LOG_LEVEL: "verbose" })).toThrow();
 });
 
+test("SMTP_FROM accepts RFC-5322 display-name form (nodemailer-valid)", () => {
+  // Providers set a friendly From like `Budget <noreply@send.madonzy.com>`;
+  // nodemailer accepts it — env validation must not reject it.
+  const env = parseEnv({
+    ...valid,
+    SMTP_FROM: "Budget <noreply@send.madonzy.com>",
+  });
+  expect(env.SMTP_FROM).toBe("Budget <noreply@send.madonzy.com>");
+});
+
 const workerValid = {
   DATABASE_URL_WORKER: "postgresql://worker_role:pw@db:5432/budget",
   BUDGET_KEK: "A".repeat(43) + "=",

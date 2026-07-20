@@ -12,11 +12,13 @@ services:
 
   api:
     environment:
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_FROM: no-reply@budget.local
-      SMTP_USER: ""
-      SMTP_PASS: ""
+      # Dev sends via the REAL SMTP provider (SMTP_* from Infisical — see base
+      # compose) AND mirrors every mail to mailpit. E2E addresses
+      # (@test.local / @example.*) are skipped from the real provider by the
+      # reserved-domain guard in buildEmailSender, so E2E never sends real mail.
+      MAILPIT_ENABLED: "true"
+      MAILPIT_HOST: mailpit
+      MAILPIT_PORT: 1025
     depends_on:
       mailpit:
         condition: service_started
