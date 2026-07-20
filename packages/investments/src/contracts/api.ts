@@ -18,6 +18,8 @@ export const holdingTypeSchema = z.enum([
   "other",
   // Bank savings deposit (accrues interest, compute-on-read).
   "deposit",
+  // Manual savings pot: starting + current amount, qty=1, %change only.
+  "savings",
 ]);
 export type HoldingTypeInput = z.infer<typeof holdingTypeSchema>;
 
@@ -38,6 +40,8 @@ export const uiTypeSchema = z.enum([
   "broker",
   // Bank savings deposit: principal + annual rate + capitalization cadence.
   "deposit",
+  // Manual savings pot: starting + current amount, %change; no rate, no qty.
+  "savings",
 ]);
 export type UiTypeInput = z.infer<typeof uiTypeSchema>;
 
@@ -56,6 +60,7 @@ export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
   cash: "cash_fx",
   broker: "other",
   deposit: "deposit",
+  savings: "savings",
 };
 
 /** Deposit interest capitalization cadence. */

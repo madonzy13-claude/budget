@@ -58,13 +58,14 @@ export const mk = (o: Init = {}): Holding =>
   );
 
 describe("Holding entity", () => {
-  test("constructs with each of the 10 valid holding types", () => {
+  test("constructs with each of the 11 valid holding types", () => {
     for (const t of HOLDING_TYPES) {
       const h = mk({ holdingType: t });
       expect(h.holdingType).toBe(t);
     }
-    expect(HOLDING_TYPES).toHaveLength(10);
+    expect(HOLDING_TYPES).toHaveLength(11);
     expect(HOLDING_TYPES).toContain("deposit");
+    expect(HOLDING_TYPES).toContain("savings");
   });
 
   test("isHoldingType guards the locked union", () => {
@@ -73,8 +74,15 @@ describe("Holding entity", () => {
     expect(isHoldingType("real_estate")).toBe(true);
     expect(isHoldingType("other")).toBe(true);
     expect(isHoldingType("deposit")).toBe(true);
+    expect(isHoldingType("savings")).toBe(true);
     expect(isHoldingType("stonks")).toBe(false);
     expect(isHoldingType("")).toBe(false);
+  });
+
+  test("savings is NOT cash — keeps a P/L basis", () => {
+    // savings rides the manual-holding path (qty=1, buy=starting, current=current)
+    // so its %change comes from profitLossPct — must not be treated like cash_fx.
+    expect(mk({ holdingType: "savings" }).isCash()).toBe(false);
   });
 
   test("isCash() is true only for cash_fx", () => {

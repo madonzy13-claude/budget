@@ -22,6 +22,17 @@ describe("holdingValue (quantity x current price, big.js cents)", () => {
     expect(holdingValue(h).toString()).toBe("5185.18476");
   });
 
+  test("savings: value = current amount (qty=1), starting ignored for value", () => {
+    const h = mk({
+      holdingType: "savings",
+      instrumentId: null,
+      quantity: "1",
+      buyPriceCents: 1_000_000n, // starting $10,000
+      currentPriceCents: 1_250_000n, // current $12,500
+    });
+    expect(holdingValue(h).toString()).toBe("1250000");
+  });
+
   test("cash_fx: value equals the cash amount (currentPriceCents), quantity ignored", () => {
     const h = mk({
       holdingType: "cash_fx",

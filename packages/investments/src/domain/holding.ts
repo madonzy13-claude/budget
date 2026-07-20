@@ -18,7 +18,10 @@ export type HoldingType =
   | "real_estate"
   | "other"
   // Bank savings deposit: value accrues from principal+rate+time (compute-on-read).
-  | "deposit";
+  | "deposit"
+  // Manual savings pot: starting (buy_price) + current (current_price), qty=1,
+  // no instrument. %change = existing profitLossPct. Rides the manual path.
+  | "savings";
 
 export const HOLDING_TYPES: readonly HoldingType[] = [
   "equities",
@@ -31,6 +34,7 @@ export const HOLDING_TYPES: readonly HoldingType[] = [
   "real_estate",
   "other",
   "deposit",
+  "savings",
 ] as const;
 
 const HOLDING_TYPE_SET: ReadonlySet<string> = new Set(HOLDING_TYPES);
