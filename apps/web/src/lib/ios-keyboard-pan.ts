@@ -40,17 +40,17 @@ export function windowPanCorrection(box: {
 const KEYBOARD_GAP_PX = 120;
 
 /**
- * Decide the height (px) to pin the LAYOUT viewport (`html`) to while a field is
- * focused, or null to leave it at its stylesheet `100lvh`.
+ * Decide the height (px) to pin the layout chain (`html` + `body` + shell) to
+ * while a field is focused, or null to leave them at their stylesheet `100lvh`.
  *
- * The (app) shell locks `html`/`body` to `100lvh` (global.css) so the layout
- * viewport is always full-screen tall. On iOS standalone the keyboard shrinks
- * only the VISUAL viewport, so the focused field ends up behind the keyboard in
- * layout terms → iOS pans the whole window to reveal it (the first-open
- * overshoot = the "jump"). Pinning `html` to the visual height removes that
- * gap: the field is inside the layout viewport, iOS has nothing to pan, and the
- * inner `<main>` scroller handles any reveal on its own. Restore (null) closes
- * the keyboard.
+ * The (app) shell locks `html`/`body` to `100lvh` (global.css) and the shell
+ * root to `h-lvh`, so the layout viewport is always full-screen tall. On iOS
+ * standalone the keyboard shrinks only the VISUAL viewport, so the focused field
+ * ends up behind the keyboard in layout terms → iOS pans the whole window to
+ * reveal it (the first-open overshoot = the "jump"). Pinning the chain to the
+ * visual height removes that gap: the field is inside the layout viewport, iOS
+ * has nothing to pan, and the inner `<main>` scroller handles the reveal on its
+ * own. Restore (null) closes the keyboard.
  */
 export function shellFitHeight(
   innerHeight: number,
@@ -84,8 +84,14 @@ export function useIosShellKeyboardFit(
     if (!standalone) return;
 
     const html = document.documentElement;
+    const body = document.body;
+    const shell = document.querySelector<HTMLElement>("[data-shell-root]");
     let active = false;
-    const restore = () => html.style.removeProperty("height");
+    const restore = () => {
+      html.style.removeProperty("height");
+      body.style.removeProperty("height");
+      shell?.style.removeProperty("height");
+    };
     const fit = () => {
       if (!active) return;
       const h = shellFitHeight(window.innerHeight, vv.height);
@@ -93,11 +99,20 @@ export function useIosShellKeyboardFit(
         restore();
         return;
       }
-      html.style.height = `${h}px`;
-      // html is now exactly the visual height (body is overflow:hidden), so the
-      // window has no scroll range — this can only scroll the inner <main>, and
-      // brings the field above the keyboard without any window pan.
-      el.scrollIntoView({ block: "nearest", behavior: "auto" });
+      const px = `${h}px`;
+      // Shrink the WHOLE layout chain to the visible height: html + body (the
+      // scroll root, both 100lvh in standalone) AND the h-lvh shell container.
+      // Pinning html alone leaves body + shell full-height, so the document
+      // keeps its scroll range and iOS still pans (the jump). With all three at
+      // the visual height there is no pan range, and the inner <main> shrinks so
+      // it can lift the field above the keyboard on its own.
+      html.style.height = px;
+      body.style.height = px;
+      if (shell) shell.style.height = px;
+      // Undo any pan iOS already applied before we removed the scroll range —
+      // now that html/body have no range this sticks and iOS can't re-pan.
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      el.scrollIntoView({ block: "center", behavior: "auto" });
     };
     const onFocus = () => {
       active = true;
