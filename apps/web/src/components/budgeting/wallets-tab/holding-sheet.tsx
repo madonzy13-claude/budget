@@ -695,7 +695,9 @@ export function HoldingSheet({
                   ) : null}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              {/* Grow to the available viewport height (12 types) instead of the
+                  shared 384px cap — scrolls only when the screen is truly short. */}
+              <SelectContent className="max-h-[var(--radix-select-content-available-height)]">
                 {UI_TYPE_ORDER.map((tp) => {
                   const Icon = UI_TYPE_ICON[tp];
                   return (
