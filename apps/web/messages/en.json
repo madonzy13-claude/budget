@@ -548,6 +548,17 @@
         "amountAria": "Possession value",
         "currencyAria": "Possession currency",
         "iconAria": "Customize {name} icon and color"
+      },
+      "confirm": {
+        "delete": {
+          "title": "Remove possession \"{name}\"?",
+          "body": "This can't be undone.",
+          "cta": "Remove",
+          "cancel": "Cancel"
+        }
+      },
+      "toast": {
+        "deleted": "Possession removed"
       }
     },
     "investments": {
@@ -708,7 +719,7 @@
       "confirm": {
         "delete": {
           "title": "Remove holding \"{name}\"?",
-          "body": "This can't be undone here.",
+          "body": "This can't be undone.",
           "cta": "Remove",
           "cancel": "Cancel"
         },
@@ -1576,7 +1587,7 @@
         "confirm": {
           "delete": {
             "title": "Delete wallet ''{name}''?",
-            "body": "This can't be undone here.",
+            "body": "This can't be undone.",
             "cta": "Delete",
             "cancel": "Cancel"
           }

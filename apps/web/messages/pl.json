@@ -548,6 +548,17 @@
         "amountAria": "Wartość rzeczy",
         "currencyAria": "Waluta rzeczy",
         "iconAria": "Dostosuj ikonę i kolor {name}"
+      },
+      "confirm": {
+        "delete": {
+          "title": "Usunąć rzecz „{name}”?",
+          "body": "Tego nie można cofnąć.",
+          "cta": "Usuń",
+          "cancel": "Anuluj"
+        }
+      },
+      "toast": {
+        "deleted": "Rzecz usunięta"
       }
     },
     "investments": {
@@ -708,7 +719,7 @@
       "confirm": {
         "delete": {
           "title": "Usunąć pozycję \"{name}\"?",
-          "body": "Tego nie można tutaj cofnąć.",
+          "body": "Tego nie można cofnąć.",
           "cta": "Usuń",
           "cancel": "Anuluj"
         },

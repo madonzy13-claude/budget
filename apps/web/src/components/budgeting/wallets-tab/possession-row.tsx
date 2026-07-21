@@ -14,6 +14,7 @@ import { Trash2 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { SwipeToDeleteRow } from "@/components/common/swipe-to-delete-row";
+import { HoldingDeleteConfirm } from "./holding-delete-confirm";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
 import { WalletCustomizer } from "./wallet-customizer";
@@ -118,10 +119,13 @@ function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: Persiste
   const locale = useLocale();
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
   const valueCents = holding.currentPriceCents ?? "0";
+  // Delete goes through a confirm dialog (same as the spendings/wallet delete) —
+  // both the desktop trash and the mobile swipe open it; only confirm archives.
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <SwipeToDeleteRow
-      onDelete={onArchive}
+      onDelete={() => setConfirmOpen(true)}
       deleteAriaLabel={t("row.deleteAria", { name: holding.name })}
     >
     <div
@@ -206,12 +210,22 @@ function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: Persiste
         aria-label={t("row.deleteAria", { name: holding.name })}
         onClick={(e) => {
           e.stopPropagation();
-          onArchive();
+          setConfirmOpen(true);
         }}
         className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:flex sm:invisible sm:group-hover:visible"
       >
         <Trash2 className="h-4 w-4" aria-hidden="true" />
       </button>
+      <HoldingDeleteConfirm
+        name={holding.name}
+        namespace="budget.possessions.confirm.delete"
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        onConfirm={() => {
+          onArchive();
+          setConfirmOpen(false);
+        }}
+      />
     </div>
     </SwipeToDeleteRow>
   );

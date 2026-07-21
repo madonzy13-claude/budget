@@ -42,7 +42,9 @@ export function PossessionsSection({
   );
   const createMut = useCreateHolding(budgetId);
   const updateMut = useUpdateHolding(budgetId);
-  const archiveMut = useArchiveHolding(budgetId);
+  const archiveMut = useArchiveHolding(budgetId, {
+    successMessage: t("toast.deleted"),
+  });
 
   const [draftActive, setDraftActive] = useState(false);
 

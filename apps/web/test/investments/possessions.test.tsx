@@ -141,9 +141,14 @@ describe("PossessionRow — inline (no sub sheet)", () => {
     expect(updateMutate).toHaveBeenCalledWith({ currency: "EUR" });
   });
 
-  it("trash archives the possession", () => {
+  it("trash opens a confirm dialog; only confirming archives (same as spendings)", async () => {
     render(persisted());
     fireEvent.click(screen.getByTestId("possession-trash-p1"));
+    // Does NOT archive immediately — a confirm dialog opens first.
+    expect(archiveMutate).not.toHaveBeenCalled();
+    // Confirm CTA (next-intl mock echoes the key) archives.
+    const cta = await screen.findByText("cta");
+    fireEvent.click(cta);
     expect(archiveMutate).toHaveBeenCalled();
   });
 });
