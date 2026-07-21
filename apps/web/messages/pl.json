@@ -739,6 +739,7 @@
     "investments": "Inwestycje",
     "cash": "Gotówka",
     "reserves": "Rezerwy",
+    "possessions": "Majątek",
     "composition_title": "Gdzie jest twój majątek",
     "trend_title": "Majątek w czasie",
     "budgets_title": "Budżety",
@@ -1457,6 +1458,7 @@
           "capSpendings": "Wydatki",
           "capReserves": "Rezerwy",
           "capCushion": "Poduszka",
+          "capPossessions": "Majątek",
           "pieShare": "{pct}%",
           "contributions": "Wpłaty",
           "profit": "Zysk"

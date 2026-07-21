@@ -739,6 +739,7 @@
     "investments": "Investments",
     "cash": "Cash",
     "reserves": "Reserves",
+    "possessions": "Possessions",
     "composition_title": "Where your wealth is",
     "trend_title": "Net worth over time",
     "budgets_title": "Budgets",
@@ -1434,6 +1435,7 @@
           "capSpendings": "Spendings",
           "capReserves": "Reserves",
           "capCushion": "Cushion",
+          "capPossessions": "Possessions",
           "pieShare": "{pct}%",
           "contributions": "Contributions",
           "profit": "Profit"

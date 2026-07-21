@@ -46,15 +46,16 @@ const CAP = {
   cashCents: "300000",
   reservesCents: "0",
   cushionCents: "0",
+  possessionsCents: "0",
 };
 
-function renderTrend() {
+function renderTrend(cap: typeof CAP = CAP) {
   return render(
     <AggregateTrend
       includeIds={["b1", "b2"]}
       range={RANGE}
       currency="USD"
-      capitalization={CAP}
+      capitalization={cap}
     />,
   );
 }
@@ -73,6 +74,18 @@ describe("AggregateTrend", () => {
     expect(screen.getByTestId("pie").textContent).toContain("investments");
     // no inline range selector (parent owns it)
     expect(screen.queryByTestId("overview-range-selector")).toBeNull();
+  });
+
+  // 260721 user feedback (7): possessions are part of capitalization → a slice
+  // in the "where it sits" cap pie.
+  it("possessions appear as a slice in the capitalization pie", () => {
+    renderTrend({ ...CAP, possessionsCents: "150000" });
+    expect(screen.getByTestId("pie").textContent).toContain("possessions");
+  });
+
+  it("no possessions slice when the possessions total is zero", () => {
+    renderTrend({ ...CAP, possessionsCents: "0" });
+    expect(screen.getByTestId("pie").textContent).not.toContain("possessions");
   });
 
   it("switching to Investments refetches with view=investments and shows the by-type pie", () => {

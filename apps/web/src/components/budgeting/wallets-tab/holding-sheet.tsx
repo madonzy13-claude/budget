@@ -852,6 +852,8 @@ export function HoldingSheet({
               <Field label={t("field.currency")}>
                 <CurrencyPicker
                   variant="field"
+                  richLabel
+                  desktopDropdown
                   value={currentPriceCurrency}
                   onSelect={(v) => {
                     markDirty();
@@ -894,6 +896,8 @@ export function HoldingSheet({
               <Field label={t("field.currency")}>
                 <CurrencyPicker
                   variant="field"
+                  richLabel
+                  desktopDropdown
                   value={buyCurrency}
                   onSelect={(v) => {
                     markDirty();
@@ -927,6 +931,8 @@ export function HoldingSheet({
               <Field label={t("field.currency")}>
                 <CurrencyPicker
                   variant="field"
+                  richLabel
+                  desktopDropdown
                   value={buyCurrency}
                   onSelect={(v) => {
                     markDirty();
@@ -1027,6 +1033,8 @@ export function HoldingSheet({
                 >
                   <CurrencyPicker
                     variant="field"
+                    richLabel
+                    desktopDropdown
                     value={
                       behavior === "metals" || userChosenCurrency
                         ? currentPriceCurrency
@@ -1087,6 +1095,8 @@ export function HoldingSheet({
                 }
               >
                 {behavior === "manual" || trackedManual ? (
+                  // No placeholder: seeding it from buyPrice made an EMPTY current
+                  // price look already filled (user couldn't tell it was blank).
                   <NumericInput
                     testId="holding-sheet-amount"
                     value={currentPrice}
@@ -1094,7 +1104,6 @@ export function HoldingSheet({
                       markDirty();
                       setCurrentPrice(v);
                     }}
-                    placeholder={buyPrice}
                   />
                 ) : priceBlocked ? (
                   // Price-fetch failure shown AT the price field so it reads as
@@ -1168,22 +1177,27 @@ export function HoldingSheet({
               uiType={uiType}
             />
           )}
-        </div>
 
-        <div className="flex items-center gap-2 border-t border-[var(--hairline-dark)] pt-4">
-          <Button
-            type="button"
-            variant="primary"
-            data-testid="holding-sheet-submit"
-            disabled={!canSave}
-            onClick={handleSave}
-            className="flex-1"
+          {/* Actions live at the END of the scrolling form (NOT a pinned footer):
+              the user scrolls down to reach Save. */}
+          <div
+            data-testid="holding-sheet-actions"
+            className="mt-2 flex items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
           >
-            {t("sheet.save")}
-          </Button>
-          <Button type="button" variant="ghost" onClick={attemptClose}>
-            {t("sheet.cancel")}
-          </Button>
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="holding-sheet-submit"
+              disabled={!canSave}
+              onClick={handleSave}
+              className="flex-1"
+            >
+              {t("sheet.save")}
+            </Button>
+            <Button type="button" variant="ghost" onClick={attemptClose}>
+              {t("sheet.cancel")}
+            </Button>
+          </div>
         </div>
       </SheetContent>
 

@@ -156,7 +156,8 @@ export function useCreateHolding(budgetId: string) {
       toast.error(t("createFailed"));
     },
 
-    onSuccess: () => toast.success(t("created")),
+    // No success toast — a wallet/holding save is a quiet inline action (user
+    // request 260721). Errors still toast via onError.
 
     onSettled: async () => {
       // Revalidate, then persist the server-reconciled list so the durable cache

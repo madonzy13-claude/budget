@@ -481,6 +481,7 @@ export function AggregateOverview() {
             cashCents: sumCents(summable, "cash_cents").toString(),
             reservesCents: sumCents(summable, "reserves_cents").toString(),
             cushionCents: sumCents(summable, "cushion_cents").toString(),
+            possessionsCents: possessionsTotal.toString(),
           }}
         />
 

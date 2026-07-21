@@ -739,6 +739,7 @@
     "investments": "Інвестиції",
     "cash": "Готівка",
     "reserves": "Резерви",
+    "possessions": "Майно",
     "composition_title": "Де ваш капітал",
     "trend_title": "Капітал у часі",
     "budgets_title": "Бюджети",
@@ -1457,6 +1458,7 @@
           "capSpendings": "Витрати",
           "capReserves": "Резерви",
           "capCushion": "Подушка",
+          "capPossessions": "Майно",
           "pieShare": "{pct}%",
           "contributions": "Внески",
           "profit": "Прибуток"

@@ -38,6 +38,7 @@ const BUCKET_INVEST = "var(--chart-bar-1)";
 const BUCKET_SPEND = "var(--primary)";
 const BUCKET_RESERVE = "var(--chart-bar-2)";
 const BUCKET_CUSHION = "var(--chart-bar-3)";
+const BUCKET_POSSESS = "var(--chart-bar-4)";
 const NEUTRAL = "var(--muted-foreground)";
 const UP = "var(--trading-up)";
 const DOWN = "var(--trading-down)";
@@ -89,6 +90,7 @@ export function AggregateTrend({
     cashCents: string;
     reservesCents: string;
     cushionCents: string;
+    possessionsCents: string;
   };
 }) {
   const t = useTranslations("aggregate");
@@ -180,12 +182,14 @@ export function AggregateTrend({
     { name: "cash", value: Number(capitalization.cashCents) },
     { name: "reserves", value: Number(capitalization.reservesCents) },
     { name: "cushion", value: Number(capitalization.cushionCents) },
+    { name: "possessions", value: Number(capitalization.possessionsCents) },
   ].filter((b) => b.value > 0);
   const capColor: Record<string, string> = {
     investments: BUCKET_INVEST,
     cash: BUCKET_SPEND,
     reserves: BUCKET_RESERVE,
     cushion: BUCKET_CUSHION,
+    possessions: BUCKET_POSSESS,
   };
 
   // Centered underline tab — exact BDP wealth-section `toggle` style.

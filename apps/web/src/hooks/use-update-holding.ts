@@ -125,9 +125,8 @@ export function useUpdateHolding(budgetId: string) {
       toast.error(t("saveFailed"));
     },
 
-    onSuccess: (_data, vars) => {
-      if (!vars.silent) toast.success(t("saved"));
-    },
+    // No success toast — a holding edit is a quiet inline action (user request
+    // 260721). Errors still toast via onError.
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });

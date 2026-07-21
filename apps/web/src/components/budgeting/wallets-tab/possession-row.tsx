@@ -13,6 +13,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { Trash2 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
+import { SwipeToDeleteRow } from "@/components/common/swipe-to-delete-row";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
 import { WalletCustomizer } from "./wallet-customizer";
@@ -119,6 +120,10 @@ function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: Persiste
   const valueCents = holding.currentPriceCents ?? "0";
 
   return (
+    <SwipeToDeleteRow
+      onDelete={onArchive}
+      deleteAriaLabel={t("row.deleteAria", { name: holding.name })}
+    >
     <div
       data-testid={`possession-row-${holding.name}`}
       className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
@@ -193,7 +198,8 @@ function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: Persiste
         />
       </div>
 
-      {/* Trash — hover on desktop; always shown on mobile (no hover). */}
+      {/* Trash — desktop only, hover-revealed. Mobile deletes via swipe-left
+          (SwipeToDeleteRow), same as the wallet rows. */}
       <button
         type="button"
         data-testid={`possession-trash-${holding.id}`}
@@ -202,10 +208,11 @@ function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: Persiste
           e.stopPropagation();
           onArchive();
         }}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:invisible sm:group-hover:visible"
+        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:flex sm:invisible sm:group-hover:visible"
       >
         <Trash2 className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
+    </SwipeToDeleteRow>
   );
 }

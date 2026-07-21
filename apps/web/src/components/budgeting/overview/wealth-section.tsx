@@ -48,6 +48,7 @@ const BUCKET_INVEST = "var(--chart-bar-1)"; // blue
 const BUCKET_SPEND = "var(--primary)"; // yellow
 const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
 const BUCKET_CUSHION = "var(--chart-bar-3)"; // purple (distinct from teal)
+const BUCKET_POSSESS = "var(--chart-bar-4)"; // possessions (distinct 5th pool)
 
 function PctStat({
   label,
@@ -190,6 +191,11 @@ export function WealthSection({
           name: t("wealth.capCushion"),
           value: Number(cards.cushion.total_cents),
           color: BUCKET_CUSHION,
+        },
+        {
+          name: t("wealth.capPossessions"),
+          value: Number(cards.possessions_value_cents),
+          color: BUCKET_POSSESS,
         },
       ].filter((b) => b.value > 0)
     : [];
