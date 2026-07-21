@@ -38,6 +38,8 @@ export interface HoldingDto {
   uiType: string | null;
   /** Possession-only curated icon key (e.g. "car"); null for every other type. */
   icon: string | null;
+  /** Possession-only hex color (e.g. "#e63946"); null for every other type. */
+  color: string | null;
   group: string | null;
   instrumentId: string | null;
   /** Precious-metals attributes (null otherwise). */

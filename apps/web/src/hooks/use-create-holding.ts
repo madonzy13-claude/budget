@@ -22,6 +22,8 @@ export interface CreateHoldingInput {
   uiType?: string | null;
   /** Possession-only curated icon key (e.g. "car"). */
   icon?: string | null;
+  /** Possession-only hex color (e.g. "#e63946"). */
+  color?: string | null;
   group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: string | number | null;
@@ -59,6 +61,7 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     holdingType: input.holdingType,
     uiType: input.uiType ?? null,
     icon: input.icon ?? null,
+    color: input.color ?? null,
     group: input.group ?? null,
     instrumentId: input.instrumentId ?? null,
     metal: input.metal ?? null,

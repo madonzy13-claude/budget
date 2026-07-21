@@ -125,6 +125,8 @@ export const createHoldingSchema = z.object({
   uiType: uiTypeSchema.nullish(),
   /** Possession-only: curated icon key (e.g. "car", "home"); null otherwise. */
   icon: z.string().max(40).nullish(),
+  /** Possession-only: hex color (e.g. "#e63946"); null otherwise. */
+  color: z.string().max(40).nullish(),
   group: z.string().max(120).nullish(),
   instrumentId: z.string().uuid().nullish(),
   /** User-typed ticker for a manual (no-instrument) tracked holding. */
@@ -171,6 +173,8 @@ export interface EnrichedHoldingDto {
   uiType: string | null;
   /** Possession-only curated icon key (e.g. "car"); null for every other type. */
   icon: string | null;
+  /** Possession-only hex color (e.g. "#e63946"); null for every other type. */
+  color: string | null;
   group: string | null;
   instrumentId: string | null;
   metal: string | null;

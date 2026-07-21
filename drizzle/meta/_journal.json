@@ -463,6 +463,13 @@
       "when": 1782717600000,
       "tag": "0066_investment_possession",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1782721200000,
+      "tag": "0067_investment_color",
+      "breakpoints": true
     }
   ]
 }

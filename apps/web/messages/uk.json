@@ -543,7 +543,11 @@
       },
       "row": {
         "editAria": "Редагувати майно {name}",
-        "deleteAria": "Видалити майно {name}"
+        "deleteAria": "Видалити майно {name}",
+        "nameAria": "Назва майна",
+        "amountAria": "Вартість майна",
+        "currencyAria": "Валюта майна",
+        "iconAria": "Налаштувати іконку та колір {name}"
       }
     },
     "investments": {

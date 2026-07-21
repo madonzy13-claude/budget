@@ -13,10 +13,10 @@ Feature: Possessions wallet — always-on section, add + persist
     When I open the wallets tab for possessions
     Then I see the possessions section
 
-  # Add via the sheet → row appears → survives a reload (real DB round-trip through
-  # the widened holding_type CHECK('possession') + the new icon column).
-  Scenario: Add a possession persists and stays out of the investments section
+  # Inline staged-add (same as wallets) → row appears → survives a reload (real DB
+  # round-trip through the widened holding_type CHECK('possession') + icon/color cols).
+  Scenario: Add a possession persists via the inline add row
     When I open the wallets tab for possessions
-    And I add a possession "Family car" worth "25000" via the sheet
+    And I add a possession "Family car" via the inline add row
     Then the possession row "Family car" is visible
     And the possession row "Family car" persists after a reload

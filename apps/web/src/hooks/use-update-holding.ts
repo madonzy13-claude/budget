@@ -20,6 +20,8 @@ export interface UpdateHoldingInput {
   uiType?: string | null;
   /** Possession-only curated icon key (e.g. "car"). */
   icon?: string | null;
+  /** Possession-only hex color (e.g. "#e63946"). */
+  color?: string | null;
   group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: string | number | null;
@@ -93,6 +95,7 @@ export function useUpdateHolding(budgetId: string) {
                   : {}),
                 ...(input.group !== undefined ? { group: input.group } : {}),
                 ...(input.icon !== undefined ? { icon: input.icon } : {}),
+                ...(input.color !== undefined ? { color: input.color } : {}),
                 ...(input.currentPriceCents !== undefined
                   ? { currentPriceCents: String(input.currentPriceCents) }
                   : {}),

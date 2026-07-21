@@ -122,6 +122,8 @@ export class Holding {
     public depositEndDate: string | null = null,
     /** Possession-only: curated per-item icon key (e.g. "car"); null otherwise. */
     public icon: string | null = null,
+    /** Possession-only: per-item hex color (e.g. "#e63946"); null otherwise. */
+    public color: string | null = null,
   ) {}
 
   /** Bank deposit: value accrues from principal+rate+time, computed on read. */

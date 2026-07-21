@@ -543,7 +543,11 @@
       },
       "row": {
         "editAria": "Edytuj rzecz {name}",
-        "deleteAria": "Usuń rzecz {name}"
+        "deleteAria": "Usuń rzecz {name}",
+        "nameAria": "Nazwa rzeczy",
+        "amountAria": "Wartość rzeczy",
+        "currencyAria": "Waluta rzeczy",
+        "iconAria": "Dostosuj ikonę i kolor {name}"
       }
     },
     "investments": {

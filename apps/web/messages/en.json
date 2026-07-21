@@ -543,7 +543,11 @@
       },
       "row": {
         "editAria": "Edit possession {name}",
-        "deleteAria": "Delete possession {name}"
+        "deleteAria": "Delete possession {name}",
+        "nameAria": "Possession name",
+        "amountAria": "Possession value",
+        "currencyAria": "Possession currency",
+        "iconAria": "Customize {name} icon and color"
       }
     },
     "investments": {

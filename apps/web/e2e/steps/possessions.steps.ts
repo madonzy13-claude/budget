@@ -16,9 +16,9 @@ Then("I see the possessions section", async ({ page }) => {
 });
 
 When(
-  "I add a possession {string} worth {string} via the sheet",
-  async ({ page }, name: string, amount: string) => {
-    await new PossessionsPo(page).addPossession(name, amount);
+  "I add a possession {string} via the inline add row",
+  async ({ page }, name: string) => {
+    await new PossessionsPo(page).addPossession(name);
   },
 );
 

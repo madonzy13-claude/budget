@@ -1,68 +1,208 @@
 "use client";
 /**
- * possession-row.tsx — read-only possession row: per-item icon + name + value.
+ * possession-row.tsx — inline-editable possession row (same model as wallet-row).
  *
- * A possession has no P/L, no quantity, no weight column — just what it's worth.
- * Row click opens the edit sheet; the hover trash archives it. Kept dnd-free and
- * unit-testable (no drag handle).
+ * mode="persisted" — icon picker + inline name + currency + inline value + trash.
+ *   All edits are inline (InlineEditCell / CurrencyPicker / WalletCustomizer) — no
+ *   sub sheet, mirroring the spendings/reserve/cushion wallet rows.
+ * mode="draft" — staged-add row: an empty auto-focused name input that POSTs on a
+ *   non-empty blur (value/currency/icon are then edited inline on the new row).
  */
-import { useLocale, useTranslations } from "next-intl";
+import { useState, useRef, useEffect } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { Trash2 } from "lucide-react";
+import { InlineEditCell } from "@/components/common/inline-edit-cell";
+import { CurrencyPicker } from "@/components/common/currency-picker";
+import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
-import { possessionIconByName } from "@/lib/possession-icons";
+import { WalletCustomizer } from "./wallet-customizer";
+import { sanitizeAmount } from "./wallet-row";
+import { POSSESSION_ICONS } from "@/lib/possession-icons";
 import type { HoldingDto } from "@/hooks/use-investments";
 
-interface PossessionRowProps {
-  holding: HoldingDto;
-  onEdit?: () => void;
-  onDelete?: () => void;
+const MIN_AMOUNT_CHARS = 4;
+
+export interface PossessionUpdate {
+  name?: string;
+  amount?: string; // decimal string
+  currency?: string;
+  icon?: string | null;
+  color?: string | null;
 }
 
-export function PossessionRow({ holding, onEdit, onDelete }: PossessionRowProps) {
-  const locale = useLocale();
+interface PersistedProps {
+  mode: "persisted";
+  holding: HoldingDto;
+  maxAmountChars?: number;
+  onUpdate: (patch: PossessionUpdate) => Promise<void>;
+  onArchive: () => void;
+}
+
+interface DraftProps {
+  mode: "draft";
+  budgetCurrency: string;
+  maxAmountChars?: number;
+  onCommit: (name: string) => Promise<void>;
+  onDiscard: () => void;
+  pending: boolean;
+}
+
+export function PossessionRow(props: PersistedProps | DraftProps) {
+  return props.mode === "draft" ? (
+    <DraftRow {...props} />
+  ) : (
+    <PersistedRow {...props} />
+  );
+}
+
+function DraftRow({
+  budgetCurrency,
+  maxAmountChars,
+  onCommit,
+  onDiscard,
+  pending,
+}: DraftProps) {
   const t = useTranslations("budget.possessions");
-  const Icon = possessionIconByName(holding.icon);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleBlur = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return onDiscard();
+    await onCommit(trimmed);
+  };
+
+  return (
+    <div
+      data-testid="possession-row-draft"
+      className="flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]"
+    >
+      <div className="size-7 shrink-0" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <Input
+          ref={inputRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onDiscard();
+            if (e.key === "Enter") inputRef.current?.blur();
+          }}
+          disabled={pending}
+          placeholder={t("field.namePlaceholder")}
+          className="h-9"
+          aria-label={t("row.nameAria")}
+          data-testid="possession-draft-name-input"
+        />
+      </div>
+      <div className="w-[44px] text-[var(--muted-foreground)] sm:w-[96px]">
+        {budgetCurrency}
+      </div>
+      <div
+        className="text-right tabular-nums text-[var(--muted-foreground)]"
+        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+      >
+        0
+      </div>
+      <div className="w-7" aria-hidden="true" />
+    </div>
+  );
+}
+
+function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: PersistedProps) {
+  const t = useTranslations("budget.possessions");
+  const locale = useLocale();
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
-  const value = centsToBare(holding.valueCents, locale);
+  const valueCents = holding.currentPriceCents ?? "0";
 
   return (
     <div
       data-testid={`possession-row-${holding.name}`}
-      role="button"
-      tabIndex={0}
-      aria-label={t("row.editAria", { name: holding.name })}
-      onClick={() => onEdit?.()}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onEdit?.();
-        }
-      }}
-      className="group flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 transition-colors hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+      className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
     >
-      <Icon
-        className="h-5 w-5 shrink-0 text-[var(--muted-foreground)]"
-        aria-hidden="true"
+      {/* Icon + color — inline picker (curated possession icon set), same as the
+          wallet/spendings customizer. */}
+      <WalletCustomizer
+        color={holding.color ?? null}
+        icon={holding.icon ?? null}
+        icons={POSSESSION_ICONS}
+        ariaLabel={t("row.iconAria", { name: holding.name })}
+        onChange={(patch) => onUpdate(patch).catch(() => {})}
       />
-      <span className="min-w-0 flex-1 truncate text-body-md text-[var(--body-on-dark)]">
-        {holding.name}
-      </span>
-      <div className="flex shrink-0 items-baseline gap-1">
-        <span className="text-num-sm text-[var(--muted-foreground)]">
-          {currency}
-        </span>
-        <span className="text-num-md tabular-nums text-[var(--body-on-dark)]">
-          {value}
-        </span>
+
+      {/* Name — inline edit. */}
+      <div className="min-w-0 flex-1" data-inline-cell>
+        <InlineEditCell
+          value={holding.name}
+          ariaLabel={t("row.nameAria")}
+          testId={`possession-name-${holding.id}`}
+          render={(v) => <span className="block truncate">{v}</span>}
+          renderEditor={(draft, onChange) => (
+            <Input
+              autoFocus
+              value={draft}
+              onChange={(e) => onChange(e.target.value)}
+              className="h-9"
+              placeholder={t("field.namePlaceholder")}
+            />
+          )}
+          onSave={(v) => onUpdate({ name: v })}
+        />
       </div>
+
+      {/* Currency — inline picker. */}
+      <div className="w-[44px] sm:w-[96px]" data-inline-cell>
+        <CurrencyPicker
+          value={currency}
+          aria-label={t("row.currencyAria")}
+          onSelect={(v: string) => onUpdate({ currency: v })}
+        />
+      </div>
+
+      {/* Value — inline edit. */}
+      <div
+        className="text-right tabular-nums"
+        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+        data-inline-cell
+      >
+        <InlineEditCell
+          value={centsToBare(valueCents).replace(/[^0-9.-]/g, "")}
+          ariaLabel={t("row.amountAria")}
+          testId={`possession-amount-${holding.id}`}
+          render={() => (
+            <span className="text-num-md">{centsToBare(valueCents, locale)}</span>
+          )}
+          renderEditor={(draft, onChange) => (
+            <Input
+              autoFocus
+              type="text"
+              inputMode="decimal"
+              defaultValue={draft}
+              onChange={(e) => {
+                const v = sanitizeAmount(e.target.value);
+                if (v !== e.target.value) e.target.value = v;
+                onChange(v);
+              }}
+              className="h-9 text-right"
+            />
+          )}
+          onSave={(v) => onUpdate({ amount: sanitizeAmount(v) })}
+        />
+      </div>
+
+      {/* Trash — hover on desktop; always shown on mobile (no hover). */}
       <button
         type="button"
+        data-testid={`possession-trash-${holding.id}`}
         aria-label={t("row.deleteAria", { name: holding.name })}
         onClick={(e) => {
           e.stopPropagation();
-          onDelete?.();
+          onArchive();
         }}
-        className="invisible flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] group-hover:visible"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:invisible sm:group-hover:visible"
       >
         <Trash2 className="h-4 w-4" aria-hidden="true" />
       </button>

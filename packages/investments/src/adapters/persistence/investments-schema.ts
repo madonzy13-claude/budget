@@ -39,8 +39,9 @@ export const investments = budgeting.table(
     // → both 'bond'; collectibles → 'other'). Drives the dynamic form on edit.
     uiType: text("ui_type"),
     // Possession-only (holding_type = 'possession'): curated per-item icon key
-    // (e.g. 'car', 'home'). NULL for every other holding type.
+    // (e.g. 'car', 'home') + hex color. NULL for every other holding type.
     icon: text("icon"),
+    color: text("color"),
     // Precious-metals attributes (NULL for every other type).
     metal: text("metal"), // gold | silver | platinum | palladium
     metalKind: text("metal_kind"), // coin | bar | other (descriptive)

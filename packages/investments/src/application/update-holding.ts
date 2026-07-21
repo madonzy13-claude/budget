@@ -55,6 +55,8 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
           input.uiType !== undefined ? (input.uiType ?? null) : current.uiType,
         icon:
           input.icon !== undefined ? (input.icon ?? null) : current.icon,
+        color:
+          input.color !== undefined ? (input.color ?? null) : current.color,
         metal:
           input.metal !== undefined ? (input.metal ?? null) : current.metal,
         metalKind:
