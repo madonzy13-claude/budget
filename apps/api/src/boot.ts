@@ -406,6 +406,12 @@ export async function boot(): Promise<BootedDeps> {
   // currency via valueInBudgetCents). metaReader + cushion + spendings are reused
   // verbatim (no new cushion/overspent math — D-08/D-10).
   const overviewCardsRepo = createOverviewCardsRepo();
+  // Possessions (house/car/…) are holdings too, but they are NOT liquid
+  // investments: excluded from investment value / cost basis / the pie, and summed
+  // separately so capitalization includes them while the retirement pot excludes
+  // them (see compute-budget-wealth-now.ts / get-overview-cards.ts).
+  const isPossession = (h: { holdingType: string }) =>
+    h.holdingType === "possession";
   const holdingsValuation = {
     investmentValueCents: async (input: {
       tenantId: string;
@@ -419,10 +425,9 @@ export async function boot(): Promise<BootedDeps> {
         budgetCurrency: input.defaultCurrency,
       });
       if (r.isErr()) throw r.error;
-      return r.value.holdings.reduce(
-        (sum, h) => sum + BigInt(h.valueInBudgetCents),
-        0n,
-      );
+      return r.value.holdings
+        .filter((h) => !isPossession(h))
+        .reduce((sum, h) => sum + BigInt(h.valueInBudgetCents), 0n);
     },
     investmentCostBasisCents: async (input: {
       tenantId: string;
@@ -436,10 +441,25 @@ export async function boot(): Promise<BootedDeps> {
         budgetCurrency: input.defaultCurrency,
       });
       if (r.isErr()) throw r.error;
-      return r.value.holdings.reduce(
-        (sum, h) => sum + BigInt(h.costInBudgetCents),
-        0n,
-      );
+      return r.value.holdings
+        .filter((h) => !isPossession(h))
+        .reduce((sum, h) => sum + BigInt(h.costInBudgetCents), 0n);
+    },
+    possessionsValueCents: async (input: {
+      tenantId: string;
+      budgetId: string;
+      defaultCurrency: string;
+    }): Promise<bigint> => {
+      const r = await investments.listHoldings({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        actorUserId: SYSTEM_USER_UUID,
+        budgetCurrency: input.defaultCurrency,
+      });
+      if (r.isErr()) throw r.error;
+      return r.value.holdings
+        .filter((h) => isPossession(h))
+        .reduce((sum, h) => sum + BigInt(h.valueInBudgetCents), 0n);
     },
   };
   const budgetingFinal = Object.assign(budgeting, {
@@ -503,6 +523,8 @@ export async function boot(): Promise<BootedDeps> {
           // showed a Broker slice. Fall back to holding_type when ui_type is unset.
           const byType = new Map<string, bigint>();
           for (const h of r.value.holdings) {
+            // Possessions are net worth but not investments — no pie slice here.
+            if (h.holdingType === "possession") continue;
             const key = h.uiType || h.holdingType;
             byType.set(
               key,

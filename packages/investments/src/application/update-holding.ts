@@ -53,6 +53,8 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
             : current.currentPriceCurrency,
         uiType:
           input.uiType !== undefined ? (input.uiType ?? null) : current.uiType,
+        icon:
+          input.icon !== undefined ? (input.icon ?? null) : current.icon,
         metal:
           input.metal !== undefined ? (input.metal ?? null) : current.metal,
         metalKind:

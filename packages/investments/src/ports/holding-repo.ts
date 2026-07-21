@@ -9,6 +9,8 @@ export interface NewHolding {
   name: string;
   holdingType: HoldingType;
   uiType: string | null;
+  /** Possession-only curated icon key (e.g. "car"); null for every other type. */
+  icon: string | null;
   group: string | null;
   instrumentId: string | null;
   /** User-typed ticker for a manual (no-instrument) tracked holding. */

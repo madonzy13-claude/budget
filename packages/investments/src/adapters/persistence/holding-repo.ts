@@ -56,6 +56,7 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.deposit_start_date as string | null) ?? null,
     (row.deposit_cap_frequency as string | null) ?? null,
     (row.deposit_end_date as string | null) ?? null,
+    (row.icon as string | null) ?? null,
   );
 }
 
@@ -73,14 +74,14 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           INSERT INTO budgeting.investments
-            (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type,
+            (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type, icon,
              group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
              current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
              premium_pct, deposit_rate_bps, deposit_start_date, deposit_end_date,
              deposit_cap_frequency, sort_order, created_at)
           VALUES
             (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
-             ${input.name}, ${input.holdingType}, ${input.uiType},
+             ${input.name}, ${input.holdingType}, ${input.uiType}, ${input.icon},
              ${input.group},
              ${b8(input.buyPriceCents)}::bigint, ${input.buyCurrency},
              ${input.quantity}::numeric, ${b8(input.currentPriceCents)}::bigint,
@@ -93,7 +94,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                         WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
              now())
           RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    ui_type, group_name, instrument_id::text AS instrument_id,
+                    ui_type, icon, group_name, instrument_id::text AS instrument_id,
                     buy_price_cents::text AS buy_price_cents, buy_currency,
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
@@ -127,6 +128,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             name = ${input.name},
             holding_type = ${input.holdingType},
             ui_type = ${input.uiType},
+            icon = ${input.icon},
             group_name = ${input.group},
             buy_price_cents = ${b8(input.buyPriceCents)}::bigint,
             buy_currency = ${input.buyCurrency},
@@ -144,7 +146,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             deposit_cap_frequency = ${input.depositCapFrequency ?? null}
           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid AND archived_at IS NULL
           RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    ui_type, group_name, instrument_id::text AS instrument_id,
+                    ui_type, icon, group_name, instrument_id::text AS instrument_id,
                     buy_price_cents::text AS buy_price_cents, buy_currency,
                     quantity::text AS quantity,
                     current_price_cents::text AS current_price_cents,
@@ -188,7 +190,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           SELECT inv.id::text AS id, inv.tenant_id::text AS tenant_id, inv.name,
-                 inv.holding_type, inv.ui_type, inv.group_name,
+                 inv.holding_type, inv.ui_type, inv.icon, inv.group_name,
                  inv.metal, inv.metal_kind, inv.unit_of_measure,
                  inv.premium_pct::text AS premium_pct,
                  inv.instrument_id::text AS instrument_id,
@@ -268,7 +270,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           SELECT id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                 ui_type, group_name, metal, metal_kind, unit_of_measure,
+                 ui_type, icon, group_name, metal, metal_kind, unit_of_measure,
                  premium_pct::text AS premium_pct,
                  instrument_id::text AS instrument_id, manual_ticker,
                  manual_ticker AS symbol,

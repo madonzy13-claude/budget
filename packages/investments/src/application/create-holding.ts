@@ -24,6 +24,7 @@ export function createHolding(deps: { holdingRepo: HoldingRepo }) {
       name: input.name,
       holdingType: input.holdingType,
       uiType: input.uiType ?? null,
+      icon: input.icon ?? null,
       group: input.group ?? null,
       instrumentId: input.instrumentId ?? null,
       manualTicker: input.manualTicker ?? null,

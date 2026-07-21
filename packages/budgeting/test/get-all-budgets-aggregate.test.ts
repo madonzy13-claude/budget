@@ -20,6 +20,7 @@ const cards = (over: Partial<any> = {}) => ({
   monthly_planned_cents: 80000n,
   capitalization_cents: 1000000n,
   investment_value_cents: 400000n,
+  possessions_value_cents: 0n,
   available_reserves_cents: 200000n,
   spendings: {
     spent_cents: 50000n,

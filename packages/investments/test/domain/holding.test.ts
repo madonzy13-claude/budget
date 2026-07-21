@@ -58,14 +58,15 @@ export const mk = (o: Init = {}): Holding =>
   );
 
 describe("Holding entity", () => {
-  test("constructs with each of the 11 valid holding types", () => {
+  test("constructs with each of the 12 valid holding types", () => {
     for (const t of HOLDING_TYPES) {
       const h = mk({ holdingType: t });
       expect(h.holdingType).toBe(t);
     }
-    expect(HOLDING_TYPES).toHaveLength(11);
+    expect(HOLDING_TYPES).toHaveLength(12);
     expect(HOLDING_TYPES).toContain("deposit");
     expect(HOLDING_TYPES).toContain("savings");
+    expect(HOLDING_TYPES).toContain("possession");
   });
 
   test("isHoldingType guards the locked union", () => {
@@ -75,8 +76,15 @@ describe("Holding entity", () => {
     expect(isHoldingType("other")).toBe(true);
     expect(isHoldingType("deposit")).toBe(true);
     expect(isHoldingType("savings")).toBe(true);
+    expect(isHoldingType("possession")).toBe(true);
     expect(isHoldingType("stonks")).toBe(false);
     expect(isHoldingType("")).toBe(false);
+  });
+
+  test("possession is NOT cash — valued by its single current amount", () => {
+    // A possession (house/car/…) rides the manual single-amount path (qty=1,
+    // current = its value). It is net-worth wealth, not a cash_fx wallet.
+    expect(mk({ holdingType: "possession" }).isCash()).toBe(false);
   });
 
   test("savings is NOT cash — keeps a P/L basis", () => {

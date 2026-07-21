@@ -122,6 +122,9 @@ export interface OverviewCards {
   };
   capitalization_cents: bigint;
   investment_value_cents: bigint;
+  /** Σ possession holdings — in capitalization (net worth) but excluded from the
+   * retirement pot (house/car aren't liquid drawdown income). */
+  possessions_value_cents: bigint;
   /** How many months the capitalization lasts at the normal monthly planned spend
    * — "how long could I survive if I retire now" (item 5). null = no planned spend
    * (would last forever). */
@@ -302,16 +305,20 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // max against — add it directly.
       leftToSpend += upcoming.get(NONE_CATEGORY_KEY) ?? 0n;
 
-      // Retirement runway: how many months the FULL capitalization (incl.
-      // investments — everything is available if you retire) lasts at the normal
-      // monthly planned spend, with spending GROWING at RETIREMENT_INFLATION_PCT/yr
-      // (item 8). Closed-form for a geometric (inflating) drawdown:
+      // Retirement runway: how many months the liquid capitalization lasts at the
+      // normal monthly planned spend, with spending GROWING at
+      // RETIREMENT_INFLATION_PCT/yr (item 8). Closed-form for a geometric
+      // (inflating) drawdown:
       //   N = ln(1 + W·r/s) / ln(1+r),  r = monthly inflation, W = wealth, s = spend.
+      // W = capitalization MINUS possessions: a house/car/jewelry counts toward net
+      // worth but you can't draw it down as monthly income, so it's out of the pot.
       // s already excludes the Investments category above (no investing in
       // retirement). No planned spend → lasts forever (null).
       const retirementMonths = (() => {
         if (monthlyPlanned <= 0n) return null;
-        const W = Number(wealth.capitalization_cents);
+        const W = Number(
+          wealth.capitalization_cents - wealth.possessions_value_cents,
+        );
         const s = Number(monthlyPlanned);
         const r = Math.pow(1 + RETIREMENT_INFLATION_PCT / 100, 1 / 12) - 1;
         return Math.log(1 + (W * r) / s) / Math.log(1 + r);
@@ -361,6 +368,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         },
         capitalization_cents: wealth.capitalization_cents,
         investment_value_cents: wealth.investment_value_cents,
+        possessions_value_cents: wealth.possessions_value_cents,
         retirement_months: retirementMonths,
         retirement_inflation_pct: RETIREMENT_INFLATION_PCT,
         available_reserves_cents: availableReserves,
