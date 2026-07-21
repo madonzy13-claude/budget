@@ -547,7 +547,8 @@
         "nameAria": "Nazwa rzeczy",
         "amountAria": "Wartość rzeczy",
         "currencyAria": "Waluta rzeczy",
-        "iconAria": "Dostosuj ikonę i kolor {name}"
+        "iconAria": "Dostosuj ikonę i kolor {name}",
+        "nameRequired": "Nazwa nie może być pusta"
       },
       "confirm": {
         "delete": {
@@ -1566,6 +1567,7 @@
         "row": {
           "namePlaceholder": "Nazwa portfela",
           "nameAria": "Nazwa portfela. Kliknij, aby edytować.",
+          "nameRequired": "Nazwa nie może być pusta",
           "currencyAria": "Waluta. Kliknij, aby edytować.",
           "currencyReadOnlyAria": "Waluta {ccy}. Portfele rezerw muszą używać waluty budżetu.",
           "amountAria": "Kwota. Kliknij, aby edytować.",

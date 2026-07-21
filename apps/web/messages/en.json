@@ -547,7 +547,8 @@
         "nameAria": "Possession name",
         "amountAria": "Possession value",
         "currencyAria": "Possession currency",
-        "iconAria": "Customize {name} icon and color"
+        "iconAria": "Customize {name} icon and color",
+        "nameRequired": "Name can't be empty"
       },
       "confirm": {
         "delete": {
@@ -1543,6 +1544,7 @@
         "row": {
           "namePlaceholder": "Wallet name",
           "nameAria": "Wallet name. Click to edit.",
+          "nameRequired": "Name can't be empty",
           "currencyAria": "Currency. Click to edit.",
           "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
           "amountAria": "Amount. Click to edit.",

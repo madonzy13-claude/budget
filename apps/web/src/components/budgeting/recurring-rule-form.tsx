@@ -24,7 +24,8 @@
  *   - create → POST /recurring-rules
  *   - edit   → PATCH /recurring-rules/:id with applyToFuture toggle
  */
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { nextDueDate } from "@/lib/next-due-date";
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -178,9 +179,41 @@ export function RecurringRuleForm({
   const [yearlyMonth, setYearlyMonth] = useState<number>(
     initialValues?.yearlyMonth ?? 1,
   );
-  const [firstDueDate, setFirstDueDate] = useState(
-    initialValues?.firstDueDate ?? todayIso(),
+  // First due date AUTO-FOLLOWS the picked cadence + day: it fills with the
+  // nearest upcoming matching date (today counts). An edit that already has a
+  // date, or a manual date pick, freezes it (firstDueTouched) so we never
+  // override the user's own choice.
+  const firstDueTouched = useRef<boolean>(
+    mode === "edit" && initialValues?.firstDueDate != null,
   );
+  const [firstDueDate, setFirstDueDate] = useState(
+    () =>
+      initialValues?.firstDueDate ??
+      nextDueDate(
+        initialCadence,
+        {
+          weeklyDow: initialValues?.weeklyDow ?? WEEKDAY_ORDER[0]!,
+          dayOfMonth: Number(initialValues?.cadenceAnchor ?? 1),
+          yearlyMonth: initialValues?.yearlyMonth ?? 1,
+        },
+        todayIso(),
+      ),
+  );
+  useEffect(() => {
+    if (firstDueTouched.current) return;
+    const dom = parseInt(cadenceAnchorRaw, 10);
+    setFirstDueDate(
+      nextDueDate(
+        cadence,
+        {
+          weeklyDow,
+          dayOfMonth: Number.isFinite(dom) ? dom : 1,
+          yearlyMonth,
+        },
+        todayIso(),
+      ),
+    );
+  }, [cadence, weeklyDow, cadenceAnchorRaw, yearlyMonth]);
   const [note, setNote] = useState(initialValues?.note ?? "");
   // applyToFuture is permanently true — UAT-Phase6-Test7 retest: the
   // user always wants edits to flow to upcoming drafts; the explicit
@@ -558,7 +591,11 @@ export function RecurringRuleForm({
                 <DateInput
                   id="rr-firstdue"
                   value={firstDueDate}
-                  onChange={setFirstDueDate}
+                  onChange={(v) => {
+                    // A manual pick freezes the auto-follow.
+                    firstDueTouched.current = true;
+                    setFirstDueDate(v);
+                  }}
                 />
               </div>
             </>

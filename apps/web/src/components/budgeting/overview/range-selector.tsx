@@ -63,7 +63,12 @@ export function RangeSelector({
       <div
         role="group"
         aria-label={t("month")}
-        className="flex items-center justify-center gap-1 overflow-x-auto"
+        // touch-pan-x + overscroll-x-contain: a horizontal swipe on this scroller
+        // stays horizontal and never chains to the page. Without it, iOS Safari
+        // read a swipe's vertical drift as a page pan → the bar collapsed / the
+        // page rubber-banded, flashing the black canvas at the bottom of the
+        // screen when "passing" the range strip (user report, browser tab).
+        className="flex touch-pan-x items-center justify-center gap-1 overflow-x-auto overscroll-x-contain"
         data-testid="overview-range-selector"
       >
         {PRESETS.map((p) =>

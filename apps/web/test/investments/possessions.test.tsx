@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { toast } from "sonner";
 import { PossessionRow } from "../../src/components/budgeting/wallets-tab/possession-row";
 import { PossessionsSection } from "../../src/components/budgeting/wallets-tab/possessions-section";
 import { possessionIconByName } from "../../src/lib/possession-icons";
@@ -127,6 +128,18 @@ describe("PossessionRow — inline (no sub sheet)", () => {
     expect(
       screen.getByTestId("possession-name-p1-editor").querySelector("input"),
     ).toBeTruthy();
+  });
+
+  it("rejects an empty name with a direct message, no save (260721)", () => {
+    render(persisted());
+    fireEvent.click(screen.getByTestId("possession-name-p1"));
+    const input = screen
+      .getByTestId("possession-name-p1-editor")
+      .querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "  " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(toast.error).toHaveBeenCalledWith("row.nameRequired");
+    expect(updateMutate).not.toHaveBeenCalled();
   });
 
   it("clicking the value cell opens an inline numeric editor", () => {

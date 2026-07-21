@@ -10,6 +10,7 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
@@ -158,7 +159,15 @@ function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: Persiste
               placeholder={t("field.namePlaceholder")}
             />
           )}
-          onSave={(v) => onUpdate({ name: v })}
+          onSave={(v) => {
+            // Empty name is invalid — show a direct message and keep the old name
+            // (no server round-trip → no generic "couldn't save" error).
+            if (!v.trim()) {
+              toast.error(t("row.nameRequired"));
+              return Promise.resolve();
+            }
+            return onUpdate({ name: v.trim() });
+          }}
         />
       </div>
 
