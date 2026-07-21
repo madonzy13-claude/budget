@@ -15,6 +15,8 @@ interface StepReviewProps {
   currency: string;
   cushionEnabled: boolean;
   reservesEnabled: boolean;
+  investmentsEnabled: boolean;
+  notificationsEnabled: boolean;
 }
 
 export function StepReview({
@@ -22,6 +24,8 @@ export function StepReview({
   currency,
   cushionEnabled,
   reservesEnabled,
+  investmentsEnabled,
+  notificationsEnabled,
 }: StepReviewProps) {
   const t = useTranslations("onboarding.wizard.review");
   const tc = useTranslations("currency");
@@ -72,6 +76,18 @@ export function StepReview({
           label={t("label_reserves")}
           value={reservesEnabled ? t("value_enabled") : t("value_disabled")}
           testId="wizard-review-reserves"
+        />
+        <ReviewRow
+          label={t("label_investments")}
+          value={investmentsEnabled ? t("value_enabled") : t("value_disabled")}
+          testId="wizard-review-investments"
+        />
+        <ReviewRow
+          label={t("label_notifications")}
+          value={
+            notificationsEnabled ? t("value_enabled") : t("value_disabled")
+          }
+          testId="wizard-review-notifications"
         />
       </dl>
     </div>

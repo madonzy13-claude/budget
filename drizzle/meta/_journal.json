@@ -477,6 +477,13 @@
       "when": 1782724800000,
       "tag": "0068_member_share_decimal",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1782728400000,
+      "tag": "0069_recurring_rule_end_date",
+      "breakpoints": true
     }
   ]
 }

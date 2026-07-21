@@ -935,6 +935,8 @@
         "label_type": "Тип",
         "label_cushion": "Подушка",
         "label_reserves": "Резерви",
+        "label_investments": "Інвестиції",
+        "label_notifications": "Сповіщення",
         "value_personal": "Особистий",
         "value_shared": "Спільний",
         "value_enabled": "Увімкнено",
@@ -1200,6 +1202,9 @@
           "12": "Грудень"
         },
         "firstDueLabel": "Перша дата",
+        "lastDueLabel": "Кінцева дата (необовʼязково)",
+        "lastDuePlaceholder": "Без кінцевої дати",
+        "errorLastBeforeFirst": "Кінцева дата не може бути раніше першої дати",
         "noteLabel": "Примітка (необовʼязково)",
         "applyToFutureLabel": "Застосувати також до майбутніх повторень",
         "applyToFutureHelp": "Редагує найближчі очікувані чернетки, щоб вони відображали нову суму/категорію. Підтверджені минулі транзакції ніколи не змінюються.",

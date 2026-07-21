@@ -21,6 +21,8 @@ export interface RecurringRuleEdits {
   cadenceAnchor?: number | null;
   weeklyDow?: number | null;
   yearlyMonth?: number | null;
+  /** Optional "last date" (ISO YYYY-MM-DD). null clears the deadline. */
+  endDate?: string | null;
 }
 
 export interface RecurringRuleRow {
@@ -36,6 +38,7 @@ export interface RecurringRuleRow {
   note: string | null;
   active: boolean;
   nextDueDate: string; // ISO date YYYY-MM-DD
+  endDate: string | null; // ISO date YYYY-MM-DD or null (no deadline)
   createdAt: Date;
   actorUserId: string;
 }

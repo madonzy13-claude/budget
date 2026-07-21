@@ -40,6 +40,9 @@ export const recurringRules = budgeting.table(
     note: text("note"),
     active: boolean("active").notNull().default(true),
     nextDueDate: date("next_due_date").notNull(),
+    // Optional "last date" — NULL = no deadline. Drafts generate up to and
+    // including this date, then the engine deactivates the rule (mig 0069).
+    endDate: date("end_date"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

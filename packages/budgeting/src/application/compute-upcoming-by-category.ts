@@ -23,6 +23,7 @@ import { TenantId, UserId } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { nextOccurrence, type Cadence } from "../domain/cadence";
+import { isRuleExhausted } from "../domain/recurring-end-date";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -81,7 +82,8 @@ export function computeUpcomingByCategory(deps: ComputeUpcomingByCategoryDeps) {
                  cadence_anchor,
                  weekly_dow,
                  yearly_month,
-                 next_due_date::text AS next_due
+                 next_due_date::text AS next_due,
+                 end_date::text AS end_date
             FROM budgeting.recurring_rules
            WHERE tenant_id = ${input.tenantId}::uuid
              AND active = true
@@ -119,9 +121,11 @@ export function computeUpcomingByCategory(deps: ComputeUpcomingByCategoryDeps) {
         yearlyMonth: (rule.yearly_month as number | null) ?? undefined,
       };
       let due = Temporal.PlainDate.from(rule.next_due as string);
+      const endDate = (rule.end_date as string | null) ?? null;
       let steps = 0;
       while (
         Temporal.PlainDate.compare(due, monthEnd) <= 0 &&
+        !isRuleExhausted(due.toString(), endDate) &&
         steps++ < MAX_PROJECTION_STEPS
       ) {
         // Only future occurrences not yet drafted (engine drafts due ≤ today).

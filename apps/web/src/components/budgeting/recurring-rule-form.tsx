@@ -73,6 +73,8 @@ export interface RecurringRuleFormValues {
   yearlyMonth: number | null;
   note: string | null;
   firstDueDate: string;
+  /** Optional "last date" (ISO YYYY-MM-DD). null / "" = no deadline. */
+  endDate?: string | null;
 }
 
 export interface RecurringRuleFormProps {
@@ -214,6 +216,9 @@ export function RecurringRuleForm({
       ),
     );
   }, [cadence, weeklyDow, cadenceAnchorRaw, yearlyMonth]);
+  // Optional "last date" — empty string = no deadline. Free-follows nothing;
+  // the user sets it explicitly (or clears it via the native date control).
+  const [lastDate, setLastDate] = useState(initialValues?.endDate ?? "");
   const [note, setNote] = useState(initialValues?.note ?? "");
   // applyToFuture is permanently true — UAT-Phase6-Test7 retest: the
   // user always wants edits to flow to upcoming drafts; the explicit
@@ -244,6 +249,13 @@ export function RecurringRuleForm({
       const cadenceAnchor = Number.isFinite(parsedAnchor)
         ? Math.max(1, Math.min(31, parsedAnchor))
         : 1;
+      // "Last date" is optional; when set it cannot precede the first due date.
+      // ISO YYYY-MM-DD strings compare chronologically.
+      const endDate = lastDate || null;
+      if (endDate !== null && endDate < firstDueDate) {
+        toast.error(t("rule.errorLastBeforeFirst"));
+        return;
+      }
       if (mode === "create") {
         // Backend v1.1 contract: snake_case + cadence-discriminated body.
         // Plain object first, then spread the cadence discriminator into
@@ -277,6 +289,7 @@ export function RecurringRuleForm({
             category_id: categoryId,
             note: note || null,
             first_due_date: firstDueDate,
+            end_date: endDate,
             ...cadencePart,
           }),
         });
@@ -327,6 +340,7 @@ export function RecurringRuleForm({
               currency,
               categoryId,
               note: note || null,
+              endDate,
               ...editCadencePart,
             },
             applyToFuture,
@@ -596,6 +610,20 @@ export function RecurringRuleForm({
                     firstDueTouched.current = true;
                     setFirstDueDate(v);
                   }}
+                />
+              </div>
+
+              {/* Optional "last date": empty = no deadline; when set, drafts
+                  generate only up to and including it. `min` = first due so the
+                  native picker won't offer earlier days (submit also guards). */}
+              <div>
+                <Label htmlFor="rr-lastdue">{t("rule.lastDueLabel")}</Label>
+                <DateInput
+                  id="rr-lastdue"
+                  value={lastDate}
+                  min={firstDueDate}
+                  placeholder={t("rule.lastDuePlaceholder")}
+                  onChange={(v) => setLastDate(v)}
                 />
               </div>
             </>

@@ -180,6 +180,11 @@ describe("WizardPage — deferred-create step machine", () => {
       target: { value: "My Budget" },
     });
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // 2→3
+    // Cushion defaults OFF (260721) — enable it so the months input renders.
+    await waitFor(() =>
+      expect(screen.getByTestId("wizard-feature-cushion")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("wizard-feature-cushion"));
     await waitFor(() => {
       const input = document.getElementById("onboarding-cushion-target-months");
       expect(input).not.toBeNull();
@@ -350,6 +355,11 @@ describe("WizardPage — deferred-create step machine", () => {
       target: { value: "My Budget" },
     });
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // 2→3
+    // Cushion defaults OFF (260721) — enable it so the months input renders.
+    await waitFor(() =>
+      expect(screen.getByTestId("wizard-feature-cushion")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("wizard-feature-cushion"));
     await waitFor(() => {
       expect(
         document.getElementById("onboarding-cushion-target-months"),

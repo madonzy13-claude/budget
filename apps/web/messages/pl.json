@@ -935,6 +935,8 @@
         "label_type": "Typ",
         "label_cushion": "Poduszka",
         "label_reserves": "Rezerwy",
+        "label_investments": "Inwestycje",
+        "label_notifications": "Powiadomienia",
         "value_personal": "Osobisty",
         "value_shared": "Wspólny",
         "value_enabled": "Włączone",
@@ -1200,6 +1202,9 @@
           "12": "Grudzień"
         },
         "firstDueLabel": "Pierwsza data",
+        "lastDueLabel": "Data końcowa (opcjonalnie)",
+        "lastDuePlaceholder": "Bez daty końcowej",
+        "errorLastBeforeFirst": "Data końcowa nie może być wcześniejsza niż pierwsza data",
         "noteLabel": "Notatka (opcjonalnie)",
         "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
         "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",

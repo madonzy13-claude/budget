@@ -14,9 +14,17 @@ import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "SHELL-R19";
+const BUILD_MARKER = "BLACKAREA-R1";
 
 const FLAG_KEY = "vpdbg";
+
+// Peak black-gap seen since the overlay turned on. The bug is TRANSIENT —
+// the black band flashes for a few frames while the Safari toolbar collapses
+// during a range-strip swipe, then heals. A 700ms poll snapshot almost never
+// lands on that frame, so we also track the worst gap ever observed. A large
+// peakGap with a currently-small live gap is the signature of the bug.
+let peakBottomGap = 0;
+let peakShellGap = 0;
 
 /**
  * Persist the vpdbg flag from a URL search string. Standalone PWA has no URL
@@ -117,6 +125,16 @@ interface Metrics {
   monthNavTop: number;
   bandBottom: number;
   monthNavUnderBand: number; // >0 = OCCLUDED (the bug); <=0 = clear
+  // BLACKAREA-R1: bottom-of-screen black band probe (range-strip swipe bug).
+  // bottomGap = innerH − vvH: dead space left when the Safari toolbar collapses
+  //   (visual viewport grows past the layout viewport the fixed shell is sized to).
+  // shellGap = vvBottom − shellRoot.bottom: black canvas visible BELOW the app's
+  //   painted content. >0 means the shell falls short of the viewport = black band.
+  // peak* : worst value seen since the overlay turned on (catches the flash).
+  bottomGap: number;
+  shellGap: number;
+  peakBottomGap: number;
+  peakShellGap: number;
   sheet: SheetMetrics | null;
   grid: GridMetrics | null;
 }
@@ -318,6 +336,23 @@ function readMetrics(): Metrics {
     monthNavUnderBand = bandBottom - monthNavTop; // >0 = occluded
   }
 
+  // BLACKAREA-R1: bottom black-band probe. Works on ANY page (overview,
+  // all-budgets, spendings) — probes the outermost shell wrapper, not a
+  // tab-specific element.
+  const innerHNow = window.innerHeight;
+  const vvHNow = Math.round(window.visualViewport?.height ?? innerHNow);
+  const vvBottomNow =
+    Math.round(window.visualViewport?.offsetTop ?? 0) + vvHNow;
+  const bottomGap = innerHNow - vvHNow; // >0 = toolbar collapsed, dead space
+  const shellEl =
+    document.querySelector<HTMLElement>("[data-shell-root]") ??
+    document.querySelector<HTMLElement>("main[data-shell-scroll]");
+  const shellGap = shellEl
+    ? Math.round(vvBottomNow - shellEl.getBoundingClientRect().bottom)
+    : -1;
+  if (bottomGap > peakBottomGap) peakBottomGap = bottomGap;
+  if (shellGap > peakShellGap) peakShellGap = shellGap;
+
   return {
     innerH: window.innerHeight,
     vvH: Math.round(window.visualViewport?.height ?? -1),
@@ -338,6 +373,10 @@ function readMetrics(): Metrics {
     monthNavTop,
     bandBottom,
     monthNavUnderBand,
+    bottomGap,
+    shellGap,
+    peakBottomGap,
+    peakShellGap,
     displayMode:
       ["standalone", "browser", "minimal-ui", "fullscreen"].find(
         (m) => window.matchMedia(`(display-mode: ${m})`).matches,
@@ -403,6 +442,9 @@ export function ViewportDebug() {
   // gesture enables it long after mount.
   useEffect(() => {
     if (!enabled) return;
+    // Fresh peak baseline per recording session.
+    peakBottomGap = 0;
+    peakShellGap = 0;
     const update = () => setMetrics(readMetrics());
     update();
     const id = setInterval(update, 700);
@@ -422,6 +464,18 @@ export function ViewportDebug() {
       className="pointer-events-none fixed left-1 top-32 z-[9999] rounded bg-black/85 p-2 font-mono text-[10px] leading-snug text-yellow-300"
     >
       <div>{BUILD_MARKER}</div>
+      <div
+        className="my-1 rounded border border-red-400/60 bg-red-500/20 px-1 py-0.5 text-red-200"
+        data-testid="viewport-debug-blackarea"
+      >
+        <div className="font-bold">[black-area]</div>
+        <div>
+          gap {m.bottomGap} (peak {m.peakBottomGap})
+        </div>
+        <div>
+          shellGap {m.shellGap} (peak {m.peakShellGap})
+        </div>
+      </div>
       <div>
         innerH {m.innerH} · vvH {m.vvH}
       </div>

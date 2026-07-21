@@ -10,9 +10,15 @@
 import { sql } from "drizzle-orm";
 import { withTenantTx, writeAudit } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
-import type { RecurringRuleRepo, RecurringRuleRow, RecurringRuleEdits } from "../../ports/recurring-rule-repo";
+import type {
+  RecurringRuleRepo,
+  RecurringRuleRow,
+  RecurringRuleEdits,
+} from "../../ports/recurring-rule-repo";
 
-type DrizzleTx = { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> };
+type DrizzleTx = {
+  execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+};
 
 function rowToRuleRow(row: Record<string, unknown>): RecurringRuleRow {
   return {
@@ -28,6 +34,7 @@ function rowToRuleRow(row: Record<string, unknown>): RecurringRuleRow {
     note: (row.note as string | null) ?? null,
     active: Boolean(row.active),
     nextDueDate: row.next_due_date as string,
+    endDate: (row.end_date as string | null) ?? null,
     createdAt: new Date(row.created_at as string),
     actorUserId: row.actor_user_id as string,
   };
@@ -47,9 +54,12 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
     nextDueDate: string;
     actorUserId: string;
   }): Promise<{ id: string }> {
-    const r = await withTenantTx(TenantId(rule.tenantId), UserId(rule.actorUserId), async (tx) => {
-      const drizzleTx = tx as DrizzleTx;
-      const result = await drizzleTx.execute(sql`
+    const r = await withTenantTx(
+      TenantId(rule.tenantId),
+      UserId(rule.actorUserId),
+      async (tx) => {
+        const drizzleTx = tx as DrizzleTx;
+        const result = await drizzleTx.execute(sql`
         INSERT INTO budgeting.recurring_rules
           (tenant_id, category_id, amount, currency, cadence,
            cadence_anchor, weekly_dow, yearly_month,
@@ -62,72 +72,100 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
            ${rule.nextDueDate}::date, ${rule.actorUserId}::uuid)
         RETURNING id
       `);
-      return { id: (result.rows[0] as Record<string, unknown>).id as string };
-    });
+        return { id: (result.rows[0] as Record<string, unknown>).id as string };
+      },
+    );
     if (r.isErr()) throw r.error;
     return r.value;
   }
 
-  async findById(tenantId: string, ruleId: string): Promise<RecurringRuleRow | null> {
-    const r = await withTenantTx(TenantId(tenantId), UserId("00000000-0000-0000-0000-000000000001"), async (tx) => {
-      const drizzleTx = tx as DrizzleTx;
-      const result = await drizzleTx.execute(sql`
+  async findById(
+    tenantId: string,
+    ruleId: string,
+  ): Promise<RecurringRuleRow | null> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId("00000000-0000-0000-0000-000000000001"),
+      async (tx) => {
+        const drizzleTx = tx as DrizzleTx;
+        const result = await drizzleTx.execute(sql`
         SELECT * FROM budgeting.recurring_rules
          WHERE id = ${ruleId}::uuid AND tenant_id = ${tenantId}::uuid
       `);
-      return result.rows[0] ? rowToRuleRow(result.rows[0]) : null;
-    });
+        return result.rows[0] ? rowToRuleRow(result.rows[0]) : null;
+      },
+    );
     if (r.isErr()) throw r.error;
     return r.value;
   }
 
   async listActive(tenantId: string): Promise<RecurringRuleRow[]> {
-    const r = await withTenantTx(TenantId(tenantId), UserId("00000000-0000-0000-0000-000000000001"), async (tx) => {
-      const drizzleTx = tx as DrizzleTx;
-      const result = await drizzleTx.execute(sql`
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId("00000000-0000-0000-0000-000000000001"),
+      async (tx) => {
+        const drizzleTx = tx as DrizzleTx;
+        const result = await drizzleTx.execute(sql`
         SELECT * FROM budgeting.recurring_rules
          WHERE tenant_id = ${tenantId}::uuid AND active = true
          ORDER BY created_at ASC
       `);
-      return result.rows.map(rowToRuleRow);
-    });
+        return result.rows.map(rowToRuleRow);
+      },
+    );
     if (r.isErr()) throw r.error;
     return r.value;
   }
 
-  async update(tx: unknown, ruleId: string, tenantId: string, edits: RecurringRuleEdits): Promise<void> {
+  async update(
+    tx: unknown,
+    ruleId: string,
+    tenantId: string,
+    edits: RecurringRuleEdits,
+  ): Promise<void> {
     const drizzleTx = tx as DrizzleTx;
     const { sql: sqlTag } = await import("drizzle-orm");
 
-    const amountClause = edits.amount !== undefined
-      ? sqlTag`amount = ${edits.amount}::numeric,`
-      : sqlTag``;
-    const currencyClause = edits.currency !== undefined
-      ? sqlTag`currency = ${edits.currency},`
-      : sqlTag``;
-    const categoryClause = edits.categoryId !== undefined
-      ? sqlTag`category_id = ${edits.categoryId ?? null}::uuid,`
-      : sqlTag``;
-    const noteClause = edits.note !== undefined
-      ? sqlTag`note = ${edits.note ?? null},`
-      : sqlTag``;
-    const activeClause = edits.active !== undefined
-      ? sqlTag`active = ${edits.active},`
-      : sqlTag``;
+    const amountClause =
+      edits.amount !== undefined
+        ? sqlTag`amount = ${edits.amount}::numeric,`
+        : sqlTag``;
+    const currencyClause =
+      edits.currency !== undefined
+        ? sqlTag`currency = ${edits.currency},`
+        : sqlTag``;
+    const categoryClause =
+      edits.categoryId !== undefined
+        ? sqlTag`category_id = ${edits.categoryId ?? null}::uuid,`
+        : sqlTag``;
+    const noteClause =
+      edits.note !== undefined
+        ? sqlTag`note = ${edits.note ?? null},`
+        : sqlTag``;
+    const activeClause =
+      edits.active !== undefined ? sqlTag`active = ${edits.active},` : sqlTag``;
     // Cadence-field clauses. next_due_date is recomputed separately by the
     // update-recurring-rule use case (it holds the merged spec + today).
-    const cadenceClause = edits.cadence !== undefined
-      ? sqlTag`cadence = ${edits.cadence},`
-      : sqlTag``;
-    const cadenceAnchorClause = edits.cadenceAnchor !== undefined
-      ? sqlTag`cadence_anchor = ${edits.cadenceAnchor},`
-      : sqlTag``;
-    const weeklyDowClause = edits.weeklyDow !== undefined
-      ? sqlTag`weekly_dow = ${edits.weeklyDow},`
-      : sqlTag``;
-    const yearlyMonthClause = edits.yearlyMonth !== undefined
-      ? sqlTag`yearly_month = ${edits.yearlyMonth},`
-      : sqlTag``;
+    const cadenceClause =
+      edits.cadence !== undefined
+        ? sqlTag`cadence = ${edits.cadence},`
+        : sqlTag``;
+    const cadenceAnchorClause =
+      edits.cadenceAnchor !== undefined
+        ? sqlTag`cadence_anchor = ${edits.cadenceAnchor},`
+        : sqlTag``;
+    const weeklyDowClause =
+      edits.weeklyDow !== undefined
+        ? sqlTag`weekly_dow = ${edits.weeklyDow},`
+        : sqlTag``;
+    const yearlyMonthClause =
+      edits.yearlyMonth !== undefined
+        ? sqlTag`yearly_month = ${edits.yearlyMonth},`
+        : sqlTag``;
+    const endDateClause =
+      edits.endDate !== undefined
+        ? sqlTag`end_date = ${edits.endDate ?? null}::date,`
+        : sqlTag``;
 
     await drizzleTx.execute(sqlTag`
       UPDATE budgeting.recurring_rules
@@ -140,12 +178,17 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
              ${cadenceAnchorClause}
              ${weeklyDowClause}
              ${yearlyMonthClause}
+             ${endDateClause}
              updated_at = now()
        WHERE id = ${ruleId}::uuid AND tenant_id = ${tenantId}::uuid
     `);
   }
 
-  async advanceNextDueDate(tx: unknown, ruleId: string, nextDueDate: string): Promise<void> {
+  async advanceNextDueDate(
+    tx: unknown,
+    ruleId: string,
+    nextDueDate: string,
+  ): Promise<void> {
     const drizzleTx = tx as DrizzleTx;
     await drizzleTx.execute(sql`
       UPDATE budgeting.recurring_rules
@@ -155,27 +198,35 @@ export class DrizzleRecurringRuleRepo implements RecurringRuleRepo {
     `);
   }
 
-  async deactivate(tenantId: string, ruleId: string, actorUserId: string): Promise<void> {
-    const r = await withTenantTx(TenantId(tenantId), UserId(actorUserId), async (tx) => {
-      const drizzleTx = tx as DrizzleTx;
-      const before = await drizzleTx.execute(sql`
+  async deactivate(
+    tenantId: string,
+    ruleId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(actorUserId),
+      async (tx) => {
+        const drizzleTx = tx as DrizzleTx;
+        const before = await drizzleTx.execute(sql`
         SELECT active FROM budgeting.recurring_rules WHERE id = ${ruleId}::uuid AND tenant_id = ${tenantId}::uuid
       `);
-      await drizzleTx.execute(sql`
+        await drizzleTx.execute(sql`
         UPDATE budgeting.recurring_rules
            SET active = false, updated_at = now()
          WHERE id = ${ruleId}::uuid AND tenant_id = ${tenantId}::uuid
       `);
-      await writeAudit(tx, {
-        tenantId: TenantId(tenantId),
-        actorUserId: UserId(actorUserId),
-        entityType: "recurring_rule",
-        entityId: ruleId,
-        action: "update" as const,
-        before: before.rows[0] ?? {},
-        after: { active: false },
-      });
-    });
+        await writeAudit(tx, {
+          tenantId: TenantId(tenantId),
+          actorUserId: UserId(actorUserId),
+          entityType: "recurring_rule",
+          entityId: ruleId,
+          action: "update" as const,
+          before: before.rows[0] ?? {},
+          after: { active: false },
+        });
+      },
+    );
     if (r.isErr()) throw r.error;
   }
 }

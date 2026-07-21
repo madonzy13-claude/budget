@@ -935,6 +935,8 @@
         "label_type": "Type",
         "label_cushion": "Cushion",
         "label_reserves": "Reserves",
+        "label_investments": "Investments",
+        "label_notifications": "Notifications",
         "value_personal": "Personal",
         "value_shared": "Shared",
         "value_enabled": "Enabled",
@@ -1177,6 +1179,9 @@
           "12": "December"
         },
         "firstDueLabel": "First due date",
+        "lastDueLabel": "Last date (optional)",
+        "lastDuePlaceholder": "No end date",
+        "errorLastBeforeFirst": "Last date can't be before the first due date",
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
         "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",

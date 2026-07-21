@@ -56,6 +56,7 @@
     "./src/application/edit-transaction": "./src/application/edit-transaction.ts",
     "./src/domain/cadence": "./src/domain/cadence.ts",
     "./src/domain/recurring-rule": "./src/domain/recurring-rule.ts",
+    "./src/domain/recurring-end-date": "./src/domain/recurring-end-date.ts",
     "./src/ports/recurring-rule-repo": "./src/ports/recurring-rule-repo.ts",
     "./src/ports/recurring-draft-repo": "./src/ports/recurring-draft-repo.ts",
     "./src/adapters/persistence/recurring-rule-repo": "./src/adapters/persistence/recurring-rule-repo.ts",

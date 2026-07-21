@@ -371,6 +371,8 @@ export function WizardPage({
             currency={form.currency}
             cushionEnabled={form.cushionEnabled}
             reservesEnabled={form.reservesEnabled}
+            investmentsEnabled={form.investmentsEnabled}
+            notificationsEnabled={form.notificationsEnabled}
           />
         );
     }
