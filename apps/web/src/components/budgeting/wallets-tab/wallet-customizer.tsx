@@ -49,10 +49,12 @@ const PALETTE: { key: string; value: string }[] = [
   { key: "pink", value: "#e879f9" },
 ];
 
-const ICONS: {
+export interface IconOption {
   name: string;
   Icon: React.ComponentType<{ className?: string }>;
-}[] = [
+}
+
+const ICONS: IconOption[] = [
   { name: "wallet", Icon: WalletIcon },
   { name: "piggy-bank", Icon: PiggyBank },
   { name: "credit-card", Icon: CreditCard },
@@ -77,6 +79,10 @@ export interface WalletCustomizerProps {
   icon: string | null;
   onChange: (patch: { color?: string | null; icon?: string | null }) => void;
   ariaLabel: string;
+  /** Icon set to offer; defaults to the wallet set. Possessions pass their own. */
+  icons?: IconOption[];
+  /** Show the color grid. false = icon-only picker (possessions). Default true. */
+  showColor?: boolean;
 }
 
 export function WalletCustomizer({
@@ -84,10 +90,12 @@ export function WalletCustomizer({
   icon,
   onChange,
   ariaLabel,
+  icons = ICONS,
+  showColor = true,
 }: WalletCustomizerProps) {
   const t = useTranslations("bdp.tab.wallets.customizer");
   const [open, setOpen] = React.useState(false);
-  const Icon = iconByName(icon) ?? Circle;
+  const Icon = icons.find((i) => i.name === icon)?.Icon ?? Circle;
   const triggerColor = color ?? "var(--muted-foreground)";
 
   return (
@@ -122,6 +130,7 @@ export function WalletCustomizer({
         className="z-[60] w-[240px] space-y-3 p-3"
         onClick={(e) => e.stopPropagation()}
       >
+        {showColor && (
         <div className="space-y-1.5">
           <div className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
             {t("color")}
@@ -153,13 +162,14 @@ export function WalletCustomizer({
             </button>
           )}
         </div>
+        )}
 
         <div className="space-y-1.5">
           <div className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
             {t("icon")}
           </div>
           <div className="grid grid-cols-6 gap-1">
-            {ICONS.map(({ name, Icon: IconC }) => (
+            {icons.map(({ name, Icon: IconC }) => (
               <button
                 key={name}
                 type="button"

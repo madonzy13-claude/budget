@@ -525,6 +525,27 @@
       "feature_off_toast": "Rezerwy wyłączone — karta Rezerwy ukryta",
       "error_save": "Nie udało się zapisać — spróbuj ponownie"
     },
+    "possessions": {
+      "section": { "title": "MAJĄTEK" },
+      "add": { "cta": "Dodaj rzecz" },
+      "sheet": {
+        "addTitle": "Dodaj rzecz",
+        "editTitle": "Edytuj rzecz",
+        "save": "Zapisz",
+        "cancel": "Anuluj"
+      },
+      "field": {
+        "name": "Nazwa",
+        "namePlaceholder": "np. Samochód, Dom, Zegarek",
+        "icon": "Ikona",
+        "currency": "Waluta",
+        "amount": "Wartość"
+      },
+      "row": {
+        "editAria": "Edytuj rzecz {name}",
+        "deleteAria": "Usuń rzecz {name}"
+      }
+    },
     "investments": {
       "feature_label": "Inwestycje",
       "feature_help_text": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli.",

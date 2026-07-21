@@ -40,6 +40,7 @@ import { useArchiveWallet } from "@/hooks/use-archive-wallet";
 import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
 import { InvestmentsSection } from "./investments-section";
+import { PossessionsSection } from "./possessions-section";
 // UAT-PH5-T3-28: import the ghost preview's helpers statically. Inline
 // `require()` worked on dev but blew up on iOS Safari with a
 // client-side exception when the row's DragOverlay first rendered.
@@ -417,6 +418,12 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             budgetCurrency={budgetCurrency}
           />
         )}
+        {/* Possessions (house/car/…): always on, renders after investments. Part
+            of capitalization but excluded from the retirement runway. */}
+        <PossessionsSection
+          budgetId={budgetId}
+          budgetCurrency={budgetCurrency}
+        />
       </div>
       {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
           loses the dragged row visually as the pointer crosses a context

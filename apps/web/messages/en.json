@@ -525,6 +525,27 @@
       "feature_off_toast": "Reserves disabled — Reserves tab hidden",
       "error_save": "Failed to save — try again"
     },
+    "possessions": {
+      "section": { "title": "POSSESSIONS" },
+      "add": { "cta": "Add possession" },
+      "sheet": {
+        "addTitle": "Add possession",
+        "editTitle": "Edit possession",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "field": {
+        "name": "Name",
+        "namePlaceholder": "e.g. Family car, House, Watch",
+        "icon": "Icon",
+        "currency": "Currency",
+        "amount": "Value"
+      },
+      "row": {
+        "editAria": "Edit possession {name}",
+        "deleteAria": "Delete possession {name}"
+      }
+    },
     "investments": {
       "feature_label": "Investments",
       "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section.",

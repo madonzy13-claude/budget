@@ -20,6 +20,9 @@ export interface AggregateBudgetRow {
   my_share_pct: number;
   net_worth_cents: string;
   investments_cents: string;
+  /** Σ possession holdings (share-scaled) — inside net_worth_cents but subtracted
+   *  from the retirement pot client-side. */
+  possessions_cents: string;
   cash_cents: string;
   reserves_cents: string;
   cushion_cents: string;

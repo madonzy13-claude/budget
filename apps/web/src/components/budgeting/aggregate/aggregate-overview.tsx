@@ -197,11 +197,14 @@ export function AggregateOverview() {
   // (the runway is fractionalized by ownership like the hero net worth).
   const RETIRE_INFLATION_PCT = 4.5;
   const plannedTotal = sumCents(summable, "monthly_planned_cents");
+  // Possessions are in net worth but NOT liquid drawdown wealth — subtract them
+  // from the retirement pot (mirrors get-overview-cards.ts:314).
+  const possessionsTotal = sumCents(summable, "possessions_cents");
   const nwRunwayMonths = (() => {
     if (plannedTotal <= 0n) return Infinity;
     // N = ln(1 + W·r/s) / ln(1+r), r = monthly inflation (same closed form as
     // get-overview-cards' retirement_months).
-    const W = Number(netWorth);
+    const W = Number(netWorth - possessionsTotal);
     const s = Number(plannedTotal);
     const r = Math.pow(1 + RETIRE_INFLATION_PCT / 100, 1 / 12) - 1;
     return Math.log(1 + (W * r) / s) / Math.log(1 + r);

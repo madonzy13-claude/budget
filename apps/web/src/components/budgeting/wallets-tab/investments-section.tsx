@@ -240,7 +240,8 @@ export function InvestmentsSection({
 
   const investmentsQuery = useInvestments(budgetId);
   const holdings = useMemo(
-    () => investmentsQuery.data ?? [],
+    // Possessions share the holdings endpoint but render in their own section.
+    () => (investmentsQuery.data ?? []).filter((h) => h.holdingType !== "possession"),
     [investmentsQuery.data],
   );
   // The id currently being dragged (null when idle) → drives the group-block
