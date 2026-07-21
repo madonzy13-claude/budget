@@ -259,13 +259,21 @@ export function BudgetDetail({
 
   return (
     <BdpUiStateProvider>
-      {/* Sticky pills band — same wrapper/testid/attrs as the old BudgetShellData
-          band so the @tasks-geometry proofs and z-stack are unchanged. */}
-      <div
-        className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
-        data-testid="bdp-sticky-wrapper"
-        data-bdp-tabs
-      >
+      {/* Single block wrapper so the sticky pills band's CONTAINING BLOCK spans the
+          FULL scroll content. Without it the band's containing block is the
+          viewport-capped NavPendingOverlay (flex-1 min-h-0); in the installed PWA
+          (where <main> is the scroll surface) that made position:sticky release
+          after ~one screen and the pills scrolled away and stayed gone (user
+          report). A plain block child grows to content height, so the band sticks
+          across the whole scroll. */}
+      <div data-bdp-sticky-scope>
+        {/* Sticky pills band — same wrapper/testid/attrs as the old BudgetShellData
+            band so the @tasks-geometry proofs and z-stack are unchanged. */}
+        <div
+          className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
+          data-testid="bdp-sticky-wrapper"
+          data-bdp-tabs
+        >
         <BdpTabs
           locale={locale}
           budgetId={budgetId}
@@ -323,6 +331,7 @@ export function BudgetDetail({
             </motion.div>
           </AnimatePresence>
         </div>
+      </div>
       </div>
     </BdpUiStateProvider>
   );
