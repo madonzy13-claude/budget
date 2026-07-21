@@ -9,14 +9,17 @@ date: 2026-07-21
 ## Delivered
 
 New **Possessions** wallet section (house/car/jewelry/…): name + currency + a
-single value + a per-item icon. Always on, rendered after investments. Part of
+single value + a per-item **icon and color**. Always on, rendered after
+investments, **edited INLINE exactly like the spendings/reserve/cushion wallet
+rows** (no sub sheet — staged draft add-row, in-row editors). Part of
 capitalization (net worth) but EXCLUDED from the retirement runway. Live-verified
 on budget-dev (E2E green + screenshots).
 
 ## Model
 
 - Storage: new `possession` holdingType reusing the investments table (savings
-  precedent — no new repo/route code) + one nullable `icon` column (migration 0066).
+  precedent — no new repo/route code) + two nullable columns `icon` (mig 0066) +
+  `color` (mig 0067).
 - capitalization = wallets + investments + possessions.
 - retirement pot = capitalization − possessions (BDP + aggregate paths).
 - investment value / cost basis / wealth pie all EXCLUDE possessions.
@@ -64,9 +67,10 @@ migrator/api/worker/web rebuilt + restarted (cloudflared untouched). Web+api hea
 
 - Possessions render only in their own section — deliberately kept OUT of the
   investments list AND the wealth pie (they're net worth, not investments).
-- Icon is a per-item curated key (13 icons), stored in the new `icon` column;
-  icon-only picker (no color, no new color column). `// ponytail:` valuation port
-  now does 3 listHoldings passes — fold into one if it ever gets hot.
+- Inline editing reuses `InlineEditCell` + `CurrencyPicker` + `WalletCustomizer`
+  (the wallet primitives); `WalletCustomizer` gained `icons` + `showColor` props.
+  Icon = 13 curated keys (`lib/possession-icons.ts`); color = wallet hex palette.
+  `// ponytail:` valuation port now does 3 listHoldings passes — fold if hot.
 - Left on dev during UAT: a throwaway user `poss-uat-*@test.local` with a
   "Possessions UAT" budget (Family home + Tesla) — isolated, safe to leave.
 - Branch `feat/investment-savings-type` (stacked). NOT pushed.
