@@ -4,8 +4,12 @@ import { AggregationSection } from "@/components/settings/aggregation-section";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (k: string) => k }));
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({
+    invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
+  }),
 }));
+vi.mock("@/lib/query-persist", () => ({ persistNow: vi.fn() }));
 const putMock = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 vi.mock("@/lib/api-client", () => ({
   api: {

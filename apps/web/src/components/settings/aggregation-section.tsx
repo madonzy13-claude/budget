@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { api } from "@/lib/api-client";
+import { persistNow } from "@/lib/query-persist";
 
 export interface AggregationSectionProps {
   budgetId: string;
@@ -64,6 +65,21 @@ export function AggregationSection({
       // reload.
       qc.invalidateQueries({ queryKey: ["budgets", "aggregate"] });
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "detail"] });
+      // Patch the persisted detail snapshot too, so a same-session reload (which
+      // re-hydrates from IndexedDB before the refetch lands) shows the new value
+      // instead of the stale one.
+      qc.setQueryData(
+        ["budget", budgetId, "detail"],
+        (old: Record<string, unknown> | undefined) =>
+          old
+            ? {
+                ...old,
+                ownership_share_pct: nextPct,
+                include_in_aggregation: nextIncluded,
+              }
+            : old,
+      );
+      void persistNow(qc);
       return true;
     } catch {
       toast.error(t("error_save"));
