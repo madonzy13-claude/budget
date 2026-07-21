@@ -99,7 +99,8 @@ function toDisplayCcyShared(
   const inTarget = moneyToCents(
     Money.of(converted.amount.toFixed(), displayCcy as Currency),
   );
-  return (inTarget * BigInt(sharePct)) / 100n;
+  // Decimal-safe: sharePct can be e.g. 33.5 → scale by basis points.
+  return (inTarget * BigInt(Math.round(sharePct * 100))) / 10000n;
 }
 
 export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {

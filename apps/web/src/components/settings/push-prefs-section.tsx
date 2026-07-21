@@ -21,6 +21,11 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api-client";
+import {
+  useBadgePrefs,
+  setBadgePref,
+  hasBadgePref,
+} from "@/lib/badge-prefs";
 import { subscribeToPushForBudget } from "@/lib/push-subscribe";
 
 const NOTIFICATION_KINDS = [
@@ -132,36 +137,13 @@ export function PushPrefsSection({
     });
   }
 
-  // r37: app-icon BADGE opt-out for THIS budget (default ON). Independent of the
-  // push master — the badge is the PWA icon count, not a push notification, so it
-  // shows above the master and works without notification permission.
-  const badgeEnabled = useMemo(() => {
-    const p = prefsQuery.data?.preferences.find(
-      (x) => x.notificationType === "BADGE",
-    );
-    // Opt-in: OFF until the user turns it on.
-    return p ? p.enabled : false;
-  }, [prefsQuery.data]);
-
-  function setBadgeCache(enabled: boolean) {
-    qc.setQueryData<PushPreferencesData>(pushPrefsKey(budgetId), (old) => {
-      const prefs = (old?.preferences ?? []).slice();
-      const idx = prefs.findIndex((p) => p.notificationType === "BADGE");
-      if (idx >= 0) prefs[idx] = { ...prefs[idx]!, enabled };
-      else prefs.push({ notificationType: "BADGE", enabled });
-      return { preferences: prefs };
-    });
-  }
-
-  // Update the per-budget map that <AppBadge> aggregates (keyed
-  // ["badge-prefs", <sorted budget ids>]) so the app-icon count changes INSTANTLY
-  // when this budget's opt-in flips — no reload/refetch needed.
-  function setBadgePrefCache(enabled: boolean) {
-    qc.setQueriesData<Record<string, boolean>>(
-      { queryKey: ["badge-prefs"] },
-      (old) => ({ ...(old ?? {}), [budgetId]: enabled }),
-    );
-  }
+  // 260721: app-icon BADGE opt-in is PER-DEVICE (localStorage), not account-wide —
+  // two phones can independently choose whether this budget's count shows on the
+  // icon. Independent of the push master (the badge is the PWA icon count, not a
+  // push, and needs no server round-trip). <AppBadge> reads the same store and
+  // repaints via the change event.
+  const badgePrefs = useBadgePrefs();
+  const badgeEnabled = badgePrefs[budgetId] === true;
 
   async function handleBadgeToggle(checked: boolean) {
     // Turning the badge ON needs notification permission — the App Badging API
@@ -179,20 +161,9 @@ export function PushPrefsSection({
         return;
       }
     }
-    const previous = badgeEnabled;
-    setBadgeCache(checked);
-    setBadgePrefCache(checked); // instant app-icon update
-    try {
-      const res = await api.push.preferences.$patch({
-        json: { budgetId, notificationType: "BADGE", enabled: checked },
-      });
-      if (!res.ok) throw new Error("Patch failed");
-      toast.success(t("saved"));
-    } catch {
-      setBadgeCache(previous);
-      setBadgePrefCache(previous);
-      toast.error(t("subscribeError"));
-    }
+    // Per-device: write localStorage. <AppBadge> repaints via the change event.
+    setBadgePref(budgetId, checked);
+    toast.success(t("saved"));
   }
 
   // r32: budget-update reminder — enabled + selected weekdays (default all 7).
@@ -289,24 +260,11 @@ export function PushPrefsSection({
       if (result === "subscribed") {
         setMasterCache(true);
         toast.success(t("saved"));
-        // Auto-enable the app-icon badge the first time push is turned on —
-        // permission is now granted. Only when prefs have LOADED and there's no
-        // BADGE row yet, so a manual choice (on OR off) is never overridden and we
-        // never guess from a not-yet-loaded cache.
-        const prefs = prefsQuery.data;
-        const badgePref = prefs?.preferences.find(
-          (p) => p.notificationType === "BADGE",
-        );
-        if (prefs && !badgePref) {
-          setBadgeCache(true);
-          setBadgePrefCache(true); // instant app-icon update
-          try {
-            await api.push.preferences.$patch({
-              json: { budgetId, notificationType: "BADGE", enabled: true },
-            });
-          } catch {
-            /* best-effort */
-          }
+        // Auto-enable the app-icon badge the first time push is turned on ON THIS
+        // DEVICE (permission is now granted). Per-device: only when this device has
+        // no explicit choice yet, so a manual on/off is never overridden.
+        if (!hasBadgePref(budgetId)) {
+          setBadgePref(budgetId, true);
         }
       } else {
         setMasterCache(false);

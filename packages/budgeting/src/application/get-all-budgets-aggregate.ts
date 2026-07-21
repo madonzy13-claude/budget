@@ -137,7 +137,12 @@ function toDisplayCcyShared(
   sharePct: number,
 ): string {
   const converted = toDisplayCcy(cents, fromCcy, rate, displayCcy);
-  return ((converted * BigInt(sharePct)) / 100n).toString();
+  // sharePct may be a 2-decimal percent (e.g. 33.5) → scale by basis points so
+  // BigInt() never sees a non-integer.
+  return (
+    (converted * BigInt(Math.round(sharePct * 100))) /
+    10000n
+  ).toString();
 }
 
 /** FX hop only, no share — for FLOW figures (spent/left/overspent). */

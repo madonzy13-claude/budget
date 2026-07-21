@@ -18,6 +18,7 @@ import {
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { useWallets } from "@/hooks/use-wallets";
 import { useInvestments } from "@/hooks/use-investments";
+import { useIsStandalone } from "@/hooks/use-is-standalone";
 import { useCategories } from "@/hooks/use-budget-data";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { SettingsConfigProgress } from "@/components/settings/settings-config-progress";
@@ -87,6 +88,9 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   // share the existing per-entity query keys so the header + popup stay live as the
   // user adds wallets / investments / categories / rules / incomes.
   const walletsQ = useWallets(budget.id);
+  // Notifications + app-badge are per-DEVICE and only meaningful in the installed
+  // PWA — hide the whole section in mobile/desktop browsers.
+  const isPwa = useIsStandalone();
   const investmentsQ = useInvestments(budget.id);
   const categoriesQ = useCategories(budget.id);
   const recurringQ = useQuery({
@@ -312,15 +316,17 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* 5. Notifications (push prefs) */}
-        <AccordionItem value="notifications">
-          <AccordionTrigger className="px-6">
-            {t("push.sectionTitle")}
-          </AccordionTrigger>
-          <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <PushPrefsSection budgetId={budget.id} />
-          </AccordionContent>
-        </AccordionItem>
+        {/* 5. Notifications (push prefs) — installed PWA only (per-device). */}
+        {isPwa && (
+          <AccordionItem value="notifications">
+            <AccordionTrigger className="px-6">
+              {t("push.sectionTitle")}
+            </AccordionTrigger>
+            <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
+              <PushPrefsSection budgetId={budget.id} />
+            </AccordionContent>
+          </AccordionItem>
+        )}
 
         {/* 6. Danger Zone — owners only (bug #1). Members leave via the button
             in the Members section, not here. */}

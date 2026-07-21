@@ -19,7 +19,8 @@ type MembersDeps = Pick<BootedDeps, "tenancy" | "identity">;
 
 const aggregationSchema = z.object({
   included: z.boolean(),
-  share_pct: z.number().int().min(0).max(100).optional(),
+  // Decimals allowed (e.g. 33.5%); stored as numeric(5,2).
+  share_pct: z.number().min(0).max(100).optional(),
 });
 
 export function budgetMembersRoutesFactory(deps: MembersDeps) {

@@ -6,11 +6,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// r37: AppBadge fetches each budget's BADGE opt-in pref (opt-in, default OFF).
-const getPrefs = vi.fn();
-vi.mock("@/lib/api-client", () => ({
-  api: { push: { preferences: { $get: (...a: unknown[]) => getPrefs(...a) } } },
-}));
+// 260721: AppBadge reads the PER-DEVICE badge opt-in from localStorage (opt-in,
+// default OFF). Drive it via localStorage in each test.
+function setDeviceBadgePrefs(prefs: Record<string, boolean>) {
+  localStorage.setItem("budget:badge-prefs", JSON.stringify(prefs));
+}
 
 vi.mock("@/hooks/use-active-budgets", () => ({ useActiveBudgets: vi.fn() }));
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
@@ -57,17 +57,11 @@ const clearAppBadge = vi.fn(() => Promise.resolve());
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   // @ts-expect-error test shim for the Badging API
   navigator.setAppBadge = setAppBadge;
   // @ts-expect-error test shim for the Badging API
   navigator.clearAppBadge = clearAppBadge;
-  // Default: every budget has opted IN to the badge.
-  getPrefs.mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      preferences: [{ notificationType: "BADGE", enabled: true }],
-    }),
-  });
 });
 
 const mockBudgets = (data: unknown) =>
@@ -77,6 +71,7 @@ const mockBudgets = (data: unknown) =>
 
 describe("AppBadge", () => {
   it("sets the badge to the SUM of pending tasks across OPTED-IN budgets", async () => {
+    setDeviceBadgePrefs({ b1: true, b2: true, b3: true });
     mockBudgets([
       { id: "b1", pendingTasksCount: 7 },
       { id: "b2", pendingTasksCount: 4 },
@@ -87,11 +82,8 @@ describe("AppBadge", () => {
     expect(clearAppBadge).not.toHaveBeenCalled();
   });
 
-  it("clears the badge when no budget has opted in (badge is opt-in)", async () => {
-    getPrefs.mockResolvedValue({
-      ok: true,
-      json: async () => ({ preferences: [] }), // no BADGE pref → OFF
-    });
+  it("clears the badge when this device has opted no budget in (opt-in)", async () => {
+    setDeviceBadgePrefs({}); // no device opt-in
     mockBudgets([
       { id: "b1", pendingTasksCount: 7 },
       { id: "b2", pendingTasksCount: 4 },
@@ -102,6 +94,7 @@ describe("AppBadge", () => {
   });
 
   it("clears the badge when opted-in budgets have zero pending", async () => {
+    setDeviceBadgePrefs({ b1: true, b2: true });
     mockBudgets([
       { id: "b1", pendingTasksCount: 0 },
       { id: "b2", pendingTasksCount: 0 },

@@ -6,9 +6,9 @@
  * active-budgets list, so it costs no extra request. Renders nothing.
  */
 import { useCallback, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
-import { api } from "@/lib/api-client";
+import { useBadgePrefs } from "@/lib/badge-prefs";
 
 /** Sum of pending tasks across budgets the user OPTED IN to the app-icon badge
  *  (r37). The badge is opt-in: a budget counts ONLY when `enabled[id] === true`;
@@ -48,40 +48,11 @@ export function AppBadge() {
   const { data } = useActiveBudgets();
   const qc = useQueryClient();
 
-  // r37: per-budget app-icon badge opt-out. Fetch each active budget's BADGE pref
-  // for this user and drop opted-out budgets from the count. Kept client-side (not
-  // a join on /budgets/active) so the tenancy context doesn't reach into the push
-  // context. Invalidated by the settings/wizard Badge toggle via ["badge-prefs"].
-  // ponytail: N small GETs (one per budget); fold into a single endpoint if a user
-  // ever has many budgets.
-  const budgetIds = (data ?? []).map((b) => b.id);
-  const badgePrefs = useQuery({
-    queryKey: ["badge-prefs", [...budgetIds].sort()],
-    enabled: budgetIds.length > 0,
-    staleTime: 30_000,
-    queryFn: async (): Promise<Record<string, boolean>> => {
-      const entries = await Promise.all(
-        budgetIds.map(async (id): Promise<[string, boolean]> => {
-          try {
-            const res = await api.push.preferences.$get(
-              { query: { budgetId: id } },
-              { headers: { "X-Budget-ID": id } },
-            );
-            if (!res.ok) return [id, false];
-            const d = (await res.json()) as {
-              preferences?: { notificationType: string; enabled: boolean }[];
-            };
-            const p = d.preferences?.find((x) => x.notificationType === "BADGE");
-            // Opt-in: no pref row → OFF.
-            return [id, p?.enabled ?? false];
-          } catch {
-            return [id, false];
-          }
-        }),
-      );
-      return Object.fromEntries(entries);
-    },
-  });
+  // 260721: per-DEVICE app-icon badge opt-in — read from localStorage (the settings
+  // Badge toggle writes it). A budget's pending count is on the icon only when THIS
+  // device opted in (badgePrefs[id] === true); two phones can differ. `{}` until
+  // mounted (SSR-safe), then the device's real choices.
+  const badgePrefs = useBadgePrefs();
 
   // Whenever ANY budget's pending-tasks list settles (a task solved in-app, or a
   // background refetch found one added/removed), the active-budgets aggregate is
@@ -97,15 +68,12 @@ export function AppBadge() {
 
   const applyBadge = useCallback(() => {
     if (data === undefined) return; // still loading — don't touch the badge yet
-    // Don't act while the per-budget badge prefs are still loading — otherwise we'd
-    // briefly clear (opt-in default OFF) before they resolve and flicker the icon.
-    if (data.length > 0 && badgePrefs.data === undefined) return;
     if (typeof navigator === "undefined" || !("setAppBadge" in navigator))
       return;
-    const total = sumBadgeCount(data, badgePrefs.data ?? {});
+    const total = sumBadgeCount(data, badgePrefs);
     if (total > 0) void navigator.setAppBadge(total).catch(() => {});
     else void navigator.clearAppBadge?.().catch(() => {});
-  }, [data, badgePrefs.data]);
+  }, [data, badgePrefs]);
 
   useEffect(() => {
     applyBadge();

@@ -168,7 +168,7 @@ function SmartCategoryToggle({ budgetId }: { budgetId: string }) {
   }, [statusQuery.data?.exists]);
 
   return (
-    <div className="flex items-start justify-between gap-4 border-t border-[var(--hairline)] pt-4">
+    <div className="flex items-start justify-between gap-4 border-t border-[var(--hairline-on-dark)] pt-4">
       <div className="min-w-0 space-y-1">
         <p className="text-sm font-semibold text-[var(--body)]">
           {t("smart_category.label")}

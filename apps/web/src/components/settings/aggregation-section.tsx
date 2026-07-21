@@ -16,6 +16,8 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { api } from "@/lib/api-client";
 
 export interface AggregationSectionProps {
@@ -26,7 +28,13 @@ export interface AggregationSectionProps {
 
 function clampSharePct(n: number): number {
   if (!Number.isFinite(n)) return 100;
-  return Math.min(100, Math.max(0, Math.round(n)));
+  // Allow up to 2 decimals (numeric(5,2)); clamp 0-100.
+  return Math.min(100, Math.max(0, Math.round(n * 100) / 100));
+}
+
+/** Parse a user string (dot OR comma decimal) → clamped share number. */
+function parseSharePct(raw: string): number {
+  return clampSharePct(Number(raw.replace(/\s/g, "").replace(",", ".")));
 }
 
 export function AggregationSection({
@@ -77,13 +85,10 @@ export function AggregationSection({
     }
   }
 
-  function handleShareChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.value === "") return; // let the user clear the field while typing
-    setPct(clampSharePct(Number(e.target.value)));
-  }
-
-  async function handleShareBlur() {
-    const nextPct = clampSharePct(pct);
+  // Commit an inline-edited share (dot or comma decimal). Rolls back to the last
+  // saved value on a failed PUT.
+  async function commitShare(raw: string) {
+    const nextPct = parseSharePct(raw);
     setPct(nextPct);
     if (nextPct === savedPct) return;
     const ok = await save(enabled, nextPct);
@@ -124,20 +129,31 @@ export function AggregationSection({
               {t("share_help")}
             </p>
           </div>
-          <input
-            id="settings-aggregation-share"
-            type="number"
-            min={0}
-            max={100}
-            step={1}
-            inputMode="numeric"
-            data-testid="settings-aggregation-share"
-            className="num w-20 shrink-0 rounded-[var(--radius-lg)] bg-[var(--surface-elevated-dark)] px-2 py-1 text-right"
-            value={pct}
-            onChange={handleShareChange}
-            onBlur={handleShareBlur}
-            disabled={saving}
-          />
+          {/* Renders "100%" as text; tap the number → an input to edit the bare
+              value (no % sign), decimals with dot or comma. Same inline-edit feel
+              as the Name field. */}
+          <div className="w-20 shrink-0 text-right" data-inline-cell>
+            <InlineEditCell
+              value={String(pct)}
+              ariaLabel={t("share_label")}
+              disabled={saving}
+              testId="settings-aggregation-share"
+              render={(v) => (
+                <span className="num text-sm text-[var(--body)]">{v}%</span>
+              )}
+              renderEditor={(draft, onChange) => (
+                <Input
+                  autoFocus
+                  type="text"
+                  inputMode="decimal"
+                  value={draft}
+                  onChange={(e) => onChange(e.target.value)}
+                  className="h-9 w-20 text-right"
+                />
+              )}
+              onSave={commitShare}
+            />
+          </div>
         </div>
       )}
     </div>

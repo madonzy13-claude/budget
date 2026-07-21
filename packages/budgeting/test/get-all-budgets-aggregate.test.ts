@@ -82,6 +82,23 @@ describe("getAllBudgetsAggregate", () => {
     expect(row.health).toBe("green");
   });
 
+  // 260721: decimal ownership share (numeric(5,2)) must not crash BigInt() and
+  // must scale correctly via basis points.
+  it("scales WEALTH by a DECIMAL ownership share (e.g. 33.5%)", async () => {
+    const d = {
+      ...deps,
+      getAggPrefsForUser: async () =>
+        new Map([
+          ["b1", { ownership_share_pct: 33.5, include_in_aggregation: true }],
+        ]),
+    };
+    const out = await getAllBudgetsAggregate(d as any)("u1");
+    const row = out.budgets[0]!;
+    // 1_000_000 EUR × 1.10 × 0.335 = 368_500
+    expect(row.net_worth_cents).toBe("368500");
+    expect(row.my_share_pct).toBe(33.5);
+  });
+
   it("flags fx_unavailable and does not throw when a rate is missing", async () => {
     const bad = {
       ...deps,
