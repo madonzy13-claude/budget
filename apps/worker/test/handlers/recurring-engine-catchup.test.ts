@@ -91,6 +91,7 @@ async function insertRule(opts: {
   weeklyDow?: number | null;
   yearlyMonth?: number | null;
   nextDueDate: string;
+  endDate?: string | null;
   amount?: string;
   currency?: string;
 }): Promise<string> {
@@ -108,8 +109,8 @@ async function insertRule(opts: {
       `INSERT INTO budgeting.recurring_rules
          (tenant_id, category_id, amount, currency, cadence,
           cadence_anchor, weekly_dow, yearly_month,
-          note, active, next_due_date, actor_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10::date, $11)
+          note, active, next_due_date, end_date, actor_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10::date, $11::date, $12)
        RETURNING id`,
       [
         opts.tenantId,
@@ -122,6 +123,7 @@ async function insertRule(opts: {
         opts.yearlyMonth ?? null,
         "Auto-recurring",
         opts.nextDueDate,
+        opts.endDate ?? null,
         opts.actorUserId,
       ],
     );
@@ -187,6 +189,29 @@ async function getNextDueDate(
   }
 }
 
+async function getRuleActive(
+  tenantId: string,
+  ruleId: string,
+): Promise<boolean> {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
+    const res = await client.query(
+      `SELECT active FROM budgeting.recurring_rules WHERE id = $1::uuid AND tenant_id = $2::uuid`,
+      [ruleId, tenantId],
+    );
+    await client.query("COMMIT");
+    return Boolean(res.rows[0]?.active);
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // Tests
 // ──────────────────────────────────────────────────────────────────────
@@ -195,9 +220,13 @@ describe("recurring engine catch-up", () => {
   let fx1: Fixture;
   let fx2: Fixture;
   let fx3: Fixture;
+  let fx4: Fixture;
+  let fx5: Fixture;
 
   beforeAll(async () => {
-    [fx1, fx2, fx3] = await Promise.all([
+    [fx1, fx2, fx3, fx4, fx5] = await Promise.all([
+      createFixture("EUR"),
+      createFixture("EUR"),
       createFixture("EUR"),
       createFixture("EUR"),
       createFixture("EUR"),
@@ -319,5 +348,62 @@ describe("recurring engine catch-up", () => {
     const nextDue = await getNextDueDate(fx3.budgetId, ruleId);
     // Next March 15 is 2027-03-15
     expect(nextDue).toBe("2027-03-15");
+  });
+
+  test("end_date caps drafts (inclusive) then deactivates the rule (mig 0069)", async () => {
+    // TODAY = 2026-05-12. MONTHLY on the 1st, due since 2026-02-01, end_date
+    // 2026-04-01. Occurrences: Feb-01, Mar-01, Apr-01 (all <= end_date) → 3
+    // drafts. May-01 is <= today but > end_date, so it must NOT be created,
+    // and the rule must go inactive. Without the cap it would produce 4 drafts;
+    // without deactivation `active` would stay true — both assertions bite.
+    const today = "2026-05-12";
+    const ruleId = await insertRule({
+      tenantId: fx4.budgetId,
+      categoryId: fx4.categoryId,
+      actorUserId: fx4.userId,
+      cadence: "MONTHLY",
+      cadenceAnchor: 1,
+      nextDueDate: "2026-02-01",
+      endDate: "2026-04-01",
+      amount: "900",
+      currency: "EUR",
+    });
+
+    const { runRecurringEngine } =
+      await import("../../src/handlers/recurring-engine");
+    const result = await runRecurringEngine(today);
+    expect(result.isOk()).toBe(true);
+
+    expect(await countLedgerDrafts(fx4.budgetId, ruleId)).toBe(3);
+    expect(await getRuleActive(fx4.budgetId, ruleId)).toBe(false);
+
+    // Re-run: deactivated rule is never scanned again → still 3, still inactive.
+    await runRecurringEngine(today);
+    expect(await countLedgerDrafts(fx4.budgetId, ruleId)).toBe(3);
+  });
+
+  test("next_due already past end_date: 0 drafts, rule deactivated", async () => {
+    // end_date already behind next_due_date (e.g. user shortened the deadline).
+    // The engine materialises nothing and retires the rule.
+    const today = "2026-05-12";
+    const ruleId = await insertRule({
+      tenantId: fx5.budgetId,
+      categoryId: fx5.categoryId,
+      actorUserId: fx5.userId,
+      cadence: "MONTHLY",
+      cadenceAnchor: 1,
+      nextDueDate: "2026-05-01",
+      endDate: "2026-04-01",
+      amount: "400",
+      currency: "EUR",
+    });
+
+    const { runRecurringEngine } =
+      await import("../../src/handlers/recurring-engine");
+    const result = await runRecurringEngine(today);
+    expect(result.isOk()).toBe(true);
+
+    expect(await countLedgerDrafts(fx5.budgetId, ruleId)).toBe(0);
+    expect(await getRuleActive(fx5.budgetId, ruleId)).toBe(false);
   });
 });
