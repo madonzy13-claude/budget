@@ -120,6 +120,7 @@ export function PossessionsSection({
         onClick={() => setDraftActive(true)}
         label={t("add.cta")}
         testId="add-possession-button"
+        navKey="add-possession"
       />
     </section>
   );

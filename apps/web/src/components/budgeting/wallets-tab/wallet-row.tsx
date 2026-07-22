@@ -438,7 +438,10 @@ function PersistedRow({
           // ghost stands in.
           visibility: isDragging ? "hidden" : undefined,
         }}
-        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+        data-nav-item
+        data-nav-type="wallet"
+        data-nav-key={`wallet-${wallet.id}`}
+        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
       >
         <RowDragHandle
           name={wallet.name || "wallet"}
@@ -461,7 +464,11 @@ function PersistedRow({
           shrink below its content width so the right-side columns (currency,
           amount) stay anchored at consistent X positions regardless of how
           long the wallet name is. */}
-        <div className="min-w-0 flex-1" data-inline-cell>
+        <div
+          className="min-w-0 flex-1 rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
+          data-inline-cell
+          data-nav-field="name"
+        >
           <InlineEditCell
             value={wallet.name}
             ariaLabel={t("nameAria")}
@@ -505,7 +512,11 @@ function PersistedRow({
           was fragile on iOS Safari. Desktop still works because Radix
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
-        <div className="w-[44px] sm:w-[96px] md:w-[150px]" data-inline-cell>
+        <div
+          className="w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[150px]"
+          data-inline-cell
+          data-nav-field="currency"
+        >
           {isReserveSection ? (
             // Match the investments-row currency: small + grey, right-aligned so it
             // sits tight to the amount instead of floating mid-column (r31 item 3).
@@ -537,9 +548,10 @@ function PersistedRow({
            code and the right-aligned number. `tabular-nums` keeps digit
            widths uniform so rows in the same section align column-perfect. */}
         <div
-          className="text-right tabular-nums"
+          className="rounded text-right tabular-nums data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
           style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
           data-inline-cell
+          data-nav-field="amount"
         >
           <InlineEditCell
             // UAT-PH5-T3-25: editor seed mirrors the display formatting —
@@ -610,6 +622,7 @@ function PersistedRow({
         {/* Trash — desktop only. Hover-revealed; mobile uses swipe instead. */}
         <button
           data-testid={`wallet-trash-${wallet.id}`}
+          data-nav-delete
           aria-label={t("trashAria", { name: wallet.name })}
           onClick={(e) => {
             e.stopPropagation();
@@ -619,7 +632,8 @@ function PersistedRow({
             // UAT-PH5-T3-32: desktop-only (mobile reveal moved to swipe).
             "hidden h-7 w-7 items-center justify-center rounded sm:flex",
             "text-[var(--destructive)]",
-            "invisible group-hover:visible",
+            // Revealed on hover OR keyboard-nav highlight.
+            "invisible group-hover:visible group-data-[nav-highlighted=true]:visible",
             "cursor-pointer",
           ].join(" ")}
         >

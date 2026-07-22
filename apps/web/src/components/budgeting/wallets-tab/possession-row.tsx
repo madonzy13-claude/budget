@@ -138,7 +138,10 @@ function PersistedRow({
     >
       <div
         data-testid={`possession-row-${holding.name}`}
-        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+        data-nav-item
+        data-nav-type="possession"
+        data-nav-key={`poss-${holding.id}`}
+        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
       >
         {/* Icon + color — inline picker (curated possession icon set), same as the
           wallet/spendings customizer. */}
@@ -151,7 +154,11 @@ function PersistedRow({
         />
 
         {/* Name — inline edit. */}
-        <div className="min-w-0 flex-1" data-inline-cell>
+        <div
+          className="min-w-0 flex-1 rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
+          data-inline-cell
+          data-nav-field="name"
+        >
           <InlineEditCell
             value={holding.name}
             ariaLabel={t("row.nameAria")}
@@ -179,7 +186,11 @@ function PersistedRow({
         </div>
 
         {/* Currency — inline picker (full name on desktop, like wallets). */}
-        <div className="w-[44px] sm:w-[96px] md:w-[150px]" data-inline-cell>
+        <div
+          className="w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[150px]"
+          data-inline-cell
+          data-nav-field="currency"
+        >
           <CurrencyPicker
             value={currency}
             aria-label={t("row.currencyAria")}
@@ -191,9 +202,10 @@ function PersistedRow({
 
         {/* Value — inline edit. */}
         <div
-          className="text-right tabular-nums"
+          className="rounded text-right tabular-nums data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
           style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
           data-inline-cell
+          data-nav-field="amount"
         >
           <InlineEditCell
             value={centsToBare(valueCents).replace(/[^0-9.-]/g, "")}
@@ -227,12 +239,13 @@ function PersistedRow({
         <button
           type="button"
           data-testid={`possession-trash-${holding.id}`}
+          data-nav-delete
           aria-label={t("row.deleteAria", { name: holding.name })}
           onClick={(e) => {
             e.stopPropagation();
             setConfirmOpen(true);
           }}
-          className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:flex sm:invisible sm:group-hover:visible"
+          className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:flex sm:invisible sm:group-hover:visible sm:group-data-[nav-highlighted=true]:visible"
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </button>

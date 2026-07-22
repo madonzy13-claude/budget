@@ -27,7 +27,8 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
+import { useAssetKeyboardNav } from "@/hooks/use-asset-keyboard-nav";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
@@ -55,6 +56,9 @@ interface WalletsSectionedListProps {
 }
 
 export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
+  // Desktop keyboard nav over all sections (roving highlight + Enter/←→/Del).
+  const rootRef = useRef<HTMLDivElement>(null);
+  useAssetKeyboardNav(rootRef);
   // SPA refactor (260616): budget meta (currency + section flags) is now read
   // client-side via useBudget instead of baked into the page by the server, so
   // the route stays a static prefetchable shell (no per-soft-nav loading.tsx
@@ -369,6 +373,11 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       }}
     >
       <div
+        ref={rootRef}
+        // tabIndex=-1 + focus-on-mount so the desktop keyboard-nav handler
+        // receives keys without a first click (see use-asset-keyboard-nav).
+        tabIndex={-1}
+        data-testid="assets-nav-root"
         // No bounded inner scroll container any more — the layout's
         // `<main overflow-y-auto>` handles overflow naturally, same as
         // the home and spendings pages. The prior bounded-container
@@ -377,7 +386,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         // retest: "footer block, just dark"). dnd-kit's auto-scroll
         // can target the document scroll surface; overscroll-contain
         // is dropped along with the inner overflow.
-        className="flex flex-col gap-4 p-4 sm:p-6"
+        className="flex flex-col gap-4 p-4 outline-none sm:p-6"
       >
         {(
           [

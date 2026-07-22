@@ -175,6 +175,7 @@ export function WalletSection({
         onClick={onAdd}
         label={t(`add.${sectionKey}`)}
         testId={`add-wallet-${sectionKey}`}
+        navKey={`add-wallet-${sectionKey}`}
       />
     </section>
   );

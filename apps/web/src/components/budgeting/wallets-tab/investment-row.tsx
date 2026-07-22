@@ -177,11 +177,14 @@ export function InvestmentRow({
     <div
       data-testid={`holding-row-${holding.name}`}
       data-delisted={delisted || undefined}
+      data-nav-item
+      data-nav-type="invest-row"
+      data-nav-key={`invrow-${holding.id}`}
       className={[
         "group flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
         nested
-          ? "bg-[var(--surface-nested-dark)] hover:bg-[var(--surface-card-dark)]"
-          : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
+          ? "bg-[var(--surface-nested-dark)] hover:bg-[var(--surface-card-dark)] data-[nav-highlighted=true]:bg-[var(--surface-card-dark)]"
+          : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -195,6 +198,7 @@ export function InvestmentRow({
       <div
         role="button"
         tabIndex={0}
+        data-nav-open
         aria-expanded={isDesktop ? undefined : expanded}
         aria-label={
           isDesktop
@@ -366,12 +370,13 @@ export function InvestmentRow({
       >
         <button
           type="button"
+          data-nav-delete
           aria-label={t("row.deleteAria", { name: holding.name })}
           onClick={(e) => {
             e.stopPropagation();
             onDelete?.();
           }}
-          className="invisible flex h-7 w-7 items-center justify-center rounded text-[var(--destructive)] group-hover:visible"
+          className="invisible flex h-7 w-7 items-center justify-center rounded text-[var(--destructive)] group-hover:visible group-data-[nav-highlighted=true]:visible"
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </button>
