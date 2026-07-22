@@ -78,7 +78,9 @@ interface DraftProps {
   sectionType: WalletType;
   budgetCurrency: string;
   maxAmountChars?: number;
-  onCommit: (name: string) => Promise<void>; // fires POST on non-empty blur
+  // fires POST on non-empty blur; viaKeyboard=true when committed with Enter (the
+  // desktop keyboard-nav guided add: name → currency → amount).
+  onCommit: (name: string, viaKeyboard: boolean) => Promise<void>;
   onDiscard: () => void; // fires on empty blur OR Escape
   pending: boolean; // POST in-flight
   error: string | null; // last POST error code
@@ -109,6 +111,8 @@ function DraftRow({
   const t = useTranslations("bdp.tab.wallets.row");
   const [name, setName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // True while the pending blur was triggered by an Enter keypress (→ guided add).
+  const viaKbdRef = useRef(false);
 
   // Auto-focus on mount AND re-focus on error (user can retry)
   useEffect(() => {
@@ -117,11 +121,13 @@ function DraftRow({
 
   const handleBlur = async () => {
     const trimmed = name.trim();
+    const viaKbd = viaKbdRef.current;
+    viaKbdRef.current = false;
     if (!trimmed) {
       onDiscard();
       return;
     }
-    await onCommit(trimmed);
+    await onCommit(trimmed, viaKbd);
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -130,6 +136,7 @@ function DraftRow({
       return;
     }
     if (e.key === "Enter") {
+      viaKbdRef.current = true; // commit via blur, flagged as keyboard-driven
       inputRef.current?.blur();
     }
   };

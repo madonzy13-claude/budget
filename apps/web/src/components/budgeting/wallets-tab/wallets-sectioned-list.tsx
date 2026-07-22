@@ -59,6 +59,72 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // Desktop keyboard nav over all sections (roving highlight + Enter/←→/Del).
   const rootRef = useRef<HTMLDivElement>(null);
   useAssetKeyboardNav(rootRef);
+
+  // Guided add (keyboard): after a new wallet is named, walk the user through its
+  // currency picker → then its amount editor. DOM-driven so it needs no per-row
+  // wiring: wait for the new row to render, highlight it, open the currency
+  // dropdown; when that closes (currency chosen / dismissed), open the amount
+  // editor. rAF-polled — the row + dropdown appear a frame or two later.
+  const guideNewWallet = useCallback((id: string) => {
+    const currencyOpen = () =>
+      !!document.querySelector('[data-testid^="currency-option-"]');
+    let tries = 0;
+    const step1 = () => {
+      const root = rootRef.current;
+      const row = root?.querySelector<HTMLElement>(`[data-wallet-id="${id}"]`);
+      if (!row) {
+        if (tries++ < 60) requestAnimationFrame(step1);
+        return;
+      }
+      root!
+        .querySelectorAll("[data-nav-highlighted]")
+        .forEach((e) => e.removeAttribute("data-nav-highlighted"));
+      row.setAttribute("data-nav-highlighted", "true");
+      row.scrollIntoView({ block: "nearest" });
+      const currencyCell = row.querySelector<HTMLElement>(
+        '[data-nav-field="currency"]',
+      );
+      currencyCell?.setAttribute("data-nav-field-active", "true");
+      currencyCell
+        ?.querySelector<HTMLElement>("button,[role='combobox']")
+        ?.click();
+      let sawOpen = false;
+      let t2 = 0;
+      const step2 = () => {
+        if (currencyOpen()) sawOpen = true;
+        if (sawOpen && !currencyOpen()) {
+          // The currency select re-rendered the row (detaching the captured node)
+          // AND Radix returns focus to the trigger on close (async) — which would
+          // steal focus from the amount editor if we open it too soon. Settle a
+          // few frames, then re-query fresh by id and open the amount editor.
+          let settle = 0;
+          const openAmount = () => {
+            if (settle++ < 15) {
+              requestAnimationFrame(openAmount);
+              return;
+            }
+            const r = rootRef.current;
+            r?.querySelectorAll("[data-nav-field-active]").forEach((e) =>
+              e.removeAttribute("data-nav-field-active"),
+            );
+            const freshRow = r?.querySelector<HTMLElement>(
+              `[data-wallet-id="${id}"]`,
+            );
+            const amountCell = freshRow?.querySelector<HTMLElement>(
+              '[data-nav-field="amount"]',
+            );
+            amountCell?.setAttribute("data-nav-field-active", "true");
+            amountCell?.querySelector<HTMLElement>("[role='button']")?.click();
+          };
+          requestAnimationFrame(openAmount);
+          return;
+        }
+        if (t2++ < 1800) requestAnimationFrame(step2); // ~30s to pick a currency
+      };
+      requestAnimationFrame(step2);
+    };
+    requestAnimationFrame(step1);
+  }, []);
   // SPA refactor (260616): budget meta (currency + section flags) is now read
   // client-side via useBudget instead of baked into the page by the server, so
   // the route stays a static prefetchable shell (no per-soft-nav loading.tsx
@@ -296,10 +362,10 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
    * W-4: Clicking +Add does NOT call this — only WalletRow's onBlur does.
    */
   const handleCommitDraft = useCallback(
-    (type: WalletType) => async (name: string) => {
+    (type: WalletType) => async (name: string, viaKeyboard: boolean) => {
       setDrafts((d) => ({ ...d, [type]: { pending: true, error: null } }));
       try {
-        await createMut.mutateAsync({
+        const created = await createMut.mutateAsync({
           name,
           currency: budgetCurrency,
           amount: "0",
@@ -311,6 +377,17 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
           delete next[type];
           return next;
         });
+        // Desktop keyboard-nav guided add: after naming, walk the user through the
+        // new row's currency picker → then its amount editor (name → currency →
+        // amount). Only when the commit came from Enter (not a mouse blur).
+        if (
+          viaKeyboard &&
+          created?.id &&
+          typeof window !== "undefined" &&
+          window.matchMedia("(min-width: 768px)").matches
+        ) {
+          guideNewWallet(created.id);
+        }
       } catch (e: unknown) {
         // Keep draft visible with error state; WalletRow's useEffect refocuses
         const code =
@@ -318,7 +395,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         setDrafts((d) => ({ ...d, [type]: { pending: false, error: code } }));
       }
     },
-    [createMut, budgetCurrency],
+    [createMut, budgetCurrency, guideNewWallet],
   );
 
   /**
