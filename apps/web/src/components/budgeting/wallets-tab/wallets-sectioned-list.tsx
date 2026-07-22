@@ -84,7 +84,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       const currencyCell = row.querySelector<HTMLElement>(
         '[data-nav-field="currency"]',
       );
-      currencyCell?.setAttribute("data-nav-field-active", "true");
       currencyCell
         ?.querySelector<HTMLElement>("button,[role='combobox']")
         ?.click();
@@ -113,7 +112,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             const amountCell = freshRow?.querySelector<HTMLElement>(
               '[data-nav-field="amount"]',
             );
-            amountCell?.setAttribute("data-nav-field-active", "true");
             amountCell?.querySelector<HTMLElement>("[role='button']")?.click();
           };
           requestAnimationFrame(openAmount);

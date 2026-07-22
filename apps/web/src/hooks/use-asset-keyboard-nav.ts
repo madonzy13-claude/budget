@@ -168,8 +168,10 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
         e.stopPropagation();
         if (fielded && fieldIdx.current !== null) {
           activateField(cur, fieldIdx.current);
+          clearField(); // editor's own focus shows the field — drop the ring
         } else if (fielded) {
           activateField(cur, NAV_FIELDS.indexOf("amount")); // default: edit amount
+          clearField();
         } else if (type === "invest-group") {
           clickIn(cur, "[data-nav-toggle]");
         } else if (type === "invest-row") {
@@ -198,8 +200,48 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
     };
 
     document.addEventListener("keydown", onKey, true);
+
+    // A real pointer interaction ends keyboard mode — drop the highlight + any
+    // field ring so nothing lingers (the reported "yellow border stays after
+    // save"). Programmatic .click()s from the guided add chain fire `click`, not
+    // `pointerdown`, so they don't trip this.
+    const onPointerDown = () => {
+      const root = rootRef.current;
+      if (!root) return;
+      root
+        .querySelectorAll("[data-nav-highlighted],[data-nav-field-active]")
+        .forEach((e) => {
+          e.removeAttribute("data-nav-highlighted");
+          e.removeAttribute("data-nav-field-active");
+        });
+      fieldIdx.current = null;
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+
+    // When an inline editor inside the tab commits (Enter/blur → focus returns to
+    // <body>), clear the markers so nothing lingers after a save. Guarded to
+    // `relatedTarget` being body/null so opening a Radix dropdown (focus → its
+    // portal) during the guided add chain does NOT clear mid-flow.
+    const onFocusOut = (e: FocusEvent) => {
+      const root = rootRef.current;
+      if (!root) return;
+      const rt = e.relatedTarget as Node | null;
+      if (rt && rt !== document.body) return;
+      if (!root.contains(e.target as Node)) return;
+      root
+        .querySelectorAll("[data-nav-highlighted],[data-nav-field-active]")
+        .forEach((el) => {
+          el.removeAttribute("data-nav-highlighted");
+          el.removeAttribute("data-nav-field-active");
+        });
+      fieldIdx.current = null;
+    };
+    document.addEventListener("focusout", onFocusOut, true);
+
     return () => {
       document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("focusout", onFocusOut, true);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [rootRef]);

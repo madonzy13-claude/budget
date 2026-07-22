@@ -520,7 +520,7 @@ function PersistedRow({
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
         <div
-          className="w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[150px]"
+          className="w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[190px]"
           data-inline-cell
           data-nav-field="currency"
         >
