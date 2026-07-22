@@ -202,7 +202,11 @@ export function PlannedSection({
                   ),
                   // Real spend starts at 0 (nothing spent yet); planned holds flat.
                   ["real"],
-                  data.bucket === "daily",
+                  // The daily series is now anchored to the window start server-side
+                  // (get-overview-planned), so it already begins at `from` — don't
+                  // prepend a day BEFORE it (that put 1M at "30 Jun" instead of the
+                  // 1st). Keep only the degenerate single-point baseline (default).
+                  false,
                 )}
                 xKey="label"
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE

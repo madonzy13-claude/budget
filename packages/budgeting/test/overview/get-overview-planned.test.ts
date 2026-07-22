@@ -183,8 +183,19 @@ describe("getOverviewPlanned", () => {
       })
     )._unsafeUnwrap();
     expect(dto.bucket).toBe("daily");
-    // cumulative real per day
-    expect(dto.timeline.map((p) => p.real_cents)).toEqual(["5000", "8000"]);
+    // cumulative real per spend day, plus the window END anchor carrying the
+    // final cumulative so the chart spans the whole range (from == first spend
+    // day here, so no leading anchor is added).
+    expect(dto.timeline.map((p) => p.label)).toEqual([
+      "2026-06-01",
+      "2026-06-02",
+      "2026-06-30",
+    ]);
+    expect(dto.timeline.map((p) => p.real_cents)).toEqual([
+      "5000",
+      "8000",
+      "8000",
+    ]);
   });
 
   test("recurring per-month distribution + per-category monthly (D-14, all cadences)", async () => {
@@ -397,6 +408,70 @@ describe("getOverviewPlanned", () => {
     ]);
     expect(dto.timeline.every((p) => p.real_cents === "0")).toBe(true);
     expect(dto.timeline[0]!.planned_cents).toBe("30000");
+  });
+
+  test("daily bucket anchors the series at `from`/`to` (1M starts at the 1st, not the first spend day)", async () => {
+    const spendRepo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [{ category_id: "N", month: "2026-07", planned_cents: 30000n }];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        // First confirmed spend only mid-month.
+        return [
+          { day: "2026-07-12", spent_cents: 4000n },
+          { day: "2026-07-14", spent_cents: 1000n },
+        ];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo: spendRepo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-07-01",
+        to: "2026-07-22",
+      })
+    )._unsafeUnwrap();
+    expect(dto.bucket).toBe("daily");
+    // Series starts at the window start (the 1st) at real=0 — NOT the first
+    // spend day (the reported bug: "1M shows from 12 Jul").
+    expect(dto.timeline[0]!.label).toBe("2026-07-01");
+    expect(dto.timeline[0]!.real_cents).toBe("0");
+    // Cumulative real is preserved on the spend days.
+    expect(dto.timeline.find((p) => p.label === "2026-07-12")!.real_cents).toBe(
+      "4000",
+    );
+    expect(dto.timeline.find((p) => p.label === "2026-07-14")!.real_cents).toBe(
+      "5000",
+    );
+    // …and spans to the window end (today) at the final cumulative.
+    const last = dto.timeline[dto.timeline.length - 1]!;
+    expect(last.label).toBe("2026-07-22");
+    expect(last.real_cents).toBe("5000");
   });
 
   test("timeline splits planned into needs (cushion) + wants (planned − needs)", async () => {
