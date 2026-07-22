@@ -358,12 +358,13 @@ async function main() {
     seedDeps,
   );
 
-  // r32: hourly budget-update reminder. Runs every hour (UTC 5-field cron); the
-  // handler sends only to members whose LOCAL time is ~18:00 on a selected
-  // weekday (tz + days from each member's BUDGET_REMINDER pref). Deep-links to
-  // the Spendings tab.
+  // r32 + configurable time: budget-update reminder. Runs EVERY MINUTE (UTC
+  // 5-field cron) so a user-picked local hour:minute lands on a tick in every
+  // timezone; the handler sends only to members whose LOCAL time matches their
+  // configured send time (default 20:00) on a selected weekday (time + tz + days
+  // from each member's BUDGET_REMINDER pref). Deep-links to the Spendings tab.
   await boss.createQueue("budget-reminder");
-  await boss.schedule("budget-reminder", "0 * * * *");
+  await boss.schedule("budget-reminder", "* * * * *");
   registerBudgetReminder(
     boss as unknown as Parameters<typeof registerBudgetReminder>[0],
   );

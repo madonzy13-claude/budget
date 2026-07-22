@@ -127,6 +127,21 @@ describe("PushPrefsSection r32 toggles", () => {
     expect(arg.json.config.days).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
+  it("renders the send-time input at the 20:00 default and PATCHes hour+minute on change", async () => {
+    wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
+    const timeInput = (await screen.findByTestId(
+      "push-reminder-time",
+    )) as HTMLInputElement;
+    expect(timeInput.value).toBe("20:00");
+    fireEvent.change(timeInput, { target: { value: "09:30" } });
+    await waitFor(() => expect(patchMock).toHaveBeenCalled());
+    const arg = patchMock.mock.calls.at(-1)![0] as {
+      json: { config: { hour: number; minute: number; days: number[] } };
+    };
+    expect(arg.json.config.hour).toBe(9);
+    expect(arg.json.config.minute).toBe(30);
+  });
+
   it("turning the reminder off PATCHes enabled=false but keeps the days", async () => {
     wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
     await waitFor(() =>
@@ -214,7 +229,9 @@ describe("PushPrefsSection badge toggle (r37)", () => {
     wrap(<PushPrefsSection budgetId={budgetId} />);
     await waitFor(() => expect(getMock).toHaveBeenCalled());
     const master = screen.getByTestId("push-master-switch");
-    await waitFor(() => expect(master.getAttribute("aria-checked")).toBe("false"));
+    await waitFor(() =>
+      expect(master.getAttribute("aria-checked")).toBe("false"),
+    );
     fireEvent.click(master);
     await waitFor(() => expect(deviceBadge(budgetId)).toBe(true));
   });
@@ -230,7 +247,9 @@ describe("PushPrefsSection badge toggle (r37)", () => {
     wrap(<PushPrefsSection budgetId={budgetId} />);
     await waitFor(() => expect(getMock).toHaveBeenCalled());
     const master = screen.getByTestId("push-master-switch");
-    await waitFor(() => expect(master.getAttribute("aria-checked")).toBe("false"));
+    await waitFor(() =>
+      expect(master.getAttribute("aria-checked")).toBe("false"),
+    );
     fireEvent.click(master);
     await new Promise((r) => setTimeout(r, 30));
     expect(deviceBadge(budgetId)).toBe(false); // manual OFF respected

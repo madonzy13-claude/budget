@@ -354,7 +354,8 @@
       },
       "reminder": {
         "label": "Przypominaj o aktualizacji budżetu",
-        "description": "Wieczorne przypomnienie w wybrane dni",
+        "description": "Przypomnienie o wybranej porze w wybrane dni",
+        "time": "Godzina wysyłki",
         "day": {
           "1": "Poniedziałek",
           "2": "Wtorek",

@@ -327,7 +327,8 @@
       },
       "reminder": {
         "label": "Remind me to update the budget",
-        "description": "An evening nudge on the days you choose",
+        "description": "A nudge at the time and on the days you choose",
+        "time": "Send time",
         "day": {
           "1": "Monday",
           "2": "Tuesday",

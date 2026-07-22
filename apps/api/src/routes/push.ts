@@ -51,6 +51,8 @@ const prefsSchema = z.object({
     .object({
       days: z.array(z.number().int().min(1).max(7)).optional(),
       tz: z.string().min(1).max(64).optional(),
+      hour: z.number().int().min(0).max(23).optional(),
+      minute: z.number().int().min(0).max(59).optional(),
     })
     .nullable()
     .optional(),

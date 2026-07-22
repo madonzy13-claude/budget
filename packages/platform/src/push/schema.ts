@@ -53,7 +53,12 @@ export const notificationPrefs = sharedKernel.table(
     enabled: boolean("enabled").notNull().default(true),
     // r32: extra config for types that need more than on/off. BUDGET_REMINDER
     // stores {days:number[] (ISO 1=Mon..7=Sun), tz:string}. NULL for on/off kinds.
-    config: jsonb("config").$type<{ days?: number[]; tz?: string } | null>(),
+    config: jsonb("config").$type<{
+      days?: number[];
+      tz?: string;
+      hour?: number;
+      minute?: number;
+    } | null>(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
