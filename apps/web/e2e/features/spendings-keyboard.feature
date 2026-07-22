@@ -68,3 +68,11 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     Then the "food & home" quick input is focused
     When I type the letters "g" in the grid
     Then the "groceries" quick input is focused
+
+  Scenario: Type-ahead works immediately after switching to the spendings tab via its pill (no prior page click)
+    # Regression (user report): letters did nothing until you first clicked the
+    # page — only arrows worked from pill focus. Type-ahead must claim a bare
+    # letter from pill focus too, exactly like the arrow entry-point does.
+    When I switch to the spendings tab by clicking its pill
+    And I type the letters "g" in the grid
+    Then the "groceries" quick input is focused
