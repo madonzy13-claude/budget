@@ -1,3 +1,4 @@
+"use client";
 /**
  * BDP loading.tsx — instant-commit skeleton for the catch-all [[...tab]] route.
  *
@@ -9,12 +10,18 @@
  * paints the instant the URL changes and <BudgetDetail> swaps in once the gate
  * resolves.
  *
- * The waiting layout is the shared <BdpOverviewSkeleton> (Overview is the landing
- * tab), rendered here AND by the home auto-open (home-budgets-client.tsx), so the
- * home→budget path is one continuous Overview skeleton with no jump.
+ * The waiting layout is the shared <BdpOverviewSkeleton>. It lights the pill from
+ * the URL (usePathname) — NOT always Overview — so a budget→budget switch that
+ * carries the previous pill doesn't flash the Overview pill before the real page
+ * jumps to the target pill (user report). Home auto-open lands on /overview, so
+ * that path still shows the Overview pill.
  */
+import { usePathname } from "next/navigation";
 import { BdpOverviewSkeleton } from "@/components/budgeting/bdp-overview-skeleton";
+import { isBdpTab } from "@/lib/bdp-tabs";
 
 export default function BdpLoading() {
-  return <BdpOverviewSkeleton />;
+  const pathname = usePathname();
+  const seg = pathname?.match(/\/budgets\/[^/]+\/([^/?#]+)/)?.[1];
+  return <BdpOverviewSkeleton activeTab={isBdpTab(seg) ? seg : "overview"} />;
 }

@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { BdpTab } from "@/lib/bdp-tabs";
 
 // Mirrors OVERVIEW-CARDS' CARD constant (a client const, re-declared here).
 const CARD =
@@ -38,7 +39,14 @@ const TABS: ReadonlyArray<{ slug: string; icon: LucideIcon }> = [
   { slug: "settings", icon: Settings },
 ];
 
-export function BdpOverviewSkeleton() {
+export function BdpOverviewSkeleton({
+  // Which pill to light up. Default Overview (home auto-open landing); the budget
+  // route's loading.tsx passes the URL's tab so a budget→budget switch doesn't
+  // flash the Overview pill before jumping to the target pill.
+  activeTab = "overview",
+}: {
+  activeTab?: BdpTab;
+} = {}) {
   const t = useTranslations("bdp.tab");
 
   return (
@@ -55,7 +63,7 @@ export function BdpOverviewSkeleton() {
           className="flex h-12 items-center justify-center gap-1.5 overflow-x-auto px-4 sm:px-6"
         >
           {TABS.map(({ slug, icon: Icon }) => {
-            const active = slug === "overview";
+            const active = slug === activeTab;
             return (
               <span
                 key={slug}
@@ -104,7 +112,10 @@ export function BdpOverviewSkeleton() {
       <div className="overflow-x-clip">
         <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-4 px-4 pt-4 sm:px-6">
           <div className="flex flex-col gap-3">
-            <div className={cn(CARD, "h-28 animate-pulse")} aria-hidden="true" />
+            <div
+              className={cn(CARD, "h-28 animate-pulse")}
+              aria-hidden="true"
+            />
             <div className="grid grid-cols-2 gap-3">
               {[0, 1, 2, 3].map((i) => (
                 <div
