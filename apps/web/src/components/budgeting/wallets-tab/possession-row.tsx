@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
+import { useIsWide } from "@/hooks/use-is-wide";
 import { SwipeToDeleteRow } from "@/components/common/swipe-to-delete-row";
 import { HoldingDeleteConfirm } from "./holding-delete-confirm";
 import { Input } from "@/components/ui/input";
@@ -115,9 +116,15 @@ function DraftRow({
   );
 }
 
-function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: PersistedProps) {
+function PersistedRow({
+  holding,
+  maxAmountChars,
+  onUpdate,
+  onArchive,
+}: PersistedProps) {
   const t = useTranslations("budget.possessions");
   const locale = useLocale();
+  const wide = useIsWide(); // full currency name in the picker on desktop (≥md)
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
   const valueCents = holding.currentPriceCents ?? "0";
   // Delete goes through a confirm dialog (same as the spendings/wallet delete) —
@@ -129,113 +136,117 @@ function PersistedRow({ holding, maxAmountChars, onUpdate, onArchive }: Persiste
       onDelete={() => setConfirmOpen(true)}
       deleteAriaLabel={t("row.deleteAria", { name: holding.name })}
     >
-    <div
-      data-testid={`possession-row-${holding.name}`}
-      className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
-    >
-      {/* Icon + color — inline picker (curated possession icon set), same as the
+      <div
+        data-testid={`possession-row-${holding.name}`}
+        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+      >
+        {/* Icon + color — inline picker (curated possession icon set), same as the
           wallet/spendings customizer. */}
-      <WalletCustomizer
-        color={holding.color ?? null}
-        icon={holding.icon ?? null}
-        icons={POSSESSION_ICONS}
-        ariaLabel={t("row.iconAria", { name: holding.name })}
-        onChange={(patch) => onUpdate(patch).catch(() => {})}
-      />
+        <WalletCustomizer
+          color={holding.color ?? null}
+          icon={holding.icon ?? null}
+          icons={POSSESSION_ICONS}
+          ariaLabel={t("row.iconAria", { name: holding.name })}
+          onChange={(patch) => onUpdate(patch).catch(() => {})}
+        />
 
-      {/* Name — inline edit. */}
-      <div className="min-w-0 flex-1" data-inline-cell>
-        <InlineEditCell
-          value={holding.name}
-          ariaLabel={t("row.nameAria")}
-          testId={`possession-name-${holding.id}`}
-          render={(v) => <span className="block truncate">{v}</span>}
-          renderEditor={(draft, onChange) => (
-            <Input
-              autoFocus
-              value={draft}
-              onChange={(e) => onChange(e.target.value)}
-              className="h-9"
-              placeholder={t("field.namePlaceholder")}
-            />
-          )}
-          onSave={(v) => {
-            // Empty name is invalid — show a direct message and keep the old name
-            // (no server round-trip → no generic "couldn't save" error).
-            if (!v.trim()) {
-              toast.error(t("row.nameRequired"));
-              return Promise.resolve();
-            }
-            return onUpdate({ name: v.trim() });
+        {/* Name — inline edit. */}
+        <div className="min-w-0 flex-1" data-inline-cell>
+          <InlineEditCell
+            value={holding.name}
+            ariaLabel={t("row.nameAria")}
+            testId={`possession-name-${holding.id}`}
+            render={(v) => <span className="block truncate">{v}</span>}
+            renderEditor={(draft, onChange) => (
+              <Input
+                autoFocus
+                value={draft}
+                onChange={(e) => onChange(e.target.value)}
+                className="h-9"
+                placeholder={t("field.namePlaceholder")}
+              />
+            )}
+            onSave={(v) => {
+              // Empty name is invalid — show a direct message and keep the old name
+              // (no server round-trip → no generic "couldn't save" error).
+              if (!v.trim()) {
+                toast.error(t("row.nameRequired"));
+                return Promise.resolve();
+              }
+              return onUpdate({ name: v.trim() });
+            }}
+          />
+        </div>
+
+        {/* Currency — inline picker (full name on desktop, like wallets). */}
+        <div className="w-[44px] sm:w-[96px] md:w-[150px]" data-inline-cell>
+          <CurrencyPicker
+            value={currency}
+            aria-label={t("row.currencyAria")}
+            onSelect={(v: string) => onUpdate({ currency: v })}
+            richLabel={wide}
+            desktopDropdown={wide}
+          />
+        </div>
+
+        {/* Value — inline edit. */}
+        <div
+          className="text-right tabular-nums"
+          style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+          data-inline-cell
+        >
+          <InlineEditCell
+            value={centsToBare(valueCents).replace(/[^0-9.-]/g, "")}
+            ariaLabel={t("row.amountAria")}
+            testId={`possession-amount-${holding.id}`}
+            render={() => (
+              <span className="text-num-md">
+                {centsToBare(valueCents, locale)}
+              </span>
+            )}
+            renderEditor={(draft, onChange) => (
+              <Input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                defaultValue={draft}
+                onChange={(e) => {
+                  const v = sanitizeAmount(e.target.value);
+                  if (v !== e.target.value) e.target.value = v;
+                  onChange(v);
+                }}
+                className="h-9 text-right"
+              />
+            )}
+            onSave={(v) => onUpdate({ amount: sanitizeAmount(v) })}
+          />
+        </div>
+
+        {/* Trash — desktop only, hover-revealed. Mobile deletes via swipe-left
+          (SwipeToDeleteRow), same as the wallet rows. */}
+        <button
+          type="button"
+          data-testid={`possession-trash-${holding.id}`}
+          aria-label={t("row.deleteAria", { name: holding.name })}
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirmOpen(true);
+          }}
+          className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:flex sm:invisible sm:group-hover:visible"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <HoldingDeleteConfirm
+          name={holding.name}
+          namespace="budget.possessions.confirm.delete"
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          onConfirm={() => {
+            onArchive();
+            setConfirmOpen(false);
           }}
         />
       </div>
-
-      {/* Currency — inline picker. */}
-      <div className="w-[44px] sm:w-[96px]" data-inline-cell>
-        <CurrencyPicker
-          value={currency}
-          aria-label={t("row.currencyAria")}
-          onSelect={(v: string) => onUpdate({ currency: v })}
-        />
-      </div>
-
-      {/* Value — inline edit. */}
-      <div
-        className="text-right tabular-nums"
-        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
-        data-inline-cell
-      >
-        <InlineEditCell
-          value={centsToBare(valueCents).replace(/[^0-9.-]/g, "")}
-          ariaLabel={t("row.amountAria")}
-          testId={`possession-amount-${holding.id}`}
-          render={() => (
-            <span className="text-num-md">{centsToBare(valueCents, locale)}</span>
-          )}
-          renderEditor={(draft, onChange) => (
-            <Input
-              autoFocus
-              type="text"
-              inputMode="decimal"
-              defaultValue={draft}
-              onChange={(e) => {
-                const v = sanitizeAmount(e.target.value);
-                if (v !== e.target.value) e.target.value = v;
-                onChange(v);
-              }}
-              className="h-9 text-right"
-            />
-          )}
-          onSave={(v) => onUpdate({ amount: sanitizeAmount(v) })}
-        />
-      </div>
-
-      {/* Trash — desktop only, hover-revealed. Mobile deletes via swipe-left
-          (SwipeToDeleteRow), same as the wallet rows. */}
-      <button
-        type="button"
-        data-testid={`possession-trash-${holding.id}`}
-        aria-label={t("row.deleteAria", { name: holding.name })}
-        onClick={(e) => {
-          e.stopPropagation();
-          setConfirmOpen(true);
-        }}
-        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] sm:flex sm:invisible sm:group-hover:visible"
-      >
-        <Trash2 className="h-4 w-4" aria-hidden="true" />
-      </button>
-      <HoldingDeleteConfirm
-        name={holding.name}
-        namespace="budget.possessions.confirm.delete"
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onConfirm={() => {
-          onArchive();
-          setConfirmOpen(false);
-        }}
-      />
-    </div>
     </SwipeToDeleteRow>
   );
 }

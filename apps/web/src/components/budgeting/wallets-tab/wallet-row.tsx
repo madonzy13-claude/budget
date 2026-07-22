@@ -23,6 +23,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
+import { useIsWide } from "@/hooks/use-is-wide";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
@@ -213,6 +214,10 @@ function PersistedRow({
 }: PersistedProps) {
   const t = useTranslations("bdp.tab.wallets.row");
   const locale = useLocale();
+  // Desktop (≥md) has room for the full currency NAME in the picker (trigger +
+  // dropdown body), matching the investments edit banner. Below md the cell is
+  // narrow → keep the compact code-only picker (and native wheel on touch).
+  const wide = useIsWide();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   // UAT-PH5-T3-40: native pointer listeners (not React onPointer*) so
@@ -500,7 +505,7 @@ function PersistedRow({
           was fragile on iOS Safari. Desktop still works because Radix
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
-        <div className="w-[44px] sm:w-[96px]" data-inline-cell>
+        <div className="w-[44px] sm:w-[96px] md:w-[150px]" data-inline-cell>
           {isReserveSection ? (
             // Match the investments-row currency: small + grey, right-aligned so it
             // sits tight to the amount instead of floating mid-column (r31 item 3).
@@ -515,6 +520,8 @@ function PersistedRow({
               value={wallet.currency}
               aria-label={t("currencyAria")}
               onSelect={(v: string) => onUpdate({ currency: v })}
+              richLabel={wide}
+              desktopDropdown={wide}
             />
           )}
         </div>
