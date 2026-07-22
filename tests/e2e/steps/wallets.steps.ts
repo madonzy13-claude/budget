@@ -69,7 +69,10 @@ Given(
             "Idempotency-Key": crypto.randomUUID(),
             "X-Budget-ID": budgetId,
           },
-          data: { amount: parseFloat(amount).toFixed(2), currency: currency.toUpperCase() },
+          data: {
+            amount: parseFloat(amount).toFixed(2),
+            currency: currency.toUpperCase(),
+          },
         },
       );
       if (!balRes.ok()) {
@@ -195,4 +198,42 @@ Then("I see a toast {string}", async ({ page }, text: string) => {
   // Sonner toast container
   const toast = page.locator("[data-sonner-toast]", { hasText: text });
   await expect(toast).toBeVisible({ timeout: 10000 });
+});
+
+// ── Desktop keyboard navigation (assets tab roving highlight) ──────────────────
+
+When("I focus the assets keyboard nav", async ({ page }) => {
+  // Focus the tab root so the document-level key handler receives keys.
+  await page.evaluate(() =>
+    document
+      .querySelector<HTMLElement>('[data-testid="assets-nav-root"]')
+      ?.focus(),
+  );
+});
+
+When(/^I press "(.+?)" in the assets tab$/, async ({ page }, key: string) => {
+  await page.keyboard.press(key);
+});
+
+Then(
+  /^the "(.+?)" wallet row is highlighted$/,
+  async ({ page }, name: string) => {
+    await expect(
+      page.locator('[data-testid="wallet-row"][data-nav-highlighted="true"]', {
+        hasText: name,
+      }),
+    ).toBeVisible({ timeout: 5000 });
+  },
+);
+
+Then("the wallet amount editor is open", async ({ page }) => {
+  await expect(
+    page.locator('[data-nav-field="amount"] input').first(),
+  ).toBeVisible({ timeout: 5000 });
+});
+
+Then("the wallet delete confirmation dialog is visible", async ({ page }) => {
+  await expect(
+    page.getByRole("alertdialog").or(page.getByRole("dialog")).first(),
+  ).toBeVisible({ timeout: 5000 });
 });

@@ -16,3 +16,21 @@ Feature: Wallets — add, edit, drag, delete (WALT-01..07)
     And the "SPENDINGS" wallets section does not contain "Cash"
     When I delete the wallet "Cash" and confirm
     Then the wallet "Cash" is not present in any section
+
+  Scenario: Desktop keyboard navigation roves wallets, edits amount, and deletes
+    Given I am signed in as a fresh user with workspace "Keys"
+    When I open the Wallets tab on a budget "Keys"
+    And I click "Add spendings wallet"
+    And I edit the wallet "New wallet" name to "Checking"
+    And I click "Add spendings wallet"
+    And I edit the wallet "New wallet" name to "Savings"
+    And I focus the assets keyboard nav
+    And I press "ArrowDown" in the assets tab
+    Then the "Checking" wallet row is highlighted
+    When I press "ArrowDown" in the assets tab
+    Then the "Savings" wallet row is highlighted
+    When I press "Enter" in the assets tab
+    Then the wallet amount editor is open
+    When I press "Escape" in the assets tab
+    And I press "Delete" in the assets tab
+    Then the wallet delete confirmation dialog is visible
