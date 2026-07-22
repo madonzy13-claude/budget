@@ -263,6 +263,16 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       // switch — the bug where arrows did nothing until you clicked the page).
       // Skip real text fields / open menus / dialogs elsewhere.
       if (!isGridNavEligibleTarget(e.target, root)) return;
+      // 260722-b: when the user has typed a value into a quick-add input, the
+      // grid must not intercept keys — arrows move the caret, letters enter the
+      // note (space→note parsing), and only Enter/blur (the input's own
+      // handlers) save. An EMPTY quick input keeps full nav (row cycle, column
+      // hop, type-ahead) below.
+      if (
+        target?.matches?.('input[data-testid^="quick-entry-"]') &&
+        (target as HTMLInputElement).value.trim() !== ""
+      )
+        return;
       if (
         handleGridKeyNav(
           {

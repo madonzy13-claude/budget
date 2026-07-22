@@ -16,7 +16,8 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
-import { parseDecimal } from "@/lib/decimal";
+import { parseAmountAndNote } from "@/lib/decimal";
+import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 import { formatInstantDate } from "@/lib/format-date";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,11 @@ export function TransactionRow({
   const [focused, setFocused] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  // 260722-d: numeric keyboard by default; ABC/123 flips it to text for a note.
+  const [editKeyboardMode, setEditKeyboardMode] = useState<"numeric" | "text">(
+    "numeric",
+  );
+  const switchingKeyboardRef = useRef(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -232,8 +238,16 @@ export function TransactionRow({
     day: "numeric",
   });
 
+  // Seed the inline editor with "amount note" so an edit preserves (and can
+  // change or clear) the existing note. commitEdit's parser splits it back apart.
+  function seedEditValue() {
+    const amt = (parseInt(txn.amountConvertedCents, 10) / 100).toString();
+    return txn.note ? `${amt} ${txn.note}` : amt;
+  }
+
   function startEditing() {
-    setEditValue((parseInt(txn.amountConvertedCents, 10) / 100).toString());
+    setEditValue(seedEditValue());
+    setEditKeyboardMode("numeric");
     setEditing(true);
     setRevealed(false);
     setHovered(false);
@@ -293,7 +307,8 @@ export function TransactionRow({
     const el = cellRef.current;
     if (!el || readOnly) return; // archived column → no double-tap edit
     const startEditingNow = () => {
-      setEditValue((parseInt(txn.amountConvertedCents, 10) / 100).toString());
+      setEditValue(seedEditValue());
+      setEditKeyboardMode("numeric");
       setEditing(true);
       setRevealed(false);
       setHovered(false);
@@ -317,19 +332,34 @@ export function TransactionRow({
   }, [txn.amountConvertedCents, readOnly]);
 
   function commitEdit() {
+    // 260722-d: an ABC/123 switch blurs then refocuses in the same gesture —
+    // that blur must not commit or close the editor.
+    if (switchingKeyboardRef.current) {
+      switchingKeyboardRef.current = false;
+      return;
+    }
     const trimmed = editValue.trim();
-    const cents = parseDecimal(trimmed);
+    // 260722-note: same parser as quick-add — a space after the number starts
+    // the note ("11.45 lunch" → 1145 + "lunch"). The editor seeds "amount note".
+    const parsed = parseAmountAndNote(trimmed);
     const original = parseInt(txn.amountConvertedCents, 10);
     // Clearing the field or zeroing the amount deletes the row.
-    if (trimmed === "" || cents === 0) {
+    if (trimmed === "" || parsed?.cents === 0) {
       focusAfterDelete();
       deleteMutation.mutate(txn.id);
       setEditing(false);
       return;
     }
-    // Otherwise only persist when the amount actually changed.
-    if (cents !== null && cents !== original) {
-      updateMutation.mutate({ txId: txn.id, amountCents: cents });
+    // Persist when the amount OR the note changed (removing the note clears it).
+    if (
+      parsed !== null &&
+      (parsed.cents !== original || parsed.note !== (txn.note ?? null))
+    ) {
+      updateMutation.mutate({
+        txId: txn.id,
+        amountCents: parsed.cents,
+        note: parsed.note,
+      });
     }
     setEditing(false);
     setHovered(false);
@@ -474,17 +504,29 @@ export function TransactionRow({
         )}
       >
         {editing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="decimal"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={handleEditKeyDown}
-            onBlur={commitEdit}
-            className="min-w-0 flex-1 rounded border border-[var(--primary)] bg-transparent px-2 py-0.5 text-base sm:text-sm"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <>
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode={editKeyboardMode === "numeric" ? "decimal" : "text"}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleEditKeyDown}
+              onBlur={commitEdit}
+              className="min-w-0 flex-1 rounded border border-[var(--primary)] bg-transparent px-2 py-0.5 text-base sm:text-sm"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <MobileKeyboardToggle
+              inputRef={inputRef}
+              mode={editKeyboardMode}
+              onToggle={() =>
+                setEditKeyboardMode((m) =>
+                  m === "numeric" ? "text" : "numeric",
+                )
+              }
+              switchingRef={switchingKeyboardRef}
+            />
+          </>
         ) : (
           <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
             <span className="shrink-0">{formattedAmount}</span>

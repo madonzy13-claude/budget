@@ -206,6 +206,22 @@ describe("TransactionRow", () => {
     expect(mockUpdateMutate).toHaveBeenCalledWith({
       txId: "txn-123",
       amountCents: 2000,
+      note: null,
+    });
+  });
+
+  it("inline edit: a space after the amount sets the note (260722)", () => {
+    renderRow();
+    fireEvent.click(screen.getByText("15"));
+    const input = document.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "20 groceries run" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockUpdateMutate).toHaveBeenCalledWith({
+      txId: "txn-123",
+      amountCents: 2000,
+      note: "groceries run",
     });
   });
 

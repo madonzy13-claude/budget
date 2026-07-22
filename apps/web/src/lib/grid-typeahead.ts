@@ -17,12 +17,61 @@
  * Pure helper so it unit-tests without a DOM or timers.
  */
 
-/** True when `seq` is a prefix of any whitespace word in `name` (both lowered). */
+// Keyboard-layout transliteration (260722-translit). The user may search with a
+// keyboard whose layout differs from the category's language — e.g. a Ukrainian
+// keyboard active while the categories are English. We fold every char to its
+// QWERTY physical-key position so a match is found regardless of the enabled
+// layout, plus Polish diacritics to their base letter.
+//
+//  • Ukrainian KBDUR ↔ QWERTY: typing the physical keys f-o-o-d on the UA layout
+//    emits "ащщв"; folding "ащщв" back to its key positions yields "food", which
+//    matches the English "Food". Bidirectional — an English keyboard typing the
+//    physical keys that would spell a UA name matches that name too.
+//  • Polish ćśńżźółęą → csnzzolea, both directions (a diacritic fold).
+//  • Ukrainian ґ folds to the same key as г (the two are interchangeable).
+// prettier-ignore
+const UA_TO_QWERTY: Record<string, string> = {
+  й: "q", ц: "w", у: "e", к: "r", е: "t", н: "y", г: "u", ш: "i", щ: "o", з: "p", х: "[", ї: "]",
+  ф: "a", і: "s", в: "d", а: "f", п: "g", р: "h", о: "j", л: "k", д: "l", ж: ";", є: "'",
+  я: "z", ч: "x", с: "c", м: "v", и: "b", т: "n", ь: "m", б: ",", ю: ".",
+  ґ: "u", // interchangeable with г
+};
+const PL_FOLD: Record<string, string> = {
+  ć: "c",
+  ś: "s",
+  ń: "n",
+  ż: "z",
+  ź: "z",
+  ó: "o",
+  ł: "l",
+  ę: "e",
+  ą: "a",
+};
+
+/** Fold one char to its canonical search key (QWERTY position / base letter). */
+function canonicalChar(ch: string): string {
+  const c = ch.toLowerCase();
+  if (c in UA_TO_QWERTY) return UA_TO_QWERTY[c]!;
+  if (c in PL_FOLD) return PL_FOLD[c]!;
+  // General Latin accent strip (é→e, ü→u…) for anything not covered above.
+  return c.normalize("NFD").replace(/[\u0300-\u036f]/g, "") || c;
+}
+
+/** Fold a whole string for layout-agnostic type-ahead matching. */
+export function canonicalizeForSearch(str: string): string {
+  return Array.from(str, canonicalChar).join("");
+}
+
+/**
+ * True when `seq` is a prefix of any whitespace word in `name`. Both are folded
+ * through canonicalizeForSearch first, so matching is case-insensitive AND
+ * keyboard-layout-agnostic (Cyrillic↔Latin by key position, Polish diacritics).
+ */
 function wordPrefixMatch(name: string, seq: string): boolean {
-  return name
-    .toLowerCase()
+  const s = canonicalizeForSearch(seq);
+  return canonicalizeForSearch(name)
     .split(/\s+/)
-    .some((w) => w.startsWith(seq));
+    .some((w) => w.startsWith(s));
 }
 
 export interface TypeaheadResult {

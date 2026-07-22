@@ -233,9 +233,10 @@ describe("QuickEntryInput", () => {
     });
   });
 
-  // r40b: Left/Right move the caret until the field edge, then save + hop to the
-  // adjacent column's quick input.
-  describe("edge Left/Right column hop (r40b)", () => {
+  // 260722-b: once the field holds a value, arrows (and Cmd+arrows) only move
+  // the caret — they NEVER save + hop. Only Enter or blur saves. An EMPTY field
+  // keeps the edge-hop / wrap / Cmd-jump navigation (no save either way).
+  describe("nav while typing vs empty (260722-b)", () => {
     function renderPair() {
       return render(
         <TestQueryProvider>
@@ -253,33 +254,25 @@ describe("QuickEntryInput", () => {
       );
     }
 
-    it("ArrowRight at the right edge saves and focuses the next column", async () => {
+    it("ArrowRight at the right edge WITH a value does NOT save or hop", async () => {
       renderPair();
       const first = screen.getByTestId(
         "quick-entry-groceries",
       ) as HTMLInputElement;
-      const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
-      await userEvent.type(first, "5.96"); // caret at end
+      await userEvent.type(first, "5.96"); // caret at end, field has a value
       fireEvent.keyDown(first, { key: "ArrowRight" });
-      expect(mockMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ amountCents: 596 }),
-      );
-      expect(document.activeElement).toBe(second);
+      expect(mockMutate).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(first); // stays put
     });
 
-    it("ArrowLeft at the left edge saves and focuses the previous column", async () => {
+    it("ArrowLeft at the left edge WITH a value does NOT save or hop", async () => {
       renderPair();
-      const first = screen.getByTestId(
-        "quick-entry-groceries",
-      ) as HTMLInputElement;
       const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
       await userEvent.type(second, "7");
       second.setSelectionRange(0, 0); // caret at left edge
       fireEvent.keyDown(second, { key: "ArrowLeft" });
-      expect(mockMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ amountCents: 700 }),
-      );
-      expect(document.activeElement).toBe(first);
+      expect(mockMutate).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(second);
     });
 
     it("ArrowLeft with the caret mid-value moves the caret, does NOT save or hop", async () => {
@@ -306,18 +299,19 @@ describe("QuickEntryInput", () => {
       expect(document.activeElement).toBe(second);
     });
 
-    it("ArrowRight at the right edge of the LAST column WRAPS to the first", async () => {
+    it("empty LAST column ArrowRight WRAPS to the first", () => {
       renderPair();
       const first = screen.getByTestId(
         "quick-entry-groceries",
       ) as HTMLInputElement;
       const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
-      await userEvent.type(second, "7"); // last column, caret at end
+      second.focus(); // empty
       fireEvent.keyDown(second, { key: "ArrowRight" });
+      expect(mockMutate).not.toHaveBeenCalled();
       expect(document.activeElement).toBe(first); // wrapped
     });
 
-    it("ArrowLeft at the left edge of the FIRST column WRAPS to the last", () => {
+    it("empty FIRST column ArrowLeft WRAPS to the last", () => {
       renderPair();
       const first = screen.getByTestId(
         "quick-entry-groceries",
@@ -329,21 +323,30 @@ describe("QuickEntryInput", () => {
       expect(document.activeElement).toBe(second); // wrapped to last
     });
 
-    it("Cmd+Right jumps to the LAST column's quick input (saving)", async () => {
+    it("Cmd+Right WITH a value does NOT save or jump", async () => {
+      renderPair();
+      const first = screen.getByTestId(
+        "quick-entry-groceries",
+      ) as HTMLInputElement;
+      await userEvent.type(first, "5.00");
+      fireEvent.keyDown(first, { key: "ArrowRight", metaKey: true });
+      expect(mockMutate).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(first);
+    });
+
+    it("Cmd+Right on an EMPTY field jumps to the LAST column (no save)", () => {
       renderPair();
       const first = screen.getByTestId(
         "quick-entry-groceries",
       ) as HTMLInputElement;
       const second = screen.getByTestId("quick-entry-rent") as HTMLInputElement;
-      await userEvent.type(first, "5.00");
+      first.focus();
       fireEvent.keyDown(first, { key: "ArrowRight", metaKey: true });
-      expect(mockMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ amountCents: 500 }),
-      );
+      expect(mockMutate).not.toHaveBeenCalled();
       expect(document.activeElement).toBe(second);
     });
 
-    it("Cmd+Left jumps to the FIRST column's quick input", () => {
+    it("Cmd+Left on an EMPTY field jumps to the FIRST column", () => {
       renderPair();
       const first = screen.getByTestId(
         "quick-entry-groceries",

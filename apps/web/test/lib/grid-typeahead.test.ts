@@ -9,7 +9,10 @@
  * matches nothing, the new char restarts the sequence.
  */
 import { describe, it, expect } from "vitest";
-import { typeaheadStep } from "../../src/lib/grid-typeahead";
+import {
+  typeaheadStep,
+  canonicalizeForSearch,
+} from "../../src/lib/grid-typeahead";
 
 const NAMES = ["groceries", "housing", "food & home"];
 
@@ -109,5 +112,49 @@ describe("typeaheadStep — units", () => {
       buffer: "z",
       jumpTo: null,
     });
+  });
+});
+
+describe("canonicalizeForSearch — keyboard-layout folding", () => {
+  it("folds Ukrainian KBDUR keys to their QWERTY positions", () => {
+    // Physical keys f-o-o-d on the UA layout emit а-щ-щ-в.
+    expect(canonicalizeForSearch("ащщв")).toBe("food");
+    // г and ґ both fold to the same key (u).
+    expect(canonicalizeForSearch("г")).toBe("u");
+    expect(canonicalizeForSearch("ґ")).toBe("u");
+  });
+  it("folds Polish diacritics to their base letters (both directions)", () => {
+    // ćśńżźółęą → csnzzolea
+    expect(canonicalizeForSearch("ćśńżźółęą")).toBe("csnzzolea");
+  });
+  it("leaves plain ASCII untouched (lowercased)", () => {
+    expect(canonicalizeForSearch("Food")).toBe("food");
+  });
+});
+
+describe("typeaheadStep — layout-agnostic matching", () => {
+  const EN = ["food", "housing", "groceries"];
+  it("a Ukrainian-layout typist matches an English category", () => {
+    // Typing physical f-o keys on the UA layout emits а-щ → folds to "fo",
+    // uniquely identifying "food".
+    let s = typeaheadStep("", "а", EN); // f key → а
+    expect(s.jumpTo).toBe("food"); // "f" is unique among food/housing/groceries
+    s = typeaheadStep(s.buffer, "щ", EN); // o key → щ
+    expect(s.jumpTo).toBe("food");
+  });
+
+  it("matches Polish diacritics against base-letter category names", () => {
+    const PL = ["zabawa", "jedzenie"];
+    // Typing "żab…" (with the diacritic) still lands on "zabawa".
+    let s = typeaheadStep("", "ż", PL);
+    s = typeaheadStep(s.buffer, "a", PL);
+    s = typeaheadStep(s.buffer, "b", PL);
+    expect(s.jumpTo).toBe("zabawa");
+  });
+
+  it("ґ and г are interchangeable when matching", () => {
+    const UA = ["ґроші", "їжа"]; // money / food
+    // Type г (u key) where the name has ґ — still matches.
+    expect(typeaheadStep("", "г", UA).jumpTo).toBe("ґроші");
   });
 });

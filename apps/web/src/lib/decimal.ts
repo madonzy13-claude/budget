@@ -19,3 +19,23 @@ export function parseDecimal(input: string): number | null {
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
   return Math.round(parseFloat(cleaned) * 100); // returns cents
 }
+
+/**
+ * Split a quick-entry string into an amount (cents) and an optional note
+ * (260722-note). "11.45" / "11,45" → { cents: 1145, note: null }. The FIRST
+ * whitespace ends the amount — everything after it becomes the note:
+ * "11.45 lunch" → { cents: 1145, note: "lunch" }. Returns null when the amount
+ * part is not a valid decimal.
+ */
+export function parseAmountAndNote(
+  input: string,
+): { cents: number; note: string | null } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const sp = trimmed.search(/\s/);
+  const amountPart = sp === -1 ? trimmed : trimmed.slice(0, sp);
+  const note = sp === -1 ? "" : trimmed.slice(sp + 1).trim();
+  const cents = parseDecimal(amountPart);
+  if (cents === null) return null;
+  return { cents, note: note || null };
+}
