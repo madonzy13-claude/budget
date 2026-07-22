@@ -351,6 +351,48 @@ describe.if(DB_REACHABLE)(
       expect(firstCounts).toBe(secondCounts);
     });
 
+    it("carries reservesEnabled from the budget row (true for default, false when disabled)", async () => {
+      // Same-pill budget switch (budget-switcher → budgetSwitchPath) needs the
+      // destination's reservesEnabled from GET /budgets/active to drop a Reserves
+      // pill to Overview when the target has reserves off. Seed a second budget
+      // (same user) with reserves DISABLED to prove the flag flows through.
+      const pool = new Pool({ connectionString: DB_URL });
+      const client = await pool.connect();
+      const disabledId = crypto.randomUUID();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `INSERT INTO tenancy.budgets
+             (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, reserves_enabled)
+           VALUES ($1, $2, 'Reserves Off', 'PRIVATE', 'USD', $3, 1, now(), false)`,
+          [disabledId, `ws-noreserve-${disabledId.slice(0, 8)}`, fix.userId],
+        );
+        await client.query(
+          `INSERT INTO tenancy.budget_members (id, budget_id, user_id, role, created_at)
+           VALUES ($1, $2, $3, 'owner', now())`,
+          [crypto.randomUUID(), disabledId, fix.userId],
+        );
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+        await pool.end();
+      }
+
+      const budgets = (await getActiveBudgets(fix.userId)) as unknown as {
+        id: string;
+        reservesEnabled?: boolean;
+      }[];
+      expect(budgets.find((b) => b.id === fix.budgetId)?.reservesEnabled).toBe(
+        true,
+      ); // schema default
+      expect(budgets.find((b) => b.id === disabledId)?.reservesEnabled).toBe(
+        false,
+      ); // seeded disabled
+    });
+
     it("excludes non-actionable CONFIRM_DRAFT tasks from the badge count (banner parity)", async () => {
       // 260612-kxd addendum: the home-card badge must match the banner —
       // both show only ACTIONABLE tasks. Two non-actionable shapes:
