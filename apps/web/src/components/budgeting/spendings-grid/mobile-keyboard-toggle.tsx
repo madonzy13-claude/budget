@@ -17,10 +17,11 @@
  * the button never appeared. This version uses ONLY the visualViewport: its
  * bottom edge (`height + offsetTop`, in layout-viewport px) is the top of the
  * keyboard, and the button is `position: fixed` + `translateY` to just above it.
- * It's HIDDEN when the keyboard is closed by comparing that bottom edge to the
- * STABLE window.screen.height (a device constant) — when the keyboard drops, the
- * visible area grows back past ~80% of the screen. `-52` (button height + gap) is
- * the knob to tune the lift.
+ * It's HIDDEN when the keyboard is closed: a module-level tracker records the
+ * LARGEST visualViewport bottom ever seen (the no-keyboard height, captured when
+ * the grid first mounts with the keyboard down), and the button shows only while
+ * the current bottom sits well below it. Self-calibrating — no device constant,
+ * so it survives iOS shrinking innerHeight/clientHeight. `-52` is the lift knob.
  *
  * iOS reads `inputmode` at FOCUS time — changing it on an already-focused input
  * does nothing. So we set the attribute imperatively, then blur+refocus INSIDE the
@@ -44,6 +45,23 @@ import { createPortal } from "react-dom";
 
 // Button height + gap — how far above the keyboard's top edge the button sits.
 const LIFT = 52;
+
+// Self-calibrating keyboard detector. We track the LARGEST visualViewport bottom
+// ever seen (= the no-keyboard height) from module load — when the grid first
+// mounts the keyboard is down, so this captures the full height with NO device
+// constant. Keyboard-up = the current bottom sits well below that max; keyboard-
+// down = it climbs back near the max. Robust to iOS shrinking innerHeight AND
+// documentElement.clientHeight with the keyboard (which broke earlier attempts).
+let maxViewportBottom = 0;
+if (typeof window !== "undefined" && window.visualViewport) {
+  const vv = window.visualViewport;
+  const track = () => {
+    maxViewportBottom = Math.max(maxViewportBottom, vv.height + vv.offsetTop);
+  };
+  track();
+  vv.addEventListener("resize", track);
+  vv.addEventListener("scroll", track);
+}
 
 export function MobileKeyboardToggle({
   inputRef,
@@ -82,15 +100,12 @@ export function MobileKeyboardToggle({
     };
   }, [coarse]);
 
-  // Hide when the keyboard is closed. The visible-area bottom (`bottomY`) sits
-  // well short of the STABLE screen height only while the keyboard is up; when it
-  // closes, visualViewport grows back toward the screen and bottomY climbs past
-  // the threshold. Uses window.screen.height (device-fixed) — NOT innerHeight /
-  // clientHeight, both of which iOS shrinks with the keyboard.
-  const screenH =
-    typeof window !== "undefined" ? (window.screen?.height ?? 0) : 0;
+  // Keyboard is up when the visible-area bottom is >100px above the largest
+  // (no-keyboard) bottom we've tracked. If we somehow have no reference yet
+  // (max not seeded), fall back to showing so the button is never stuck hidden.
   const keyboardUp =
-    bottomY !== null && (screenH > 0 ? bottomY < screenH * 0.8 : true);
+    bottomY !== null &&
+    (maxViewportBottom > 0 ? bottomY < maxViewportBottom - 100 : true);
 
   if (
     !coarse ||
