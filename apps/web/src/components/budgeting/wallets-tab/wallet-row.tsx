@@ -218,9 +218,10 @@ function DraftRow({
           disabled={pending}
           aria-label={t("amountAria")}
           data-testid="wallet-draft-amount-input"
-          // pr-0 so the right-aligned digits sit at the SAME edge as the
-          // persisted rows' plain-text amounts (their span has no right padding).
-          className="h-9 w-full pl-2 pr-0 text-right"
+          // 260723: a bit of right padding so the digits aren't jammed against
+          // the input's border (the draft amount is a bordered box; the
+          // persisted rows are plain text, so a small offset there is fine).
+          className="h-9 w-full px-2 text-right"
         />
       </div>
 
