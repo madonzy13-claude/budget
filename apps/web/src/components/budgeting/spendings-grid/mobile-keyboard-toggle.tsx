@@ -122,7 +122,9 @@ export function MobileKeyboardToggle({
         transform: `translateY(${Math.max(bottomY - LIFT, 8)}px)`,
         zIndex: 2147483000,
       }}
-      className="rounded-md border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-3.5 py-2 text-sm font-semibold text-[var(--body-on-dark)] shadow-lg [-webkit-tap-highlight-color:transparent]"
+      // 260723-2: yellow pill (was a grey rectangle → invisible on the grey
+      // keyboard bar). Brand accent + dark bold text reads clearly.
+      className="rounded-full bg-[var(--primary)] px-4 py-2.5 text-sm font-bold text-[var(--on-primary)] shadow-lg ring-1 ring-black/10 [-webkit-tap-highlight-color:transparent]"
     >
       {mode === "numeric" ? "ABC" : "123"}
     </button>,

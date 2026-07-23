@@ -200,14 +200,13 @@ function DraftRow({
       {/* Amount — 260723-2: a real editable field on mobile (tap → keyboard);
           a bare "0" placeholder on desktop (guided flow edits the persisted row).
           UAT-PH5-T3-30: width tracks the section's longest amount. */}
-      {/* Amount — 260723-3: a COMPACT right-aligned field on every device, sized
-          like the persisted-row amount editor (fixed width so it can't blow up
-          and squeeze the name). The name owns the row width. */}
+      {/* Amount — 260723-3: a COMPACT right-aligned field. `w-0` gives it a
+          0 flex-basis so the input can't blow the cell up, while `minWidth`
+          (SAME formula as the persisted row) makes the column line up with the
+          existing wallets. */}
       <div
-        className="shrink-0 text-right tabular-nums"
-        style={{
-          width: `${Math.max((maxAmountChars ?? MIN_AMOUNT_CHARS) + 1, 6)}ch`,
-        }}
+        className="w-0 shrink-0 text-right tabular-nums"
+        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
         data-nav-field="amount"
       >
         <Input
@@ -219,7 +218,9 @@ function DraftRow({
           disabled={pending}
           aria-label={t("amountAria")}
           data-testid="wallet-draft-amount-input"
-          className="h-9 w-full px-2 text-right"
+          // pr-0 so the right-aligned digits sit at the SAME edge as the
+          // persisted rows' plain-text amounts (their span has no right padding).
+          className="h-9 w-full pl-2 pr-0 text-right"
         />
       </div>
 
@@ -232,8 +233,9 @@ function DraftRow({
         —
       </div>
 
-      {/* Trash placeholder — no trash on draft rows */}
-      <div className="w-7" aria-hidden="true" />
+      {/* Trash placeholder — matches the persisted trash (hidden on mobile,
+          shown on sm+) so the amount/currency columns line up on every width. */}
+      <div className="hidden w-7 sm:block" aria-hidden="true" />
     </div>
   );
 }
