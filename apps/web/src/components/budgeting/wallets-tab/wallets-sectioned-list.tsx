@@ -356,8 +356,12 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
               /* balance is best-effort — the wallet already exists */
             }
           }
-          // 260723-3: rest the roving highlight on the saved row.
-          if (created?.id) highlightNewWallet(created.id);
+          // 260723-3: rest the roving highlight on the saved row — DESKTOP only
+          // (the roving keyboard-nav is desktop-only; mobile shouldn't highlight).
+          const desktop =
+            typeof window !== "undefined" &&
+            window.matchMedia("(min-width: 768px)").matches;
+          if (created?.id && desktop) highlightNewWallet(created.id);
         } catch (e: unknown) {
           // Keep draft visible with error state; WalletRow's useEffect refocuses
           const code =
