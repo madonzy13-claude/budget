@@ -403,7 +403,12 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         removedIdx = el ? navItems(root).indexOf(el) : -1;
       }
       archiveMut.mutate(id);
-      if (removedIdx < 0) return;
+      // Roving highlight is desktop-only nav — never highlight the next wallet or
+      // an add button after a delete on mobile.
+      const desktop =
+        typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 768px)").matches;
+      if (removedIdx < 0 || !desktop) return;
       let tries = 0;
       const refocus = () => {
         const r = rootRef.current;
