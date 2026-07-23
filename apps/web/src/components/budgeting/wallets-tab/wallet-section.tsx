@@ -51,7 +51,6 @@ interface WalletSectionProps {
   onAdd: () => void;
   onCommitDraft: (
     name: string,
-    viaKeyboard: boolean,
     currency: string,
     amount: string,
   ) => Promise<void>;

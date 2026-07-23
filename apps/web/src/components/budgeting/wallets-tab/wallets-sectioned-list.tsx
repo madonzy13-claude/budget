@@ -62,91 +62,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   useAssetKeyboardNav(rootRef);
 
-  // Guided add (keyboard): after a new wallet is named, walk the user through its
-  // currency picker → then its amount editor. DOM-driven so it needs no per-row
-  // wiring: wait for the new row to render, highlight it, open the currency
-  // dropdown; when that closes (currency chosen / dismissed), open the amount
-  // editor. rAF-polled — the row + dropdown appear a frame or two later.
-  const guideNewWallet = useCallback((id: string) => {
-    const currencyOpen = () =>
-      !!document.querySelector('[data-testid^="currency-option-"]');
-    let tries = 0;
-    const step1 = () => {
-      const root = rootRef.current;
-      const row = root?.querySelector<HTMLElement>(`[data-wallet-id="${id}"]`);
-      if (!row) {
-        if (tries++ < 60) requestAnimationFrame(step1);
-        return;
-      }
-      root!
-        .querySelectorAll("[data-nav-highlighted]")
-        .forEach((e) => e.removeAttribute("data-nav-highlighted"));
-      row.setAttribute("data-nav-highlighted", "true");
-      row.scrollIntoView({ block: "nearest" });
-      const currencyCell = row.querySelector<HTMLElement>(
-        '[data-nav-field="currency"]',
-      );
-      currencyCell
-        ?.querySelector<HTMLElement>("button,[role='combobox']")
-        ?.click();
-      let sawOpen = false;
-      let t2 = 0;
-      const step2 = () => {
-        if (currencyOpen()) sawOpen = true;
-        if (sawOpen && !currencyOpen()) {
-          // The currency select re-rendered the row (detaching the captured node)
-          // AND Radix returns focus to the trigger on close (async) — which would
-          // steal focus from the amount editor if we open it too soon. Settle a
-          // few frames, then re-query fresh by id and open the amount editor.
-          let settle = 0;
-          const openAmount = () => {
-            if (settle++ < 15) {
-              requestAnimationFrame(openAmount);
-              return;
-            }
-            const r = rootRef.current;
-            r?.querySelectorAll("[data-nav-field-active]").forEach((e) =>
-              e.removeAttribute("data-nav-field-active"),
-            );
-            const freshRow = r?.querySelector<HTMLElement>(
-              `[data-wallet-id="${id}"]`,
-            );
-            const amountCell = freshRow?.querySelector<HTMLElement>(
-              '[data-nav-field="amount"]',
-            );
-            amountCell?.querySelector<HTMLElement>("[role='button']")?.click();
-            // 260723-3: when the amount editor commits (its input blurs → focus
-            // to body, which the focusout handler would clear), rest the roving
-            // highlight back on the saved row so nav continues from it.
-            requestAnimationFrame(() => {
-              const rr = rootRef.current;
-              const input = rr?.querySelector<HTMLElement>(
-                `[data-wallet-id="${id}"] input`,
-              );
-              input?.addEventListener(
-                "blur",
-                () =>
-                  requestAnimationFrame(() => {
-                    const r2 = rootRef.current;
-                    const rowNow = r2?.querySelector<HTMLElement>(
-                      `[data-wallet-id="${id}"]`,
-                    );
-                    if (r2 && rowNow) highlightNavItem(r2, rowNow);
-                  }),
-                { once: true },
-              );
-            });
-          };
-          requestAnimationFrame(openAmount);
-          return;
-        }
-        if (t2++ < 1800) requestAnimationFrame(step2); // ~30s to pick a currency
-      };
-      requestAnimationFrame(step2);
-    };
-    requestAnimationFrame(step1);
-  }, []);
-
   // rAF-poll for a freshly-persisted wallet row (it mounts a frame or two after
   // the draft clears), then run `cb` with it — used by the 260723-3 rest-highlight.
   const pollForWalletRow = useCallback(
@@ -416,18 +331,11 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
    */
   const handleCommitDraft = useCallback(
     (type: WalletType) =>
-      async (
-        name: string,
-        viaKeyboard: boolean,
-        currency: string,
-        amount: string,
-      ) => {
+      async (name: string, currency: string, amount: string) => {
         setDrafts((d) => ({ ...d, [type]: { pending: true, error: null } }));
         try {
           const created = await createMut.mutateAsync({
             name,
-            // Mobile sets currency + amount in the draft mini-form; desktop
-            // leaves the defaults and edits them via the guided flow below.
             currency: currency || budgetCurrency,
             amount: amount || "0",
             walletType: type,
@@ -439,8 +347,8 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             return next;
           });
           // 260723-2: createWalletSchema has no balance field — wallets are born
-          // at 0. When the mobile draft set a starting amount, PATCH the balance
-          // right after (same endpoint the persisted-row amount edit uses).
+          // at 0. When the draft set a starting amount, PATCH the balance right
+          // after (same endpoint the persisted-row amount edit uses).
           if (created?.id && amount && Number(amount) !== 0) {
             try {
               await updateMut.mutateAsync({ walletId: created.id, amount });
@@ -448,16 +356,8 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
               /* balance is best-effort — the wallet already exists */
             }
           }
-          const desktop =
-            typeof window !== "undefined" &&
-            window.matchMedia("(min-width: 768px)").matches;
-          if (created?.id && viaKeyboard && desktop) {
-            // Desktop keyboard-nav guided add: name → currency → amount.
-            guideNewWallet(created.id);
-          } else if (created?.id) {
-            // 260723-3: mouse / mobile save → rest the highlight on the new row.
-            highlightNewWallet(created.id);
-          }
+          // 260723-3: rest the roving highlight on the saved row.
+          if (created?.id) highlightNewWallet(created.id);
         } catch (e: unknown) {
           // Keep draft visible with error state; WalletRow's useEffect refocuses
           const code =
@@ -468,7 +368,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
           }));
         }
       },
-    [createMut, updateMut, budgetCurrency, guideNewWallet, highlightNewWallet],
+    [createMut, updateMut, budgetCurrency, highlightNewWallet],
   );
 
   /**

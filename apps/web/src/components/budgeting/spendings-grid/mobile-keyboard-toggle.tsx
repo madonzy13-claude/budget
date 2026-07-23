@@ -7,9 +7,18 @@
  * needs letters. This floating button sits just above the soft keyboard and flips
  * the field between the number and text keyboards.
  *
- * Only mounts on coarse-pointer (touch) devices, and only shows while a soft
- * keyboard is actually up (visualViewport shrinks by > ~120px). The parent renders
- * it while ITS input is focused, so exactly one button is ever on screen.
+ * Only mounts on coarse-pointer (touch) devices; the parent renders it while ITS
+ * input is focused, so exactly one is ever on screen (and on touch a focused
+ * field means the keyboard is up).
+ *
+ * POSITIONING (260723 rewrite): earlier tries keyed off `window.innerHeight −
+ * visualViewport.height`, but iOS SHRINKS window.innerHeight (and even
+ * documentElement.clientHeight) with the keyboard, so that difference was ≈0 and
+ * the button never appeared. This version uses ONLY the visualViewport: its
+ * bottom edge (`height + offsetTop`, in layout-viewport px) is the top of the
+ * keyboard, and the button is `position: fixed` + `translateY` to just above it.
+ * No height threshold gates visibility — being focused on a touch device is the
+ * signal. `-52` (button height + gap) is the knob to tune the lift.
  *
  * iOS reads `inputmode` at FOCUS time — changing it on an already-focused input
  * does nothing. So we set the attribute imperatively, then blur+refocus INSIDE the
@@ -20,11 +29,8 @@
  * PORTALED TO document.body (260723-1): the BDP tab carousel wraps every pane in
  * a framer motion.div that rests at `transform: translateX(0%)` — a non-`none`
  * transform makes it the containing block for `position: fixed` descendants, so a
- * button rendered in-tree would anchor to the carousel (and get clipped by its
- * overflow) instead of the viewport. Rendering into body escapes that.
- *
- * Sandbox has no WebKit, so this is verified on-device; `KB_INSET_MIN` and the
- * `+8` lift are the knobs to tune if the button sits wrong on a real keyboard.
+ * button rendered in-tree would anchor to the carousel (and get clipped) instead
+ * of the viewport. Rendering into body escapes that.
  */
 import {
   useEffect,
@@ -34,7 +40,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-const KB_INSET_MIN = 120; // px of viewport shrink that counts as "keyboard up"
+// Button height + gap — how far above the keyboard's top edge the button sits.
+const LIFT = 52;
 
 export function MobileKeyboardToggle({
   inputRef,
@@ -48,8 +55,8 @@ export function MobileKeyboardToggle({
   /** Set true before the switch-blur so the parent's onBlur skips its save. */
   switchingRef: MutableRefObject<boolean>;
 }) {
-  // null while no keyboard is up → the button is hidden.
-  const [kbHeight, setKbHeight] = useState<number | null>(null);
+  // Y of the visible area's bottom (layout-viewport px) = the keyboard's top.
+  const [bottomY, setBottomY] = useState<number | null>(null);
   const [coarse] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -59,19 +66,11 @@ export function MobileKeyboardToggle({
   useEffect(() => {
     if (!coarse) return;
     const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      // iOS shrinks window.innerHeight WITH the keyboard, so innerHeight −
-      // vv.height ≈ 0 and the button never appeared. The LAYOUT viewport
-      // (documentElement.clientHeight) stays at full height under the keyboard —
-      // use the larger of the two as the un-shrunk base.
-      const base = Math.max(
-        document.documentElement.clientHeight,
-        window.innerHeight,
-      );
-      const inset = Math.max(0, base - (vv.height + vv.offsetTop));
-      setKbHeight(inset > KB_INSET_MIN ? inset : null);
-    };
+    if (!vv) {
+      setBottomY(window.innerHeight);
+      return;
+    }
+    const update = () => setBottomY(vv.height + vv.offsetTop);
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
@@ -81,7 +80,7 @@ export function MobileKeyboardToggle({
     };
   }, [coarse]);
 
-  if (!coarse || kbHeight === null || typeof document === "undefined")
+  if (!coarse || bottomY === null || typeof document === "undefined")
     return null;
 
   return createPortal(
@@ -116,7 +115,13 @@ export function MobileKeyboardToggle({
           /* number-like inputs may reject setSelectionRange — focus is enough */
         }
       }}
-      style={{ position: "fixed", right: 12, bottom: kbHeight + 8, zIndex: 60 }}
+      style={{
+        position: "fixed",
+        top: 0,
+        right: 12,
+        transform: `translateY(${Math.max(bottomY - LIFT, 8)}px)`,
+        zIndex: 2147483000,
+      }}
       className="rounded-md border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-3.5 py-2 text-sm font-semibold text-[var(--body-on-dark)] shadow-lg [-webkit-tap-highlight-color:transparent]"
     >
       {mode === "numeric" ? "ABC" : "123"}

@@ -78,14 +78,9 @@ interface DraftProps {
   sectionType: WalletType;
   budgetCurrency: string;
   maxAmountChars?: number;
-  // fires POST on non-empty blur; viaKeyboard=true when committed with Enter (the
-  // desktop keyboard-nav guided add: name → currency → amount).
-  onCommit: (
-    name: string,
-    viaKeyboard: boolean,
-    currency: string,
-    amount: string,
-  ) => Promise<void>;
+  // Fires when the draft mini-form is left (non-empty name) → POST /wallets with
+  // the chosen currency; the amount is applied via a balance PATCH after create.
+  onCommit: (name: string, currency: string, amount: string) => Promise<void>;
   onDiscard: () => void; // fires on empty blur OR Escape
   pending: boolean; // POST in-flight
   error: string | null; // last POST error code
@@ -119,42 +114,40 @@ function DraftRow({
   const [amount, setAmount] = useState("0");
   const inputRef = useRef<HTMLInputElement>(null);
   const wide = useIsWide();
-  // True while the pending commit was triggered by Enter (→ desktop guided add).
-  const viaKbdRef = useRef(false);
 
   // Auto-focus on mount AND re-focus on error (user can retry)
   useEffect(() => {
     inputRef.current?.focus();
   }, [error]);
 
-  // 260723-2: the draft is a mini-form (name + currency + amount). It commits
-  // only when focus leaves the WHOLE row — not on each field blur — so tapping
-  // the currency or amount OPENS that control (first tap, in the same gesture)
-  // instead of saving the wallet early and needing a second tap. On desktop the
-  // currency/amount are placeholders and the guided flow edits them on the
-  // persisted row, so the only focusable draft field is the name.
+  // 260723-2/4: the draft is a mini-form (name + currency + amount) with REAL
+  // controls on EVERY device — tap/click a field to edit it in place, or hop
+  // between them with Tab / Shift+Tab. It commits only when focus leaves the
+  // WHOLE row, so field-to-field navigation never saves early. The roving
+  // keyboard-nav never fires while a draft field is focused (it defers to text
+  // entry), so Tab/arrows here don't drive the tab-pill navigation.
   const commitIfLeaving = (e: React.FocusEvent<HTMLDivElement>) => {
     const rt = e.relatedTarget as HTMLElement | null;
     if (rt && e.currentTarget.contains(rt)) return; // hopping fields within the row
     if (rt?.closest?.('[role="listbox"],[role="dialog"]')) return; // a dropdown is open
     const trimmed = name.trim();
-    const viaKbd = viaKbdRef.current;
-    viaKbdRef.current = false;
     if (!trimmed) {
       onDiscard();
       return;
     }
-    onCommit(trimmed, viaKbd, currency, amount);
+    onCommit(trimmed, currency, amount);
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
+  const handleRowKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
+      e.preventDefault();
       onDiscard();
       return;
     }
-    if (e.key === "Enter") {
-      viaKbdRef.current = true; // → desktop guided add on the persisted row
-      inputRef.current?.blur();
+    // Enter in a text field commits (leaves the row). On the currency picker,
+    // Enter belongs to the picker — don't hijack it.
+    if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+      (e.target as HTMLElement).blur();
     }
   };
 
@@ -163,6 +156,7 @@ function DraftRow({
       data-testid="wallet-row-draft"
       data-wallet-id=""
       onBlur={commitIfLeaving}
+      onKeyDown={handleRowKey}
       className={[
         "flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)]",
         "bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]",
@@ -174,13 +168,12 @@ function DraftRow({
       {/* Drag-handle placeholder — draft rows cannot be dragged */}
       <div className="w-4" aria-hidden="true" />
 
-      {/* Name input — auto-focused */}
-      <div className="flex-1">
+      {/* Name — the widest field (flex-1), auto-focused. */}
+      <div className="min-w-0 flex-1">
         <Input
           ref={inputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={handleKey}
           disabled={pending}
           placeholder={t("namePlaceholder")}
           className="h-9"
@@ -189,54 +182,45 @@ function DraftRow({
         />
       </div>
 
-      {/* Currency — 260723-2: a real picker on mobile (opens on the first tap,
-          native <select> on touch); a read-only placeholder on desktop, where the
-          guided flow edits it on the persisted row. */}
+      {/* Currency — 260723-4: a real picker on EVERY device. Rich dropdown on
+          desktop, native <select> on touch (opens on the first tap). */}
       <div
-        className="w-[44px] rounded sm:w-[96px] md:w-[224px]"
+        className="w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px]"
         data-nav-field="currency"
       >
-        {wide ? (
-          <span
-            className="text-[var(--muted-foreground)]"
-            aria-label={t("currencyReadOnlyAria", { ccy: currency })}
-          >
-            {currency}
-          </span>
-        ) : (
-          <CurrencyPicker
-            value={currency}
-            aria-label={t("currencyAria")}
-            onSelect={setCurrency}
-            richLabel={false}
-            desktopDropdown={false}
-          />
-        )}
+        <CurrencyPicker
+          value={currency}
+          aria-label={t("currencyAria")}
+          onSelect={setCurrency}
+          richLabel={wide}
+          desktopDropdown={wide}
+        />
       </div>
 
       {/* Amount — 260723-2: a real editable field on mobile (tap → keyboard);
           a bare "0" placeholder on desktop (guided flow edits the persisted row).
           UAT-PH5-T3-30: width tracks the section's longest amount. */}
+      {/* Amount — 260723-3: a COMPACT right-aligned field on every device, sized
+          like the persisted-row amount editor (fixed width so it can't blow up
+          and squeeze the name). The name owns the row width. */}
       <div
-        className="text-right tabular-nums"
-        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+        className="shrink-0 text-right tabular-nums"
+        style={{
+          width: `${Math.max((maxAmountChars ?? MIN_AMOUNT_CHARS) + 1, 6)}ch`,
+        }}
         data-nav-field="amount"
       >
-        {wide ? (
-          <span className="text-num-md text-[var(--muted-foreground)]">0</span>
-        ) : (
-          <Input
-            type="text"
-            inputMode="decimal"
-            value={amount}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
-            disabled={pending}
-            aria-label={t("amountAria")}
-            data-testid="wallet-draft-amount-input"
-            className="h-9 w-full text-right"
-          />
-        )}
+        <Input
+          type="text"
+          inputMode="decimal"
+          value={amount}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
+          disabled={pending}
+          aria-label={t("amountAria")}
+          data-testid="wallet-draft-amount-input"
+          className="h-9 w-full px-2 text-right"
+        />
       </div>
 
       {/* UAT-PH5-T3-14: Share placeholder for column alignment with persisted rows.

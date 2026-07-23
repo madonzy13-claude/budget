@@ -192,6 +192,11 @@ export function SlotAmount({
         // Horizontal breathing room = the blur radius (em, so it scales with the
         // font) — keeps the fuzzy edges of the outer digits from being clipped.
         paddingInline: `${blurEm}em`,
+        // 260723-1: cancel the START padding's layout shift with a negative start
+        // margin so the (revealed) amount's first glyph lines up with its label —
+        // the padding was indenting "22,216 zł" ~0.22em right of "Capitalization".
+        // The blur room still lives inside the (now outset) padding box.
+        marginInlineStart: `-${blurEm}em`,
         overflow: "visible",
         // NOTE: proportional figures (no tabular-nums) so the real "1" is narrow
         // and matches its "I" mask; the medium-letter masks match the wider digits.

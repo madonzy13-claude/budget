@@ -381,7 +381,7 @@ describe("WalletRow — draft mode", () => {
     fireEvent.change(amount, { target: { value: "250.50" } });
     // Leaving the whole row commits all three values in one go.
     fireEvent.blur(amount, { relatedTarget: document.body });
-    expect(onCommit).toHaveBeenCalledWith("Cash", false, "EUR", "250.50");
+    expect(onCommit).toHaveBeenCalledWith("Cash", "EUR", "250.50");
   });
 
   it("mobile draft: hopping name → amount within the row does NOT commit", () => {
