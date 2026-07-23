@@ -18,10 +18,11 @@
  * bottom edge (`height + offsetTop`, in layout-viewport px) is the top of the
  * keyboard, and the button is `position: fixed` + `translateY` to just above it.
  * It's HIDDEN when the keyboard is closed: a module-level tracker records the
- * LARGEST visualViewport bottom ever seen (the no-keyboard height, captured when
+ * LARGEST visualViewport HEIGHT ever seen (the no-keyboard height, captured when
  * the grid first mounts with the keyboard down), and the button shows only while
- * the current bottom sits well below it. Self-calibrating — no device constant,
- * so it survives iOS shrinking innerHeight/clientHeight. `-52` is the lift knob.
+ * the current height sits well below it. Gating on height (not height+offsetTop)
+ * matters — iOS pushes offsetTop positive with the keyboard up, which hid the
+ * button. Self-calibrating, no device constant. `-52` is the lift knob.
  *
  * iOS reads `inputmode` at FOCUS time — changing it on an already-focused input
  * does nothing. So we set the attribute imperatively, then blur+refocus INSIDE the
@@ -46,17 +47,22 @@ import { createPortal } from "react-dom";
 // Button height + gap — how far above the keyboard's top edge the button sits.
 const LIFT = 52;
 
-// Self-calibrating keyboard detector. We track the LARGEST visualViewport bottom
-// ever seen (= the no-keyboard height) from module load — when the grid first
-// mounts the keyboard is down, so this captures the full height with NO device
-// constant. Keyboard-up = the current bottom sits well below that max; keyboard-
-// down = it climbs back near the max. Robust to iOS shrinking innerHeight AND
-// documentElement.clientHeight with the keyboard (which broke earlier attempts).
-let maxViewportBottom = 0;
+// Self-calibrating keyboard detector. Track the LARGEST visualViewport HEIGHT
+// ever seen (= the no-keyboard height) from module load — the grid first mounts
+// with the keyboard down, so this captures the full height with NO device
+// constant. Keyboard-up = the current height sits well below that max.
+//
+// We gate on HEIGHT, not height+offsetTop: iOS pushes visualViewport.offsetTop
+// POSITIVE while the keyboard is up (to keep the focused field visible), which
+// inflates the bottom edge so its delta from the max collapses below the
+// threshold and wrongly reads as "keyboard closed". Height drops by the full
+// keyboard height regardless of offsetTop. (Robust to iOS shrinking innerHeight
+// AND documentElement.clientHeight — both broke earlier attempts.)
+let maxViewportHeight = 0;
 if (typeof window !== "undefined" && window.visualViewport) {
   const vv = window.visualViewport;
   const track = () => {
-    maxViewportBottom = Math.max(maxViewportBottom, vv.height + vv.offsetTop);
+    maxViewportHeight = Math.max(maxViewportHeight, vv.height);
   };
   track();
   vv.addEventListener("resize", track);
@@ -75,8 +81,9 @@ export function MobileKeyboardToggle({
   /** Set true before the switch-blur so the parent's onBlur skips its save. */
   switchingRef: MutableRefObject<boolean>;
 }) {
-  // Y of the visible area's bottom (layout-viewport px) = the keyboard's top.
-  const [bottomY, setBottomY] = useState<number | null>(null);
+  // `bottom` (height + offsetTop, layout-viewport px) = the keyboard's top edge,
+  // for positioning; `height` drives the keyboard-up gate below.
+  const [vp, setVp] = useState<{ height: number; bottom: number } | null>(null);
   const [coarse] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -87,10 +94,13 @@ export function MobileKeyboardToggle({
     if (!coarse) return;
     const vv = window.visualViewport;
     if (!vv) {
-      setBottomY(window.innerHeight);
+      setVp({ height: window.innerHeight, bottom: window.innerHeight });
       return;
     }
-    const update = () => setBottomY(vv.height + vv.offsetTop);
+    const update = () => {
+      maxViewportHeight = Math.max(maxViewportHeight, vv.height);
+      setVp({ height: vv.height, bottom: vv.height + vv.offsetTop });
+    };
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
@@ -100,19 +110,13 @@ export function MobileKeyboardToggle({
     };
   }, [coarse]);
 
-  // Keyboard is up when the visible-area bottom is >100px above the largest
-  // (no-keyboard) bottom we've tracked. If we somehow have no reference yet
-  // (max not seeded), fall back to showing so the button is never stuck hidden.
+  // Keyboard is up when the visible height is >100px below the largest
+  // (no-keyboard) height tracked. No reference yet → show, so it's never stuck.
   const keyboardUp =
-    bottomY !== null &&
-    (maxViewportBottom > 0 ? bottomY < maxViewportBottom - 100 : true);
+    vp !== null &&
+    (maxViewportHeight > 0 ? vp.height < maxViewportHeight - 100 : true);
 
-  if (
-    !coarse ||
-    bottomY === null ||
-    !keyboardUp ||
-    typeof document === "undefined"
-  )
+  if (!coarse || vp === null || !keyboardUp || typeof document === "undefined")
     return null;
 
   return createPortal(
@@ -151,7 +155,7 @@ export function MobileKeyboardToggle({
         position: "fixed",
         top: 0,
         right: 12,
-        transform: `translateY(${Math.max(bottomY - LIFT, 8)}px)`,
+        transform: `translateY(${Math.max(vp.bottom - LIFT, 8)}px)`,
         zIndex: 2147483000,
       }}
       // 260723-2: yellow pill (was a grey rectangle → invisible on the grey
