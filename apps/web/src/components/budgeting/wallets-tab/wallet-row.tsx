@@ -165,7 +165,13 @@ function DraftRow({
     e.preventDefault();
     e.stopPropagation();
     const dir = e.shiftKey ? -1 : 1;
-    fields[(idx + dir + fields.length) % fields.length]!.focus();
+    const next = fields[(idx + dir + fields.length) % fields.length]!;
+    next.focus();
+    // 260723: landing on the currency picker OPENS its dropdown so the user can
+    // pick straight away — Radix highlights the current selection when it opens.
+    // (Native <select> on touch has no such trigger; only the desktop Radix
+    // button/combobox is clicked.)
+    if (next.matches('button, [role="combobox"]')) next.click();
   };
 
   const handleRowKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
