@@ -138,6 +138,36 @@ function DraftRow({
     onCommit(trimmed, currency, amount);
   };
 
+  // Tab / Shift+Tab CYCLE within the three draft fields, wrapping: name →
+  // currency → amount → name (and reverse). Handled in the CAPTURE phase so it
+  // runs before Radix's Select trigger or the browser's native Tab — nothing can
+  // intercept it first. Adding a wallet stays a self-contained loop; the user
+  // commits with Enter or by clicking away.
+  const handleRowKeyCapture = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const row = e.currentTarget;
+    const fields = [
+      row.querySelector<HTMLElement>('[data-testid="wallet-draft-name-input"]'),
+      row.querySelector<HTMLElement>(
+        '[data-nav-field="currency"] button, [data-nav-field="currency"] [role="combobox"], [data-nav-field="currency"] select',
+      ),
+      row.querySelector<HTMLElement>(
+        '[data-testid="wallet-draft-amount-input"]',
+      ),
+    ].filter((f): f is HTMLElement => !!f);
+    const active = document.activeElement;
+    const idx = active
+      ? fields.findIndex((f) => f === active || f.contains(active))
+      : -1;
+    // Only trap Tab while focus is ON a draft field (not, e.g., inside an OPEN
+    // currency dropdown, whose listbox is portaled outside the row).
+    if (idx === -1 || fields.length < 2) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = e.shiftKey ? -1 : 1;
+    fields[(idx + dir + fields.length) % fields.length]!.focus();
+  };
+
   const handleRowKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -148,34 +178,6 @@ function DraftRow({
     // Enter belongs to the picker — don't hijack it.
     if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
       (e.target as HTMLElement).blur();
-      return;
-    }
-    // Tab / Shift+Tab CYCLE within the three draft fields, wrapping: name →
-    // currency → amount → name (and reverse). Adding a wallet stays a
-    // self-contained loop; the user commits with Enter or by clicking away.
-    if (e.key === "Tab") {
-      const row = e.currentTarget;
-      const fields = [
-        row.querySelector<HTMLElement>(
-          '[data-testid="wallet-draft-name-input"]',
-        ),
-        row.querySelector<HTMLElement>(
-          '[data-nav-field="currency"] button, [data-nav-field="currency"] [role="combobox"], [data-nav-field="currency"] select',
-        ),
-        row.querySelector<HTMLElement>(
-          '[data-testid="wallet-draft-amount-input"]',
-        ),
-      ].filter((f): f is HTMLElement => !!f);
-      const active = document.activeElement;
-      const idx = active
-        ? fields.findIndex((f) => f === active || f.contains(active))
-        : -1;
-      // Only trap Tab while focus is ON a draft field (not, e.g., inside an OPEN
-      // currency dropdown, whose listbox is portaled outside the row).
-      if (idx === -1 || fields.length < 2) return;
-      e.preventDefault();
-      const dir = e.shiftKey ? -1 : 1;
-      fields[(idx + dir + fields.length) % fields.length]!.focus();
     }
   };
 
@@ -184,6 +186,7 @@ function DraftRow({
       data-testid="wallet-row-draft"
       data-wallet-id=""
       onBlur={commitIfLeaving}
+      onKeyDownCapture={handleRowKeyCapture}
       onKeyDown={handleRowKey}
       className={[
         "flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)]",
