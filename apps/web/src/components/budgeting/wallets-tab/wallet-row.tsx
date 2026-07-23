@@ -112,6 +112,7 @@ function DraftRow({
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState(budgetCurrency);
   const [amount, setAmount] = useState("0");
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const wide = useIsWide();
 
@@ -119,6 +120,36 @@ function DraftRow({
   useEffect(() => {
     inputRef.current?.focus();
   }, [error]);
+
+  // 260723: while the currency dropdown is OPEN, Tab / Shift+Tab close it and
+  // advance to the next / previous field — instead of the focus (trapped in the
+  // portaled listbox, outside the row) escaping to the BDP tab pills. Capture on
+  // document + stopPropagation so neither Radix nor the pill-cycle sees the Tab.
+  useEffect(() => {
+    if (!currencyOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = e.shiftKey ? -1 : 1;
+      setCurrencyOpen(false);
+      const sel =
+        dir === 1
+          ? '[data-testid="wallet-draft-amount-input"]'
+          : '[data-testid="wallet-draft-name-input"]';
+      // Radix returns focus to the trigger on close; re-assert focus on the
+      // target field for a few frames so it wins that race (focus() on the
+      // already-focused target is a no-op, so it settles without flicker).
+      let tries = 0;
+      const grab = () => {
+        document.querySelector<HTMLElement>(sel)?.focus();
+        if (tries++ < 4) requestAnimationFrame(grab);
+      };
+      requestAnimationFrame(grab);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [currencyOpen]);
 
   // 260723-2/4: the draft is a mini-form (name + currency + amount) with REAL
   // controls on EVERY device — tap/click a field to edit it in place, or hop
@@ -220,9 +251,12 @@ function DraftRow({
       </div>
 
       {/* Currency — 260723-4: a real picker on EVERY device. Rich dropdown on
-          desktop, native <select> on touch (opens on the first tap). */}
+          desktop, native <select> on touch (opens on the first tap). The cell
+          gets a yellow ring while the dropdown is open (260723). */}
       <div
-        className="w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px]"
+        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px]${
+          currencyOpen ? " ring-1 ring-[var(--primary)]" : ""
+        }`}
         data-nav-field="currency"
       >
         <CurrencyPicker
@@ -231,6 +265,8 @@ function DraftRow({
           onSelect={setCurrency}
           richLabel={wide}
           desktopDropdown={wide}
+          open={currencyOpen}
+          onOpenChange={setCurrencyOpen}
         />
       </div>
 

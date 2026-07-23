@@ -69,6 +69,13 @@ interface CurrencyPickerProps {
    * rich list as desktop.
    */
   desktopDropdown?: boolean;
+  /**
+   * Controlled open state for the desktop Radix dropdown (used by the draft
+   * wallet keyboard flow: Tab opens it, Tab-while-open closes + advances). Leave
+   * undefined for the normal uncontrolled behaviour.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -88,6 +95,8 @@ export function CurrencyPicker({
   variant = "inline",
   richLabel = false,
   desktopDropdown = false,
+  open,
+  onOpenChange,
 }: CurrencyPickerProps) {
   const t = useTranslations("currency");
   const effectivePlaceholder = placeholder ?? t("picker.placeholder");
@@ -203,6 +212,8 @@ export function CurrencyPicker({
   return (
     <Select
       {...(value ? { value } : {})}
+      {...(open !== undefined ? { open } : {})}
+      {...(onOpenChange ? { onOpenChange } : {})}
       onValueChange={onSelect}
       disabled={disabled}
     >
