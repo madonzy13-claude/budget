@@ -17,8 +17,10 @@
  * the button never appeared. This version uses ONLY the visualViewport: its
  * bottom edge (`height + offsetTop`, in layout-viewport px) is the top of the
  * keyboard, and the button is `position: fixed` + `translateY` to just above it.
- * No height threshold gates visibility — being focused on a touch device is the
- * signal. `-52` (button height + gap) is the knob to tune the lift.
+ * It's HIDDEN when the keyboard is closed by comparing that bottom edge to the
+ * STABLE window.screen.height (a device constant) — when the keyboard drops, the
+ * visible area grows back past ~80% of the screen. `-52` (button height + gap) is
+ * the knob to tune the lift.
  *
  * iOS reads `inputmode` at FOCUS time — changing it on an already-focused input
  * does nothing. So we set the attribute imperatively, then blur+refocus INSIDE the
@@ -80,7 +82,22 @@ export function MobileKeyboardToggle({
     };
   }, [coarse]);
 
-  if (!coarse || bottomY === null || typeof document === "undefined")
+  // Hide when the keyboard is closed. The visible-area bottom (`bottomY`) sits
+  // well short of the STABLE screen height only while the keyboard is up; when it
+  // closes, visualViewport grows back toward the screen and bottomY climbs past
+  // the threshold. Uses window.screen.height (device-fixed) — NOT innerHeight /
+  // clientHeight, both of which iOS shrinks with the keyboard.
+  const screenH =
+    typeof window !== "undefined" ? (window.screen?.height ?? 0) : 0;
+  const keyboardUp =
+    bottomY !== null && (screenH > 0 ? bottomY < screenH * 0.8 : true);
+
+  if (
+    !coarse ||
+    bottomY === null ||
+    !keyboardUp ||
+    typeof document === "undefined"
+  )
     return null;
 
   return createPortal(
