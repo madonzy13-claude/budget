@@ -552,6 +552,11 @@ export function TransactionRow({
             type="button"
             data-testid="txn-action-edit"
             aria-label={t("action.delete")}
+            // 260723-10: keep focus on the row so the chip doesn't unmount
+            // mid-click (focus leaving the row hides the chips) — otherwise the
+            // tap falls through to the amount cell and reopens the inline editor.
+            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(txn.id);
@@ -568,6 +573,8 @@ export function TransactionRow({
             type="button"
             data-testid="txn-action-delete"
             aria-label={t("action.delete")}
+            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
               setDeleteOpen(true);

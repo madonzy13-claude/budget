@@ -80,7 +80,11 @@ interface DraftProps {
   maxAmountChars?: number;
   // fires POST on non-empty blur; viaKeyboard=true when committed with Enter (the
   // desktop keyboard-nav guided add: name → currency → amount).
-  onCommit: (name: string, viaKeyboard: boolean) => Promise<void>;
+  onCommit: (
+    name: string,
+    viaKeyboard: boolean,
+    resumeField?: "currency" | "amount",
+  ) => Promise<void>;
   onDiscard: () => void; // fires on empty blur OR Escape
   pending: boolean; // POST in-flight
   error: string | null; // last POST error code
@@ -113,6 +117,10 @@ function DraftRow({
   const inputRef = useRef<HTMLInputElement>(null);
   // True while the pending blur was triggered by an Enter keypress (→ guided add).
   const viaKbdRef = useRef(false);
+  // 260723-8: which field the user tapped to trigger the commit-blur, so the
+  // persisted row can re-open it (mobile: name → tap currency/amount → save +
+  // open that field). Set on the cell's pointerdown, BEFORE the name input blurs.
+  const resumeFieldRef = useRef<"currency" | "amount" | null>(null);
 
   // Auto-focus on mount AND re-focus on error (user can retry)
   useEffect(() => {
@@ -122,12 +130,14 @@ function DraftRow({
   const handleBlur = async () => {
     const trimmed = name.trim();
     const viaKbd = viaKbdRef.current;
+    const resume = resumeFieldRef.current;
     viaKbdRef.current = false;
+    resumeFieldRef.current = null;
     if (!trimmed) {
       onDiscard();
       return;
     }
-    await onCommit(trimmed, viaKbd);
+    await onCommit(trimmed, viaKbd, resume ?? undefined);
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -172,8 +182,16 @@ function DraftRow({
         />
       </div>
 
-      {/* Currency — read-only in draft state */}
-      <div className="w-[44px] sm:w-[96px]">
+      {/* Currency — read-only in draft state. 260723-8: tapping it on mobile
+          commits the name (the tap blurs the input) and re-opens the currency
+          picker on the persisted row. */}
+      <div
+        className="w-[44px] cursor-pointer sm:w-[96px]"
+        onPointerDown={() => {
+          if (!window.matchMedia("(min-width: 768px)").matches)
+            resumeFieldRef.current = "currency";
+        }}
+      >
         <span
           className="text-[var(--muted-foreground)]"
           aria-label={t("currencyReadOnlyAria", { ccy: budgetCurrency })}
@@ -182,13 +200,17 @@ function DraftRow({
         </span>
       </div>
 
-      {/* Amount — always 0.00 in draft state.
+      {/* Amount — a bare "0" placeholder in draft state (260723-8: was "0.00").
           UAT-PH5-T3-30: width tracks the section's longest amount. */}
       <div
-        className="text-right tabular-nums"
+        className="cursor-pointer text-right tabular-nums"
         style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+        onPointerDown={() => {
+          if (!window.matchMedia("(min-width: 768px)").matches)
+            resumeFieldRef.current = "amount";
+        }}
       >
-        <span className="text-num-md text-[var(--muted-foreground)]">0.00</span>
+        <span className="text-num-md text-[var(--muted-foreground)]">0</span>
       </div>
 
       {/* UAT-PH5-T3-14: Share placeholder for column alignment with persisted rows.
@@ -520,7 +542,7 @@ function PersistedRow({
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
         <div
-          className="w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[190px]"
+          className="w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px]"
           data-inline-cell
           data-nav-field="currency"
         >

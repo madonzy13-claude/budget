@@ -17,24 +17,27 @@
  * Pure helper so it unit-tests without a DOM or timers.
  */
 
-// Keyboard-layout transliteration (260722-translit). The user may search with a
-// keyboard whose layout differs from the category's language — e.g. a Ukrainian
-// keyboard active while the categories are English. We fold every char to its
-// QWERTY physical-key position so a match is found regardless of the enabled
-// layout, plus Polish diacritics to their base letter.
+// Keyboard-layout transliteration (260722-translit, +ru 260723). The user may
+// search with a keyboard whose layout differs from the category's language — e.g.
+// a Ukrainian/Russian keyboard active while the categories are English. We fold
+// every char to its QWERTY physical-key position so a match is found regardless
+// of the enabled layout, plus Polish diacritics to their base letter.
 //
-//  • Ukrainian KBDUR ↔ QWERTY: typing the physical keys f-o-o-d on the UA layout
-//    emits "ащщв"; folding "ащщв" back to its key positions yields "food", which
-//    matches the English "Food". Bidirectional — an English keyboard typing the
-//    physical keys that would spell a UA name matches that name too.
+//  • Ukrainian KBDUR + Russian JCUKEN ↔ QWERTY: typing the physical keys f-o-o-d
+//    on either Cyrillic layout emits "ащщв"; folding it back to its key positions
+//    yields "food", which matches the English "Food". Bidirectional — an English
+//    keyboard typing the physical keys that would spell a Cyrillic name matches it.
 //  • Polish ćśńżźółęą → csnzzolea, both directions (a diacritic fold).
 //  • Ukrainian ґ folds to the same key as г (the two are interchangeable).
+//  • UA and RU share most keys; the RU-only letters (ы ъ э ё) sit on the s ] ' `
+//    keys — the same keys UA puts і ї є on — so all four layouts intersect.
 // prettier-ignore
-const UA_TO_QWERTY: Record<string, string> = {
+const CYRILLIC_TO_QWERTY: Record<string, string> = {
   й: "q", ц: "w", у: "e", к: "r", е: "t", н: "y", г: "u", ш: "i", щ: "o", з: "p", х: "[", ї: "]",
   ф: "a", і: "s", в: "d", а: "f", п: "g", р: "h", о: "j", л: "k", д: "l", ж: ";", є: "'",
   я: "z", ч: "x", с: "c", м: "v", и: "b", т: "n", ь: "m", б: ",", ю: ".",
   ґ: "u", // interchangeable with г
+  ы: "s", ъ: "]", э: "'", ё: "`", // Russian JCUKEN-only letters
 };
 const PL_FOLD: Record<string, string> = {
   ć: "c",
@@ -51,7 +54,7 @@ const PL_FOLD: Record<string, string> = {
 /** Fold one char to its canonical search key (QWERTY position / base letter). */
 function canonicalChar(ch: string): string {
   const c = ch.toLowerCase();
-  if (c in UA_TO_QWERTY) return UA_TO_QWERTY[c]!;
+  if (c in CYRILLIC_TO_QWERTY) return CYRILLIC_TO_QWERTY[c]!;
   if (c in PL_FOLD) return PL_FOLD[c]!;
   // General Latin accent strip (é→e, ü→u…) for anything not covered above.
   return c.normalize("NFD").replace(/[\u0300-\u036f]/g, "") || c;

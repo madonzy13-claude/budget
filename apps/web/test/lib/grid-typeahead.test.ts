@@ -157,4 +157,23 @@ describe("typeaheadStep — layout-agnostic matching", () => {
     // Type г (u key) where the name has ґ — still matches.
     expect(typeaheadStep("", "г", UA).jumpTo).toBe("ґроші");
   });
+
+  it("folds Russian JCUKEN keys to their QWERTY positions", () => {
+    // Russian-specific letters sit on the s / ] / ' / ` keys.
+    expect(canonicalizeForSearch("ы")).toBe("s");
+    expect(canonicalizeForSearch("ъ")).toBe("]");
+    expect(canonicalizeForSearch("э")).toBe("'");
+    expect(canonicalizeForSearch("ё")).toBe("`");
+    // Shared keys still match: physical f-o-o-d → "ащщв" on JCUKEN too.
+    expect(canonicalizeForSearch("ащщв")).toBe("food");
+  });
+
+  it("a Russian-layout typist matches an English category", () => {
+    const EN = ["salary", "food"];
+    // Physical s-a-l keys on JCUKEN emit ы-ф-д → folds to "sal" → salary.
+    let s = typeaheadStep("", "ы", EN);
+    s = typeaheadStep(s.buffer, "ф", EN);
+    s = typeaheadStep(s.buffer, "д", EN);
+    expect(s.jumpTo).toBe("salary");
+  });
 });

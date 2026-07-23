@@ -34,7 +34,18 @@ export function WalletDeleteConfirm({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent
+        // 260723-4: focus the destructive action on open so a single Enter
+        // confirms the delete (Radix otherwise parks focus on Cancel).
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement)
+            .querySelector<HTMLButtonElement>(
+              '[data-testid="wallet-delete-confirm-action"]',
+            )
+            ?.focus();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{t("title", { name })}</AlertDialogTitle>
           <AlertDialogDescription>{t("body")}</AlertDialogDescription>
@@ -42,6 +53,7 @@ export function WalletDeleteConfirm({
         <AlertDialogFooter>
           <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
           <AlertDialogAction
+            data-testid="wallet-delete-confirm-action"
             className="bg-[var(--destructive)] text-[var(--on-primary)]"
             onClick={onConfirm}
           >

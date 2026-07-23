@@ -17,6 +17,12 @@
  * type). `switchingRef` tells the parent's blur handler this blur is a
  * keyboard-switch, not a real commit — so it must NOT save the entry.
  *
+ * PORTALED TO document.body (260723-1): the BDP tab carousel wraps every pane in
+ * a framer motion.div that rests at `transform: translateX(0%)` — a non-`none`
+ * transform makes it the containing block for `position: fixed` descendants, so a
+ * button rendered in-tree would anchor to the carousel (and get clipped by its
+ * overflow) instead of the viewport. Rendering into body escapes that.
+ *
  * Sandbox has no WebKit, so this is verified on-device; `KB_INSET_MIN` and the
  * `+8` lift are the knobs to tune if the button sits wrong on a real keyboard.
  */
@@ -26,6 +32,7 @@ import {
   type RefObject,
   type MutableRefObject,
 } from "react";
+import { createPortal } from "react-dom";
 
 const KB_INSET_MIN = 120; // px of viewport shrink that counts as "keyboard up"
 
@@ -69,9 +76,10 @@ export function MobileKeyboardToggle({
     };
   }, [coarse]);
 
-  if (!coarse || kbHeight === null) return null;
+  if (!coarse || kbHeight === null || typeof document === "undefined")
+    return null;
 
-  return (
+  return createPortal(
     <button
       type="button"
       data-testid="kbd-mode-toggle"
@@ -107,6 +115,7 @@ export function MobileKeyboardToggle({
       className="rounded-md border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-3.5 py-2 text-sm font-semibold text-[var(--body-on-dark)] shadow-lg [-webkit-tap-highlight-color:transparent]"
     >
       {mode === "numeric" ? "ABC" : "123"}
-    </button>
+    </button>,
+    document.body,
   );
 }

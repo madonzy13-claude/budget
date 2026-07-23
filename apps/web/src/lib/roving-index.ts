@@ -22,6 +22,20 @@ export function nextNavIndex(cur: number, len: number, dir: 1 | -1): number {
   return wrapIndex(cur + dir, len);
 }
 
+/**
+ * After removing the item at `removedIdx` from a nav list, the index (into the
+ * NEW, post-removal list of length `newLen`) that should take the highlight —
+ * the item that slid into the deleted slot (the next sibling), clamped to the
+ * last item when the deleted one was last. -1 when the list is now empty.
+ * (260723-5: focus the next wallet in the section, or its add button when the
+ * section's last wallet was removed — the add button follows the wallets in the
+ * flat nav order, so it naturally lands on it.)
+ */
+export function nextHighlightIndex(removedIdx: number, newLen: number): number {
+  if (newLen <= 0) return -1;
+  return Math.min(Math.max(removedIdx, 0), newLen - 1);
+}
+
 /** The three horizontally-hoppable fields of a wallet / possession row. */
 export const NAV_FIELDS = ["name", "currency", "amount"] as const;
 export type NavField = (typeof NAV_FIELDS)[number];

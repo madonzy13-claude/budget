@@ -49,7 +49,11 @@ interface WalletSectionProps {
   ) => Promise<void>;
   onArchive: (id: string) => void;
   onAdd: () => void;
-  onCommitDraft: (name: string, viaKeyboard: boolean) => Promise<void>;
+  onCommitDraft: (
+    name: string,
+    viaKeyboard: boolean,
+    resumeField?: "currency" | "amount",
+  ) => Promise<void>;
   onDiscardDraft: () => void;
 }
 

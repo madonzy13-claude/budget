@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { wrapIndex, nextNavIndex, nextFieldIndex } from "@/lib/roving-index";
+import {
+  wrapIndex,
+  nextNavIndex,
+  nextFieldIndex,
+  nextHighlightIndex,
+} from "@/lib/roving-index";
 
 describe("roving-index", () => {
   it("wraps indices into range", () => {
@@ -20,6 +25,17 @@ describe("roving-index", () => {
     expect(nextNavIndex(0, 4, -1)).toBe(3); // wrap up
     // empty list
     expect(nextNavIndex(0, 0, 1)).toBe(-1);
+  });
+
+  it("picks the next highlight after a removal (next sibling, clamp, empty)", () => {
+    // remove the first of 3 → the item now at 0 (the old second)
+    expect(nextHighlightIndex(0, 2)).toBe(0);
+    // remove the middle → the item that slid into that slot
+    expect(nextHighlightIndex(1, 2)).toBe(1);
+    // remove the LAST → clamp to the new last (e.g. the section's add button)
+    expect(nextHighlightIndex(3, 3)).toBe(2);
+    // removed the only item → nothing left
+    expect(nextHighlightIndex(0, 0)).toBe(-1);
   });
 
   it("hops fields name→currency→amount with wrap; enters at an end", () => {

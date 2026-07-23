@@ -29,6 +29,8 @@ import {
 } from "@dnd-kit/core";
 import { useState, useCallback, useRef } from "react";
 import { useAssetKeyboardNav } from "@/hooks/use-asset-keyboard-nav";
+import { navItems, highlightNavItem } from "@/lib/asset-nav-dom";
+import { nextHighlightIndex } from "@/lib/roving-index";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
@@ -113,6 +115,27 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
               '[data-nav-field="amount"]',
             );
             amountCell?.querySelector<HTMLElement>("[role='button']")?.click();
+            // 260723-3: when the amount editor commits (its input blurs → focus
+            // to body, which the focusout handler would clear), rest the roving
+            // highlight back on the saved row so nav continues from it.
+            requestAnimationFrame(() => {
+              const rr = rootRef.current;
+              const input = rr?.querySelector<HTMLElement>(
+                `[data-wallet-id="${id}"] input`,
+              );
+              input?.addEventListener(
+                "blur",
+                () =>
+                  requestAnimationFrame(() => {
+                    const r2 = rootRef.current;
+                    const rowNow = r2?.querySelector<HTMLElement>(
+                      `[data-wallet-id="${id}"]`,
+                    );
+                    if (r2 && rowNow) highlightNavItem(r2, rowNow);
+                  }),
+                { once: true },
+              );
+            });
           };
           requestAnimationFrame(openAmount);
           return;
@@ -123,6 +146,57 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
     };
     requestAnimationFrame(step1);
   }, []);
+
+  // rAF-poll for a freshly-persisted wallet row (it mounts a frame or two after
+  // the draft clears), then run `cb` with it. Shared by the item-3 rest-highlight
+  // and the item-8 field-resume below.
+  const pollForWalletRow = useCallback(
+    (id: string, cb: (row: HTMLElement, root: HTMLElement) => void) => {
+      let tries = 0;
+      const step = () => {
+        const root = rootRef.current;
+        const row = root?.querySelector<HTMLElement>(
+          `[data-wallet-id="${id}"]`,
+        );
+        if (root && row) {
+          cb(row, root);
+          return;
+        }
+        if (tries++ < 60) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    },
+    [],
+  );
+
+  // 260723-3: after a NON-guided save (mouse blur / mobile), rest the roving
+  // highlight on the saved wallet so focus stays on it (the guided keyboard flow
+  // handles its own rest-on-row above).
+  const highlightNewWallet = useCallback(
+    (id: string) => {
+      pollForWalletRow(id, (row, root) => highlightNavItem(root, row));
+    },
+    [pollForWalletRow],
+  );
+
+  // 260723-8: mobile — the user typed the name then tapped the currency/amount
+  // cell. That tap blurred the name → committed; now open the tapped field on the
+  // persisted row (so the tap isn't wasted and the field activates right away).
+  const openWalletField = useCallback(
+    (id: string, field: "currency" | "amount") => {
+      pollForWalletRow(id, (row) => {
+        const cell = row.querySelector<HTMLElement>(
+          `[data-nav-field="${field}"]`,
+        );
+        if (field === "currency") {
+          cell?.querySelector<HTMLElement>("button,[role='combobox']")?.click();
+        } else {
+          cell?.querySelector<HTMLElement>("[role='button']")?.click();
+        }
+      });
+    },
+    [pollForWalletRow],
+  );
   // SPA refactor (260616): budget meta (currency + section flags) is now read
   // client-side via useBudget instead of baked into the page by the server, so
   // the route stays a static prefetchable shell (no per-soft-nav loading.tsx
@@ -360,40 +434,56 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
    * W-4: Clicking +Add does NOT call this — only WalletRow's onBlur does.
    */
   const handleCommitDraft = useCallback(
-    (type: WalletType) => async (name: string, viaKeyboard: boolean) => {
-      setDrafts((d) => ({ ...d, [type]: { pending: true, error: null } }));
-      try {
-        const created = await createMut.mutateAsync({
-          name,
-          currency: budgetCurrency,
-          amount: "0",
-          walletType: type,
-        });
-        // Success: clear draft — next render shows persisted row from cache
-        setDrafts((d) => {
-          const next = { ...d };
-          delete next[type];
-          return next;
-        });
-        // Desktop keyboard-nav guided add: after naming, walk the user through the
-        // new row's currency picker → then its amount editor (name → currency →
-        // amount). Only when the commit came from Enter (not a mouse blur).
-        if (
-          viaKeyboard &&
-          created?.id &&
-          typeof window !== "undefined" &&
-          window.matchMedia("(min-width: 768px)").matches
-        ) {
-          guideNewWallet(created.id);
+    (type: WalletType) =>
+      async (
+        name: string,
+        viaKeyboard: boolean,
+        resumeField?: "currency" | "amount",
+      ) => {
+        setDrafts((d) => ({ ...d, [type]: { pending: true, error: null } }));
+        try {
+          const created = await createMut.mutateAsync({
+            name,
+            currency: budgetCurrency,
+            amount: "0",
+            walletType: type,
+          });
+          // Success: clear draft — next render shows persisted row from cache
+          setDrafts((d) => {
+            const next = { ...d };
+            delete next[type];
+            return next;
+          });
+          const desktop =
+            typeof window !== "undefined" &&
+            window.matchMedia("(min-width: 768px)").matches;
+          if (created?.id && resumeField) {
+            // 260723-8: mobile tapped a specific field → open just that one.
+            openWalletField(created.id, resumeField);
+          } else if (created?.id && viaKeyboard && desktop) {
+            // Desktop keyboard-nav guided add: name → currency → amount.
+            guideNewWallet(created.id);
+          } else if (created?.id) {
+            // 260723-3: mouse / mobile save → rest the highlight on the new row.
+            highlightNewWallet(created.id);
+          }
+        } catch (e: unknown) {
+          // Keep draft visible with error state; WalletRow's useEffect refocuses
+          const code =
+            (e as Error & { code?: string | null })?.code ?? "create_failed";
+          setDrafts((d) => ({
+            ...d,
+            [type]: { pending: false, error: code },
+          }));
         }
-      } catch (e: unknown) {
-        // Keep draft visible with error state; WalletRow's useEffect refocuses
-        const code =
-          (e as Error & { code?: string | null })?.code ?? "create_failed";
-        setDrafts((d) => ({ ...d, [type]: { pending: false, error: code } }));
-      }
-    },
-    [createMut, budgetCurrency, guideNewWallet],
+      },
+    [
+      createMut,
+      budgetCurrency,
+      guideNewWallet,
+      openWalletField,
+      highlightNewWallet,
+    ],
   );
 
   /**
@@ -409,6 +499,38 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       });
     },
     [],
+  );
+
+  // 260723-5: after deleting a wallet, move the roving highlight to the wallet
+  // that slides into its slot (next in the section) — or the section's add
+  // button when the last wallet was removed (it follows the wallets in the flat
+  // nav order). Captures the removed row's index BEFORE the optimistic removal.
+  const handleArchive = useCallback(
+    (id: string) => {
+      const root = rootRef.current;
+      let removedIdx = -1;
+      if (root) {
+        const el = root.querySelector<HTMLElement>(`[data-wallet-id="${id}"]`);
+        removedIdx = el ? navItems(root).indexOf(el) : -1;
+      }
+      archiveMut.mutate(id);
+      if (removedIdx < 0) return;
+      let tries = 0;
+      const refocus = () => {
+        const r = rootRef.current;
+        if (!r) return;
+        // Wait for the optimistic removal to actually drop the row.
+        if (r.querySelector(`[data-wallet-id="${id}"]`) && tries++ < 30) {
+          requestAnimationFrame(refocus);
+          return;
+        }
+        const items = navItems(r);
+        const idx = nextHighlightIndex(removedIdx, items.length);
+        highlightNavItem(r, idx >= 0 ? items[idx]! : null);
+      };
+      requestAnimationFrame(refocus);
+    },
+    [archiveMut],
   );
 
   // First paint with no cached data and the fetch in flight → skeleton (mirrors
@@ -488,7 +610,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             onUpdate={async (id, patch) => {
               await updateMut.mutateAsync({ walletId: id, ...patch });
             }}
-            onArchive={(id) => archiveMut.mutate(id)}
+            onArchive={handleArchive}
             onAdd={handleAdd(type)}
             onCommitDraft={handleCommitDraft(type)}
             onDiscardDraft={handleDiscardDraft(type)}

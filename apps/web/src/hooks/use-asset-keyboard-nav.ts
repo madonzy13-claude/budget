@@ -25,6 +25,7 @@
  */
 import { useEffect, useRef, type RefObject } from "react";
 import { nextNavIndex, nextFieldIndex, NAV_FIELDS } from "@/lib/roving-index";
+import { highlightNavItem } from "@/lib/asset-nav-dom";
 
 function isTextEntry(el: Element | null): boolean {
   const e = el as HTMLElement | null;
@@ -218,6 +219,33 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
     };
     document.addEventListener("pointerdown", onPointerDown, true);
 
+    // 260723-6: hovering a wallet/asset with the mouse moves the roving highlight
+    // onto it (resetting the previous one) — exactly as ↑/↓ would. So the cursor
+    // and the keyboard share one highlight; an arrow press after a hover steps
+    // from the hovered row. Mouse only (touch/pen "hover" on tap is ignored), and
+    // never while a field editor / dropdown / dialog owns focus.
+    const onPointerOver = (e: PointerEvent) => {
+      const root = rootRef.current;
+      if (!root || !wide()) return;
+      if (e.pointerType && e.pointerType !== "mouse") return;
+      const ae = document.activeElement;
+      if (isTextEntry(ae)) return;
+      if (
+        (ae as HTMLElement | null)?.closest?.(
+          "[role='dialog'],[role='menu'],[role='listbox'],[data-editing='true']",
+        )
+      )
+        return;
+      const item = (e.target as HTMLElement | null)?.closest?.<HTMLElement>(
+        "[data-nav-item]",
+      );
+      if (!item || !root.contains(item)) return;
+      if (item.hasAttribute("data-nav-highlighted")) return; // already there
+      highlightNavItem(root, item);
+      fieldIdx.current = null;
+    };
+    document.addEventListener("pointerover", onPointerOver, true);
+
     // When an inline editor inside the tab commits (Enter/blur → focus returns to
     // <body>), clear the markers so nothing lingers after a save. Guarded to
     // `relatedTarget` being body/null so opening a Radix dropdown (focus → its
@@ -241,6 +269,7 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
     return () => {
       document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerover", onPointerOver, true);
       document.removeEventListener("focusout", onFocusOut, true);
       if (raf) cancelAnimationFrame(raf);
     };
