@@ -275,10 +275,17 @@ export async function getSubscriptionsForBudget(
  */
 export async function getAllSubscribedTenantIds(): Promise<string[]> {
   const result = await withInfraTx(async (tx) => {
-    const rows = await tx
-      .selectDistinct({ tenantId: pushSubscriptions.tenantId })
-      .from(pushSubscriptions);
-    return rows.map((r) => r.tenantId);
+    // 260723: skip ARCHIVED budgets — an archived budget kept sending reminders
+    // because its stale push subscriptions were still scanned. LEFT JOIN so a
+    // subscription with no matching budget row (orphan/test data) is still
+    // returned; only a budget that EXISTS and is archived is excluded.
+    const res = (await tx.execute(sql`
+      SELECT DISTINCT ps.tenant_id AS "tenantId"
+        FROM shared_kernel.push_subscriptions ps
+        LEFT JOIN tenancy.budgets b ON b.id = ps.tenant_id
+       WHERE b.archived_at IS NULL
+    `)) as unknown as { rows: { tenantId: string }[] };
+    return res.rows.map((r) => r.tenantId);
   });
   if (result.isErr()) throw result.error;
   return result.value;

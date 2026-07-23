@@ -64,4 +64,33 @@ describe("getAllSubscribedTenantIds (worker cross-tenant scan)", () => {
     expect(tenantIds).toContain(tenantA);
     expect(tenantIds).toContain(tenantB);
   });
+
+  test("excludes ARCHIVED budgets (260723: archived budget kept sending reminders)", async () => {
+    const userId = await seedUser();
+    const activeBudget = crypto.randomUUID();
+    const archivedBudget = crypto.randomUUID();
+    // Seed two REAL budget rows: one active, one archived (as the owner).
+    const seed = await withBootstrapUserContext(UserId(userId), async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO tenancy.budgets (id, slug, name, default_currency, owner_user_id, archived_at)
+        VALUES (${activeBudget}, ${"a" + activeBudget.slice(0, 8)}, 'Active', 'EUR', ${userId}, NULL),
+               (${archivedBudget}, ${"z" + archivedBudget.slice(0, 8)}, 'Archived', 'EUR', ${userId}, now())
+      `);
+    });
+    if (seed.isErr()) throw seed.error;
+    for (const t of [activeBudget, archivedBudget]) {
+      await upsertSubscription({
+        tenantId: t,
+        userId,
+        endpoint: `https://push.test/${t}`,
+        p256dh: "p",
+        auth: "a",
+        locale: "en",
+      });
+    }
+
+    const tenantIds = await getAllSubscribedTenantIds();
+    expect(tenantIds).toContain(activeBudget); // active still scanned
+    expect(tenantIds).not.toContain(archivedBudget); // archived skipped
+  });
 });
