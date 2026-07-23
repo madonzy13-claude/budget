@@ -148,8 +148,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   }, []);
 
   // rAF-poll for a freshly-persisted wallet row (it mounts a frame or two after
-  // the draft clears), then run `cb` with it. Shared by the item-3 rest-highlight
-  // and the item-8 field-resume below.
+  // the draft clears), then run `cb` with it — used by the 260723-3 rest-highlight.
   const pollForWalletRow = useCallback(
     (id: string, cb: (row: HTMLElement, root: HTMLElement) => void) => {
       let tries = 0;
@@ -179,24 +178,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
     [pollForWalletRow],
   );
 
-  // 260723-8: mobile — the user typed the name then tapped the currency/amount
-  // cell. That tap blurred the name → committed; now open the tapped field on the
-  // persisted row (so the tap isn't wasted and the field activates right away).
-  const openWalletField = useCallback(
-    (id: string, field: "currency" | "amount") => {
-      pollForWalletRow(id, (row) => {
-        const cell = row.querySelector<HTMLElement>(
-          `[data-nav-field="${field}"]`,
-        );
-        if (field === "currency") {
-          cell?.querySelector<HTMLElement>("button,[role='combobox']")?.click();
-        } else {
-          cell?.querySelector<HTMLElement>("[role='button']")?.click();
-        }
-      });
-    },
-    [pollForWalletRow],
-  );
   // SPA refactor (260616): budget meta (currency + section flags) is now read
   // client-side via useBudget instead of baked into the page by the server, so
   // the route stays a static prefetchable shell (no per-soft-nav loading.tsx
@@ -438,14 +419,17 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       async (
         name: string,
         viaKeyboard: boolean,
-        resumeField?: "currency" | "amount",
+        currency: string,
+        amount: string,
       ) => {
         setDrafts((d) => ({ ...d, [type]: { pending: true, error: null } }));
         try {
           const created = await createMut.mutateAsync({
             name,
-            currency: budgetCurrency,
-            amount: "0",
+            // Mobile sets currency + amount in the draft mini-form; desktop
+            // leaves the defaults and edits them via the guided flow below.
+            currency: currency || budgetCurrency,
+            amount: amount || "0",
             walletType: type,
           });
           // Success: clear draft — next render shows persisted row from cache
@@ -454,13 +438,20 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             delete next[type];
             return next;
           });
+          // 260723-2: createWalletSchema has no balance field — wallets are born
+          // at 0. When the mobile draft set a starting amount, PATCH the balance
+          // right after (same endpoint the persisted-row amount edit uses).
+          if (created?.id && amount && Number(amount) !== 0) {
+            try {
+              await updateMut.mutateAsync({ walletId: created.id, amount });
+            } catch {
+              /* balance is best-effort — the wallet already exists */
+            }
+          }
           const desktop =
             typeof window !== "undefined" &&
             window.matchMedia("(min-width: 768px)").matches;
-          if (created?.id && resumeField) {
-            // 260723-8: mobile tapped a specific field → open just that one.
-            openWalletField(created.id, resumeField);
-          } else if (created?.id && viaKeyboard && desktop) {
+          if (created?.id && viaKeyboard && desktop) {
             // Desktop keyboard-nav guided add: name → currency → amount.
             guideNewWallet(created.id);
           } else if (created?.id) {
@@ -477,13 +468,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
           }));
         }
       },
-    [
-      createMut,
-      budgetCurrency,
-      guideNewWallet,
-      openWalletField,
-      highlightNewWallet,
-    ],
+    [createMut, updateMut, budgetCurrency, guideNewWallet, highlightNewWallet],
   );
 
   /**

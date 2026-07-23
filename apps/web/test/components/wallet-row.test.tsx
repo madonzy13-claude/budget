@@ -359,6 +359,54 @@ describe("WalletRow — draft mode", () => {
     expect(screen.getByTestId("wallet-row-draft")).toBeInTheDocument();
   });
 
+  it("mobile draft: commits name + currency + amount when focus LEAVES the row (260723-2)", () => {
+    mockMatchMedia(false); // narrow → real in-draft controls
+    const onCommit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <WalletRow
+        mode="draft"
+        sectionType="SPENDINGS"
+        budgetCurrency="EUR"
+        onCommit={onCommit}
+        onDiscard={vi.fn()}
+        pending={false}
+        error={null}
+      />,
+    );
+    // Mobile renders a real amount input (not a "0" placeholder).
+    const amount = screen.getByTestId("wallet-draft-amount-input");
+    fireEvent.change(screen.getByTestId("wallet-draft-name-input"), {
+      target: { value: "Cash" },
+    });
+    fireEvent.change(amount, { target: { value: "250.50" } });
+    // Leaving the whole row commits all three values in one go.
+    fireEvent.blur(amount, { relatedTarget: document.body });
+    expect(onCommit).toHaveBeenCalledWith("Cash", false, "EUR", "250.50");
+  });
+
+  it("mobile draft: hopping name → amount within the row does NOT commit", () => {
+    mockMatchMedia(false);
+    const onCommit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <WalletRow
+        mode="draft"
+        sectionType="SPENDINGS"
+        budgetCurrency="EUR"
+        onCommit={onCommit}
+        onDiscard={vi.fn()}
+        pending={false}
+        error={null}
+      />,
+    );
+    const name = screen.getByTestId("wallet-draft-name-input");
+    fireEvent.change(name, { target: { value: "Cash" } });
+    // Focus moves to the amount field (still inside the row) → no early save.
+    fireEvent.blur(name, {
+      relatedTarget: screen.getByTestId("wallet-draft-amount-input"),
+    });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("emits data-wallet-id='' (empty) per W-5 contract", () => {
     render(
       <WalletRow

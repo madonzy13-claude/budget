@@ -52,7 +52,8 @@ interface WalletSectionProps {
   onCommitDraft: (
     name: string,
     viaKeyboard: boolean,
-    resumeField?: "currency" | "amount",
+    currency: string,
+    amount: string,
   ) => Promise<void>;
   onDiscardDraft: () => void;
 }

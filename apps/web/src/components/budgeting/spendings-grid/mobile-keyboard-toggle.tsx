@@ -61,10 +61,15 @@ export function MobileKeyboardToggle({
     const vv = window.visualViewport;
     if (!vv) return;
     const update = () => {
-      const inset = Math.max(
-        0,
-        window.innerHeight - (vv.height + vv.offsetTop),
+      // iOS shrinks window.innerHeight WITH the keyboard, so innerHeight −
+      // vv.height ≈ 0 and the button never appeared. The LAYOUT viewport
+      // (documentElement.clientHeight) stays at full height under the keyboard —
+      // use the larger of the two as the un-shrunk base.
+      const base = Math.max(
+        document.documentElement.clientHeight,
+        window.innerHeight,
       );
+      const inset = Math.max(0, base - (vv.height + vv.offsetTop));
       setKbHeight(inset > KB_INSET_MIN ? inset : null);
     };
     update();
