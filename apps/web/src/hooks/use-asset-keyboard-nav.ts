@@ -170,12 +170,25 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
       if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        if (fielded && fieldIdx.current !== null) {
-          activateField(cur, fieldIdx.current);
+        if (fielded) {
+          // Which field does Enter act on? The roving ring (fieldIdx) when set;
+          // else the field whose control currently holds focus (Tab flow — e.g.
+          // the icon button, so Enter OPENS the customizer, not just Space); else
+          // default to editing the amount ("nothing highlighted in the row").
+          let idx = fieldIdx.current;
+          if (idx === null) {
+            const cell = (ae as HTMLElement | null)?.closest?.(
+              "[data-nav-field]",
+            );
+            const f =
+              cell && cur.contains(cell)
+                ? cell.getAttribute("data-nav-field")
+                : null;
+            idx = f ? (NAV_FIELDS as readonly string[]).indexOf(f) : -1;
+            if (idx < 0) idx = (NAV_FIELDS as readonly string[]).indexOf("amount");
+          }
+          activateField(cur, idx);
           clearField(); // editor's own focus shows the field — drop the ring
-        } else if (fielded) {
-          activateField(cur, NAV_FIELDS.indexOf("amount")); // default: edit amount
-          clearField();
         } else if (type === "invest-group") {
           clickIn(cur, "[data-nav-toggle]");
         } else if (type === "invest-row") {

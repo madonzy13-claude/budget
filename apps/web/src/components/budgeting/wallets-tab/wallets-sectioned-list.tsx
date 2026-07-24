@@ -477,7 +477,11 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         // retest: "footer block, just dark"). dnd-kit's auto-scroll
         // can target the document scroll surface; overscroll-contain
         // is dropped along with the inner overflow.
-        className="flex flex-col gap-4 p-4 outline-none sm:p-6"
+        // 260724: horizontal gutter matches the task strip on BOTH breakpoints —
+        // mobile px-2(8)+section p-2(8)=16 == strip px-4; desktop px-6(24)+8=32 ==
+        // strip sm:px-8. Rows line up edge-for-edge with the task banner (mobile
+        // rows were 8px too narrow with the old p-4). Vertical padding unchanged.
+        className="flex flex-col gap-4 px-2 py-4 outline-none sm:px-6 sm:py-6"
       >
         {(
           [
