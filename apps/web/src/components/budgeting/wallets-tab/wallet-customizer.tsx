@@ -38,6 +38,7 @@ import {
   nextCustomizerFocus,
   type GridPos,
   type GridNavKey,
+  type GridSection,
 } from "@/lib/customizer-nav";
 
 // Palette key matches the i18n key in `bdp.tab.wallets.customizer.palette.*`.
@@ -110,9 +111,14 @@ export function WalletCustomizer({
   // shown, else 0.
   const colorSec = showColor ? 0 : -1;
   const iconSec = showColor ? 1 : 0;
-  const sectionSizes = showColor
-    ? [PALETTE.length, icons.length]
-    : [icons.length];
+  // Grid layout per section — color row is grid-cols-8, icon grid is grid-cols-6
+  // (must match the className grids below so ↑/↓ row math lines up visually).
+  const sectionSizes: GridSection[] = showColor
+    ? [
+        { count: PALETTE.length, cols: 8 },
+        { count: icons.length, cols: 6 },
+      ]
+    : [{ count: icons.length, cols: 6 }];
   const btnRefs = React.useRef<HTMLButtonElement[][]>([]);
   const posRef = React.useRef<GridPos>({ section: 0, index: 0 });
   const registerBtn =

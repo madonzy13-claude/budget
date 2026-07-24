@@ -151,6 +151,18 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
         return;
       }
 
+      // 260724 (item 2): Escape dismisses the roving highlight + field ring. When
+      // a Radix menu/dialog/customizer popover is open it owns Escape (the defer
+      // guard above already returned), so the FIRST Escape closes that and a
+      // SECOND clears the highlight — "after pressing Esc the highlight disappears".
+      if (e.key === "Escape") {
+        if (highlighted()) {
+          e.preventDefault();
+          setHighlight(null);
+        }
+        return;
+      }
+
       const cur = highlighted();
       if (!cur) return;
       const type = cur.getAttribute("data-nav-type");

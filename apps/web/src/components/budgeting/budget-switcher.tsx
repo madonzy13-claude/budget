@@ -147,6 +147,20 @@ export function BudgetSwitcher({
     router.push(`/${locale}/?list=1`);
   }, [router, locale]);
 
+  // 260724 (item 1): prefetch every destination the instant the dropdown opens so
+  // a pick navigates blazing-fast. router.push (unlike <Link>) does no auto-
+  // prefetch, so switching budgets paid the full RSC round-trip on click before
+  // the loading.tsx skeleton could even show. Warming the boundary here means the
+  // pick commits the shell + skeleton immediately (the deferred-pane mount fills
+  // the rest from the warm React Query cache).
+  useEffect(() => {
+    if (!open) return;
+    for (const b of budgets) {
+      router.prefetch(budgetSwitchPath(locale, b, pathname));
+    }
+    if (budgets.length > 1) router.prefetch(`/${locale}/?list=1`);
+  }, [open, budgets, locale, pathname, router]);
+
   // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
   // hidden entirely. The home page renders its own "Create your first
   // budget" empty state, so the header stays clean and the create flow lives
