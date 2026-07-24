@@ -37,6 +37,7 @@ import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
 import { ReservesTableClient } from "@/components/budgeting/reserves-tab/reserves-table-client";
 import { SettingsTabClient } from "@/components/settings/settings-tab-client";
+import { SkeletonPane } from "@/components/budgeting/bdp-overview-skeleton";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 import { TAB_ORDER, isBdpTab, type BdpTab } from "@/lib/bdp-tabs";
 
@@ -162,6 +163,21 @@ export function BudgetDetail({
 }: BudgetDetailProps) {
   const reduce = useReducedMotion();
   const [activeTab, setActiveTab] = useState<BdpTab>(initialTab);
+
+  // 260724 (nav perf): commit the pills shell + a pane skeleton on the FIRST
+  // paint, then mount the heavy active pane one frame later. Mounting the whole
+  // BudgetDetail tree (pills + Overview/Wallets/… pane) synchronously took the
+  // route-transition ~200ms on desktop and ~800ms on a phone, during which React
+  // holds the OUTGOING route visible (no Suspense fallback fires for a pure client
+  // render) — the reported freeze on home/all-budgets ↔ budget nav. Deferring the
+  // pane releases the old route immediately: skeleton shows, then the pane fills
+  // in (from the warm React Query cache when available). Only the initial mount is
+  // deferred; `paneReady` stays true so pill switches render their pane directly.
+  const [paneReady, setPaneReady] = useState(false);
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setPaneReady(true));
+    return () => cancelAnimationFrame(r);
+  }, []);
 
   // Warm every tab's data on budget open (tiered prefetch). With client tabs
   // there is no RSC to prefetch, so the whole connection serves the data.
@@ -321,13 +337,17 @@ export function BudgetDetail({
                   }
                 />
               )}
-              <TabPane
-                tab={activeTab}
-                budgetId={budgetId}
-                reservesEnabled={reservesOn}
-                investmentsEnabled={investmentsOn}
-                amountPrivacyEnabled={amountPrivacyOn}
-              />
+              {paneReady ? (
+                <TabPane
+                  tab={activeTab}
+                  budgetId={budgetId}
+                  reservesEnabled={reservesOn}
+                  investmentsEnabled={investmentsOn}
+                  amountPrivacyEnabled={amountPrivacyOn}
+                />
+              ) : (
+                <SkeletonPane activeTab={activeTab} />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -8,7 +8,7 @@
  * renders instantly from the warm React Query cache (no (app)/loading flash);
  * the per-card skeletons cover a genuine cold load.
  */
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { LAST_BUDGET_KEY, ALL_BUDGETS_VIEW } from "@/lib/last-budget";
@@ -22,6 +22,18 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
   const searchParams = useSearchParams();
   const q = useActiveBudgets();
   const budgets = q.data ?? [];
+
+  // 260724 (nav perf): defer the heavy AggregateOverview mount one frame so the
+  // home shell commits instantly on a budget→all-budgets navigation. Mounting the
+  // aggregate (charts + cross-budget wealth) synchronously held the OUTGOING BDP
+  // visible ~380ms desktop / ~1.5s phone (no Suspense fallback fires for a client
+  // render) — the reported freeze. The skeleton grid shows for that one frame,
+  // then the aggregate fills in from the warm React Query cache.
+  const [aggReady, setAggReady] = useState(false);
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setAggReady(true));
+    return () => cancelAnimationFrame(r);
+  }, []);
 
   // r35: auto-open a budget instead of the listing.
   //  - exactly 1 budget → ALWAYS its overview (there's always a route to it).
@@ -95,7 +107,7 @@ export function HomeBudgetsClient({ locale }: { locale: string }) {
        * (non-skeleton) budgets.length this branch ever sees, since 1 budget
        * always redirects above) renders the cross-budget AggregateOverview
        * instead of individual BudgetCardClient cards. */}
-      {showSkeleton ? (
+      {showSkeleton || !aggReady ? (
         <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <BudgetCardSkeleton key={i} />

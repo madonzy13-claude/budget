@@ -114,7 +114,7 @@ export function BdpOverviewSkeleton({
 }
 
 /** The waiting pane, shaped to match the tab being navigated to. */
-function SkeletonPane({ activeTab }: { activeTab: BdpTab }) {
+export function SkeletonPane({ activeTab }: { activeTab: BdpTab }) {
   // Spendings is a horizontal row of per-category columns.
   if (activeTab === "spendings") {
     return (
