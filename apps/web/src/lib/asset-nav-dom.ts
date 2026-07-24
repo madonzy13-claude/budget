@@ -20,6 +20,33 @@ export function clearNavMarkers(root: HTMLElement): void {
     });
 }
 
+/**
+ * Whether the assets-tab keyboard-nav should pull focus into its root on mount
+ * (260724, task 1). Arriving at the tab via a BDP pill CLICK leaves focus ON the
+ * pill button, so the old "only grab from <body>" rule skipped the grab and ↑/↓
+ * did nothing until the user clicked the dark background. Grab whenever focus is
+ * outside the tab and not committed to real input — i.e. not a text field, not
+ * an open dialog/menu/listbox, and not already inside the tab.
+ */
+export function shouldGrabAssetFocus(
+  active: Element | null,
+  root: Element,
+): boolean {
+  if (!active) return true;
+  const tag = active.tagName;
+  if (tag === "BODY" || tag === "HTML") return true;
+  if (tag === "INPUT" || tag === "TEXTAREA") return false;
+  if ((active as HTMLElement).isContentEditable) return false;
+  if (
+    active.closest(
+      "[role='dialog'],[role='menu'],[role='listbox'],[data-editing='true']",
+    )
+  )
+    return false;
+  if (root.contains(active)) return false; // focus already within the tab
+  return true;
+}
+
 /** Reset the previous highlight and move it to `el` (null just clears). */
 export function highlightNavItem(
   root: HTMLElement,

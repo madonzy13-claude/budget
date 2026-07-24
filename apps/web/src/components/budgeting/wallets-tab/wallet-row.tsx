@@ -334,6 +334,13 @@ function PersistedRow({
   // narrow → keep the compact code-only picker (and native wheel on touch).
   const wide = useIsWide();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // 260724 (tasks 2/6): the persisted row is a self-contained Tab loop over its
+  // fields [icon, name, currency, amount] with the currency dropdown opening on
+  // land — mirroring the draft mini-form. `currencyOpen` drives the controlled
+  // Radix Select + the yellow ring; `rowRef` lets the currency-open Tab-out
+  // handler find the sibling field cells.
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+  const rowRef = useRef<HTMLDivElement | null>(null);
 
   // UAT-PH5-T3-40: native pointer listeners (not React onPointer*) so
   // we can register with passive:false and call preventDefault during
@@ -492,6 +499,98 @@ function PersistedRow({
       ? `${dndTransform} ${swipeTransform}`
       : swipeTransform;
 
+  // 260724 (tasks 2/4/6): the four keyboard-hoppable fields in DOM order. Reserve
+  // rows expose no currency picker (read-only), so it's skipped there.
+  const ROW_FIELDS = isReserveSection
+    ? (["icon", "name", "amount"] as const)
+    : (["icon", "name", "currency", "amount"] as const);
+
+  // Focus (and activate) a field by its data-nav-field key: the icon opens on
+  // Enter, the currency dropdown opens on land (yellow ring), name/amount enter
+  // edit mode so the cursor is already in place (task 6). Focusing the currency
+  // TRIGGER first — then opening on the next frame — lets any in-flight
+  // name/amount commit settle (its onBlur skips commit if focus lands in a Radix
+  // listbox, so we must not open synchronously).
+  const focusRowField = (row: HTMLElement, field: string) => {
+    const cell = row.querySelector<HTMLElement>(`[data-nav-field="${field}"]`);
+    if (!cell) return;
+    if (field === "icon") {
+      cell.querySelector<HTMLElement>("button")?.focus();
+      return;
+    }
+    if (field === "currency") {
+      cell
+        .querySelector<HTMLElement>('button,[role="combobox"]')
+        ?.focus();
+      requestAnimationFrame(() => setCurrencyOpen(true));
+      return;
+    }
+    // name / amount → begin edit (the editor autofocuses its input).
+    const input = cell.querySelector<HTMLElement>("input");
+    if (input) input.focus();
+    else cell.querySelector<HTMLElement>('[role="button"]')?.click();
+  };
+
+  // Tab / Shift+Tab CYCLE the row's fields with wrap — icon → name → currency →
+  // amount → icon (task 2b: never escape to the BDP tab pills). Capture phase +
+  // stopPropagation so it beats bdp-tabs' window pill-cycle listener. Only traps
+  // when focus is already ON a field (drag-handle / trash keep native Tab).
+  const handleRowKeyCapture = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const row = e.currentTarget;
+    const anchors = ROW_FIELDS.map((f) => {
+      const cell = row.querySelector<HTMLElement>(`[data-nav-field="${f}"]`);
+      if (!cell) return null;
+      if (f === "currency")
+        return cell.querySelector<HTMLElement>('button,[role="combobox"]');
+      if (f === "icon") return cell.querySelector<HTMLElement>("button");
+      return cell.querySelector<HTMLElement>('[role="button"], input');
+    });
+    const active = document.activeElement;
+    const idx = anchors.findIndex(
+      (a) => !!a && (a === active || a.contains(active)),
+    );
+    if (idx === -1) return; // not on a field — let native Tab through
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = e.shiftKey ? -1 : 1;
+    const nextField =
+      ROW_FIELDS[(idx + dir + ROW_FIELDS.length) % ROW_FIELDS.length]!;
+    focusRowField(row, nextField);
+  };
+
+  // While the currency dropdown is OPEN, focus is trapped in the portaled listbox
+  // (outside the row) so the row's own capture handler can't see the Tab. A
+  // document-level capture listener closes it and advances to amount (Tab) / name
+  // (Shift+Tab), re-asserting focus for a few frames to beat Radix returning
+  // focus to the trigger on close. Mirrors the draft row.
+  useEffect(() => {
+    if (!currencyOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = e.shiftKey ? -1 : 1;
+      setCurrencyOpen(false);
+      const row = rowRef.current;
+      if (!row) return;
+      const targetField = dir === 1 ? "amount" : "name";
+      let tries = 0;
+      const grab = () => {
+        const cell = row.querySelector<HTMLElement>(
+          `[data-nav-field="${targetField}"]`,
+        );
+        const input = cell?.querySelector<HTMLElement>("input");
+        if (input) input.focus();
+        else cell?.querySelector<HTMLElement>('[role="button"]')?.click();
+        if (tries++ < 4) requestAnimationFrame(grab);
+      };
+      requestAnimationFrame(grab);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [currencyOpen]);
+
   return (
     <div
       ref={wrapperRef}
@@ -534,7 +633,11 @@ function PersistedRow({
         <Trash2 className="h-5 w-5" aria-hidden="true" />
       </button>
       <div
-        ref={setNodeRef}
+        ref={(node) => {
+          setNodeRef(node);
+          rowRef.current = node;
+        }}
+        onKeyDownCapture={handleRowKeyCapture}
         data-testid="wallet-row"
         data-wallet-id={wallet.id}
         data-row-drop-over={isRowDropOver || undefined}
@@ -567,13 +670,20 @@ function PersistedRow({
 
         {/* UAT-PH5-T3-1x: per-wallet color + icon trigger. Renders a placeholder
           dashed circle when both are null; otherwise the chosen icon in the
-          chosen color. Opens a popover to pick / clear. */}
-        <WalletCustomizer
-          color={wallet.color ?? null}
-          icon={wallet.icon ?? null}
-          onChange={(patch) => onUpdate(patch).catch(() => {})}
-          ariaLabel={t("customizeAria", { name: wallet.name })}
-        />
+          chosen color. Opens a popover to pick / clear.
+          260724 (task 4): wrapped as a nav field so ←/→ and Tab reach it and it
+          shows the yellow focus ring like the other cells. */}
+        <div
+          className="shrink-0 rounded-full data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
+          data-nav-field="icon"
+        >
+          <WalletCustomizer
+            color={wallet.color ?? null}
+            icon={wallet.icon ?? null}
+            onChange={(patch) => onUpdate(patch).catch(() => {})}
+            ariaLabel={t("customizeAria", { name: wallet.name })}
+          />
+        </div>
 
         {/* Name — editable. UAT-PH5-T3-26: `min-w-0` allows the flex item to
           shrink below its content width so the right-side columns (currency,
@@ -628,7 +738,9 @@ function PersistedRow({
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
         <div
-          className="w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px]"
+          className={`w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px]${
+            currencyOpen ? " ring-1 ring-[var(--primary)]" : ""
+          }`}
           data-inline-cell
           data-nav-field="currency"
         >
@@ -648,6 +760,8 @@ function PersistedRow({
               onSelect={(v: string) => onUpdate({ currency: v })}
               richLabel={wide}
               desktopDropdown={wide}
+              open={currencyOpen}
+              onOpenChange={setCurrencyOpen}
             />
           )}
         </div>

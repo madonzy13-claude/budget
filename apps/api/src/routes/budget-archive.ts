@@ -20,6 +20,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { BootedDeps } from "../boot";
 import { UserId } from "@budget/shared-kernel";
+import { deleteAllSubscriptionsForBudget } from "@budget/platform";
 
 type ArchiveDeps = Pick<BootedDeps, "tenancy" | "identity">;
 
@@ -65,6 +66,16 @@ export function budgetArchiveRoutesFactory(deps: ArchiveDeps) {
       budgetId,
       session.user.id,
     );
+
+    // 260724: an archived budget must never send another notification. Archive is
+    // one-way (D-09/D-10), so drop ALL its push subscriptions (every member's)
+    // rather than relying only on the reminder-scan archived filter. Best-effort —
+    // the budget is already archived; a cleanup failure shouldn't 500 the archive.
+    try {
+      await deleteAllSubscriptionsForBudget(budgetId, session.user.id);
+    } catch (e) {
+      console.error("[archive] failed to delete push subscriptions:", e);
+    }
 
     // WR-02: remove archived budget from the caller's active_workspace_ids so
     // subsequent requests don't still include it in tenantIds.

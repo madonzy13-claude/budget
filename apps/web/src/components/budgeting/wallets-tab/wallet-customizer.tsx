@@ -34,6 +34,11 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import {
+  nextCustomizerFocus,
+  type GridPos,
+  type GridNavKey,
+} from "@/lib/customizer-nav";
 
 // Palette key matches the i18n key in `bdp.tab.wallets.customizer.palette.*`.
 // The component looks up the human-readable color name through next-intl
@@ -98,6 +103,54 @@ export function WalletCustomizer({
   const Icon = icons.find((i) => i.name === icon)?.Icon ?? Circle;
   const triggerColor = color ?? "var(--muted-foreground)";
 
+  // 260724 (task 3): keyboard grid nav inside the popover. Sections are the color
+  // swatch row (when shown) then the icon grid. Buttons register into a 2D ref
+  // grid; ←/→ step within a section, ↑/↓ jump sections, Enter/Space apply (native
+  // button click), Esc closes (Radix default). `iconSec` is section 1 with color
+  // shown, else 0.
+  const colorSec = showColor ? 0 : -1;
+  const iconSec = showColor ? 1 : 0;
+  const sectionSizes = showColor
+    ? [PALETTE.length, icons.length]
+    : [icons.length];
+  const btnRefs = React.useRef<HTMLButtonElement[][]>([]);
+  const posRef = React.useRef<GridPos>({ section: 0, index: 0 });
+  const registerBtn =
+    (section: number, index: number) => (el: HTMLButtonElement | null) => {
+      if (!el) return;
+      (btnRefs.current[section] ??= [])[index] = el;
+    };
+  const focusPos = (pos: GridPos) => {
+    posRef.current = pos;
+    btnRefs.current[pos.section]?.[pos.index]?.focus();
+  };
+  const onContentKeyDown = (e: React.KeyboardEvent) => {
+    const key = e.key;
+    if (
+      key !== "ArrowLeft" &&
+      key !== "ArrowRight" &&
+      key !== "ArrowUp" &&
+      key !== "ArrowDown"
+    )
+      return;
+    e.preventDefault();
+    focusPos(nextCustomizerFocus(posRef.current, key as GridNavKey, sectionSizes));
+  };
+  // On open, land on the currently-selected swatch/icon (else the first item).
+  const onOpenAutoFocus = (e: Event) => {
+    e.preventDefault();
+    let pos: GridPos = { section: showColor ? 0 : iconSec, index: 0 };
+    if (showColor && color) {
+      const i = PALETTE.findIndex((c) => c.value === color);
+      if (i >= 0) pos = { section: colorSec, index: i };
+    } else if (icon) {
+      const i = icons.findIndex((ic) => ic.name === icon);
+      if (i >= 0) pos = { section: iconSec, index: i };
+    }
+    posRef.current = pos;
+    requestAnimationFrame(() => focusPos(pos));
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -129,6 +182,8 @@ export function WalletCustomizer({
         align="start"
         className="z-[60] w-[240px] space-y-3 p-3"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={onContentKeyDown}
+        onOpenAutoFocus={onOpenAutoFocus}
       >
         {showColor && (
         <div className="space-y-1.5">
@@ -136,14 +191,16 @@ export function WalletCustomizer({
             {t("color")}
           </div>
           <div className="grid grid-cols-8 gap-1">
-            {PALETTE.map((c) => (
+            {PALETTE.map((c, i) => (
               <button
                 key={c.value}
+                ref={registerBtn(colorSec, i)}
                 type="button"
                 aria-label={t("colorAria", { name: t(`palette.${c.key}`) })}
                 onClick={() => onChange({ color: c.value })}
                 className={cn(
                   "size-6 rounded-full border-2 transition-transform hover:scale-110",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-1",
                   color === c.value
                     ? "border-[var(--on-dark)]"
                     : "border-transparent",
@@ -169,14 +226,16 @@ export function WalletCustomizer({
             {t("icon")}
           </div>
           <div className="grid grid-cols-6 gap-1">
-            {icons.map(({ name, Icon: IconC }) => (
+            {icons.map(({ name, Icon: IconC }, i) => (
               <button
                 key={name}
+                ref={registerBtn(iconSec, i)}
                 type="button"
                 aria-label={t("iconAria", { name })}
                 onClick={() => onChange({ icon: name })}
                 className={cn(
                   "inline-flex size-7 items-center justify-center rounded transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
                   icon === name
                     ? "bg-[var(--primary)] text-[var(--on-primary)]"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--surface-elevated-dark)] hover:text-[var(--body-on-dark)]",

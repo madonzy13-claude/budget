@@ -36,8 +36,10 @@ export function nextHighlightIndex(removedIdx: number, newLen: number): number {
   return Math.min(Math.max(removedIdx, 0), newLen - 1);
 }
 
-/** The three horizontally-hoppable fields of a wallet / possession row. */
-export const NAV_FIELDS = ["name", "currency", "amount"] as const;
+/** The horizontally-hoppable fields of a wallet / possession row, in DOM order.
+ *  260724 (task 4): the leading `icon` (WalletCustomizer trigger) is now part of
+ *  the ←/→ cycle so the color/icon picker is reachable by keyboard. */
+export const NAV_FIELDS = ["icon", "name", "currency", "amount"] as const;
 export type NavField = (typeof NAV_FIELDS)[number];
 
 /** Next field index when hopping ←/→ within a row, wrapping. Starts at the first

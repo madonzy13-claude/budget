@@ -169,6 +169,29 @@ export async function deleteSubscription(
 }
 
 /**
+ * Delete EVERY push subscription for a budget — used when the budget is archived
+ * so it can never send another notification (260724). Runs under the archiving
+ * user's tenant context; RLS `push_subscriptions_tenant_isolation` is
+ * tenant-scoped (not per-user), so this removes all members' rows for the budget,
+ * not just the caller's. Idempotent — deleting when there are none is a no-op.
+ */
+export async function deleteAllSubscriptionsForBudget(
+  tenantId: string,
+  userId: string,
+): Promise<void> {
+  const result = await withTenantTx(
+    TenantId(tenantId),
+    UserId(userId),
+    async (tx) => {
+      await tx
+        .delete(pushSubscriptions)
+        .where(eq(pushSubscriptions.tenantId, tenantId));
+    },
+  );
+  if (result.isErr()) throw result.error;
+}
+
+/**
  * Whether THIS device endpoint is subscribed for a specific budget (tenant).
  * Backs the per-budget Settings master switch (260618): the master is ON iff a
  * push_subscriptions row exists for (endpoint, budgetId) for this user. RLS

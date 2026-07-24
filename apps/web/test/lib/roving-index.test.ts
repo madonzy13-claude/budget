@@ -38,11 +38,11 @@ describe("roving-index", () => {
     expect(nextHighlightIndex(0, 0)).toBe(-1);
   });
 
-  it("hops fields name→currency→amount with wrap; enters at an end", () => {
-    expect(nextFieldIndex(null, 1)).toBe(0); // → name
-    expect(nextFieldIndex(null, -1)).toBe(2); // ← amount
-    expect(nextFieldIndex(0, 1)).toBe(1); // name → currency
-    expect(nextFieldIndex(2, 1)).toBe(0); // amount → wrap name
-    expect(nextFieldIndex(0, -1)).toBe(2); // name → wrap amount
+  it("hops fields icon→name→currency→amount with wrap; enters at an end", () => {
+    expect(nextFieldIndex(null, 1)).toBe(0); // → icon
+    expect(nextFieldIndex(null, -1)).toBe(3); // ← amount
+    expect(nextFieldIndex(0, 1)).toBe(1); // icon → name
+    expect(nextFieldIndex(3, 1)).toBe(0); // amount → wrap icon
+    expect(nextFieldIndex(0, -1)).toBe(3); // icon → wrap amount
   });
 });

@@ -25,7 +25,7 @@
  */
 import { useEffect, useRef, type RefObject } from "react";
 import { nextNavIndex, nextFieldIndex, NAV_FIELDS } from "@/lib/roving-index";
-import { highlightNavItem } from "@/lib/asset-nav-dom";
+import { highlightNavItem, shouldGrabAssetFocus } from "@/lib/asset-nav-dom";
 
 function isTextEntry(el: Element | null): boolean {
   const e = el as HTMLElement | null;
@@ -51,13 +51,11 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
     const grab = () => {
       const root = rootRef.current;
       if (root) {
-        const ae = document.activeElement;
-        if (
-          wide() &&
-          (ae == null ||
-            ae === document.body ||
-            ae === document.documentElement)
-        ) {
+        // 260724 (task 1): arriving via a BDP pill CLICK leaves focus on the pill
+        // button, so the old body-only check skipped the grab and ↑/↓ did nothing
+        // until the user clicked the dark canvas. Grab whenever focus sits outside
+        // the tab and isn't committed to real input (see shouldGrabAssetFocus).
+        if (wide() && shouldGrabAssetFocus(document.activeElement, root)) {
           root.focus({ preventScroll: true });
         }
         return;
@@ -76,7 +74,7 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
       if (isTextEntry(ae)) return;
       if (
         (ae as HTMLElement | null)?.closest?.(
-          "[role='dialog'],[role='menu'],[role='listbox'],[data-editing='true']",
+          "[role='dialog'],[role='menu'],[role='listbox'],[data-editing='true'],[data-radix-popper-content-wrapper]",
         )
       )
         return;
@@ -119,12 +117,17 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
       const clickIn = (row: HTMLElement, selector: string) =>
         row.querySelector<HTMLElement>(selector)?.click();
       const activateField = (row: HTMLElement, idx: number) => {
+        const field = NAV_FIELDS[idx];
         const cell = row.querySelector<HTMLElement>(
-          `[data-nav-field="${NAV_FIELDS[idx]}"]`,
+          `[data-nav-field="${field}"]`,
         );
         if (!cell) return;
-        if (NAV_FIELDS[idx] === "currency") {
+        if (field === "currency") {
           cell.querySelector<HTMLElement>("button,[role='combobox']")?.click();
+        } else if (field === "icon") {
+          // 260724 (task 3/4): open the WalletCustomizer popover (its trigger is a
+          // plain <button>) so Enter on the icon field pops the color/icon picker.
+          cell.querySelector<HTMLElement>("button")?.click();
         } else {
           cell.querySelector<HTMLElement>("[role='button']")?.click();
         }
@@ -232,7 +235,7 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
       if (isTextEntry(ae)) return;
       if (
         (ae as HTMLElement | null)?.closest?.(
-          "[role='dialog'],[role='menu'],[role='listbox'],[data-editing='true']",
+          "[role='dialog'],[role='menu'],[role='listbox'],[data-editing='true'],[data-radix-popper-content-wrapper]",
         )
       )
         return;
@@ -255,14 +258,24 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
       if (!root) return;
       const rt = e.relatedTarget as Node | null;
       if (rt && rt !== document.body) return;
-      if (!root.contains(e.target as Node)) return;
+      const target = e.target as HTMLElement | null;
+      if (!target || !root.contains(target)) return;
+      // Drop any field ring — the editor's own focus showed the field.
       root
-        .querySelectorAll("[data-nav-highlighted],[data-nav-field-active]")
-        .forEach((el) => {
-          el.removeAttribute("data-nav-highlighted");
-          el.removeAttribute("data-nav-field-active");
-        });
+        .querySelectorAll("[data-nav-field-active]")
+        .forEach((el) => el.removeAttribute("data-nav-field-active"));
       fieldIdx.current = null;
+      // 260724 (task 5): after committing an inline edit inside a wallet /
+      // possession row (focus returns to <body>), KEEP that row highlighted on
+      // desktop so focus visibly stays on the saved wallet instead of vanishing.
+      const row = target.closest<HTMLElement>("[data-nav-item]");
+      if (wide() && row && root.contains(row)) {
+        highlightNavItem(root, row);
+      } else {
+        root
+          .querySelectorAll("[data-nav-highlighted]")
+          .forEach((el) => el.removeAttribute("data-nav-highlighted"));
+      }
     };
     document.addEventListener("focusout", onFocusOut, true);
 
