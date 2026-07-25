@@ -190,6 +190,10 @@ export function WalletCustomizer({
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onContentKeyDown}
         onOpenAutoFocus={onOpenAutoFocus}
+        // 260725 (item 1): Radix returns focus to the trigger on close, which trips
+        // :focus-visible → a stray yellow ring around the icon after Esc. Prevent
+        // the auto-refocus (focus falls to <body>; the roving nav still gets keys).
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showColor && (
         <div className="space-y-1.5">
