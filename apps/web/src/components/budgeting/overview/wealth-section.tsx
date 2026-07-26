@@ -389,11 +389,6 @@ export function WealthSection({
                     </div>
                   );
                 })()}
-                {/* Make explicit this growth is measured over the SELECTED period, e.g.
-                "since month start" on 1M — not a daily figure (r28 correction). */}
-                <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
-                  {t("wealth.growSince", { preset: range.preset })}
-                </p>
                 {investStack.length > 0 ? (
                   // Stacked like the planned needs/wants chart: contributions
                   // (grey) + profit (yellow) sum to the total investment value.
@@ -522,43 +517,65 @@ export function WealthSection({
                         return (Math.pow(product, 1 / nn.length) - 1) * 100;
                       })();
                       const mask = amountPrivacyEnabled && !revealed;
+                      // Amount companion to each avg-change %: the AVERAGE per-period
+                      // money change (mean of the bucket deltas).
+                      const meanAmt = (
+                        key: "totalDelta" | "plDelta" | "contribDelta",
+                      ) =>
+                        combined.length === 0
+                          ? 0
+                          : Math.round(
+                              combined.reduce(
+                                (s, c) => s + Number(c[key] || 0),
+                                0,
+                              ) / combined.length,
+                            );
                       return (
                         <div className="flex flex-col gap-2">
-                          <div className="flex flex-wrap items-start justify-center gap-6">
-                            <PctStat
-                              label={`${t("wealth.monthlyAvg")} · ${t("wealth.total")}`}
+                          {/* One common header (was a per-metric "Avg change ·" prefix). */}
+                          <p className="text-center text-caption text-[var(--muted-foreground)]">
+                            {t("wealth.monthlyAvg")}
+                          </p>
+                          <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
+                            <CombinedStat
+                              label={t("wealth.total")}
                               pct={data.monthly_avg_grow_pct}
+                              amount={fmtSigned(String(meanAmt("totalDelta")))}
                               mask={amountPrivacyEnabled}
                             />
-                            <PctStat
-                              label={`${t("wealth.monthlyAvg")} · ${t("wealth.profit")}`}
+                            <CombinedStat
+                              label={t("wealth.pl")}
                               pct={exclQ.data?.monthly_avg_grow_pct ?? null}
+                              amount={fmtSigned(String(meanAmt("plDelta")))}
                               mask={amountPrivacyEnabled}
                             />
-                            <PctStat
-                              label={`${t("wealth.monthlyAvg")} · ${t("wealth.contributions")}`}
+                            <CombinedStat
+                              label={t("wealth.contributions")}
                               pct={contribAvg}
+                              amount={fmtSigned(String(meanAmt("contribDelta")))}
                               mask={amountPrivacyEnabled}
                             />
                           </div>
                           <OverviewBarChart
                             data={combined}
                             xKey="label"
+                            // Bar order Contributions → P/L → Total, coloured grey /
+                            // yellow / green so Total (the whole move) reads last.
                             series={[
                               {
-                                key: "total",
-                                label: t("wealth.total"),
+                                key: "contrib",
+                                label: t("wealth.contributions"),
                                 color: "var(--muted-foreground)",
                               },
                               {
                                 key: "pl",
-                                label: t("wealth.profit"),
+                                label: t("wealth.pl"),
                                 color: "var(--primary)",
                               },
                               {
-                                key: "contrib",
-                                label: t("wealth.contributions"),
-                                color: "var(--chart-bar-2)",
+                                key: "total",
+                                label: t("wealth.total"),
+                                color: "var(--trading-up)",
                               },
                             ]}
                             formatValue={pctAxisTick}
