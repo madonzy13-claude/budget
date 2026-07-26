@@ -201,11 +201,9 @@ export function WealthSection({
   const fmtY = chartCompactCents;
   // Chart TOOLTIP (on tap): the FULL value WITH currency, no cents.
   const fmtTooltip = (n: number) => fmtRounded(BigInt(Math.round(n)));
-  // Privacy (r41, BDP-wide): wrap any inline money figure in a masked SlotAmount
-  // when enabled; `revealed` masks the dynamics tooltip's money delta to "•••".
+  // Privacy (r41, BDP-wide): `revealed` masks the dynamics tooltip's money delta
+  // to "•••". Inline metric amounts mask via CombinedStat's own `mask` prop.
   const { revealed } = useSlotReveal();
-  const money = (s: string) =>
-    amountPrivacyEnabled ? <SlotAmount value={s} /> : s;
   // Pie centre read-out: whole currency, NO cents.
   const fmtPieValue = (n: number) => fmtRounded(BigInt(Math.round(n)));
 
@@ -326,21 +324,40 @@ export function WealthSection({
               <div className="flex flex-col gap-2">
                 {(() => {
                   const up = Number(growth.delta_cents) >= 0;
-                  const hasInvestCat =
+                  // Investments view → three combined metrics, all measured as the
+                  // RENDERED chart's first tick → last tick difference (same logic):
+                  //   Total         = value(last) − value(first).  [correct as-is]
+                  //   P/L           = profit(last) − profit(first). (profit = value −
+                  //                   contributions per point)
+                  //   Contributions = contributions(last) − contributions(first).
+                  // Capitalization has no P/L split → single grow/loss metric.
+                  const invMetrics =
                     effectiveView === "investments" &&
-                    data.invested_cents != null;
-                  // Investments view: split the growth into TWO combined metrics —
-                  // Total (whole investment value) + P/L (profit = excl-contributions
-                  // series). Each shows %+amount stacked in one column so the two
-                  // types read cleanly side by side (r42). Capitalization view has no
-                  // P/L, so it keeps the single grow/loss metric.
-                  const plGrowth =
-                    effectiveView === "investments" && exclQ.data
-                      ? selectRangeGrowth(range.preset, exclQ.data)
+                    exclQ.data &&
+                    seriesPoints.length > 0
+                      ? (() => {
+                          const n = seriesPoints.length;
+                          const vFirst = Number(seriesPoints[0].value_cents);
+                          const vLast = Number(seriesPoints[n - 1].value_cents);
+                          const pFirst = exclByLabel.get(seriesPoints[0].label) ?? 0;
+                          const pLast =
+                            exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
+                          const cFirst = vFirst - pFirst; // contributions @ start
+                          const cLast = vLast - pLast; //    contributions @ end
+                          const plDelta = pLast - pFirst;
+                          const contribDelta = cLast - cFirst;
+                          return {
+                            plDelta: Math.round(plDelta),
+                            plPct: pFirst !== 0 ? (100 * plDelta) / pFirst : null,
+                            contribDelta: Math.round(contribDelta),
+                            contribPct:
+                              cFirst !== 0 ? (100 * contribDelta) / cFirst : null,
+                          };
+                        })()
                       : null;
                   return (
                     <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
-                      {plGrowth ? (
+                      {invMetrics ? (
                         <>
                           <CombinedStat
                             label={t("wealth.total")}
@@ -350,8 +367,14 @@ export function WealthSection({
                           />
                           <CombinedStat
                             label={t("wealth.pl")}
-                            pct={plGrowth.delta_pct}
-                            amount={fmtSigned(plGrowth.delta_cents)}
+                            pct={invMetrics.plPct}
+                            amount={fmtSigned(String(invMetrics.plDelta))}
+                            mask={amountPrivacyEnabled}
+                          />
+                          <CombinedStat
+                            label={t("wealth.contributions")}
+                            pct={invMetrics.contribPct}
+                            amount={fmtSigned(String(invMetrics.contribDelta))}
                             mask={amountPrivacyEnabled}
                           />
                         </>
@@ -362,17 +385,6 @@ export function WealthSection({
                           amount={fmtSigned(growth.delta_cents)}
                           mask={amountPrivacyEnabled}
                         />
-                      )}
-                      {/* Invested over the period (Investments-category spend). */}
-                      {hasInvestCat && (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <p className="text-caption text-[var(--muted-foreground)]">
-                            {t("wealth.invested")}
-                          </p>
-                          <span className="num text-num-md text-[var(--body-on-dark)]">
-                            {money(fmtRounded(data.invested_cents!))}
-                          </span>
-                        </div>
                       )}
                     </div>
                   );
@@ -462,16 +474,53 @@ export function WealthSection({
                           pct: d.pct,
                           delta: d.delta_cents,
                         });
+                      // Contribution dynamics = total − P/L per bucket. Delta is exact
+                      // (totalDelta − plDelta); the % is derived from each series' own
+                      // base (base = delta ÷ pct), so contrib% = contribΔ ÷ contribBase.
+                      const contribPctList: (number | null)[] = [];
                       const combined = data.dynamics.map((d) => {
                         const pl = plByLabel.get(d.label);
+                        const totalDelta = Number(d.delta_cents);
+                        const plDelta = Number(pl?.delta ?? "0");
+                        const contribDelta = totalDelta - plDelta;
+                        const totalBase =
+                          d.pct != null && d.pct !== 0
+                            ? (totalDelta * 100) / d.pct
+                            : null;
+                        const plBase =
+                          pl?.pct != null && pl.pct !== 0
+                            ? (plDelta * 100) / pl.pct
+                            : null;
+                        const contribBase =
+                          totalBase != null && plBase != null
+                            ? totalBase - plBase
+                            : null;
+                        const contribPct =
+                          contribBase != null && contribBase !== 0
+                            ? (contribDelta * 100) / contribBase
+                            : null;
+                        contribPctList.push(contribPct);
                         return {
                           label: d.label,
                           total: d.pct ?? 0,
                           totalDelta: d.delta_cents,
                           pl: pl?.pct ?? 0,
                           plDelta: pl?.delta ?? "0",
+                          contrib: contribPct ?? 0,
+                          contribDelta: String(Math.round(contribDelta)),
                         };
                       });
+                      // Avg contribution change — geometric mean of the per-period
+                      // contribution %s (matches the server's total/profit averages).
+                      const contribAvg = ((): number | null => {
+                        const nn = contribPctList.filter(
+                          (p): p is number => p !== null,
+                        );
+                        if (nn.length === 0) return null;
+                        const product = nn.reduce((a, p) => a * (1 + p / 100), 1);
+                        if (product < 0) return null;
+                        return (Math.pow(product, 1 / nn.length) - 1) * 100;
+                      })();
                       const mask = amountPrivacyEnabled && !revealed;
                       return (
                         <div className="flex flex-col gap-2">
@@ -484,6 +533,11 @@ export function WealthSection({
                             <PctStat
                               label={`${t("wealth.monthlyAvg")} · ${t("wealth.profit")}`}
                               pct={exclQ.data?.monthly_avg_grow_pct ?? null}
+                              mask={amountPrivacyEnabled}
+                            />
+                            <PctStat
+                              label={`${t("wealth.monthlyAvg")} · ${t("wealth.contributions")}`}
+                              pct={contribAvg}
                               mask={amountPrivacyEnabled}
                             />
                           </div>
@@ -501,6 +555,11 @@ export function WealthSection({
                                 label: t("wealth.profit"),
                                 color: "var(--primary)",
                               },
+                              {
+                                key: "contrib",
+                                label: t("wealth.contributions"),
+                                color: "var(--chart-bar-2)",
+                              },
                             ]}
                             formatValue={pctAxisTick}
                             formatTooltip={fmtSignedPct}
@@ -513,7 +572,9 @@ export function WealthSection({
                                     String(
                                       (key === "total"
                                         ? row.totalDelta
-                                        : row.plDelta) ?? "0",
+                                        : key === "pl"
+                                          ? row.plDelta
+                                          : row.contribDelta) ?? "0",
                                     ),
                                   )
                             }
