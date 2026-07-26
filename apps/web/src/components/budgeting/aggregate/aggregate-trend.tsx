@@ -161,6 +161,35 @@ export function AggregateTrend({
       .filter((p): p is number => p !== null);
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   })();
+  // P/L (excl-contributions) dynamics for the combined investments avg-change
+  // (user request): the same per-bucket % change, but on the market-only (net)
+  // series so deposits don't read as performance.
+  const dynPointsPL =
+    view === "investments" && exclQ.data
+      ? (() => {
+          const byBucket = new Map<string, number>();
+          for (const p of exclQ.data.series)
+            byBucket.set(p.label.slice(0, dynBucketLen), Number(p.value_cents));
+          return [...byBucket.entries()];
+        })()
+      : [];
+  const dynamicsPL = dynPointsPL.flatMap(([label, cur], i) => {
+    if (i === 0) return [];
+    const prev = dynPointsPL[i - 1]![1];
+    return [
+      {
+        label,
+        pct: prev === 0 ? null : ((cur - prev) / prev) * 100,
+        delta_cents: cur - prev,
+      },
+    ];
+  });
+  const avgPctPL = (() => {
+    const vals = dynamicsPL
+      .map((d) => d.pct)
+      .filter((p): p is number => p !== null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  })();
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
 
   // Stacked investments (reuse incl + excl): contributions = incl − excl (grey),
@@ -324,7 +353,87 @@ export function AggregateTrend({
           {/* Avg change (dynamics) — per-bucket % change bar chart, green/red
               split like BDP. Y-axis is %, so it stays visible; the tooltip's
               money delta is masked with the shared reveal. */}
-          {dynamics.length > 0 && (
+          {dynamics.length > 0 &&
+            (view === "investments"
+              ? (() => {
+                  // Combined avg-change: TOTAL value change (grey) + P/L change
+                  // (yellow, excl. contributions) per period, aligned by label.
+                  const plByLabel = new Map<
+                    string,
+                    { pct: number | null; delta: number }
+                  >();
+                  for (const d of dynamicsPL)
+                    plByLabel.set(d.label, { pct: d.pct, delta: d.delta_cents });
+                  const combined = dynamics.map((d) => {
+                    const pl = plByLabel.get(d.label);
+                    return {
+                      label: d.label,
+                      total: d.pct ?? 0,
+                      totalDelta: d.delta_cents,
+                      pl: pl?.pct ?? 0,
+                      plDelta: pl?.delta ?? 0,
+                    };
+                  });
+                  return (
+                    <div
+                      className="mt-3 flex flex-col gap-2"
+                      data-testid="aggregate-dynamics"
+                    >
+                      <div className="flex flex-wrap items-start justify-center gap-6">
+                        <PctStat
+                          label={`${t("avg_change")} · ${t("total")}`}
+                          pct={avgPct}
+                        />
+                        <PctStat
+                          label={`${t("avg_change")} · ${t("profit")}`}
+                          pct={avgPctPL}
+                        />
+                      </div>
+                      <OverviewBarChart
+                        data={combined}
+                        xKey="label"
+                        series={[
+                          {
+                            key: "total",
+                            label: t("total"),
+                            color: "var(--muted-foreground)",
+                          },
+                          {
+                            key: "pl",
+                            label: t("profit"),
+                            color: "var(--primary)",
+                          },
+                        ]}
+                        formatValue={pctAxisTick}
+                        formatTooltip={fmtSignedPct}
+                        maskAmounts
+                        tooltipExtra={(row) => [
+                          {
+                            label: t("total"),
+                            value: revealed
+                              ? fmtSigned(
+                                  String(Math.round(Number(row.totalDelta ?? 0))),
+                                )
+                              : "•••",
+                            color: "var(--muted-foreground)",
+                          },
+                          {
+                            label: t("profit"),
+                            value: revealed
+                              ? fmtSigned(
+                                  String(Math.round(Number(row.plDelta ?? 0))),
+                                )
+                              : "•••",
+                            color: "var(--primary)",
+                          },
+                        ]}
+                        xTickFormat={(v) => formatChartDate(String(v), locale)}
+                        labelFormat={(v) => formatChartDate(String(v), locale)}
+                      />
+                    </div>
+                  );
+                })()
+              : (
             <div
               className="mt-3 flex flex-col gap-2"
               data-testid="aggregate-dynamics"
@@ -357,7 +466,7 @@ export function AggregateTrend({
                 labelFormat={(v) => formatChartDate(String(v), locale)}
               />
             </div>
-          )}
+              ))}
 
           {/* View-driven pie: capitalization pools vs per-holding-type. */}
           {view === "capitalization" && capBuckets.length > 0 && (

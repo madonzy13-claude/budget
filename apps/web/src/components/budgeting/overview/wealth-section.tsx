@@ -396,7 +396,89 @@ export function WealthSection({
               {/* CHANGE chart + its PER-PERIOD metric: the average change AT THIS
               bucket — daily on 1M, monthly on 3M…1Y, yearly beyond. The label
               carries the granularity so day-vs-month averages aren't confused. */}
-              {data.dynamics.length > 0 && (
+              {data.dynamics.length > 0 &&
+                (effectiveView === "investments"
+                  ? (() => {
+                      // Combined avg-change (user request): two bars per period —
+                      // TOTAL value change (grey, = contributions + profit) and P/L
+                      // change (yellow, excl. contributions) — so deposits don't
+                      // masquerade as performance. P/L dynamics come from the net
+                      // (excl) query already fetched above, aligned by label.
+                      const plByLabel = new Map<
+                        string,
+                        { pct: number | null; delta: string }
+                      >();
+                      for (const d of exclQ.data?.dynamics ?? [])
+                        plByLabel.set(d.label, {
+                          pct: d.pct,
+                          delta: d.delta_cents,
+                        });
+                      const combined = data.dynamics.map((d) => {
+                        const pl = plByLabel.get(d.label);
+                        return {
+                          label: d.label,
+                          total: d.pct ?? 0,
+                          totalDelta: d.delta_cents,
+                          pl: pl?.pct ?? 0,
+                          plDelta: pl?.delta ?? "0",
+                        };
+                      });
+                      const mask = amountPrivacyEnabled && !revealed;
+                      return (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap items-start justify-center gap-6">
+                            <PctStat
+                              label={`${t("wealth.monthlyAvg")} · ${t("wealth.total")}`}
+                              pct={data.monthly_avg_grow_pct}
+                              mask={amountPrivacyEnabled}
+                            />
+                            <PctStat
+                              label={`${t("wealth.monthlyAvg")} · ${t("wealth.profit")}`}
+                              pct={exclQ.data?.monthly_avg_grow_pct ?? null}
+                              mask={amountPrivacyEnabled}
+                            />
+                          </div>
+                          <OverviewBarChart
+                            data={combined}
+                            xKey="label"
+                            series={[
+                              {
+                                key: "total",
+                                label: t("wealth.total"),
+                                color: "var(--muted-foreground)",
+                              },
+                              {
+                                key: "pl",
+                                label: t("wealth.profit"),
+                                color: "var(--primary)",
+                              },
+                            ]}
+                            formatValue={pctAxisTick}
+                            formatTooltip={fmtSignedPct}
+                            maskAmounts={amountPrivacyEnabled}
+                            tooltipExtra={(row) => [
+                              {
+                                label: t("wealth.total"),
+                                value: mask
+                                  ? "•••"
+                                  : fmtSigned(String(row.totalDelta ?? "0")),
+                                color: "var(--muted-foreground)",
+                              },
+                              {
+                                label: t("wealth.profit"),
+                                value: mask
+                                  ? "•••"
+                                  : fmtSigned(String(row.plDelta ?? "0")),
+                                color: "var(--primary)",
+                              },
+                            ]}
+                            xTickFormat={(v) => formatChartDate(v, locale)}
+                            labelFormat={(v) => formatChartDate(v, locale)}
+                          />
+                        </div>
+                      );
+                    })()
+                  : (
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap items-start justify-center gap-6">
                     <PctStat
@@ -441,7 +523,7 @@ export function WealthSection({
                     labelFormat={(v) => formatChartDate(v, locale)}
                   />
                 </div>
-              )}
+                  ))}
 
               {/* Capitalization view: where the money is (investments / spendings
                   / reserves / cushion) — a static labeled pie. */}
