@@ -38,6 +38,7 @@ export function OverviewBarChart({
   labelFormat,
   xTickFormat,
   tooltipExtra,
+  rowSuffix,
   maskAmounts = false,
 }: {
   data: Array<Record<string, unknown>>;
@@ -54,6 +55,12 @@ export function OverviewBarChart({
   tooltipExtra?: (
     row: Record<string, unknown>,
   ) => Array<{ label: string; value: string; color?: string }>;
+  /** Per-series-row suffix (e.g. the money amount next to a % change) so the % and
+   *  the amount share ONE tooltip line instead of separate rows. */
+  rowSuffix?: (
+    row: Record<string, unknown>,
+    dataKey?: string | number,
+  ) => string | undefined;
   /** Single-series only: per-bar color (MoM up/down, per-category colorKey).
    *  Ignored for grouped (multi-series) bars. */
   colorByPoint?: (row: Record<string, unknown>) => string;
@@ -171,6 +178,7 @@ export function OverviewBarChart({
                 colorByPoint && series.length === 1 ? colorByPoint : undefined
               }
               extra={tooltipExtra}
+              rowSuffix={rowSuffix}
             />
           }
         />

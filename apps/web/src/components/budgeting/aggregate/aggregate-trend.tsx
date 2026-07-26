@@ -130,66 +130,48 @@ export function AggregateTrend({
   const { revealed } = useSlotReveal();
 
   const hasSeries = !!data && data.series.length > 0;
-  // Avg change (dynamics): FIRST bucket the fine wealth series down to one point
-  // per period (day on 1M, else month) so the bars are fat like BDP — computing
-  // on the raw weekly/daily series gave dozens of razor-thin spikes. Then take
-  // the consecutive % change of the bucketed points.
-  const dynBucketLen = range.preset === "thisMonth" ? 10 : 7; // "YYYY-MM-DD" | "YYYY-MM"
-  const dynPoints =
-    hasSeries && data
-      ? (() => {
-          const byBucket = new Map<string, number>();
-          for (const p of data.series)
-            byBucket.set(p.label.slice(0, dynBucketLen), Number(p.value_cents));
-          return [...byBucket.entries()];
-        })()
-      : [];
-  const dynamics = dynPoints.flatMap(([label, cur], i) => {
-    if (i === 0) return [];
-    const prev = dynPoints[i - 1]![1];
-    return [
-      {
-        label,
-        pct: prev === 0 ? null : ((cur - prev) / prev) * 100,
-        delta_cents: cur - prev,
-      },
-    ];
-  });
-  const avgPct = (() => {
-    const vals = dynamics
-      .map((d) => d.pct)
-      .filter((p): p is number => p !== null);
+  // Change-chart bucket by the range SPAN (260726, item 3 — match BDP): day ≤1mo,
+  // month ≤1y, YEAR beyond. So "All" with >1y of history buckets per YEAR, not per
+  // month (the previous fixed monthly bucket ignored the span).
+  const spanDays =
+    (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000;
+  const dynBucketLen = spanDays <= 31 ? 10 : spanDays <= 366 ? 7 : 4; // YYYY-MM-DD | YYYY-MM | YYYY
+  // INTRA-period change per bucket (260726, item 2): each bar is the period's OWN
+  // first→last value (NOT the step vs the previous bucket), so every period —
+  // including the first — gets a bar. Series is sorted by label so first/last are
+  // the period's real ends.
+  const intraDynamics = (
+    series: { label: string; value_cents: string }[] | undefined,
+  ) => {
+    const firstB = new Map<string, number>();
+    const lastB = new Map<string, number>();
+    const order: string[] = [];
+    for (const p of [...(series ?? [])].sort((a, b) =>
+      a.label.localeCompare(b.label),
+    )) {
+      const b = p.label.slice(0, dynBucketLen);
+      if (!firstB.has(b)) {
+        firstB.set(b, Number(p.value_cents));
+        order.push(b);
+      }
+      lastB.set(b, Number(p.value_cents));
+    }
+    return order.map((b) => {
+      const f = firstB.get(b)!;
+      const l = lastB.get(b)!;
+      return { label: b, pct: f === 0 ? null : ((l - f) / f) * 100, delta_cents: l - f };
+    });
+  };
+  const meanPct = (dyn: { pct: number | null }[]) => {
+    const vals = dyn.map((d) => d.pct).filter((p): p is number => p !== null);
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-  })();
-  // P/L (excl-contributions) dynamics for the combined investments avg-change
-  // (user request): the same per-bucket % change, but on the market-only (net)
-  // series so deposits don't read as performance.
-  const dynPointsPL =
-    view === "investments" && exclQ.data
-      ? (() => {
-          const byBucket = new Map<string, number>();
-          for (const p of exclQ.data.series)
-            byBucket.set(p.label.slice(0, dynBucketLen), Number(p.value_cents));
-          return [...byBucket.entries()];
-        })()
-      : [];
-  const dynamicsPL = dynPointsPL.flatMap(([label, cur], i) => {
-    if (i === 0) return [];
-    const prev = dynPointsPL[i - 1]![1];
-    return [
-      {
-        label,
-        pct: prev === 0 ? null : ((cur - prev) / prev) * 100,
-        delta_cents: cur - prev,
-      },
-    ];
-  });
-  const avgPctPL = (() => {
-    const vals = dynamicsPL
-      .map((d) => d.pct)
-      .filter((p): p is number => p !== null);
-    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-  })();
+  };
+  const dynamics = hasSeries && data ? intraDynamics(data.series) : [];
+  const avgPct = meanPct(dynamics);
+  // P/L (excl-contributions) dynamics for the combined investments avg-change.
+  const dynamicsPL =
+    view === "investments" ? intraDynamics(exclQ.data?.series) : [];
+  const avgPctPL = meanPct(dynamicsPL);
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
 
   // Stacked investments (reuse incl + excl): contributions = incl − excl (grey),
@@ -407,26 +389,22 @@ export function AggregateTrend({
                         formatValue={pctAxisTick}
                         formatTooltip={fmtSignedPct}
                         maskAmounts
-                        tooltipExtra={(row) => [
-                          {
-                            label: t("total"),
-                            value: revealed
-                              ? fmtSigned(
-                                  String(Math.round(Number(row.totalDelta ?? 0))),
-                                )
-                              : "•••",
-                            color: "var(--muted-foreground)",
-                          },
-                          {
-                            label: t("profit"),
-                            value: revealed
-                              ? fmtSigned(
-                                  String(Math.round(Number(row.plDelta ?? 0))),
-                                )
-                              : "•••",
-                            color: "var(--primary)",
-                          },
-                        ]}
+                        // % and money amount on ONE line per series (item 1).
+                        rowSuffix={(row, key) =>
+                          revealed
+                            ? fmtSigned(
+                                String(
+                                  Math.round(
+                                    Number(
+                                      (key === "total"
+                                        ? row.totalDelta
+                                        : row.plDelta) ?? 0,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : "•••"
+                        }
                         xTickFormat={(v) => formatChartDate(String(v), locale)}
                         labelFormat={(v) => formatChartDate(String(v), locale)}
                       />

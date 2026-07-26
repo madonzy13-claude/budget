@@ -456,22 +456,18 @@ export function WealthSection({
                             formatValue={pctAxisTick}
                             formatTooltip={fmtSignedPct}
                             maskAmounts={amountPrivacyEnabled}
-                            tooltipExtra={(row) => [
-                              {
-                                label: t("wealth.total"),
-                                value: mask
-                                  ? "•••"
-                                  : fmtSigned(String(row.totalDelta ?? "0")),
-                                color: "var(--muted-foreground)",
-                              },
-                              {
-                                label: t("wealth.profit"),
-                                value: mask
-                                  ? "•••"
-                                  : fmtSigned(String(row.plDelta ?? "0")),
-                                color: "var(--primary)",
-                              },
-                            ]}
+                            // % and money amount on ONE line per series (item 1).
+                            rowSuffix={(row, key) =>
+                              mask
+                                ? "•••"
+                                : fmtSigned(
+                                    String(
+                                      (key === "total"
+                                        ? row.totalDelta
+                                        : row.plDelta) ?? "0",
+                                    ),
+                                  )
+                            }
                             xTickFormat={(v) => formatChartDate(v, locale)}
                             labelFormat={(v) => formatChartDate(v, locale)}
                           />

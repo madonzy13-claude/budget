@@ -25,6 +25,7 @@ export function ChartTooltipContent({
   labelFormat,
   colorForRow,
   extra,
+  rowSuffix,
   suppressedLabel,
   onDismiss,
 }: {
@@ -47,6 +48,12 @@ export function ChartTooltipContent({
   extra?: (
     row: Record<string, unknown>,
   ) => Array<{ label: string; value: string; color?: string }>;
+  /** Per-series-row SUFFIX appended after the value (e.g. the money amount next to
+   *  a % change) so the % and the amount read on ONE line instead of separate rows. */
+  rowSuffix?: (
+    row: Record<string, unknown>,
+    dataKey?: string | number,
+  ) => string | undefined;
   /** The x-label the user tapped to DISMISS — this tooltip hides for it (r28 item 3). */
   suppressedLabel?: string | null;
   /** Tapping the tooltip calls this with its x-label to dismiss it. */
@@ -118,6 +125,22 @@ export function ChartTooltipContent({
             <span style={{ marginLeft: "auto", fontWeight: 600 }}>
               {formatY ? formatY(Number(p.value)) : String(p.value)}
             </span>
+            {rowSuffix && p.payload
+              ? (() => {
+                  const s = rowSuffix(p.payload, p.dataKey);
+                  return s ? (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontWeight: 400,
+                        color: CHART_THEME.axis,
+                      }}
+                    >
+                      {s}
+                    </span>
+                  ) : null;
+                })()
+              : null}
           </div>
         );
       })}
