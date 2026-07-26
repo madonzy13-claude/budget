@@ -1481,7 +1481,8 @@
           "pieShare": "{pct}%",
           "contributions": "Wpłaty",
           "profit": "Zysk",
-          "total": "Razem"
+          "total": "Razem",
+          "pl": "Zysk/strata"
         },
         "empty": {
           "overspent": "Brak przekroczeń w tym zakresie.",

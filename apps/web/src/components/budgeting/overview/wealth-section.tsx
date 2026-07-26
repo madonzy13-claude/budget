@@ -88,6 +88,49 @@ function PctStat({
   );
 }
 
+/**
+ * CombinedStat — one metric shown as % (primary) with its money amount stacked
+ * beneath, both in the same up/down colour. Used for the Investments "Total" and
+ * "P/L" growth metrics so each type reads as one tidy column (%+amount) instead
+ * of the % and amount living in two separate, ambiguously-labelled stats.
+ */
+function CombinedStat({
+  label,
+  pct,
+  amount,
+  mask = false,
+}: {
+  label: string;
+  pct: number | null;
+  amount: string;
+  mask?: boolean;
+}) {
+  const up = pct !== null && pct >= 0;
+  const down = pct !== null && pct < 0;
+  const Arrow = up ? ArrowUp : ArrowDown;
+  const color = up
+    ? "text-[var(--trading-up)]"
+    : down
+      ? "text-[var(--trading-down)]"
+      : "text-[var(--muted-foreground)]";
+  const pctStr =
+    pct === null ? "—" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
+      <span
+        className={cn("num inline-flex items-center gap-1 text-num-md", color)}
+      >
+        {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}
+        {mask ? <SlotAmount value={pctStr} /> : pctStr}
+      </span>
+      <span className={cn("num text-num-sm", color)}>
+        {mask ? <SlotAmount value={amount} /> : amount}
+      </span>
+    </div>
+  );
+}
+
 export function WealthSection({
   budgetId,
   range,
@@ -283,49 +326,55 @@ export function WealthSection({
               <div className="flex flex-col gap-2">
                 {(() => {
                   const up = Number(growth.delta_cents) >= 0;
-                  // Investments view + an Investments category → show the "invested"
-                  // metric; and, ONLY when there's something to exclude (invested >
-                  // 0), the Incl./Excl.-contributions switch (otherwise it would look
-                  // broken — nothing to net). `growth` already reflects the choice.
                   const hasInvestCat =
                     effectiveView === "investments" &&
                     data.invested_cents != null;
+                  // Investments view: split the growth into TWO combined metrics —
+                  // Total (whole investment value) + P/L (profit = excl-contributions
+                  // series). Each shows %+amount stacked in one column so the two
+                  // types read cleanly side by side (r42). Capitalization view has no
+                  // P/L, so it keeps the single grow/loss metric.
+                  const plGrowth =
+                    effectiveView === "investments" && exclQ.data
+                      ? selectRangeGrowth(range.preset, exclQ.data)
+                      : null;
                   return (
-                    <>
-                      <div className="flex flex-wrap items-start justify-center gap-6">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <p className="text-caption text-[var(--muted-foreground)]">
-                            {up ? t("wealth.grow") : t("wealth.loss")}
-                          </p>
-                          <span
-                            className={cn(
-                              "num text-num-md",
-                              up
-                                ? "text-[var(--trading-up)]"
-                                : "text-[var(--trading-down)]",
-                            )}
-                          >
-                            {money(fmtSigned(growth.delta_cents))}
-                          </span>
-                        </div>
-                        <PctStat
-                          label={t("wealth.grow")}
+                    <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
+                      {plGrowth ? (
+                        <>
+                          <CombinedStat
+                            label={t("wealth.total")}
+                            pct={growth.delta_pct}
+                            amount={fmtSigned(growth.delta_cents)}
+                            mask={amountPrivacyEnabled}
+                          />
+                          <CombinedStat
+                            label={t("wealth.pl")}
+                            pct={plGrowth.delta_pct}
+                            amount={fmtSigned(plGrowth.delta_cents)}
+                            mask={amountPrivacyEnabled}
+                          />
+                        </>
+                      ) : (
+                        <CombinedStat
+                          label={up ? t("wealth.grow") : t("wealth.loss")}
                           pct={growth.delta_pct}
+                          amount={fmtSigned(growth.delta_cents)}
                           mask={amountPrivacyEnabled}
                         />
-                        {/* Invested over the period (Investments-category spend). */}
-                        {hasInvestCat && (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <p className="text-caption text-[var(--muted-foreground)]">
-                              {t("wealth.invested")}
-                            </p>
-                            <span className="num text-num-md text-[var(--body-on-dark)]">
-                              {money(fmtRounded(data.invested_cents!))}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </>
+                      )}
+                      {/* Invested over the period (Investments-category spend). */}
+                      {hasInvestCat && (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <p className="text-caption text-[var(--muted-foreground)]">
+                            {t("wealth.invested")}
+                          </p>
+                          <span className="num text-num-md text-[var(--body-on-dark)]">
+                            {money(fmtRounded(data.invested_cents!))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   );
                 })()}
                 {/* Make explicit this growth is measured over the SELECTED period, e.g.

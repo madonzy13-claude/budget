@@ -1458,7 +1458,8 @@
           "pieShare": "{pct}%",
           "contributions": "Contributions",
           "profit": "Profit",
-          "total": "Total"
+          "total": "Total",
+          "pl": "P/L"
         },
         "empty": {
           "overspent": "No overspending in this range.",
