@@ -173,11 +173,22 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
       });
     });
 
-    const series = labels.map((label, i) => {
+    const summed = labels.map((label, i) => {
       let acc = 0n;
       for (const proj of projections) acc += proj[i]!;
       return { label, value_cents: acc.toString() };
     });
+
+    // 260726: trim the LEADING run of zero buckets so the series + every metric
+    // start at the first date any included budget had a value — matching the BDP
+    // overview's "all" trim. A leading zero run in the aggregate just means "before
+    // any budget existed": it flattens the chart to the axis and makes grow read
+    // +0.0% (delta ÷ first, first = 0). Buckets from the first value onward are kept
+    // as-is (a genuine mid-series 0 is real). All-zero → nothing to trim.
+    const firstNonZero = summed.findIndex(
+      (p) => BigInt(p.value_cents) !== 0n,
+    );
+    const series = firstNonZero > 0 ? summed.slice(firstNonZero) : summed;
 
     const first = series.length ? BigInt(series[0]!.value_cents) : 0n;
     const last = series.length

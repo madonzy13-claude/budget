@@ -359,6 +359,21 @@ export function WealthSection({
                     formatTooltip={fmtTooltip}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
+                    // Total = contributions + profit = the whole investment value
+                    // at that tick, appended below the two stacked series.
+                    tooltipExtra={(row) => {
+                      const total =
+                        Number(row.contributions ?? 0) + Number(row.profit ?? 0);
+                      return [
+                        {
+                          label: t("wealth.total"),
+                          value:
+                            amountPrivacyEnabled && !revealed
+                              ? "•••"
+                              : fmtTooltip(total),
+                        },
+                      ];
+                    }}
                   />
                 ) : (
                   <OverviewAreaChart

@@ -802,7 +802,8 @@
     "retire_inflation": "з урахуванням {pct}% річної інфляції",
     "avg_change": "Сер. зміна",
     "contributions": "Внески",
-    "profit": "Прибуток"
+    "profit": "Прибуток",
+    "total": "Разом"
   },
   "state": {
     "empty": {
@@ -1479,7 +1480,8 @@
           "capPossessions": "Майно",
           "pieShare": "{pct}%",
           "contributions": "Внески",
-          "profit": "Прибуток"
+          "profit": "Прибуток",
+          "total": "Разом"
         },
         "empty": {
           "overspent": "Немає перевитрат у цьому діапазоні.",

@@ -802,7 +802,8 @@
     "retire_inflation": "incl. {pct}% annual inflation",
     "avg_change": "Avg change",
     "contributions": "Contributions",
-    "profit": "Profit"
+    "profit": "Profit",
+    "total": "Total"
   },
   "state": {
     "empty": {
@@ -1456,7 +1457,8 @@
           "capPossessions": "Possessions",
           "pieShare": "{pct}%",
           "contributions": "Contributions",
-          "profit": "Profit"
+          "profit": "Profit",
+          "total": "Total"
         },
         "empty": {
           "overspent": "No overspending in this range.",

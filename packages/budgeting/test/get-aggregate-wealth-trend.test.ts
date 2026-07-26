@@ -48,6 +48,38 @@ describe("getAggregateWealthTrend", () => {
     expect(out.display_currency).toBe("USD");
   });
 
+  it("trims the leading run of zero buckets and measures growth from the first real value", async () => {
+    const zeroLead = {
+      ...deps,
+      getAggPrefsForUser: async () =>
+        new Map([["b1", { ownership_share_pct: 100, include_in_aggregation: true }]]),
+      listForUser: async () => [{ id: "b1", default_currency: "USD" }],
+      getWealthForBudget: async () => ({
+        currency: "USD",
+        series: [
+          { label: "2023", value_cents: 0n },
+          { label: "2024", value_cents: 0n },
+          { label: "2025", value_cents: 100000n },
+          { label: "2026", value_cents: 120000n },
+        ],
+      }),
+    };
+    const out = await getAggregateWealthTrend(zeroLead as any)({
+      userId: "u1",
+      range: "All",
+      includeIds: ["b1"],
+    });
+    // Leading zero buckets (before any value) are dropped → chart starts at 2025.
+    expect(out.series).toEqual([
+      { label: "2025", value_cents: "100000" },
+      { label: "2026", value_cents: "120000" },
+    ]);
+    // Growth measured from the first REAL value (100000 → 120000 = +20%), not the
+    // zero lead (which would give delta ÷ 0 → +0.0%).
+    expect(out.grow.delta_cents).toBe("20000");
+    expect(out.grow.delta_pct).toBeCloseTo(20, 5);
+  });
+
   it("excludes budgets not in includeIds", async () => {
     const out = await getAggregateWealthTrend(deps as any)({
       userId: "u1",

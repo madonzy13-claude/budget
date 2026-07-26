@@ -802,7 +802,8 @@
     "retire_inflation": "z {pct}% roczną inflacją",
     "avg_change": "Śr. zmiana",
     "contributions": "Wpłaty",
-    "profit": "Zysk"
+    "profit": "Zysk",
+    "total": "Razem"
   },
   "state": {
     "empty": {
@@ -1479,7 +1480,8 @@
           "capPossessions": "Majątek",
           "pieShare": "{pct}%",
           "contributions": "Wpłaty",
-          "profit": "Zysk"
+          "profit": "Zysk",
+          "total": "Razem"
         },
         "empty": {
           "overspent": "Brak przekroczeń w tym zakresie.",

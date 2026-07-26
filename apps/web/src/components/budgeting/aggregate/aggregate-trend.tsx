@@ -290,6 +290,20 @@ export function AggregateTrend({
                 formatTooltip={(n) => fmt(String(Math.round(n)))}
                 xTickFormat={(v) => formatChartDate(String(v), locale)}
                 maskAmounts
+                // Total = contributions + profit = the whole investment value at
+                // that tick, appended below the two stacked series.
+                tooltipExtra={(row) => {
+                  const total =
+                    Number(row.contributions ?? 0) + Number(row.profit ?? 0);
+                  return [
+                    {
+                      label: t("total"),
+                      value: revealed
+                        ? fmt(String(Math.round(total)))
+                        : "•••",
+                    },
+                  ];
+                }}
               />
             ) : (
               <OverviewAreaChart
