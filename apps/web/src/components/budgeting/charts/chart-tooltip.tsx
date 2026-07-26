@@ -5,6 +5,7 @@
  * which value maps to which chart line (UAT round 13/14: the default tooltip rendered
  * every row in one text colour with no marker). `formatY` formats the value.
  */
+import { Fragment } from "react";
 import { CHART_THEME, type ChartSeries } from "./chart-theme";
 
 interface TooltipEntry {
@@ -87,30 +88,21 @@ export function ChartTooltipContent({
           {shownLabel}
         </div>
       )}
-      {payload.map((p, i) => {
-        const s = series?.find((x) => x.key === p.dataKey);
-        // Per-point color wins (up/down or category colorKey) so the marker matches
-        // the rendered bar; else the series color, else the recharts payload color.
-        const color =
-          (colorForRow && p.payload
-            ? colorForRow(p.payload, p.dataKey)
-            : undefined) ??
-          s?.color ??
-          p.color ??
-          CHART_THEME.accent;
-        const dashed = s?.dashed ?? false;
-        return (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: CHART_THEME.text,
-              padding: "1px 0",
-            }}
-          >
-            {/* line marker: solid or dashed, in the series colour */}
+      {(() => {
+        const rows = payload.map((p, i) => {
+          const s = series?.find((x) => x.key === p.dataKey);
+          // Per-point color wins (up/down or category colorKey) so the marker matches
+          // the rendered bar; else the series color, else the recharts payload color.
+          const color =
+            (colorForRow && p.payload
+              ? colorForRow(p.payload, p.dataKey)
+              : undefined) ??
+            s?.color ??
+            p.color ??
+            CHART_THEME.accent;
+          const dashed = s?.dashed ?? false;
+          // line marker: solid or dashed, in the series colour
+          const marker = (
             <span
               aria-hidden
               style={{
@@ -119,31 +111,81 @@ export function ChartTooltipContent({
                 borderTop: `3px ${dashed ? "dashed" : "solid"} ${color}`,
               }}
             />
-            {p.name != null && (
-              <span style={{ color: CHART_THEME.axis }}>{p.name}</span>
-            )}
-            <span style={{ marginLeft: "auto", fontWeight: 600 }}>
-              {formatY ? formatY(Number(p.value)) : String(p.value)}
-            </span>
-            {rowSuffix && p.payload
-              ? (() => {
-                  const s = rowSuffix(p.payload, p.dataKey);
-                  return s ? (
-                    <span
-                      style={{
-                        marginLeft: 6,
-                        fontWeight: 400,
-                        color: CHART_THEME.axis,
-                      }}
-                    >
-                      {s}
-                    </span>
-                  ) : null;
-                })()
-              : null}
+          );
+          const value = formatY ? formatY(Number(p.value)) : String(p.value);
+          // With a per-row suffix (money amount next to a %), lay the row out as 4
+          // GRID cells — marker · name · value · amount — so the value and amount
+          // columns line up (right-aligned) across every row.
+          if (rowSuffix) {
+            const suffix = p.payload
+              ? rowSuffix(p.payload, p.dataKey)
+              : undefined;
+            return (
+              <Fragment key={i}>
+                {marker}
+                <span style={{ color: CHART_THEME.axis, whiteSpace: "nowrap" }}>
+                  {p.name ?? ""}
+                </span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {value}
+                </span>
+                <span
+                  style={{
+                    fontWeight: 400,
+                    color: CHART_THEME.axis,
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {suffix ?? ""}
+                </span>
+              </Fragment>
+            );
+          }
+          return (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: CHART_THEME.text,
+                padding: "1px 0",
+              }}
+            >
+              {marker}
+              {p.name != null && (
+                <span style={{ color: CHART_THEME.axis }}>{p.name}</span>
+              )}
+              <span style={{ marginLeft: "auto", fontWeight: 600 }}>
+                {value}
+              </span>
+            </div>
+          );
+        });
+        return rowSuffix ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "auto minmax(0,1fr) max-content max-content",
+              columnGap: 10,
+              rowGap: 2,
+              alignItems: "center",
+              color: CHART_THEME.text,
+            }}
+          >
+            {rows}
           </div>
+        ) : (
+          rows
         );
-      })}
+      })()}
       {/* Extra summary rows (e.g. difference amount + percent), separated by a
           hairline from the series rows above. */}
       {extra && payload[0]?.payload
