@@ -527,8 +527,12 @@
       "error_save": "Nie udało się zapisać — spróbuj ponownie"
     },
     "possessions": {
-      "section": { "title": "MAJĄTEK" },
-      "add": { "cta": "Dodaj rzecz" },
+      "section": {
+        "title": "MAJĄTEK"
+      },
+      "add": {
+        "cta": "Dodaj rzecz"
+      },
       "sheet": {
         "addTitle": "Dodaj rzecz",
         "editTitle": "Edytuj rzecz",
@@ -800,10 +804,11 @@
     "and": "i",
     "retire_label": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
     "retire_inflation": "z {pct}% roczną inflacją",
-    "avg_change": "Śr. zmiana",
+    "avg_change": "Średnia zmiana",
     "contributions": "Wpłaty",
     "profit": "Zysk",
-    "total": "Razem"
+    "total": "Razem",
+    "pl": "Zysk/strata"
   },
   "state": {
     "empty": {

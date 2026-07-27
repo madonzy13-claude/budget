@@ -527,8 +527,12 @@
       "error_save": "Failed to save — try again"
     },
     "possessions": {
-      "section": { "title": "POSSESSIONS" },
-      "add": { "cta": "Add possession" },
+      "section": {
+        "title": "POSSESSIONS"
+      },
+      "add": {
+        "cta": "Add possession"
+      },
       "sheet": {
         "addTitle": "Add possession",
         "editTitle": "Edit possession",
@@ -800,10 +804,11 @@
     "and": "and",
     "retire_label": "If you retire now, your money will last for",
     "retire_inflation": "incl. {pct}% annual inflation",
-    "avg_change": "Avg change",
+    "avg_change": "Average change",
     "contributions": "Contributions",
     "profit": "Profit",
-    "total": "Total"
+    "total": "Total",
+    "pl": "P/L"
   },
   "state": {
     "empty": {
