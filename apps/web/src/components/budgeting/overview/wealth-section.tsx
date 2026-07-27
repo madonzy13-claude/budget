@@ -343,13 +343,15 @@ export function WealthSection({
                             exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
                           const cFirst = vFirst - pFirst; // contributions @ start
                           const cLast = vLast - pLast; //    contributions @ end
+                          const plDelta = pLast - pFirst; // P/L gained over the range
                           const contribDelta = cLast - cFirst;
-                          // P/L = the actual RETURN: current profit as a % of the
-                          // contributed value (profit ÷ contributions), NOT relative
-                          // to the first tick's P/L. Amount = current profit.
+                          // P/L = the REAL P/L for the selected range: profit gained
+                          // over the range (last − first), as a % of the contributed
+                          // value at the range start. Range-aware (1M shows just that
+                          // month), and based on contributed value — not the first P/L.
                           return {
-                            plAmount: Math.round(pLast),
-                            plPct: cLast !== 0 ? (100 * pLast) / cLast : null,
+                            plAmount: Math.round(plDelta),
+                            plPct: cFirst !== 0 ? (100 * plDelta) / cFirst : null,
                             contribDelta: Math.round(contribDelta),
                             contribPct:
                               cFirst !== 0 ? (100 * contribDelta) / cFirst : null,
