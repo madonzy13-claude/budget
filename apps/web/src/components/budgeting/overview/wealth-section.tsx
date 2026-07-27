@@ -363,9 +363,9 @@ export function WealthSection({
                       {invMetrics ? (
                         <>
                           <CombinedStat
-                            label={t("wealth.total")}
-                            pct={growth.delta_pct}
-                            amount={fmtSigned(growth.delta_cents)}
+                            label={t("wealth.contributions")}
+                            pct={invMetrics.contribPct}
+                            amount={fmtSigned(String(invMetrics.contribDelta))}
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
@@ -375,9 +375,9 @@ export function WealthSection({
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
-                            label={t("wealth.contributions")}
-                            pct={invMetrics.contribPct}
-                            amount={fmtSigned(String(invMetrics.contribDelta))}
+                            label={t("wealth.total")}
+                            pct={growth.delta_pct}
+                            amount={fmtSigned(growth.delta_cents)}
                             mask={amountPrivacyEnabled}
                           />
                         </>
@@ -408,7 +408,7 @@ export function WealthSection({
                       },
                       {
                         key: "profit",
-                        label: t("wealth.profit"),
+                        label: t("wealth.pl"),
                         color: "var(--primary)",
                         stack: "inv",
                         fillOpacity: 0.35,
@@ -418,28 +418,42 @@ export function WealthSection({
                     formatTooltip={fmtTooltip}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
-                    // Each series' % share of the total on the same line as its
-                    // amount (like the avg-change tooltip): contributions vs profit
-                    // split of the whole investment value at that tick.
+                    // % suffix = the SAME metric growth as the headline stats, but
+                    // measured from the range start to the HOVERED tick (so at the
+                    // last tick it matches the metrics exactly): contributions & P/L
+                    // ÷ contributions@start, total ÷ value@start.
                     rowSuffix={(row, key) => {
-                      const total =
-                        Number(row.contributions ?? 0) + Number(row.profit ?? 0);
-                      if (total <= 0) return undefined;
-                      const v = Number(row[key as string] ?? 0);
-                      return `${((v / total) * 100).toFixed(1)}%`;
+                      const f = investStack[0];
+                      if (!f) return undefined;
+                      const cBase = Number(f.contributions);
+                      if (cBase === 0) return undefined;
+                      const delta =
+                        key === "contributions"
+                          ? Number(row.contributions) - cBase
+                          : Number(row.profit) - Number(f.profit);
+                      return fmtSignedPct((100 * delta) / cBase);
                     }}
-                    // Total = contributions + profit = the whole investment value
-                    // at that tick, appended below the two stacked series.
+                    // Total = contributions + profit; amount + its growth % (value ÷
+                    // value@start), same logic as the Total metric.
                     tooltipExtra={(row) => {
                       const total =
                         Number(row.contributions ?? 0) + Number(row.profit ?? 0);
+                      const f = investStack[0];
+                      const vBase = f
+                        ? Number(f.contributions) + Number(f.profit)
+                        : 0;
+                      const money =
+                        amountPrivacyEnabled && !revealed
+                          ? "•••"
+                          : fmtTooltip(total);
+                      const pct =
+                        vBase !== 0
+                          ? ` · ${fmtSignedPct((100 * (total - vBase)) / vBase)}`
+                          : "";
                       return [
                         {
                           label: t("wealth.total"),
-                          value:
-                            amountPrivacyEnabled && !revealed
-                              ? "•••"
-                              : fmtTooltip(total),
+                          value: money + pct,
                         },
                       ];
                     }}
@@ -551,9 +565,9 @@ export function WealthSection({
                           </p>
                           <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
                             <CombinedStat
-                              label={t("wealth.total")}
-                              pct={data.monthly_avg_grow_pct}
-                              amount={fmtSigned(String(meanAmt("totalDelta")))}
+                              label={t("wealth.contributions")}
+                              pct={contribAvg}
+                              amount={fmtSigned(String(meanAmt("contribDelta")))}
                               mask={amountPrivacyEnabled}
                             />
                             <CombinedStat
@@ -563,9 +577,9 @@ export function WealthSection({
                               mask={amountPrivacyEnabled}
                             />
                             <CombinedStat
-                              label={t("wealth.contributions")}
-                              pct={contribAvg}
-                              amount={fmtSigned(String(meanAmt("contribDelta")))}
+                              label={t("wealth.total")}
+                              pct={data.monthly_avg_grow_pct}
+                              amount={fmtSigned(String(meanAmt("totalDelta")))}
                               mask={amountPrivacyEnabled}
                             />
                           </div>
