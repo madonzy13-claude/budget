@@ -343,20 +343,13 @@ export function WealthSection({
                             exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
                           const cFirst = vFirst - pFirst; // contributions @ start
                           const cLast = vLast - pLast; //    contributions @ end
-                          const plDelta = pLast - pFirst;
                           const contribDelta = cLast - cFirst;
-                          // P/L %: NOT profit-vs-profit growth (Δp/pFirst — a huge,
-                          // misleading number). Instead the change in RETURN rate
-                          // between the last and first tick: (p/contrib)_last −
-                          // (p/contrib)_first, in percentage points.
-                          const retFirst = cFirst !== 0 ? pFirst / cFirst : null;
-                          const retLast = cLast !== 0 ? pLast / cLast : null;
+                          // P/L = the actual RETURN: current profit as a % of the
+                          // contributed value (profit ÷ contributions), NOT relative
+                          // to the first tick's P/L. Amount = current profit.
                           return {
-                            plDelta: Math.round(plDelta),
-                            plPct:
-                              retFirst != null && retLast != null
-                                ? (retLast - retFirst) * 100
-                                : null,
+                            plAmount: Math.round(pLast),
+                            plPct: cLast !== 0 ? (100 * pLast) / cLast : null,
                             contribDelta: Math.round(contribDelta),
                             contribPct:
                               cFirst !== 0 ? (100 * contribDelta) / cFirst : null,
@@ -376,7 +369,7 @@ export function WealthSection({
                           <CombinedStat
                             label={t("wealth.pl")}
                             pct={invMetrics.plPct}
-                            amount={fmtSigned(String(invMetrics.plDelta))}
+                            amount={fmtSigned(String(invMetrics.plAmount))}
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
