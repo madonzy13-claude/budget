@@ -418,6 +418,16 @@ export function WealthSection({
                     formatTooltip={fmtTooltip}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
+                    // Each series' % share of the total on the same line as its
+                    // amount (like the avg-change tooltip): contributions vs profit
+                    // split of the whole investment value at that tick.
+                    rowSuffix={(row, key) => {
+                      const total =
+                        Number(row.contributions ?? 0) + Number(row.profit ?? 0);
+                      if (total <= 0) return undefined;
+                      const v = Number(row[key as string] ?? 0);
+                      return `${((v / total) * 100).toFixed(1)}%`;
+                    }}
                     // Total = contributions + profit = the whole investment value
                     // at that tick, appended below the two stacked series.
                     tooltipExtra={(row) => {
