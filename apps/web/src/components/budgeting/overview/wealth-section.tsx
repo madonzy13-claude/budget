@@ -89,10 +89,9 @@ function PctStat({
 }
 
 /**
- * CombinedStat — one metric shown as % (primary) with its money amount stacked
- * beneath, both in the same up/down colour. Used for the Investments "Total" and
- * "P/L" growth metrics so each type reads as one tidy column (%+amount) instead
- * of the % and amount living in two separate, ambiguously-labelled stats.
+ * CombinedStat — one metric shown as % (primary, coloured up/down) with its money
+ * amount stacked beneath in MUTED grey (secondary). Only the % carries colour so a
+ * row of these reads calmly instead of two stacked coloured figures fighting.
  */
 function CombinedStat({
   label,
@@ -124,7 +123,7 @@ function CombinedStat({
         {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}
         {mask ? <SlotAmount value={pctStr} /> : pctStr}
       </span>
-      <span className={cn("num text-num-sm", color)}>
+      <span className="num text-caption text-[var(--muted-foreground)]">
         {mask ? <SlotAmount value={amount} /> : amount}
       </span>
     </div>
@@ -346,9 +345,18 @@ export function WealthSection({
                           const cLast = vLast - pLast; //    contributions @ end
                           const plDelta = pLast - pFirst;
                           const contribDelta = cLast - cFirst;
+                          // P/L %: NOT profit-vs-profit growth (Δp/pFirst — a huge,
+                          // misleading number). Instead the change in RETURN rate
+                          // between the last and first tick: (p/contrib)_last −
+                          // (p/contrib)_first, in percentage points.
+                          const retFirst = cFirst !== 0 ? pFirst / cFirst : null;
+                          const retLast = cLast !== 0 ? pLast / cLast : null;
                           return {
                             plDelta: Math.round(plDelta),
-                            plPct: pFirst !== 0 ? (100 * plDelta) / pFirst : null,
+                            plPct:
+                              retFirst != null && retLast != null
+                                ? (retLast - retFirst) * 100
+                                : null,
                             contribDelta: Math.round(contribDelta),
                             contribPct:
                               cFirst !== 0 ? (100 * contribDelta) / cFirst : null,
