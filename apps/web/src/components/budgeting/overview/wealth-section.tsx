@@ -418,10 +418,11 @@ export function WealthSection({
                     formatTooltip={fmtTooltip}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
-                    // % suffix = the SAME metric growth as the headline stats, but
-                    // measured from the range start to the HOVERED tick (so at the
-                    // last tick it matches the metrics exactly): contributions & P/L
-                    // ÷ contributions@start, total ÷ value@start.
+                    // Each row shows THREE things: the absolute amount (value cell)
+                    // + the growth % and the growth AMOUNT from the range start to the
+                    // hovered tick (suffix), same logic as the headline metrics so at
+                    // the last tick they match. Contributions & P/L ÷ contributions@
+                    // start; total ÷ value@start.
                     rowSuffix={(row, key) => {
                       const f = investStack[0];
                       if (!f) return undefined;
@@ -431,10 +432,15 @@ export function WealthSection({
                         key === "contributions"
                           ? Number(row.contributions) - cBase
                           : Number(row.profit) - Number(f.profit);
-                      return fmtSignedPct((100 * delta) / cBase);
+                      const pct = fmtSignedPct((100 * delta) / cBase);
+                      const amt =
+                        amountPrivacyEnabled && !revealed
+                          ? "•••"
+                          : fmtSigned(String(Math.round(delta)));
+                      return `${pct}  ${amt}`;
                     }}
-                    // Total = contributions + profit; amount + its growth % (value ÷
-                    // value@start), same logic as the Total metric.
+                    // Total = contributions + profit; absolute + its growth % and
+                    // growth amount (value ÷ value@start), matching the Total metric.
                     tooltipExtra={(row) => {
                       const total =
                         Number(row.contributions ?? 0) + Number(row.profit ?? 0);
@@ -442,18 +448,19 @@ export function WealthSection({
                       const vBase = f
                         ? Number(f.contributions) + Number(f.profit)
                         : 0;
-                      const money =
-                        amountPrivacyEnabled && !revealed
-                          ? "•••"
-                          : fmtTooltip(total);
-                      const pct =
+                      const hidden = amountPrivacyEnabled && !revealed;
+                      const money = hidden ? "•••" : fmtTooltip(total);
+                      const dTotal = total - vBase;
+                      const extra =
                         vBase !== 0
-                          ? ` · ${fmtSignedPct((100 * (total - vBase)) / vBase)}`
+                          ? ` · ${fmtSignedPct((100 * dTotal) / vBase)}  ${
+                              hidden ? "•••" : fmtSigned(String(Math.round(dTotal)))
+                            }`
                           : "";
                       return [
                         {
                           label: t("wealth.total"),
-                          value: money + pct,
+                          value: money + extra,
                         },
                       ];
                     }}
