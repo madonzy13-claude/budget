@@ -418,11 +418,11 @@ export function WealthSection({
                     formatTooltip={fmtTooltip}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
-                    // Each row shows THREE things: the absolute amount (value cell)
-                    // + the growth % and the growth AMOUNT from the range start to the
-                    // hovered tick (suffix), same logic as the headline metrics so at
-                    // the last tick they match. Contributions & P/L ÷ contributions@
-                    // start; total ÷ value@start.
+                    // Each row = three aligned columns: absolute amount (value) +
+                    // growth % + growth AMOUNT, both measured from the range start to
+                    // the hovered tick (so they match the headline metrics at the last
+                    // tick). Contributions & P/L ÷ contributions@start. % and amount
+                    // both mask under privacy.
                     rowSuffix={(row, key) => {
                       const f = investStack[0];
                       if (!f) return undefined;
@@ -432,16 +432,15 @@ export function WealthSection({
                         key === "contributions"
                           ? Number(row.contributions) - cBase
                           : Number(row.profit) - Number(f.profit);
-                      const pct = fmtSignedPct((100 * delta) / cBase);
-                      const amt =
-                        amountPrivacyEnabled && !revealed
-                          ? "•••"
-                          : fmtSigned(String(Math.round(delta)));
-                      return `${pct}  ${amt}`;
+                      const hidden = amountPrivacyEnabled && !revealed;
+                      return [
+                        hidden ? "•••" : fmtSignedPct((100 * delta) / cBase),
+                        hidden ? "•••" : fmtSigned(String(Math.round(delta))),
+                      ];
                     }}
-                    // Total = contributions + profit; absolute + its growth % and
-                    // growth amount (value ÷ value@start), matching the Total metric.
-                    tooltipExtra={(row) => {
+                    // Total = contributions + profit, aligned in the same columns:
+                    // absolute + growth % + growth amount (÷ value@start).
+                    summary={(row) => {
                       const total =
                         Number(row.contributions ?? 0) + Number(row.profit ?? 0);
                       const f = investStack[0];
@@ -449,20 +448,22 @@ export function WealthSection({
                         ? Number(f.contributions) + Number(f.profit)
                         : 0;
                       const hidden = amountPrivacyEnabled && !revealed;
-                      const money = hidden ? "•••" : fmtTooltip(total);
                       const dTotal = total - vBase;
-                      const extra =
-                        vBase !== 0
-                          ? ` · ${fmtSignedPct((100 * dTotal) / vBase)}  ${
-                              hidden ? "•••" : fmtSigned(String(Math.round(dTotal)))
-                            }`
-                          : "";
-                      return [
-                        {
-                          label: t("wealth.total"),
-                          value: money + extra,
-                        },
-                      ];
+                      return {
+                        label: t("wealth.total"),
+                        value: hidden ? "•••" : fmtTooltip(total),
+                        suffix:
+                          vBase === 0
+                            ? []
+                            : [
+                                hidden
+                                  ? "•••"
+                                  : fmtSignedPct((100 * dTotal) / vBase),
+                                hidden
+                                  ? "•••"
+                                  : fmtSigned(String(Math.round(dTotal))),
+                              ],
+                      };
                     }}
                   />
                 ) : (

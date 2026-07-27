@@ -41,6 +41,7 @@ export function OverviewAreaChart({
   labelFormat,
   tooltipExtra,
   rowSuffix,
+  summary,
   maskAmounts = false,
 }: {
   data: Array<Record<string, unknown>>;
@@ -63,7 +64,11 @@ export function OverviewAreaChart({
   rowSuffix?: (
     row: Record<string, unknown>,
     dataKey?: string | number,
-  ) => string | undefined;
+  ) => string | string[] | undefined;
+  /** Grid-aligned summary row (e.g. Total) below a hairline. */
+  summary?: (
+    row: Record<string, unknown>,
+  ) => { label: string; value: string; suffix?: string[] } | null;
   /** Privacy: when true, blur the Y-axis amounts + mask the tooltip amount until
    *  the shared SlotAmount reveal is toggled on (amounts only — dates stay). */
   maskAmounts?: boolean;
@@ -110,6 +115,7 @@ export function OverviewAreaChart({
               labelFormat={labelFormat ?? xTickFormat}
               extra={tooltipExtra}
               rowSuffix={rowSuffix}
+              summary={summary}
               {...contentExtra}
             />
           }
