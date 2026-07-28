@@ -104,11 +104,23 @@ When(
   "I edit the wallet {string} name to {string}",
   async ({ page }, currentName: string, newName: string) => {
     const wallets = new WalletsPage(page);
+    // Let a previous save settle first: count() does not wait, so probing
+    // mid-flight can miss a draft that is about to mount (and take the
+    // persisted-rename branch by mistake).
+    await page
+      .waitForLoadState("networkidle", { timeout: 15000 })
+      .catch(() => {});
     // If a draft row is visible (W-4 staged-add), operate on the draft input
     const draft = wallets.draftRow();
     if ((await draft.count()) > 0) {
-      await wallets.draftNameInput().fill(newName);
-      await wallets.draftNameInput().blur();
+      // The draft's name input is `disabled` while its create is in flight, so
+      // wait for it to be usable rather than letting fill() burn the whole test
+      // budget on a slow/loaded stack.
+      const input = wallets.draftNameInput();
+      await input.waitFor({ state: "visible", timeout: 15000 });
+      await expect(input).toBeEnabled({ timeout: 15000 });
+      await input.fill(newName);
+      await input.blur();
       await page.waitForLoadState("networkidle");
       return;
     }
