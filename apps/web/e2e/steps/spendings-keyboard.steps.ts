@@ -34,7 +34,17 @@ When(
 );
 
 When(/^I focus the "(.+?)" quick input$/, async ({ page }, name: string) => {
-  await page.getByTestId(`quick-entry-${name.toLowerCase()}`).click();
+  const input = page.getByTestId(`quick-entry-${name.toLowerCase()}`);
+  // The grid refetches its summary after every quick entry. Clicking while that
+  // is still in flight focuses a node React is about to replace, so focus ends
+  // up on nothing and the next arrow key goes nowhere — which on a slow CI
+  // runner turned into a 30s timeout waiting for a dialog that never opened.
+  // Let the grid settle, then prove the focus actually stuck.
+  await page
+    .waitForLoadState("networkidle", { timeout: 10000 })
+    .catch(() => {});
+  await input.click();
+  await expect(input).toBeFocused({ timeout: 5000 });
 });
 
 When(/^I press "(.+?)" in the grid$/, async ({ page }, combo: string) => {
