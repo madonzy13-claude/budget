@@ -121,6 +121,11 @@ When(
       await expect(input).toBeEnabled({ timeout: 15000 });
       await input.fill(newName);
       await input.blur();
+      // Wait for the draft to actually become a persisted row. Without this the
+      // NEXT "add wallet" click can land while this create is still in flight —
+      // the draft is still mounted and still disabled, so the click is swallowed
+      // and the following edit sits on the stale, disabled draft until timeout.
+      await expect(wallets.draftRow()).toHaveCount(0, { timeout: 15000 });
       await page.waitForLoadState("networkidle");
       return;
     }
