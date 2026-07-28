@@ -39,6 +39,16 @@ Then(
   },
 );
 
+Then(
+  /^no confirmed transaction row for (\d+) cents is visible in the grid$/,
+  async ({ page }, amountCents: string) => {
+    const spendings = new SpendingsPo(page);
+    await expect(
+      spendings.transactionRowByAmount(Number(amountCents)),
+    ).toHaveCount(0);
+  },
+);
+
 // ─── Offline queue ───────────────────────────────────────────────────────────
 
 When("the browser goes offline", async ({ context }) => {

@@ -53,15 +53,21 @@ When("I pick the budget type {string}", async ({ page }, type: string) => {
   await onboarding.pickType(type as "personal" | "shared");
 });
 
-When(/^I toggle the cushion feature (on|off)$/, async ({ page }) => {
-  const onboarding = new OnboardingPage(page);
-  await onboarding.toggleCushion();
-});
+When(
+  /^I toggle the cushion feature (on|off)$/,
+  async ({ page }, state: string) => {
+    const onboarding = new OnboardingPage(page);
+    await onboarding.toggleCushion(state === "on");
+  },
+);
 
-When(/^I toggle the reserves feature (on|off)$/, async ({ page }) => {
-  const onboarding = new OnboardingPage(page);
-  await onboarding.toggleReserves();
-});
+When(
+  /^I toggle the reserves feature (on|off)$/,
+  async ({ page }, state: string) => {
+    const onboarding = new OnboardingPage(page);
+    await onboarding.toggleReserves(state === "on");
+  },
+);
 
 When("I click Next", async ({ page }) => {
   const onboarding = new OnboardingPage(page);

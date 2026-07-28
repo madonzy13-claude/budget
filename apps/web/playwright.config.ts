@@ -75,7 +75,11 @@ export default defineConfig({
       // only re-exercises the flake-prone inline-edit harness at a narrow width
       // where the just-mounted transactions refetch races the dblclick. Scope it
       // to chromium (mirrors the geometry projects' per-project scoping).
-      grepInvert: /@reserves-golden/,
+      // @desktop-only scenarios assert behaviour the product intentionally
+      // restricts to desktop (e.g. the wallets roving highlight, which must NOT
+      // linger on a touch layout). Running them at 390px asserts the opposite of
+      // the shipped contract, so they stay on the chromium project.
+      grepInvert: /@reserves-golden|@desktop-only/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },

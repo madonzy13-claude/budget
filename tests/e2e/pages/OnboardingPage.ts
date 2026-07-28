@@ -12,7 +12,7 @@
  *   3 = Features  (cushion + reserves toggles)
  *   4 = Review    (Create budget CTA)
  */
-import { type Page, type Locator } from "@playwright/test";
+import { expect, type Page, type Locator } from "@playwright/test";
 
 export class OnboardingPage {
   constructor(private readonly page: Page) {}
@@ -90,12 +90,27 @@ export class OnboardingPage {
     return this.page.getByTestId("wizard-feature-reserves");
   }
 
-  async toggleCushion(): Promise<void> {
-    await this.cushionSwitch().click();
+  /**
+   * Drive a feature switch to an EXPLICIT state rather than blind-clicking it.
+   * The wizard's defaults have changed before (cushion + reserves now start
+   * OFF), and a blind toggle silently inverts the scenario when they do.
+   */
+  private async setSwitch(sw: Locator, on: boolean): Promise<void> {
+    await sw.waitFor({ state: "visible", timeout: 10000 });
+    if ((await sw.getAttribute("aria-checked")) !== String(on)) {
+      await sw.click();
+    }
+    await expect(sw).toHaveAttribute("aria-checked", String(on), {
+      timeout: 5000,
+    });
   }
 
-  async toggleReserves(): Promise<void> {
-    await this.reservesSwitch().click();
+  async toggleCushion(on: boolean): Promise<void> {
+    await this.setSwitch(this.cushionSwitch(), on);
+  }
+
+  async toggleReserves(on: boolean): Promise<void> {
+    await this.setSwitch(this.reservesSwitch(), on);
   }
 
   // ── Step 4: Review ──────────────────────────────────────────────────────────

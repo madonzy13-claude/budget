@@ -1,9 +1,10 @@
 /**
  * spendings-keyboard.steps.ts — r40b desktop keyboard navigation over the grid.
  * Arrows walk a column's rows AND hop columns (Left/Right on a row → same index
- * in the neighbour). A quick input's Left/Right move the caret until the edge,
- * then save + hop to the neighbouring column's quick input. Enter opens the
- * inline amount editor / saves a quick entry; Backspace opens delete-confirm.
+ * in the neighbour). An EMPTY quick input's Left/Right hop to the neighbouring
+ * column; once it holds a value they only move the caret (260722-b — nudging the
+ * caret must not save into another column). Enter opens the inline amount editor
+ * / saves a quick entry; Backspace opens delete-confirm.
  * Focus (arrow-nav) reveals a row's action chips.
  */
 import { createBdd } from "playwright-bdd";

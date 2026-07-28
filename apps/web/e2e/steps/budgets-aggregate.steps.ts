@@ -272,12 +272,20 @@ When(
     if ((await toggle.getAttribute("aria-checked")) !== "true") {
       await toggle.click();
     }
+    // The share is an InlineEditCell, not a plain input: the resting cell renders
+    // "100%" and only swaps in an <input> once tapped. Tap it, type the bare
+    // number, Enter commits (→ the self-write PUT { included, share_pct }).
     const share = page.getByTestId("settings-aggregation-share");
-    await share.waitFor({ state: "visible", timeout: 5000 });
-    await share.fill(String(pctStr)); // bdd coerces \d+ to a number; fill needs a string
-    await share.blur(); // triggers the self-write PUT { included, share_pct }
-    // The input disables while the PUT is in flight and re-enables on settle.
-    await expect(share).toBeEnabled({ timeout: 5000 });
+    await share.waitFor({ state: "visible", timeout: 10000 });
+    await share.click();
+    const editor = page
+      .getByTestId("settings-aggregation-share-editor")
+      .locator("input");
+    await editor.waitFor({ state: "visible", timeout: 5000 });
+    await editor.fill(String(pctStr)); // bdd coerces \d+ to a number; fill needs a string
+    await editor.press("Enter");
+    // The editor unmounts when the PUT settles and the cell shows the new value.
+    await expect(share).toContainText(`${pctStr}%`, { timeout: 10000 });
   },
 );
 
