@@ -26,10 +26,16 @@ vi.mock("next-intl", () => ({
   },
 }));
 
+// loading.tsx reads the pathname to pick which pill is active — on the bare
+// /budgets/[id] path (no tab segment) that resolves to Overview, the landing tab.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/en/budgets/b1",
+}));
+
 import BdpLoading from "@/app/[locale]/(app)/budgets/[id]/loading";
 
 function renderLoading() {
-  return render(BdpLoading());
+  return render(<BdpLoading />);
 }
 
 describe("BDP loading.tsx", () => {
@@ -65,7 +71,9 @@ describe("BDP loading.tsx", () => {
       overviewPill.querySelector(".bg-\\[var\\(--primary\\)\\]"),
     ).not.toBeNull();
     // single yellow indicator (only Overview active).
-    expect(band.querySelectorAll(".bg-\\[var\\(--primary\\)\\]").length).toBe(1);
+    expect(band.querySelectorAll(".bg-\\[var\\(--primary\\)\\]").length).toBe(
+      1,
+    );
   });
 
   it("renders the Overview cards skeleton for the pane, not the Wallets skeleton", () => {

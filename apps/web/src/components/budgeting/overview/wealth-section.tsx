@@ -190,7 +190,16 @@ export function WealthSection({
     centsToRounded(cents, ccy, "en", true);
   // Signed, sign-tight, no cents: "+30,640 zł" / "−30,640 zł".
   const fmtSigned = (cents: string | bigint) => {
-    const b = BigInt(String(cents));
+    // BigInt() throws on "NaN"/"1.5" — a single dynamics bucket missing its
+    // delta_cents would otherwise take the whole Wealth section down with it.
+    // Non-finite → treat as zero.
+    const n = typeof cents === "bigint" ? cents : Number(cents);
+    const b =
+      typeof n === "bigint"
+        ? n
+        : Number.isFinite(n)
+          ? BigInt(Math.round(n))
+          : 0n;
     const sign = b > 0n ? "+" : b < 0n ? "−" : "";
     return `${sign}${centsToRounded(b < 0n ? -b : b, ccy, "en", true)}`;
   };

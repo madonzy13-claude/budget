@@ -36,7 +36,8 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("@/components/common/nav-pending", () => ({
-  useNavRouter: () => ({ push: vi.fn() }),
+  // The switcher warms every row on open — the mock needs prefetch too.
+  useNavRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }),
 }));
 
 // Scenario: the user just accepted an invite and landed on budget B's page,

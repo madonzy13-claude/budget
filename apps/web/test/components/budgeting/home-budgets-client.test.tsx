@@ -73,20 +73,22 @@ describe("HomeBudgetsClient — auto-open shows the BDP Overview skeleton", () =
     expect(replace).toHaveBeenCalledWith("/en/budgets/b2/overview");
   });
 
-  it("?list=1 → shows the budget LISTING (heading), not the Overview skeleton", () => {
+  // The heavy AggregateOverview mount is deferred one frame (card skeletons show
+  // first), so these two await it instead of asserting synchronously.
+  it("?list=1 → shows the budget LISTING (heading), not the Overview skeleton", async () => {
     listParam = "1";
     activeBudgets = { data: [{ id: "b1" }, { id: "b2" }], isSuccess: true };
     const { container } = render(<HomeBudgetsClient locale="en" />);
     expect(overviewBand(container)).toBeNull();
-    expect(screen.getByTestId("aggregate-overview")).toBeTruthy();
+    expect(await screen.findByTestId("aggregate-overview")).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it("resolved >1 budgets with NO last-visited (plain) → shows the LISTING", () => {
+  it("resolved >1 budgets with NO last-visited (plain) → shows the LISTING", async () => {
     activeBudgets = { data: [{ id: "b1" }, { id: "b2" }], isSuccess: true };
     const { container } = render(<HomeBudgetsClient locale="en" />);
     expect(overviewBand(container)).toBeNull();
-    expect(screen.getByTestId("aggregate-overview")).toBeTruthy();
+    expect(await screen.findByTestId("aggregate-overview")).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
   });
 });

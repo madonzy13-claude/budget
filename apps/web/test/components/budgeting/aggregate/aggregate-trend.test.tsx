@@ -64,11 +64,14 @@ describe("AggregateTrend", () => {
   it("capitalization view: growth row + area chart + a where-it-sits pie", () => {
     renderTrend();
     expect(screen.getByTestId("area").textContent).toBe("2");
-    // The growth metric is a privacy SlotAmount — reveal it, then read aria-label.
-    const grow = screen.getByTestId("aggregate-trend-grow");
-    const slot = within(grow).getByTestId("slot-amount");
-    fireEvent.click(slot);
-    expect(slot.getAttribute("aria-label")).toMatch(/\+.*1,?300/);
+    // The growth metric is a BDP-parity CombinedStat: a "grow"/"loss" label with
+    // the % above the money amount, both privacy SlotAmounts. Reveal, then read
+    // the amount's aria-label.
+    const grow = screen.getByText("grow").parentElement!;
+    const slots = within(grow).getAllByTestId("slot-amount");
+    expect(slots.length).toBe(2); // [0] = %, [1] = money amount
+    fireEvent.click(slots[1]!);
+    expect(slots[1]!.getAttribute("aria-label")).toMatch(/\+.*1,?300/);
     // capitalization pie built from the row sums (investments + cash)
     expect(screen.getByTestId("aggregate-cap-pie")).toBeTruthy();
     expect(screen.getByTestId("pie").textContent).toContain("investments");
