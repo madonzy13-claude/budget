@@ -49,7 +49,11 @@ interface WalletSectionProps {
   ) => Promise<void>;
   onArchive: (id: string) => void;
   onAdd: () => void;
-  onCommitDraft: (name: string) => Promise<void>;
+  onCommitDraft: (
+    name: string,
+    currency: string,
+    amount: string,
+  ) => Promise<void>;
   onDiscardDraft: () => void;
 }
 
@@ -175,6 +179,7 @@ export function WalletSection({
         onClick={onAdd}
         label={t(`add.${sectionKey}`)}
         testId={`add-wallet-${sectionKey}`}
+        navKey={`add-wallet-${sectionKey}`}
       />
     </section>
   );

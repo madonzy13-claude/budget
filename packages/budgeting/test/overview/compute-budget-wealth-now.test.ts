@@ -30,6 +30,7 @@ function deps(
   investmentValueCents: bigint,
   rates: Record<string, string> = {},
   investmentCostBasisCents: bigint = 0n,
+  possessionsValueCents: bigint = 0n,
 ): ComputeBudgetWealthNowDeps {
   return {
     walletRepo: {
@@ -43,6 +44,9 @@ function deps(
       },
       async investmentCostBasisCents() {
         return investmentCostBasisCents;
+      },
+      async possessionsValueCents() {
+        return possessionsValueCents;
       },
     },
     fxProvider: fxProvider(rates) as ComputeBudgetWealthNowDeps["fxProvider"],
@@ -94,5 +98,18 @@ describe("computeBudgetWealthNow", () => {
     const out = await computeBudgetWealthNow(deps(wallets, 10000n))(input);
     expect(out.investment_value_cents).toBe(10000n);
     expect(out.capitalization_cents).toBe(20000n);
+  });
+
+  test("possessions add to capitalization and are exposed as a subtotal (out of investment_value)", async () => {
+    const wallets: WalletWithType[] = [
+      { amount_cents: 10000n, currency: "USD", wallet_type: "SPENDINGS" },
+    ];
+    // wallets 10000 + investments 20000 + possessions 50000 = 80000 net worth.
+    const out = await computeBudgetWealthNow(
+      deps(wallets, 20000n, {}, 0n, 50000n),
+    )(input);
+    expect(out.investment_value_cents).toBe(20000n); // possessions NOT here
+    expect(out.possessions_value_cents).toBe(50000n);
+    expect(out.capitalization_cents).toBe(80000n); // but ARE in net worth
   });
 });

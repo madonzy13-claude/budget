@@ -36,6 +36,8 @@ export interface RecurringRuleListItem {
   yearlyMonth: number | null;
   note: string | null;
   nextDueDate: string;
+  /** Optional "last date" — null = no deadline (mig 0069). */
+  endDate?: string | null;
   active: boolean;
 }
 

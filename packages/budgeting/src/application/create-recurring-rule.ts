@@ -12,6 +12,7 @@ import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { Temporal } from "temporal-polyfill";
 import { nextOccurrence, type Cadence } from "../domain/cadence";
+import { isRuleExhausted } from "../domain/recurring-end-date";
 import type { RecurringRuleRepo } from "../ports/recurring-rule-repo";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { computeRecurringFx, type FxProviderLike } from "./recurring-engine-fx";
@@ -27,6 +28,8 @@ export interface CreateRecurringRuleInput {
   yearlyMonth?: number | null;
   note?: string | null;
   firstDueDate: string; // ISO YYYY-MM-DD
+  /** Optional "last date" (ISO YYYY-MM-DD). null = no deadline. */
+  endDate?: string | null;
   actorUserId: string;
 }
 
@@ -80,13 +83,13 @@ export function createRecurringRule(deps: {
         INSERT INTO budgeting.recurring_rules
           (tenant_id, category_id, amount, currency, cadence,
            cadence_anchor, weekly_dow, yearly_month,
-           note, active, next_due_date, actor_user_id)
+           note, active, next_due_date, end_date, actor_user_id)
         VALUES
           (${input.tenantId}::uuid, ${(input.categoryId ?? null) as string | null}::uuid,
            ${input.amount}::numeric, ${input.currency}, ${input.cadence},
            ${input.cadenceAnchor ?? null}, ${input.weeklyDow ?? null}, ${input.yearlyMonth ?? null},
            ${input.note ?? null}, true,
-           ${input.firstDueDate}::date, ${input.actorUserId}::uuid)
+           ${input.firstDueDate}::date, ${input.endDate ?? null}::date, ${input.actorUserId}::uuid)
         RETURNING id
       `);
         const ruleId = (result.rows[0] as Record<string, unknown>).id as string;
@@ -138,7 +141,12 @@ export function createRecurringRule(deps: {
         const budgetCurrency =
           (budgetRow.rows[0]?.default_currency as string | undefined) ??
           input.currency;
-        while (Temporal.PlainDate.compare(dueDate, today) <= 0) {
+        // Cap the catch-up at end_date (inclusive) as well as today: a rule
+        // with a past end_date only back-fills up to that date.
+        while (
+          Temporal.PlainDate.compare(dueDate, today) <= 0 &&
+          !isRuleExhausted(dueDate.toString(), input.endDate ?? null)
+        ) {
           const dueStr = dueDate.toString();
           const fxComputed = await computeRecurringFx({
             ruleCurrency: input.currency,
@@ -218,10 +226,18 @@ export function createRecurringRule(deps: {
           );
         }
 
-        // Move next_due_date forward to the first date STRICTLY after
-        // today so the nightly engine doesn't double-insert what we
-        // just back-filled.
-        if (Temporal.PlainDate.compare(dueDate, today) > 0) {
+        // If the next occurrence has passed end_date, the rule is exhausted —
+        // deactivate it so the nightly engine never scans it again.
+        if (isRuleExhausted(dueDate.toString(), input.endDate ?? null)) {
+          await drizzleTx2.execute(sql`
+            UPDATE budgeting.recurring_rules
+               SET active = false, updated_at = now()
+             WHERE id = ${ruleId}::uuid
+          `);
+        } else if (Temporal.PlainDate.compare(dueDate, today) > 0) {
+          // Move next_due_date forward to the first date STRICTLY after
+          // today so the nightly engine doesn't double-insert what we
+          // just back-filled.
           await drizzleTx2.execute(sql`
             UPDATE budgeting.recurring_rules
                SET next_due_date = ${dueDate.toString()}::date

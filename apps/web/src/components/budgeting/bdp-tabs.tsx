@@ -102,6 +102,12 @@ export function BdpTabs({
       if (e.key !== "Tab" || e.metaKey || e.ctrlKey || e.altKey) return;
       const ae = document.activeElement as HTMLElement | null;
       if (ae?.closest('[role="dialog"]')) return;
+      // 260723-4: never cycle pills while the user is inside a wallet/possession
+      // add mini-form or editing a wallet field — Tab there hops name↔currency↔
+      // amount. The currency picker is a <button role="combobox">, not an
+      // <input>/<select>, so the text-field guard below misses it.
+      if (ae?.closest('[data-testid="wallet-row-draft"],[data-nav-field]'))
+        return;
       const inFormField =
         !!ae &&
         !ae.matches('input[data-testid^="quick-entry-"]') &&

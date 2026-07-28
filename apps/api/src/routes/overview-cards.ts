@@ -43,6 +43,7 @@ export function registerOverviewCardsRoutes(r: Hono, deps: BootedDeps) {
         },
         capitalization_cents: dto.capitalization_cents.toString(),
         investment_value_cents: dto.investment_value_cents.toString(),
+        possessions_value_cents: dto.possessions_value_cents.toString(),
         retirement_months: dto.retirement_months,
         retirement_inflation_pct: dto.retirement_inflation_pct,
         available_reserves_cents: dto.available_reserves_cents.toString(),

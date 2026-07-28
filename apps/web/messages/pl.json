@@ -354,7 +354,8 @@
       },
       "reminder": {
         "label": "Przypominaj o aktualizacji budżetu",
-        "description": "Wieczorne przypomnienie w wybrane dni",
+        "description": "Przypomnienie o wybranej porze w wybrane dni",
+        "time": "Godzina wysyłki",
         "day": {
           "1": "Poniedziałek",
           "2": "Wtorek",
@@ -525,6 +526,47 @@
       "feature_off_toast": "Rezerwy wyłączone — karta Rezerwy ukryta",
       "error_save": "Nie udało się zapisać — spróbuj ponownie"
     },
+    "possessions": {
+      "section": {
+        "title": "MAJĄTEK"
+      },
+      "add": {
+        "cta": "Dodaj rzecz"
+      },
+      "sheet": {
+        "addTitle": "Dodaj rzecz",
+        "editTitle": "Edytuj rzecz",
+        "save": "Zapisz",
+        "cancel": "Anuluj"
+      },
+      "field": {
+        "name": "Nazwa",
+        "namePlaceholder": "np. Samochód, Dom, Zegarek",
+        "icon": "Ikona",
+        "currency": "Waluta",
+        "amount": "Wartość"
+      },
+      "row": {
+        "editAria": "Edytuj rzecz {name}",
+        "deleteAria": "Usuń rzecz {name}",
+        "nameAria": "Nazwa rzeczy",
+        "amountAria": "Wartość rzeczy",
+        "currencyAria": "Waluta rzeczy",
+        "iconAria": "Dostosuj ikonę i kolor {name}",
+        "nameRequired": "Nazwa nie może być pusta"
+      },
+      "confirm": {
+        "delete": {
+          "title": "Usunąć rzecz „{name}”?",
+          "body": "Tego nie można cofnąć.",
+          "cta": "Usuń",
+          "cancel": "Anuluj"
+        }
+      },
+      "toast": {
+        "deleted": "Rzecz usunięta"
+      }
+    },
     "investments": {
       "feature_label": "Inwestycje",
       "feature_help_text": "Śledź akcje, kryptowaluty, metale i inne aktywa w sekcji portfeli.",
@@ -574,6 +616,8 @@
         "premium": "Premia %",
         "depositedValue": "Wartość wpłacona",
         "actualValue": "Wartość aktualna",
+        "startingAmount": "Kwota początkowa",
+        "currentAmount": "Kwota bieżąca",
         "principal": "Kwota",
         "rate": "Oprocentowanie roczne (%)",
         "capFrequency": "Kapitalizacja",
@@ -595,7 +639,8 @@
         "precious_metals": "Metale szlachetne",
         "cash": "Gotówka",
         "broker": "Konto maklerskie",
-        "deposit": "Lokata"
+        "deposit": "Lokata",
+        "savings": "Oszczędności"
       },
       "capFrequency": {
         "daily": "Dzienna",
@@ -647,6 +692,7 @@
         "deleteAria": "Usuń {name}.",
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
         "qty": "Ilość: {qty}",
+        "started": "Początek: {amount}",
         "share": "Udział: {pct}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
@@ -679,7 +725,7 @@
       "confirm": {
         "delete": {
           "title": "Usunąć pozycję \"{name}\"?",
-          "body": "Tego nie można tutaj cofnąć.",
+          "body": "Tego nie można cofnąć.",
           "cta": "Usuń",
           "cancel": "Anuluj"
         },
@@ -694,6 +740,7 @@
         "title": "Podgląd",
         "buyTotal": "Łączny zakup",
         "deposited": "Wpłacono",
+        "starting": "Początek",
         "principal": "Kwota",
         "amount": "Kwota",
         "currentValue": "Wartość bieżąca",
@@ -709,6 +756,7 @@
     "investments": "Inwestycje",
     "cash": "Gotówka",
     "reserves": "Rezerwy",
+    "possessions": "Majątek",
     "composition_title": "Gdzie jest twój majątek",
     "trend_title": "Majątek w czasie",
     "budgets_title": "Budżety",
@@ -756,9 +804,11 @@
     "and": "i",
     "retire_label": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
     "retire_inflation": "z {pct}% roczną inflacją",
-    "avg_change": "Śr. zmiana",
+    "avg_change": "Średnia zmiana",
     "contributions": "Wpłaty",
-    "profit": "Zysk"
+    "profit": "Zysk",
+    "total": "Razem",
+    "pl": "Zysk/strata"
   },
   "state": {
     "empty": {
@@ -892,6 +942,8 @@
         "label_type": "Typ",
         "label_cushion": "Poduszka",
         "label_reserves": "Rezerwy",
+        "label_investments": "Inwestycje",
+        "label_notifications": "Powiadomienia",
         "value_personal": "Osobisty",
         "value_shared": "Wspólny",
         "value_enabled": "Włączone",
@@ -1157,6 +1209,9 @@
           "12": "Grudzień"
         },
         "firstDueLabel": "Pierwsza data",
+        "lastDueLabel": "Data końcowa (opcjonalnie)",
+        "lastDuePlaceholder": "Bez daty końcowej",
+        "errorLastBeforeFirst": "Data końcowa nie może być wcześniejsza niż pierwsza data",
         "noteLabel": "Notatka (opcjonalnie)",
         "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
         "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
@@ -1415,7 +1470,7 @@
           "invested": "Zainwestowano",
           "inclContrib": "Z wpłatami",
           "exclContrib": "Bez wpłat",
-          "monthlyAvg": "Śr. zmiana",
+          "monthlyAvg": "Średnia zmiana",
           "dynamicsDaily": "Zmiana dzienna",
           "dynamicsMonthly": "Zmiana miesięczna",
           "dynamicsYearly": "Zmiana roczna",
@@ -1427,9 +1482,12 @@
           "capSpendings": "Wydatki",
           "capReserves": "Rezerwy",
           "capCushion": "Poduszka",
+          "capPossessions": "Majątek",
           "pieShare": "{pct}%",
           "contributions": "Wpłaty",
-          "profit": "Zysk"
+          "profit": "Zysk",
+          "total": "Razem",
+          "pl": "Zysk/strata"
         },
         "empty": {
           "overspent": "Brak przekroczeń w tym zakresie.",
@@ -1523,6 +1581,7 @@
         "row": {
           "namePlaceholder": "Nazwa portfela",
           "nameAria": "Nazwa portfela. Kliknij, aby edytować.",
+          "nameRequired": "Nazwa nie może być pusta",
           "currencyAria": "Waluta. Kliknij, aby edytować.",
           "currencyReadOnlyAria": "Waluta {ccy}. Portfele rezerw muszą używać waluty budżetu.",
           "amountAria": "Kwota. Kliknij, aby edytować.",

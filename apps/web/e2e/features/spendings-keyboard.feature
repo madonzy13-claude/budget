@@ -37,13 +37,22 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     And I press "ArrowRight" in the grid
     Then the "groceries" quick input is focused
 
-  Scenario: Left/Right at a quick-input edge saves the entry and moves to the neighbouring column
+  Scenario: Left/Right hops columns only while the quick input is empty
+    # 260722-b narrowed this: an EMPTY field is at both edges at once, so arrows
+    # hop to the neighbouring column. Once the field holds a value the arrows
+    # only move the caret — nudging the caret must never silently save the
+    # amount into another column. Enter (or blur) is the only save.
     When I open the spendings tab for the budget
     And I focus the "Groceries" quick input
-    And I type "3.00" into the focused quick input
     And I press "ArrowRight" in the grid
     Then the "rent" quick input is focused
-    And a confirmed transaction row for 300 cents is visible in the grid
+    When I focus the "Groceries" quick input
+    And I type "3.00" into the focused quick input
+    And I press "ArrowRight" in the grid
+    Then the "groceries" quick input is focused
+    And no confirmed transaction row for 300 cents is visible in the grid
+    When I press "Enter" in the grid
+    Then a confirmed transaction row for 300 cents is visible in the grid
 
   Scenario: Deleting a transaction focuses the next row, then the quick input when none remain
     When I open the spendings tab for the budget
@@ -67,4 +76,12 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     And I type the letters "hom" in the grid
     Then the "food & home" quick input is focused
     When I type the letters "g" in the grid
+    Then the "groceries" quick input is focused
+
+  Scenario: Type-ahead works immediately after switching to the spendings tab via its pill (no prior page click)
+    # Regression (user report): letters did nothing until you first clicked the
+    # page — only arrows worked from pill focus. Type-ahead must claim a bare
+    # letter from pill focus too, exactly like the arrow entry-point does.
+    When I switch to the spendings tab by clicking its pill
+    And I type the letters "g" in the grid
     Then the "groceries" quick input is focused

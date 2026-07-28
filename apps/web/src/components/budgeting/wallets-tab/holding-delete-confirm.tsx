@@ -23,6 +23,8 @@ interface HoldingDeleteConfirmProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  /** i18n namespace for the confirm strings — possessions override the default. */
+  namespace?: string;
 }
 
 export function HoldingDeleteConfirm({
@@ -30,12 +32,23 @@ export function HoldingDeleteConfirm({
   open,
   onOpenChange,
   onConfirm,
+  namespace = "budget.investments.confirm.delete",
 }: HoldingDeleteConfirmProps) {
-  const t = useTranslations("budget.investments.confirm.delete");
+  const t = useTranslations(namespace);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent
+        // 260723-4: focus the destructive action on open so Enter confirms.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement)
+            .querySelector<HTMLButtonElement>(
+              '[data-testid="holding-delete-confirm-action"]',
+            )
+            ?.focus();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{t("title", { name })}</AlertDialogTitle>
           <AlertDialogDescription>{t("body")}</AlertDialogDescription>
@@ -43,6 +56,7 @@ export function HoldingDeleteConfirm({
         <AlertDialogFooter>
           <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
           <AlertDialogAction
+            data-testid="holding-delete-confirm-action"
             className="bg-[var(--destructive)] text-[var(--on-primary)]"
             onClick={onConfirm}
           >

@@ -94,25 +94,47 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-// Mock CurrencyPicker — minimal select stub
+// Mock CurrencyPicker — minimal select stub that also exposes the richLabel /
+// desktopDropdown flags (full-currency-name on desktop) as data-attrs.
 vi.mock("../../src/components/common/currency-picker", () => ({
   CurrencyPicker: ({
     value,
     onChange,
+    richLabel,
+    desktopDropdown,
   }: {
     value: string;
-    onChange: (v: string) => void;
+    onChange?: (v: string) => void;
+    richLabel?: boolean;
+    desktopDropdown?: boolean;
   }) => (
     <select
       data-testid="currency-picker"
+      data-rich={richLabel ? "1" : "0"}
+      data-desktop={desktopDropdown ? "1" : "0"}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange?.(e.target.value)}
     >
       <option value="EUR">EUR</option>
       <option value="USD">USD</option>
     </select>
   ),
 }));
+
+function mockMatchMedia(matches: boolean) {
+  window.matchMedia = ((q: string) => ({
+    matches,
+    media: q,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent() {
+      return false;
+    },
+  })) as unknown as typeof window.matchMedia;
+}
 
 const SPENDINGS_WALLET: WalletDto = {
   id: "wallet-spendings-1",
@@ -337,6 +359,54 @@ describe("WalletRow — draft mode", () => {
     expect(screen.getByTestId("wallet-row-draft")).toBeInTheDocument();
   });
 
+  it("mobile draft: commits name + currency + amount when focus LEAVES the row (260723-2)", () => {
+    mockMatchMedia(false); // narrow → real in-draft controls
+    const onCommit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <WalletRow
+        mode="draft"
+        sectionType="SPENDINGS"
+        budgetCurrency="EUR"
+        onCommit={onCommit}
+        onDiscard={vi.fn()}
+        pending={false}
+        error={null}
+      />,
+    );
+    // Mobile renders a real amount input (not a "0" placeholder).
+    const amount = screen.getByTestId("wallet-draft-amount-input");
+    fireEvent.change(screen.getByTestId("wallet-draft-name-input"), {
+      target: { value: "Cash" },
+    });
+    fireEvent.change(amount, { target: { value: "250.50" } });
+    // Leaving the whole row commits all three values in one go.
+    fireEvent.blur(amount, { relatedTarget: document.body });
+    expect(onCommit).toHaveBeenCalledWith("Cash", "EUR", "250.50");
+  });
+
+  it("mobile draft: hopping name → amount within the row does NOT commit", () => {
+    mockMatchMedia(false);
+    const onCommit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <WalletRow
+        mode="draft"
+        sectionType="SPENDINGS"
+        budgetCurrency="EUR"
+        onCommit={onCommit}
+        onDiscard={vi.fn()}
+        pending={false}
+        error={null}
+      />,
+    );
+    const name = screen.getByTestId("wallet-draft-name-input");
+    fireEvent.change(name, { target: { value: "Cash" } });
+    // Focus moves to the amount field (still inside the row) → no early save.
+    fireEvent.blur(name, {
+      relatedTarget: screen.getByTestId("wallet-draft-amount-input"),
+    });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("emits data-wallet-id='' (empty) per W-5 contract", () => {
     render(
       <WalletRow
@@ -399,5 +469,41 @@ describe("WalletRow — draft mode", () => {
     );
     const row = screen.getByTestId("wallet-row-draft");
     expect(row.className).not.toContain("ring-[var(--destructive)]");
+  });
+});
+
+describe("WalletRow — desktop full-currency-name picker", () => {
+  it("passes richLabel + desktopDropdown to the currency picker on desktop (≥md)", () => {
+    mockMatchMedia(true);
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    const picker = screen.getByTestId("currency-picker");
+    expect(picker.getAttribute("data-rich")).toBe("1");
+    expect(picker.getAttribute("data-desktop")).toBe("1");
+  });
+
+  it("keeps the compact code-only picker below md", () => {
+    mockMatchMedia(false);
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    const picker = screen.getByTestId("currency-picker");
+    expect(picker.getAttribute("data-rich")).toBe("0");
+    expect(picker.getAttribute("data-desktop")).toBe("0");
   });
 });

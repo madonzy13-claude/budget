@@ -17,6 +17,7 @@ function makeBudget(overrides: Record<string, unknown>) {
     my_share_pct: 60,
     net_worth_cents: "660000",
     investments_cents: "240000",
+    possessions_cents: "0",
     cash_cents: "60000",
     reserves_cents: "120000",
     cushion_cents: "50000",
@@ -132,6 +133,37 @@ describe("AggregateOverview", () => {
     reveal(hero);
     await waitFor(() => expect(hero.textContent).toMatch(/6,?600/));
     expect(hero.textContent).not.toMatch(/10,?000/);
+  });
+
+  it("possessions are in net worth but shorten the retirement runway", async () => {
+    // Same net worth + planned; the only difference is possessions_cents. The
+    // runway pot excludes possessions, so more possessions → shorter runway.
+    const base = {
+      net_worth_cents: "1000000",
+      monthly_planned_cents: "20000",
+      my_share_pct: 100,
+    };
+    dataRef.current = {
+      display_currency: "USD",
+      budgets: [makeBudget({ ...base, possessions_cents: "0" })],
+    };
+    const { unmount } = render(<AggregateOverview />);
+    const runwayNoPoss = screen
+      .getByTestId("aggregate-hero-runway")
+      .textContent;
+    unmount();
+
+    // possessions == net worth → the liquid pot is 0 → runway collapses to the
+    // months-only branch, visibly different from the multi-year no-possession run.
+    dataRef.current = {
+      display_currency: "USD",
+      budgets: [makeBudget({ ...base, possessions_cents: "1000000" })],
+    };
+    render(<AggregateOverview />);
+    const runwayWithPoss = screen
+      .getByTestId("aggregate-hero-runway")
+      .textContent;
+    expect(runwayWithPoss).not.toBe(runwayNoPoss);
   });
 
   it("does not render a per-budget breakdown (budgets banner removed)", () => {

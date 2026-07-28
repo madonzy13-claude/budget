@@ -167,6 +167,8 @@ export function listHoldings(deps: {
           name: h.name,
           holdingType: h.holdingType,
           uiType: h.uiType,
+          icon: h.icon,
+          color: h.color,
           group: h.group,
           instrumentId: h.instrumentId,
           metal: h.metal,

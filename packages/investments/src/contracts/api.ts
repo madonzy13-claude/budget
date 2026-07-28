@@ -18,6 +18,11 @@ export const holdingTypeSchema = z.enum([
   "other",
   // Bank savings deposit (accrues interest, compute-on-read).
   "deposit",
+  // Manual savings pot: starting + current amount, qty=1, %change only.
+  "savings",
+  // Physical possession (house/car/…): single current amount + icon, qty=1.
+  // In capitalization, excluded from the retirement pot; own wallets section.
+  "possession",
 ]);
 export type HoldingTypeInput = z.infer<typeof holdingTypeSchema>;
 
@@ -38,6 +43,10 @@ export const uiTypeSchema = z.enum([
   "broker",
   // Bank savings deposit: principal + annual rate + capitalization cadence.
   "deposit",
+  // Manual savings pot: starting + current amount, %change; no rate, no qty.
+  "savings",
+  // Physical possession: name + single current amount + a per-item icon.
+  "possession",
 ]);
 export type UiTypeInput = z.infer<typeof uiTypeSchema>;
 
@@ -56,6 +65,8 @@ export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
   cash: "cash_fx",
   broker: "other",
   deposit: "deposit",
+  savings: "savings",
+  possession: "possession",
 };
 
 /** Deposit interest capitalization cadence. */
@@ -112,6 +123,10 @@ export const createHoldingSchema = z.object({
   name: z.string().min(1).max(120),
   holdingType: holdingTypeSchema,
   uiType: uiTypeSchema.nullish(),
+  /** Possession-only: curated icon key (e.g. "car", "home"); null otherwise. */
+  icon: z.string().max(40).nullish(),
+  /** Possession-only: hex color (e.g. "#e63946"); null otherwise. */
+  color: z.string().max(40).nullish(),
   group: z.string().max(120).nullish(),
   instrumentId: z.string().uuid().nullish(),
   /** User-typed ticker for a manual (no-instrument) tracked holding. */
@@ -156,6 +171,10 @@ export interface EnrichedHoldingDto {
   name: string;
   holdingType: HoldingTypeInput;
   uiType: string | null;
+  /** Possession-only curated icon key (e.g. "car"); null for every other type. */
+  icon: string | null;
+  /** Possession-only hex color (e.g. "#e63946"); null for every other type. */
+  color: string | null;
   group: string | null;
   instrumentId: string | null;
   metal: string | null;

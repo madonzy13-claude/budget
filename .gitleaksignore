@@ -1,0 +1,9 @@
+# Known false positives, by gitleaks fingerprint (commit:path:rule:line).
+#
+# A full-history `gitleaks detect` flags one hit. CI's gitleaks-action only
+# scans the commits in a PR, so it never fires there — this file keeps the
+# full-history scan clean too, instead of every audit rediscovering it.
+
+# Vitest fixture: the literal new-password string a reset-password test types
+# into the form and then asserts was forwarded to better-auth. Not a credential.
+30953385adc0c7b20de3cb678c0974f077dc9b62:apps/web/test/auth/forgot-reset-password.test.tsx:generic-api-key:102

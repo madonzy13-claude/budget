@@ -161,10 +161,18 @@ export function OverviewPieChart({
             stroke="none"
             isAnimationActive={false}
             rootTabIndex={-1}
-            activeShape={(props: { outerRadius?: number }) => (
+            // Render EVERY sector ourselves (recharts' activeShape is hover-only in
+            // v3) so the enlarge tracks OUR unified `active` — touch tap OR desktop
+            // hover. Before this, a tapped slice on mobile dimmed the others but
+            // never grew, and a stale internal hover could keep one enlarged after
+            // reset. active === undefined → nothing enlarged → clean reset to base.
+            shape={(props, index) => (
               <Sector
                 {...props}
-                outerRadius={(Number(props.outerRadius) || 0) + 6}
+                outerRadius={
+                  (Number(props.outerRadius) || 0) +
+                  (Number(index) === active ? 6 : 0)
+                }
               />
             )}
             // Desktop hover-preview + dim only (the tap SELECTION is resolved from

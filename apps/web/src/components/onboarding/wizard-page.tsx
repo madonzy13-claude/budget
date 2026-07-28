@@ -111,8 +111,10 @@ export function WizardPage({
   const [form, setForm] = useState<WizardForm>({
     name: "",
     currency: "USD",
-    cushionEnabled: true,
-    reservesEnabled: true,
+    // Cushion + reserves default OFF — a fresh budget starts simple; the user
+    // opts in per feature (matches investments/notifications).
+    cushionEnabled: false,
+    reservesEnabled: false,
     investmentsEnabled: false,
     notificationsEnabled: false,
     cushionTargetMonths: 6,
@@ -369,6 +371,8 @@ export function WizardPage({
             currency={form.currency}
             cushionEnabled={form.cushionEnabled}
             reservesEnabled={form.reservesEnabled}
+            investmentsEnabled={form.investmentsEnabled}
+            notificationsEnabled={form.notificationsEnabled}
           />
         );
     }

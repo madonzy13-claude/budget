@@ -120,10 +120,12 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         member_count: number;
         created_at: Date;
         cushion_mode_enabled: boolean;
+        reserves_enabled: boolean;
         pending_tasks_count: number;
       }>(sql`
         SELECT w.id, w.slug, w.name, w.kind, w.default_currency,
                w.owner_user_id, w.member_count, w.created_at, w.cushion_mode_enabled,
+               w.reserves_enabled,
                COALESCE(tk.pending, 0)::int AS pending_tasks_count
         FROM tenancy.budgets w
         INNER JOIN tenancy.budget_members m ON m.budget_id = w.id
@@ -194,6 +196,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       memberCount: row.member_count,
       createdAt: row.created_at,
       cushionModeEnabled: row.cushion_mode_enabled,
+      reservesEnabled: row.reserves_enabled ?? true,
       pendingTasksCount: Number(row.pending_tasks_count),
     }));
   }

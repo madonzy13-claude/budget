@@ -21,6 +21,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api-client";
+import { useBadgePrefs, setBadgePref, hasBadgePref } from "@/lib/badge-prefs";
 import { subscribeToPushForBudget } from "@/lib/push-subscribe";
 
 const NOTIFICATION_KINDS = [
@@ -40,7 +41,12 @@ const REMINDER_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 interface PrefRow {
   notificationType: string;
   enabled: boolean;
-  config?: { days?: number[]; tz?: string } | null;
+  config?: {
+    days?: number[];
+    tz?: string;
+    hour?: number;
+    minute?: number;
+  } | null;
 }
 
 interface PushPreferencesData {
@@ -132,36 +138,13 @@ export function PushPrefsSection({
     });
   }
 
-  // r37: app-icon BADGE opt-out for THIS budget (default ON). Independent of the
-  // push master — the badge is the PWA icon count, not a push notification, so it
-  // shows above the master and works without notification permission.
-  const badgeEnabled = useMemo(() => {
-    const p = prefsQuery.data?.preferences.find(
-      (x) => x.notificationType === "BADGE",
-    );
-    // Opt-in: OFF until the user turns it on.
-    return p ? p.enabled : false;
-  }, [prefsQuery.data]);
-
-  function setBadgeCache(enabled: boolean) {
-    qc.setQueryData<PushPreferencesData>(pushPrefsKey(budgetId), (old) => {
-      const prefs = (old?.preferences ?? []).slice();
-      const idx = prefs.findIndex((p) => p.notificationType === "BADGE");
-      if (idx >= 0) prefs[idx] = { ...prefs[idx]!, enabled };
-      else prefs.push({ notificationType: "BADGE", enabled });
-      return { preferences: prefs };
-    });
-  }
-
-  // Update the per-budget map that <AppBadge> aggregates (keyed
-  // ["badge-prefs", <sorted budget ids>]) so the app-icon count changes INSTANTLY
-  // when this budget's opt-in flips — no reload/refetch needed.
-  function setBadgePrefCache(enabled: boolean) {
-    qc.setQueriesData<Record<string, boolean>>(
-      { queryKey: ["badge-prefs"] },
-      (old) => ({ ...(old ?? {}), [budgetId]: enabled }),
-    );
-  }
+  // 260721: app-icon BADGE opt-in is PER-DEVICE (localStorage), not account-wide —
+  // two phones can independently choose whether this budget's count shows on the
+  // icon. Independent of the push master (the badge is the PWA icon count, not a
+  // push, and needs no server round-trip). <AppBadge> reads the same store and
+  // repaints via the change event.
+  const badgePrefs = useBadgePrefs();
+  const badgeEnabled = badgePrefs[budgetId] === true;
 
   async function handleBadgeToggle(checked: boolean) {
     // Turning the badge ON needs notification permission — the App Badging API
@@ -179,23 +162,13 @@ export function PushPrefsSection({
         return;
       }
     }
-    const previous = badgeEnabled;
-    setBadgeCache(checked);
-    setBadgePrefCache(checked); // instant app-icon update
-    try {
-      const res = await api.push.preferences.$patch({
-        json: { budgetId, notificationType: "BADGE", enabled: checked },
-      });
-      if (!res.ok) throw new Error("Patch failed");
-      toast.success(t("saved"));
-    } catch {
-      setBadgeCache(previous);
-      setBadgePrefCache(previous);
-      toast.error(t("subscribeError"));
-    }
+    // Per-device: write localStorage. <AppBadge> repaints via the change event.
+    setBadgePref(budgetId, checked);
+    toast.success(t("saved"));
   }
 
-  // r32: budget-update reminder — enabled + selected weekdays (default all 7).
+  // r32: budget-update reminder — enabled + weekdays (default all 7) + local send
+  // time (default 20:00). The time fires in the member's live identity timezone.
   const reminder = useMemo(() => {
     const p = prefsQuery.data?.preferences.find(
       (x) => x.notificationType === "BUDGET_REMINDER",
@@ -203,10 +176,17 @@ export function PushPrefsSection({
     return {
       enabled: p ? p.enabled : true,
       days: p?.config?.days ?? [1, 2, 3, 4, 5, 6, 7],
+      hour: p?.config?.hour ?? 20,
+      minute: p?.config?.minute ?? 0,
     };
   }, [prefsQuery.data]);
 
-  function setReminderCache(enabled: boolean, days: number[]) {
+  function setReminderCache(
+    enabled: boolean,
+    days: number[],
+    hour: number,
+    minute: number,
+  ) {
     qc.setQueryData<PushPreferencesData>(pushPrefsKey(budgetId), (old) => {
       const prefs = (old?.preferences ?? []).slice();
       const idx = prefs.findIndex(
@@ -215,10 +195,10 @@ export function PushPrefsSection({
       const row: PrefRow = {
         notificationType: "BUDGET_REMINDER",
         enabled,
-        // Only the weekdays are stored; the reminder always fires at 18:00 in the
-        // member's live identity timezone (geo-seeded at sign-up), so we don't
-        // snapshot a tz here — that would go stale if the user moves.
-        config: { days },
+        // Weekdays + local send time. No tz snapshot — the send time fires in the
+        // member's live identity timezone (geo-seeded at sign-up), which would go
+        // stale if we froze it here.
+        config: { days, hour, minute },
       };
       if (idx >= 0) prefs[idx] = row;
       else prefs.push(row);
@@ -226,36 +206,46 @@ export function PushPrefsSection({
     });
   }
 
-  async function patchReminder(enabled: boolean, days: number[]) {
-    const prevEnabled = reminder.enabled;
-    const prevDays = reminder.days;
-    setReminderCache(enabled, days);
+  async function patchReminder(
+    enabled: boolean,
+    days: number[],
+    hour: number,
+    minute: number,
+  ) {
+    const prev = reminder;
+    setReminderCache(enabled, days, hour, minute);
     try {
       const res = await api.push.preferences.$patch({
         json: {
           budgetId,
           notificationType: "BUDGET_REMINDER",
           enabled,
-          config: { days },
+          config: { days, hour, minute },
         },
       });
       if (!res.ok) throw new Error("Patch failed");
       toast.success(t("saved"));
     } catch {
-      setReminderCache(prevEnabled, prevDays);
+      setReminderCache(prev.enabled, prev.days, prev.hour, prev.minute);
       toast.error(t("subscribeError"));
     }
   }
 
   function handleReminderToggle(checked: boolean) {
-    void patchReminder(checked, reminder.days);
+    void patchReminder(checked, reminder.days, reminder.hour, reminder.minute);
   }
 
   function handleDayToggle(day: number) {
     const next = reminder.days.includes(day)
       ? reminder.days.filter((d) => d !== day)
       : [...reminder.days, day].sort((a, b) => a - b);
-    void patchReminder(reminder.enabled, next);
+    void patchReminder(reminder.enabled, next, reminder.hour, reminder.minute);
+  }
+
+  function handleTimeChange(value: string) {
+    const [h, m] = value.split(":").map((n) => Number(n));
+    if (Number.isNaN(h) || Number.isNaN(m)) return;
+    void patchReminder(reminder.enabled, reminder.days, h, m);
   }
 
   async function handleMasterToggle(checked: boolean) {
@@ -289,24 +279,11 @@ export function PushPrefsSection({
       if (result === "subscribed") {
         setMasterCache(true);
         toast.success(t("saved"));
-        // Auto-enable the app-icon badge the first time push is turned on —
-        // permission is now granted. Only when prefs have LOADED and there's no
-        // BADGE row yet, so a manual choice (on OR off) is never overridden and we
-        // never guess from a not-yet-loaded cache.
-        const prefs = prefsQuery.data;
-        const badgePref = prefs?.preferences.find(
-          (p) => p.notificationType === "BADGE",
-        );
-        if (prefs && !badgePref) {
-          setBadgeCache(true);
-          setBadgePrefCache(true); // instant app-icon update
-          try {
-            await api.push.preferences.$patch({
-              json: { budgetId, notificationType: "BADGE", enabled: true },
-            });
-          } catch {
-            /* best-effort */
-          }
+        // Auto-enable the app-icon badge the first time push is turned on ON THIS
+        // DEVICE (permission is now granted). Per-device: only when this device has
+        // no explicit choice yet, so a manual on/off is never overridden.
+        if (!hasBadgePref(budgetId)) {
+          setBadgePref(budgetId, true);
         }
       } else {
         setMasterCache(false);
@@ -434,32 +411,55 @@ export function PushPrefsSection({
               />
             </div>
             {reminder.enabled && (
-              <div
-                className="flex flex-wrap gap-1.5"
-                data-testid="push-reminder-days"
-              >
-                {REMINDER_DAYS.map((day) => {
-                  const on = reminder.days.includes(day);
-                  return (
-                    <button
-                      key={day}
-                      type="button"
-                      data-testid={`push-reminder-day-${day}`}
-                      aria-pressed={on}
-                      aria-label={t(`reminder.day.${day}`)}
-                      onClick={() => handleDayToggle(day)}
-                      className={
-                        "h-9 min-w-9 rounded-[var(--radius-md)] px-2 text-xs font-medium transition-colors " +
-                        (on
-                          ? "bg-[var(--primary)] text-[var(--on-primary)]"
-                          : "bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]")
-                      }
-                    >
-                      {t(`reminder.dayShort.${day}`)}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  data-testid="push-reminder-days"
+                >
+                  {REMINDER_DAYS.map((day) => {
+                    const on = reminder.days.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        data-testid={`push-reminder-day-${day}`}
+                        aria-pressed={on}
+                        aria-label={t(`reminder.day.${day}`)}
+                        onClick={() => handleDayToggle(day)}
+                        className={
+                          "h-9 min-w-9 rounded-[var(--radius-md)] px-2 text-xs font-medium transition-colors " +
+                          (on
+                            ? "bg-[var(--primary)] text-[var(--on-primary)]"
+                            : "bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]")
+                        }
+                      >
+                        {t(`reminder.dayShort.${day}`)}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Local send time (default 20:00), fires in the member's live
+                    identity timezone. Native time input → free hh:mm on every
+                    platform. */}
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="push-reminder-time"
+                    className="text-xs text-[var(--muted-foreground)]"
+                  >
+                    {t("reminder.time")}
+                  </label>
+                  <input
+                    id="push-reminder-time"
+                    type="time"
+                    data-testid="push-reminder-time"
+                    value={`${String(reminder.hour).padStart(2, "0")}:${String(
+                      reminder.minute,
+                    ).padStart(2, "0")}`}
+                    onChange={(e) => handleTimeChange(e.target.value)}
+                    className="h-9 rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-2 text-sm text-[var(--body-on-dark)] [color-scheme:dark]"
+                  />
+                </div>
+              </>
             )}
           </div>
         </div>

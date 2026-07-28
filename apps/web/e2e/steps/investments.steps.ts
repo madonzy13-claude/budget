@@ -117,6 +117,13 @@ When(
   },
 );
 
+When(
+  "I add a savings holding {string} starting {string} current {string} via the sheet",
+  async ({ page }, name: string, starting: string, current: string) => {
+    await new InvestmentsPo(page).addSavingsHolding(name, starting, current);
+  },
+);
+
 Then("the holding row {string} is visible", async ({ page }, name: string) => {
   await new InvestmentsPo(page).row(name).waitFor({ state: "visible" });
 });

@@ -52,10 +52,13 @@ export const NOTIFICATION_KINDS: NotificationKind[] = [
   "BADGE",
 ];
 
-/** Extra per-preference config. BUDGET_REMINDER: {days (ISO 1=Mon..7=Sun), tz}. */
+/** Extra per-preference config. BUDGET_REMINDER: {days (ISO 1=Mon..7=Sun), tz,
+ *  and the local send time hour (0-23) + minute (0-59), default 20:00}. */
 export interface NotificationPrefConfig {
   days?: number[];
   tz?: string;
+  hour?: number;
+  minute?: number;
 }
 
 export interface UpsertPreferenceInput {
@@ -87,12 +90,15 @@ export interface NotificationPref {
   config: NotificationPrefConfig | null;
 }
 
-/** A reminder-enabled subscription: selected weekdays + an optional tz override. */
+/** A reminder-enabled subscription: selected weekdays + an optional tz override
+ *  + the configured local send time (null → the 20:00 default). */
 export interface ReminderSubscriptionRow extends PushSubscriptionRow {
   days: number[]; // ISO 1=Mon..7=Sun; defaults to all 7 when unset
   // tz explicitly saved in the pref config (rare); when null the cron uses the
   // member's identity timezone (getUserTimezones), then "UTC" as a last resort.
   configTz: string | null;
+  hour: number | null; // local send hour 0-23; null → default (20)
+  minute: number | null; // local send minute 0-59; null → default (0)
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +163,29 @@ export async function deleteSubscription(
             eq(pushSubscriptions.userId, userId),
           ),
         );
+    },
+  );
+  if (result.isErr()) throw result.error;
+}
+
+/**
+ * Delete EVERY push subscription for a budget — used when the budget is archived
+ * so it can never send another notification (260724). Runs under the archiving
+ * user's tenant context; RLS `push_subscriptions_tenant_isolation` is
+ * tenant-scoped (not per-user), so this removes all members' rows for the budget,
+ * not just the caller's. Idempotent — deleting when there are none is a no-op.
+ */
+export async function deleteAllSubscriptionsForBudget(
+  tenantId: string,
+  userId: string,
+): Promise<void> {
+  const result = await withTenantTx(
+    TenantId(tenantId),
+    UserId(userId),
+    async (tx) => {
+      await tx
+        .delete(pushSubscriptions)
+        .where(eq(pushSubscriptions.tenantId, tenantId));
     },
   );
   if (result.isErr()) throw result.error;
@@ -269,10 +298,17 @@ export async function getSubscriptionsForBudget(
  */
 export async function getAllSubscribedTenantIds(): Promise<string[]> {
   const result = await withInfraTx(async (tx) => {
-    const rows = await tx
-      .selectDistinct({ tenantId: pushSubscriptions.tenantId })
-      .from(pushSubscriptions);
-    return rows.map((r) => r.tenantId);
+    // 260723: skip ARCHIVED budgets — an archived budget kept sending reminders
+    // because its stale push subscriptions were still scanned. LEFT JOIN so a
+    // subscription with no matching budget row (orphan/test data) is still
+    // returned; only a budget that EXISTS and is archived is excluded.
+    const res = (await tx.execute(sql`
+      SELECT DISTINCT ps.tenant_id AS "tenantId"
+        FROM shared_kernel.push_subscriptions ps
+        LEFT JOIN tenancy.budgets b ON b.id = ps.tenant_id
+       WHERE b.archived_at IS NULL
+    `)) as unknown as { rows: { tenantId: string }[] };
+    return res.rows.map((r) => r.tenantId);
   });
   if (result.isErr()) throw result.error;
   return result.value;
@@ -390,6 +426,8 @@ export async function getReminderSubscriptionsForBudget(
           locale: s.locale,
           days: cfg?.days ?? [1, 2, 3, 4, 5, 6, 7],
           configTz: cfg?.tz ?? null,
+          hour: cfg?.hour ?? null, // worker applies the 20:00 default
+          minute: cfg?.minute ?? null,
         });
       }
       return out;
@@ -434,9 +472,11 @@ export async function getPreferences(
 
   return NOTIFICATION_KINDS.map((kind) => {
     const row = existing.get(kind);
-    // No row → default ON; BUDGET_REMINDER also defaults to all 7 days.
+    // No row → default ON; BUDGET_REMINDER also defaults to all 7 days at 20:00.
     const defaultConfig: NotificationPrefConfig | null =
-      kind === "BUDGET_REMINDER" ? { days: [1, 2, 3, 4, 5, 6, 7] } : null;
+      kind === "BUDGET_REMINDER"
+        ? { days: [1, 2, 3, 4, 5, 6, 7], hour: 20, minute: 0 }
+        : null;
     if (row) {
       return {
         id: row.id,

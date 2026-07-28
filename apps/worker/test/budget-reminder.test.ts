@@ -1,7 +1,8 @@
 /**
- * budget-reminder.test.ts — hourly reminder cron logic (r32).
- * Pure firing rules (local weekday/hour, day selection, tz) + the dispatch loop
- * (due-only sends, deep-link to Spendings, stale 410 cleanup).
+ * budget-reminder.test.ts — reminder cron logic (r32 + configurable time).
+ * Pure firing rules (local weekday/hour/minute, day selection, tz, per-sub
+ * hour+minute, default 20:00) + the dispatch loop (due-only sends, deep-link to
+ * Spendings, stale 410 cleanup).
  */
 import { describe, test, expect, mock } from "bun:test";
 import {
@@ -11,55 +12,76 @@ import {
   type BudgetReminderDeps,
 } from "../src/handlers/budget-reminder";
 
-// 2026-07-06 is a Monday. 18:00Z.
-const MON_18Z = new Date("2026-07-06T18:00:00Z");
+// 2026-07-06 is a Monday. 20:00Z (the new default reminder time).
+const MON_20Z = new Date("2026-07-06T20:00:00Z");
 
 describe("localWeekdayHour", () => {
-  test("UTC: Monday 18:00", () => {
-    expect(localWeekdayHour(MON_18Z, "UTC")).toEqual({ iso: 1, hour: 18 });
+  test("UTC: Monday 20:00", () => {
+    expect(localWeekdayHour(MON_20Z, "UTC")).toEqual({
+      iso: 1,
+      hour: 20,
+      minute: 0,
+    });
   });
   test("converts to the target zone (NY is UTC-4 in July)", () => {
     // 22:00Z → 18:00 EDT, still Monday
     expect(
       localWeekdayHour(new Date("2026-07-06T22:00:00Z"), "America/New_York"),
-    ).toEqual({ iso: 1, hour: 18 });
+    ).toEqual({ iso: 1, hour: 18, minute: 0 });
+  });
+  test("resolves the local MINUTE in a half-hour-offset zone (Kolkata +5:30)", () => {
+    // 14:30Z = 20:00 IST, Monday
+    expect(
+      localWeekdayHour(new Date("2026-07-06T14:30:00Z"), "Asia/Kolkata"),
+    ).toEqual({ iso: 1, hour: 20, minute: 0 });
   });
   test("invalid zone → null", () => {
-    expect(localWeekdayHour(MON_18Z, "Not/AZone")).toBeNull();
+    expect(localWeekdayHour(MON_20Z, "Not/AZone")).toBeNull();
   });
 });
 
 describe("reminderFiresNow", () => {
-  test("fires at 18:00 on a selected day", () => {
-    expect(reminderFiresNow({ days: [1], tz: "UTC" }, MON_18Z)).toBe(true);
+  test("fires at the default 20:00 on a selected day", () => {
+    expect(reminderFiresNow({ days: [1], tz: "UTC" }, MON_20Z)).toBe(true);
   });
   test("does NOT fire at the wrong hour", () => {
     expect(
       reminderFiresNow(
         { days: [1], tz: "UTC" },
-        new Date("2026-07-06T17:00:00Z"),
+        new Date("2026-07-06T18:00:00Z"),
       ),
     ).toBe(false);
   });
+  test("honors a per-sub hour + minute (09:30, not 20:00)", () => {
+    const sub = { days: [1], tz: "UTC", hour: 9, minute: 30 };
+    expect(reminderFiresNow(sub, new Date("2026-07-06T09:30:00Z"))).toBe(true);
+    // wrong minute → no fire
+    expect(reminderFiresNow(sub, new Date("2026-07-06T09:00:00Z"))).toBe(false);
+    // the default 20:00 must NOT fire when a custom time is set
+    expect(reminderFiresNow(sub, MON_20Z)).toBe(false);
+  });
   test("does NOT fire when today's weekday is not selected", () => {
-    expect(
-      reminderFiresNow({ days: [2, 3] }, MON_18Z as never) as boolean,
-    ).toBe(false);
-    expect(reminderFiresNow({ days: [2, 3], tz: "UTC" }, MON_18Z)).toBe(false);
+    expect(reminderFiresNow({ days: [2, 3], tz: "UTC" }, MON_20Z)).toBe(false);
   });
   test("fires in the user's tz even when UTC hour differs", () => {
-    // 22:00Z = 18:00 New York, Monday selected
+    // 00:00Z next day = 20:00 New York (Mon), day 1 selected
     expect(
       reminderFiresNow(
         { days: [1], tz: "America/New_York" },
-        new Date("2026-07-06T22:00:00Z"),
+        new Date("2026-07-07T00:00:00Z"),
       ),
     ).toBe(true);
   });
 });
 
 function makeSub(
-  over: Partial<{ userId: string; days: number[]; configTz: string | null }>,
+  over: Partial<{
+    userId: string;
+    days: number[];
+    configTz: string | null;
+    hour: number | null;
+    minute: number | null;
+  }>,
 ) {
   return {
     id: "s-" + (over.userId ?? "u"),
@@ -71,6 +93,8 @@ function makeSub(
     locale: "en",
     days: over.days ?? [1],
     configTz: over.configTz ?? null,
+    hour: over.hour ?? null,
+    minute: over.minute ?? null,
   };
 }
 
@@ -86,12 +110,12 @@ describe("runBudgetReminder", () => {
       getUserTimezones: mock(async () => ({ due: "UTC", notday: "UTC" })),
       sendPushNotification: mock(async () => ({})),
       deleteSubscription: mock(async () => {}),
-      now: () => MON_18Z,
+      now: () => MON_20Z,
       ...over,
     };
   }
 
-  test("sends only to due subs, deep-linked to Spendings", async () => {
+  test("sends only to due subs at the default 20:00, deep-linked to Spendings", async () => {
     const d = deps();
     const res = await runBudgetReminder(d);
     expect(res.sent).toBe(1);
@@ -103,27 +127,38 @@ describe("runBudgetReminder", () => {
     expect(body.title).toBeTruthy();
   });
 
+  test("respects a per-sub custom time (fires at 09:30, not the default)", async () => {
+    const d = deps({
+      getReminderSubscriptionsForBudget: mock(async () => [
+        makeSub({ userId: "early", days: [1], hour: 9, minute: 30 }),
+      ]),
+      getUserTimezones: mock(async () => ({ early: "UTC" })),
+      now: () => new Date("2026-07-06T09:30:00Z"),
+    });
+    expect((await runBudgetReminder(d)).sent).toBe(1);
+  });
+
   test("uses the member's identity timezone (no config.tz override)", async () => {
-    // 22:00Z = 18:00 in New York; member's saved tz drives the fire time.
+    // 00:00Z next day = 20:00 in New York; member's saved tz drives the fire time.
     const d = deps({
       getReminderSubscriptionsForBudget: mock(async () => [
         makeSub({ userId: "ny", days: [1], configTz: null }),
       ]),
       getUserTimezones: mock(async () => ({ ny: "America/New_York" })),
-      now: () => new Date("2026-07-06T22:00:00Z"),
+      now: () => new Date("2026-07-07T00:00:00Z"),
     });
     const res = await runBudgetReminder(d);
     expect(res.sent).toBe(1);
   });
 
   test("config.tz override wins over the identity timezone", async () => {
-    // Member's identity tz is NY, but they explicitly saved UTC → fire at 18:00Z.
+    // Member's identity tz is NY, but they explicitly saved UTC → fire at 20:00Z.
     const d = deps({
       getReminderSubscriptionsForBudget: mock(async () => [
         makeSub({ userId: "x", days: [1], configTz: "UTC" }),
       ]),
       getUserTimezones: mock(async () => ({ x: "America/New_York" })),
-      now: () => MON_18Z,
+      now: () => MON_20Z,
     });
     expect((await runBudgetReminder(d)).sent).toBe(1);
   });

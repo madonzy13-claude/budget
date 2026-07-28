@@ -48,6 +48,7 @@ const BUCKET_INVEST = "var(--chart-bar-1)"; // blue
 const BUCKET_SPEND = "var(--primary)"; // yellow
 const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
 const BUCKET_CUSHION = "var(--chart-bar-3)"; // purple (distinct from teal)
+const BUCKET_POSSESS = "var(--chart-bar-4)"; // possessions (distinct 5th pool)
 
 function PctStat({
   label,
@@ -82,6 +83,48 @@ function PctStat({
             {mask ? <SlotAmount value={pctStr} /> : pctStr}
           </>
         )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * CombinedStat — one metric shown as % (primary, coloured up/down) with its money
+ * amount stacked beneath in MUTED grey (secondary). Only the % carries colour so a
+ * row of these reads calmly instead of two stacked coloured figures fighting.
+ */
+function CombinedStat({
+  label,
+  pct,
+  amount,
+  mask = false,
+}: {
+  label: string;
+  pct: number | null;
+  amount: string;
+  mask?: boolean;
+}) {
+  const up = pct !== null && pct >= 0;
+  const down = pct !== null && pct < 0;
+  const Arrow = up ? ArrowUp : ArrowDown;
+  const color = up
+    ? "text-[var(--trading-up)]"
+    : down
+      ? "text-[var(--trading-down)]"
+      : "text-[var(--muted-foreground)]";
+  const pctStr =
+    pct === null ? "—" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
+      <span
+        className={cn("num inline-flex items-center gap-1 text-num-md", color)}
+      >
+        {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}
+        {mask ? <SlotAmount value={pctStr} /> : pctStr}
+      </span>
+      <span className="num text-caption text-[var(--muted-foreground)]">
+        {mask ? <SlotAmount value={amount} /> : amount}
       </span>
     </div>
   );
@@ -147,7 +190,16 @@ export function WealthSection({
     centsToRounded(cents, ccy, "en", true);
   // Signed, sign-tight, no cents: "+30,640 zł" / "−30,640 zł".
   const fmtSigned = (cents: string | bigint) => {
-    const b = BigInt(String(cents));
+    // BigInt() throws on "NaN"/"1.5" — a single dynamics bucket missing its
+    // delta_cents would otherwise take the whole Wealth section down with it.
+    // Non-finite → treat as zero.
+    const n = typeof cents === "bigint" ? cents : Number(cents);
+    const b =
+      typeof n === "bigint"
+        ? n
+        : Number.isFinite(n)
+          ? BigInt(Math.round(n))
+          : 0n;
     const sign = b > 0n ? "+" : b < 0n ? "−" : "";
     return `${sign}${centsToRounded(b < 0n ? -b : b, ccy, "en", true)}`;
   };
@@ -157,11 +209,9 @@ export function WealthSection({
   const fmtY = chartCompactCents;
   // Chart TOOLTIP (on tap): the FULL value WITH currency, no cents.
   const fmtTooltip = (n: number) => fmtRounded(BigInt(Math.round(n)));
-  // Privacy (r41, BDP-wide): wrap any inline money figure in a masked SlotAmount
-  // when enabled; `revealed` masks the dynamics tooltip's money delta to "•••".
+  // Privacy (r41, BDP-wide): `revealed` masks the dynamics tooltip's money delta
+  // to "•••". Inline metric amounts mask via CombinedStat's own `mask` prop.
   const { revealed } = useSlotReveal();
-  const money = (s: string) =>
-    amountPrivacyEnabled ? <SlotAmount value={s} /> : s;
   // Pie centre read-out: whole currency, NO cents.
   const fmtPieValue = (n: number) => fmtRounded(BigInt(Math.round(n)));
 
@@ -190,6 +240,11 @@ export function WealthSection({
           name: t("wealth.capCushion"),
           value: Number(cards.cushion.total_cents),
           color: BUCKET_CUSHION,
+        },
+        {
+          name: t("wealth.capPossessions"),
+          value: Number(cards.possessions_value_cents),
+          color: BUCKET_POSSESS,
         },
       ].filter((b) => b.value > 0)
     : [];
@@ -277,56 +332,75 @@ export function WealthSection({
               <div className="flex flex-col gap-2">
                 {(() => {
                   const up = Number(growth.delta_cents) >= 0;
-                  // Investments view + an Investments category → show the "invested"
-                  // metric; and, ONLY when there's something to exclude (invested >
-                  // 0), the Incl./Excl.-contributions switch (otherwise it would look
-                  // broken — nothing to net). `growth` already reflects the choice.
-                  const hasInvestCat =
+                  // Investments view → three combined metrics, all measured as the
+                  // RENDERED chart's first tick → last tick difference (same logic):
+                  //   Total         = value(last) − value(first).  [correct as-is]
+                  //   P/L           = profit(last) − profit(first). (profit = value −
+                  //                   contributions per point)
+                  //   Contributions = contributions(last) − contributions(first).
+                  // Capitalization has no P/L split → single grow/loss metric.
+                  const invMetrics =
                     effectiveView === "investments" &&
-                    data.invested_cents != null;
+                    exclQ.data &&
+                    seriesPoints.length > 0
+                      ? (() => {
+                          const n = seriesPoints.length;
+                          const vFirst = Number(seriesPoints[0].value_cents);
+                          const vLast = Number(seriesPoints[n - 1].value_cents);
+                          const pFirst = exclByLabel.get(seriesPoints[0].label) ?? 0;
+                          const pLast =
+                            exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
+                          const cFirst = vFirst - pFirst; // contributions @ start
+                          const cLast = vLast - pLast; //    contributions @ end
+                          const plDelta = pLast - pFirst; // P/L gained over the range
+                          const contribDelta = cLast - cFirst;
+                          // P/L = the REAL P/L for the selected range: profit gained
+                          // over the range (last − first), as a % of the contributed
+                          // value at the range start. Range-aware (1M shows just that
+                          // month), and based on contributed value — not the first P/L.
+                          return {
+                            plAmount: Math.round(plDelta),
+                            plPct: cFirst !== 0 ? (100 * plDelta) / cFirst : null,
+                            contribDelta: Math.round(contribDelta),
+                            contribPct:
+                              cFirst !== 0 ? (100 * contribDelta) / cFirst : null,
+                          };
+                        })()
+                      : null;
                   return (
-                    <>
-                      <div className="flex flex-wrap items-start justify-center gap-6">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <p className="text-caption text-[var(--muted-foreground)]">
-                            {up ? t("wealth.grow") : t("wealth.loss")}
-                          </p>
-                          <span
-                            className={cn(
-                              "num text-num-md",
-                              up
-                                ? "text-[var(--trading-up)]"
-                                : "text-[var(--trading-down)]",
-                            )}
-                          >
-                            {money(fmtSigned(growth.delta_cents))}
-                          </span>
-                        </div>
-                        <PctStat
-                          label={t("wealth.grow")}
+                    <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
+                      {invMetrics ? (
+                        <>
+                          <CombinedStat
+                            label={t("wealth.contributions")}
+                            pct={invMetrics.contribPct}
+                            amount={fmtSigned(String(invMetrics.contribDelta))}
+                            mask={amountPrivacyEnabled}
+                          />
+                          <CombinedStat
+                            label={t("wealth.pl")}
+                            pct={invMetrics.plPct}
+                            amount={fmtSigned(String(invMetrics.plAmount))}
+                            mask={amountPrivacyEnabled}
+                          />
+                          <CombinedStat
+                            label={t("wealth.total")}
+                            pct={growth.delta_pct}
+                            amount={fmtSigned(growth.delta_cents)}
+                            mask={amountPrivacyEnabled}
+                          />
+                        </>
+                      ) : (
+                        <CombinedStat
+                          label={up ? t("wealth.grow") : t("wealth.loss")}
                           pct={growth.delta_pct}
+                          amount={fmtSigned(growth.delta_cents)}
                           mask={amountPrivacyEnabled}
                         />
-                        {/* Invested over the period (Investments-category spend). */}
-                        {hasInvestCat && (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <p className="text-caption text-[var(--muted-foreground)]">
-                              {t("wealth.invested")}
-                            </p>
-                            <span className="num text-num-md text-[var(--body-on-dark)]">
-                              {money(fmtRounded(data.invested_cents!))}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </>
+                      )}
+                    </div>
                   );
                 })()}
-                {/* Make explicit this growth is measured over the SELECTED period, e.g.
-                "since month start" on 1M — not a daily figure (r28 correction). */}
-                <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
-                  {t("wealth.growSince", { preset: range.preset })}
-                </p>
                 {investStack.length > 0 ? (
                   // Stacked like the planned needs/wants chart: contributions
                   // (grey) + profit (yellow) sum to the total investment value.
@@ -343,7 +417,7 @@ export function WealthSection({
                       },
                       {
                         key: "profit",
-                        label: t("wealth.profit"),
+                        label: t("wealth.pl"),
                         color: "var(--primary)",
                         stack: "inv",
                         fillOpacity: 0.35,
@@ -353,6 +427,53 @@ export function WealthSection({
                     formatTooltip={fmtTooltip}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
+                    // Each row = three aligned columns: absolute amount (value) +
+                    // growth % + growth AMOUNT, both measured from the range start to
+                    // the hovered tick (so they match the headline metrics at the last
+                    // tick). Contributions & P/L ÷ contributions@start. % and amount
+                    // both mask under privacy.
+                    rowSuffix={(row, key) => {
+                      const f = investStack[0];
+                      if (!f) return undefined;
+                      const cBase = Number(f.contributions);
+                      if (cBase === 0) return undefined;
+                      const delta =
+                        key === "contributions"
+                          ? Number(row.contributions) - cBase
+                          : Number(row.profit) - Number(f.profit);
+                      const hidden = amountPrivacyEnabled && !revealed;
+                      return [
+                        hidden ? "•••" : fmtSignedPct((100 * delta) / cBase),
+                        hidden ? "•••" : fmtSigned(String(Math.round(delta))),
+                      ];
+                    }}
+                    // Total = contributions + profit, aligned in the same columns:
+                    // absolute + growth % + growth amount (÷ value@start).
+                    summary={(row) => {
+                      const total =
+                        Number(row.contributions ?? 0) + Number(row.profit ?? 0);
+                      const f = investStack[0];
+                      const vBase = f
+                        ? Number(f.contributions) + Number(f.profit)
+                        : 0;
+                      const hidden = amountPrivacyEnabled && !revealed;
+                      const dTotal = total - vBase;
+                      return {
+                        label: t("wealth.total"),
+                        value: hidden ? "•••" : fmtTooltip(total),
+                        suffix:
+                          vBase === 0
+                            ? []
+                            : [
+                                hidden
+                                  ? "•••"
+                                  : fmtSignedPct((100 * dTotal) / vBase),
+                                hidden
+                                  ? "•••"
+                                  : fmtSigned(String(Math.round(dTotal))),
+                              ],
+                      };
+                    }}
                   />
                 ) : (
                   <OverviewAreaChart
@@ -375,7 +496,156 @@ export function WealthSection({
               {/* CHANGE chart + its PER-PERIOD metric: the average change AT THIS
               bucket — daily on 1M, monthly on 3M…1Y, yearly beyond. The label
               carries the granularity so day-vs-month averages aren't confused. */}
-              {data.dynamics.length > 0 && (
+              {data.dynamics.length > 0 &&
+                (effectiveView === "investments"
+                  ? (() => {
+                      // Combined avg-change (user request): two bars per period —
+                      // TOTAL value change (grey, = contributions + profit) and P/L
+                      // change (yellow, excl. contributions) — so deposits don't
+                      // masquerade as performance. P/L dynamics come from the net
+                      // (excl) query already fetched above, aligned by label.
+                      const plByLabel = new Map<
+                        string,
+                        { pct: number | null; delta: string }
+                      >();
+                      for (const d of exclQ.data?.dynamics ?? [])
+                        plByLabel.set(d.label, {
+                          pct: d.pct,
+                          delta: d.delta_cents,
+                        });
+                      // Contribution dynamics = total − P/L per bucket. Delta is exact
+                      // (totalDelta − plDelta); the % is derived from each series' own
+                      // base (base = delta ÷ pct), so contrib% = contribΔ ÷ contribBase.
+                      const contribPctList: (number | null)[] = [];
+                      const combined = data.dynamics.map((d) => {
+                        const pl = plByLabel.get(d.label);
+                        const totalDelta = Number(d.delta_cents);
+                        const plDelta = Number(pl?.delta ?? "0");
+                        const contribDelta = totalDelta - plDelta;
+                        const totalBase =
+                          d.pct != null && d.pct !== 0
+                            ? (totalDelta * 100) / d.pct
+                            : null;
+                        const plBase =
+                          pl?.pct != null && pl.pct !== 0
+                            ? (plDelta * 100) / pl.pct
+                            : null;
+                        const contribBase =
+                          totalBase != null && plBase != null
+                            ? totalBase - plBase
+                            : null;
+                        const contribPct =
+                          contribBase != null && contribBase !== 0
+                            ? (contribDelta * 100) / contribBase
+                            : null;
+                        contribPctList.push(contribPct);
+                        return {
+                          label: d.label,
+                          total: d.pct ?? 0,
+                          totalDelta: d.delta_cents,
+                          pl: pl?.pct ?? 0,
+                          plDelta: pl?.delta ?? "0",
+                          contrib: contribPct ?? 0,
+                          contribDelta: String(Math.round(contribDelta)),
+                        };
+                      });
+                      // Avg contribution change — geometric mean of the per-period
+                      // contribution %s (matches the server's total/profit averages).
+                      const contribAvg = ((): number | null => {
+                        const nn = contribPctList.filter(
+                          (p): p is number => p !== null,
+                        );
+                        if (nn.length === 0) return null;
+                        const product = nn.reduce((a, p) => a * (1 + p / 100), 1);
+                        if (product < 0) return null;
+                        return (Math.pow(product, 1 / nn.length) - 1) * 100;
+                      })();
+                      const mask = amountPrivacyEnabled && !revealed;
+                      // Amount companion to each avg-change %: the AVERAGE per-period
+                      // money change (mean of the bucket deltas).
+                      const meanAmt = (
+                        key: "totalDelta" | "plDelta" | "contribDelta",
+                      ) =>
+                        combined.length === 0
+                          ? 0
+                          : Math.round(
+                              combined.reduce(
+                                (s, c) => s + Number(c[key] || 0),
+                                0,
+                              ) / combined.length,
+                            );
+                      return (
+                        <div className="flex flex-col gap-2">
+                          {/* One common header (was a per-metric "Avg change ·" prefix). */}
+                          <p className="text-center text-caption text-[var(--muted-foreground)]">
+                            {t("wealth.monthlyAvg")}
+                          </p>
+                          <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
+                            <CombinedStat
+                              label={t("wealth.contributions")}
+                              pct={contribAvg}
+                              amount={fmtSigned(String(meanAmt("contribDelta")))}
+                              mask={amountPrivacyEnabled}
+                            />
+                            <CombinedStat
+                              label={t("wealth.pl")}
+                              pct={exclQ.data?.monthly_avg_grow_pct ?? null}
+                              amount={fmtSigned(String(meanAmt("plDelta")))}
+                              mask={amountPrivacyEnabled}
+                            />
+                            <CombinedStat
+                              label={t("wealth.total")}
+                              pct={data.monthly_avg_grow_pct}
+                              amount={fmtSigned(String(meanAmt("totalDelta")))}
+                              mask={amountPrivacyEnabled}
+                            />
+                          </div>
+                          <OverviewBarChart
+                            data={combined}
+                            xKey="label"
+                            // Bar order Contributions → P/L → Total, coloured grey /
+                            // yellow / green so Total (the whole move) reads last.
+                            series={[
+                              {
+                                key: "contrib",
+                                label: t("wealth.contributions"),
+                                color: "var(--muted-foreground)",
+                              },
+                              {
+                                key: "pl",
+                                label: t("wealth.pl"),
+                                color: "var(--primary)",
+                              },
+                              {
+                                key: "total",
+                                label: t("wealth.total"),
+                                color: "var(--trading-up)",
+                              },
+                            ]}
+                            formatValue={pctAxisTick}
+                            formatTooltip={fmtSignedPct}
+                            maskAmounts={amountPrivacyEnabled}
+                            // % and money amount on ONE line per series (item 1).
+                            rowSuffix={(row, key) =>
+                              mask
+                                ? "•••"
+                                : fmtSigned(
+                                    String(
+                                      (key === "total"
+                                        ? row.totalDelta
+                                        : key === "pl"
+                                          ? row.plDelta
+                                          : row.contribDelta) ?? "0",
+                                    ),
+                                  )
+                            }
+                            xTickFormat={(v) => formatChartDate(v, locale)}
+                            labelFormat={(v) => formatChartDate(v, locale)}
+                          />
+                        </div>
+                      );
+                    })()
+                  : (
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap items-start justify-center gap-6">
                     <PctStat
@@ -420,7 +690,7 @@ export function WealthSection({
                     labelFormat={(v) => formatChartDate(v, locale)}
                   />
                 </div>
-              )}
+                  ))}
 
               {/* Capitalization view: where the money is (investments / spendings
                   / reserves / cushion) — a static labeled pie. */}

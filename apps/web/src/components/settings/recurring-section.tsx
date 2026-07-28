@@ -224,6 +224,7 @@ export function RecurringSection({
                 yearlyMonth: editRule.yearlyMonth ?? null,
                 note: editRule.note,
                 firstDueDate: editRule.nextDueDate,
+                endDate: editRule.endDate ?? null,
                 categoryId: editRule.categoryId ?? null,
               }
             : undefined

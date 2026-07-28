@@ -13,6 +13,9 @@ import {
   libsodiumReady,
   LibsodiumKeyStore,
   SmtpEmailSender,
+  FanOutEmailSender,
+  SkipReservedDomainsEmailSender,
+  isLocalMailHost,
   workerPool,
   appPool,
 } from "@budget/platform";
@@ -167,23 +170,64 @@ function buildEmailSender(
   env: ReturnType<typeof loadEnv>,
   logger: BaseLogger,
 ): EmailSender {
+  const senders: EmailSender[] = [];
+
+  // Primary transport: real SMTP (SMTP_*). When the host is a real provider
+  // (non-local), wrap it so test/reserved-domain recipients (all E2E addresses
+  // are @test.local / @example.*) never reach it — guarantees E2E never sends
+  // real mail, and protects the sending domain from bounces.
   if (env.SMTP_HOST && env.SMTP_PORT && env.SMTP_FROM) {
-    logger.info(
-      { host: env.SMTP_HOST, port: env.SMTP_PORT, from: env.SMTP_FROM },
-      "email transport: SMTP",
-    );
-    return new SmtpEmailSender({
+    const smtp = new SmtpEmailSender({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       from: env.SMTP_FROM,
       ...(env.SMTP_USER !== undefined ? { user: env.SMTP_USER } : {}),
       ...(env.SMTP_PASS !== undefined ? { pass: env.SMTP_PASS } : {}),
     });
+    const local = isLocalMailHost(env.SMTP_HOST);
+    logger.info(
+      {
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        from: env.SMTP_FROM,
+        guarded: !local,
+      },
+      "email transport: SMTP",
+    );
+    senders.push(
+      local
+        ? smtp
+        : new SkipReservedDomainsEmailSender(smtp, (to) =>
+            logger.info(
+              { to },
+              "email: skipped real delivery (reserved/test domain)",
+            ),
+          ),
+    );
   }
-  logger.warn(
-    "email transport: stdout (SMTP_HOST/SMTP_PORT/SMTP_FROM not set) — emails will not be delivered",
-  );
-  return new StdoutEmailSender();
+
+  // Mirror: also deliver to the mailpit catcher when MAILPIT_ENABLED === "true".
+  if (env.MAILPIT_ENABLED === "true") {
+    const host = env.MAILPIT_HOST ?? "mailpit";
+    const port = env.MAILPIT_PORT ?? 1025;
+    logger.info({ host, port }, "email transport: mailpit mirror enabled");
+    senders.push(
+      new SmtpEmailSender({
+        host,
+        port,
+        from: env.SMTP_FROM ?? "dev@budget.local",
+      }),
+    );
+  }
+
+  if (senders.length === 0) {
+    logger.warn(
+      "email transport: stdout (SMTP_HOST/SMTP_PORT/SMTP_FROM not set) — emails will not be delivered",
+    );
+    return new StdoutEmailSender();
+  }
+  // FanOut: [0] real (primary, failure propagates), rest best-effort mirrors.
+  return senders.length === 1 ? senders[0]! : new FanOutEmailSender(senders);
 }
 
 export async function boot(): Promise<BootedDeps> {
@@ -362,6 +406,12 @@ export async function boot(): Promise<BootedDeps> {
   // currency via valueInBudgetCents). metaReader + cushion + spendings are reused
   // verbatim (no new cushion/overspent math — D-08/D-10).
   const overviewCardsRepo = createOverviewCardsRepo();
+  // Possessions (house/car/…) are holdings too, but they are NOT liquid
+  // investments: excluded from investment value / cost basis / the pie, and summed
+  // separately so capitalization includes them while the retirement pot excludes
+  // them (see compute-budget-wealth-now.ts / get-overview-cards.ts).
+  const isPossession = (h: { holdingType: string }) =>
+    h.holdingType === "possession";
   const holdingsValuation = {
     investmentValueCents: async (input: {
       tenantId: string;
@@ -375,10 +425,9 @@ export async function boot(): Promise<BootedDeps> {
         budgetCurrency: input.defaultCurrency,
       });
       if (r.isErr()) throw r.error;
-      return r.value.holdings.reduce(
-        (sum, h) => sum + BigInt(h.valueInBudgetCents),
-        0n,
-      );
+      return r.value.holdings
+        .filter((h) => !isPossession(h))
+        .reduce((sum, h) => sum + BigInt(h.valueInBudgetCents), 0n);
     },
     investmentCostBasisCents: async (input: {
       tenantId: string;
@@ -392,10 +441,25 @@ export async function boot(): Promise<BootedDeps> {
         budgetCurrency: input.defaultCurrency,
       });
       if (r.isErr()) throw r.error;
-      return r.value.holdings.reduce(
-        (sum, h) => sum + BigInt(h.costInBudgetCents),
-        0n,
-      );
+      return r.value.holdings
+        .filter((h) => !isPossession(h))
+        .reduce((sum, h) => sum + BigInt(h.costInBudgetCents), 0n);
+    },
+    possessionsValueCents: async (input: {
+      tenantId: string;
+      budgetId: string;
+      defaultCurrency: string;
+    }): Promise<bigint> => {
+      const r = await investments.listHoldings({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        actorUserId: SYSTEM_USER_UUID,
+        budgetCurrency: input.defaultCurrency,
+      });
+      if (r.isErr()) throw r.error;
+      return r.value.holdings
+        .filter((h) => isPossession(h))
+        .reduce((sum, h) => sum + BigInt(h.valueInBudgetCents), 0n);
     },
   };
   const budgetingFinal = Object.assign(budgeting, {
@@ -459,6 +523,8 @@ export async function boot(): Promise<BootedDeps> {
           // showed a Broker slice. Fall back to holding_type when ui_type is unset.
           const byType = new Map<string, bigint>();
           for (const h of r.value.holdings) {
+            // Possessions are net worth but not investments — no pie slice here.
+            if (h.holdingType === "possession") continue;
             const key = h.uiType || h.holdingType;
             byType.set(
               key,

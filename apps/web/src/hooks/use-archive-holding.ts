@@ -12,7 +12,11 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { toast } from "sonner";
 import type { HoldingDto } from "./use-investments";
 
-export function useArchiveHolding(budgetId: string) {
+export function useArchiveHolding(
+  budgetId: string,
+  // Possessions pass their own "removed" toast; defaults to the investment copy.
+  opts?: { successMessage?: string },
+) {
   const qc = useQueryClient();
   const t = useTranslations("budget.investments.toast");
   const offlineToast = useOfflineWriteToast();
@@ -50,7 +54,7 @@ export function useArchiveHolding(budgetId: string) {
       toast.error(t("archiveFailed"));
     },
 
-    onSuccess: () => toast.success(t("archived")),
+    onSuccess: () => toast.success(opts?.successMessage ?? t("archived")),
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });

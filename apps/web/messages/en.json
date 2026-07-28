@@ -327,7 +327,8 @@
       },
       "reminder": {
         "label": "Remind me to update the budget",
-        "description": "An evening nudge on the days you choose",
+        "description": "A nudge at the time and on the days you choose",
+        "time": "Send time",
         "day": {
           "1": "Monday",
           "2": "Tuesday",
@@ -525,6 +526,47 @@
       "feature_off_toast": "Reserves disabled — Reserves tab hidden",
       "error_save": "Failed to save — try again"
     },
+    "possessions": {
+      "section": {
+        "title": "POSSESSIONS"
+      },
+      "add": {
+        "cta": "Add possession"
+      },
+      "sheet": {
+        "addTitle": "Add possession",
+        "editTitle": "Edit possession",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "field": {
+        "name": "Name",
+        "namePlaceholder": "e.g. Family car, House, Watch",
+        "icon": "Icon",
+        "currency": "Currency",
+        "amount": "Value"
+      },
+      "row": {
+        "editAria": "Edit possession {name}",
+        "deleteAria": "Delete possession {name}",
+        "nameAria": "Possession name",
+        "amountAria": "Possession value",
+        "currencyAria": "Possession currency",
+        "iconAria": "Customize {name} icon and color",
+        "nameRequired": "Name can't be empty"
+      },
+      "confirm": {
+        "delete": {
+          "title": "Remove possession \"{name}\"?",
+          "body": "This can't be undone.",
+          "cta": "Remove",
+          "cancel": "Cancel"
+        }
+      },
+      "toast": {
+        "deleted": "Possession removed"
+      }
+    },
     "investments": {
       "feature_label": "Investments",
       "feature_help_text": "Track stocks, crypto, metals, and other holdings in a wallet section.",
@@ -574,6 +616,8 @@
         "premium": "Premium %",
         "depositedValue": "Deposited value",
         "actualValue": "Actual value",
+        "startingAmount": "Starting amount",
+        "currentAmount": "Current amount",
         "principal": "Amount",
         "rate": "Annual rate (%)",
         "capFrequency": "Capitalization",
@@ -595,7 +639,8 @@
         "precious_metals": "Precious metals",
         "cash": "Cash",
         "broker": "Broker",
-        "deposit": "Deposit"
+        "deposit": "Deposit",
+        "savings": "Savings"
       },
       "capFrequency": {
         "daily": "Daily",
@@ -647,6 +692,7 @@
         "deleteAria": "Remove {name}.",
         "dragAria": "Drag to reorder {name}.",
         "qty": "Qty: {qty}",
+        "started": "Started: {amount}",
         "share": "Share: {pct}"
       },
       "rowExpandAria": "Expand {name} details.",
@@ -679,7 +725,7 @@
       "confirm": {
         "delete": {
           "title": "Remove holding \"{name}\"?",
-          "body": "This can't be undone here.",
+          "body": "This can't be undone.",
           "cta": "Remove",
           "cancel": "Cancel"
         },
@@ -694,6 +740,7 @@
         "title": "Preview",
         "buyTotal": "Buy total",
         "deposited": "Deposited",
+        "starting": "Starting",
         "principal": "Amount",
         "amount": "Amount",
         "currentValue": "Current value",
@@ -709,6 +756,7 @@
     "investments": "Investments",
     "cash": "Cash",
     "reserves": "Reserves",
+    "possessions": "Possessions",
     "composition_title": "Where your wealth is",
     "trend_title": "Net worth over time",
     "budgets_title": "Budgets",
@@ -756,9 +804,11 @@
     "and": "and",
     "retire_label": "If you retire now, your money will last for",
     "retire_inflation": "incl. {pct}% annual inflation",
-    "avg_change": "Avg change",
+    "avg_change": "Average change",
     "contributions": "Contributions",
-    "profit": "Profit"
+    "profit": "Profit",
+    "total": "Total",
+    "pl": "P/L"
   },
   "state": {
     "empty": {
@@ -892,6 +942,8 @@
         "label_type": "Type",
         "label_cushion": "Cushion",
         "label_reserves": "Reserves",
+        "label_investments": "Investments",
+        "label_notifications": "Notifications",
         "value_personal": "Personal",
         "value_shared": "Shared",
         "value_enabled": "Enabled",
@@ -1134,6 +1186,9 @@
           "12": "December"
         },
         "firstDueLabel": "First due date",
+        "lastDueLabel": "Last date (optional)",
+        "lastDuePlaceholder": "No end date",
+        "errorLastBeforeFirst": "Last date can't be before the first due date",
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
         "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",
@@ -1392,7 +1447,7 @@
           "invested": "Invested",
           "inclContrib": "Incl. contributions",
           "exclContrib": "Excl. contributions",
-          "monthlyAvg": "Avg change",
+          "monthlyAvg": "Average change",
           "dynamicsDaily": "Daily change",
           "dynamicsMonthly": "Monthly change",
           "dynamicsYearly": "Yearly change",
@@ -1404,9 +1459,12 @@
           "capSpendings": "Spendings",
           "capReserves": "Reserves",
           "capCushion": "Cushion",
+          "capPossessions": "Possessions",
           "pieShare": "{pct}%",
           "contributions": "Contributions",
-          "profit": "Profit"
+          "profit": "Profit",
+          "total": "Total",
+          "pl": "P/L"
         },
         "empty": {
           "overspent": "No overspending in this range.",
@@ -1500,6 +1558,7 @@
         "row": {
           "namePlaceholder": "Wallet name",
           "nameAria": "Wallet name. Click to edit.",
+          "nameRequired": "Name can't be empty",
           "currencyAria": "Currency. Click to edit.",
           "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
           "amountAria": "Amount. Click to edit.",
@@ -1544,7 +1603,7 @@
         "confirm": {
           "delete": {
             "title": "Delete wallet ''{name}''?",
-            "body": "This can't be undone here.",
+            "body": "This can't be undone.",
             "cta": "Delete",
             "cancel": "Cancel"
           }

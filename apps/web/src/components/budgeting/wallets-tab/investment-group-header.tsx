@@ -124,9 +124,12 @@ export function InvestmentGroupHeader({
   return (
     <div
       data-testid={`investment-group-${groupName}`}
+      data-nav-item
+      data-nav-type="invest-group"
+      data-nav-key={`invgroup-${groupName}`}
       className={[
         "group flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)] px-3",
-        "bg-[var(--surface-card-dark)] sm:min-h-[48px]",
+        "bg-[var(--surface-card-dark)] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]",
         isOver
           ? "ring-2 ring-dashed ring-[var(--info-ring)] bg-[var(--surface-elevated-dark)]/60"
           : "",
@@ -168,6 +171,7 @@ export function InvestmentGroupHeader({
             state: expanded ? t("group.expanded") : t("group.collapsed"),
           })}
           data-testid={`investment-group-chevron-${groupName}`}
+          data-nav-toggle
           onClick={(e) => {
             e.stopPropagation();
             onToggle();

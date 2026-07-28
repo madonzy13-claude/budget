@@ -40,6 +40,8 @@ vi.mock("next-intl", () => ({
       "rule.weekdayLabel": "On",
       "rule.yearlyMonthLabel": "Month",
       "rule.firstDueLabel": "First due date",
+      "rule.lastDueLabel": "Last date (optional)",
+      "rule.lastDuePlaceholder": "No end date",
       "rule.noteLabel": "Note (optional)",
       "rule.applyToFutureLabel": "Also apply to future occurrences",
       "rule.applyToFutureHelp": "Edits the upcoming pending drafts.",
@@ -404,6 +406,98 @@ describe("RecurringRuleForm — Category dropdown (UAT-7 retest)", () => {
       category_id?: string | null;
     };
     expect(body.category_id).toBe("cat-a");
+  });
+});
+
+describe("RecurringRuleForm — optional last date (260721)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Seed name/amount via initialValues so Save is enabled deterministically
+  // (matches the category_id test; happy-dom's enabling of Save via typed
+  // `note` is flaky). firstDueDate is NOT seeded so it auto-computes to the
+  // nearest upcoming date, keeping the before/after comparisons meaningful.
+  const baseValues = {
+    amount: "100",
+    currency: "USD",
+    cadence: "MONTHLY" as const,
+    cadenceAnchor: 1,
+    weeklyDow: null,
+    yearlyMonth: null,
+    categoryId: null,
+    note: "Rent",
+  };
+
+  it("omitting the last date sends end_date: null (no deadline)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <RecurringRuleForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="create"
+        initialValues={baseValues}
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Save rule/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      end_date: string | null;
+    };
+    expect(body.end_date).toBeNull();
+  });
+
+  it("a valid last date rides through to the POST body as end_date", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <RecurringRuleForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="create"
+        initialValues={baseValues}
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    // Far-future so it is always after the auto first-due date.
+    fireEvent.change(screen.getByLabelText(/Last date/i), {
+      target: { value: "2099-01-01" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save rule/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      end_date: string | null;
+    };
+    expect(body.end_date).toBe("2099-01-01");
+  });
+
+  it("a last date before the first due date blocks submit with an error", async () => {
+    const { toast } = await import("sonner");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <RecurringRuleForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="create"
+        initialValues={baseValues}
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    // 2000 is before any auto-computed upcoming first-due date.
+    fireEvent.change(screen.getByLabelText(/Last date/i), {
+      target: { value: "2000-01-01" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save rule/i }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("rule.errorLastBeforeFirst"),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

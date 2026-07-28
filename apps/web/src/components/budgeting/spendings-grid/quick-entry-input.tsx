@@ -12,8 +12,9 @@
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { parseDecimal } from "@/lib/decimal";
+import { parseAmountAndNote } from "@/lib/decimal";
 import { useCreateTransaction } from "@/hooks/use-create-transaction";
+import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 
 export interface QuickEntryInputProps {
   categoryId: string;
@@ -45,6 +46,13 @@ export function QuickEntryInput({
   const t = useTranslations("grid.quickEntry");
   const tError = useTranslations("grid.error");
   const [value, setValue] = useState("");
+  // 260722-d: numeric keyboard by default; the ABC/123 button flips it to text
+  // so a note can be typed after the amount + a space.
+  const [keyboardMode, setKeyboardMode] = useState<"numeric" | "text">(
+    "numeric",
+  );
+  const [focused, setFocused] = useState(false);
+  const switchingKeyboardRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   // r40b: an edge-hop submits then moves focus, which fires onBlur synchronously
   // BEFORE the cleared value flushes — without this the blur would submit the
@@ -59,8 +67,10 @@ export function QuickEntryInput({
   // silent = blur path: don't toast on an invalid value, just leave it.
   function submit(silent = false) {
     if (!value.trim()) return;
-    const cents = parseDecimal(value);
-    if (cents === null) {
+    // 260722-note: "11.45" / "11,45" → amount; a SPACE ends the amount and
+    // everything after it becomes the note ("11.45 lunch" → 1145 + "lunch").
+    const parsed = parseAmountAndNote(value);
+    if (parsed === null) {
       if (!silent) toast.error(tError("quickEntry"));
       return;
     }
@@ -76,10 +86,10 @@ export function QuickEntryInput({
     }
     mutate({
       categoryId,
-      amountCents: cents,
+      amountCents: parsed.cents,
       date: resolvedDate,
       currency: budgetCurrency,
-      note: null,
+      note: parsed.note,
     });
     // r40b (item 10): a new row inserts at the TOP of its column, which is
     // hidden when the grid is scrolled down. Snap the grid back to the top so
@@ -132,6 +142,10 @@ export function QuickEntryInput({
       submit();
       return;
     }
+    // 260722-b: once the field holds a value, arrows only move the caret — they
+    // must NOT save + hop columns. Only Enter or blur saves. An empty field
+    // keeps the edge-hop nav below (empty is at both edges → an immediate hop).
+    if (value.trim() !== "") return;
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
 
     const input = e.currentTarget;
@@ -164,6 +178,13 @@ export function QuickEntryInput({
   }
 
   function handleBlur() {
+    // 260722-d: a keyboard-switch blur (ABC/123 tap blurs then refocuses in the
+    // same gesture) must NOT save — leave `focused` true so the toggle stays up.
+    if (switchingKeyboardRef.current) {
+      switchingKeyboardRef.current = false;
+      return;
+    }
+    setFocused(false);
     // Skip the save the edge-hop already performed (its focus move fired this
     // blur synchronously, before the cleared value flushed).
     if (justEdgeSubmittedRef.current) {
@@ -195,16 +216,27 @@ export function QuickEntryInput({
           // own richer "Can't add while offline" dialog (see submit()).
           data-offline-ok
           type="text"
-          inputMode="decimal"
+          inputMode={keyboardMode === "numeric" ? "decimal" : "text"}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => setFocused(true)}
           onBlur={handleBlur}
           placeholder={t("placeholder")}
           aria-label={t("addExpenseAria", { categoryName })}
           style={{ touchAction: "pan-x" }}
           className="h-9 w-full appearance-none rounded border border-[var(--hairline-dark)] bg-transparent px-3 text-base sm:text-sm text-[var(--body-on-dark)] placeholder:text-[var(--muted-foreground)] [-webkit-tap-highlight-color:transparent] focus:border-[var(--primary)] focus:outline-none focus:shadow-none focus:ring-0 !cursor-pointer focus:!cursor-text"
         />
+        {focused && (
+          <MobileKeyboardToggle
+            inputRef={inputRef}
+            mode={keyboardMode}
+            onToggle={() =>
+              setKeyboardMode((m) => (m === "numeric" ? "text" : "numeric"))
+            }
+            switchingRef={switchingKeyboardRef}
+          />
+        )}
         {/* r40: the in-field save-next (✓) button was removed at the user's
           request. Research verdict on keeping the keyboard across a save on
           iOS: impossible without an in-page control — focus() only shows the

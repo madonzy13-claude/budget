@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
+import { budgetSwitchPath } from "@/lib/bdp-tabs";
 import { cn } from "@/lib/utils";
 
 export interface BudgetSummary {
@@ -28,6 +29,9 @@ export interface BudgetSummary {
   default_currency: string;
   /** Pending task count for this budget. Sourced from GET /budgets/active. */
   pendingTasksCount: number;
+  /** Whether the Reserves pill exists on this budget — lets a same-pill switch
+   *  from a Reserves tab fall back to Overview when the destination has it off. */
+  reservesEnabled?: boolean;
 }
 
 /** kind-removal: a budget is "shared" purely by having more than one member. */
@@ -131,14 +135,31 @@ export function BudgetSwitcher({
     (id: string) => {
       setOpen(false);
       if (id === activeBudgetId) return;
-      router.push(`/${locale}/budgets/${id}/overview`);
+      // Land on the SAME pill the user is on now (from the current path); drop a
+      // Reserves pill to Overview when the destination budget has reserves off.
+      const dest = budgets.find((b) => b.id === id);
+      router.push(budgetSwitchPath(locale, dest ?? { id }, pathname));
     },
-    [router, locale, activeBudgetId],
+    [router, locale, activeBudgetId, budgets, pathname],
   );
   const onPickAllBudgets = useCallback(() => {
     setOpen(false);
     router.push(`/${locale}/?list=1`);
   }, [router, locale]);
+
+  // 260724 (item 1): prefetch every destination the instant the dropdown opens so
+  // a pick navigates blazing-fast. router.push (unlike <Link>) does no auto-
+  // prefetch, so switching budgets paid the full RSC round-trip on click before
+  // the loading.tsx skeleton could even show. Warming the boundary here means the
+  // pick commits the shell + skeleton immediately (the deferred-pane mount fills
+  // the rest from the warm React Query cache).
+  useEffect(() => {
+    if (!open) return;
+    for (const b of budgets) {
+      router.prefetch(budgetSwitchPath(locale, b, pathname));
+    }
+    if (budgets.length > 1) router.prefetch(`/${locale}/?list=1`);
+  }, [open, budgets, locale, pathname, router]);
 
   // UAT-PH5-T2-03: when the user has no budgets, the header switcher is
   // hidden entirely. The home page renders its own "Create your first

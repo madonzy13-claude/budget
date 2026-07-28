@@ -695,7 +695,9 @@ export function HoldingSheet({
                   ) : null}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              {/* Grow to the available viewport height (12 types) instead of the
+                  shared 384px cap — scrolls only when the screen is truly short. */}
+              <SelectContent className="max-h-[var(--radix-select-content-available-height)]">
                 {UI_TYPE_ORDER.map((tp) => {
                   const Icon = UI_TYPE_ICON[tp];
                   return (
@@ -850,6 +852,8 @@ export function HoldingSheet({
               <Field label={t("field.currency")}>
                 <CurrencyPicker
                   variant="field"
+                  richLabel
+                  desktopDropdown
                   value={currentPriceCurrency}
                   onSelect={(v) => {
                     markDirty();
@@ -870,9 +874,16 @@ export function HoldingSheet({
               </Field>
             </>
           ) : behavior === "broker" ? (
-            /* 4b. Broker: deposited value + currency + actual value (no quantity). */
+            /* 4b. Broker / Savings: two amounts + currency, no quantity. Savings
+                   relabels them Starting / Current (same field-set). */
             <>
-              <Field label={t("field.depositedValue")}>
+              <Field
+                label={t(
+                  uiType === "savings"
+                    ? "field.startingAmount"
+                    : "field.depositedValue",
+                )}
+              >
                 <NumericInput
                   testId="holding-sheet-deposited"
                   value={buyPrice}
@@ -885,6 +896,8 @@ export function HoldingSheet({
               <Field label={t("field.currency")}>
                 <CurrencyPicker
                   variant="field"
+                  richLabel
+                  desktopDropdown
                   value={buyCurrency}
                   onSelect={(v) => {
                     markDirty();
@@ -894,7 +907,13 @@ export function HoldingSheet({
                   aria-label={t("field.currency")}
                 />
               </Field>
-              <Field label={t("field.actualValue")}>
+              <Field
+                label={t(
+                  uiType === "savings"
+                    ? "field.currentAmount"
+                    : "field.actualValue",
+                )}
+              >
                 <NumericInput
                   testId="holding-sheet-actual"
                   value={currentPrice}
@@ -912,6 +931,8 @@ export function HoldingSheet({
               <Field label={t("field.currency")}>
                 <CurrencyPicker
                   variant="field"
+                  richLabel
+                  desktopDropdown
                   value={buyCurrency}
                   onSelect={(v) => {
                     markDirty();
@@ -1012,6 +1033,8 @@ export function HoldingSheet({
                 >
                   <CurrencyPicker
                     variant="field"
+                    richLabel
+                    desktopDropdown
                     value={
                       behavior === "metals" || userChosenCurrency
                         ? currentPriceCurrency
@@ -1072,6 +1095,8 @@ export function HoldingSheet({
                 }
               >
                 {behavior === "manual" || trackedManual ? (
+                  // No placeholder: seeding it from buyPrice made an EMPTY current
+                  // price look already filled (user couldn't tell it was blank).
                   <NumericInput
                     testId="holding-sheet-amount"
                     value={currentPrice}
@@ -1079,7 +1104,6 @@ export function HoldingSheet({
                       markDirty();
                       setCurrentPrice(v);
                     }}
-                    placeholder={buyPrice}
                   />
                 ) : priceBlocked ? (
                   // Price-fetch failure shown AT the price field so it reads as
@@ -1147,24 +1171,33 @@ export function HoldingSheet({
 
           {/* 8. Preview — "what will be created" sum-up (all types). */}
           {preview && (
-            <HoldingPreviewBlock preview={preview} behavior={behavior} />
+            <HoldingPreviewBlock
+              preview={preview}
+              behavior={behavior}
+              uiType={uiType}
+            />
           )}
-        </div>
 
-        <div className="flex items-center gap-2 border-t border-[var(--hairline-dark)] pt-4">
-          <Button
-            type="button"
-            variant="primary"
-            data-testid="holding-sheet-submit"
-            disabled={!canSave}
-            onClick={handleSave}
-            className="flex-1"
+          {/* Actions live at the END of the scrolling form (NOT a pinned footer):
+              the user scrolls down to reach Save. */}
+          <div
+            data-testid="holding-sheet-actions"
+            className="mt-2 flex items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
           >
-            {t("sheet.save")}
-          </Button>
-          <Button type="button" variant="ghost" onClick={attemptClose}>
-            {t("sheet.cancel")}
-          </Button>
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="holding-sheet-submit"
+              disabled={!canSave}
+              onClick={handleSave}
+              className="flex-1"
+            >
+              {t("sheet.save")}
+            </Button>
+            <Button type="button" variant="ghost" onClick={attemptClose}>
+              {t("sheet.cancel")}
+            </Button>
+          </div>
         </div>
       </SheetContent>
 
@@ -1199,9 +1232,11 @@ export function HoldingSheet({
 function HoldingPreviewBlock({
   preview,
   behavior,
+  uiType,
 }: {
   preview: HoldingPreview;
   behavior: string | null;
+  uiType: UiType | "" | null;
 }) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
@@ -1233,7 +1268,7 @@ function HoldingPreviewBlock({
     if (preview.buyTotal != null)
       rows.push({
         key: "dep",
-        label: t("preview.deposited"),
+        label: t(uiType === "savings" ? "preview.starting" : "preview.deposited"),
         value: money(preview.buyTotal),
       });
     rows.push({

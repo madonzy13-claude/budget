@@ -18,7 +18,15 @@ export type HoldingType =
   | "real_estate"
   | "other"
   // Bank savings deposit: value accrues from principal+rate+time (compute-on-read).
-  | "deposit";
+  | "deposit"
+  // Manual savings pot: starting (buy_price) + current (current_price), qty=1,
+  // no instrument. %change = existing profitLossPct. Rides the manual path.
+  | "savings"
+  // Physical possession (house/car/jewelry/…): a single current amount + a
+  // per-item icon, qty=1, no instrument. Counts toward capitalization (net
+  // worth) but is EXCLUDED from the retirement runway pot. Own wallets-tab
+  // section, NOT shown among investments.
+  | "possession";
 
 export const HOLDING_TYPES: readonly HoldingType[] = [
   "equities",
@@ -31,6 +39,8 @@ export const HOLDING_TYPES: readonly HoldingType[] = [
   "real_estate",
   "other",
   "deposit",
+  "savings",
+  "possession",
 ] as const;
 
 const HOLDING_TYPE_SET: ReadonlySet<string> = new Set(HOLDING_TYPES);
@@ -110,6 +120,10 @@ export class Holding {
     public depositCapFrequency: string | null = null,
     /** Optional maturity 'YYYY-MM-DD'; value freezes on/after it. null = open-ended. */
     public depositEndDate: string | null = null,
+    /** Possession-only: curated per-item icon key (e.g. "car"); null otherwise. */
+    public icon: string | null = null,
+    /** Possession-only: per-item hex color (e.g. "#e63946"); null otherwise. */
+    public color: string | null = null,
   ) {}
 
   /** Bank deposit: value accrues from principal+rate+time, computed on read. */

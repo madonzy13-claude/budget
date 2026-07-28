@@ -175,7 +175,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           SELECT category_id::text AS category_id, note,
                  (amount * 100)::bigint::text AS amount_cents, currency,
                  cadence, cadence_anchor, weekly_dow, yearly_month,
-                 next_due_date::text AS next_due
+                 next_due_date::text AS next_due, end_date::text AS end_date
             FROM budgeting.recurring_rules
            WHERE tenant_id = ${input.tenantId}::uuid AND active = true`);
 
@@ -277,15 +277,21 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         category_id: string | null;
         note: string | null;
         next_due: string;
+        end_date: string | null;
       };
       const cents = BigInt(r.amount_cents);
       if (cents === 0n) continue;
       const amt = await fxOne(cents, r.currency);
       const seed = Temporal.PlainDate.from(r.next_due);
+      // Stop projecting occurrences past the rule's "last date" (inclusive).
+      const enumEnd =
+        r.end_date && r.end_date < windowEnd.toString()
+          ? Temporal.PlainDate.from(r.end_date)
+          : windowEnd;
       for (const date of enumerateOccurrences(specOf(r), {
         seed,
         afterExclusive: today,
-        end: windowEnd,
+        end: enumEnd,
       })) {
         bills.push({
           date,

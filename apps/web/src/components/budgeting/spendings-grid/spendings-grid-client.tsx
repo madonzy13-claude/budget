@@ -263,6 +263,16 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       // switch — the bug where arrows did nothing until you clicked the page).
       // Skip real text fields / open menus / dialogs elsewhere.
       if (!isGridNavEligibleTarget(e.target, root)) return;
+      // 260722-b: when the user has typed a value into a quick-add input, the
+      // grid must not intercept keys — arrows move the caret, letters enter the
+      // note (space→note parsing), and only Enter/blur (the input's own
+      // handlers) save. An EMPTY quick input keeps full nav (row cycle, column
+      // hop, type-ahead) below.
+      if (
+        target?.matches?.('input[data-testid^="quick-entry-"]') &&
+        (target as HTMLInputElement).value.trim() !== ""
+      )
+        return;
       if (
         handleGridKeyNav(
           {
@@ -326,6 +336,22 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       }
     };
     document.addEventListener("keydown", onKey, true);
+
+    // On mount, pull keyboard focus into the grid when nothing meaningful holds
+    // it (fresh page load: activeElement is <body> or null). Without this the
+    // document-level handler above never received keys until the user clicked the
+    // page — only native arrow-scroll appeared to "work", and letters (type-ahead)
+    // did nothing. Never steal from a real control (e.g. the BDP pill after a tab
+    // switch, whose own arrow entry-point already works). preventScroll so it
+    // never jumps the page on load.
+    const ae = document.activeElement;
+    if (
+      gridRef.current &&
+      (!ae || ae === document.body || ae === document.documentElement)
+    ) {
+      gridRef.current.focus({ preventScroll: true });
+    }
+
     return () => document.removeEventListener("keydown", onKey, true);
   }, []);
   const offlineToast = useOfflineWriteToast();
@@ -941,9 +967,16 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         // (SHELL-R8..R10) so a real in-flow spacer child (below) extends
         // scrollHeight past the last row instead.
         style={{ overscrollBehavior: "none" }}
+        // tabIndex=-1 lets the grid HOLD keyboard focus. The arrow / type-ahead
+        // handler is a document-level listener, so it only receives keys once the
+        // DOCUMENT is focused — on a fresh load with no focused element letters
+        // did nothing until the user clicked the page. The mount effect focuses
+        // this container so keys reach the handler without a click. outline-none:
+        // programmatic focus must not paint a ring.
+        tabIndex={-1}
         // flex-col so the "last spending added" line can mt-auto to the
         // bottom of the visible box when the columns are short (r40).
-        className="mt-4 flex flex-col overflow-auto h-[var(--grid-max-h,80vh)] px-3 sm:px-6"
+        className="mt-4 flex flex-col overflow-auto h-[var(--grid-max-h,80vh)] px-3 outline-none sm:px-6"
       >
         <DndContext
           sensors={sensors}

@@ -20,6 +20,10 @@ export interface CreateHoldingInput {
   name: string;
   holdingType: HoldingType;
   uiType?: string | null;
+  /** Possession-only curated icon key (e.g. "car"). */
+  icon?: string | null;
+  /** Possession-only hex color (e.g. "#e63946"). */
+  color?: string | null;
   group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: string | number | null;
@@ -56,6 +60,8 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     name: input.name,
     holdingType: input.holdingType,
     uiType: input.uiType ?? null,
+    icon: input.icon ?? null,
+    color: input.color ?? null,
     group: input.group ?? null,
     instrumentId: input.instrumentId ?? null,
     metal: input.metal ?? null,
@@ -150,7 +156,8 @@ export function useCreateHolding(budgetId: string) {
       toast.error(t("createFailed"));
     },
 
-    onSuccess: () => toast.success(t("created")),
+    // No success toast — a wallet/holding save is a quiet inline action (user
+    // request 260721). Errors still toast via onError.
 
     onSettled: async () => {
       // Revalidate, then persist the server-reconciled list so the durable cache

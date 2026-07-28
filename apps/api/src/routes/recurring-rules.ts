@@ -50,6 +50,12 @@ const createRuleBaseSchema = z.object({
   currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
   note: z.string().max(500).nullable().optional(),
   first_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // Optional "last date". null / absent = no deadline. Validated >= first_due_date below.
+  end_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
 });
 
 const createRuleSchema = z.intersection(
@@ -77,6 +83,12 @@ const updateRuleEditsSchema = z
     cadenceAnchor: z.number().int().min(1).max(31).nullable().optional(),
     weeklyDow: z.number().int().min(0).max(6).nullable().optional(),
     yearlyMonth: z.number().int().min(1).max(12).nullable().optional(),
+    // "Last date": ISO date or null (clears the deadline).
+    endDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -107,6 +119,20 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
     }
 
     const data = parsed.data;
+
+    // "Last date" cannot precede the first due date (ISO strings compare
+    // chronologically). null / absent end_date = no deadline.
+    const endDate = (data as any).end_date ?? null;
+    if (endDate !== null && endDate < (data as any).first_due_date) {
+      return c.json(
+        {
+          error: "end_date_before_first_due",
+          message: "end_date must be on or after first_due_date",
+        },
+        400,
+      );
+    }
+
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
 
@@ -123,6 +149,7 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
       yearlyMonth: (data as any).yearly_month ?? null,
       note: data.note ?? null,
       firstDueDate: (data as any).first_due_date,
+      endDate,
     });
 
     if (r.isErr()) {
@@ -154,6 +181,7 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
         note: rule.note,
         active: rule.active,
         nextDueDate: rule.nextDueDate,
+        endDate: rule.endDate,
         createdAt:
           rule.createdAt instanceof Date
             ? rule.createdAt.toISOString()
@@ -260,10 +288,12 @@ export function createRecurringRulesRoute(deps: BootedDeps) {
     }
 
     const body = await c.req.json().catch(() => ({}));
-    const overrideRaw = (body as Record<string, unknown>)?.amount_override_cents;
+    const overrideRaw = (body as Record<string, unknown>)
+      ?.amount_override_cents;
     let amountOverrideCents: number | undefined;
     if (overrideRaw !== undefined && overrideRaw !== null) {
-      const n = typeof overrideRaw === "number" ? overrideRaw : Number(overrideRaw);
+      const n =
+        typeof overrideRaw === "number" ? overrideRaw : Number(overrideRaw);
       if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
         return c.json({ error: "invalid_amount_override" }, 422);
       }

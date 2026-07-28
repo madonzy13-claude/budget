@@ -18,6 +18,7 @@ import { UserId } from "@budget/shared-kernel";
 import {
   upsertSubscription,
   getAllSubscribedTenantIds,
+  deleteAllSubscriptionsForBudget,
 } from "../src/push/push-repo";
 
 beforeAll(async () => {
@@ -63,5 +64,74 @@ describe("getAllSubscribedTenantIds (worker cross-tenant scan)", () => {
     const tenantIds = await getAllSubscribedTenantIds();
     expect(tenantIds).toContain(tenantA);
     expect(tenantIds).toContain(tenantB);
+  });
+
+  test("excludes ARCHIVED budgets (260723: archived budget kept sending reminders)", async () => {
+    const userId = await seedUser();
+    const activeBudget = crypto.randomUUID();
+    const archivedBudget = crypto.randomUUID();
+    // Seed two REAL budget rows: one active, one archived (as the owner).
+    const seed = await withBootstrapUserContext(UserId(userId), async (tx) => {
+      await tx.execute(sql`
+        INSERT INTO tenancy.budgets (id, slug, name, default_currency, owner_user_id, archived_at)
+        VALUES (${activeBudget}, ${"a" + activeBudget.slice(0, 8)}, 'Active', 'EUR', ${userId}, NULL),
+               (${archivedBudget}, ${"z" + archivedBudget.slice(0, 8)}, 'Archived', 'EUR', ${userId}, now())
+      `);
+    });
+    if (seed.isErr()) throw seed.error;
+    for (const t of [activeBudget, archivedBudget]) {
+      await upsertSubscription({
+        tenantId: t,
+        userId,
+        endpoint: `https://push.test/${t}`,
+        p256dh: "p",
+        auth: "a",
+        locale: "en",
+      });
+    }
+
+    const tenantIds = await getAllSubscribedTenantIds();
+    expect(tenantIds).toContain(activeBudget); // active still scanned
+    expect(tenantIds).not.toContain(archivedBudget); // archived skipped
+  });
+
+  test("deleteAllSubscriptionsForBudget removes EVERY member's sub for that budget, leaving other budgets untouched", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const budget = crypto.randomUUID();
+    const otherBudget = crypto.randomUUID();
+    // Two members subscribed to `budget`; the owner also has `otherBudget`.
+    await upsertSubscription({
+      tenantId: budget,
+      userId: owner,
+      endpoint: `https://push.test/${budget}-owner`,
+      p256dh: "p",
+      auth: "a",
+      locale: "en",
+    });
+    await upsertSubscription({
+      tenantId: budget,
+      userId: member,
+      endpoint: `https://push.test/${budget}-member`,
+      p256dh: "p",
+      auth: "a",
+      locale: "en",
+    });
+    await upsertSubscription({
+      tenantId: otherBudget,
+      userId: owner,
+      endpoint: `https://push.test/${otherBudget}-owner`,
+      p256dh: "p",
+      auth: "a",
+      locale: "en",
+    });
+
+    // Archive-cleanup: the owner drops the budget → every subscription for it
+    // (across ALL members, RLS is tenant-scoped not user-scoped) is deleted.
+    await deleteAllSubscriptionsForBudget(budget, owner);
+
+    const tenantIds = await getAllSubscribedTenantIds();
+    expect(tenantIds).not.toContain(budget); // both members' subs gone
+    expect(tenantIds).toContain(otherBudget); // unrelated budget survives
   });
 });

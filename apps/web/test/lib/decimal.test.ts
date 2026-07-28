@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDecimal } from "../../src/lib/decimal";
+import { parseDecimal, parseAmountAndNote } from "../../src/lib/decimal";
 
 describe("parseDecimal", () => {
   it("parses '5.96' to 596 cents", () =>
@@ -21,4 +21,28 @@ describe("parseDecimal", () => {
     expect(parseDecimal("596")).toBe(59600));
   it("parses '10' as 1000 cents (no decimal)", () =>
     expect(parseDecimal("10")).toBe(1000));
+});
+
+describe("parseAmountAndNote", () => {
+  it("'11.45' → 1145 cents, no note", () =>
+    expect(parseAmountAndNote("11.45")).toEqual({ cents: 1145, note: null }));
+  it("'11,45' → 1145 cents, no note (comma separator)", () =>
+    expect(parseAmountAndNote("11,45")).toEqual({ cents: 1145, note: null }));
+  it("'11.45 lunch' → 1145 + note 'lunch'", () =>
+    expect(parseAmountAndNote("11.45 lunch")).toEqual({
+      cents: 1145,
+      note: "lunch",
+    }));
+  it("keeps spaces inside the note", () =>
+    expect(parseAmountAndNote("11.45 lunch with team")).toEqual({
+      cents: 1145,
+      note: "lunch with team",
+    }));
+  it("a space right after the number starts the note ('11 45')", () =>
+    expect(parseAmountAndNote("11 45")).toEqual({ cents: 1100, note: "45" }));
+  it("trims surrounding whitespace", () =>
+    expect(parseAmountAndNote("  5.96  ")).toEqual({ cents: 596, note: null }));
+  it("invalid amount → null", () =>
+    expect(parseAmountAndNote("abc def")).toBeNull());
+  it("empty → null", () => expect(parseAmountAndNote("")).toBeNull());
 });

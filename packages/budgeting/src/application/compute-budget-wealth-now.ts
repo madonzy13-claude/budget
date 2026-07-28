@@ -7,8 +7,13 @@
  *   - budget-wealth-snapshot-3h.ts (the 3h cron snapshots this exact output, 11-07)
  *
  * Output (bigint cents, in the budget default_currency — D-07/D-11):
- *   - investment_value_cents = Σ holdings value, already FX→default_ccy, non-archived
- *   - capitalization_cents   = Σ ALL wallet balances (FX→default_ccy) + investment value
+ *   - investment_value_cents = Σ LIQUID holdings value (excl. possessions), FX→default_ccy
+ *   - possessions_value_cents= Σ possession holdings value, FX→default_ccy
+ *   - capitalization_cents   = Σ ALL wallet balances + investments + possessions
+ *
+ * Possessions (house/car/…) count toward capitalization (net worth) but are kept
+ * OUT of investment_value_cents so the retirement pot can exclude them (they
+ * aren't liquid drawdown wealth) — see get-overview-cards.ts.
  *
  * Hex layering: ports only (no drizzle/hono). FX via FxProvider.rateAsOf with the
  * distinct-pair batching pattern from get-budget-home-summary.ts. bigint throughout.
@@ -41,6 +46,13 @@ export interface HoldingsValuationPort {
     budgetId: string;
     defaultCurrency: string;
   }): Promise<bigint>;
+  /** Σ non-archived POSSESSION holding value, FX→default_ccy. In capitalization
+   *  but excluded from investment_value / the retirement pot. */
+  possessionsValueCents(input: {
+    tenantId: string;
+    budgetId: string;
+    defaultCurrency: string;
+  }): Promise<bigint>;
 }
 
 export interface ComputeBudgetWealthNowDeps {
@@ -61,6 +73,8 @@ export interface BudgetWealthNow {
   investment_value_cents: bigint;
   /** Σ holdings cost basis (buy_price × qty, FX→default_ccy) — for P/L over time. */
   investment_cost_basis_cents: bigint;
+  /** Σ possession holdings value — in capitalization, out of the retirement pot. */
+  possessions_value_cents: bigint;
   currency: string;
 }
 
@@ -127,20 +141,29 @@ export function computeBudgetWealthNow(deps: ComputeBudgetWealthNowDeps) {
   return async (
     input: ComputeBudgetWealthNowInput,
   ): Promise<BudgetWealthNow> => {
-    const [wallets, investmentValueCents, investmentCostBasisCents] =
-      await Promise.all([
-        deps.walletRepo.listWalletsWithType(input.budgetId),
-        deps.holdingsValuation.investmentValueCents({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-          defaultCurrency: input.defaultCurrency,
-        }),
-        deps.holdingsValuation.investmentCostBasisCents({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-          defaultCurrency: input.defaultCurrency,
-        }),
-      ]);
+    const [
+      wallets,
+      investmentValueCents,
+      investmentCostBasisCents,
+      possessionsValueCents,
+    ] = await Promise.all([
+      deps.walletRepo.listWalletsWithType(input.budgetId),
+      deps.holdingsValuation.investmentValueCents({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        defaultCurrency: input.defaultCurrency,
+      }),
+      deps.holdingsValuation.investmentCostBasisCents({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        defaultCurrency: input.defaultCurrency,
+      }),
+      deps.holdingsValuation.possessionsValueCents({
+        tenantId: input.tenantId,
+        budgetId: input.budgetId,
+        defaultCurrency: input.defaultCurrency,
+      }),
+    ]);
 
     const walletsCents = await sumWalletsToCurrency(
       wallets,
@@ -150,9 +173,11 @@ export function computeBudgetWealthNow(deps: ComputeBudgetWealthNowDeps) {
     );
 
     return {
-      capitalization_cents: walletsCents + investmentValueCents,
+      capitalization_cents:
+        walletsCents + investmentValueCents + possessionsValueCents,
       investment_value_cents: investmentValueCents,
       investment_cost_basis_cents: investmentCostBasisCents,
+      possessions_value_cents: possessionsValueCents,
       currency: input.defaultCurrency,
     };
   };

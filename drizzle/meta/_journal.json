@@ -449,6 +449,41 @@
       "when": 1782710400000,
       "tag": "0064_member_share_default_100",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1782714000000,
+      "tag": "0065_investment_savings",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1782717600000,
+      "tag": "0066_investment_possession",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1782721200000,
+      "tag": "0067_investment_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1782724800000,
+      "tag": "0068_member_share_decimal",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1782728400000,
+      "tag": "0069_recurring_rule_end_date",
+      "breakpoints": true
     }
   ]
 }

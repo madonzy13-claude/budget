@@ -288,7 +288,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           }));
         } else {
           let cumulative = 0n;
-          timeline = [...days]
+          const points = [...days]
             .sort((a, b) => a.day.localeCompare(b.day))
             .map((d) => {
               cumulative += d.spent_cents;
@@ -298,6 +298,30 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
                 real_cents: cumulative.toString(),
               };
             });
+          // Anchor the series to the requested window so the chart spans it
+          // (e.g. 1M = from the 1st to today), not just the days that happened to
+          // have spend. Prepend `from` at real=0 and append `to` at the final
+          // cumulative when they fall outside the spend-day span. Only when there
+          // IS spend — the no-spend cases are handled above (empty message / flat
+          // planned line).
+          if (points.length > 0) {
+            if (points[0]!.label > input.from) {
+              points.unshift({
+                label: input.from,
+                ...splitAt(input.from.slice(0, 7)),
+                real_cents: "0",
+              });
+            }
+            const last = points[points.length - 1]!;
+            if (last.label < input.to) {
+              points.push({
+                label: input.to,
+                ...splitAt(input.to.slice(0, 7)),
+                real_cents: last.real_cents,
+              });
+            }
+          }
+          timeline = points;
         }
       }
 

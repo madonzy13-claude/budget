@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { BdpTab } from "@/lib/bdp-tabs";
 
 // Mirrors OVERVIEW-CARDS' CARD constant (a client const, re-declared here).
 const CARD =
@@ -38,7 +39,14 @@ const TABS: ReadonlyArray<{ slug: string; icon: LucideIcon }> = [
   { slug: "settings", icon: Settings },
 ];
 
-export function BdpOverviewSkeleton() {
+export function BdpOverviewSkeleton({
+  // Which pill to light up. Default Overview (home auto-open landing); the budget
+  // route's loading.tsx passes the URL's tab so a budget→budget switch doesn't
+  // flash the Overview pill before jumping to the target pill.
+  activeTab = "overview",
+}: {
+  activeTab?: BdpTab;
+} = {}) {
   const t = useTranslations("bdp.tab");
 
   return (
@@ -55,7 +63,7 @@ export function BdpOverviewSkeleton() {
           className="flex h-12 items-center justify-center gap-1.5 overflow-x-auto px-4 sm:px-6"
         >
           {TABS.map(({ slug, icon: Icon }) => {
-            const active = slug === "overview";
+            const active = slug === activeTab;
             return (
               <span
                 key={slug}
@@ -97,30 +105,75 @@ export function BdpOverviewSkeleton() {
         </nav>
       </div>
 
-      {/* Pane — mirrors the cold OverviewTab first paint: the OverviewCards
-          isPending skeleton (h-28 hero + 2×2 stat cards) plus the
-          ProjectionTimeline isLoading bar, in the same max-w container.
-          animate-pulse, visible from frame 0 (the gate is always ~330ms). */}
-      <div className="overflow-x-clip">
-        <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-4 px-4 pt-4 sm:px-6">
-          <div className="flex flex-col gap-3">
-            <div className={cn(CARD, "h-28 animate-pulse")} aria-hidden="true" />
-            <div className="grid grid-cols-2 gap-3">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className={cn(CARD, "h-24 animate-pulse")}
-                  aria-hidden="true"
-                />
-              ))}
-            </div>
+      {/* Pane — 260723-2: tab-aware so a budget→budget switch onto e.g. Spendings
+          reserves the SWITCHED-TO tab's geometry, not the Overview hero+cards
+          (which then flashed before the real pane loaded). */}
+      <SkeletonPane activeTab={activeTab} />
+    </>
+  );
+}
+
+/** The waiting pane, shaped to match the tab being navigated to. */
+export function SkeletonPane({ activeTab }: { activeTab: BdpTab }) {
+  // Spendings is a horizontal row of per-category columns.
+  if (activeTab === "spendings") {
+    return (
+      <div className="overflow-x-clip" data-testid="bdp-skeleton-pane-columns">
+        <div className="mx-auto w-full max-w-[1280px] px-4 pt-4 sm:px-6">
+          <div className="flex gap-3 overflow-hidden">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className={cn(CARD, "h-64 w-[220px] shrink-0 animate-pulse")}
+                aria-hidden="true"
+              />
+            ))}
           </div>
-          <div
-            className={cn(CARD, "h-[104px] animate-pulse")}
-            aria-hidden="true"
-          />
         </div>
       </div>
-    </>
+    );
+  }
+  // Wallets / Reserves / Settings are vertical lists of rows.
+  if (
+    activeTab === "wallets" ||
+    activeTab === "reserves" ||
+    activeTab === "settings"
+  ) {
+    return (
+      <div className="overflow-x-clip" data-testid="bdp-skeleton-pane-list">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 pt-4 sm:px-6">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className={cn(CARD, "h-14 animate-pulse")}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  // Overview: the OverviewCards cold paint (h-28 hero + 2×2 stats + projection).
+  return (
+    <div className="overflow-x-clip" data-testid="bdp-skeleton-pane-overview">
+      <div className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-col gap-4 px-4 pt-4 sm:px-6">
+        <div className="flex flex-col gap-3">
+          <div className={cn(CARD, "h-28 animate-pulse")} aria-hidden="true" />
+          <div className="grid grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={cn(CARD, "h-24 animate-pulse")}
+                aria-hidden="true"
+              />
+            ))}
+          </div>
+        </div>
+        <div
+          className={cn(CARD, "h-[104px] animate-pulse")}
+          aria-hidden="true"
+        />
+      </div>
+    </div>
   );
 }

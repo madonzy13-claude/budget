@@ -29,6 +29,15 @@ Feature: Investments wallet — section, holdings, grouping, optimistic add
     And the holding row "Vintage Watch" has no inline amount input
     And the holding row "Vintage Watch" persists after a reload
 
+  # Savings holding: manual starting + current amount (no quantity), rides the
+  # broker field-set. Exercises the full add→POST→DB CHECK('savings')→persist path.
+  Scenario: Add a savings holding persists with its starting and current amounts
+    Given investments are enabled for my budget
+    When I open the investments wallets tab
+    And I add a savings holding "Emergency fund" starting "10000" current "12500" via the sheet
+    Then the holding row "Emergency fund" is visible
+    And the holding row "Emergency fund" persists after a reload
+
   # INV-11 — drag a holding into a group; assignment persists.
   @skip-phase-09-debt
   Scenario: Drag a holding into a group persists the group assignment

@@ -37,6 +37,7 @@ import { WalletsSectionedList } from "@/components/budgeting/wallets-tab/wallets
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
 import { ReservesTableClient } from "@/components/budgeting/reserves-tab/reserves-table-client";
 import { SettingsTabClient } from "@/components/settings/settings-tab-client";
+import { SkeletonPane } from "@/components/budgeting/bdp-overview-skeleton";
 import type { TaskSummary } from "@/components/budgeting/task-banner-row";
 import { TAB_ORDER, isBdpTab, type BdpTab } from "@/lib/bdp-tabs";
 
@@ -163,6 +164,21 @@ export function BudgetDetail({
   const reduce = useReducedMotion();
   const [activeTab, setActiveTab] = useState<BdpTab>(initialTab);
 
+  // 260724 (nav perf): commit the pills shell + a pane skeleton on the FIRST
+  // paint, then mount the heavy active pane one frame later. Mounting the whole
+  // BudgetDetail tree (pills + Overview/Wallets/… pane) synchronously took the
+  // route-transition ~200ms on desktop and ~800ms on a phone, during which React
+  // holds the OUTGOING route visible (no Suspense fallback fires for a pure client
+  // render) — the reported freeze on home/all-budgets ↔ budget nav. Deferring the
+  // pane releases the old route immediately: skeleton shows, then the pane fills
+  // in (from the warm React Query cache when available). Only the initial mount is
+  // deferred; `paneReady` stays true so pill switches render their pane directly.
+  const [paneReady, setPaneReady] = useState(false);
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setPaneReady(true));
+    return () => cancelAnimationFrame(r);
+  }, []);
+
   // Warm every tab's data on budget open (tiered prefetch). With client tabs
   // there is no RSC to prefetch, so the whole connection serves the data.
   usePrefetchBudgetTabs(budgetId);
@@ -259,13 +275,21 @@ export function BudgetDetail({
 
   return (
     <BdpUiStateProvider>
-      {/* Sticky pills band — same wrapper/testid/attrs as the old BudgetShellData
-          band so the @tasks-geometry proofs and z-stack are unchanged. */}
-      <div
-        className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
-        data-testid="bdp-sticky-wrapper"
-        data-bdp-tabs
-      >
+      {/* Single block wrapper so the sticky pills band's CONTAINING BLOCK spans the
+          FULL scroll content. Without it the band's containing block is the
+          viewport-capped NavPendingOverlay (flex-1 min-h-0); in the installed PWA
+          (where <main> is the scroll surface) that made position:sticky release
+          after ~one screen and the pills scrolled away and stayed gone (user
+          report). A plain block child grows to content height, so the band sticks
+          across the whole scroll. */}
+      <div data-bdp-sticky-scope>
+        {/* Sticky pills band — same wrapper/testid/attrs as the old BudgetShellData
+            band so the @tasks-geometry proofs and z-stack are unchanged. */}
+        <div
+          className="sticky top-0 z-40 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]"
+          data-testid="bdp-sticky-wrapper"
+          data-bdp-tabs
+        >
         <BdpTabs
           locale={locale}
           budgetId={budgetId}
@@ -313,16 +337,21 @@ export function BudgetDetail({
                   }
                 />
               )}
-              <TabPane
-                tab={activeTab}
-                budgetId={budgetId}
-                reservesEnabled={reservesOn}
-                investmentsEnabled={investmentsOn}
-                amountPrivacyEnabled={amountPrivacyOn}
-              />
+              {paneReady ? (
+                <TabPane
+                  tab={activeTab}
+                  budgetId={budgetId}
+                  reservesEnabled={reservesOn}
+                  investmentsEnabled={investmentsOn}
+                  amountPrivacyEnabled={amountPrivacyOn}
+                />
+              ) : (
+                <SkeletonPane activeTab={activeTab} />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
+      </div>
       </div>
     </BdpUiStateProvider>
   );

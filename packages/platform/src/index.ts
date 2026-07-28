@@ -18,5 +18,7 @@ export * from "./crypto/libsodium-key-store";
 export * from "./crypto/dek-context";
 export * from "./email/templates";
 export * from "./email/smtp-email-sender";
+export * from "./email/fan-out-email-sender";
+export * from "./email/reserved-email-domains";
 export * from "./idempotency";
 export * from "./push";

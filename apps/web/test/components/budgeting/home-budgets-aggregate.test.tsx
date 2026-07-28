@@ -53,9 +53,10 @@ vi.mock("@/components/budgeting/budget-card-client", () => ({
 import { HomeBudgetsClient } from "@/components/budgeting/home-budgets-client";
 
 describe("HomeBudgetsClient list view", () => {
-  it("renders the aggregate overview for ≥2 budgets in the list view, not the card grid", () => {
+  // The AggregateOverview mount is deferred one frame behind card skeletons.
+  it("renders the aggregate overview for ≥2 budgets in the list view, not the card grid", async () => {
     render(<HomeBudgetsClient locale="en" />);
-    expect(screen.getByTestId("aggregate-overview")).toBeTruthy();
+    expect(await screen.findByTestId("aggregate-overview")).toBeTruthy();
     expect(screen.queryByTestId("budget-card-b1")).toBeNull();
     expect(screen.queryByTestId("budget-card-b2")).toBeNull();
   });

@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AggregationSection } from "@/components/settings/aggregation-section";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (k: string) => k }));
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({
+    invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
+  }),
 }));
+vi.mock("@/lib/query-persist", () => ({ persistNow: vi.fn() }));
 const putMock = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 vi.mock("@/lib/api-client", () => ({
   api: {
@@ -57,7 +61,7 @@ describe("AggregationSection", () => {
     expect(screen.queryByTestId("settings-aggregation-share")).toBeNull();
   });
 
-  it("shows the share field reflecting sharePct when include is ON", () => {
+  it("renders the share as '70%' text (inline-edit, like Name)", () => {
     render(
       <AggregationSection
         budgetId="b1"
@@ -65,10 +69,10 @@ describe("AggregationSection", () => {
         sharePct={70}
       />,
     );
-    const input = screen.getByTestId(
-      "settings-aggregation-share",
-    ) as HTMLInputElement;
-    expect(input.value).toBe("70");
+    // Resting state: a text cell showing "70%", NOT a number input.
+    const cell = screen.getByTestId("settings-aggregation-share");
+    expect(cell.textContent).toContain("70%");
+    expect(cell.querySelector("input")).toBeNull();
   });
 
   it("PUTs included+share_pct when the toggle flips", async () => {
@@ -89,7 +93,17 @@ describe("AggregationSection", () => {
     });
   });
 
-  it("PUTs the new share_pct on blur, clamped to 0..100", async () => {
+  function editShare(value: string) {
+    // Tap the "N%" cell → an input appears; type the bare number; Enter commits.
+    fireEvent.click(screen.getByTestId("settings-aggregation-share"));
+    const input = screen
+      .getByTestId("settings-aggregation-share-editor")
+      .querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value } });
+    fireEvent.keyDown(input, { key: "Enter" });
+  }
+
+  it("PUTs the new share_pct on commit, clamped to 0..100", async () => {
     render(
       <AggregationSection
         budgetId="b1"
@@ -97,21 +111,38 @@ describe("AggregationSection", () => {
         sharePct={50}
       />,
     );
-    const input = screen.getByTestId(
-      "settings-aggregation-share",
-    ) as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "150" } });
-    fireEvent.blur(input);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(putMock).toHaveBeenCalledWith({
-      param: { id: "b1" },
-      json: { included: true, share_pct: 100 },
-    });
-    expect(input.value).toBe("100");
+    editShare("150");
+    await waitFor(() =>
+      expect(putMock).toHaveBeenCalledWith({
+        param: { id: "b1" },
+        json: { included: true, share_pct: 100 },
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("settings-aggregation-share").textContent,
+      ).toContain("100%"),
+    );
   });
 
-  it("does not PUT on blur when the share value is unchanged", async () => {
+  it("accepts a decimal value with a comma (33,5 → 33.5)", async () => {
+    render(
+      <AggregationSection
+        budgetId="b1"
+        includeInAggregation={true}
+        sharePct={100}
+      />,
+    );
+    editShare("33,5");
+    await waitFor(() =>
+      expect(putMock).toHaveBeenCalledWith({
+        param: { id: "b1" },
+        json: { included: true, share_pct: 33.5 },
+      }),
+    );
+  });
+
+  it("does not PUT when the share value is unchanged", async () => {
     render(
       <AggregationSection
         budgetId="b1"
@@ -119,8 +150,11 @@ describe("AggregationSection", () => {
         sharePct={50}
       />,
     );
-    const input = screen.getByTestId("settings-aggregation-share");
-    fireEvent.blur(input);
+    fireEvent.click(screen.getByTestId("settings-aggregation-share"));
+    const input = screen
+      .getByTestId("settings-aggregation-share-editor")
+      .querySelector("input") as HTMLInputElement;
+    fireEvent.keyDown(input, { key: "Enter" });
     await Promise.resolve();
     expect(putMock).not.toHaveBeenCalled();
   });

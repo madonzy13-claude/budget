@@ -12,7 +12,8 @@
 import type { ReminderSubscriptionRow } from "@budget/platform";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
-export const REMINDER_HOUR = 18; // 6pm local
+export const REMINDER_HOUR = 20; // 8pm local — DEFAULT; each sub can override
+export const REMINDER_MINUTE = 0;
 
 type LocaleKey = "en" | "pl" | "uk";
 // Shared nudge title (mirrors GREETING in push-notification-handler.ts). iOS
@@ -31,22 +32,24 @@ const BODY: Record<LocaleKey, string> = {
 };
 
 /**
- * ISO weekday (1=Mon..7=Sun) and 0–23 hour for `now` in IANA zone `tz`.
- * Returns null when the zone is invalid so the caller safely skips.
+ * ISO weekday (1=Mon..7=Sun), 0–23 hour and 0–59 minute for `now` in IANA zone
+ * `tz`. Returns null when the zone is invalid so the caller safely skips.
  */
 export function localWeekdayHour(
   now: Date,
   tz: string,
-): { iso: number; hour: number } | null {
+): { iso: number; hour: number; minute: number } | null {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       weekday: "short",
       hour: "2-digit",
+      minute: "2-digit",
       hourCycle: "h23",
     }).formatToParts(now);
     const wd = parts.find((p) => p.type === "weekday")?.value ?? "";
     const hour = Number(parts.find((p) => p.type === "hour")?.value);
+    const minute = Number(parts.find((p) => p.type === "minute")?.value);
     const map: Record<string, number> = {
       Mon: 1,
       Tue: 2,
@@ -57,22 +60,32 @@ export function localWeekdayHour(
       Sun: 7,
     };
     const iso = map[wd];
-    if (!iso || Number.isNaN(hour)) return null;
-    return { iso, hour };
+    if (!iso || Number.isNaN(hour) || Number.isNaN(minute)) return null;
+    return { iso, hour, minute };
   } catch {
     return null;
   }
 }
 
-/** Fire iff it is the reminder hour AND today's weekday is selected, in the sub's tz. */
+/**
+ * Fire iff it is the sub's reminder TIME (local hour:minute, default 20:00) AND
+ * today's weekday is selected, in the sub's tz. Exact hour+minute match — the
+ * cron runs every minute so any user-picked time lands on a tick in every zone.
+ */
 export function reminderFiresNow(
-  sub: { days: number[]; tz: string },
+  sub: {
+    days: number[];
+    tz: string;
+    hour?: number | null;
+    minute?: number | null;
+  },
   now: Date,
-  targetHour: number = REMINDER_HOUR,
 ): boolean {
   const lw = localWeekdayHour(now, sub.tz);
   if (!lw) return false;
-  return lw.hour === targetHour && sub.days.includes(lw.iso);
+  const h = sub.hour ?? REMINDER_HOUR;
+  const m = sub.minute ?? REMINDER_MINUTE;
+  return lw.hour === h && lw.minute === m && sub.days.includes(lw.iso);
 }
 
 export interface BudgetReminderDeps {
@@ -126,7 +139,13 @@ export async function runBudgetReminder(
     }
     for (const sub of subs) {
       const tz = sub.configTz ?? tzMap[sub.userId] ?? "UTC";
-      if (!reminderFiresNow({ days: sub.days, tz }, now)) continue;
+      if (
+        !reminderFiresNow(
+          { days: sub.days, tz, hour: sub.hour, minute: sub.minute },
+          now,
+        )
+      )
+        continue;
       const loc = (
         (["en", "pl", "uk"] as string[]).includes(sub.locale)
           ? sub.locale

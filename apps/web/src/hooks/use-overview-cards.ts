@@ -21,6 +21,8 @@ export interface OverviewCardsDTO {
   };
   capitalization_cents: string;
   investment_value_cents: string;
+  /** Σ possession holdings — in capitalization, out of the retirement pot. */
+  possessions_value_cents: string;
   retirement_months: number | null;
   retirement_inflation_pct: number;
   available_reserves_cents: string;

@@ -354,7 +354,8 @@
       },
       "reminder": {
         "label": "Нагадувати оновити бюджет",
-        "description": "Вечірнє нагадування у вибрані дні",
+        "description": "Нагадування у вибраний час у вибрані дні",
+        "time": "Час надсилання",
         "day": {
           "1": "Понеділок",
           "2": "Вівторок",
@@ -525,6 +526,47 @@
       "feature_off_toast": "Резерви вимкнено — вкладку Резерви приховано",
       "error_save": "Не вдалося зберегти — спробуйте ще раз"
     },
+    "possessions": {
+      "section": {
+        "title": "МАЙНО"
+      },
+      "add": {
+        "cta": "Додати майно"
+      },
+      "sheet": {
+        "addTitle": "Додати майно",
+        "editTitle": "Редагувати майно",
+        "save": "Зберегти",
+        "cancel": "Скасувати"
+      },
+      "field": {
+        "name": "Назва",
+        "namePlaceholder": "напр. Автомобіль, Будинок, Годинник",
+        "icon": "Іконка",
+        "currency": "Валюта",
+        "amount": "Вартість"
+      },
+      "row": {
+        "editAria": "Редагувати майно {name}",
+        "deleteAria": "Видалити майно {name}",
+        "nameAria": "Назва майна",
+        "amountAria": "Вартість майна",
+        "currencyAria": "Валюта майна",
+        "iconAria": "Налаштувати іконку та колір {name}",
+        "nameRequired": "Назва не може бути порожньою"
+      },
+      "confirm": {
+        "delete": {
+          "title": "Видалити майно «{name}»?",
+          "body": "Це не можна скасувати.",
+          "cta": "Видалити",
+          "cancel": "Скасувати"
+        }
+      },
+      "toast": {
+        "deleted": "Майно видалено"
+      }
+    },
     "investments": {
       "feature_label": "Інвестиції",
       "feature_help_text": "Відстежуйте акції, криптовалюту, метали та інші активи в секції гаманців.",
@@ -574,6 +616,8 @@
         "premium": "Премія %",
         "depositedValue": "Внесена вартість",
         "actualValue": "Поточна вартість",
+        "startingAmount": "Початкова сума",
+        "currentAmount": "Поточна сума",
         "principal": "Сума",
         "rate": "Річна ставка (%)",
         "capFrequency": "Капіталізація",
@@ -595,7 +639,8 @@
         "precious_metals": "Дорогоцінні метали",
         "cash": "Готівка",
         "broker": "Брокерський рахунок",
-        "deposit": "Депозит"
+        "deposit": "Депозит",
+        "savings": "Заощадження"
       },
       "capFrequency": {
         "daily": "Щоденна",
@@ -647,6 +692,7 @@
         "deleteAria": "Видалити {name}.",
         "dragAria": "Перетягніть, щоб змінити порядок {name}.",
         "qty": "Кількість: {qty}",
+        "started": "Початок: {amount}",
         "share": "Частка: {pct}"
       },
       "rowExpandAria": "Розгорнути деталі {name}.",
@@ -679,7 +725,7 @@
       "confirm": {
         "delete": {
           "title": "Видалити позицію \"{name}\"?",
-          "body": "Це не можна скасувати тут.",
+          "body": "Це не можна скасувати.",
           "cta": "Видалити",
           "cancel": "Скасувати"
         },
@@ -694,6 +740,7 @@
         "title": "Перегляд",
         "buyTotal": "Сума купівлі",
         "deposited": "Внесено",
+        "starting": "Початок",
         "principal": "Сума",
         "amount": "Сума",
         "currentValue": "Поточна вартість",
@@ -709,6 +756,7 @@
     "investments": "Інвестиції",
     "cash": "Готівка",
     "reserves": "Резерви",
+    "possessions": "Майно",
     "composition_title": "Де ваш капітал",
     "trend_title": "Капітал у часі",
     "budgets_title": "Бюджети",
@@ -756,9 +804,11 @@
     "and": "і",
     "retire_label": "Якщо вийти на пенсію зараз, грошей вистачить на",
     "retire_inflation": "з урахуванням {pct}% річної інфляції",
-    "avg_change": "Сер. зміна",
+    "avg_change": "Середня зміна",
     "contributions": "Внески",
-    "profit": "Прибуток"
+    "profit": "Прибуток",
+    "total": "Разом",
+    "pl": "Приб./збиток"
   },
   "state": {
     "empty": {
@@ -892,6 +942,8 @@
         "label_type": "Тип",
         "label_cushion": "Подушка",
         "label_reserves": "Резерви",
+        "label_investments": "Інвестиції",
+        "label_notifications": "Сповіщення",
         "value_personal": "Особистий",
         "value_shared": "Спільний",
         "value_enabled": "Увімкнено",
@@ -1157,6 +1209,9 @@
           "12": "Грудень"
         },
         "firstDueLabel": "Перша дата",
+        "lastDueLabel": "Кінцева дата (необовʼязково)",
+        "lastDuePlaceholder": "Без кінцевої дати",
+        "errorLastBeforeFirst": "Кінцева дата не може бути раніше першої дати",
         "noteLabel": "Примітка (необовʼязково)",
         "applyToFutureLabel": "Застосувати також до майбутніх повторень",
         "applyToFutureHelp": "Редагує найближчі очікувані чернетки, щоб вони відображали нову суму/категорію. Підтверджені минулі транзакції ніколи не змінюються.",
@@ -1415,7 +1470,7 @@
           "invested": "Інвестовано",
           "inclContrib": "Включно з внесками",
           "exclContrib": "Без внесків",
-          "monthlyAvg": "Сер. зміна",
+          "monthlyAvg": "Середня зміна",
           "dynamicsDaily": "Щоденна зміна",
           "dynamicsMonthly": "Місячна зміна",
           "dynamicsYearly": "Річна зміна",
@@ -1427,9 +1482,12 @@
           "capSpendings": "Витрати",
           "capReserves": "Резерви",
           "capCushion": "Подушка",
+          "capPossessions": "Майно",
           "pieShare": "{pct}%",
           "contributions": "Внески",
-          "profit": "Прибуток"
+          "profit": "Прибуток",
+          "total": "Разом",
+          "pl": "Приб./збиток"
         },
         "empty": {
           "overspent": "Немає перевитрат у цьому діапазоні.",
@@ -1523,6 +1581,7 @@
         "row": {
           "namePlaceholder": "Назва гаманця",
           "nameAria": "Назва гаманця. Натисніть, щоб редагувати.",
+          "nameRequired": "Назва не може бути порожньою",
           "currencyAria": "Валюта. Натисніть, щоб редагувати.",
           "currencyReadOnlyAria": "Валюта {ccy}. Гаманці резервів мають збігатися з валютою бюджету.",
           "amountAria": "Сума. Натисніть, щоб редагувати.",

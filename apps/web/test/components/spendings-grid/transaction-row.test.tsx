@@ -5,7 +5,7 @@
  * Inline edit: single click on the amount while revealed; double-click is gone.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, createEvent } from "@testing-library/react";
 import { TransactionRow } from "../../../src/components/budgeting/spendings-grid/transaction-row";
 import { TestQueryProvider } from "../../setup/query-client";
 
@@ -112,9 +112,7 @@ describe("TransactionRow", () => {
 
   it("resting (unfocused) row shows no meta line", () => {
     renderRow({ txn: { ...txn, note: "Weekly shop" } });
-    expect(
-      document.querySelector('[data-testid="txn-row-meta"]'),
-    ).toBeNull();
+    expect(document.querySelector('[data-testid="txn-row-meta"]')).toBeNull();
   });
 
   it("hover reveals the edit and delete chips; they persist while focused, hide on blur", () => {
@@ -134,6 +132,33 @@ describe("TransactionRow", () => {
     expect(
       document.querySelector('[data-testid="txn-action-edit"]'),
     ).toBeNull();
+  });
+
+  it("edit/delete chips preventDefault on mousedown so focus stays on the row (260723-10)", () => {
+    // After a quick-edit commits, focus is on the row and the chips show via
+    // `focused`. If a chip's mousedown moved focus off the row, `focused` would
+    // flip false, unmount the chips mid-click, and the tap would fall through to
+    // the amount cell → reopen the inline editor. preventDefault keeps focus on
+    // the row so the click actually triggers the pen/trash.
+    renderRow();
+    const row = screen.getByTestId("txn-row-1500");
+    fireEvent.focus(row);
+    for (const id of ["txn-action-edit", "txn-action-delete"]) {
+      const btn = screen.getByTestId(id);
+      const ev = createEvent.mouseDown(btn);
+      fireEvent(btn, ev);
+      expect(ev.defaultPrevented).toBe(true);
+    }
+  });
+
+  it("clicking the pen while focused opens the full editor, never the inline edit", () => {
+    const onEdit = vi.fn();
+    renderRow({ onEdit });
+    const row = screen.getByTestId("txn-row-1500");
+    fireEvent.focus(row);
+    fireEvent.click(screen.getByTestId("txn-action-edit"));
+    expect(onEdit).toHaveBeenCalledWith("txn-123");
+    expect(document.querySelector('input[inputmode="decimal"]')).toBeNull();
   });
 
   it("keyboard focus (arrow-nav) reveals the chips even without hover", () => {
@@ -206,6 +231,22 @@ describe("TransactionRow", () => {
     expect(mockUpdateMutate).toHaveBeenCalledWith({
       txId: "txn-123",
       amountCents: 2000,
+      note: null,
+    });
+  });
+
+  it("inline edit: a space after the amount sets the note (260722)", () => {
+    renderRow();
+    fireEvent.click(screen.getByText("15"));
+    const input = document.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "20 groceries run" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockUpdateMutate).toHaveBeenCalledWith({
+      txId: "txn-123",
+      amountCents: 2000,
+      note: "groceries run",
     });
   });
 

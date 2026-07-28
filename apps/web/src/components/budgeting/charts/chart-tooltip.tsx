@@ -5,6 +5,7 @@
  * which value maps to which chart line (UAT round 13/14: the default tooltip rendered
  * every row in one text colour with no marker). `formatY` formats the value.
  */
+import { Fragment } from "react";
 import { CHART_THEME, type ChartSeries } from "./chart-theme";
 
 interface TooltipEntry {
@@ -25,6 +26,8 @@ export function ChartTooltipContent({
   labelFormat,
   colorForRow,
   extra,
+  rowSuffix,
+  summary,
   suppressedLabel,
   onDismiss,
 }: {
@@ -42,11 +45,24 @@ export function ChartTooltipContent({
     row: Record<string, unknown>,
     dataKey?: string | number,
   ) => string | undefined;
-  /** Extra summary rows (e.g. the difference amount + percent) rendered below the
-   *  series, computed from the hovered data row. */
+  /** Extra summary rows (flex, below a hairline) — for callers not using the grid
+   *  `summary` below. */
   extra?: (
     row: Record<string, unknown>,
   ) => Array<{ label: string; value: string; color?: string }>;
+  /** Per-series-row SUFFIX cell(s) after the value (e.g. a % change, or a
+   *  [%, amount] pair). Return a string for ONE extra column, or an array for
+   *  several — each element is its own right-aligned, column-aligned cell. */
+  rowSuffix?: (
+    row: Record<string, unknown>,
+    dataKey?: string | number,
+  ) => string | string[] | undefined;
+  /** A grid-aligned summary row (e.g. Total) below a hairline — its value +
+   *  suffix cells line up with the series columns above. Only rendered in grid
+   *  mode (i.e. alongside rowSuffix). */
+  summary?: (
+    row: Record<string, unknown>,
+  ) => { label: string; value: string; suffix?: string[] } | null;
   /** The x-label the user tapped to DISMISS — this tooltip hides for it (r28 item 3). */
   suppressedLabel?: string | null;
   /** Tapping the tooltip calls this with its x-label to dismiss it. */
@@ -61,6 +77,18 @@ export function ChartTooltipContent({
   )
     return null;
   const shownLabel = label != null && labelFormat ? labelFormat(label) : label;
+  const toCells = (r: string | string[] | undefined): string[] =>
+    r == null ? [] : Array.isArray(r) ? r : [r];
+  const marker = (color: string, dashed: boolean) => (
+    <span
+      aria-hidden
+      style={{
+        width: 18,
+        flexShrink: 0,
+        borderTop: `3px ${dashed ? "dashed" : "solid"} ${color}`,
+      }}
+    />
+  );
   return (
     <div
       onClick={onDismiss ? () => onDismiss(label) : undefined}
@@ -80,49 +108,142 @@ export function ChartTooltipContent({
           {shownLabel}
         </div>
       )}
-      {payload.map((p, i) => {
-        const s = series?.find((x) => x.key === p.dataKey);
-        // Per-point color wins (up/down or category colorKey) so the marker matches
-        // the rendered bar; else the series color, else the recharts payload color.
-        const color =
-          (colorForRow && p.payload
-            ? colorForRow(p.payload, p.dataKey)
-            : undefined) ??
-          s?.color ??
-          p.color ??
-          CHART_THEME.accent;
-        const dashed = s?.dashed ?? false;
+      {(() => {
+        const rows = payload.map((p) => {
+          const s = series?.find((x) => x.key === p.dataKey);
+          // Per-point color wins (up/down or category colorKey) so the marker matches
+          // the rendered bar; else the series color, else the recharts payload color.
+          const color =
+            (colorForRow && p.payload
+              ? colorForRow(p.payload, p.dataKey)
+              : undefined) ??
+            s?.color ??
+            p.color ??
+            CHART_THEME.accent;
+          return {
+            color,
+            dashed: s?.dashed ?? false,
+            name: p.name,
+            value: formatY ? formatY(Number(p.value)) : String(p.value),
+            cells: p.payload ? toCells(rowSuffix?.(p.payload, p.dataKey)) : [],
+          };
+        });
+        const summaryRow =
+          summary && payload[0]?.payload ? summary(payload[0].payload) : null;
+
+        // Non-grid (simple) tooltips: value floats right on its own flex row.
+        if (!rowSuffix && !summary) {
+          return rows.map((r, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: CHART_THEME.text,
+                padding: "1px 0",
+              }}
+            >
+              {marker(r.color, r.dashed)}
+              {r.name != null && (
+                <span style={{ color: CHART_THEME.axis }}>{r.name}</span>
+              )}
+              <span style={{ marginLeft: "auto", fontWeight: 600 }}>
+                {r.value}
+              </span>
+            </div>
+          ));
+        }
+
+        // Grid: marker · name · value · N suffix cells — every column right-aligns
+        // across the series rows AND the summary row.
+        const nCells = Math.max(
+          0,
+          ...rows.map((r) => r.cells.length),
+          summaryRow ? toCells(summaryRow.suffix).length : 0,
+        );
+        const cellStyle = {
+          fontWeight: 400 as const,
+          color: CHART_THEME.axis,
+          textAlign: "right" as const,
+          whiteSpace: "nowrap" as const,
+        };
+        const cols = Array.from({ length: nCells });
         return (
           <div
-            key={i}
             style={{
-              display: "flex",
+              display: "grid",
+              gridTemplateColumns: `auto minmax(0,1fr) max-content${" max-content".repeat(
+                nCells,
+              )}`,
+              columnGap: 10,
+              rowGap: 2,
               alignItems: "center",
-              gap: 8,
               color: CHART_THEME.text,
-              padding: "1px 0",
             }}
           >
-            {/* line marker: solid or dashed, in the series colour */}
-            <span
-              aria-hidden
-              style={{
-                width: 18,
-                flexShrink: 0,
-                borderTop: `3px ${dashed ? "dashed" : "solid"} ${color}`,
-              }}
-            />
-            {p.name != null && (
-              <span style={{ color: CHART_THEME.axis }}>{p.name}</span>
+            {rows.map((r, i) => (
+              <Fragment key={i}>
+                {marker(r.color, r.dashed)}
+                <span style={{ color: CHART_THEME.axis, whiteSpace: "nowrap" }}>
+                  {r.name ?? ""}
+                </span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {r.value}
+                </span>
+                {cols.map((_, c) => (
+                  <span key={c} style={cellStyle}>
+                    {r.cells[c] ?? ""}
+                  </span>
+                ))}
+              </Fragment>
+            ))}
+            {summaryRow && (
+              <Fragment>
+                <span
+                  aria-hidden
+                  style={{
+                    gridColumn: "1 / -1",
+                    height: 0,
+                    borderTop: `1px solid ${CHART_THEME.tooltipBorder}`,
+                    marginTop: 3,
+                    marginBottom: 2,
+                  }}
+                />
+                <span aria-hidden />
+                <span style={{ color: CHART_THEME.axis, whiteSpace: "nowrap" }}>
+                  {summaryRow.label}
+                </span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {summaryRow.value}
+                </span>
+                {(() => {
+                  const sc = toCells(summaryRow.suffix);
+                  return cols.map((_, c) => (
+                    <span key={c} style={cellStyle}>
+                      {sc[c] ?? ""}
+                    </span>
+                  ));
+                })()}
+              </Fragment>
             )}
-            <span style={{ marginLeft: "auto", fontWeight: 600 }}>
-              {formatY ? formatY(Number(p.value)) : String(p.value)}
-            </span>
           </div>
         );
-      })}
-      {/* Extra summary rows (e.g. difference amount + percent), separated by a
-          hairline from the series rows above. */}
+      })()}
+      {/* Extra summary rows (flex) — for callers still using `extra` (not the grid
+          `summary`), separated by a hairline from the series rows above. */}
       {extra && payload[0]?.payload
         ? extra(payload[0].payload).map((row, i) => (
             <div

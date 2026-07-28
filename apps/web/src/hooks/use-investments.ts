@@ -21,7 +21,9 @@ export type HoldingType =
   | "cash_fx"
   | "real_estate"
   | "other"
-  | "deposit";
+  | "deposit"
+  | "savings"
+  | "possession";
 
 /**
  * Enriched holding row returned by GET /investments. Shape mirrors the server
@@ -34,6 +36,10 @@ export interface HoldingDto {
   holdingType: HoldingType;
   /** Phase 9.1 user-facing type (11 values); null for pre-9.1 rows. */
   uiType: string | null;
+  /** Possession-only curated icon key (e.g. "car"); null for every other type. */
+  icon: string | null;
+  /** Possession-only hex color (e.g. "#e63946"); null for every other type. */
+  color: string | null;
   group: string | null;
   instrumentId: string | null;
   /** Precious-metals attributes (null otherwise). */

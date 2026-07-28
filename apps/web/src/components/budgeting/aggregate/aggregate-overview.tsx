@@ -37,6 +37,7 @@ import { centsToRounded } from "@/lib/cents-format";
 import { AggregateTrend } from "@/components/budgeting/aggregate/aggregate-trend";
 import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregate-budgets-tasks";
 import { RangeSelector } from "@/components/budgeting/overview/range-selector";
+import { StickOnScroll } from "@/components/common/stick-on-scroll";
 import { makeRange, todayInTz, type OverviewRange } from "@/lib/overview-range";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 
@@ -135,9 +136,7 @@ export function AggregateOverview() {
   const pl = useAggregateWealth(summableIds, today, today);
 
   if (isPending)
-    return (
-      <div className="mx-auto max-w-2xl p-4" data-testid="aggregate-loading" />
-    );
+    return <div className="w-full p-4" data-testid="aggregate-loading" />;
   if (isError || !data) return null;
 
   const ccy = data.display_currency;
@@ -197,11 +196,14 @@ export function AggregateOverview() {
   // (the runway is fractionalized by ownership like the hero net worth).
   const RETIRE_INFLATION_PCT = 4.5;
   const plannedTotal = sumCents(summable, "monthly_planned_cents");
+  // Possessions are in net worth but NOT liquid drawdown wealth — subtract them
+  // from the retirement pot (mirrors get-overview-cards.ts:314).
+  const possessionsTotal = sumCents(summable, "possessions_cents");
   const nwRunwayMonths = (() => {
     if (plannedTotal <= 0n) return Infinity;
     // N = ln(1 + W·r/s) / ln(1+r), r = monthly inflation (same closed form as
     // get-overview-cards' retirement_months).
-    const W = Number(netWorth);
+    const W = Number(netWorth - possessionsTotal);
     const s = Number(plannedTotal);
     const r = Math.pow(1 + RETIRE_INFLATION_PCT / 100, 1 / 12) - 1;
     return Math.log(1 + (W * r) / s) / Math.log(1 + r);
@@ -227,7 +229,7 @@ export function AggregateOverview() {
 
   return (
     <SlotRevealProvider>
-      <div className="mx-auto flex max-w-2xl flex-col gap-3">
+      <div className="flex w-full min-w-0 flex-col gap-3">
         {/* HERO — net worth (yellow) + incl. investments + day P/L. A FLIP card
             (like the BDP capitalization card): tapping empty space rotates to the
             back = how long the money lasts at current spend. Tapping an amount
@@ -457,15 +459,20 @@ export function AggregateOverview() {
           budgets={data.budgets.map((b) => ({ id: b.id, name: b.name }))}
         />
 
-        {/* RANGE SELECTOR — a SEPARATE piece (not inside the chart), like BDP's band */}
-        {/* Sticky like the BDP range band: stays pinned so the range stays
-            reachable after scrolling past this section. */}
-        <div
-          className="sticky top-0 z-30 bg-[var(--canvas-dark)] py-2"
-          data-testid="aggregate-range"
+        {/* RANGE SELECTOR — a SEPARATE piece (not inside the chart), scoping the
+            trend + pie below it. Pins to the top while scrolled past (fixed, not
+            `position: sticky`): a real sticky here competes with the shell
+            header's sticky and iOS Safari then paints its floating bottom bar
+            solid (the "black band"). StickOnScroll fixes it instead — same visual
+            pinning, no band. */}
+        <StickOnScroll
+          className="bg-[var(--canvas-dark)] py-2"
+          pinnedClassName="border-b border-[var(--hairline-dark)]"
         >
-          <RangeSelector value={range} onChange={setRange} />
-        </div>
+          <div data-testid="aggregate-range">
+            <RangeSelector value={range} onChange={setRange} />
+          </div>
+        </StickOnScroll>
 
         {/* NET WORTH OVER TIME — view toggle (cap/invest) + contributions +
             growth + area chart + a view-driven pie (cap pools vs holding type) */}
@@ -478,6 +485,7 @@ export function AggregateOverview() {
             cashCents: sumCents(summable, "cash_cents").toString(),
             reservesCents: sumCents(summable, "reserves_cents").toString(),
             cushionCents: sumCents(summable, "cushion_cents").toString(),
+            possessionsCents: possessionsTotal.toString(),
           }}
         />
 

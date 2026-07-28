@@ -46,15 +46,16 @@ const CAP = {
   cashCents: "300000",
   reservesCents: "0",
   cushionCents: "0",
+  possessionsCents: "0",
 };
 
-function renderTrend() {
+function renderTrend(cap: typeof CAP = CAP) {
   return render(
     <AggregateTrend
       includeIds={["b1", "b2"]}
       range={RANGE}
       currency="USD"
-      capitalization={CAP}
+      capitalization={cap}
     />,
   );
 }
@@ -63,16 +64,31 @@ describe("AggregateTrend", () => {
   it("capitalization view: growth row + area chart + a where-it-sits pie", () => {
     renderTrend();
     expect(screen.getByTestId("area").textContent).toBe("2");
-    // The growth metric is a privacy SlotAmount — reveal it, then read aria-label.
-    const grow = screen.getByTestId("aggregate-trend-grow");
-    const slot = within(grow).getByTestId("slot-amount");
-    fireEvent.click(slot);
-    expect(slot.getAttribute("aria-label")).toMatch(/\+.*1,?300/);
+    // The growth metric is a BDP-parity CombinedStat: a "grow"/"loss" label with
+    // the % above the money amount, both privacy SlotAmounts. Reveal, then read
+    // the amount's aria-label.
+    const grow = screen.getByText("grow").parentElement!;
+    const slots = within(grow).getAllByTestId("slot-amount");
+    expect(slots.length).toBe(2); // [0] = %, [1] = money amount
+    fireEvent.click(slots[1]!);
+    expect(slots[1]!.getAttribute("aria-label")).toMatch(/\+.*1,?300/);
     // capitalization pie built from the row sums (investments + cash)
     expect(screen.getByTestId("aggregate-cap-pie")).toBeTruthy();
     expect(screen.getByTestId("pie").textContent).toContain("investments");
     // no inline range selector (parent owns it)
     expect(screen.queryByTestId("overview-range-selector")).toBeNull();
+  });
+
+  // 260721 user feedback (7): possessions are part of capitalization → a slice
+  // in the "where it sits" cap pie.
+  it("possessions appear as a slice in the capitalization pie", () => {
+    renderTrend({ ...CAP, possessionsCents: "150000" });
+    expect(screen.getByTestId("pie").textContent).toContain("possessions");
+  });
+
+  it("no possessions slice when the possessions total is zero", () => {
+    renderTrend({ ...CAP, possessionsCents: "0" });
+    expect(screen.getByTestId("pie").textContent).not.toContain("possessions");
   });
 
   it("switching to Investments refetches with view=investments and shows the by-type pie", () => {

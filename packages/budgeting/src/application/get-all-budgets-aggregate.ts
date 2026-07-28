@@ -24,6 +24,9 @@ export interface AggregateBudgetRow {
   my_share_pct: number;
   net_worth_cents: string;
   investments_cents: string;
+  /** Σ possession holdings (share-scaled) — inside net_worth_cents but subtracted
+   *  from the retirement pot client-side (not liquid drawdown wealth). */
+  possessions_cents: string;
   cash_cents: string;
   reserves_cents: string;
   cushion_cents: string;
@@ -134,7 +137,12 @@ function toDisplayCcyShared(
   sharePct: number,
 ): string {
   const converted = toDisplayCcy(cents, fromCcy, rate, displayCcy);
-  return ((converted * BigInt(sharePct)) / 100n).toString();
+  // sharePct may be a 2-decimal percent (e.g. 33.5) → scale by basis points so
+  // BigInt() never sees a non-integer.
+  return (
+    (converted * BigInt(Math.round(sharePct * 100))) /
+    10000n
+  ).toString();
 }
 
 /** FX hop only, no share — for FLOW figures (spent/left/overspent). */
@@ -163,6 +171,7 @@ function zeroRow(
     ...base,
     net_worth_cents: "0",
     investments_cents: "0",
+    possessions_cents: "0",
     cash_cents: "0",
     reserves_cents: "0",
     cushion_cents: "0",
@@ -247,6 +256,13 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
           ),
           investments_cents: toDisplayCcyShared(
             c.investment_value_cents,
+            ccy,
+            rate,
+            displayCcy,
+            s,
+          ),
+          possessions_cents: toDisplayCcyShared(
+            c.possessions_value_cents,
             ccy,
             rate,
             displayCcy,

@@ -27,7 +27,10 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
+import { useAssetKeyboardNav } from "@/hooks/use-asset-keyboard-nav";
+import { navItems, highlightNavItem } from "@/lib/asset-nav-dom";
+import { nextHighlightIndex } from "@/lib/roving-index";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
@@ -40,6 +43,7 @@ import { useArchiveWallet } from "@/hooks/use-archive-wallet";
 import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
 import { InvestmentsSection } from "./investments-section";
+import { PossessionsSection } from "./possessions-section";
 // UAT-PH5-T3-28: import the ghost preview's helpers statically. Inline
 // `require()` worked on dev but blew up on iOS Safari with a
 // client-side exception when the row's DragOverlay first rendered.
@@ -54,6 +58,41 @@ interface WalletsSectionedListProps {
 }
 
 export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
+  // Desktop keyboard nav over all sections (roving highlight + Enter/←→/Del).
+  const rootRef = useRef<HTMLDivElement>(null);
+  useAssetKeyboardNav(rootRef);
+
+  // rAF-poll for a freshly-persisted wallet row (it mounts a frame or two after
+  // the draft clears), then run `cb` with it — used by the 260723-3 rest-highlight.
+  const pollForWalletRow = useCallback(
+    (id: string, cb: (row: HTMLElement, root: HTMLElement) => void) => {
+      let tries = 0;
+      const step = () => {
+        const root = rootRef.current;
+        const row = root?.querySelector<HTMLElement>(
+          `[data-wallet-id="${id}"]`,
+        );
+        if (root && row) {
+          cb(row, root);
+          return;
+        }
+        if (tries++ < 60) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    },
+    [],
+  );
+
+  // 260723-3: after a NON-guided save (mouse blur / mobile), rest the roving
+  // highlight on the saved wallet so focus stays on it (the guided keyboard flow
+  // handles its own rest-on-row above).
+  const highlightNewWallet = useCallback(
+    (id: string) => {
+      pollForWalletRow(id, (row, root) => highlightNavItem(root, row));
+    },
+    [pollForWalletRow],
+  );
+
   // SPA refactor (260616): budget meta (currency + section flags) is now read
   // client-side via useBudget instead of baked into the page by the server, so
   // the route stays a static prefetchable shell (no per-soft-nav loading.tsx
@@ -291,29 +330,49 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
    * W-4: Clicking +Add does NOT call this — only WalletRow's onBlur does.
    */
   const handleCommitDraft = useCallback(
-    (type: WalletType) => async (name: string) => {
-      setDrafts((d) => ({ ...d, [type]: { pending: true, error: null } }));
-      try {
-        await createMut.mutateAsync({
-          name,
-          currency: budgetCurrency,
-          amount: "0",
-          walletType: type,
-        });
-        // Success: clear draft — next render shows persisted row from cache
-        setDrafts((d) => {
-          const next = { ...d };
-          delete next[type];
-          return next;
-        });
-      } catch (e: unknown) {
-        // Keep draft visible with error state; WalletRow's useEffect refocuses
-        const code =
-          (e as Error & { code?: string | null })?.code ?? "create_failed";
-        setDrafts((d) => ({ ...d, [type]: { pending: false, error: code } }));
-      }
-    },
-    [createMut, budgetCurrency],
+    (type: WalletType) =>
+      async (name: string, currency: string, amount: string) => {
+        setDrafts((d) => ({ ...d, [type]: { pending: true, error: null } }));
+        try {
+          const created = await createMut.mutateAsync({
+            name,
+            currency: currency || budgetCurrency,
+            amount: amount || "0",
+            walletType: type,
+          });
+          // Success: clear draft — next render shows persisted row from cache
+          setDrafts((d) => {
+            const next = { ...d };
+            delete next[type];
+            return next;
+          });
+          // 260723-2: createWalletSchema has no balance field — wallets are born
+          // at 0. When the draft set a starting amount, PATCH the balance right
+          // after (same endpoint the persisted-row amount edit uses).
+          if (created?.id && amount && Number(amount) !== 0) {
+            try {
+              await updateMut.mutateAsync({ walletId: created.id, amount });
+            } catch {
+              /* balance is best-effort — the wallet already exists */
+            }
+          }
+          // 260723-3: rest the roving highlight on the saved row — DESKTOP only
+          // (the roving keyboard-nav is desktop-only; mobile shouldn't highlight).
+          const desktop =
+            typeof window !== "undefined" &&
+            window.matchMedia("(min-width: 768px)").matches;
+          if (created?.id && desktop) highlightNewWallet(created.id);
+        } catch (e: unknown) {
+          // Keep draft visible with error state; WalletRow's useEffect refocuses
+          const code =
+            (e as Error & { code?: string | null })?.code ?? "create_failed";
+          setDrafts((d) => ({
+            ...d,
+            [type]: { pending: false, error: code },
+          }));
+        }
+      },
+    [createMut, updateMut, budgetCurrency, highlightNewWallet],
   );
 
   /**
@@ -329,6 +388,43 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       });
     },
     [],
+  );
+
+  // 260723-5: after deleting a wallet, move the roving highlight to the wallet
+  // that slides into its slot (next in the section) — or the section's add
+  // button when the last wallet was removed (it follows the wallets in the flat
+  // nav order). Captures the removed row's index BEFORE the optimistic removal.
+  const handleArchive = useCallback(
+    (id: string) => {
+      const root = rootRef.current;
+      let removedIdx = -1;
+      if (root) {
+        const el = root.querySelector<HTMLElement>(`[data-wallet-id="${id}"]`);
+        removedIdx = el ? navItems(root).indexOf(el) : -1;
+      }
+      archiveMut.mutate(id);
+      // Roving highlight is desktop-only nav — never highlight the next wallet or
+      // an add button after a delete on mobile.
+      const desktop =
+        typeof window !== "undefined" &&
+        window.matchMedia("(min-width: 768px)").matches;
+      if (removedIdx < 0 || !desktop) return;
+      let tries = 0;
+      const refocus = () => {
+        const r = rootRef.current;
+        if (!r) return;
+        // Wait for the optimistic removal to actually drop the row.
+        if (r.querySelector(`[data-wallet-id="${id}"]`) && tries++ < 30) {
+          requestAnimationFrame(refocus);
+          return;
+        }
+        const items = navItems(r);
+        const idx = nextHighlightIndex(removedIdx, items.length);
+        highlightNavItem(r, idx >= 0 ? items[idx]! : null);
+      };
+      requestAnimationFrame(refocus);
+    },
+    [archiveMut],
   );
 
   // First paint with no cached data and the fetch in flight → skeleton (mirrors
@@ -368,6 +464,11 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       }}
     >
       <div
+        ref={rootRef}
+        // tabIndex=-1 + focus-on-mount so the desktop keyboard-nav handler
+        // receives keys without a first click (see use-asset-keyboard-nav).
+        tabIndex={-1}
+        data-testid="assets-nav-root"
         // No bounded inner scroll container any more — the layout's
         // `<main overflow-y-auto>` handles overflow naturally, same as
         // the home and spendings pages. The prior bounded-container
@@ -376,7 +477,11 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         // retest: "footer block, just dark"). dnd-kit's auto-scroll
         // can target the document scroll surface; overscroll-contain
         // is dropped along with the inner overflow.
-        className="flex flex-col gap-4 p-4 sm:p-6"
+        // 260724: horizontal gutter matches the task strip on BOTH breakpoints —
+        // mobile px-2(8)+section p-2(8)=16 == strip px-4; desktop px-6(24)+8=32 ==
+        // strip sm:px-8. Rows line up edge-for-edge with the task banner (mobile
+        // rows were 8px too narrow with the old p-4). Vertical padding unchanged.
+        className="flex flex-col gap-4 px-2 py-4 outline-none sm:px-6 sm:py-6"
       >
         {(
           [
@@ -403,7 +508,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             onUpdate={async (id, patch) => {
               await updateMut.mutateAsync({ walletId: id, ...patch });
             }}
-            onArchive={(id) => archiveMut.mutate(id)}
+            onArchive={handleArchive}
             onAdd={handleAdd(type)}
             onCommitDraft={handleCommitDraft(type)}
             onDiscardDraft={handleDiscardDraft(type)}
@@ -417,6 +522,12 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             budgetCurrency={budgetCurrency}
           />
         )}
+        {/* Possessions (house/car/…): always on, renders after investments. Part
+            of capitalization but excluded from the retirement runway. */}
+        <PossessionsSection
+          budgetId={budgetId}
+          budgetCurrency={budgetCurrency}
+        />
       </div>
       {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
           loses the dragged row visually as the pointer crosses a context

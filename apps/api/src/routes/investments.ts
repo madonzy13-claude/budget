@@ -24,6 +24,8 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       name: h.name,
       holdingType: h.holdingType,
       uiType: h.uiType ?? null,
+      icon: h.icon ?? null,
+      color: h.color ?? null,
       group: h.group,
       instrumentId: h.instrumentId,
       metal: h.metal ?? null,

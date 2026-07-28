@@ -143,6 +143,9 @@ function deps(): GetOverviewCardsDeps {
       async investmentCostBasisCents() {
         return 0n;
       },
+      async possessionsValueCents() {
+        return 0n;
+      },
     },
     fxProvider: fxProvider() as GetOverviewCardsDeps["fxProvider"],
     cushionSummary: async () =>
@@ -304,6 +307,29 @@ describe("Overview cards", () => {
     expect(dto.retirement_inflation_pct).toBe(4.5);
     // inflation shortens the runway vs the flat 28000/18000.
     expect(dto.retirement_months!).toBeLessThan(28000 / 18000);
+  });
+
+  test("possessions are in capitalization but EXCLUDED from the retirement pot", async () => {
+    const d = deps();
+    d.holdingsValuation = {
+      async investmentValueCents() {
+        return 10000n;
+      },
+      async investmentCostBasisCents() {
+        return 0n;
+      },
+      async possessionsValueCents() {
+        return 40000n; // a house/car etc.
+      },
+    };
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    // capitalization includes possessions: 18000 wallets + 10000 inv + 40000 poss.
+    expect(dto.capitalization_cents).toBe(68000n);
+    expect(dto.possessions_value_cents).toBe(40000n);
+    // but the retirement pot excludes them: W = 68000 − 40000 = 28000.
+    const r = Math.pow(1.045, 1 / 12) - 1;
+    const expected = Math.log(1 + (28000 * r) / 18000) / Math.log(1 + r);
+    expect(dto.retirement_months).toBeCloseTo(expected, 4);
   });
 
   test("retirement_months is null when there's no planned spend", async () => {

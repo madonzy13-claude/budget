@@ -76,7 +76,8 @@ async function fetchRuleRow(ruleId: string, tenantId: string, userId: string) {
       `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
     );
     const res = await client.query(
-      `SELECT cadence, cadence_anchor, next_due_date::text AS next_due_date
+      `SELECT cadence, cadence_anchor, next_due_date::text AS next_due_date,
+              end_date::text AS end_date, active
          FROM budgeting.recurring_rules WHERE id = $1`,
       [ruleId],
     );
@@ -85,6 +86,8 @@ async function fetchRuleRow(ruleId: string, tenantId: string, userId: string) {
       cadence: string;
       cadence_anchor: number | null;
       next_due_date: string;
+      end_date: string | null;
+      active: boolean;
     };
   } finally {
     client.release();
@@ -332,6 +335,56 @@ describe("/recurring-rules", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as { ruleId: string };
     expect(typeof body.ruleId).toBe("string");
+  });
+
+  // mig 0069: optional "last date" (end_date)
+
+  it("POST with end_date persists it (future first_due, no back-fill)", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: "80.00",
+        currency: "USD",
+        cadence: "MONTHLY",
+        cadence_anchor: 1,
+        first_due_date: "2027-06-01",
+        end_date: "2027-12-01",
+        note: "Bounded sub",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { ruleId } = (await res.json()) as { ruleId: string };
+    const row = await fetchRuleRow(ruleId, testTenantId, testUserId);
+    expect(row.end_date).toBe("2027-12-01");
+    // Deadline is in the future → rule stays active.
+    expect(row.active).toBe(true);
+  });
+
+  it("POST with end_date before first_due_date → 400 end_date_before_first_due", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/recurring-rules", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: "80.00",
+        currency: "USD",
+        cadence: "MONTHLY",
+        cadence_anchor: 1,
+        first_due_date: "2027-06-01",
+        end_date: "2027-05-01",
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("end_date_before_first_due");
   });
 
   // RECR-01: DAILY/YEARLY cadence validation (02-02 GREEN wave)

@@ -6,7 +6,7 @@ import {
   text,
   boolean,
   integer,
-  smallint,
+  numeric,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { tenancy, appRole, workerRole } from "@budget/platform";
@@ -86,7 +86,11 @@ export const budgetMembers = tenancy.table(
     // opt-in/out of the cross-budget aggregate. No Σ=100 constraint across
     // a budget's members — each member picks their own value, default 100
     // (migration 0064).
-    ownershipSharePct: smallint("ownership_share_pct").notNull().default(100),
+    // numeric(5,2): decimals allowed (e.g. 33.50%). Read via raw SQL + Number()
+    // in workspace-repo, so the string-vs-number mode here doesn't matter.
+    ownershipSharePct: numeric("ownership_share_pct", { precision: 5, scale: 2 })
+      .notNull()
+      .default("100"),
     includeInAggregation: boolean("include_in_aggregation")
       .notNull()
       .default(true),

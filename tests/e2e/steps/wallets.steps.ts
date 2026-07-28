@@ -69,7 +69,10 @@ Given(
             "Idempotency-Key": crypto.randomUUID(),
             "X-Budget-ID": budgetId,
           },
-          data: { amount: parseFloat(amount).toFixed(2), currency: currency.toUpperCase() },
+          data: {
+            amount: parseFloat(amount).toFixed(2),
+            currency: currency.toUpperCase(),
+          },
         },
       );
       if (!balRes.ok()) {
@@ -101,11 +104,28 @@ When(
   "I edit the wallet {string} name to {string}",
   async ({ page }, currentName: string, newName: string) => {
     const wallets = new WalletsPage(page);
+    // Let a previous save settle first: count() does not wait, so probing
+    // mid-flight can miss a draft that is about to mount (and take the
+    // persisted-rename branch by mistake).
+    await page
+      .waitForLoadState("networkidle", { timeout: 15000 })
+      .catch(() => {});
     // If a draft row is visible (W-4 staged-add), operate on the draft input
     const draft = wallets.draftRow();
     if ((await draft.count()) > 0) {
-      await wallets.draftNameInput().fill(newName);
-      await wallets.draftNameInput().blur();
+      // The draft's name input is `disabled` while its create is in flight, so
+      // wait for it to be usable rather than letting fill() burn the whole test
+      // budget on a slow/loaded stack.
+      const input = wallets.draftNameInput();
+      await input.waitFor({ state: "visible", timeout: 15000 });
+      await expect(input).toBeEnabled({ timeout: 15000 });
+      await input.fill(newName);
+      await input.blur();
+      // Wait for the draft to actually become a persisted row. Without this the
+      // NEXT "add wallet" click can land while this create is still in flight —
+      // the draft is still mounted and still disabled, so the click is swallowed
+      // and the following edit sits on the stale, disabled draft until timeout.
+      await expect(wallets.draftRow()).toHaveCount(0, { timeout: 15000 });
       await page.waitForLoadState("networkidle");
       return;
     }
@@ -195,4 +215,42 @@ Then("I see a toast {string}", async ({ page }, text: string) => {
   // Sonner toast container
   const toast = page.locator("[data-sonner-toast]", { hasText: text });
   await expect(toast).toBeVisible({ timeout: 10000 });
+});
+
+// ── Desktop keyboard navigation (assets tab roving highlight) ──────────────────
+
+When("I focus the assets keyboard nav", async ({ page }) => {
+  // Focus the tab root so the document-level key handler receives keys.
+  await page.evaluate(() =>
+    document
+      .querySelector<HTMLElement>('[data-testid="assets-nav-root"]')
+      ?.focus(),
+  );
+});
+
+When(/^I press "(.+?)" in the assets tab$/, async ({ page }, key: string) => {
+  await page.keyboard.press(key);
+});
+
+Then(
+  /^the "(.+?)" wallet row is highlighted$/,
+  async ({ page }, name: string) => {
+    await expect(
+      page.locator('[data-testid="wallet-row"][data-nav-highlighted="true"]', {
+        hasText: name,
+      }),
+    ).toBeVisible({ timeout: 5000 });
+  },
+);
+
+Then("the wallet amount editor is open", async ({ page }) => {
+  await expect(
+    page.locator('[data-nav-field="amount"] input').first(),
+  ).toBeVisible({ timeout: 5000 });
+});
+
+Then("the wallet delete confirmation dialog is visible", async ({ page }) => {
+  await expect(
+    page.getByRole("alertdialog").or(page.getByRole("dialog")).first(),
+  ).toBeVisible({ timeout: 5000 });
 });

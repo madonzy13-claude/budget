@@ -21,7 +21,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { Trash2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { toast } from "sonner";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
+import { useIsWide } from "@/hooks/use-is-wide";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
@@ -76,7 +78,9 @@ interface DraftProps {
   sectionType: WalletType;
   budgetCurrency: string;
   maxAmountChars?: number;
-  onCommit: (name: string) => Promise<void>; // fires POST on non-empty blur
+  // Fires when the draft mini-form is left (non-empty name) → POST /wallets with
+  // the chosen currency; the amount is applied via a balance PATCH after create.
+  onCommit: (name: string, currency: string, amount: string) => Promise<void>;
   onDiscard: () => void; // fires on empty blur OR Escape
   pending: boolean; // POST in-flight
   error: string | null; // last POST error code
@@ -106,29 +110,111 @@ function DraftRow({
 }: DraftProps) {
   const t = useTranslations("bdp.tab.wallets.row");
   const [name, setName] = useState("");
+  const [currency, setCurrency] = useState(budgetCurrency);
+  const [amount, setAmount] = useState("0");
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const wide = useIsWide();
 
   // Auto-focus on mount AND re-focus on error (user can retry)
   useEffect(() => {
     inputRef.current?.focus();
   }, [error]);
 
-  const handleBlur = async () => {
+  // 260723: while the currency dropdown is OPEN, Tab / Shift+Tab close it and
+  // advance to the next / previous field — instead of the focus (trapped in the
+  // portaled listbox, outside the row) escaping to the BDP tab pills. Capture on
+  // document + stopPropagation so neither Radix nor the pill-cycle sees the Tab.
+  useEffect(() => {
+    if (!currencyOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = e.shiftKey ? -1 : 1;
+      setCurrencyOpen(false);
+      const sel =
+        dir === 1
+          ? '[data-testid="wallet-draft-amount-input"]'
+          : '[data-testid="wallet-draft-name-input"]';
+      // Radix returns focus to the trigger on close; re-assert focus on the
+      // target field for a few frames so it wins that race (focus() on the
+      // already-focused target is a no-op, so it settles without flicker).
+      let tries = 0;
+      const grab = () => {
+        document.querySelector<HTMLElement>(sel)?.focus();
+        if (tries++ < 4) requestAnimationFrame(grab);
+      };
+      requestAnimationFrame(grab);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [currencyOpen]);
+
+  // 260723-2/4: the draft is a mini-form (name + currency + amount) with REAL
+  // controls on EVERY device — tap/click a field to edit it in place, or hop
+  // between them with Tab / Shift+Tab. It commits only when focus leaves the
+  // WHOLE row, so field-to-field navigation never saves early. The roving
+  // keyboard-nav never fires while a draft field is focused (it defers to text
+  // entry), so Tab/arrows here don't drive the tab-pill navigation.
+  const commitIfLeaving = (e: React.FocusEvent<HTMLDivElement>) => {
+    const rt = e.relatedTarget as HTMLElement | null;
+    if (rt && e.currentTarget.contains(rt)) return; // hopping fields within the row
+    if (rt?.closest?.('[role="listbox"],[role="dialog"]')) return; // a dropdown is open
     const trimmed = name.trim();
     if (!trimmed) {
       onDiscard();
       return;
     }
-    await onCommit(trimmed);
+    onCommit(trimmed, currency, amount);
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
+  // Tab / Shift+Tab CYCLE within the three draft fields, wrapping: name →
+  // currency → amount → name (and reverse). Handled in the CAPTURE phase so it
+  // runs before Radix's Select trigger or the browser's native Tab — nothing can
+  // intercept it first. Adding a wallet stays a self-contained loop; the user
+  // commits with Enter or by clicking away.
+  const handleRowKeyCapture = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const row = e.currentTarget;
+    const fields = [
+      row.querySelector<HTMLElement>('[data-testid="wallet-draft-name-input"]'),
+      row.querySelector<HTMLElement>(
+        '[data-nav-field="currency"] button, [data-nav-field="currency"] [role="combobox"], [data-nav-field="currency"] select',
+      ),
+      row.querySelector<HTMLElement>(
+        '[data-testid="wallet-draft-amount-input"]',
+      ),
+    ].filter((f): f is HTMLElement => !!f);
+    const active = document.activeElement;
+    const idx = active
+      ? fields.findIndex((f) => f === active || f.contains(active))
+      : -1;
+    // Only trap Tab while focus is ON a draft field (not, e.g., inside an OPEN
+    // currency dropdown, whose listbox is portaled outside the row).
+    if (idx === -1 || fields.length < 2) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = e.shiftKey ? -1 : 1;
+    const next = fields[(idx + dir + fields.length) % fields.length]!;
+    next.focus();
+    // 260723: landing on the currency picker OPENS its dropdown so the user can
+    // pick straight away — Radix highlights the current selection when it opens.
+    // (Native <select> on touch has no such trigger; only the desktop Radix
+    // button/combobox is clicked.)
+    if (next.matches('button, [role="combobox"]')) next.click();
+  };
+
+  const handleRowKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
+      e.preventDefault();
       onDiscard();
       return;
     }
-    if (e.key === "Enter") {
-      inputRef.current?.blur();
+    // Enter in a text field commits (leaves the row). On the currency picker,
+    // Enter belongs to the picker — don't hijack it.
+    if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+      (e.target as HTMLElement).blur();
     }
   };
 
@@ -136,6 +222,9 @@ function DraftRow({
     <div
       data-testid="wallet-row-draft"
       data-wallet-id=""
+      onBlur={commitIfLeaving}
+      onKeyDownCapture={handleRowKeyCapture}
+      onKeyDown={handleRowKey}
       className={[
         "flex min-h-[56px] items-center gap-2 rounded-[var(--radius-md)]",
         "bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px]",
@@ -147,14 +236,12 @@ function DraftRow({
       {/* Drag-handle placeholder — draft rows cannot be dragged */}
       <div className="w-4" aria-hidden="true" />
 
-      {/* Name input — auto-focused */}
-      <div className="flex-1">
+      {/* Name — the widest field (flex-1), auto-focused. */}
+      <div className="min-w-0 flex-1">
         <Input
           ref={inputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKey}
           disabled={pending}
           placeholder={t("namePlaceholder")}
           className="h-9"
@@ -163,23 +250,52 @@ function DraftRow({
         />
       </div>
 
-      {/* Currency — read-only in draft state */}
-      <div className="w-[44px] sm:w-[96px]">
-        <span
-          className="text-[var(--muted-foreground)]"
-          aria-label={t("currencyReadOnlyAria", { ccy: budgetCurrency })}
-        >
-          {budgetCurrency}
-        </span>
+      {/* Currency — 260723-4: a real picker on EVERY device. Rich dropdown on
+          desktop, native <select> on touch (opens on the first tap). The cell
+          gets a yellow ring while the dropdown is open (260723). */}
+      <div
+        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px]${
+          currencyOpen ? " ring-1 ring-[var(--primary)]" : ""
+        }`}
+        data-nav-field="currency"
+      >
+        <CurrencyPicker
+          value={currency}
+          aria-label={t("currencyAria")}
+          onSelect={setCurrency}
+          richLabel={wide}
+          desktopDropdown={wide}
+          open={currencyOpen}
+          onOpenChange={setCurrencyOpen}
+        />
       </div>
 
-      {/* Amount — always 0.00 in draft state.
+      {/* Amount — 260723-2: a real editable field on mobile (tap → keyboard);
+          a bare "0" placeholder on desktop (guided flow edits the persisted row).
           UAT-PH5-T3-30: width tracks the section's longest amount. */}
+      {/* Amount — 260723-3: a COMPACT right-aligned field. `w-0` gives it a
+          0 flex-basis so the input can't blow the cell up, while `minWidth`
+          (SAME formula as the persisted row) makes the column line up with the
+          existing wallets. */}
       <div
-        className="text-right tabular-nums"
+        className="w-0 shrink-0 text-right tabular-nums"
         style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+        data-nav-field="amount"
       >
-        <span className="text-num-md text-[var(--muted-foreground)]">0.00</span>
+        <Input
+          type="text"
+          inputMode="decimal"
+          value={amount}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
+          disabled={pending}
+          aria-label={t("amountAria")}
+          data-testid="wallet-draft-amount-input"
+          // 260723: a bit of right padding so the digits aren't jammed against
+          // the input's border (the draft amount is a bordered box; the
+          // persisted rows are plain text, so a small offset there is fine).
+          className="h-9 w-full px-2 text-right"
+        />
       </div>
 
       {/* UAT-PH5-T3-14: Share placeholder for column alignment with persisted rows.
@@ -191,8 +307,9 @@ function DraftRow({
         —
       </div>
 
-      {/* Trash placeholder — no trash on draft rows */}
-      <div className="w-7" aria-hidden="true" />
+      {/* Trash placeholder — matches the persisted trash (hidden on mobile,
+          shown on sm+) so the amount/currency columns line up on every width. */}
+      <div className="hidden w-7 sm:block" aria-hidden="true" />
     </div>
   );
 }
@@ -212,7 +329,18 @@ function PersistedRow({
 }: PersistedProps) {
   const t = useTranslations("bdp.tab.wallets.row");
   const locale = useLocale();
+  // Desktop (≥md) has room for the full currency NAME in the picker (trigger +
+  // dropdown body), matching the investments edit banner. Below md the cell is
+  // narrow → keep the compact code-only picker (and native wheel on touch).
+  const wide = useIsWide();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // 260724 (tasks 2/6): the persisted row is a self-contained Tab loop over its
+  // fields [icon, name, currency, amount] with the currency dropdown opening on
+  // land — mirroring the draft mini-form. `currencyOpen` drives the controlled
+  // Radix Select + the yellow ring; `rowRef` lets the currency-open Tab-out
+  // handler find the sibling field cells.
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+  const rowRef = useRef<HTMLDivElement | null>(null);
 
   // UAT-PH5-T3-40: native pointer listeners (not React onPointer*) so
   // we can register with passive:false and call preventDefault during
@@ -371,6 +499,98 @@ function PersistedRow({
       ? `${dndTransform} ${swipeTransform}`
       : swipeTransform;
 
+  // 260724 (tasks 2/4/6): the four keyboard-hoppable fields in DOM order. Reserve
+  // rows expose no currency picker (read-only), so it's skipped there.
+  const ROW_FIELDS = isReserveSection
+    ? (["icon", "name", "amount"] as const)
+    : (["icon", "name", "currency", "amount"] as const);
+
+  // Focus (and activate) a field by its data-nav-field key: the icon opens on
+  // Enter, the currency dropdown opens on land (yellow ring), name/amount enter
+  // edit mode so the cursor is already in place (task 6). Focusing the currency
+  // TRIGGER first — then opening on the next frame — lets any in-flight
+  // name/amount commit settle (its onBlur skips commit if focus lands in a Radix
+  // listbox, so we must not open synchronously).
+  const focusRowField = (row: HTMLElement, field: string) => {
+    const cell = row.querySelector<HTMLElement>(`[data-nav-field="${field}"]`);
+    if (!cell) return;
+    if (field === "icon") {
+      cell.querySelector<HTMLElement>("button")?.focus();
+      return;
+    }
+    if (field === "currency") {
+      cell
+        .querySelector<HTMLElement>('button,[role="combobox"]')
+        ?.focus();
+      requestAnimationFrame(() => setCurrencyOpen(true));
+      return;
+    }
+    // name / amount → begin edit (the editor autofocuses its input).
+    const input = cell.querySelector<HTMLElement>("input");
+    if (input) input.focus();
+    else cell.querySelector<HTMLElement>('[role="button"]')?.click();
+  };
+
+  // Tab / Shift+Tab CYCLE the row's fields with wrap — icon → name → currency →
+  // amount → icon (task 2b: never escape to the BDP tab pills). Capture phase +
+  // stopPropagation so it beats bdp-tabs' window pill-cycle listener. Only traps
+  // when focus is already ON a field (drag-handle / trash keep native Tab).
+  const handleRowKeyCapture = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Tab") return;
+    const row = e.currentTarget;
+    const anchors = ROW_FIELDS.map((f) => {
+      const cell = row.querySelector<HTMLElement>(`[data-nav-field="${f}"]`);
+      if (!cell) return null;
+      if (f === "currency")
+        return cell.querySelector<HTMLElement>('button,[role="combobox"]');
+      if (f === "icon") return cell.querySelector<HTMLElement>("button");
+      return cell.querySelector<HTMLElement>('[role="button"], input');
+    });
+    const active = document.activeElement;
+    const idx = anchors.findIndex(
+      (a) => !!a && (a === active || a.contains(active)),
+    );
+    if (idx === -1) return; // not on a field — let native Tab through
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = e.shiftKey ? -1 : 1;
+    const nextField =
+      ROW_FIELDS[(idx + dir + ROW_FIELDS.length) % ROW_FIELDS.length]!;
+    focusRowField(row, nextField);
+  };
+
+  // While the currency dropdown is OPEN, focus is trapped in the portaled listbox
+  // (outside the row) so the row's own capture handler can't see the Tab. A
+  // document-level capture listener closes it and advances to amount (Tab) / name
+  // (Shift+Tab), re-asserting focus for a few frames to beat Radix returning
+  // focus to the trigger on close. Mirrors the draft row.
+  useEffect(() => {
+    if (!currencyOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = e.shiftKey ? -1 : 1;
+      setCurrencyOpen(false);
+      const row = rowRef.current;
+      if (!row) return;
+      const targetField = dir === 1 ? "amount" : "name";
+      let tries = 0;
+      const grab = () => {
+        const cell = row.querySelector<HTMLElement>(
+          `[data-nav-field="${targetField}"]`,
+        );
+        const input = cell?.querySelector<HTMLElement>("input");
+        if (input) input.focus();
+        else cell?.querySelector<HTMLElement>('[role="button"]')?.click();
+        if (tries++ < 4) requestAnimationFrame(grab);
+      };
+      requestAnimationFrame(grab);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [currencyOpen]);
+
   return (
     <div
       ref={wrapperRef}
@@ -413,7 +633,11 @@ function PersistedRow({
         <Trash2 className="h-5 w-5" aria-hidden="true" />
       </button>
       <div
-        ref={setNodeRef}
+        ref={(node) => {
+          setNodeRef(node);
+          rowRef.current = node;
+        }}
+        onKeyDownCapture={handleRowKeyCapture}
         data-testid="wallet-row"
         data-wallet-id={wallet.id}
         data-row-drop-over={isRowDropOver || undefined}
@@ -432,7 +656,10 @@ function PersistedRow({
           // ghost stands in.
           visibility: isDragging ? "hidden" : undefined,
         }}
-        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
+        data-nav-item
+        data-nav-type="wallet"
+        data-nav-key={`wallet-${wallet.id}`}
+        className="group relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 hover:bg-[var(--surface-elevated-dark)] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)] sm:min-h-[48px]"
       >
         <RowDragHandle
           name={wallet.name || "wallet"}
@@ -443,19 +670,30 @@ function PersistedRow({
 
         {/* UAT-PH5-T3-1x: per-wallet color + icon trigger. Renders a placeholder
           dashed circle when both are null; otherwise the chosen icon in the
-          chosen color. Opens a popover to pick / clear. */}
-        <WalletCustomizer
-          color={wallet.color ?? null}
-          icon={wallet.icon ?? null}
-          onChange={(patch) => onUpdate(patch).catch(() => {})}
-          ariaLabel={t("customizeAria", { name: wallet.name })}
-        />
+          chosen color. Opens a popover to pick / clear.
+          260724 (task 4): wrapped as a nav field so ←/→ and Tab reach it and it
+          shows the yellow focus ring like the other cells. */}
+        <div
+          className="shrink-0 rounded-full data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
+          data-nav-field="icon"
+        >
+          <WalletCustomizer
+            color={wallet.color ?? null}
+            icon={wallet.icon ?? null}
+            onChange={(patch) => onUpdate(patch).catch(() => {})}
+            ariaLabel={t("customizeAria", { name: wallet.name })}
+          />
+        </div>
 
         {/* Name — editable. UAT-PH5-T3-26: `min-w-0` allows the flex item to
           shrink below its content width so the right-side columns (currency,
           amount) stay anchored at consistent X positions regardless of how
           long the wallet name is. */}
-        <div className="min-w-0 flex-1" data-inline-cell>
+        <div
+          className="min-w-0 flex-1 rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
+          data-inline-cell
+          data-nav-field="name"
+        >
           <InlineEditCell
             value={wallet.name}
             ariaLabel={t("nameAria")}
@@ -478,7 +716,15 @@ function PersistedRow({
                 placeholder={t("namePlaceholder")}
               />
             )}
-            onSave={(v) => onUpdate({ name: v })}
+            onSave={(v) => {
+              // Empty name is invalid — direct message + keep the old name (no
+              // server round-trip → no generic "couldn't save" error).
+              if (!v.trim()) {
+                toast.error(t("nameRequired"));
+                return Promise.resolve();
+              }
+              return onUpdate({ name: v.trim() });
+            }}
           />
         </div>
 
@@ -491,7 +737,13 @@ function PersistedRow({
           was fragile on iOS Safari. Desktop still works because Radix
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
-        <div className="w-[44px] sm:w-[96px]" data-inline-cell>
+        <div
+          className={`w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px]${
+            currencyOpen ? " ring-1 ring-[var(--primary)]" : ""
+          }`}
+          data-inline-cell
+          data-nav-field="currency"
+        >
           {isReserveSection ? (
             // Match the investments-row currency: small + grey, right-aligned so it
             // sits tight to the amount instead of floating mid-column (r31 item 3).
@@ -506,6 +758,10 @@ function PersistedRow({
               value={wallet.currency}
               aria-label={t("currencyAria")}
               onSelect={(v: string) => onUpdate({ currency: v })}
+              richLabel={wide}
+              desktopDropdown={wide}
+              open={currencyOpen}
+              onOpenChange={setCurrencyOpen}
             />
           )}
         </div>
@@ -521,9 +777,10 @@ function PersistedRow({
            code and the right-aligned number. `tabular-nums` keeps digit
            widths uniform so rows in the same section align column-perfect. */}
         <div
-          className="text-right tabular-nums"
+          className="rounded text-right tabular-nums data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
           style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
           data-inline-cell
+          data-nav-field="amount"
         >
           <InlineEditCell
             // UAT-PH5-T3-25: editor seed mirrors the display formatting —
@@ -594,6 +851,7 @@ function PersistedRow({
         {/* Trash — desktop only. Hover-revealed; mobile uses swipe instead. */}
         <button
           data-testid={`wallet-trash-${wallet.id}`}
+          data-nav-delete
           aria-label={t("trashAria", { name: wallet.name })}
           onClick={(e) => {
             e.stopPropagation();
@@ -603,7 +861,8 @@ function PersistedRow({
             // UAT-PH5-T3-32: desktop-only (mobile reveal moved to swipe).
             "hidden h-7 w-7 items-center justify-center rounded sm:flex",
             "text-[var(--destructive)]",
-            "invisible group-hover:visible",
+            // Revealed on hover OR keyboard-nav highlight.
+            "invisible group-hover:visible group-data-[nav-highlighted=true]:visible",
             "cursor-pointer",
           ].join(" ")}
         >

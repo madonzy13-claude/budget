@@ -21,10 +21,13 @@ Feature: Onboarding Wizard — 4-step deferred-create flow (ONBD-01..09)
     And I fill in the budget name "Cushion Budget"
     And I pick the currency "USD"
     And I click Next
-    And I toggle the cushion feature off
+    # Both features now DEFAULT to off, so "toggle off" twice asserted nothing.
+    # Turn cushion on and leave reserves off — the title's actual claim, and it
+    # exercises a real toggle plus both review labels.
+    And I toggle the cushion feature on
     And I toggle the reserves feature off
     And I click Next
-    Then the review shows cushion as "Disabled"
+    Then the review shows cushion as "Enabled"
     And the review shows reserves as "Disabled"
     When I click Create budget
     Then I land on the budget spendings page

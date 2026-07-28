@@ -50,6 +50,13 @@ export default defineConfig({
   // RSC-stream timing flakes (reserves golden timeline, recurring-draft confirm).
   // A retried test must still pass — this absorbs non-determinism, not real bugs.
   retries: process.env["CI"] ? 3 : 1,
+  // Playwright's 30s default is tight for this suite: EVERY scenario signs up a
+  // fresh verified user and creates a budget before its first assertion, and the
+  // shared Postgres grows all run, so the same wallet scenario that takes 6s on
+  // an empty DB has hit 30s late in a 340-scenario run. 60s buys headroom for
+  // the slow tail without weakening a single assertion — a genuinely stuck test
+  // still fails, just 30s later.
+  timeout: 60_000,
   // Scenarios tagged @ci-only are confirmed load-dependent flakes — they pass
   // reliably against a warm local stack but flake on a cold, contended CI runner
   // (verified: recurring-draft confirm passed 6/6 locally). They still RUN in CI
@@ -75,7 +82,11 @@ export default defineConfig({
       // only re-exercises the flake-prone inline-edit harness at a narrow width
       // where the just-mounted transactions refetch races the dblclick. Scope it
       // to chromium (mirrors the geometry projects' per-project scoping).
-      grepInvert: /@reserves-golden/,
+      // @desktop-only scenarios assert behaviour the product intentionally
+      // restricts to desktop (e.g. the wallets roving highlight, which must NOT
+      // linger on a touch layout). Running them at 390px asserts the opposite of
+      // the shipped contract, so they stay on the chromium project.
+      grepInvert: /@reserves-golden|@desktop-only/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },

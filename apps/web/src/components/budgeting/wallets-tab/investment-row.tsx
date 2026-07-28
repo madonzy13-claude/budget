@@ -95,16 +95,24 @@ export function InvestmentRow({
   const cashLabel = holding.name.trim() ? holding.name : t("uitype.cash");
 
   // Quantity for the mobile-expanded row — only for holdings where it's meaningful
-  // (tracked / metals). Cash + broker + deposit are single-unit (qty 1), so omit
-  // it. Trim trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
+  // (tracked / metals). Cash + broker + deposit + savings are single-unit (qty 1),
+  // so omit it. Trim trailing zeros from the numeric(28,8) string so "10.00000000" → "10".
   const showQty =
     !isCash &&
     holding.uiType !== "broker" &&
     holding.uiType !== "deposit" &&
+    holding.uiType !== "savings" &&
     holding.holdingType !== "deposit";
   const qtyDisplay = holding.quantity.includes(".")
     ? holding.quantity.replace(/0+$/, "").replace(/\.$/, "")
     : holding.quantity;
+  // Savings: show the starting amount ("Started: $X") in the expanded caption
+  // where qty would go — the %change already shows current-vs-starting.
+  const isSavings = holding.uiType === "savings";
+  const startedDisplay =
+    isSavings && holding.buyPriceCents != null
+      ? centsToBare(holding.buyPriceCents, locale)
+      : null;
   // A tracked (auto-fetch) holding whose `name` the user overrode — it differs
   // from the instrument's own display name. Show that custom name verbatim
   // instead of the auto "TICKER (name)" label.
@@ -169,11 +177,14 @@ export function InvestmentRow({
     <div
       data-testid={`holding-row-${holding.name}`}
       data-delisted={delisted || undefined}
+      data-nav-item
+      data-nav-type="invest-row"
+      data-nav-key={`invrow-${holding.id}`}
       className={[
         "group flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
         nested
-          ? "bg-[var(--surface-nested-dark)] hover:bg-[var(--surface-card-dark)]"
-          : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)]",
+          ? "bg-[var(--surface-nested-dark)] hover:bg-[var(--surface-card-dark)] data-[nav-highlighted=true]:bg-[var(--surface-card-dark)]"
+          : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -187,6 +198,7 @@ export function InvestmentRow({
       <div
         role="button"
         tabIndex={0}
+        data-nav-open
         aria-expanded={isDesktop ? undefined : expanded}
         aria-label={
           isDesktop
@@ -279,6 +291,12 @@ export function InvestmentRow({
                     <span aria-hidden="true"> · </span>
                   </>
                 )}
+                {startedDisplay != null && (
+                  <>
+                    <span>{t("row.started", { amount: startedDisplay })}</span>
+                    <span aria-hidden="true"> · </span>
+                  </>
+                )}
                 <span>{t("row.share", { pct: weight })}</span>
               </div>
             </div>
@@ -352,12 +370,13 @@ export function InvestmentRow({
       >
         <button
           type="button"
+          data-nav-delete
           aria-label={t("row.deleteAria", { name: holding.name })}
           onClick={(e) => {
             e.stopPropagation();
             onDelete?.();
           }}
-          className="invisible flex h-7 w-7 items-center justify-center rounded text-[var(--destructive)] group-hover:visible"
+          className="invisible flex h-7 w-7 items-center justify-center rounded text-[var(--destructive)] group-hover:visible group-data-[nav-highlighted=true]:visible"
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </button>

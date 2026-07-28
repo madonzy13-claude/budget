@@ -358,12 +358,13 @@ async function main() {
     seedDeps,
   );
 
-  // r32: hourly budget-update reminder. Runs every hour (UTC 5-field cron); the
-  // handler sends only to members whose LOCAL time is ~18:00 on a selected
-  // weekday (tz + days from each member's BUDGET_REMINDER pref). Deep-links to
-  // the Spendings tab.
+  // r32 + configurable time: budget-update reminder. Runs EVERY MINUTE (UTC
+  // 5-field cron) so a user-picked local hour:minute lands on a tick in every
+  // timezone; the handler sends only to members whose LOCAL time matches their
+  // configured send time (default 20:00) on a selected weekday (time + tz + days
+  // from each member's BUDGET_REMINDER pref). Deep-links to the Spendings tab.
   await boss.createQueue("budget-reminder");
-  await boss.schedule("budget-reminder", "0 * * * *");
+  await boss.schedule("budget-reminder", "* * * * *");
   registerBudgetReminder(
     boss as unknown as Parameters<typeof registerBudgetReminder>[0],
   );
@@ -426,10 +427,9 @@ async function main() {
           budgetCurrency: input.defaultCurrency,
         });
         if (r.isErr()) throw r.error;
-        return r.value.holdings.reduce(
-          (s, h) => s + BigInt(h.valueInBudgetCents),
-          0n,
-        );
+        return r.value.holdings
+          .filter((h) => h.holdingType !== "possession")
+          .reduce((s, h) => s + BigInt(h.valueInBudgetCents), 0n);
       },
       investmentCostBasisCents: async (input: {
         tenantId: string;
@@ -443,10 +443,26 @@ async function main() {
           budgetCurrency: input.defaultCurrency,
         });
         if (r.isErr()) throw r.error;
-        return r.value.holdings.reduce(
-          (s, h) => s + BigInt(h.costInBudgetCents),
-          0n,
-        );
+        return r.value.holdings
+          .filter((h) => h.holdingType !== "possession")
+          .reduce((s, h) => s + BigInt(h.costInBudgetCents), 0n);
+      },
+      // Possessions: in capitalization (net worth) but out of investment value.
+      possessionsValueCents: async (input: {
+        tenantId: string;
+        budgetId: string;
+        defaultCurrency: string;
+      }): Promise<bigint> => {
+        const r = await investments.listHoldings({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+          actorUserId: WEALTH_SYSTEM_USER,
+          budgetCurrency: input.defaultCurrency,
+        });
+        if (r.isErr()) throw r.error;
+        return r.value.holdings
+          .filter((h) => h.holdingType === "possession")
+          .reduce((s, h) => s + BigInt(h.valueInBudgetCents), 0n);
       },
     },
     fxProvider,

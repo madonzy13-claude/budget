@@ -1,16 +1,17 @@
 "use client";
 /**
  * aggregate-trend.tsx — combined "Net worth over time" wealth section for the
- * all-budgets page, mirroring the single-budget BDP wealth section:
- *   - Capitalization / Investments view toggle (drives the ?view param).
- *   - Investments view: a STACKED area (contributions grey + profit yellow,
- *     reusing incl + excl fetches), an "Invested" metric, and a per-holding-type
- *     pie (UI_TYPE_COLOR).
- *   - Capitalization view: a "where it sits" pie (investments/cash/reserves/
- *     cushion) built from the aggregate row sums.
- *   - Centered growth row (signed amount + PctStat %) + AREA chart with the
- *     same month/date label formatting. Range comes from a SEPARATE parent
- *     selector (like BDP's band).
+ * all-budgets page. IDENTICAL look + logic to the single-budget BDP wealth
+ * section (wealth-section.tsx):
+ *   - Capitalization / Investments view toggle.
+ *   - Investments: three combined metrics (Contributions · P/L · Total), a
+ *     stacked contributions(grey)+profit(yellow) area with a 3-column tooltip
+ *     (absolute · growth% · growth amount + a Total summary row), and an
+ *     "Average change" section (Contributions · P/L · Total metrics + grouped
+ *     bars grey/yellow/green).
+ *   - Capitalization: a single grow/loss metric + "where it sits" pie.
+ * The aggregate DTO has no dynamics/grow_from_open, so the change buckets are
+ * computed client-side here (intraDynamics) — same intra-period logic as BDP.
  */
 import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
@@ -38,13 +39,14 @@ const BUCKET_INVEST = "var(--chart-bar-1)";
 const BUCKET_SPEND = "var(--primary)";
 const BUCKET_RESERVE = "var(--chart-bar-2)";
 const BUCKET_CUSHION = "var(--chart-bar-3)";
+const BUCKET_POSSESS = "var(--chart-bar-4)";
 const NEUTRAL = "var(--muted-foreground)";
 const UP = "var(--trading-up)";
 const DOWN = "var(--trading-down)";
 
 type WealthView = "capitalization" | "investments";
 
-/** BDP wealth-section PctStat: label + arrow + signed %. */
+/** label + arrow + signed % (capitalization avg-change, no amount). */
 function PctStat({ label, pct }: { label: string; pct: number | null }) {
   const up = pct !== null && pct >= 0;
   const down = pct !== null && pct < 0;
@@ -75,6 +77,52 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
   );
 }
 
+/** % (primary, coloured up/down) with its money amount stacked beneath in MUTED
+ *  grey — only the % carries colour (BDP CombinedStat parity). */
+function CombinedStat({
+  label,
+  pct,
+  amount,
+}: {
+  label: string;
+  pct: number | null;
+  amount: string;
+}) {
+  const up = pct !== null && pct >= 0;
+  const down = pct !== null && pct < 0;
+  const Arrow = up ? ArrowUp : ArrowDown;
+  const color = up
+    ? "text-[var(--trading-up)]"
+    : down
+      ? "text-[var(--trading-down)]"
+      : "text-[var(--muted-foreground)]";
+  const pctStr =
+    pct === null ? "—" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
+      <span
+        className={cn("num inline-flex items-center gap-1 text-num-md", color)}
+      >
+        {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}
+        <SlotAmount value={pctStr} />
+      </span>
+      <span className="num text-caption text-[var(--muted-foreground)]">
+        <SlotAmount value={amount} />
+      </span>
+    </div>
+  );
+}
+
+/** Geometric mean of the per-period %s — matches BDP's monthly_avg_grow_pct. */
+function geoMean(pcts: (number | null)[]): number | null {
+  const nn = pcts.filter((p): p is number => p !== null);
+  if (nn.length === 0) return null;
+  const product = nn.reduce((a, p) => a * (1 + p / 100), 1);
+  if (product < 0) return null;
+  return (Math.pow(product, 1 / nn.length) - 1) * 100;
+}
+
 export function AggregateTrend({
   includeIds,
   range,
@@ -89,16 +137,13 @@ export function AggregateTrend({
     cashCents: string;
     reservesCents: string;
     cushionCents: string;
+    possessionsCents: string;
   };
 }) {
   const t = useTranslations("aggregate");
   const tInvest = useTranslations("budget.investments");
   const locale = useLocale();
   const [view, setView] = useState<WealthView>("capitalization");
-  // Investments view stacks contributions + profit, so we always fetch the TOTAL
-  // (incl) series; a SECOND fetch gets the market-only (excl-contributions) series
-  // — profit = excl, contributions = incl − excl (reusing the same data the old
-  // toggle showed). The excl fetch is disabled outside the investments view.
   const { data, isPending } = useAggregateWealth(
     includeIds,
     range.from,
@@ -128,38 +173,17 @@ export function AggregateTrend({
   const { revealed } = useSlotReveal();
 
   const hasSeries = !!data && data.series.length > 0;
-  // Avg change (dynamics): FIRST bucket the fine wealth series down to one point
-  // per period (day on 1M, else month) so the bars are fat like BDP — computing
-  // on the raw weekly/daily series gave dozens of razor-thin spikes. Then take
-  // the consecutive % change of the bucketed points.
-  const dynBucketLen = range.preset === "thisMonth" ? 10 : 7; // "YYYY-MM-DD" | "YYYY-MM"
-  const dynPoints =
-    hasSeries && data
+  const isInvest = view === "investments";
+  // "All": drop the leading $0 buckets before the first real snapshot (BDP parity).
+  const seriesPoints =
+    data && range.preset === "all"
       ? (() => {
-          const byBucket = new Map<string, number>();
-          for (const p of data.series)
-            byBucket.set(p.label.slice(0, dynBucketLen), Number(p.value_cents));
-          return [...byBucket.entries()];
+          const first = data.series.findIndex(
+            (p) => Number(p.value_cents) !== 0,
+          );
+          return first > 0 ? data.series.slice(first) : data.series;
         })()
-      : [];
-  const dynamics = dynPoints.flatMap(([label, cur], i) => {
-    if (i === 0) return [];
-    const prev = dynPoints[i - 1]![1];
-    return [
-      {
-        label,
-        pct: prev === 0 ? null : ((cur - prev) / prev) * 100,
-        delta_cents: cur - prev,
-      },
-    ];
-  });
-  const avgPct = (() => {
-    const vals = dynamics
-      .map((d) => d.pct)
-      .filter((p): p is number => p !== null);
-    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-  })();
-  const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
+      : (data?.series ?? []);
 
   // Stacked investments (reuse incl + excl): contributions = incl − excl (grey),
   // profit = excl (yellow); they stack to the total value. Aligned by label.
@@ -167,28 +191,92 @@ export function AggregateTrend({
   for (const p of exclQ.data?.series ?? [])
     exclByLabel.set(p.label, Number(p.value_cents));
   const investStack =
-    view === "investments" && data
-      ? data.series.map((p) => {
+    isInvest && data
+      ? seriesPoints.map((p) => {
           const incl = Number(p.value_cents);
           const excl = exclByLabel.get(p.label) ?? 0;
           return { label: p.label, contributions: incl - excl, profit: excl };
         })
       : [];
 
+  // Three metrics, first tick → last tick (BDP parity):
+  //   Total         = value(last) − value(first).
+  //   P/L           = profit(last) − profit(first) ÷ contributions@start (the
+  //                   real P/L for the range).
+  //   Contributions = contributions(last) − contributions(first).
+  const invMetrics =
+    isInvest && exclQ.data && seriesPoints.length > 0
+      ? (() => {
+          const n = seriesPoints.length;
+          const vFirst = Number(seriesPoints[0].value_cents);
+          const vLast = Number(seriesPoints[n - 1].value_cents);
+          const pFirst = exclByLabel.get(seriesPoints[0].label) ?? 0;
+          const pLast = exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
+          const cFirst = vFirst - pFirst;
+          const cLast = vLast - pLast;
+          return {
+            totalDelta: Math.round(vLast - vFirst),
+            totalPct: vFirst !== 0 ? (100 * (vLast - vFirst)) / vFirst : null,
+            plDelta: Math.round(pLast - pFirst),
+            plPct: cFirst !== 0 ? (100 * (pLast - pFirst)) / cFirst : null,
+            contribDelta: Math.round(cLast - cFirst),
+            contribPct: cFirst !== 0 ? (100 * (cLast - cFirst)) / cFirst : null,
+          };
+        })()
+      : null;
+
+  // Change-chart bucket by the range SPAN (BDP parity): day ≤1mo, month ≤1y, YEAR
+  // beyond. INTRA-period: each bar = the period's own first→last value.
+  const spanDays =
+    (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000;
+  const dynBucketLen = spanDays <= 31 ? 10 : spanDays <= 366 ? 7 : 4;
+  const intraDynamics = (
+    series: { label: string; value_cents: string }[] | undefined,
+  ) => {
+    const firstB = new Map<string, number>();
+    const lastB = new Map<string, number>();
+    const order: string[] = [];
+    for (const p of [...(series ?? [])].sort((a, b) =>
+      a.label.localeCompare(b.label),
+    )) {
+      const b = p.label.slice(0, dynBucketLen);
+      if (!firstB.has(b)) {
+        firstB.set(b, Number(p.value_cents));
+        order.push(b);
+      }
+      lastB.set(b, Number(p.value_cents));
+    }
+    return order.map((b) => {
+      const f = firstB.get(b)!;
+      const l = lastB.get(b)!;
+      return {
+        label: b,
+        pct: f === 0 ? null : ((l - f) / f) * 100,
+        delta_cents: l - f,
+      };
+    });
+  };
+  const dynamics = hasSeries && data ? intraDynamics(data.series) : [];
+  const dynamicsPL = isInvest ? intraDynamics(exclQ.data?.series) : [];
+  const avgTotalPct = geoMean(dynamics.map((d) => d.pct));
+  const avgPlPct = geoMean(dynamicsPL.map((d) => d.pct));
+  const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
+
   const capBuckets = [
     { name: "investments", value: Number(capitalization.investmentsCents) },
     { name: "cash", value: Number(capitalization.cashCents) },
     { name: "reserves", value: Number(capitalization.reservesCents) },
     { name: "cushion", value: Number(capitalization.cushionCents) },
+    { name: "possessions", value: Number(capitalization.possessionsCents) },
   ].filter((b) => b.value > 0);
   const capColor: Record<string, string> = {
     investments: BUCKET_INVEST,
     cash: BUCKET_SPEND,
     reserves: BUCKET_RESERVE,
     cushion: BUCKET_CUSHION,
+    possessions: BUCKET_POSSESS,
   };
 
-  // Centered underline tab — exact BDP wealth-section `toggle` style.
   const tab = (v: WealthView, label: string) => (
     <button
       type="button"
@@ -208,7 +296,6 @@ export function AggregateTrend({
 
   return (
     <section className={CARD} data-testid="aggregate-trend">
-      {/* Capitalization/Investments — centered underline tabs (BDP parity). */}
       <div role="group" className="flex items-center justify-center gap-1">
         {tab("capitalization", t("capitalization"))}
         {tab("investments", t("investments"))}
@@ -224,45 +311,38 @@ export function AggregateTrend({
       ) : (
         <>
           <div className="mt-3 flex flex-col gap-2">
-            {/* Range-scoped growth stats — centered, like BDP. */}
-            <div className="flex flex-wrap items-start justify-center gap-6">
-              <div className="flex flex-col items-center gap-0.5">
-                <p className="text-caption text-[var(--muted-foreground)]">
-                  {up ? t("grow") : t("loss")}
-                </p>
-                <span
-                  className={cn(
-                    "num text-num-md",
-                    up
-                      ? "text-[var(--trading-up)]"
-                      : "text-[var(--trading-down)]",
-                  )}
-                  data-testid="aggregate-trend-grow"
-                >
-                  <SlotAmount value={fmtSigned(data.grow.delta_cents)} />
-                </span>
-              </div>
-              <PctStat label={t("grow")} pct={data.grow.delta_pct} />
-              {view === "investments" && data.invested_cents != null && (
-                <div className="flex flex-col items-center gap-0.5">
-                  <p className="text-caption text-[var(--muted-foreground)]">
-                    {t("invested")}
-                  </p>
-                  <span className="num text-num-md text-[var(--body-on-dark)]">
-                    <SlotAmount value={fmt(data.invested_cents)} />
-                  </span>
-                </div>
+            {/* Range-scoped growth — Contributions · P/L · Total (investments) or
+                a single grow/loss (capitalization). */}
+            <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
+              {isInvest && invMetrics ? (
+                <>
+                  <CombinedStat
+                    label={t("contributions")}
+                    pct={invMetrics.contribPct}
+                    amount={fmtSigned(String(invMetrics.contribDelta))}
+                  />
+                  <CombinedStat
+                    label={t("pl")}
+                    pct={invMetrics.plPct}
+                    amount={fmtSigned(String(invMetrics.plDelta))}
+                  />
+                  <CombinedStat
+                    label={t("total")}
+                    pct={invMetrics.totalPct}
+                    amount={fmtSigned(String(invMetrics.totalDelta))}
+                  />
+                </>
+              ) : (
+                <CombinedStat
+                  label={up ? t("grow") : t("loss")}
+                  pct={data.grow.delta_pct}
+                  amount={fmtSigned(data.grow.delta_cents)}
+                />
               )}
             </div>
 
-            {/* Growth is over the SELECTED range ("since month start" on 1M). */}
-            <p className="-mt-1 text-center text-caption text-[var(--muted-foreground)]">
-              {t("grow_since", { preset: range.preset })}
-            </p>
-
-            {view === "investments" && investStack.length > 0 ? (
-              // Stacked like the planned needs/wants chart: contributions (grey)
-              // + profit (yellow) sum to the total investment value.
+            {isInvest && investStack.length > 0 ? (
+              // Stacked: contributions (grey) + profit (yellow) sum to the total.
               <OverviewAreaChart
                 data={investStack}
                 xKey="label"
@@ -276,7 +356,7 @@ export function AggregateTrend({
                   },
                   {
                     key: "profit",
-                    label: t("profit"),
+                    label: t("pl"),
                     color: "var(--primary)",
                     stack: "inv",
                     fillOpacity: 0.35,
@@ -286,6 +366,47 @@ export function AggregateTrend({
                 formatTooltip={(n) => fmt(String(Math.round(n)))}
                 xTickFormat={(v) => formatChartDate(String(v), locale)}
                 maskAmounts
+                // Each row = absolute · growth% · growth amount (from range start
+                // to the hovered tick), % + amount both mask under privacy.
+                rowSuffix={(row, key) => {
+                  const f = investStack[0];
+                  if (!f) return undefined;
+                  const cBase = Number(f.contributions);
+                  if (cBase === 0) return undefined;
+                  const delta =
+                    key === "contributions"
+                      ? Number(row.contributions) - cBase
+                      : Number(row.profit) - Number(f.profit);
+                  return [
+                    revealed ? fmtSignedPct((100 * delta) / cBase) : "•••",
+                    revealed ? fmtSigned(String(Math.round(delta))) : "•••",
+                  ];
+                }}
+                // Total = contributions + profit, aligned in the same columns.
+                summary={(row) => {
+                  const total =
+                    Number(row.contributions ?? 0) + Number(row.profit ?? 0);
+                  const f = investStack[0];
+                  const vBase = f
+                    ? Number(f.contributions) + Number(f.profit)
+                    : 0;
+                  const dTotal = total - vBase;
+                  return {
+                    label: t("total"),
+                    value: revealed ? fmt(String(Math.round(total))) : "•••",
+                    suffix:
+                      vBase === 0
+                        ? []
+                        : [
+                            revealed
+                              ? fmtSignedPct((100 * dTotal) / vBase)
+                              : "•••",
+                            revealed
+                              ? fmtSigned(String(Math.round(dTotal)))
+                              : "•••",
+                          ],
+                  };
+                }}
               />
             ) : (
               <OverviewAreaChart
@@ -303,16 +424,139 @@ export function AggregateTrend({
             )}
           </div>
 
-          {/* Avg change (dynamics) — per-bucket % change bar chart, green/red
-              split like BDP. Y-axis is %, so it stays visible; the tooltip's
-              money delta is masked with the shared reveal. */}
-          {dynamics.length > 0 && (
+          {/* Average change — Contributions · P/L · Total (investments) or a single
+              metric (capitalization); grouped bars grey/yellow/green. */}
+          {dynamics.length > 0 &&
+            (isInvest
+              ? (() => {
+                  const plByLabel = new Map<
+                    string,
+                    { pct: number | null; delta: number }
+                  >();
+                  for (const d of dynamicsPL)
+                    plByLabel.set(d.label, { pct: d.pct, delta: d.delta_cents });
+                  const contribPctList: (number | null)[] = [];
+                  const combined = dynamics.map((d) => {
+                    const pl = plByLabel.get(d.label);
+                    const totalDelta = d.delta_cents;
+                    const plDelta = pl?.delta ?? 0;
+                    const contribDelta = totalDelta - plDelta;
+                    const totalBase =
+                      d.pct != null && d.pct !== 0
+                        ? (totalDelta * 100) / d.pct
+                        : null;
+                    const plBase =
+                      pl?.pct != null && pl.pct !== 0
+                        ? (plDelta * 100) / pl.pct
+                        : null;
+                    const contribBase =
+                      totalBase != null && plBase != null
+                        ? totalBase - plBase
+                        : null;
+                    const contribPct =
+                      contribBase != null && contribBase !== 0
+                        ? (contribDelta * 100) / contribBase
+                        : null;
+                    contribPctList.push(contribPct);
+                    return {
+                      label: d.label,
+                      total: d.pct ?? 0,
+                      totalDelta,
+                      pl: pl?.pct ?? 0,
+                      plDelta,
+                      contrib: contribPct ?? 0,
+                      contribDelta,
+                    };
+                  });
+                  const avgContribPct = geoMean(contribPctList);
+                  const meanAmt = (
+                    key: "totalDelta" | "plDelta" | "contribDelta",
+                  ) =>
+                    combined.length === 0
+                      ? 0
+                      : Math.round(
+                          combined.reduce((s, c) => s + Number(c[key] || 0), 0) /
+                            combined.length,
+                        );
+                  return (
+                    <div
+                      className="mt-3 flex flex-col gap-2"
+                      data-testid="aggregate-dynamics"
+                    >
+                      <p className="text-center text-caption text-[var(--muted-foreground)]">
+                        {t("avg_change")}
+                      </p>
+                      <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
+                        <CombinedStat
+                          label={t("contributions")}
+                          pct={avgContribPct}
+                          amount={fmtSigned(String(meanAmt("contribDelta")))}
+                        />
+                        <CombinedStat
+                          label={t("pl")}
+                          pct={avgPlPct}
+                          amount={fmtSigned(String(meanAmt("plDelta")))}
+                        />
+                        <CombinedStat
+                          label={t("total")}
+                          pct={avgTotalPct}
+                          amount={fmtSigned(String(meanAmt("totalDelta")))}
+                        />
+                      </div>
+                      <OverviewBarChart
+                        data={combined}
+                        xKey="label"
+                        // Contributions (grey) → P/L (yellow) → Total (green).
+                        series={[
+                          {
+                            key: "contrib",
+                            label: t("contributions"),
+                            color: "var(--muted-foreground)",
+                          },
+                          {
+                            key: "pl",
+                            label: t("pl"),
+                            color: "var(--primary)",
+                          },
+                          {
+                            key: "total",
+                            label: t("total"),
+                            color: "var(--trading-up)",
+                          },
+                        ]}
+                        formatValue={pctAxisTick}
+                        formatTooltip={fmtSignedPct}
+                        maskAmounts
+                        rowSuffix={(row, key) =>
+                          revealed
+                            ? fmtSigned(
+                                String(
+                                  Math.round(
+                                    Number(
+                                      (key === "total"
+                                        ? row.totalDelta
+                                        : key === "pl"
+                                          ? row.plDelta
+                                          : row.contribDelta) ?? 0,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : "•••"
+                        }
+                        xTickFormat={(v) => formatChartDate(String(v), locale)}
+                        labelFormat={(v) => formatChartDate(String(v), locale)}
+                      />
+                    </div>
+                  );
+                })()
+              : (
             <div
               className="mt-3 flex flex-col gap-2"
               data-testid="aggregate-dynamics"
             >
               <div className="flex flex-wrap items-start justify-center gap-6">
-                <PctStat label={t("avg_change")} pct={avgPct} />
+                <PctStat label={t("avg_change")} pct={avgTotalPct} />
               </div>
               <OverviewBarChart
                 data={dynamics.map((d) => ({
@@ -339,7 +583,7 @@ export function AggregateTrend({
                 labelFormat={(v) => formatChartDate(String(v), locale)}
               />
             </div>
-          )}
+              ))}
 
           {/* View-driven pie: capitalization pools vs per-holding-type. */}
           {view === "capitalization" && capBuckets.length > 0 && (
@@ -362,7 +606,7 @@ export function AggregateTrend({
               />
             </div>
           )}
-          {view === "investments" && (
+          {isInvest && (
             <div
               className="mt-3 flex flex-col gap-2"
               data-testid="aggregate-invest-pie"

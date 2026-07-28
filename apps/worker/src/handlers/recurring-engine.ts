@@ -36,6 +36,7 @@ import {
   nextOccurrence,
   type Cadence,
 } from "@budget/budgeting/src/domain/cadence";
+import { isRuleExhausted } from "@budget/budgeting/src/domain/recurring-end-date";
 import {
   computeRecurringFx,
   type FxProviderLike,
@@ -57,6 +58,7 @@ interface RuleRow {
   id: string;
   tenant_id: string;
   next_due_date: string | Date;
+  end_date: string | Date | null;
   cadence: string;
   cadence_anchor: number | null;
   weekly_dow: number | null;
@@ -130,7 +132,7 @@ export async function runRecurringEngine(
 
         // Step 2: get all due rules for this tenant, join budget currency
         const rulesResult = await drizzleTx.execute(sql`
-        SELECT r.id, r.tenant_id, r.next_due_date, r.cadence, r.cadence_anchor, r.weekly_dow,
+        SELECT r.id, r.tenant_id, r.next_due_date, r.end_date, r.cadence, r.cadence_anchor, r.weekly_dow,
                r.yearly_month, r.category_id, r.amount, r.currency, r.note,
                b.default_currency AS budget_currency
           FROM budgeting.recurring_rules r
@@ -148,6 +150,8 @@ export async function runRecurringEngine(
           let dueDate = Temporal.PlainDate.from(
             toDateString(rule.next_due_date),
           );
+          const endDateStr =
+            rule.end_date != null ? toDateString(rule.end_date) : null;
           const budgetCurrency = rule.budget_currency ?? rule.currency;
           const amountOriginalCents = String(
             Math.round(Number(rule.amount) * 100),
@@ -155,8 +159,12 @@ export async function runRecurringEngine(
           const categoryId = rule.category_id ?? null;
           const note = rule.note ?? null;
 
-          // Step 3: catch-up loop — INSERT a draft for each missed due date
-          while (Temporal.PlainDate.compare(dueDate, todayDate) <= 0) {
+          // Step 3: catch-up loop — INSERT a draft for each missed due date,
+          // stopping at end_date (inclusive) when the rule has a deadline.
+          while (
+            Temporal.PlainDate.compare(dueDate, todayDate) <= 0 &&
+            !isRuleExhausted(dueDate.toString(), endDateStr)
+          ) {
             const dueDateStr = dueDate.toString();
 
             // T-02-WORKER-FX: same-currency path skips FX call; cross-currency uses
@@ -255,13 +263,23 @@ export async function runRecurringEngine(
             );
           }
 
-          // Step 6: UPDATE next_due_date to first date > today (INSERT FIRST per Pitfall 3)
-          await drizzleTx.execute(sql`
+          // Step 6: UPDATE next_due_date to first date > today (INSERT FIRST per
+          // Pitfall 3). If the next occurrence has passed end_date the rule is
+          // exhausted — deactivate it so it's never scanned again.
+          if (isRuleExhausted(dueDate.toString(), endDateStr)) {
+            await drizzleTx.execute(sql`
+          UPDATE budgeting.recurring_rules
+             SET active = false, updated_at = now()
+           WHERE id = ${rule.id}::uuid
+        `);
+          } else {
+            await drizzleTx.execute(sql`
           UPDATE budgeting.recurring_rules
              SET next_due_date = ${dueDate.toString()}::date,
                  updated_at = now()
            WHERE id = ${rule.id}::uuid
         `);
+          }
         }
 
         return draftsGenerated;

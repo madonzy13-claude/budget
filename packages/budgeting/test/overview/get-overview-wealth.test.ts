@@ -113,16 +113,26 @@ describe("getOverviewWealth", () => {
     expect(s24.dynamicsBucket).toBe("yearly");
   });
 
-  test("1M (daily) shows a bar for EVERY day via carry-forward, not just snapshot days (item 4)", async () => {
-    // One snapshot on day 1, then nothing until the live point on day 5. The daily
-    // dynamics must still show a bar per day (carry-forward = flat 0% on gap days),
-    // not a single bar for the only day with a raw snapshot.
-    const sparseRepo: GetOverviewWealthDeps["snapshotRepo"] = {
+  test("1M (daily) bar = intra-DAY movement (first→last snapshot within the day)", async () => {
+    // Two intraday snapshots per day → each day's bar is its own open→close move.
+    const hourlyRepo: GetOverviewWealthDeps["snapshotRepo"] = {
       async seriesForRange() {
         return [
           {
-            captured_at: new Date("2026-03-01T00:00:00Z"),
+            captured_at: new Date("2026-03-01T08:00:00Z"),
             capitalization_cents: 100000n,
+            investment_value_cents: 0n,
+            investment_cost_basis_cents: 0n,
+          },
+          {
+            captured_at: new Date("2026-03-01T20:00:00Z"),
+            capitalization_cents: 105000n,
+            investment_value_cents: 0n,
+            investment_cost_basis_cents: 0n,
+          },
+          {
+            captured_at: new Date("2026-03-02T08:00:00Z"),
+            capitalization_cents: 104000n,
             investment_value_cents: 0n,
             investment_cost_basis_cents: 0n,
           },
@@ -140,30 +150,25 @@ describe("getOverviewWealth", () => {
     });
     const dto = (
       await getOverviewWealth(
-        deps({ snapshotRepo: sparseRepo, computeWealthNow: liveRepo }),
+        deps({ snapshotRepo: hourlyRepo, computeWealthNow: liveRepo }),
       )({
         ...base,
         from: "2026-03-01",
-        to: "2026-03-05",
-        now: () => new Date("2026-03-05T12:00:00Z"),
+        to: "2026-03-02",
+        now: () => new Date("2026-03-02T21:00:00Z"),
         view: "capitalization",
       })
     )._unsafeUnwrap();
     expect(dto.dynamicsBucket).toBe("daily");
-    // A bar for every day except the first (no predecessor): 03-02 … 03-05.
+    // A bar per day, each its OWN first→last: Mar-01 100000→105000 (+5%),
+    // Mar-02 104000→110000 (live is the last of the day) ≈ +5.77%.
     expect(dto.dynamics.map((d) => d.label)).toEqual([
+      "2026-03-01",
       "2026-03-02",
-      "2026-03-03",
-      "2026-03-04",
-      "2026-03-05",
     ]);
-    // Gap days carry the day-1 value (0%); the live jump on the last day is +10%.
-    expect(dto.dynamics.map((d) => d.pct)).toEqual([0, 0, 0, 10]);
-    // Each bar also carries the signed money delta for the tooltip amount: flat
-    // gap days are "0"; the +10% live day is a positive money change.
-    const deltas = dto.dynamics.map((d) => d.delta_cents);
-    expect(deltas.slice(0, 3)).toEqual(["0", "0", "0"]);
-    expect(Number(deltas[3])).toBeGreaterThan(0);
+    expect(dto.dynamics[0]!.pct).toBeCloseTo(5.0, 5);
+    expect(dto.dynamics[1]!.pct).toBeCloseTo(5.7692, 3);
+    expect(Number(dto.dynamics[0]!.delta_cents)).toBe(5000);
   });
 
   test("value series spans the whole range; carry-forward across gaps (item 5)", async () => {
@@ -277,15 +282,20 @@ describe("getOverviewWealth", () => {
     expect(valueAt(dto, "2026-02-28T00")).toBe("12000");
   });
 
-  test("dynamics at the coarser (monthly) bucket, data-only steps (D-16)", async () => {
+  test("dynamics = INTRA-period change; every period (incl. the first) gets a bar", async () => {
     const dto = await run();
-    expect(dto.dynamics.map((d) => d.label)).toEqual(["2026-02", "2026-03"]);
-    expect(dto.dynamics[0]!.pct).toBeCloseTo(10.0, 5); // Jan 100000 → Feb 110000
-    expect(dto.dynamics[1]!.pct).toBeCloseTo(-1.818181, 4); // Feb 110000 → Mar live 108000
-    // GEOMETRIC mean of the two step returns (compounding): ×1.10 then ×0.98182
-    // over 2 periods → (1.10 · 0.98182)^(1/2) − 1 = √1.08 − 1 ≈ 3.923% (NOT 4.09%).
-    const geom =
-      (Math.pow((1 + 10 / 100) * (1 + -1.818181 / 100), 1 / 2) - 1) * 100;
+    // Each bar is the period's OWN first→last, not a step vs the previous period:
+    //   Jan 90000 → 100000 = +11.11%; Feb single point (0%); Mar single live (0%).
+    expect(dto.dynamics.map((d) => d.label)).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+    ]);
+    expect(dto.dynamics[0]!.pct).toBeCloseTo(11.1111, 3);
+    expect(dto.dynamics[1]!.pct).toBeCloseTo(0, 5);
+    expect(dto.dynamics[2]!.pct).toBeCloseTo(0, 5);
+    // GEOMETRIC mean of the per-period returns (0% periods contribute ×1).
+    const geom = (Math.pow(1 + 11.1111 / 100, 1 / 3) - 1) * 100;
     expect(dto.monthly_avg_grow_pct).toBeCloseTo(geom, 3);
   });
 
@@ -323,9 +333,10 @@ describe("getOverviewWealth", () => {
       )({ ...base, view: "capitalization" })
     )._unsafeUnwrap();
     expect(dto.grow.delta_pct).toBeNull(); // start 0
-    // Jan→Feb step is 0→50000 (null, skipped); Feb→Mar 50000→60000 = +20.
+    // Intra-period: Jan bucket's first value is 0 → its % is null (skipped from the
+    // mean); Feb + Mar are single points (0% each). So the mean is 0.
     expect(dto.dynamics[0]!.pct).toBeNull();
-    expect(dto.monthly_avg_grow_pct).toBeCloseTo(20.0, 5);
+    expect(dto.monthly_avg_grow_pct).toBeCloseTo(0, 5);
   });
 
   test("investments view: series uses investment_value_cents + per-type pie (D-18)", async () => {
@@ -347,10 +358,10 @@ describe("getOverviewWealth", () => {
     expect(dto.pie).toBeNull();
   });
 
-  test("CONTIGUOUS opening seeds the first in-range dynamics bucket (item 4)", async () => {
-    // A snapshot in the IMMEDIATELY-PRECEDING bucket (last December) — contiguous
-    // with the first in-range month (Jan), so the first bar is a true per-period
-    // change, not dropped for lack of a predecessor.
+  test("an opening (out of range) seeds the value CARRY but NOT the intra-period dynamics", async () => {
+    // A prior-December snapshot. It carries the leading VALUE buckets (chart start),
+    // but intra-period dynamics only use in-range first→last, so the opening never
+    // becomes a dynamics bar.
     const withOpening: GetOverviewWealthDeps["snapshotRepo"] = {
       ...snapshotRepo(),
       async openingBefore() {
@@ -370,20 +381,20 @@ describe("getOverviewWealth", () => {
     )._unsafeUnwrap();
     // carry-forward: leading buckets show the opening value, not 0 (r24 item 2).
     expect(valueAt(dto, "2026-01-01T00")).toBe("80000");
-    // dynamics NOW includes Jan — seeded by the contiguous Dec opening (item 4).
+    // Every in-range month gets its own first→last bar; Jan = 90000 → 100000 intra
+    // (NOT Dec 80000 → Jan, which would be inter-period).
     expect(dto.dynamics.map((d) => d.label)).toEqual([
       "2026-01",
       "2026-02",
       "2026-03",
     ]);
-    expect(dto.dynamics[0]!.pct).toBeCloseTo(25.0, 5); // Dec 80000 → Jan 100000
-    expect(dto.dynamics[1]!.pct).toBeCloseTo(10.0, 5); // Jan 100000 → Feb 110000
+    expect(dto.dynamics[0]!.pct).toBeCloseTo(11.1111, 3);
+    expect(dto.dynamics[1]!.pct).toBeCloseTo(0, 5);
   });
 
-  test("a NON-contiguous (far-back) opening does NOT seed dynamics — no giant jump bar (r28 item 1)", async () => {
-    // An opening 7 months back (a stale seed, not the previous month). Seeding it
-    // would draw a giant Jun→Jan bar that swamps the real per-period changes, so the
-    // first in-range bucket (Jan) stays without a predecessor and steps start at Feb.
+  test("a far-back opening cannot produce a giant first bar (intra-period ignores it)", async () => {
+    // An opening 7 months back (a stale seed). Inter-period would have drawn a giant
+    // Jun→Jan bar; intra-period uses only in-range first→last, so Jan stays 11.11%.
     const withStaleOpening: GetOverviewWealthDeps["snapshotRepo"] = {
       ...snapshotRepo(),
       async openingBefore() {
@@ -401,11 +412,13 @@ describe("getOverviewWealth", () => {
         view: "capitalization",
       })
     )._unsafeUnwrap();
-    // carry-forward still seeds leading buckets from the opening (r24 item 2)…
     expect(valueAt(dto, "2026-01-01T00")).toBe("80000");
-    // …but the dynamics do NOT — Jan has no (contiguous) predecessor, so no jump bar.
-    expect(dto.dynamics.map((d) => d.label)).toEqual(["2026-02", "2026-03"]);
-    expect(dto.dynamics[0]!.pct).toBeCloseTo(10.0, 5); // Jan 100000 → Feb 110000
+    expect(dto.dynamics.map((d) => d.label)).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+    ]);
+    expect(dto.dynamics[0]!.pct).toBeCloseTo(11.1111, 3); // Jan intra, not a jump
   });
 
   test("grow_from_open anchors on the opening (chart start); grow stays first-real (r30 item 2)", async () => {

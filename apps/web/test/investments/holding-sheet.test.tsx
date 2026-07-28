@@ -117,12 +117,18 @@ vi.mock("../../src/components/common/currency-picker", () => ({
   CurrencyPicker: ({
     value,
     onSelect,
+    richLabel,
+    desktopDropdown,
   }: {
     value?: string;
     onSelect: (v: string) => void;
+    richLabel?: boolean;
+    desktopDropdown?: boolean;
   }) => (
     <select
       data-testid="currency-stub"
+      data-rich={richLabel ? "1" : "0"}
+      data-desktop={desktopDropdown ? "1" : "0"}
       value={value}
       onChange={(e) => onSelect(e.target.value)}
     >
@@ -204,6 +210,32 @@ describe("HoldingSheet — type-first", () => {
     expect(
       screen.getByTestId("holding-sheet-current-price"),
     ).toBeInTheDocument();
+  });
+
+  it("savings type: starting + current amount, no quantity/buy-price", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "savings",
+          uiType: "savings",
+          instrumentId: null,
+          name: "Emergency fund",
+          buyPriceCents: "1000000",
+          currentPriceCents: "1250000",
+        })}
+      />,
+    );
+    // reuses the broker field-set (name + two amounts + currency, no quantity)
+    expect(screen.getByTestId("holding-sheet-deposited")).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-actual")).toBeInTheDocument();
+    expect(screen.queryByTestId("holding-sheet-quantity")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-buy-price")).toBeNull();
+    // but relabeled: Starting / Current — not Deposited / Actual
+    expect(screen.getByText("field.startingAmount")).toBeInTheDocument();
+    expect(screen.getByText("field.currentAmount")).toBeInTheDocument();
+    expect(screen.queryByText("field.depositedValue")).toBeNull();
   });
 
   it("precious metals type reveals metal + kind + UoM fields", () => {
@@ -635,6 +667,57 @@ describe("HoldingSheet — type-first", () => {
     const payload = updateMutate.mock.calls[0][0];
     expect(payload.currentPriceCurrency).toBe("PLN");
     expect(payload.buyCurrency).toBe("PLN");
+  });
+
+  // 260721 user feedback (3): the editable current-price must NOT seed a
+  // placeholder from the buy price — an empty field looked already filled.
+  it("manual current-price field has no placeholder (was seeded from buy price)", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "other",
+          uiType: "collectibles",
+          instrumentId: null,
+          name: "Gold coins",
+          buyPriceCents: "10000", // 100.00 — must NOT leak into the placeholder
+          currentPriceCents: null,
+        })}
+      />,
+    );
+    const amount = screen.getByTestId("holding-sheet-amount") as HTMLInputElement;
+    expect(amount.getAttribute("placeholder") ?? "").toBe("");
+  });
+
+  // 260721 user feedback (4): actions live at the END of the scrolling form
+  // (not a pinned footer) — the Save button scrolls with the content.
+  it("Save/Cancel render inside the scrolling form body, not a pinned footer", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    const actions = screen.getByTestId("holding-sheet-actions");
+    // the actions row sits inside the scroll container (the overflow-y-auto body),
+    // i.e. it has an ancestor with overflow-y-auto — not a sibling footer.
+    expect(actions.closest(".overflow-y-auto")).not.toBeNull();
+  });
+
+  // 260721 user feedback (5): the currency picker matches the wizard
+  // (richLabel + desktopDropdown), not a bare field.
+  it("currency picker uses the wizard's rich desktop dropdown", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "cash_fx",
+          uiType: "cash",
+          instrumentId: null,
+          name: "EUR Cash",
+        })}
+      />,
+    );
+    const picker = screen.getByTestId("currency-stub");
+    expect(picker.getAttribute("data-rich")).toBe("1");
+    expect(picker.getAttribute("data-desktop")).toBe("1");
   });
 
   it("dirty close fires the discard-confirm dialog", async () => {

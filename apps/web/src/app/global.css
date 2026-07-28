@@ -147,6 +147,7 @@
     --chart-bar-1: #3b82f6;
     --chart-bar-2: #14b8a6;
     --chart-bar-3: #a855f7; /* purple — distinct 3rd/4th pie slice */
+    --chart-bar-4: #ec4899; /* rose — 5th pie slice (possessions); reads on both themes */
 
     /* Canvas + surface */
     --canvas-dark: #0b0e11;
