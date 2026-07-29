@@ -87,7 +87,7 @@ ci-gate: ## Run tenant-leak CI gate (needs local postgres)
 	$(INFISICAL) bun run test:ci-gate
 
 test-clean: ## Remove leaked test postgres containers (orphans from killed test runs)
-	@$(INFISICAL) sh -c 'docker ps -aq --filter "label=budget-testcontainer=1" | xargs -r docker rm -f'
+	@$(INFISICAL) sh -c 'docker ps -aq --filter "label=budget-testcontainer=1" | xargs -r docker rm -fv'
 	@echo "leaked testcontainers removed"
 
 # ── Code quality ──────────────────────────────────────────────────────────────

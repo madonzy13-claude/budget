@@ -45,7 +45,10 @@ function installSignalHandlers(): void {
       const id = containerId;
       containerId = undefined;
       try {
-        Bun.spawnSync(["docker", "rm", "-f", id], {
+        // -v: drop any volume the container owns. Belt-and-braces next to the
+        // tmpfs PGDATA mount below — a `docker rm` without it is what leaked
+        // 435 orphaned postgres data dirs (~22GB) before this was fixed.
+        Bun.spawnSync(["docker", "rm", "-fv", id], {
           stdout: "ignore",
           stderr: "ignore",
         });
@@ -91,6 +94,12 @@ export async function startTestcontainer(): Promise<{
         "-d",
         "--label",
         TESTCONTAINER_LABEL,
+        // PGDATA on tmpfs: postgres:17-alpine declares VOLUME on this path, so
+        // without an explicit mount every test process minted an anonymous
+        // volume that outlived its container. RAM-backed also makes the throwaway
+        // DB faster; nothing here needs to survive the process.
+        "--mount",
+        "type=tmpfs,destination=/var/lib/postgresql/data",
         "-e",
         "POSTGRES_PASSWORD=postgres",
         "-e",
