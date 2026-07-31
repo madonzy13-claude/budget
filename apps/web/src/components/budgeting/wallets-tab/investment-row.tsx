@@ -370,7 +370,7 @@ export function InvestmentRow({
                     inputMode="decimal"
                     defaultValue={draft}
                     onChange={(e) => onChange(e.target.value)}
-                    className="h-9 text-right"
+                    className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
                   />
                 )}
                 onSave={async (v) => {

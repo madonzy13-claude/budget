@@ -183,7 +183,7 @@ export function IncomeForm({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-md flex flex-col p-0"
+        className="w-full sm:max-w-md flex flex-col p-0 overflow-y-auto"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader className="px-6 py-4 border-b border-[var(--hairline-dark)]">
@@ -192,8 +192,8 @@ export function IncomeForm({
           </SheetTitle>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="px-6 py-4 space-y-4">
             <div>
               <Label htmlFor="income-name">{t("form.nameLabel")}</Label>
               <Input

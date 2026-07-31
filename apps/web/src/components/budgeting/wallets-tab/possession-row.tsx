@@ -227,7 +227,7 @@ function PersistedRow({
                   if (v !== e.target.value) e.target.value = v;
                   onChange(v);
                 }}
-                className="h-9 text-right"
+                className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
               />
             )}
             onSave={(v) => onUpdate({ amount: sanitizeAmount(v) })}

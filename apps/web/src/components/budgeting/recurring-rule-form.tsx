@@ -380,7 +380,7 @@ export function RecurringRuleForm({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-md flex flex-col p-0"
+        className="w-full sm:max-w-md flex flex-col p-0 overflow-y-auto"
         // iOS standalone PWA: Radix auto-focuses the first field on open →
         // the soft keyboard pans the layout viewport up (no browser chrome to
         // absorb it), shifting the whole sheet up and hiding the title/X.
@@ -395,8 +395,8 @@ export function RecurringRuleForm({
           </SheetTitle>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="px-6 py-4 space-y-4">
             {/* Name — first + mandatory. Stored in the `note` column (it already
                 serves as the rule's label / task ruleName), so no schema change. */}
             <div>

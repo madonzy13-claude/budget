@@ -934,6 +934,24 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // effect). Render-time ref write is fine — no state, no re-render.
   typeaheadNamesRef.current = visibleCategories.map((c) => c.name);
 
+  // 260731-osq round 3: a reload resets the grid to the FIRST column, so a
+  // queued row in a far-right category is off-screen — it reads as "my offline
+  // spending is gone". Bring the newest queued entry's column into view once.
+  const scrolledToPendingRef = useRef(false);
+  useEffect(() => {
+    if (scrolledToPendingRef.current) return;
+    const newest = pendingSpendings[pendingSpendings.length - 1];
+    if (!newest) return;
+    const col = gridRef.current?.querySelector<HTMLElement>(
+      `[data-testid="category-column-${newest.categoryId}"]`,
+    );
+    if (!col) return;
+    scrolledToPendingRef.current = true;
+    // block:"nearest" so bringing a column into horizontal view can't scroll
+    // the page vertically underneath the sticky header.
+    col.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [pendingSpendings]);
+
   // Queued spendings whose category has no column right now (offline cold start
   // with an empty cache, or a category that only exists server-side yet).
   const orphanPending = useMemo(() => {

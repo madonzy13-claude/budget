@@ -450,6 +450,23 @@ describe("SpendingsGridClient", () => {
     expect(screen.getAllByTestId("txn-row-777")).toHaveLength(1);
   });
 
+  it("scrolls the queued row's column into view on mount (reload lands on column 1)", () => {
+    const spy = vi.fn();
+    Element.prototype.scrollIntoView = spy;
+    addPendingSpending({
+      budgetId: "budget-1",
+      month: "2026-05",
+      categoryId: "cat-2",
+      categoryName: "Transport",
+      amountCents: 777,
+      currency: "USD",
+      date: "2026-05-13",
+      note: null,
+    });
+    renderGrid();
+    expect(spy).toHaveBeenCalled();
+  });
+
   it("ignores queued spendings from another budget or month", () => {
     addPendingSpending({
       budgetId: "budget-2",
