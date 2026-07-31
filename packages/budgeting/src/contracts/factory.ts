@@ -31,6 +31,7 @@ import { findCategoryById } from "../application/find-category-by-id";
 import { renameCategory } from "../application/rename-category";
 import { permanentlyDeleteCategory } from "../application/permanently-delete-category";
 import { setCategoryLimit } from "../application/set-category-limit";
+import { computeCashflowProjection } from "../application/compute-cashflow-projection";
 import { getEffectiveLimit } from "../application/get-effective-limit";
 import { applyBudgetTemplate } from "../application/apply-budget-template";
 import { setShareOverrides } from "../application/set-share-overrides";
@@ -303,6 +304,12 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       limitRepo,
       taskRepo: createTaskRepo(),
       fxProvider,
+      // 260731: the projected-shortfall task reads the cash-flow projection —
+      // the same numbers as the Overview Surplus card.
+      getProjection: computeCashflowProjection({
+        fxProvider,
+        reservePositions,
+      }),
       // 05-17: a limit change moves overage → reserve draw → surplus, so
       // recompute RESERVE_TOPUP alongside the CUSHION recompute.
       reservePositions,

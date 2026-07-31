@@ -22,19 +22,19 @@ describe("kind-pill-map", () => {
     expect(kindsFor("reserves")).toEqual(["RESERVE_TOPUP"]);
   });
 
-  it("kindsFor('wallets') returns [CUSHION_BELOW_TARGET]", () => {
-    expect(kindsFor("wallets")).toEqual(["CUSHION_BELOW_TARGET"]);
-  });
-
-  it("maps INCOME_UNDER_PLANNED → spendings", () => {
-    expect(pillFor("INCOME_UNDER_PLANNED")).toBe("spendings");
-  });
-
-  it("kindsFor('spendings') returns [CONFIRM_DRAFT, INCOME_UNDER_PLANNED]", () => {
-    expect(kindsFor("spendings")).toEqual([
-      "CONFIRM_DRAFT",
+  it("kindsFor('wallets') returns [CUSHION_BELOW_TARGET, INCOME_UNDER_PLANNED]", () => {
+    expect(kindsFor("wallets")).toEqual([
+      "CUSHION_BELOW_TARGET",
       "INCOME_UNDER_PLANNED",
     ]);
+  });
+
+  it("maps INCOME_UNDER_PLANNED → wallets (Assets pill)", () => {
+    expect(pillFor("INCOME_UNDER_PLANNED")).toBe("wallets");
+  });
+
+  it("kindsFor('spendings') returns [CONFIRM_DRAFT]", () => {
+    expect(kindsFor("spendings")).toEqual(["CONFIRM_DRAFT"]);
   });
 
   it("kindsFor('settings') returns [] (no kind maps to Settings today)", () => {

@@ -26,7 +26,10 @@ import { ok, type Result } from "@budget/shared-kernel";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { recomputeReserveTopupTask } from "@budget/budgeting/src/application/recompute-reserve-topup-task";
 import { recomputeCushionTask } from "@budget/budgeting/src/application/recompute-cushion-task";
-import { recomputeIncomeUnderPlannedTask } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
+import {
+  recomputeIncomeUnderPlannedTask,
+  type RecomputeIncomeUnderPlannedDeps,
+} from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 import type { RecomputeReserveTopupTaskDeps } from "@budget/budgeting/src/application/recompute-reserve-topup-task";
 import type { RecomputeCushionTaskDeps } from "@budget/budgeting/src/application/recompute-cushion-task";
 
@@ -50,6 +53,9 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 export interface BudgetingReconciliationSweepDeps {
   reserveTopup: RecomputeReserveTopupTaskDeps;
   cushion: RecomputeCushionTaskDeps;
+  /** 260731: the projected-shortfall sweep needs the cash-flow projection, so it
+   *  no longer shares the cushion deps. Omitted → that sweep is skipped. */
+  incomeUnderPlanned?: RecomputeIncomeUnderPlannedDeps;
 }
 
 export interface ReconciliationOutput {
@@ -148,22 +154,25 @@ export async function runBudgetingReconciliation(
 
       // r33: INCOME_UNDER_PLANNED sweep — backstop for income-currency FX drift +
       // default-currency change. Same deps as cushion ({taskRepo, fxProvider}).
-      const incomeR = await withTenantTx(
-        TenantId(tenant_id),
-        UserId(SYSTEM_USER_ID),
-        async (tx) => {
-          await recomputeIncomeUnderPlannedTask(
-            tx as unknown as {
-              execute: (
-                q: unknown,
-              ) => Promise<{ rows: Record<string, unknown>[] }>;
+      const incomeDeps = sweepDeps.incomeUnderPlanned;
+      const incomeR = incomeDeps
+        ? await withTenantTx(
+            TenantId(tenant_id),
+            UserId(SYSTEM_USER_ID),
+            async (tx) => {
+              await recomputeIncomeUnderPlannedTask(
+                tx as unknown as {
+                  execute: (
+                    q: unknown,
+                  ) => Promise<{ rows: Record<string, unknown>[] }>;
+                },
+                { tenantId: tenant_id, budgetId: tenant_id },
+                incomeDeps,
+              );
             },
-            { tenantId: tenant_id, budgetId: tenant_id },
-            sweepDeps.cushion,
-          );
-        },
-      );
-      if (incomeR.isErr()) {
+          )
+        : null;
+      if (incomeR?.isErr()) {
         console.error(
           `[budgeting-reconciliation] income-under-planned sweep failed for tenant ${tenant_id}:`,
           incomeR.error,

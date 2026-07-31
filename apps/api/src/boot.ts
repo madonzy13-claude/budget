@@ -317,6 +317,11 @@ export async function boot(): Promise<BootedDeps> {
     {
       taskRepo,
       fxProvider: baseBudgeting.fxProvider,
+      // 260731: same projection the Overview Surplus card reads.
+      getProjection: computeCashflowProjection({
+        fxProvider: baseBudgeting.fxProvider,
+        reservePositions: baseBudgeting.reservePositions,
+      }),
     },
   );
 

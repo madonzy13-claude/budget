@@ -53,19 +53,46 @@ type TenantTx = {
 };
 
 /**
- * Pure emit-or-resolve decision. Fires when AVAILABLE money is strictly below the
- * planned spend. NO income gate — a budget with no income configured but a plan it
- * can't cover still fires. Available = upcoming income (payments still to arrive
- * this month) + spendings [+ cushion in cushion mode] wallet balances. Equal → no
- * fire.
+ * Pure emit-or-resolve decision — 260731: driven by the CASH-FLOW PROJECTION, the
+ * same numbers behind the Overview "Surplus / Deficit" figure, so the nudge and the
+ * card can never disagree.
+ *
+ * Fires when either projection signal says you run out of money:
+ *   - the projected cash on the day BEFORE your next income is negative (that IS
+ *     the card's "Deficit"), or
+ *   - any day up to the last income in the window goes red (cash under water after
+ *     the reserve pot is exhausted).
+ * With NO upcoming income at all the card shows nothing, so we fall back to the
+ * projection's worst shortfall — a plan that goes red still warns.
+ *
+ * The reported shortfall is the DEEPEST of the two (worst day vs the pre-income
+ * low), so the nudge always names the real hole.
  */
-export function decideIncomeUnderPlanned(input: {
-  availableCents: bigint;
-  plannedCents: bigint;
+export function decideProjectedShortfall(input: {
+  /** spendHealth.surplusDeficitCents — projected cash before the nearest income. */
+  surplusDeficitCents: bigint | null;
+  /** spendHealth.good — false when a red day precedes the last income. */
+  good: boolean | null;
+  /** summary.worstShortfallCents — deepest under-water amount in the window. */
+  worstShortfallCents: bigint;
 }): { emit: boolean; shortfallCents: bigint } {
-  const shortfall = input.plannedCents - input.availableCents;
-  return shortfall > 0n
-    ? { emit: true, shortfallCents: shortfall }
+  // A SURPLUS never nags (user decision): if the card shows money left before the
+  // next income, there is nothing to fix — even if a later day in the window dips.
+  if (input.surplusDeficitCents !== null) {
+    if (input.surplusDeficitCents >= 0n)
+      return { emit: false, shortfallCents: 0n };
+    const preIncomeShort = -input.surplusDeficitCents;
+    // Report the DEEPEST hole so the nudge names the real number.
+    const shortfall =
+      input.worstShortfallCents > preIncomeShort
+        ? input.worstShortfallCents
+        : preIncomeShort;
+    return { emit: true, shortfallCents: shortfall };
+  }
+  // No upcoming income at all → the card shows no figure; fall back to the
+  // projection's worst day so a plan that still goes under water warns.
+  return input.worstShortfallCents > 0n
+    ? { emit: true, shortfallCents: input.worstShortfallCents }
     : { emit: false, shortfallCents: 0n };
 }
 
@@ -246,28 +273,38 @@ export async function computeIncomeVsPlanned(
 export interface RecomputeIncomeUnderPlannedDeps {
   taskRepo: TaskRepo;
   fxProvider: FxProvider;
+  /**
+   * 260731: the cash-flow projection the Overview "Surplus / Deficit" card reads.
+   * The task now mirrors that number instead of running its own planned-vs-available
+   * sum, so a green card can never sit next to a "you're short" nudge.
+   */
+  getProjection: (input: { tenantId: string; budgetId: string }) => Promise<{
+    currency: string;
+    summary: { worstShortfallCents: bigint };
+    spendHealth: { good: boolean | null; surplusDeficitCents: bigint | null };
+  }>;
   now?: () => Date;
 }
 
 /**
- * Recompute income-vs-planned and emit-or-resolve the INCOME_UNDER_PLANNED task.
- * MUST be called inside an existing withTenantTx.
+ * Recompute the projection and emit-or-resolve the shortfall task.
+ * MUST be called inside an existing withTenantTx (the resolve/emit runs on `tx`);
+ * the projection itself opens its own read tx.
  */
 export async function recomputeIncomeUnderPlannedTask(
   tx: TenantTx,
   input: { tenantId: string; budgetId: string },
   deps: RecomputeIncomeUnderPlannedDeps,
 ): Promise<void> {
-  const vp = await computeIncomeVsPlanned(tx, {
+  const projection = await deps.getProjection({
     tenantId: input.tenantId,
     budgetId: input.budgetId,
-    fxProvider: deps.fxProvider,
-    now: deps.now,
   });
 
-  const decision = decideIncomeUnderPlanned({
-    availableCents: vp.availableCents,
-    plannedCents: vp.plannedCents,
+  const decision = decideProjectedShortfall({
+    surplusDeficitCents: projection.spendHealth.surplusDeficitCents,
+    good: projection.spendHealth.good,
+    worstShortfallCents: projection.summary.worstShortfallCents,
   });
 
   if (!decision.emit) {
@@ -281,11 +318,11 @@ export async function recomputeIncomeUnderPlannedTask(
   }
 
   const payload: IncomeUnderPlannedPayload = {
-    income_cents: vp.upcomingIncomeCents.toString(),
-    available_cents: vp.availableCents.toString(),
-    planned_cents: vp.plannedCents.toString(),
+    projected_low_cents: (
+      projection.spendHealth.surplusDeficitCents ?? -decision.shortfallCents
+    ).toString(),
     shortfall_cents: decision.shortfallCents.toString(),
-    currency: vp.currency,
+    currency: projection.currency,
   };
   await deps.taskRepo.emitIncomeUnderPlanned(
     input.tenantId,

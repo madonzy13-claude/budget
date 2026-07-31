@@ -19,7 +19,7 @@ import {
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
-import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
+import { OverviewDivergingBarChart } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
@@ -244,15 +244,15 @@ export function PlannedSection({
             )}
           </div>
 
-          {/* Overspend by category — overlaid "bar-in-bar": planned-average as a
-              grey reference bar with the real-average drawn on top, heat-coloured
-              by the real-vs-planned variance (>+10% red, <−10% yellow, else green).
-              Sorted most-overspent first so the critical categories sit at top;
-              the tooltip adds the difference amount + percent. */}
+          {/* Over / under budget, by category — PERCENT variance around a centre
+              line (260731, user request). Amounts made a big rent line dwarf a
+              small-but-3x-over coffee line; variance puts every category on one
+              scale. Right = spent more than planned, left = less, ±10% = on plan
+              (shaded band). Sorted most-over first so the problems sit at the top. */}
           {data.plannedAvgVsReal.length > 0 && (
             <div className="flex flex-col gap-2">
               <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
-              <OverviewOverlapBarChart
+              <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal
                   .map((c) => {
                     const real = Number(c.real_avg_cents);
@@ -265,32 +265,37 @@ export function PlannedSection({
                           : 0;
                     return { name: c.name, real, planned, pct };
                   })
-                  // Most overspent first → recharts renders it at the TOP.
                   .sort((a, b) => b.pct - a.pct)}
-                xKey="name"
-                // Planned = grey reference (bottom); real = heat-coloured overspend
-                // indicator on top.
-                base={{
-                  key: "planned",
-                  label: t("planned.planned"),
-                  color: NEUTRAL,
+                categoryKey="name"
+                valueKey="pct"
+                labels={{
+                  over: t("planned.bandOver"),
+                  under: t("planned.bandUnder"),
+                  onPlan: t("planned.bandOnPlan"),
                 }}
-                overlay={{ key: "real", label: t("planned.real") }}
-                overlayOpacity={0.72}
-                overlayColorByPoint={(row) => overspendHeat(Number(row.pct))}
                 tooltipExtra={(row) => {
                   const diff = Number(row.real) - Number(row.planned);
-                  const pct = Number(row.pct);
                   const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
-                  const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
                   return [
                     {
+                      label: t("planned.planned"),
+                      value: hideMoney
+                        ? "•••"
+                        : fmtTooltip(Number(row.planned)),
+                    },
+                    {
+                      label: t("planned.real"),
+                      value: hideMoney ? "•••" : fmtTooltip(Number(row.real)),
+                    },
+                    {
                       label: t("planned.difference"),
-                      value: `${hideMoney ? "•••" : `${sign}${fmtTooltip(Math.abs(diff))}`} · ${pctSign}${Math.abs(Math.round(pct))}%`,
+                      value: hideMoney
+                        ? "•••"
+                        : `${sign}${fmtTooltip(Math.abs(diff))}`,
+                      color: overspendHeat(Number(row.pct)),
                     },
                   ];
                 }}
-                formatValue={fmtY}
                 formatTooltip={fmtTooltip}
                 maskAmounts={amountPrivacyEnabled}
               />

@@ -317,8 +317,8 @@
           "description": "When the cushion balance falls short of the goal"
         },
         "INCOME_UNDER_PLANNED": {
-          "label": "Planned over available money",
-          "description": "When your planned spending exceeds your income plus available wallet funds"
+          "label": "Cash runs short",
+          "description": "When the forecast says your money runs out before your next income"
         },
         "TASK_COMPLETED": {
           "label": "Task completed",
@@ -778,7 +778,7 @@
       "RESERVE_TOPUP": "Top up reserve",
       "CUSHION_BELOW_TARGET": "Cushion below target",
       "CONFIRM_DRAFT": "Confirm spending",
-      "INCOME_UNDER_PLANNED": "Review spendings"
+      "INCOME_UNDER_PLANNED": "Cash runs short"
     },
     "attention_title": "Needs attention",
     "flow_title": "This month",
@@ -1438,7 +1438,10 @@
           "timelineTitle": "Planned vs actual spending, over time",
           "avgByCategory": "Over / under budget, by category",
           "avgPie": "Planned spendings, by category",
-          "difference": "Difference"
+          "difference": "Difference",
+          "bandOver": "Over plan",
+          "bandUnder": "Under plan",
+          "bandOnPlan": "On plan (±10%)"
         },
         "wealth": {
           "capitalization": "Capitalization",
@@ -1636,7 +1639,7 @@
         "RESERVE_TOPUP": "Top up reserve by {amount}",
         "CONFIRM_DRAFT": "{hasCategory, select, yes {Confirm {amount} — {category}} other {Confirm {amount}}}",
         "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
-        "INCOME_UNDER_PLANNED": "Planned spending exceeds your funds by {shortfall}",
+        "INCOME_UNDER_PLANNED": "You run {shortfall} short before your next income",
         "RESERVE_TOPUP_withdraw": "Reserve has {amount} extra"
       },
       "kind": {
@@ -1664,7 +1667,7 @@
         "RESERVE_TOPUP": "Your reserve wallets hold {amount} less than the sum allocated across reserve categories. You have two options: top up a reserve wallet (move money in) to match the category sum, or reduce some category reserve amounts so the sum drops back to the wallet balance.",
         "CONFIRM_DRAFT": "A recurring rule has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
         "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. You have three options: transfer money into a cushion-type wallet to cover the gap, lower the cushion target months in Settings → Cushion (smaller runway = smaller required cushion), or reduce some category limits so the average monthly spend drops.",
-        "INCOME_UNDER_PLANNED": "Your total planned spending is {planned}, but you only have {available} available — that's your income plus your wallet balances, and it's {shortfall} short. Open the Spendings tab and lower some category limits (or a manual Investments amount) until your plan fits what you have.",
+        "INCOME_UNDER_PLANNED": "Following your current plan, your money dips to {low} before your next income lands — {shortfall} short. Open the Spendings tab and lower some category limits, or move a payment, until the forecast stays above zero.",
         "RESERVE_TOPUP_withdraw": "Your reserve wallets hold {amount} more than the sum allocated across reserve categories. You have two options: withdraw the surplus from a reserve wallet, or redistribute the extra into category reserves (increase one or more category amounts so they add up to the wallet sum)."
       }
     }

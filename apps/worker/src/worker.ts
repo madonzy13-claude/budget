@@ -17,6 +17,7 @@ import {
   getSubscriptionsForBudget,
   deleteSubscription,
 } from "@budget/platform";
+import { computeCashflowProjection } from "@budget/budgeting/src/application/compute-cashflow-projection";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
@@ -275,6 +276,16 @@ async function main() {
     cushion: {
       taskRepo,
       fxProvider,
+    },
+    // 260731: the projected-shortfall sweep mirrors the Overview Surplus card, so
+    // it needs the cash-flow projection (not just fx).
+    incomeUnderPlanned: {
+      taskRepo,
+      fxProvider,
+      getProjection: computeCashflowProjection({
+        fxProvider,
+        reservePositions,
+      }),
     },
   };
   await boss.createQueue("budgeting-reconciliation");
