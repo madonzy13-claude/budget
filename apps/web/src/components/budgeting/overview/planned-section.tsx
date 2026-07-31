@@ -280,6 +280,9 @@ export function PlannedSection({
                     color: CHART_THEME.neutral,
                     fillOpacity: 0.22,
                     strokeGradientStops: actualStops,
+                    // Straight segments: the gradient cut is computed on the same
+                    // straight lines, so the colour changes ON the intersection.
+                    curve: "linear" as const,
                   },
                 ]}
                 // The hovered point's own row turns red once it is past the plan.

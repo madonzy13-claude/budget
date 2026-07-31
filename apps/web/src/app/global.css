@@ -148,7 +148,8 @@
     --chart-bar-2: #14b8a6;
     --chart-bar-3: #a855f7; /* purple — distinct 3rd/4th pie slice */
     --chart-bar-4: #ec4899; /* rose — 5th pie slice (possessions); reads on both themes */
-    --chart-bar-5: #f97316; /* orange — WANTS band, one step warmer than the yellow NEEDS */
+    --chart-bar-5: #f5a524; /* amber — WANTS band, ONE step warmer than the yellow
+                               NEEDS (#f97316 orange read as a different colour) */
 
     /* Canvas + surface */
     --canvas-dark: #0b0e11;

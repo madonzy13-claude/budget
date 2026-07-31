@@ -169,7 +169,7 @@ export function OverviewAreaChart({
           return (
             <Area
               key={s.key}
-              type="monotone"
+              type={s.curve ?? "monotone"}
               dataKey={s.key}
               name={s.label}
               stackId={s.stack}

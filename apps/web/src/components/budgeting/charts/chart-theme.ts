@@ -86,4 +86,8 @@ export interface ChartSeries {
    *  crosses another (see lib/actual-over-plan) — recharts has no per-segment
    *  styling, and an SVG gradient cuts at the exact crossing, not at a point. */
   strokeGradientStops?: Array<{ offset: number; color: string }>;
+  /** Curve interpolation for this series. "linear" keeps the drawn line exactly
+   *  on the straight segments the crossing maths assumes (see
+   *  lib/actual-over-plan); the default monotone spline bows off them. */
+  curve?: "monotone" | "linear";
 }
