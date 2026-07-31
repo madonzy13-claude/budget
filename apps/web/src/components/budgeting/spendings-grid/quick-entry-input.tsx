@@ -14,6 +14,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { parseAmountAndNote } from "@/lib/decimal";
 import { useCreateTransaction } from "@/hooks/use-create-transaction";
+import { addPendingSpending } from "@/lib/pending-spendings";
 import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 
 export interface QuickEntryInputProps {
@@ -23,15 +24,6 @@ export interface QuickEntryInputProps {
   month: string; // YYYY-MM viewed
   budgetCurrency: string;
   resolvedDate: string; // ISO YYYY-MM-DD — passed in, computed by parent
-  /**
-   * 260615-bse: invoked when an add is attempted while offline — the grid hosts
-   * a single shared dialog and opens it here. Two paths converge on this:
-   *  1. device-knows-offline (navigator.onLine===false) → short-circuit BEFORE
-   *     mutate so NO optimistic row is inserted (no add-then-remove flicker);
-   *  2. lying-true (onLine reports true on a dead link) → wired as the hook's
-   *     onOfflineError so the same dialog opens after the optimistic rollback.
-   */
-  onOfflineAttempt: () => void;
 }
 
 export function QuickEntryInput({
@@ -41,10 +33,10 @@ export function QuickEntryInput({
   month,
   budgetCurrency,
   resolvedDate,
-  onOfflineAttempt,
 }: QuickEntryInputProps) {
   const t = useTranslations("grid.quickEntry");
   const tError = useTranslations("grid.error");
+  const tTxn = useTranslations("grid.txn");
   const [value, setValue] = useState("");
   // 260722-d: numeric keyboard by default; the ABC/123 button flips it to text
   // so a note can be typed after the amount + a space.
@@ -59,10 +51,33 @@ export function QuickEntryInput({
   // same (stale) value a second time and insert a duplicate row.
   const justEdgeSubmittedRef = useRef(false);
   // Lying-true case: an OfflineWriteError (timeout / dead link with onLine===true)
-  // opens the SAME dialog as the pre-insert path after rolling back.
+  // rolls the optimistic row back — we re-add it to the local queue so the entry
+  // is never lost, exactly like the device-knows-offline path below.
   const { mutate } = useCreateTransaction(budgetId, month, {
-    onOfflineError: onOfflineAttempt,
+    onOfflineError: (input) =>
+      queueOffline(input.amountCents, input.note ?? null, input.date),
   });
+
+  /** 260731-osq: keep the spending locally (persisted) + bottom toast. */
+  function queueOffline(
+    amountCents: number,
+    note: string | null,
+    date: string,
+  ) {
+    addPendingSpending({
+      budgetId,
+      month,
+      categoryId,
+      // Stored so an offline cold start (no cached category list) can still
+      // label the queued row.
+      categoryName,
+      amountCents,
+      currency: budgetCurrency,
+      date,
+      note,
+    });
+    toast.success(tTxn("pending.queued"));
+  }
 
   // silent = blur path: don't toast on an invalid value, just leave it.
   function submit(silent = false) {
@@ -76,12 +91,13 @@ export function QuickEntryInput({
     }
     // D-PH4-Q1: clear input first, then optimistic insert
     setValue("");
-    // 260615-bse: device-knows-offline → pop the dialog and DO NOT mutate, so
-    // onMutate never runs → no optimistic row → no add-then-remove flicker.
-    // (navigator.onLine===false is the only reliable signal on iOS; the `true`
-    // value lies on a dead link — that case is caught by onOfflineError above.)
+    // 260731-osq: device-knows-offline → queue it locally and DO NOT mutate, so
+    // no doomed POST is issued. The entry renders as a pending row and flushes
+    // when the connection returns. (navigator.onLine===false is the only
+    // reliable signal on iOS; the `true` value lies on a dead link — that case
+    // is caught by onOfflineError above and queued the same way.)
     if (navigator.onLine === false) {
-      onOfflineAttempt();
+      queueOffline(parsed.cents, parsed.note, resolvedDate);
       return;
     }
     mutate({

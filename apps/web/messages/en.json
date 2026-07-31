@@ -693,7 +693,8 @@
         "dragAria": "Drag to reorder {name}.",
         "qty": "Qty: {qty}",
         "started": "Started: {amount}",
-        "share": "Share: {pct}"
+        "share": "Share: {pct}",
+        "amountAria": "Edit value of {name}"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
@@ -1723,11 +1724,6 @@
       }
     },
     "expensesTitle": "Expenses",
-    "offlineDialog": {
-      "title": "Can't add while offline",
-      "body": "You're offline, so this expense can't be saved right now. Reconnect to the internet and try again.",
-      "ok": "Got it"
-    },
     "deleteCategory": {
       "title": "Delete category permanently?",
       "body": "This permanently deletes {name} and all of its transactions, limits and history. This cannot be undone.",
@@ -1755,6 +1751,11 @@
       "write": {
         "offline": "You're offline — can't add right now. Try again when you reconnect.",
         "failed": "Couldn't add the transaction. Please try again."
+      },
+      "pending": {
+        "queued": "Saved on this device — it'll sync when you're back online.",
+        "badge": "Waiting for connection — saves automatically",
+        "waiting": "Waiting to sync"
       }
     },
     "lastAdded": "Last spending added {when}",

@@ -693,7 +693,8 @@
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
         "qty": "Ilość: {qty}",
         "started": "Początek: {amount}",
-        "share": "Udział: {pct}"
+        "share": "Udział: {pct}",
+        "amountAria": "Edytuj wartość {name}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
@@ -1746,11 +1747,6 @@
       }
     },
     "expensesTitle": "Wydatki",
-    "offlineDialog": {
-      "title": "Nie można dodać w trybie offline",
-      "body": "Jesteś offline, więc tego wydatku nie można teraz zapisać. Połącz się z internetem i spróbuj ponownie.",
-      "ok": "Rozumiem"
-    },
     "deleteCategory": {
       "title": "Usunąć kategorię na stałe?",
       "body": "Spowoduje to trwałe usunięcie kategorii {name} oraz wszystkich jej transakcji, limitów i historii. Tej operacji nie można cofnąć.",
@@ -1778,6 +1774,11 @@
       "write": {
         "offline": "Jesteś offline — nie można teraz dodać. Spróbuj ponownie po ponownym połączeniu.",
         "failed": "Nie udało się dodać transakcji. Spróbuj ponownie."
+      },
+      "pending": {
+        "queued": "Zapisano na tym urządzeniu — prześlemy, gdy wrócisz online.",
+        "badge": "Czeka na połączenie — zapisze się automatycznie",
+        "waiting": "Czeka na synchronizację"
       }
     },
     "lastAdded": "Ostatni wydatek dodano {when}",

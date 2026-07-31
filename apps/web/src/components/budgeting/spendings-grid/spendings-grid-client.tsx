@@ -34,6 +34,7 @@ import {
 import { Temporal } from "temporal-polyfill";
 import { CategoryColumn } from "./category-column";
 import { AddCategoryColumn } from "./add-category-column";
+import { PendingSpendingsFallback } from "./pending-spendings-fallback";
 import { MonthNavigator } from "./month-navigator";
 import { SlideOnChange } from "@/components/common/slide-on-change";
 import { TransactionSlider } from "../transaction-slider";
@@ -70,6 +71,7 @@ import {
 } from "@/hooks/use-spendings-summary";
 import { useTransactions, type TxnDTO } from "@/hooks/use-transactions";
 import { useDrafts, type DraftDTO } from "@/hooks/use-drafts";
+import { usePendingSpendings } from "@/hooks/use-pending-spendings";
 import type { SpendingsSummaryCategoryDTO } from "./category-column";
 
 export interface CategoryDTO {
@@ -221,6 +223,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   const summary = useSpendingsSummary(budgetId, month);
   const txns = useTransactions(budgetId, month);
   const drafts = useDrafts(budgetId, month);
+  // Spendings typed while offline — local, persisted, merged into the columns
+  // below until PendingSpendingsFlusher lands them on the server.
+  const pendingSpendings = usePendingSpendings(budgetId, month);
   // localCategoryOrder seeds from this (replaces the old props.initialCategories
   // re-sync). Same key the mutation hooks invalidate: ["budget",id,"categories"].
   const categoriesQuery = useCategories(budgetId);
@@ -355,10 +360,6 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     return () => document.removeEventListener("keydown", onKey, true);
   }, []);
   const offlineToast = useOfflineWriteToast();
-  // 260615-bse: one shared offline dialog for the whole grid. Both the
-  // device-knows-offline pre-insert short-circuit (quick-entry) and the
-  // lying-true rollback (useCreateTransaction.onOfflineError) open it.
-  const [offlineDialogOpen, setOfflineDialogOpen] = useState(false);
   // Permanent-delete confirm for an archived column's trash.
   const [deleteCat, setDeleteCat] = useState<{
     id: string;
@@ -843,8 +844,27 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     for (const list of m.values()) {
       list.sort((a, b) => b.transactionDate.localeCompare(a.transactionDate));
     }
+    // 260731-osq: spendings queued while offline render as `pending` rows at the
+    // TOP of their column (they are the most recent thing the user typed) until
+    // the flusher lands them on the server.
+    for (const p of pendingSpendings) {
+      m.set(p.categoryId, [
+        {
+          id: p.id,
+          categoryId: p.categoryId,
+          amountConvertedCents: String(p.amountCents),
+          currencyConverted: p.currency,
+          transactionDate: p.date,
+          note: p.note,
+          createdAt: p.createdAt,
+          confirmedAt: p.createdAt,
+          pending: true,
+        },
+        ...(m.get(p.categoryId) ?? []),
+      ]);
+    }
     return m;
-  }, [txns.data]);
+  }, [txns.data, pendingSpendings]);
 
   const draftsByCatId = useMemo(() => {
     const m = new Map<string, DraftDTO[]>();
@@ -913,6 +933,13 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
   // Feed the current column names to the type-ahead listener (see the keydown
   // effect). Render-time ref write is fine — no state, no re-render.
   typeaheadNamesRef.current = visibleCategories.map((c) => c.name);
+
+  // Queued spendings whose category has no column right now (offline cold start
+  // with an empty cache, or a category that only exists server-side yet).
+  const orphanPending = useMemo(() => {
+    const shown = new Set(visibleCategories.map((c) => c.id));
+    return pendingSpendings.filter((p) => !shown.has(p.categoryId));
+  }, [pendingSpendings, visibleCategories]);
 
   // Cold load = no cached summary/categories yet. A warm re-nav has both from
   // the persisted React Query cache → real columns render immediately (zero
@@ -987,6 +1014,14 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
             token={monthSlideToken}
             className="flex gap-2 w-fit mx-auto"
           >
+            {/* 260731-osq round 3: spendings queued while offline must stay on
+                screen after a reload EVEN when there is no cached category data
+                to build columns from (offline cold start) — otherwise the entry
+                looks lost until it flushes. Rendered only for entries no column
+                is showing. */}
+            {orphanPending.length > 0 && (
+              <PendingSpendingsFallback entries={orphanPending} />
+            )}
             {isColdLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <ColumnSkeleton key={i} />
@@ -1032,7 +1067,6 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
                         setDeleteCat({ id: c.id, name: c.name })
                       }
                       onUnarchive={() => void unarchiveCategory(c.id)}
-                      onOfflineAttempt={() => setOfflineDialogOpen(true)}
                     />
                   ))}
                 </SortableContext>
@@ -1164,29 +1198,6 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {tDel("confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* 260615-bse: shared offline-add dialog. Opened by any column's
-          quick-entry when an add is attempted offline — the popup-BEFORE-insert
-          path (no optimistic row) and the rare lying-true rollback both route
-          here. Single AlertDialogAction (OK) just closes it. */}
-      <AlertDialog open={offlineDialogOpen} onOpenChange={setOfflineDialogOpen}>
-        <AlertDialogContent data-testid="offline-add-dialog">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{tGrid("offlineDialog.title")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {tGrid("offlineDialog.body")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              data-testid="offline-add-dialog-ok"
-              onClick={() => setOfflineDialogOpen(false)}
-            >
-              {tGrid("offlineDialog.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -84,15 +84,14 @@ export function recomputeOptimistic(
 }
 
 /**
- * 260615-bse: optional callbacks. `onOfflineError` is invoked (instead of the
- * offline toast) when the write fails with OfflineWriteError — the rare iOS
- * "lying-true" case (onLine reports true on a dead link). The caller surfaces
- * the SAME offline dialog used by the device-knows-offline pre-insert path, so
- * both paths converge on one dialog instead of a toast. When `onOfflineError`
- * is absent, the prior offline toast is kept for back-compat.
+ * 260731-osq: `onOfflineError` is invoked (instead of the offline toast) when
+ * the write fails with OfflineWriteError — the iOS "lying-true" case (onLine
+ * reports true on a dead link). It receives the INPUT that was rolled back so
+ * the caller can queue it locally (pending-spendings) exactly like the
+ * device-knows-offline path. Absent → the prior offline toast, for back-compat.
  */
 export interface UseCreateTransactionOptions {
-  onOfflineError?: () => void;
+  onOfflineError?: (input: CreateTransactionInput) => void;
 }
 
 export function useCreateTransaction(
@@ -203,7 +202,7 @@ export function useCreateTransaction(
       return { previous, optimisticId };
     },
 
-    onError: (err, _input, ctx) => {
+    onError: (err, input, ctx) => {
       // Roll back the optimistic row to the exact prior cache, and re-invalidate
       // the summary so the optimistic spent bump reverts to the engine value.
       if (ctx) {
@@ -211,14 +210,14 @@ export function useCreateTransaction(
       }
       qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
 
-      // 260615-bse: lying-true case (onLine===true on a dead link) — the
+      // 260731-osq: lying-true case (onLine===true on a dead link) — the
       // optimistic row was inserted in onMutate and just rolled back above.
-      // Surface the SAME offline dialog as the device-knows-offline path
-      // (instead of a toast) when the caller wired onOfflineError. Genuine
-      // 4xx errors always keep the generic write.failed toast.
+      // Hand the input back so the caller can QUEUE it (pending row) exactly as
+      // the device-knows-offline path does. Genuine 4xx errors always keep the
+      // generic write.failed toast.
       if (err instanceof OfflineWriteError) {
         if (opts?.onOfflineError) {
-          opts.onOfflineError();
+          opts.onOfflineError(input);
         } else {
           toast.error(t("write.offline"));
         }

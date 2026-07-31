@@ -110,6 +110,10 @@ vi.mock("@radix-ui/react-dialog", async (importOriginal) => {
 });
 
 import { SpendingsGridClient } from "@/components/budgeting/spendings-grid/spendings-grid-client";
+import {
+  addPendingSpending,
+  listPendingSpendings,
+} from "@/lib/pending-spendings";
 
 // SPA refactor (260616): SpendingsGridClient is fully client-data — it takes
 // only { budgetId } and reads everything from React Query. Tests seed the cache
@@ -244,6 +248,7 @@ function renderGrid() {
 describe("SpendingsGridClient", () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    localStorage.clear();
     // URL-aware mock — the background refetch (refetchOnMount:"always") + the
     // month-preload prefetch all hit this; return the matching fixture so the
     // seeded UI stays stable.
@@ -348,14 +353,124 @@ describe("SpendingsGridClient", () => {
     expect(screen.getByTestId("draft-row-monthly rent")).toBeTruthy();
   });
 
-  // 260615-bse: the shared offline AlertDialog is hosted ONCE in the grid and
-  // is CLOSED initially (Radix AlertDialog content is not mounted until open).
-  it("offline add dialog is hosted in the grid and closed initially", () => {
+  // 260731-osq: the offline AlertDialog is GONE — an offline add is queued and
+  // rendered as a pending row in its own column instead.
+  it("no offline add dialog exists anymore", () => {
     renderGrid();
-    // Closed → content (with its testid + title) is not rendered yet.
     expect(
       document.querySelector("[data-testid='offline-add-dialog']"),
     ).toBeNull();
-    expect(screen.queryByText("offlineDialog.title")).toBeNull();
+  });
+
+  it("renders queued offline spendings as pending rows in their category", () => {
+    addPendingSpending({
+      budgetId: "budget-1",
+      month: "2026-05",
+      categoryId: "cat-1",
+      amountCents: 777,
+      currency: "USD",
+      date: "2026-05-13",
+      note: null,
+    });
+    renderGrid();
+    const column = screen.getByTestId("category-column-cat-1");
+    const pendingRow = screen.getByTestId("txn-row-777");
+    expect(column.contains(pendingRow)).toBe(true);
+    expect(screen.getByTestId("txn-row-pending")).toBeTruthy();
+    // Pending rows sit ABOVE the already-saved ones.
+    const rows = Array.from(
+      column.querySelectorAll("[data-testid^='txn-row-']"),
+    );
+    expect(rows[0]).toBe(pendingRow);
+  });
+
+  // 260731-osq round 3 (user report): after an offline reload the queued row
+  // must STILL be on screen. It was not when the persisted query cache was gone
+  // (cold offline launch) — no categories → no columns → nothing to render it in.
+  it("renders queued spendings even when no category data is cached", () => {
+    addPendingSpending({
+      budgetId: "budget-1",
+      month: "2026-05",
+      categoryId: "cat-1",
+      categoryName: "Groceries",
+      amountCents: 777,
+      currency: "USD",
+      date: "2026-05-13",
+      note: "coffee",
+    });
+    const qc = makeTestQueryClient();
+    // Nothing cached at all — the offline cold-start case.
+    render(
+      <TestQueryProvider client={qc}>
+        <SpendingsGridClient budgetId="budget-1" />
+      </TestQueryProvider>,
+    );
+    const card = screen.getByTestId("pending-spendings-fallback");
+    expect(card.textContent).toContain("Groceries");
+    expect(screen.getByTestId("txn-row-777")).toBeTruthy();
+  });
+
+  it("the fallback card's delete drops the queued spending locally", () => {
+    addPendingSpending({
+      budgetId: "budget-1",
+      month: "2026-05",
+      categoryId: "cat-1",
+      categoryName: "Groceries",
+      amountCents: 777,
+      currency: "USD",
+      date: "2026-05-13",
+      note: null,
+    });
+    const qc = makeTestQueryClient();
+    render(
+      <TestQueryProvider client={qc}>
+        <SpendingsGridClient budgetId="budget-1" />
+      </TestQueryProvider>,
+    );
+    fireEvent.click(screen.getByTestId("pending-fallback-delete-777"));
+    expect(listPendingSpendings()).toHaveLength(0);
+    expect(screen.queryByTestId("txn-row-777")).toBeNull();
+  });
+
+  it("does not duplicate a queued row that its category column already shows", () => {
+    addPendingSpending({
+      budgetId: "budget-1",
+      month: "2026-05",
+      categoryId: "cat-1",
+      categoryName: "Groceries",
+      amountCents: 777,
+      currency: "USD",
+      date: "2026-05-13",
+      note: null,
+    });
+    renderGrid();
+    expect(
+      document.querySelector("[data-testid='pending-spendings-fallback']"),
+    ).toBeNull();
+    expect(screen.getAllByTestId("txn-row-777")).toHaveLength(1);
+  });
+
+  it("ignores queued spendings from another budget or month", () => {
+    addPendingSpending({
+      budgetId: "budget-2",
+      month: "2026-05",
+      categoryId: "cat-1",
+      amountCents: 777,
+      currency: "USD",
+      date: "2026-05-13",
+      note: null,
+    });
+    addPendingSpending({
+      budgetId: "budget-1",
+      month: "2026-04",
+      categoryId: "cat-1",
+      amountCents: 888,
+      currency: "USD",
+      date: "2026-04-13",
+      note: null,
+    });
+    renderGrid();
+    expect(screen.queryByTestId("txn-row-777")).toBeNull();
+    expect(screen.queryByTestId("txn-row-888")).toBeNull();
   });
 });

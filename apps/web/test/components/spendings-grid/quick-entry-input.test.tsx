@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QuickEntryInput } from "../../../src/components/budgeting/spendings-grid/quick-entry-input";
+import { listPendingSpendings } from "../../../src/lib/pending-spendings";
 import { TestQueryProvider } from "../../setup/query-client";
 
 const mockMutate = vi.fn();
@@ -13,8 +14,12 @@ vi.mock("../../../src/hooks/use-create-transaction", () => ({
 }));
 
 const mockToast = vi.fn();
+const mockToastSuccess = vi.fn();
 vi.mock("sonner", () => ({
-  toast: { error: (...args: unknown[]) => mockToast(...args) },
+  toast: {
+    error: (...args: unknown[]) => mockToast(...args),
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+  },
 }));
 
 vi.mock("next-intl", () => ({
@@ -25,8 +30,6 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 
-const mockOnOfflineAttempt = vi.fn();
-
 const defaultProps = {
   categoryId: "cat-1",
   categoryName: "Groceries",
@@ -34,7 +37,6 @@ const defaultProps = {
   month: "2026-05",
   budgetCurrency: "USD",
   resolvedDate: "2026-05-13",
-  onOfflineAttempt: mockOnOfflineAttempt,
 };
 
 function setOnline(value: boolean) {
@@ -56,7 +58,8 @@ describe("QuickEntryInput", () => {
   beforeEach(() => {
     mockMutate.mockClear();
     mockToast.mockClear();
-    mockOnOfflineAttempt.mockClear();
+    mockToastSuccess.mockClear();
+    localStorage.clear();
     setOnline(true);
   });
 
@@ -160,9 +163,9 @@ describe("QuickEntryInput", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  // 260615-bse: device-knows-offline path — pop the dialog BEFORE any insert
-  // (no mutate → no optimistic row → no add-then-remove flicker).
-  it("offline Enter: calls onOfflineAttempt, does NOT mutate, clears input", async () => {
+  // 260731-osq: offline keeps the entry. It is QUEUED locally (persisted) and a
+  // bottom toast says it saves once back online — no popup, no rollback.
+  it("offline Enter: queues the spending, does NOT mutate, clears input", async () => {
     setOnline(false);
     renderInput();
     const input = screen.getByTestId(
@@ -170,19 +173,39 @@ describe("QuickEntryInput", () => {
     ) as HTMLInputElement;
     await userEvent.type(input, "5.96");
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(mockOnOfflineAttempt).toHaveBeenCalledTimes(1);
     expect(mockMutate).not.toHaveBeenCalled();
     expect(input.value).toBe("");
+    const queued = listPendingSpendings("budget-1", "2026-05");
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({
+      categoryId: "cat-1",
+      amountCents: 596,
+      currency: "USD",
+      date: "2026-05-13",
+    });
+    expect(mockToastSuccess).toHaveBeenCalled();
   });
 
-  it("offline blur: calls onOfflineAttempt and does NOT mutate", async () => {
+  it("offline blur: queues the spending and does NOT mutate", async () => {
     setOnline(false);
     renderInput();
     const input = screen.getByTestId("quick-entry-groceries");
     await userEvent.type(input, "12.50");
     fireEvent.blur(input);
-    expect(mockOnOfflineAttempt).toHaveBeenCalledTimes(1);
     expect(mockMutate).not.toHaveBeenCalled();
+    expect(listPendingSpendings("budget-1", "2026-05")).toHaveLength(1);
+  });
+
+  it("offline with a note: the note rides along into the queued entry", async () => {
+    setOnline(false);
+    renderInput();
+    const input = screen.getByTestId("quick-entry-groceries");
+    await userEvent.type(input, "5.96 lunch");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(listPendingSpendings()[0]).toMatchObject({
+      amountCents: 596,
+      note: "lunch",
+    });
   });
 
   // r40 chaining: desktop chains via Enter — the save must never drop focus,
@@ -358,7 +381,7 @@ describe("QuickEntryInput", () => {
     });
   });
 
-  it("online Enter: mutates as before and does NOT call onOfflineAttempt", async () => {
+  it("online Enter: mutates as before and queues nothing", async () => {
     setOnline(true);
     renderInput();
     const input = screen.getByTestId("quick-entry-groceries");
@@ -367,6 +390,6 @@ describe("QuickEntryInput", () => {
     expect(mockMutate).toHaveBeenCalledWith(
       expect.objectContaining({ amountCents: 596 }),
     );
-    expect(mockOnOfflineAttempt).not.toHaveBeenCalled();
+    expect(listPendingSpendings()).toHaveLength(0);
   });
 });

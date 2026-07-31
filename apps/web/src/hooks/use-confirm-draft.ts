@@ -12,7 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
-import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
+import { addPendingDraftConfirm } from "@/lib/pending-spendings";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 
 export interface ConfirmDraftInput {
@@ -23,7 +23,7 @@ export interface ConfirmDraftInput {
 export function useConfirmDraft(budgetId: string, month: string) {
   const qc = useQueryClient();
   const t = useTranslations("grid.txn.write");
-  const offlineToast = useOfflineWriteToast();
+  const tPending = useTranslations("grid.txn.pending");
 
   return useMutation({
     mutationFn: async (input: ConfirmDraftInput) => {
@@ -48,10 +48,18 @@ export function useConfirmDraft(budgetId: string, month: string) {
       return null;
     },
 
-    onError: (err: unknown) => {
-      // Honest-offline: refused write shows the shared offline toast, not generic.
+    onError: (err: unknown, input: ConfirmDraftInput) => {
+      // 260731-osq round 2: an offline / unreachable confirm is QUEUED (like an
+      // offline quick-add) and replayed on reconnect instead of being lost. The
+      // draft row shows a retry marker until it lands.
       if (isOfflineWriteError(err)) {
-        offlineToast();
+        addPendingDraftConfirm({
+          budgetId,
+          month,
+          draftId: input.draftId,
+          amountOverrideCents: input.amountOverride ?? null,
+        });
+        toast.success(tPending("queued"));
         return;
       }
       toast.error(t("failed"));

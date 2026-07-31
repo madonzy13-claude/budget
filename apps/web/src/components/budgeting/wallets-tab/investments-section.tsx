@@ -55,6 +55,7 @@ import { centsToBare } from "@/lib/cents-format";
 import { useBudget } from "@/hooks/use-budget-data";
 import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
+import { parseDecimal } from "@/lib/decimal";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { useArchiveHolding } from "@/hooks/use-archive-holding";
 import {
@@ -281,6 +282,21 @@ export function InvestmentsSection({
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const archiveMut = useArchiveHolding(budgetId);
+
+  /**
+   * 260731: inline value edit on a manual-value row (cash / broker / savings —
+   * quantity is 1, so the typed number IS the current value). Only the CURRENT
+   * price moves; the buy price stays the cost basis, so savings keeps its
+   * "started at" figure and the %-change stays honest.
+   */
+  async function saveInlineValue(holdingId: string, amount: string) {
+    const cents = parseDecimal(amount);
+    if (cents === null) return;
+    await updateMut.mutateAsync({
+      holdingId,
+      currentPriceCents: String(cents),
+    });
+  }
 
   // ── Sheet state (single shared instance for add + edit) ──
   const [sheet, setSheet] = useState<{
@@ -720,6 +736,9 @@ export function InvestmentsSection({
                             maxAmountChars={maxAmountChars}
                             onEdit={openEdit}
                             onArchive={(id) => archiveMut.mutate(id)}
+                            onValueChange={(amount) =>
+                              saveInlineValue(h.id, amount)
+                            }
                           />
                         ))
                       : []),
@@ -732,6 +751,9 @@ export function InvestmentsSection({
                       maxAmountChars={maxAmountChars}
                       onEdit={openEdit}
                       onArchive={(id) => archiveMut.mutate(id)}
+                      onValueChange={(amount) =>
+                        saveInlineValue(entry.holding.id, amount)
+                      }
                     />,
                   ],
             )}

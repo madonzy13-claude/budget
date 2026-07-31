@@ -16,6 +16,8 @@
 import { useState, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { TrendingUp, TrendingDown, Trash2 } from "lucide-react";
+import { InlineEditCell } from "@/components/common/inline-edit-cell";
+import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { holdingIcon } from "@/lib/investment-icons";
@@ -35,6 +37,13 @@ interface InvestmentRowProps {
   maxAmountChars?: number;
   onEdit?: () => void;
   onDelete?: () => void;
+  /**
+   * 260731: save an inline-edited VALUE (decimal string, row currency) for
+   * manual-value holdings — cash / broker / savings, where quantity is 1 so the
+   * typed number IS the stored value. Omitted (or absent for a tracked / deposit
+   * holding) → the amount stays read-only and the row opens the sheet as before.
+   */
+  onValueChange?: (amount: string) => Promise<void> | void;
 }
 
 /** Signed %, 1 decimal, with a real minus sign (U+2212). */
@@ -50,6 +59,7 @@ export function InvestmentRow({
   maxAmountChars,
   onEdit,
   onDelete,
+  onValueChange,
 }: InvestmentRowProps) {
   const locale = useLocale();
   const t = useTranslations("budget.investments");
@@ -108,6 +118,12 @@ export function InvestmentRow({
     : holding.quantity;
   // Savings: show the starting amount ("Started: $X") in the expanded caption
   // where qty would go — the %change already shows current-vs-starting.
+  // 260731: value is STORED (quantity 1), not derived from a market price or an
+  // interest formula — so a typed number can simply be saved. Tracked holdings
+  // (qty × price) and deposits (rate-computed) keep the sheet.
+  const valueIsManual =
+    !!onValueChange &&
+    (isCash || holding.uiType === "broker" || holding.uiType === "savings");
   const isSavings = holding.uiType === "savings";
   const startedDisplay =
     isSavings && holding.buyPriceCents != null
@@ -337,17 +353,42 @@ export function InvestmentRow({
           <div
             className="text-right tabular-nums"
             style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
+            // The whole row body is a click target (expand / open sheet); a click
+            // meant for the inline editor must not also fire that.
+            onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}
           >
-            <span
-              className={[
-                "text-num-md",
-                delisted
-                  ? "text-[var(--muted-strong)]"
-                  : "text-[var(--body-on-dark)]",
-              ].join(" ")}
-            >
-              {value}
-            </span>
+            {valueIsManual ? (
+              <InlineEditCell
+                value={centsToBare(holding.valueCents).replace(/[^0-9.-]/g, "")}
+                ariaLabel={t("row.amountAria", { name: holding.name })}
+                testId={`holding-amount-${holding.id}`}
+                render={() => <span className="text-num-md">{value}</span>}
+                renderEditor={(draft, onChange) => (
+                  <Input
+                    autoFocus
+                    type="text"
+                    inputMode="decimal"
+                    defaultValue={draft}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="h-9 text-right"
+                  />
+                )}
+                onSave={async (v) => {
+                  await onValueChange?.(v);
+                }}
+              />
+            ) : (
+              <span
+                className={[
+                  "text-num-md",
+                  delisted
+                    ? "text-[var(--muted-strong)]"
+                    : "text-[var(--body-on-dark)]",
+                ].join(" ")}
+              >
+                {value}
+              </span>
+            )}
           </div>
         </div>
         {/* Desktop: weight% last. */}

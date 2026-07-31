@@ -7,6 +7,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, createEvent } from "@testing-library/react";
 import { TransactionRow } from "../../../src/components/budgeting/spendings-grid/transaction-row";
+import {
+  addPendingSpending,
+  listPendingSpendings,
+} from "../../../src/lib/pending-spendings";
 import { TestQueryProvider } from "../../setup/query-client";
 
 const mockDeleteMutate = vi.fn();
@@ -24,6 +28,16 @@ vi.mock("next-intl", () => ({
     return key;
   },
   useLocale: () => "en",
+}));
+
+// 260731-osq: the row hides write chips while the connection is degraded.
+let mockStatus: "online" | "offline" | "server-down" = "online";
+vi.mock("../../../src/components/common/connectivity-provider", () => ({
+  useConnectivity: () => ({
+    status: mockStatus,
+    degraded: mockStatus !== "online",
+    reason: mockStatus,
+  }),
 }));
 
 const txn = {
@@ -68,6 +82,8 @@ describe("TransactionRow", () => {
     mockDeleteMutate.mockClear();
     mockUpdateMutate.mockClear();
     setHoverCapable(true);
+    mockStatus = "online";
+    localStorage.clear();
   });
 
   it("has data-testid=txn-row-1500 (amountConvertedCents)", () => {
@@ -419,6 +435,104 @@ describe("TransactionRow", () => {
       expect(screen.queryByDisplayValue("15")).toBeNull();
       fireEvent.keyDown(row, { key: "Backspace" });
       expect(screen.queryByTestId("txn-row-delete-confirm")).toBeNull();
+    });
+  });
+
+  // 260731-osq: a spending added offline stays on screen as a PENDING row.
+  describe("pending (queued offline) rows", () => {
+    function queueRow() {
+      const entry = addPendingSpending({
+        budgetId: "budget-1",
+        month: "2026-05",
+        categoryId: "cat-1",
+        amountCents: 1500,
+        currency: "USD",
+        date: "2026-05-14",
+        note: null,
+      });
+      return { entry, txn: { ...txn, id: entry.id, pending: true } };
+    }
+
+    it("shows a retry marker so the row reads as not-yet-saved", () => {
+      const { txn: pendingTxn } = queueRow();
+      renderRow({ txn: pendingTxn });
+      expect(screen.getByTestId("txn-row-pending")).toBeTruthy();
+    });
+
+    it("a saved row shows no retry marker", () => {
+      renderRow();
+      expect(screen.queryByTestId("txn-row-pending")).toBeNull();
+    });
+
+    it("offers delete but NOT edit (nothing to edit server-side yet)", () => {
+      const { txn: pendingTxn } = queueRow();
+      renderRow({ txn: pendingTxn });
+      fireEvent.focus(screen.getByTestId("txn-row-1500"));
+      expect(screen.queryByTestId("txn-action-edit")).toBeNull();
+      expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
+    });
+
+    it("delete drops the queued entry locally, without a server call", () => {
+      const { txn: pendingTxn } = queueRow();
+      renderRow({ txn: pendingTxn });
+      fireEvent.focus(screen.getByTestId("txn-row-1500"));
+      fireEvent.click(screen.getByTestId("txn-action-delete"));
+      fireEvent.click(screen.getByTestId("txn-row-delete-confirm"));
+      expect(listPendingSpendings()).toHaveLength(0);
+      expect(mockDeleteMutate).not.toHaveBeenCalled();
+    });
+
+    it("its delete stays available while offline", () => {
+      mockStatus = "offline";
+      const { txn: pendingTxn } = queueRow();
+      renderRow({ txn: pendingTxn });
+      fireEvent.focus(screen.getByTestId("txn-row-1500"));
+      expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
+    });
+
+    it("inline amount edit is disabled (Enter opens no editor)", () => {
+      const { txn: pendingTxn } = queueRow();
+      renderRow({ txn: pendingTxn });
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      expect(screen.queryByDisplayValue("15")).toBeNull();
+    });
+  });
+
+  // 260731-osq: offline the grid is read-only for SAVED rows — no pen anywhere,
+  // no trash on rows that already live on the server.
+  describe("offline chip gating", () => {
+    it("hides both the pen and the trash on a saved row", () => {
+      mockStatus = "offline";
+      renderRow();
+      fireEvent.focus(screen.getByTestId("txn-row-1500"));
+      expect(screen.queryByTestId("txn-action-edit")).toBeNull();
+      expect(screen.queryByTestId("txn-action-delete")).toBeNull();
+    });
+
+    it("hides them when the server is unreachable too", () => {
+      mockStatus = "server-down";
+      renderRow();
+      fireEvent.focus(screen.getByTestId("txn-row-1500"));
+      expect(screen.queryByTestId("txn-action-edit")).toBeNull();
+      expect(screen.queryByTestId("txn-action-delete")).toBeNull();
+    });
+
+    it("blocks the inline amount edit while offline", () => {
+      mockStatus = "offline";
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: "Enter" });
+      expect(screen.queryByDisplayValue("15")).toBeNull();
+    });
+
+    it("keeps both chips online", () => {
+      renderRow();
+      fireEvent.focus(screen.getByTestId("txn-row-1500"));
+      expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
+      expect(screen.getByTestId("txn-action-delete")).toBeTruthy();
     });
   });
 });
