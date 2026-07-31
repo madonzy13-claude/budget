@@ -9,7 +9,7 @@
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { splitActualOverPlan } from "@/lib/actual-over-plan";
+import { isOverPlan, overPlanGradientStops } from "@/lib/actual-over-plan";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -157,6 +157,34 @@ export function PlannedSection({
   // pink WANTS band would just double the green one (see lib/wants-split).
   const wantsSplitExists = hasWantsSplit(data?.timeline ?? []);
 
+  // Timeline rows for the chart + the crossing gradient that colours the actual
+  // line (grey inside the plan, red past it — cut at the exact crossing).
+  const timelineRows = useMemo(
+    () =>
+      withDayStartBaseline(
+        trimLeadingEmpty(
+          (data?.timeline ?? []).map((p) => ({
+            label: p.label,
+            real: Number(p.real_cents),
+            needs: Number(p.needs_cents),
+            wants: Number(p.wants_cents),
+          })),
+          range.preset === "all" ? ["real", "needs", "wants"] : [],
+        ),
+        // Real spend starts at 0 (nothing spent yet); planned holds flat.
+        ["real"],
+        // The daily series is anchored to the window start server-side
+        // (get-overview-planned), so it already begins at `from` — don't prepend
+        // a day BEFORE it (that put 1M at "30 Jun" instead of the 1st).
+        false,
+      ),
+    [data?.timeline, range.preset],
+  );
+  const actualStops = useMemo(
+    () => overPlanGradientStops(timelineRows, NEUTRAL, "var(--trading-down)"),
+    [timelineRows],
+  );
+
   // Chart AXIS: bare + compact, no currency (r24 items 5/7). TOOLTIP: full $ (r25 #2).
   const ccy = data?.currency ?? "USD";
   const fmtY = chartCompactCents;
@@ -215,35 +243,16 @@ export function PlannedSection({
               </p>
             ) : (
               <OverviewAreaChart
-                data={splitActualOverPlan(
-                  withDayStartBaseline(
-                    trimLeadingEmpty(
-                      data.timeline.map((p) => ({
-                        label: p.label,
-                        real: Number(p.real_cents),
-                        needs: Number(p.needs_cents),
-                        wants: Number(p.wants_cents),
-                      })),
-                      range.preset === "all" ? ["real", "needs", "wants"] : [],
-                    ),
-                    // Real spend starts at 0 (nothing spent yet); planned holds flat.
-                    ["real"],
-                    // The daily series is now anchored to the window start server-side
-                    // (get-overview-planned), so it already begins at `from` — don't
-                    // prepend a day BEFORE it (that put 1M at "30 Jun" instead of the
-                    // 1st). Keep only the degenerate single-point baseline (default).
-                    false,
-                  ),
-                )}
+                data={timelineRows}
                 xKey="label"
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
                 // it — the stack total = the planned limit, so "into wants" reads as
                 // spending beyond needs. `real` is the actual-spend line on top.
-                // 260731 (round 2): the planned bands are BACKGROUND — soft fills,
-                // dimmed strokes — so the actual line reads on top of them. Needs
-                // yellow, wants orange. ACTUAL is one grey filled area; the stretch
-                // past needs+wants is re-stroked RED on top (no fill, or it painted
-                // a red slab down to the baseline). See lib/actual-over-plan.
+                // 260731 (round 3): the planned bands are BACKGROUND — soft fills,
+                // dimmed strokes. ACTUAL is ONE grey area whose STROKE carries a
+                // hard-stop gradient: grey inside the plan, red past it, cutting
+                // at the exact crossing (lib/actual-over-plan) rather than at the
+                // nearest data point the way Chart.js segment styling would.
                 series={[
                   {
                     key: "needs",
@@ -270,20 +279,15 @@ export function PlannedSection({
                     label: t("planned.real"),
                     color: CHART_THEME.neutral,
                     fillOpacity: 0.22,
-                  },
-                  {
-                    key: "realOver",
-                    label: t("planned.real"),
-                    color: "var(--trading-down)",
-                    fillOpacity: 0,
+                    strokeGradientStops: actualStops,
                   },
                 ]}
-                // The red stretch is the SAME actual line re-coloured, so it must
-                // not add a second "Actual" row; the single row turns red once the
-                // hovered point is past the plan.
-                tooltipOmitKeys={["realOver"]}
+                // The hovered point's own row turns red once it is past the plan.
                 tooltipColorForRow={(row, key) =>
-                  key === "real" && row.realOver != null
+                  key === "real" &&
+                  isOverPlan(
+                    row as { real: number; needs: number; wants: number },
+                  )
                     ? "var(--trading-down)"
                     : undefined
                 }

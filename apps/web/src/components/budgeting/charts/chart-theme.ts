@@ -82,4 +82,8 @@ export interface ChartSeries {
   fillOpacity?: number;
   /** Soften a band so it reads as background (260731): 1 = full-strength line. */
   strokeOpacity?: number;
+  /** Hard-stop stroke gradient along X (260731): colours ONE line by where it
+   *  crosses another (see lib/actual-over-plan) — recharts has no per-segment
+   *  styling, and an SVG gradient cuts at the exact crossing, not at a point. */
+  strokeGradientStops?: Array<{ offset: number; color: string }>;
 }

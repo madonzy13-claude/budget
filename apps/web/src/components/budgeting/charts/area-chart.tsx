@@ -5,6 +5,7 @@
  * Client component (ResponsiveContainer → ResizeObserver). Data-agnostic: takes
  * already-shaped data + series descriptors; 11-09 wires the data.
  */
+import { useId } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -86,6 +87,8 @@ export function OverviewAreaChart({
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
+  // Unique per chart instance — several charts can live on one page.
+  const gradIdBase = useId().replace(/:/g, "");
   const { revealed } = useSlotReveal();
   const hidden = maskAmounts && !revealed;
   // When hidden, both the Y-axis ticks and the tooltip value become "•••" (the
@@ -133,8 +136,36 @@ export function OverviewAreaChart({
             />
           }
         />
+        {/* Hard-stop stroke gradients (one per series that asks for it). */}
+        {series.some((s) => s.strokeGradientStops?.length) && (
+          <defs>
+            {series
+              .filter((s) => s.strokeGradientStops?.length)
+              .map((s) => (
+                <linearGradient
+                  key={s.key}
+                  id={`${gradIdBase}-${s.key}`}
+                  x1="0"
+                  y1="0"
+                  x2="1"
+                  y2="0"
+                >
+                  {s.strokeGradientStops!.map((stop, i) => (
+                    <stop
+                      key={i}
+                      offset={`${Math.round(stop.offset * 10000) / 100}%`}
+                      stopColor={stop.color}
+                    />
+                  ))}
+                </linearGradient>
+              ))}
+          </defs>
+        )}
         {series.map((s) => {
           const color = s.color ?? CHART_THEME.accent;
+          const stroke = s.strokeGradientStops?.length
+            ? `url(#${gradIdBase}-${s.key})`
+            : color;
           return (
             <Area
               key={s.key}
@@ -142,7 +173,7 @@ export function OverviewAreaChart({
               dataKey={s.key}
               name={s.label}
               stackId={s.stack}
-              stroke={color}
+              stroke={stroke}
               fill={color}
               fillOpacity={s.fillOpacity ?? 0.15}
               strokeOpacity={s.strokeOpacity ?? 1}
