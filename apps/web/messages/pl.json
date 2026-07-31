@@ -1459,7 +1459,7 @@
           "recurringPerMonth": "Płatności cykliczne wg miesięcy",
           "recurringPerCategory": "Płatności cykliczne wg kategorii",
           "timelineTitle": "Plan a rzeczywiste wydatki w czasie",
-          "avgByCategory": "Przekroczenie / oszczędność wg kategorii",
+          "avgByCategory": "Odchylenie od planu, wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",
           "difference": "Różnica"
         },
