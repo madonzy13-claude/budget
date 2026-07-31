@@ -8,6 +8,7 @@
  * Emits a resolved {preset, from, to} so callers key their RQ fetch off it.
  */
 import { useTranslations } from "next-intl";
+import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DateInput } from "@/components/budgeting/fields/date-input";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
@@ -84,32 +85,34 @@ export function RangeSelector({
       </div>
 
       {isCustom && (
-        <div className="flex flex-wrap items-center justify-center gap-2 text-num-sm">
-          {/* Localized calendar — reuses the shared DateInput from the recurring
-              rules form (overlay-formatted, dark calendar) instead of a bare
-              native input (UAT item 8). */}
-          <label className="flex items-center gap-1 text-[var(--muted-foreground)]">
-            {t("from")}
-            <DateInput
-              value={value.from}
-              max={value.to}
-              onChange={(next) =>
-                onChange(makeRange("custom", tz, { from: next, to: value.to }))
-              }
-            />
-          </label>
-          <label className="flex items-center gap-1 text-[var(--muted-foreground)]">
-            {t("to")}
-            <DateInput
-              value={value.to}
-              min={value.from}
-              onChange={(next) =>
-                onChange(
-                  makeRange("custom", tz, { from: value.from, to: next }),
-                )
-              }
-            />
-          </label>
+        /* 260731: one compact chip pair ("1 Jun 2026 → 30 Jun 2026") instead of
+           two labelled boxes — the arrow carries the from/to meaning, so the
+           row stays readable on a phone. The labels live on aria-label. */
+        <div className="flex items-center justify-center gap-2 text-num-sm">
+          <DateInput
+            value={value.from}
+            max={value.to}
+            withIcon
+            aria-label={t("from")}
+            className="h-9 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] pr-3"
+            onChange={(next) =>
+              onChange(makeRange("custom", tz, { from: next, to: value.to }))
+            }
+          />
+          <ArrowRight
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]"
+          />
+          <DateInput
+            value={value.to}
+            min={value.from}
+            withIcon
+            aria-label={t("to")}
+            className="h-9 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] pr-3"
+            onChange={(next) =>
+              onChange(makeRange("custom", tz, { from: value.from, to: next }))
+            }
+          />
         </div>
       )}
     </div>

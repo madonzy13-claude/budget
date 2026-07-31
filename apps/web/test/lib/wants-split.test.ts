@@ -27,10 +27,19 @@ describe("hasWantsSplit", () => {
     ).toBe(true);
   });
 
-  it("true for a plain needs-only budget (wants zero, needs not)", () => {
+  it("false for a needs-only budget — a zero band still strokes a stray line", () => {
     expect(hasWantsSplit([{ needs_cents: "50000", wants_cents: "0" }])).toBe(
-      true,
+      false,
     );
+  });
+
+  it("true when at least one point carries real, distinct wants money", () => {
+    expect(
+      hasWantsSplit([
+        { needs_cents: "50000", wants_cents: "0" },
+        { needs_cents: "50000", wants_cents: "12500" },
+      ]),
+    ).toBe(true);
   });
 
   it("false for an all-zero timeline (nothing to split)", () => {

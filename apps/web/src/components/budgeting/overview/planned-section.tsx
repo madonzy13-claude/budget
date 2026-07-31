@@ -25,6 +25,13 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -44,6 +51,9 @@ function trimLeadingEmpty<T extends Record<string, unknown>>(
   const first = rows.findIndex((r) => keys.some((k) => Number(r[k]) !== 0));
   return first > 0 ? rows.slice(first) : rows;
 }
+
+/** Radix Select forbids an empty-string item value, so "all" needs a sentinel. */
+const ALL_CATEGORIES = "__all__";
 
 function ChartLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -159,23 +169,6 @@ export function PlannedSection({
       open={open}
       onToggle={toggleOpen}
     >
-      <label className="flex items-center gap-2 text-num-sm text-[var(--muted-foreground)]">
-        {t("planned.category")}
-        <select
-          data-testid="overview-planned-category"
-          value={categoryId ?? ""}
-          onChange={(e) => setCategoryId(e.target.value || undefined)}
-          className="rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-2 py-1 text-[var(--body-on-dark)]"
-        >
-          <option value="">{t("planned.allCategories")}</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
       {isPending ? (
         <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
       ) : isError || !data ? (
@@ -185,9 +178,36 @@ export function PlannedSection({
       ) : (
         <>
           {/* Planned-vs-Real timeline. `wantsSplitExists` decides whether the
-              pink WANTS band is drawn at all — see the series list below. */}
+              WANTS band is drawn at all — see the series list below. */}
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.timelineTitle")}</ChartLabel>
+            {/* 260731: the category filter belongs to THIS chart, so it sits
+                under its label instead of floating above the whole section —
+                and it uses the app's Select chrome, not a raw <select>. */}
+            <Select
+              value={categoryId ?? ALL_CATEGORIES}
+              onValueChange={(v) =>
+                setCategoryId(v === ALL_CATEGORIES ? undefined : v)
+              }
+            >
+              <SelectTrigger
+                data-testid="overview-planned-category"
+                aria-label={t("planned.category")}
+                className="h-9 w-fit min-w-[10rem] max-w-full gap-2 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CATEGORIES}>
+                  {t("planned.allCategories")}
+                </SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {data.timeline.length === 0 ? (
               <p className="text-num-sm text-[var(--muted-foreground)]">
                 {t("empty.planned")}
@@ -216,9 +236,9 @@ export function PlannedSection({
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
                 // it — the stack total = the planned limit, so "into wants" reads as
                 // spending beyond needs. `real` is the actual-spend line on top.
-                // 260731: needs = green, wants = pink. When the budget carries no
-                // real split (every point's wants mirrors its needs) the pink band
-                // would just double the green one, so it is dropped entirely.
+                // 260731: needs = green, wants = yellow, actual = grey (pink read
+                // as too loud next to the yellow accent). The wants band only
+                // renders when there IS distinct wants money — see hasWantsSplit.
                 series={[
                   {
                     key: "needs",
@@ -232,7 +252,7 @@ export function PlannedSection({
                         {
                           key: "wants",
                           label: t("planned.wants"),
-                          color: "var(--chart-bar-4)",
+                          color: "var(--primary)",
                           stack: "planned",
                           fillOpacity: 0.3,
                         },
@@ -241,7 +261,7 @@ export function PlannedSection({
                   {
                     key: "real",
                     label: t("planned.real"),
-                    color: CHART_THEME.accent,
+                    color: CHART_THEME.neutral,
                     fillOpacity: 0.35,
                   },
                 ]}
