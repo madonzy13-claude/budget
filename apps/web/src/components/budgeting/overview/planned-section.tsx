@@ -24,8 +24,8 @@ import {
   varianceColor,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
-import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
+import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
@@ -111,9 +111,6 @@ export function PlannedSection({
 }) {
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
-  // Privacy: mask money in the chart tooltips to "•••" until the shared reveal.
-  const { revealed } = useSlotReveal();
-  const hideMoney = amountPrivacyEnabled && !revealed;
   // Full localized month name for the recurring tooltip (item 2): 8 → "August" /
   // "Серпень" / "sierpień".
   const monthName = (m: string | number) =>
@@ -144,6 +141,10 @@ export function PlannedSection({
     categoryId,
     enabled: open,
   });
+
+  // 260731: no needs/wants split → both series carry the same figure, and the
+  // pink WANTS band would just double the green one (see lib/wants-split).
+  const wantsSplitExists = hasWantsSplit(data?.timeline ?? []);
 
   // Chart AXIS: bare + compact, no currency (r24 items 5/7). TOOLTIP: full $ (r25 #2).
   const ccy = data?.currency ?? "USD";
@@ -183,7 +184,8 @@ export function PlannedSection({
         </p>
       ) : (
         <>
-          {/* Planned-vs-Real timeline */}
+          {/* Planned-vs-Real timeline. `wantsSplitExists` decides whether the
+              pink WANTS band is drawn at all — see the series list below. */}
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.timelineTitle")}</ChartLabel>
             {data.timeline.length === 0 ? (
@@ -214,23 +216,28 @@ export function PlannedSection({
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
                 // it — the stack total = the planned limit, so "into wants" reads as
                 // spending beyond needs. `real` is the actual-spend line on top.
-                // needs = grey base, wants = green stacked above (the "over" band);
-                // spendings (real) = yellow, drawn LAST so its area sits on top.
+                // 260731: needs = green, wants = pink. When the budget carries no
+                // real split (every point's wants mirrors its needs) the pink band
+                // would just double the green one, so it is dropped entirely.
                 series={[
                   {
                     key: "needs",
                     label: t("planned.needs"),
-                    color: CHART_THEME.neutral,
-                    stack: "planned",
-                    fillOpacity: 0.3,
-                  },
-                  {
-                    key: "wants",
-                    label: t("planned.wants"),
                     color: "var(--trading-up)",
                     stack: "planned",
                     fillOpacity: 0.3,
                   },
+                  ...(wantsSplitExists
+                    ? [
+                        {
+                          key: "wants",
+                          label: t("planned.wants"),
+                          color: "var(--chart-bar-4)",
+                          stack: "planned",
+                          fillOpacity: 0.3,
+                        },
+                      ]
+                    : []),
                   {
                     key: "real",
                     label: t("planned.real"),
@@ -241,7 +248,10 @@ export function PlannedSection({
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
                 xTickFormat={(v) => formatChartDate(v, locale)}
-                maskAmounts={amountPrivacyEnabled}
+                // 260731 (user decision): the CHARTS always show real numbers — masking
+                // them made the shapes unreadable. The privacy blur stays on the hero
+                // cards + totals, which is where a shoulder-surfer actually reads a figure.
+                maskAmounts={false}
               />
             )}
           </div>
@@ -278,29 +288,28 @@ export function PlannedSection({
                   return [
                     {
                       label: t("planned.planned"),
-                      value: hideMoney
-                        ? "•••"
-                        : fmtTooltip(Number(row.planned)),
+                      value: fmtTooltip(Number(row.planned)),
                     },
                     {
                       label: t("planned.real"),
-                      value: hideMoney ? "•••" : fmtTooltip(Number(row.real)),
+                      value: fmtTooltip(Number(row.real)),
                     },
                     {
                       label: t("planned.difference"),
                       // Amount AND percent on one line — the bar shows the
                       // percent, the tooltip should tie it back to real money.
-                      value: `${
-                        hideMoney
-                          ? "•••"
-                          : `${sign}${fmtTooltip(Math.abs(diff))}`
-                      } · ${pctSign}${Math.abs(Math.round(Number(row.pct)))}%`,
+                      value: `${sign}${fmtTooltip(
+                        Math.abs(diff),
+                      )} · ${pctSign}${Math.abs(Math.round(Number(row.pct)))}%`,
                       color: varianceColor(Number(row.pct)),
                     },
                   ];
                 }}
                 formatTooltip={fmtTooltip}
-                maskAmounts={amountPrivacyEnabled}
+                // 260731 (user decision): the CHARTS always show real numbers — masking
+                // them made the shapes unreadable. The privacy blur stays on the hero
+                // cards + totals, which is where a shoulder-surfer actually reads a figure.
+                maskAmounts={false}
               />
             </div>
           )}
@@ -335,7 +344,10 @@ export function PlannedSection({
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}
               labelFormat={monthName}
-              maskAmounts={amountPrivacyEnabled}
+              // 260731 (user decision): the CHARTS always show real numbers — masking
+              // them made the shapes unreadable. The privacy blur stays on the hero
+              // cards + totals, which is where a shoulder-surfer actually reads a figure.
+              maskAmounts={false}
               // Tooltip lists each planned payment for the month (the series row
               // already shows the total).
               tooltipExtra={(row) => {
@@ -343,9 +355,7 @@ export function PlannedSection({
                   (row.items as { name: string; amount_cents: string }[]) ?? [];
                 return items.map((it) => ({
                   label: it.name || "—",
-                  value: hideMoney
-                    ? "•••"
-                    : fmtTooltip(Number(it.amount_cents)),
+                  value: fmtTooltip(Number(it.amount_cents)),
                 }));
               }}
             />
@@ -374,7 +384,10 @@ export function PlannedSection({
                 ]}
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
-                maskAmounts={amountPrivacyEnabled}
+                // 260731 (user decision): the CHARTS always show real numbers — masking
+                // them made the shapes unreadable. The privacy blur stays on the hero
+                // cards + totals, which is where a shoulder-surfer actually reads a figure.
+                maskAmounts={false}
               />
             </div>
           )}

@@ -117,7 +117,10 @@ export function OverspentReservesSection({
               colorByPoint={(row) => colorOf(String(row.category_id), BAR_TEAL)}
               formatValue={fmtY}
               formatTooltip={fmtTooltip}
-              maskAmounts={amountPrivacyEnabled}
+              // 260731 (user decision): the CHARTS always show real numbers — masking
+              // them made the shapes unreadable. The privacy blur stays on the hero
+              // cards + totals, which is where a shoulder-surfer actually reads a figure.
+              maskAmounts={false}
             />
           </>
         )}
@@ -163,7 +166,10 @@ export function OverspentReservesSection({
                 }
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
-                maskAmounts={amountPrivacyEnabled}
+                // 260731 (user decision): the CHARTS always show real numbers — masking
+                // them made the shapes unreadable. The privacy blur stays on the hero
+                // cards + totals, which is where a shoulder-surfer actually reads a figure.
+                maskAmounts={false}
               />
             </div>
           )}
