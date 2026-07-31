@@ -31,6 +31,7 @@ export function ChartTooltipContent({
   suppressedLabel,
   onDismiss,
   hideSeriesRows = false,
+  omitKeys,
 }: {
   active?: boolean;
   payload?: TooltipEntry[];
@@ -72,6 +73,9 @@ export function ChartTooltipContent({
    *  charts whose bar dataKey is an internal (e.g. the diverging chart's clamped
    *  percent), where that row would show a meaningless name + value. */
   hideSeriesRows?: boolean;
+  /** dataKeys to leave out of the series rows — for overlay series that merely
+   *  re-colour a stretch of a line the tooltip already lists once. */
+  omitKeys?: string[];
 }) {
   if (!active || !payload || payload.length === 0) return null;
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.
@@ -121,6 +125,7 @@ export function ChartTooltipContent({
               // and over-plan halves) is null wherever the other half owns the
               // line — those points are not a "0", they are simply absent.
               .filter((p) => p.value !== null && p.value !== undefined)
+              .filter((p) => !omitKeys?.includes(String(p.dataKey)))
               .map((p) => {
                 const s = series?.find((x) => x.key === p.dataKey);
                 // Per-point color wins (up/down or category colorKey) so the marker matches

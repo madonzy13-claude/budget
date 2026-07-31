@@ -80,4 +80,6 @@ export interface ChartSeries {
   stack?: string;
   /** fill opacity override (e.g. a heavier fill for a stacked band). */
   fillOpacity?: number;
+  /** Soften a band so it reads as background (260731): 1 = full-strength line. */
+  strokeOpacity?: number;
 }

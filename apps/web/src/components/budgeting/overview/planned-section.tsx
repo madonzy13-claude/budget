@@ -239,19 +239,19 @@ export function PlannedSection({
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
                 // it — the stack total = the planned limit, so "into wants" reads as
                 // spending beyond needs. `real` is the actual-spend line on top.
-                // 260731: needs = yellow, wants = orange (one step warmer), and
-                // ACTUAL is grey while it stays inside the plan, RED for the
-                // stretch that runs past needs+wants. Recharts colours a whole
-                // series, so `realOk`/`realOver` split the same line and hand over
-                // at the crossing (lib/actual-over-plan). The WANTS band only
-                // renders when there IS distinct wants money — see hasWantsSplit.
+                // 260731 (round 2): the planned bands are BACKGROUND — soft fills,
+                // dimmed strokes — so the actual line reads on top of them. Needs
+                // yellow, wants orange. ACTUAL is one grey filled area; the stretch
+                // past needs+wants is re-stroked RED on top (no fill, or it painted
+                // a red slab down to the baseline). See lib/actual-over-plan.
                 series={[
                   {
                     key: "needs",
                     label: t("planned.needs"),
                     color: "var(--primary)",
                     stack: "planned",
-                    fillOpacity: 0.3,
+                    fillOpacity: 0.12,
+                    strokeOpacity: 0.45,
                   },
                   ...(wantsSplitExists
                     ? [
@@ -260,25 +260,33 @@ export function PlannedSection({
                           label: t("planned.wants"),
                           color: "var(--chart-bar-5)",
                           stack: "planned",
-                          fillOpacity: 0.3,
+                          fillOpacity: 0.12,
+                          strokeOpacity: 0.45,
                         },
                       ]
                     : []),
                   {
-                    key: "realOk",
+                    key: "real",
                     label: t("planned.real"),
                     color: CHART_THEME.neutral,
-                    fillOpacity: 0.35,
+                    fillOpacity: 0.22,
                   },
                   {
                     key: "realOver",
-                    // Lighter fill than the in-plan half: the RED should read as
-                    // the line crossing the plan, not as a slab of colour.
                     label: t("planned.real"),
                     color: "var(--trading-down)",
-                    fillOpacity: 0.18,
+                    fillOpacity: 0,
                   },
                 ]}
+                // The red stretch is the SAME actual line re-coloured, so it must
+                // not add a second "Actual" row; the single row turns red once the
+                // hovered point is past the plan.
+                tooltipOmitKeys={["realOver"]}
+                tooltipColorForRow={(row, key) =>
+                  key === "real" && row.realOver != null
+                    ? "var(--trading-down)"
+                    : undefined
+                }
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
                 xTickFormat={(v) => formatChartDate(v, locale)}

@@ -43,6 +43,8 @@ export function OverviewAreaChart({
   rowSuffix,
   summary,
   maskAmounts = false,
+  tooltipOmitKeys,
+  tooltipColorForRow,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -72,6 +74,15 @@ export function OverviewAreaChart({
   /** Privacy: when true, blur the Y-axis amounts + mask the tooltip amount until
    *  the shared SlotAmount reveal is toggled on (amounts only — dates stay). */
   maskAmounts?: boolean;
+  /** dataKeys that are VISUAL overlays only (e.g. a re-coloured stretch of an
+   *  existing line) — they must not add a duplicate tooltip row. */
+  tooltipOmitKeys?: string[];
+  /** Per-point colour for a tooltip row (e.g. the actual row turning red once
+   *  the point is past the plan). */
+  tooltipColorForRow?: (
+    row: Record<string, unknown>,
+    dataKey?: string | number,
+  ) => string | undefined;
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
@@ -112,6 +123,8 @@ export function OverviewAreaChart({
             <ChartTooltipContent
               formatY={tooltipFmt}
               series={series}
+              omitKeys={tooltipOmitKeys}
+              colorForRow={tooltipColorForRow}
               labelFormat={labelFormat ?? xTickFormat}
               extra={tooltipExtra}
               rowSuffix={rowSuffix}
@@ -132,6 +145,7 @@ export function OverviewAreaChart({
               stroke={color}
               fill={color}
               fillOpacity={s.fillOpacity ?? 0.15}
+              strokeOpacity={s.strokeOpacity ?? 1}
               strokeWidth={2}
               strokeDasharray={s.dashed ? "4 4" : undefined}
               dot={false}
