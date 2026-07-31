@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { splitActualOverPlan } from "@/lib/actual-over-plan";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -193,7 +194,7 @@ export function PlannedSection({
               <SelectTrigger
                 data-testid="overview-planned-category"
                 aria-label={t("planned.category")}
-                className="h-9 w-fit min-w-[10rem] max-w-full gap-2 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm"
+                className="mx-auto h-9 w-fit min-w-[10rem] max-w-full gap-2 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -214,36 +215,41 @@ export function PlannedSection({
               </p>
             ) : (
               <OverviewAreaChart
-                data={withDayStartBaseline(
-                  trimLeadingEmpty(
-                    data.timeline.map((p) => ({
-                      label: p.label,
-                      real: Number(p.real_cents),
-                      needs: Number(p.needs_cents),
-                      wants: Number(p.wants_cents),
-                    })),
-                    range.preset === "all" ? ["real", "needs", "wants"] : [],
+                data={splitActualOverPlan(
+                  withDayStartBaseline(
+                    trimLeadingEmpty(
+                      data.timeline.map((p) => ({
+                        label: p.label,
+                        real: Number(p.real_cents),
+                        needs: Number(p.needs_cents),
+                        wants: Number(p.wants_cents),
+                      })),
+                      range.preset === "all" ? ["real", "needs", "wants"] : [],
+                    ),
+                    // Real spend starts at 0 (nothing spent yet); planned holds flat.
+                    ["real"],
+                    // The daily series is now anchored to the window start server-side
+                    // (get-overview-planned), so it already begins at `from` — don't
+                    // prepend a day BEFORE it (that put 1M at "30 Jun" instead of the
+                    // 1st). Keep only the degenerate single-point baseline (default).
+                    false,
                   ),
-                  // Real spend starts at 0 (nothing spent yet); planned holds flat.
-                  ["real"],
-                  // The daily series is now anchored to the window start server-side
-                  // (get-overview-planned), so it already begins at `from` — don't
-                  // prepend a day BEFORE it (that put 1M at "30 Jun" instead of the
-                  // 1st). Keep only the degenerate single-point baseline (default).
-                  false,
                 )}
                 xKey="label"
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
                 // it — the stack total = the planned limit, so "into wants" reads as
                 // spending beyond needs. `real` is the actual-spend line on top.
-                // 260731: needs = green, wants = yellow, actual = grey (pink read
-                // as too loud next to the yellow accent). The wants band only
+                // 260731: needs = yellow, wants = orange (one step warmer), and
+                // ACTUAL is grey while it stays inside the plan, RED for the
+                // stretch that runs past needs+wants. Recharts colours a whole
+                // series, so `realOk`/`realOver` split the same line and hand over
+                // at the crossing (lib/actual-over-plan). The WANTS band only
                 // renders when there IS distinct wants money — see hasWantsSplit.
                 series={[
                   {
                     key: "needs",
                     label: t("planned.needs"),
-                    color: "var(--trading-up)",
+                    color: "var(--primary)",
                     stack: "planned",
                     fillOpacity: 0.3,
                   },
@@ -252,17 +258,25 @@ export function PlannedSection({
                         {
                           key: "wants",
                           label: t("planned.wants"),
-                          color: "var(--primary)",
+                          color: "var(--chart-bar-5)",
                           stack: "planned",
                           fillOpacity: 0.3,
                         },
                       ]
                     : []),
                   {
-                    key: "real",
+                    key: "realOk",
                     label: t("planned.real"),
                     color: CHART_THEME.neutral,
                     fillOpacity: 0.35,
+                  },
+                  {
+                    key: "realOver",
+                    // Lighter fill than the in-plan half: the RED should read as
+                    // the line crossing the plan, not as a slab of colour.
+                    label: t("planned.real"),
+                    color: "var(--trading-down)",
+                    fillOpacity: 0.18,
                   },
                 ]}
                 formatY={fmtY}

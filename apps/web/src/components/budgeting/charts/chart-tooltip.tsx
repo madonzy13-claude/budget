@@ -116,27 +116,32 @@ export function ChartTooltipContent({
       {(() => {
         const rows = hideSeriesRows
           ? []
-          : payload.map((p) => {
-              const s = series?.find((x) => x.key === p.dataKey);
-              // Per-point color wins (up/down or category colorKey) so the marker matches
-              // the rendered bar; else the series color, else the recharts payload color.
-              const color =
-                (colorForRow && p.payload
-                  ? colorForRow(p.payload, p.dataKey)
-                  : undefined) ??
-                s?.color ??
-                p.color ??
-                CHART_THEME.accent;
-              return {
-                color,
-                dashed: s?.dashed ?? false,
-                name: p.name,
-                value: formatY ? formatY(Number(p.value)) : String(p.value),
-                cells: p.payload
-                  ? toCells(rowSuffix?.(p.payload, p.dataKey))
-                  : [],
-              };
-            });
+          : payload
+              // A split series (e.g. the actual-spend line cut into its in-plan
+              // and over-plan halves) is null wherever the other half owns the
+              // line — those points are not a "0", they are simply absent.
+              .filter((p) => p.value !== null && p.value !== undefined)
+              .map((p) => {
+                const s = series?.find((x) => x.key === p.dataKey);
+                // Per-point color wins (up/down or category colorKey) so the marker matches
+                // the rendered bar; else the series color, else the recharts payload color.
+                const color =
+                  (colorForRow && p.payload
+                    ? colorForRow(p.payload, p.dataKey)
+                    : undefined) ??
+                  s?.color ??
+                  p.color ??
+                  CHART_THEME.accent;
+                return {
+                  color,
+                  dashed: s?.dashed ?? false,
+                  name: p.name,
+                  value: formatY ? formatY(Number(p.value)) : String(p.value),
+                  cells: p.payload
+                    ? toCells(rowSuffix?.(p.payload, p.dataKey))
+                    : [],
+                };
+              });
         const summaryRow =
           summary && payload[0]?.payload ? summary(payload[0].payload) : null;
 
