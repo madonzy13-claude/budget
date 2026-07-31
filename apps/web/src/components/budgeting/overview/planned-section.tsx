@@ -19,11 +19,13 @@ import {
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
-import { OverviewDivergingBarChart } from "@/components/budgeting/charts/diverging-bar-chart";
+import {
+  OverviewDivergingBarChart,
+  varianceColor,
+} from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
-import { overspendHeat } from "@/lib/overspend-heat";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
@@ -268,14 +270,11 @@ export function PlannedSection({
                   .sort((a, b) => b.pct - a.pct)}
                 categoryKey="name"
                 valueKey="pct"
-                labels={{
-                  over: t("planned.bandOver"),
-                  under: t("planned.bandUnder"),
-                  onPlan: t("planned.bandOnPlan"),
-                }}
                 tooltipExtra={(row) => {
                   const diff = Number(row.real) - Number(row.planned);
+                  const pct = Number(row.pct);
                   const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
+                  const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
                   return [
                     {
                       label: t("planned.planned"),
@@ -289,10 +288,14 @@ export function PlannedSection({
                     },
                     {
                       label: t("planned.difference"),
-                      value: hideMoney
-                        ? "•••"
-                        : `${sign}${fmtTooltip(Math.abs(diff))}`,
-                      color: overspendHeat(Number(row.pct)),
+                      // Amount AND percent on one line — the bar shows the
+                      // percent, the tooltip should tie it back to real money.
+                      value: `${
+                        hideMoney
+                          ? "•••"
+                          : `${sign}${fmtTooltip(Math.abs(diff))}`
+                      } · ${pctSign}${Math.abs(Math.round(Number(row.pct)))}%`,
+                      color: varianceColor(Number(row.pct)),
                     },
                   ];
                 }}

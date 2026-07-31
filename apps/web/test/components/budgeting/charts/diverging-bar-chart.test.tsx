@@ -12,7 +12,11 @@ import { render } from "@testing-library/react";
 import {
   OverviewDivergingBarChart,
   divergingDomain,
+  divergingTicks,
   varianceBand,
+  varianceColor,
+  symlog,
+  symexp,
   ON_PLAN_BAND_PCT,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { SlotRevealProvider } from "@/components/budgeting/overview/slot-amount";
@@ -50,48 +54,121 @@ beforeAll(() => {
   }
 });
 
-describe("Variance bands", () => {
-  it("treats ±10% as on plan", () => {
+describe("Variance bands (colour by how far off plan, either direction)", () => {
+  it("green inside ±10%", () => {
     expect(varianceBand(0)).toBe("on-plan");
-    expect(varianceBand(ON_PLAN_BAND_PCT)).toBe("on-plan");
-    expect(varianceBand(-ON_PLAN_BAND_PCT)).toBe("on-plan");
+    expect(varianceBand(10)).toBe("on-plan");
+    expect(varianceBand(-10)).toBe("on-plan");
   });
 
-  it("classifies beyond the band as over / under", () => {
-    expect(varianceBand(10.1)).toBe("over");
-    expect(varianceBand(85)).toBe("over");
-    expect(varianceBand(-10.1)).toBe("under");
-    expect(varianceBand(-60)).toBe("under");
+  it("yellow between 10% and 30% off, over OR under", () => {
+    expect(varianceBand(10.1)).toBe("drift");
+    expect(varianceBand(30)).toBe("drift");
+    expect(varianceBand(-25)).toBe("drift");
+    expect(varianceBand(-30)).toBe("drift");
+  });
+
+  it("red past 30% off, over OR under", () => {
+    expect(varianceBand(30.1)).toBe("off");
+    expect(varianceBand(408)).toBe("off");
+    expect(varianceBand(-55)).toBe("off");
+    expect(varianceBand(-100)).toBe("off");
+  });
+
+  it("maps each band to its colour", () => {
+    expect(varianceColor(5)).toBe(varianceColor(-5));
+    expect(varianceColor(5)).not.toBe(varianceColor(20));
+    expect(varianceColor(20)).not.toBe(varianceColor(60));
   });
 });
 
-describe("Symmetric domain", () => {
-  it("is always centred on zero", () => {
-    const [min, max] = divergingDomain([12, -40, 5]);
-    expect(min).toBe(-max);
+describe("Asymmetric domain", () => {
+  it("spans from the lowest to the highest variance, rounded outward to 10", () => {
+    const [min, max] = divergingDomain([408, -100, 37]);
+    expect(min).toBeLessThanOrEqual(-100);
+    expect(max).toBeGreaterThanOrEqual(408);
+    // (a negative multiple of 10 gives -0 in JS, hence Math.abs)
+    expect(Math.abs(min % 10)).toBe(0);
+    expect(Math.abs(max % 10)).toBe(0);
   });
 
-  it("never collapses below the on-plan band, so small variances stay readable", () => {
+  it("does NOT cap outliers — a +408% category must fit on the axis", () => {
+    const [, max] = divergingDomain([408]);
+    expect(max).toBeGreaterThanOrEqual(408);
+  });
+
+  it("leaves headroom on both ends so the percent labels have room", () => {
+    const [min, max] = divergingDomain([408, -100]);
+    expect(max).toBeGreaterThan(408);
+    expect(min).toBeLessThan(-100);
+  });
+
+  it("always contains zero, even when every category is over plan", () => {
+    const [min, max] = divergingDomain([120, 60, 35]);
+    expect(min).toBeLessThanOrEqual(0);
+    expect(max).toBeGreaterThan(0);
+  });
+
+  it("keeps a readable span when every variance is tiny", () => {
     const [min, max] = divergingDomain([2, -1]);
-    expect(max).toBeGreaterThanOrEqual(ON_PLAN_BAND_PCT * 2);
-    expect(min).toBe(-max);
-  });
-
-  it("rounds outward to a tidy tick and covers the biggest variance", () => {
-    const [, max] = divergingDomain([37, -12]);
-    expect(max).toBeGreaterThanOrEqual(37);
-    expect(max % 10).toBe(0);
-  });
-
-  it("caps runaway outliers so one category can't flatten the rest", () => {
-    const [, max] = divergingDomain([2500, 12]);
-    expect(max).toBeLessThanOrEqual(200);
+    expect(max - min).toBeGreaterThanOrEqual(ON_PLAN_BAND_PCT * 4);
   });
 
   it("handles an empty set", () => {
     const [min, max] = divergingDomain([]);
-    expect(min).toBe(-max);
-    expect(max).toBeGreaterThan(0);
+    expect(max).toBeGreaterThan(min);
+    expect(min).toBeLessThanOrEqual(0);
+  });
+});
+
+describe("Symmetric-log scale (keeps a +408% bar from squashing the rest)", () => {
+  it("is symmetric around zero", () => {
+    expect(symlog(0)).toBe(0);
+    expect(symlog(-50)).toBe(-symlog(50));
+  });
+
+  it("is monotonic — a bigger variance is always further from the centre", () => {
+    const xs = [-408, -100, -37, -9, 0, 9, 37, 100, 408];
+    const ys = xs.map(symlog);
+    for (let i = 1; i < ys.length; i++)
+      expect(ys[i]!).toBeGreaterThan(ys[i - 1]!);
+  });
+
+  it("round-trips back to the real percent", () => {
+    for (const v of [-408, -55, -10, 0, 10, 55, 408]) {
+      expect(symexp(symlog(v))).toBeCloseTo(v, 6);
+    }
+  });
+
+  it("compresses the far end: 408% is nowhere near 4× the distance of 100%", () => {
+    const ratio = symlog(408) / symlog(100);
+    expect(ratio).toBeLessThan(2);
+    expect(ratio).toBeGreaterThan(1);
+  });
+
+  it("stays near-linear inside the on-plan band, so small variances stay distinct", () => {
+    const ratio = symlog(10) / symlog(5);
+    expect(ratio).toBeGreaterThan(1.6);
+  });
+});
+
+describe("Adaptive ticks", () => {
+  it("only offers ticks inside the range and always includes zero", () => {
+    const ticks = divergingTicks(-120, 460);
+    expect(ticks).toContain(0);
+    expect(Math.min(...ticks)).toBeGreaterThanOrEqual(-120);
+    expect(Math.max(...ticks)).toBeLessThanOrEqual(460);
+  });
+
+  it("adapts its density to the spread — a tight range gets fine ticks", () => {
+    const tight = divergingTicks(-40, 40);
+    expect(tight.some((t) => Math.abs(t) > 0 && Math.abs(t) <= 20)).toBe(true);
+  });
+
+  it("is sorted and free of duplicates", () => {
+    const ticks = divergingTicks(-500, 500);
+    expect([...ticks].sort((a, b) => a - b)).toEqual(ticks);
+    expect(new Set(ticks).size).toBe(ticks.length);
   });
 });
 
@@ -110,27 +187,24 @@ describe("OverviewDivergingBarChart", () => {
           categoryKey="name"
           valueKey="pct"
           formatTooltip={(n) => `€${(n / 100).toFixed(2)}`}
-          labels={{ over: "Over", under: "Under", onPlan: "On plan" }}
         />
       </SlotRevealProvider>,
     );
     expect(container.querySelector("svg")).toBeTruthy();
   });
 
-  it("renders a legend explaining the three bands", () => {
-    const { getByText } = render(
+  it("renders no legend (the labels + colours carry it)", () => {
+    const { queryByText } = render(
       <SlotRevealProvider>
         <OverviewDivergingBarChart
           data={rows}
           categoryKey="name"
           valueKey="pct"
           formatTooltip={(n) => String(n)}
-          labels={{ over: "Over", under: "Under", onPlan: "On plan" }}
         />
       </SlotRevealProvider>,
     );
-    expect(getByText("Over")).toBeTruthy();
-    expect(getByText("Under")).toBeTruthy();
-    expect(getByText("On plan")).toBeTruthy();
+    expect(queryByText("Over plan")).toBeNull();
+    expect(queryByText("On plan (±10%)")).toBeNull();
   });
 });

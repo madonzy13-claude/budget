@@ -30,6 +30,7 @@ export function ChartTooltipContent({
   summary,
   suppressedLabel,
   onDismiss,
+  hideSeriesRows = false,
 }: {
   active?: boolean;
   payload?: TooltipEntry[];
@@ -67,6 +68,10 @@ export function ChartTooltipContent({
   suppressedLabel?: string | null;
   /** Tapping the tooltip calls this with its x-label to dismiss it. */
   onDismiss?: (label: string | number | undefined) => void;
+  /** Skip the automatic per-payload series rows and render ONLY `extra` — for
+   *  charts whose bar dataKey is an internal (e.g. the diverging chart's clamped
+   *  percent), where that row would show a meaningless name + value. */
+  hideSeriesRows?: boolean;
 }) {
   if (!active || !payload || payload.length === 0) return null;
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.
@@ -109,25 +114,29 @@ export function ChartTooltipContent({
         </div>
       )}
       {(() => {
-        const rows = payload.map((p) => {
-          const s = series?.find((x) => x.key === p.dataKey);
-          // Per-point color wins (up/down or category colorKey) so the marker matches
-          // the rendered bar; else the series color, else the recharts payload color.
-          const color =
-            (colorForRow && p.payload
-              ? colorForRow(p.payload, p.dataKey)
-              : undefined) ??
-            s?.color ??
-            p.color ??
-            CHART_THEME.accent;
-          return {
-            color,
-            dashed: s?.dashed ?? false,
-            name: p.name,
-            value: formatY ? formatY(Number(p.value)) : String(p.value),
-            cells: p.payload ? toCells(rowSuffix?.(p.payload, p.dataKey)) : [],
-          };
-        });
+        const rows = hideSeriesRows
+          ? []
+          : payload.map((p) => {
+              const s = series?.find((x) => x.key === p.dataKey);
+              // Per-point color wins (up/down or category colorKey) so the marker matches
+              // the rendered bar; else the series color, else the recharts payload color.
+              const color =
+                (colorForRow && p.payload
+                  ? colorForRow(p.payload, p.dataKey)
+                  : undefined) ??
+                s?.color ??
+                p.color ??
+                CHART_THEME.accent;
+              return {
+                color,
+                dashed: s?.dashed ?? false,
+                name: p.name,
+                value: formatY ? formatY(Number(p.value)) : String(p.value),
+                cells: p.payload
+                  ? toCells(rowSuffix?.(p.payload, p.dataKey))
+                  : [],
+              };
+            });
         const summaryRow =
           summary && payload[0]?.payload ? summary(payload[0].payload) : null;
 
@@ -256,7 +265,9 @@ export function ChartTooltipContent({
                 padding: "1px 0",
                 marginTop: i === 0 ? 4 : 0,
                 borderTop:
-                  i === 0 ? `1px solid ${CHART_THEME.tooltipBorder}` : undefined,
+                  i === 0
+                    ? `1px solid ${CHART_THEME.tooltipBorder}`
+                    : undefined,
                 paddingTop: i === 0 ? 5 : 1,
               }}
             >

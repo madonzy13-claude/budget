@@ -1461,10 +1461,7 @@
           "timelineTitle": "Plan a rzeczywiste wydatki w czasie",
           "avgByCategory": "Przekroczenie / oszczędność wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",
-          "difference": "Różnica",
-          "bandOver": "Powyżej planu",
-          "bandUnder": "Poniżej planu",
-          "bandOnPlan": "Zgodnie z planem (±10%)"
+          "difference": "Różnica"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

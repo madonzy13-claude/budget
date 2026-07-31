@@ -37,42 +37,96 @@ import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 
 /** Half-width of the "close enough to plan" band, in percent. */
 export const ON_PLAN_BAND_PCT = 10;
-/** Outliers past this are clamped so one 900% category can't flatten the rest. */
-const MAX_DOMAIN_PCT = 200;
-
 const BAR_SIZE = 14;
 const ROW_PX = 34;
+/** Axis padding (share of the span) so the outermost percent label has room. */
+const AXIS_PAD = 0.12;
 
-export type VarianceBand = "over" | "under" | "on-plan";
+export type VarianceBand = "on-plan" | "drift" | "off";
 
+/** Second band edge: past this, a category is treated as genuinely off plan. */
+export const OFF_PLAN_BAND_PCT = 30;
+
+/**
+ * Colour band by MAGNITUDE, not direction (260731 user decision): being 50% under
+ * plan is as much a planning miss as being 50% over, so both go red. Green ≤10%,
+ * yellow ≤30%, red beyond.
+ */
 export function varianceBand(pct: number): VarianceBand {
-  if (pct > ON_PLAN_BAND_PCT) return "over";
-  if (pct < -ON_PLAN_BAND_PCT) return "under";
-  return "on-plan";
+  const off = Math.abs(pct);
+  if (off <= ON_PLAN_BAND_PCT) return "on-plan";
+  if (off <= OFF_PLAN_BAND_PCT) return "drift";
+  return "off";
 }
 
 const BAND_COLOR: Record<VarianceBand, string> = {
-  over: "var(--trading-down)",
-  under: "var(--primary)",
   "on-plan": "var(--trading-up)",
+  drift: "var(--primary)",
+  off: "var(--trading-down)",
 };
 
+export function varianceColor(pct: number): string {
+  return BAND_COLOR[varianceBand(pct)];
+}
+
 /**
- * Symmetric [-max, max] domain: rounded outward to a tidy multiple of 10, never
- * tighter than twice the on-plan band (so a boring month still shows the band),
- * and capped at MAX_DOMAIN_PCT.
+ * SYMMETRIC LOG (260731 user decision): a +408% category next to a −8% one left a
+ * huge empty gap on a linear axis. symlog keeps zero meaningful and negatives
+ * intact — it is near-linear inside the on-plan band (so ±5% vs ±10% stays
+ * readable) and compresses beyond it, so one runaway category no longer squashes
+ * every other bar into the centre. k = the band half-width, which is what makes it
+ * adapt around the scale that matters here.
+ */
+const SYMLOG_K = ON_PLAN_BAND_PCT;
+
+export function symlog(pct: number): number {
+  const sign = pct < 0 ? -1 : 1;
+  return sign * Math.log10(1 + Math.abs(pct) / SYMLOG_K);
+}
+
+export function symexp(t: number): number {
+  const sign = t < 0 ? -1 : 1;
+  return sign * (Math.pow(10, Math.abs(t)) - 1) * SYMLOG_K;
+}
+
+/**
+ * Axis range: lowest → highest variance, each rounded OUTWARD to 10 and padded so
+ * the end labels have room. Asymmetric on purpose (260731 user decision) — a
+ * +408% category must fit, and forcing the mirror image of it would squash every
+ * other bar into the middle. Zero is always inside the range so the centre line
+ * and the on-plan band always render.
  */
 export function divergingDomain(values: number[]): [number, number] {
-  const biggest = values.reduce(
-    (m, v) => (Number.isFinite(v) && Math.abs(v) > m ? Math.abs(v) : m),
-    0,
-  );
-  const capped = Math.min(biggest, MAX_DOMAIN_PCT);
-  // +15% headroom, rounded out to a tidy tick: a 98% bar that ends exactly on the
-  // axis edge leaves nowhere to put its label.
-  const rounded = Math.ceil((capped * 1.15) / 10) * 10;
-  const max = Math.min(Math.max(rounded, ON_PLAN_BAND_PCT * 2), MAX_DOMAIN_PCT);
-  return [-max, max];
+  const finite = values.filter((v) => Number.isFinite(v));
+  const lo = Math.min(0, ...finite);
+  const hi = Math.max(0, ...finite);
+  let min = Math.floor(lo / 10) * 10;
+  let max = Math.ceil(hi / 10) * 10;
+  // A flat month would collapse to a zero-width axis — keep the band visible.
+  const MIN_SPAN = ON_PLAN_BAND_PCT * 4;
+  if (max - min < MIN_SPAN) {
+    const grow = Math.ceil((MIN_SPAN - (max - min)) / 2 / 10) * 10;
+    min -= grow;
+    max += grow;
+  }
+  const pad = Math.max(10, Math.ceil(((max - min) * AXIS_PAD) / 10) * 10);
+  return [min - pad, max + pad];
+}
+
+/**
+ * Ticks from a fixed ladder, filtered to the visible range — on a log axis evenly
+ * spaced numbers would bunch up, so the ladder gets coarser as it goes out. Zero is
+ * always present (it is the reference the whole chart is built around).
+ */
+const TICK_LADDER = [10, 20, 50, 100, 200, 400, 800, 1600, 3200, 6400] as const;
+
+export function divergingTicks(min: number, max: number): number[] {
+  const ticks = new Set<number>([0]);
+  for (const t of TICK_LADDER) {
+    if (t <= max) ticks.add(t);
+    if (-t >= min) ticks.add(-t);
+  }
+  return [...ticks].sort((a, b) => a - b);
 }
 
 const fmtPct = (n: number) => {
@@ -127,7 +181,6 @@ export function OverviewDivergingBarChart({
   data,
   categoryKey,
   valueKey,
-  labels,
   tooltipExtra,
   height = 240,
   formatTooltip,
@@ -139,8 +192,6 @@ export function OverviewDivergingBarChart({
   categoryKey: string;
   /** Signed percent variance key — the X axis. */
   valueKey: string;
-  /** Legend copy for the three bands. */
-  labels: { over: string; under: string; onPlan: string };
   tooltipExtra?: (
     row: Record<string, unknown>,
   ) => Array<{ label: string; value: string; color?: string }>;
@@ -171,15 +222,13 @@ export function OverviewDivergingBarChart({
 
   const values = data.map((r) => Number(r[valueKey]));
   const [min, max] = divergingDomain(values);
-  // Clamp the DRAWN bar to the domain so a capped outlier still reaches the edge;
-  // the label + tooltip keep showing its real percent.
+  // The axis is drawn in SYMLOG space (see symlog above): bars, domain and ticks
+  // are all transformed, and every user-facing number is inverted back with
+  // symexp — so labels and the tooltip always speak real percent.
   const rows = data.map((r) => {
     const pct = Number(r[valueKey]);
-    const clamped = Math.max(
-      min,
-      Math.min(max, Number.isFinite(pct) ? pct : 0),
-    );
-    return { ...r, __pct: clamped, __raw: pct, __label: fmtPct(pct) };
+    const safe = Number.isFinite(pct) ? pct : 0;
+    return { ...r, __pct: symlog(safe), __raw: safe, __label: fmtPct(safe) };
   });
 
   const chartHeight = Math.max(height, rows.length * ROW_PX + 32);
@@ -215,17 +264,17 @@ export function OverviewDivergingBarChart({
           {/* The "close enough" corridor — read the centre as a target zone, not a
               hairline. Drawn before the bars so it sits underneath. */}
           <ReferenceArea
-            x1={-ON_PLAN_BAND_PCT}
-            x2={ON_PLAN_BAND_PCT}
+            x1={symlog(-ON_PLAN_BAND_PCT)}
+            x2={symlog(ON_PLAN_BAND_PCT)}
             fill="var(--trading-up)"
             fillOpacity={0.08}
             strokeOpacity={0}
           />
           <XAxis
             type="number"
-            domain={[min, max]}
-            ticks={[min, min / 2, 0, max / 2, max]}
-            tickFormatter={fmtPct}
+            domain={[symlog(min), symlog(max)]}
+            ticks={divergingTicks(min, max).map(symlog)}
+            tickFormatter={(t: number) => fmtPct(symexp(t))}
             {...chartAxis}
           />
           <YAxis
@@ -246,6 +295,10 @@ export function OverviewDivergingBarChart({
               <ChartTooltipContent
                 formatY={tipFmt}
                 series={[]}
+                // The bar's dataKey is an internal ("__pct") — showing it as a
+                // series row leaked that name into the tooltip. Only the caller's
+                // own rows (planned / actual / difference) are meaningful here.
+                hideSeriesRows
                 labelFormat={labelFormat}
                 extra={tooltipExtra}
               />
@@ -255,6 +308,10 @@ export function OverviewDivergingBarChart({
             dataKey="__pct"
             barSize={BAR_SIZE}
             isAnimationActive={false}
+            // A category that landed exactly on plan draws nothing at all
+            // otherwise — an empty row reads as missing data. 2px keeps a thin
+            // mark on the centre line (its "0%" label sits beside it).
+            minPointSize={2}
             // Rounded on the growing end only — the bars start at the centre line.
             radius={4}
           >
@@ -273,26 +330,6 @@ export function OverviewDivergingBarChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      {/* Legend — the colours carry meaning, so name them once instead of making
-          the user infer red/green. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-1 text-[10px] text-[var(--muted-foreground)]">
-        {(
-          [
-            ["over", labels.over],
-            ["on-plan", labels.onPlan],
-            ["under", labels.under],
-          ] as const
-        ).map(([band, label]) => (
-          <span key={band} className="inline-flex items-center gap-1">
-            <span
-              aria-hidden="true"
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: BAND_COLOR[band] }}
-            />
-            {label}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
