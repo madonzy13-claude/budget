@@ -24,6 +24,7 @@ import {
 } from "./chart-theme";
 import { ChartTooltipContent } from "./chart-tooltip";
 import { useDismissTooltip } from "./use-dismiss-tooltip";
+import { thinTimeTicks } from "@/lib/chart-ticks";
 import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { cn } from "@/lib/utils";
 
@@ -125,11 +126,14 @@ export function OverviewAreaChart({
             ? {
                 type: "number" as const,
                 domain: ["dataMin", "dataMax"] as [string, string],
-                // Ticks ON the data points (recharts thins them to fit); a plain
-                // numeric axis would invent round-number dates nothing sits on.
-                // Rows flagged `reset` are geometry (a drop back to zero), not
-                // readings — they get no tick of their own.
-                ticks: data.filter((d) => !d.reset).map((d) => Number(d[xKey])),
+                // Ticks ON the data points — a plain numeric axis would invent
+                // round-number dates nothing sits on. Rows flagged `reset` are
+                // geometry (a drop back to zero), not readings, so they get no
+                // tick; the rest are thinned by TIME because recharts drew a
+                // daily range's every point and the labels overlapped.
+                ticks: thinTimeTicks(
+                  data.filter((d) => !d.reset).map((d) => Number(d[xKey])),
+                ),
                 interval: "preserveStartEnd" as const,
               }
             : {})}
