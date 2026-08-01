@@ -10,6 +10,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  polylineRuns,
   polylinePath,
   regionAbove,
   regionBelow,
@@ -65,5 +66,37 @@ describe("regionBetween", () => {
   it("is empty when either edge is missing", () => {
     expect(regionBetween([], [{ x: 0, y: 1 }])).toBe("");
     expect(regionBetween([{ x: 0, y: 1 }], [])).toBe("");
+  });
+});
+
+describe("polylineRuns", () => {
+  // The month-boundary DROP is drawn separately, in grey — the zone-coloured
+  // copies of the line must skip it or they paint over it (260801 user request).
+  it("breaks the path where a segment is skipped", () => {
+    const pts = [
+      { x: 0, y: 100 },
+      { x: 10, y: 50 },
+      { x: 20, y: 200 },
+      { x: 30, y: 60 },
+    ];
+    expect(polylineRuns(pts, [false, true, false])).toBe(
+      "M0,100L10,50 M20,200L30,60",
+    );
+  });
+
+  it("is one run when nothing is skipped", () => {
+    const pts = [
+      { x: 0, y: 1 },
+      { x: 1, y: 2 },
+    ];
+    expect(polylineRuns(pts, [false])).toBe("M0,1L1,2");
+  });
+
+  it("drops single leftover points", () => {
+    const pts = [
+      { x: 0, y: 1 },
+      { x: 1, y: 2 },
+    ];
+    expect(polylineRuns(pts, [true])).toBe("");
   });
 });

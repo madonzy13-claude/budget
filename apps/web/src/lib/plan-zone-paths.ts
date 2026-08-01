@@ -24,6 +24,28 @@ export function polylinePath(points: Pt[]): string {
   return `M${first!.x},${first!.y}${pts(rest)}`;
 }
 
+/**
+ * The line as one or more runs, breaking wherever `skip[i]` marks the segment
+ * from point i to i+1 as not-ours — the month-boundary drop is drawn separately,
+ * in grey, so the zone-coloured copies must leave a gap there.
+ */
+export function polylineRuns(points: Pt[], skip: boolean[]): string {
+  const runs: Pt[][] = [];
+  let run: Pt[] = [];
+  points.forEach((p, i) => {
+    run.push(p);
+    if (skip[i]) {
+      runs.push(run);
+      run = [];
+    }
+  });
+  runs.push(run);
+  return runs
+    .filter((r) => r.length > 1)
+    .map(polylinePath)
+    .join(" ");
+}
+
 /** Everything ABOVE a line (values greater than it), up to the plot's top edge. */
 export function regionAbove(points: Pt[], top: number): string {
   if (points.length === 0) return "";

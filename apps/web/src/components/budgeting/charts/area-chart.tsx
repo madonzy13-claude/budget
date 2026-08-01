@@ -135,6 +135,10 @@ export function OverviewAreaChart({
                   data.filter((d) => !d.reset).map((d) => Number(d[xKey])),
                 ),
                 interval: "preserveStartEnd" as const,
+                // recharts drops ticks that would land within this many pixels
+                // of their neighbour — its own width-aware pass on top of the
+                // time thinning above, which cannot know the rendered width.
+                minTickGap: 16,
               }
             : {})}
           {...chartAxis}

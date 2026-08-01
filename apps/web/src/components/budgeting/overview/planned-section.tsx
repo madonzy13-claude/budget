@@ -278,6 +278,10 @@ export function PlannedSection({
               </p>
             ) : (
               <OverviewAreaChart
+                // Remount when the tick set changes: moving a date label in
+                // place left a ghost of its old position on iOS (user report),
+                // and a fresh SVG cannot carry stale axis nodes across.
+                key={`${range.preset}-${data.bucket}-${timelineRows.length}`}
                 data={timelineRows}
                 xKey="ts"
                 xNumeric

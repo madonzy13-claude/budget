@@ -17,6 +17,7 @@ import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
 import { monthSegmentZones, sampleSeries } from "@/lib/actual-over-plan";
 import {
   polylinePath,
+  polylineRuns,
   regionAbove,
   regionBelow,
   regionBetween,
@@ -46,6 +47,11 @@ export interface PlanZoneLineProps {
    * so "above the limit right here" is the honest reading.
    */
   perMonth?: boolean;
+  /**
+   * The month-boundary DROP carries no verdict — it is the reset itself, so it
+   * is drawn in this neutral grey rather than the month's colour (260801).
+   */
+  resetColor?: string;
   /** Unique per chart instance — clipPath ids are document-global. */
   idPrefix: string;
   strokeWidth?: number;
@@ -56,6 +62,7 @@ export function PlanZoneLine({
   colors,
   linear = false,
   perMonth = false,
+  resetColor = "var(--muted-foreground)",
   idPrefix,
   strokeWidth = 2,
 }: PlanZoneLineProps) {
@@ -78,12 +85,11 @@ export function PlanZoneLine({
     });
 
   const opts = { linear };
-  const actual = toPx(
-    sampleSeries(
-      rows.map((r) => r.real),
-      opts,
-    ),
+  const actualSamples = sampleSeries(
+    rows.map((r) => r.real),
+    opts,
   );
+  const actual = toPx(actualSamples);
   const needs = toPx(
     sampleSeries(
       rows.map((r) => r.needs),
@@ -96,6 +102,9 @@ export function PlanZoneLine({
       opts,
     ),
   );
+
+  // A segment that LEADS INTO a reset row is the drop back to zero.
+  const resets = rows.slice(1).map((r) => !!r.reset);
 
   if (perMonth) {
     const zonesPerSegment = monthSegmentZones(rows);
@@ -110,7 +119,7 @@ export function PlanZoneLine({
             key={i}
             d={polylinePath([pointPts[i]!, pointPts[i + 1]!])}
             fill="none"
-            stroke={colors[zone]}
+            stroke={resets[i] ? resetColor : colors[zone]}
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -122,7 +131,16 @@ export function PlanZoneLine({
 
   const top = plot.y;
   const bottom = plot.y + plot.height;
-  const line = polylinePath(actual);
+  // Each sample carries its fractional index into `rows`, so the data segment it
+  // sits in is floor(x) — the zone-coloured copies skip the drops entirely.
+  const sampleSkip = actualSamples.map(
+    (s) => !!resets[Math.min(resets.length - 1, Math.floor(s.x))],
+  );
+  const line = polylineRuns(actual, sampleSkip);
+  const dropPts = rows.map((r, i) => ({
+    x: pointXs[i]!,
+    y: yScale(r.real) as number,
+  }));
   const zones = [
     {
       id: `${idPrefix}-under`,
@@ -157,6 +175,18 @@ export function PlanZoneLine({
           clipPath={`url(#${z.id})`}
         />
       ))}
+      {resets.map((isReset, i) =>
+        isReset ? (
+          <path
+            key={`reset-${i}`}
+            d={polylinePath([dropPts[i]!, dropPts[i + 1]!])}
+            fill="none"
+            stroke={resetColor}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        ) : null,
+      )}
     </g>
   );
 }
