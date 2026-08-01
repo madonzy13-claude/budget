@@ -25,6 +25,8 @@ import {
 
 export interface PlanZoneRow {
   label: string;
+  /** Epoch ms — the chart's x-axis is numeric so spacing follows real time. */
+  ts: number;
   real: number;
   needs: number;
   wants: number;
@@ -62,9 +64,9 @@ export function PlanZoneLine({
   const plot = usePlotArea();
   if (!xScale || !yScale || !plot || rows.length === 0) return null;
 
-  // Pixel x of each data point; sub-positions interpolate between them (a
-  // category axis spaces points evenly, which is what sampleSeries assumes).
-  const pointXs = rows.map((r) => xScale(r.label) as number);
+  // Pixel x of each data point, from the chart's own (time) scale; sub-positions
+  // interpolate between neighbours, so uneven spacing is handled for free.
+  const pointXs = rows.map((r) => xScale(r.ts) as number);
   if (pointXs.some((x) => !Number.isFinite(x))) return null;
   const toPx = (samples: Array<{ x: number; v: number }>): Pt[] =>
     samples.map(({ x, v }) => {

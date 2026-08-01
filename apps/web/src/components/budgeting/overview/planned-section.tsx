@@ -41,7 +41,7 @@ import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate } from "@/lib/chart-date-format";
-import { monthEndLabel } from "@/lib/chart-month-end-label";
+import { labelToTimestamp } from "@/lib/chart-timestamp";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 
@@ -67,6 +67,14 @@ function trimLeadingEmpty<T extends Record<string, unknown>>(
 
 /** Radix Select forbids an empty-string item value, so "all" needs a sentinel. */
 const ALL_CATEGORIES = "__all__";
+
+/** Epoch ms → the same "13 Feb 2026" the rest of the charts use. */
+function formatTs(ts: number, locale: string): string {
+  if (!Number.isFinite(ts)) return "";
+  const d = new Date(ts);
+  const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return formatChartDate(iso, locale);
+}
 
 function ChartLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -180,6 +188,7 @@ export function PlannedSection({
         trimLeadingEmpty(
           (data?.timeline ?? []).map((p) => ({
             label: p.label,
+            ts: labelToTimestamp(p.label, todayIso),
             real: Number(p.real_cents),
             needs: Number(p.needs_cents),
             wants: Number(p.wants_cents),
@@ -193,7 +202,7 @@ export function PlannedSection({
         // a day BEFORE it (that put 1M at "30 Jun" instead of the 1st).
         false,
       ),
-    [data?.timeline, range.preset],
+    [data?.timeline, range.preset, todayIso],
   );
   // 260801 (round 3): a MONTHLY point is a MONTH-END value, so the segment leading
   // into it is that month's progression and takes that month's verdict — colour
@@ -264,7 +273,8 @@ export function PlannedSection({
             ) : (
               <OverviewAreaChart
                 data={timelineRows}
-                xKey="label"
+                xKey="ts"
+                xNumeric
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
                 // it — the stack total = the planned limit, so "into wants" reads as
                 // spending beyond needs. `real` is the actual-spend line on top.
@@ -335,13 +345,11 @@ export function PlannedSection({
                 }
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
-                xTickFormat={(v) => formatChartDate(v, locale)}
-                // 260801: the tooltip names the DAY a point stands for, even in a
-                // monthly bucket where the axis only fits "Jul 2026" — a monthly
-                // point carries the month's value as of its last day.
-                labelFormat={(v) =>
-                  formatChartDate(monthEndLabel(String(v), todayIso), locale)
-                }
+                xTickFormat={(v) => formatTs(Number(v), locale)}
+                // The tooltip names the DAY a point stands for: a monthly point
+                // carries its month's value as of the last day (clamped to today
+                // while the month is still running).
+                labelFormat={(v) => formatTs(Number(v), locale)}
                 // 260731 (user decision): the CHARTS always show real numbers — masking
                 // them made the shapes unreadable. The privacy blur stays on the hero
                 // cards + totals, which is where a shoulder-surfer actually reads a figure.

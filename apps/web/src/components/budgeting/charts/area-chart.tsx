@@ -47,6 +47,7 @@ export function OverviewAreaChart({
   tooltipOmitKeys,
   tooltipColorForRow,
   overlay,
+  xNumeric = false,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -88,6 +89,12 @@ export function OverviewAreaChart({
   /** Extra recharts children (e.g. a <Customized> overlay) drawn LAST, on top of
    *  the series — used by the planned chart to stroke the actual line per zone. */
   overlay?: React.ReactNode;
+  /**
+   * 260801: treat `xKey` as a NUMBER (epoch ms) instead of a category, so points
+   * are spaced by real elapsed time. A category axis gave the one-day step into a
+   * running month the same width as the thirty days before it.
+   */
+  xNumeric?: boolean;
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
@@ -114,6 +121,16 @@ export function OverviewAreaChart({
         />
         <XAxis
           dataKey={xKey}
+          {...(xNumeric
+            ? {
+                type: "number" as const,
+                domain: ["dataMin", "dataMax"] as [string, string],
+                // Ticks ON the data points (recharts thins them to fit); a plain
+                // numeric axis would invent round-number dates nothing sits on.
+                ticks: data.map((d) => Number(d[xKey])),
+                interval: "preserveStartEnd" as const,
+              }
+            : {})}
           {...chartAxis}
           {...(xTickFormat ? { tickFormatter: xTickFormat } : {})}
         />
