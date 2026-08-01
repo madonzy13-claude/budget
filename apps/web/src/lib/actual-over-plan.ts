@@ -17,31 +17,31 @@ export interface ActualRow {
   real: number;
   needs: number;
   wants: number;
-  /** Reserve available that month — spending inside it is covered, not over. */
-  reserve?: number;
+  /** What this month's LIMIT covered — everything below it is green. */
+  withinLimit?: number;
+  /** What its RESERVE covered on top of that — the yellow stretch. */
+  reserveUsed?: number;
   [key: string]: unknown;
 }
 
-const planOf = (r: ActualRow) => Number(r.needs) + Number(r.wants);
+/** Green up to here: the part of the spend the limit paid for. */
+const limitOf = (r: ActualRow) => Number(r.withinLimit ?? 0);
+/** …and yellow up to here: limit + the reserve the month actually drew. */
+const coveredOf = (r: ActualRow) => limitOf(r) + Number(r.reserveUsed ?? 0);
 
 export type SpendZone = "under" | "between" | "over";
 
 /**
- * Which band is this point in (260801 user decision)? Inside the plan is green,
- * covered by that month's reserve is yellow, past both is red. A value exactly ON
- * a line still belongs to the lower band — spending the plan to the cent has not
- * touched the reserve.
+ * Which part of the month's spend is this point in (260801 user decision)? The
+ * month is split by WHERE THE MONEY CAME FROM — limit, then reserve, then
+ * overspend — and the line is coloured in exactly those proportions. A value
+ * exactly ON a threshold belongs to the lower part: spending the limit to the
+ * cent has not touched the reserve.
  */
 export function spendZone(r: ActualRow): SpendZone {
   const real = Number(r.real);
-  const plan = planOf(r);
-  if (real <= plan) return "under";
-  return real <= plan + Number(r.reserve ?? 0) ? "between" : "over";
-}
-
-/** Is this point spending past the WHOLE plan? (Kept for the tooltip colour.) */
-export function isOverPlan(r: ActualRow): boolean {
-  return Number(r.real) > planOf(r);
+  if (real <= limitOf(r)) return "under";
+  return real <= coveredOf(r) ? "between" : "over";
 }
 
 /**

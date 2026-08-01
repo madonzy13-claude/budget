@@ -1433,7 +1433,6 @@
           "planned": "Planned",
           "needs": "Needs",
           "wants": "Wants",
-          "reserve": "Reserve",
           "recurringPerMonth": "Recurring bills, by month",
           "recurringPerCategory": "Recurring bills, by category",
           "timelineTitle": "Planned vs actual spending, over time",

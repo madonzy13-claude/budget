@@ -205,7 +205,8 @@ describe("GET /budgets/:id/overview/planned", () => {
         label: string;
         planned_cents: string;
         real_cents: string;
-        reserve_cents: string;
+        within_limit_cents: string;
+        reserve_used_cents: string;
       }[];
       plannedAvgVsReal: {
         category_id: string;
@@ -228,10 +229,16 @@ describe("GET /budgets/:id/overview/planned", () => {
       "20000",
       "15000",
     ]);
-    // Every point carries its month's reserve availability — the chart colours
-    // by it (green inside the plan, yellow while reserve covers, red past both).
-    for (const p of body.timeline)
-      expect(typeof p.reserve_cents).toBe("string");
+    // Every point carries the month's spend split — limit, reserve, overspend —
+    // which is what sets the line's colour proportions.
+    for (const p of body.timeline) {
+      expect(BigInt(p.within_limit_cents)).toBeLessThanOrEqual(
+        BigInt(p.real_cents),
+      );
+      expect(
+        BigInt(p.within_limit_cents) + BigInt(p.reserve_used_cents),
+      ).toBeLessThanOrEqual(BigInt(p.real_cents));
+    }
     // real: confirmed only — the Feb pending 5000 is excluded
     expect(body.timeline.map((p) => p.real_cents)).toEqual([
       "18000",

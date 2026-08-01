@@ -3,9 +3,11 @@
  * plan-zone-line.tsx — the ACTUAL line, stroked per plan zone with the limit line
  * itself as the boundary (260801).
  *
- * Zones: inside the plan (green), covered by that month's reserve (yellow), past
- * both (red) — the boundaries are the plan band's top and the reserve band's top,
- * the same geometry the chart paints.
+ * Zones follow WHERE THE MONTH'S MONEY CAME FROM (260801): the stretch the limit
+ * covered is green, the stretch the reserve covered is yellow, the rest is red —
+ * so a month that spent 175 against a 100 limit with a 50 reserve reads
+ * 57% / 28% / 15%. The thresholds are that month's own totals, held flat across
+ * it, so the cuts land where the line crosses them.
  *
  * A stroke gradient can only split a line along a straight boundary — vertical, in
  * x — so wherever a limit line is sloped the colour changed at the wrong angle
@@ -30,8 +32,9 @@ import {
 
 export interface PlanZoneRow {
   label: string;
-  /** Reserve available that month — the plan-to-red gap (260801). */
-  reserve?: number;
+  /** What the month's limit covered, and what its reserve covered on top. */
+  withinLimit?: number;
+  reserveUsed?: number;
   /** Epoch ms — the chart's x-axis is numeric so spacing follows real time. */
   ts: number;
   real: number;
@@ -87,16 +90,16 @@ export function PlanZoneLine({
     opts,
   );
   const actual = toPx(actualSamples);
-  // Green below the PLAN, yellow through the reserve above it, red past both.
+  // Green below what the limit covered, yellow up to limit + reserve drawn.
   const plan = toPx(
     sampleSeries(
-      rows.map((r) => r.needs + r.wants),
+      rows.map((r) => r.withinLimit ?? 0),
       opts,
     ),
   );
   const covered = toPx(
     sampleSeries(
-      rows.map((r) => r.needs + r.wants + (r.reserve ?? 0)),
+      rows.map((r) => (r.withinLimit ?? 0) + (r.reserveUsed ?? 0)),
       opts,
     ),
   );

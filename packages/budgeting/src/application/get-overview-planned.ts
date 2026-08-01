@@ -94,12 +94,10 @@ export interface GetOverviewPlannedDeps {
     listActive(tenantId: string): Promise<IncomeForNormalize[]>;
   };
   /**
-   * 260801: the timeline colours by RESERVE — inside the plan, covered by
-   * reserve, or past both — so it needs each month's reserve availability. Same
-   * seam the Overspent section uses; the engine states availability as
-   * used + end-of-month free reserve (get-spendings-summary's display rule).
-   * Optional: without it every month reports zero reserve and the chart simply
-   * has no middle band.
+   * 260801: the timeline splits each month's spend into what the plan covered,
+   * what the RESERVE covered and what was overspent, so it needs the engine's
+   * per-(category, month) reserve draw. Same seam the Overspent section uses.
+   * Optional: without it a month reads as limit-then-overspend, no yellow.
    */
   reservePositions?: (input: { tenantId: string; budgetId: string }) => Promise<
     Result<
@@ -139,8 +137,13 @@ export interface OverviewPlannedDTO {
      *  chart stacks wants ABOVE needs; needs + wants === planned. */
     needs_cents: string;
     wants_cents: string;
-    /** Reserve AVAILABLE to that month — the plan-to-red gap (260801). */
-    reserve_cents: string;
+    /**
+     * Where that month's spend CAME FROM (260801) — the chart colours the line
+     * in these proportions: green up to within_limit, yellow for the reserve it
+     * consumed, red for the rest. The three always sum to real_cents.
+     */
+    within_limit_cents: string;
+    reserve_used_cents: string;
   }[];
   plannedAvgVsReal: {
     category_id: string;
@@ -249,19 +252,42 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           ? catId === input.categoryId
           : !investmentIds.has(catId);
 
-      // Reserve AVAILABLE per month = used + free-at-month-end, summed over the
-      // categories this view covers (reserve-engine's own display rule).
-      const reserveByMonth = new Map<string, bigint>();
-      for (const [catId, pos] of reservePositions ?? []) {
-        if (!inCat(catId)) continue;
-        for (const [month, cell] of pos.byMonth) {
-          const avail = cell.usedCents + cell.endReserveCents;
-          if (avail <= 0n) continue;
-          reserveByMonth.set(month, (reserveByMonth.get(month) ?? 0n) + avail);
-        }
+      // Each month's spend, split by WHERE IT CAME FROM (260801 user decision):
+      // what the limit covered, what the reserve covered, and the rest. Per
+      // category, because a category under its limit cannot lend its headroom to
+      // one that is over. The parts always sum to the month's spend, which is
+      // what lets the chart colour the line in their proportions.
+      const plannedPerCatMonth = new Map<string, bigint>();
+      for (const p of planned)
+        plannedPerCatMonth.set(
+          `${p.category_id}|${p.month}`,
+          (plannedPerCatMonth.get(`${p.category_id}|${p.month}`) ?? 0n) +
+            p.planned_cents,
+        );
+      const withinByMonth = new Map<string, bigint>();
+      const reserveUsedByMonth = new Map<string, bigint>();
+      for (const s of spend) {
+        if (!inCat(s.category_id)) continue;
+        const limit =
+          plannedPerCatMonth.get(`${s.category_id}|${s.month}`) ?? 0n;
+        const within = s.spent_cents < limit ? s.spent_cents : limit;
+        const overage = s.spent_cents - within;
+        const drawn =
+          reservePositions?.get(s.category_id)?.byMonth.get(s.month)
+            ?.usedCents ?? 0n;
+        // The engine caps a draw at the overage, but a stale cell must never
+        // colour more of the line than the month actually overspent.
+        const used = drawn < overage ? drawn : overage;
+        withinByMonth.set(s.month, (withinByMonth.get(s.month) ?? 0n) + within);
+        reserveUsedByMonth.set(
+          s.month,
+          (reserveUsedByMonth.get(s.month) ?? 0n) + (used > 0n ? used : 0n),
+        );
       }
-      const reserveAt = (month: string) =>
-        (reserveByMonth.get(month) ?? 0n).toString();
+      const splitOf = (month: string) => ({
+        within_limit_cents: (withinByMonth.get(month) ?? 0n).toString(),
+        reserve_used_cents: (reserveUsedByMonth.get(month) ?? 0n).toString(),
+      });
 
       // ---- timeline ----
       let timeline: OverviewPlannedDTO["timeline"];
@@ -297,7 +323,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             real_cents: (spendByMonth.get(label) ?? 0n).toString(),
             needs_cents: needs.toString(),
             wants_cents: wants.toString(),
-            reserve_cents: reserveAt(label),
+            ...splitOf(label),
           };
         });
       } else {
@@ -335,7 +361,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             planned_cents: planned.toString(),
             needs_cents: needs.toString(),
             wants_cents: (planned > needs ? planned - needs : 0n).toString(),
-            reserve_cents: reserveAt(month),
+            ...splitOf(month),
           };
         };
         const anyPlanned = [...plannedByMonth.values()].some((v) => v > 0n);

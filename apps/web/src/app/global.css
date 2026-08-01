@@ -154,9 +154,6 @@
        on top of them. */
     --chart-plan-needs: #6b7280;
     --chart-plan-wants: #7c6f64;
-    /* The reserve band sits above the plan: spending inside it is covered, not
-       overspent, which is what turns the actual line yellow (260801). */
-    --chart-plan-reserve: #8a7f6e;
 
     /* Canvas + surface */
     --canvas-dark: #0b0e11;

@@ -811,32 +811,35 @@ describe("getOverviewPlanned", () => {
     expect(dto.timeline.every((t) => t.planned_cents === "0")).toBe(true);
   });
 
-  test("carries each month's RESERVE, so the chart can colour by it", async () => {
-    // 260801 (user decision): green while inside the plan, yellow while covered
-    // by reserve, red past both. The boundary is plan + reserve AVAILABLE for
-    // that month, which the engine states as used + end-of-month free reserve
-    // (the same rule the spendings grid displays).
+  test("splits each month's spend into limit, reserve and overspend", async () => {
+    // 260801 (user decision): the line is coloured by WHERE THE MONEY CAME FROM.
+    // Food: limit 100, reserve 50, spent 175 → 100 from the plan, 50 from the
+    // reserve, 25 overspent. The three always sum to what was spent, so the
+    // chart can colour the line in exactly those proportions.
     const repo: GetOverviewPlannedDeps["repo"] = {
       async monthlyPlannedByCategory() {
         return [
-          { category_id: "A", month: "2026-06", planned_cents: 20000n },
-          { category_id: "B", month: "2026-06", planned_cents: 10000n },
+          { category_id: "FOOD", month: "2026-06", planned_cents: 10000n },
+          { category_id: "FUN", month: "2026-06", planned_cents: 5000n },
         ];
       },
       async monthlySpendByCategory() {
-        return [{ category_id: "A", month: "2026-06", spent_cents: 25000n }];
+        return [
+          { category_id: "FOOD", month: "2026-06", spent_cents: 17500n },
+          { category_id: "FUN", month: "2026-06", spent_cents: 2000n },
+        ];
       },
       async categoryWindows() {
         return [
           {
-            category_id: "A",
-            name: "Groceries",
+            category_id: "FOOD",
+            name: "Food",
             created_month: "2026-01",
             archived_month: null,
             is_investment: false,
           },
           {
-            category_id: "B",
+            category_id: "FUN",
             name: "Fun",
             created_month: "2026-01",
             archived_month: null,
@@ -853,18 +856,10 @@ describe("getOverviewPlanned", () => {
     };
     const positions = new Map([
       [
-        "A",
+        "FOOD",
         {
           byMonth: new Map([
-            ["2026-06", { usedCents: 3000n, endReserveCents: 1000n }],
-          ]),
-        },
-      ],
-      [
-        "B",
-        {
-          byMonth: new Map([
-            ["2026-06", { usedCents: 0n, endReserveCents: 500n }],
+            ["2026-06", { usedCents: 5000n, endReserveCents: 0n }],
           ]),
         },
       ],
@@ -880,31 +875,167 @@ describe("getOverviewPlanned", () => {
       reservePositions: async () => ok({ positions }) as never,
     } as GetOverviewPlannedDeps);
 
-    const all = (
+    // A multi-month range so the MONTHLY bucket (whole-month totals) answers.
+    const dto = (
       await svc({
         tenantId: "b1",
         budgetId: "b1",
-        from: "2026-06-01",
+        from: "2026-04-01",
         to: "2026-06-30",
       })
     )._unsafeUnwrap();
-    // A: 3000 used + 1000 free, B: 0 + 500 → 4500 across the budget.
-    expect(all.timeline[0]!.reserve_cents).toBe("4500");
-
-    // A category filter scopes the reserve the same way it scopes the plan.
-    const justA = (
-      await svc({
-        tenantId: "b1",
-        budgetId: "b1",
-        from: "2026-06-01",
-        to: "2026-06-30",
-        categoryId: "A",
-      })
-    )._unsafeUnwrap();
-    expect(justA.timeline[0]!.reserve_cents).toBe("4000");
+    const point = dto.timeline.find((p) => p.label === "2026-06")!;
+    // FOOD spent 17500 of a 10000 limit; FUN spent 2000 of 5000 — all within.
+    expect(point.real_cents).toBe("19500");
+    expect(point.within_limit_cents).toBe("12000");
+    expect(point.reserve_used_cents).toBe("5000");
+    // The three parts account for every cent spent.
+    const over =
+      BigInt(point.real_cents) -
+      BigInt(point.within_limit_cents) -
+      BigInt(point.reserve_used_cents);
+    expect(over).toBe(2500n);
   });
 
-  test("reports zero reserve when no reserve seam is wired", async () => {
+  test("a category filter scopes the split too", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "FOOD", month: "2026-06", planned_cents: 10000n },
+          { category_id: "FUN", month: "2026-06", planned_cents: 5000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [
+          { category_id: "FOOD", month: "2026-06", spent_cents: 17500n },
+          { category_id: "FUN", month: "2026-06", spent_cents: 9000n },
+        ];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "FOOD",
+            name: "Food",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+          {
+            category_id: "FUN",
+            name: "Fun",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const positions = new Map([
+      [
+        "FOOD",
+        {
+          byMonth: new Map([
+            ["2026-06", { usedCents: 5000n, endReserveCents: 0n }],
+          ]),
+        },
+      ],
+      [
+        "FUN",
+        {
+          byMonth: new Map([
+            ["2026-06", { usedCents: 1000n, endReserveCents: 0n }],
+          ]),
+        },
+      ],
+    ]);
+    const point = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+        reservePositions: async () => ok({ positions }) as never,
+      } as GetOverviewPlannedDeps)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-06-01",
+        to: "2026-06-30",
+        categoryId: "FOOD",
+      })
+    )._unsafeUnwrap().timeline[0]!;
+    expect(point.within_limit_cents).toBe("10000");
+    expect(point.reserve_used_cents).toBe("5000");
+  });
+
+  test("reserve used can never exceed what the month overspent", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [{ category_id: "A", month: "2026-06", planned_cents: 10000n }];
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: "A", month: "2026-06", spent_cents: 8000n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "A",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    // A stale/large `used` cell must not colour a month that stayed inside its
+    // limit — the split has to stay inside the spend.
+    const positions = new Map([
+      [
+        "A",
+        {
+          byMonth: new Map([
+            ["2026-06", { usedCents: 9000n, endReserveCents: 0n }],
+          ]),
+        },
+      ],
+    ]);
+    const point = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+        reservePositions: async () => ok({ positions }) as never,
+      } as GetOverviewPlannedDeps)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-06-01",
+        to: "2026-06-30",
+      })
+    )._unsafeUnwrap().timeline[0]!;
+    expect(point.within_limit_cents).toBe("8000");
+    expect(point.reserve_used_cents).toBe("0");
+  });
+
+  test("without the reserve seam the whole spend is limit-then-overspend", async () => {
     const dto = (
       await getOverviewPlanned({
         repo,
@@ -921,6 +1052,10 @@ describe("getOverviewPlanned", () => {
         to: "2026-03-31",
       })
     )._unsafeUnwrap();
-    expect(dto.timeline.every((p) => p.reserve_cents === "0")).toBe(true);
+    expect(dto.timeline.every((p) => p.reserve_used_cents === "0")).toBe(true);
+    for (const p of dto.timeline)
+      expect(BigInt(p.within_limit_cents)).toBeLessThanOrEqual(
+        BigInt(p.real_cents),
+      );
   });
 });

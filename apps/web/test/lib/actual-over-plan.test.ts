@@ -7,38 +7,37 @@
  * is in, and the sampler that traces the SAME shape the chart draws.
  */
 import { describe, it, expect } from "vitest";
-import {
-  sampleSeries,
-  spendZone,
-  isOverPlan,
-} from "../../src/lib/actual-over-plan";
-
-const row = (real: number, needs: number, wants = 0, reserve = 0) => ({
-  real,
-  needs,
-  wants,
-  reserve,
-});
+import { sampleSeries, spendZone } from "../../src/lib/actual-over-plan";
 
 describe("spendZone", () => {
-  // 260801 (user decision): green while the spend is inside the PLAN, yellow
-  // while it is covered by that month's reserve, red once both are gone.
-  it("is 'under' up to and including the plan", () => {
-    expect(spendZone(row(300, 500, 200, 400))).toBe("under");
-    expect(spendZone(row(700, 500, 200, 400))).toBe("under");
+  // 260801 (user decision): the line is coloured by WHERE THE MONEY CAME FROM.
+  // Limit 100, reserve 50, spent 175 → the first 100 is green, the next 50
+  // yellow, the last 25 red: 57% / 28% / 15% of the line.
+  const split = (real: number) => ({
+    real,
+    needs: 0,
+    wants: 0,
+    withinLimit: 100,
+    reserveUsed: 50,
   });
 
-  it("is 'between' while the reserve is covering it", () => {
-    expect(spendZone(row(701, 500, 200, 400))).toBe("between");
-    expect(spendZone(row(1100, 500, 200, 400))).toBe("between");
+  it("is 'under' up to and including what the limit covered", () => {
+    expect(spendZone(split(40))).toBe("under");
+    expect(spendZone(split(100))).toBe("under");
   });
 
-  it("is 'over' once the reserve is spent too", () => {
-    expect(spendZone(row(1101, 500, 200, 400))).toBe("over");
+  it("is 'between' across the reserve the month consumed", () => {
+    expect(spendZone(split(101))).toBe("between");
+    expect(spendZone(split(150))).toBe("between");
   });
 
-  it("has no middle zone when there is no reserve", () => {
-    expect(spendZone(row(701, 500, 200, 0))).toBe("over");
+  it("is 'over' past the limit and the reserve together", () => {
+    expect(spendZone(split(151))).toBe("over");
+    expect(spendZone(split(175))).toBe("over");
+  });
+
+  it("has no middle zone when no reserve was drawn", () => {
+    expect(spendZone({ ...split(120), reserveUsed: 0 })).toBe("over");
   });
 });
 

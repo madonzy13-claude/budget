@@ -18,8 +18,10 @@ export interface OverviewPlannedDTO {
     real_cents: string;
     needs_cents: string;
     wants_cents: string;
-    /** Reserve available that month — the plan-to-red gap (260801). */
-    reserve_cents: string;
+    /** Where the month's spend came from: limit, reserve, then overspend. The
+     *  three sum to real_cents and set the line's colour proportions (260801). */
+    within_limit_cents: string;
+    reserve_used_cents: string;
   }[];
   plannedAvgVsReal: {
     category_id: string;
