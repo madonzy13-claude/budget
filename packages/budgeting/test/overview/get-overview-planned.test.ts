@@ -551,6 +551,67 @@ describe("getOverviewPlanned", () => {
     expect(july.real_cents).toBe("40000");
   });
 
+  test("multi-month daily bucket pro-rates the RUNNING month by elapsed days", async () => {
+    // 260801: on the 1st of a month the cumulative plan jumped by that whole
+    // month's limit, so one day into August the chart claimed a 1000 budget
+    // against 912 spent and called it under (user report). A month still running
+    // contributes only what has elapsed.
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "N", month: "2026-07", planned_cents: 50000n },
+          { category_id: "N", month: "2026-08", planned_cents: 31000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [{ day: "2026-07-20", spent_cents: 91234n }];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+        now: () => new Date("2026-08-01T12:00:00Z"),
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-07-01",
+        to: "2026-08-01",
+      })
+    )._unsafeUnwrap();
+
+    const july = dto.timeline.find((p) => p.label === "2026-07-20")!;
+    // July is complete → its whole limit counts.
+    expect(july.planned_cents).toBe("50000");
+
+    const aug1 = dto.timeline[dto.timeline.length - 1]!;
+    expect(aug1.label).toBe("2026-08-01");
+    // 1 of 31 days of a 31000 limit = 1000, on top of July's 50000.
+    expect(aug1.planned_cents).toBe("51000");
+  });
+
   test("single-month daily bucket keeps the plain monthly limit (no accumulation)", async () => {
     const repo: GetOverviewPlannedDeps["repo"] = {
       async monthlyPlannedByCategory() {

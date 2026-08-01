@@ -267,14 +267,39 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         // to accumulate the same way — drawing one month's limit beside three
         // months of spend compared 45K against 23K (user report). Within a single
         // month this is identical to the plain monthly limit.
+        //
+        // The month still RUNNING contributes only what has elapsed: granting its
+        // whole limit on the 1st made the plan leap a full month overnight, so one
+        // day into August a 912 spend read as "inside a 1000 budget" (user report,
+        // round 2). Completed months always count in full. A single-month range
+        // keeps the flat full-limit target line it has always had — there the
+        // chart is a target, not a pace.
+        const rangeMonthList = monthsInRange(input.from, input.to);
+        const singleMonthRange = rangeMonthList.length === 1;
+        const today = input.now ? input.now() : new Date();
+        const runningMonth = `${today.getUTCFullYear()}-${String(
+          today.getUTCMonth() + 1,
+        ).padStart(2, "0")}`;
+        /** Share of `month` that has elapsed, as a fraction of its days. */
+        const elapsedShare = (month: string): [bigint, bigint] => {
+          if (singleMonthRange || month !== runningMonth) return [1n, 1n];
+          const [y, m] = month.split("-").map(Number) as [number, number];
+          const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+          const elapsed = Math.min(daysInMonth, today.getUTCDate());
+          return [BigInt(elapsed), BigInt(daysInMonth)];
+        };
+        const prorate = (amount: bigint, month: string) => {
+          const [num, den] = elapsedShare(month);
+          return den === 1n ? amount : (amount * num) / den;
+        };
         const cumPlannedByMonth = new Map<string, bigint>();
         const cumNeedsByMonth = new Map<string, bigint>();
         {
           let runningPlanned = 0n;
           let runningNeeds = 0n;
-          for (const month of monthsInRange(input.from, input.to)) {
-            runningPlanned += plannedByMonth.get(month) ?? 0n;
-            runningNeeds += needsByMonth.get(month) ?? 0n;
+          for (const month of rangeMonthList) {
+            runningPlanned += prorate(plannedByMonth.get(month) ?? 0n, month);
+            runningNeeds += prorate(needsByMonth.get(month) ?? 0n, month);
             cumPlannedByMonth.set(month, runningPlanned);
             cumNeedsByMonth.set(month, runningNeeds);
           }
