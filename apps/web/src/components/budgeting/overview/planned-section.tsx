@@ -353,6 +353,17 @@ export function PlannedSection({
                     )}
                   />
                 }
+                // Needs + Wants read as parts, so name their total (260801).
+                summary={(row) =>
+                  wantsSplitExists
+                    ? {
+                        label: t("planned.planned"),
+                        value: fmtTooltip(
+                          Number(row.needs ?? 0) + Number(row.wants ?? 0),
+                        ),
+                      }
+                    : null
+                }
                 // The Actual row is replaced by the split below — the same three
                 // parts the line is coloured in (260801 user request).
                 tooltipOmitKeys={["real"]}

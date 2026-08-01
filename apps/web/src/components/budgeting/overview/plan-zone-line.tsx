@@ -94,16 +94,27 @@ export function PlanZoneLine({
   // Green below what the limit covered, yellow up to limit + reserve drawn —
   // as DISPLAY shares, so a sliver of reserve or overspend is still visible.
   const cuts = rows.map((r) => zoneThresholds(r));
-  const plan = toPx(
-    sampleSeries(
-      cuts.map((c) => c.limit),
-      opts,
+  // A cut sits at the line's CENTRE, but the stroke is drawn 2 wide: a peak that
+  // ends exactly on a cut had the top half of its cap land in the zone above and
+  // painted red on a month that never overspent (user report). Lifting every cut
+  // by half a stroke keeps a point that ends ON it wholly in the lower zone.
+  const feather = strokeWidth / 2 + 0.5;
+  const lift = (pts: Pt[]): Pt[] =>
+    pts.map((p) => ({ ...p, y: p.y - feather }));
+  const plan = lift(
+    toPx(
+      sampleSeries(
+        cuts.map((c) => c.limit),
+        opts,
+      ),
     ),
   );
-  const covered = toPx(
-    sampleSeries(
-      cuts.map((c) => c.covered),
-      opts,
+  const covered = lift(
+    toPx(
+      sampleSeries(
+        cuts.map((c) => c.covered),
+        opts,
+      ),
     ),
   );
 
@@ -167,7 +178,8 @@ export function PlanZoneLine({
           />
         ) : null,
       )}
-      {zones.map((z) => (
+      {/* Top zone first: where strokes meet a cut, the LOWER colour wins. */}
+      {[...zones].reverse().map((z) => (
         <path
           key={z.id}
           d={line}
