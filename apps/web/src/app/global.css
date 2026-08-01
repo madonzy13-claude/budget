@@ -75,12 +75,15 @@
   --radius: 6px;
 
   /* ── Font stacks ────────────────────────────────────────────── */
-  --font-sans: var(--font-display, "Inter"), -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-numeric: var(--font-tabular, "IBM Plex Sans"), ui-monospace,
-    "SFMono-Regular", "Menlo", "Consolas", monospace;
-  --font-mono: var(--font-tabular, "IBM Plex Sans"), ui-monospace,
-    "SFMono-Regular", "Menlo", "Consolas", monospace;
+  --font-sans:
+    var(--font-display, "Inter"), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-numeric:
+    var(--font-tabular, "IBM Plex Sans"), ui-monospace, "SFMono-Regular",
+    "Menlo", "Consolas", monospace;
+  --font-mono:
+    var(--font-tabular, "IBM Plex Sans"), ui-monospace, "SFMono-Regular",
+    "Menlo", "Consolas", monospace;
 
   /* ── Animations ─────────────────────────────────────────────── */
   /* Radix Accordion: animate the content's content-height var so open
@@ -148,8 +151,12 @@
     --chart-bar-2: #14b8a6;
     --chart-bar-3: #a855f7; /* purple — distinct 3rd/4th pie slice */
     --chart-bar-4: #ec4899; /* rose — 5th pie slice (possessions); reads on both themes */
-    --chart-bar-5: #f5a524; /* amber — WANTS band, ONE step warmer than the yellow
-                               NEEDS (#f97316 orange read as a different colour) */
+    --chart-bar-5: #f5a524; /* amber — kept for other charts */
+    /* 260801: the planned bands are pure background now — NEEDS a neutral grey,
+       WANTS a warm grey one shade up, so the tri-colour actual line carries all
+       the meaning on top of them. */
+    --chart-plan-needs: #6b7280;
+    --chart-plan-wants: #7c6f64;
 
     /* Canvas + surface */
     --canvas-dark: #0b0e11;
@@ -292,7 +299,11 @@
   }
 
   body {
-    font-feature-settings: "ss01" 1, "cv11" 1, "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "ss01" 1,
+      "cv11" 1,
+      "rlig" 1,
+      "calt" 1;
   }
 
   /* Disable iOS Safari double-tap-to-zoom across the app while keeping panning
@@ -310,8 +321,6 @@
     background-color: var(--primary);
     color: var(--on-primary);
   }
-
-
 
   /* See unlayered cursor rules below — moved out of @layer base in
      round 19 because CSS cascade layers invert !important order
@@ -344,14 +353,17 @@
     caret-color: transparent !important;
   }
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit,
-  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  .date-input-overlay-host
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper,
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-text,
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-year-field,
-  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-month-field,
+  .date-input-overlay-host
+    input[type="date"]::-webkit-datetime-edit-month-field,
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-day-field {
     color: transparent !important;
   }
-  .date-input-overlay-host input[type="date"]::-webkit-calendar-picker-indicator {
+  .date-input-overlay-host
+    input[type="date"]::-webkit-calendar-picker-indicator {
     opacity: 0;
     width: 100%;
     height: 100%;
@@ -385,7 +397,9 @@
   .num {
     font-family: var(--font-numeric);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1, "lnum" 1;
+    font-feature-settings:
+      "tnum" 1,
+      "lnum" 1;
   }
 
   /* DESIGN.md §Display roles → utilities so call sites stay declarative */
@@ -616,7 +630,10 @@ button:disabled,
      Standalone keeps the JSX fallback env+64 (user-approved, untouched).
      Unlayered so it beats the Tailwind h-[calc(...)] utility (@layer). */
   [data-grid-tail-spacer] {
-    height: var(--grid-tail-spacer-h, calc(env(safe-area-inset-bottom, 0px) + 96px));
+    height: var(
+      --grid-tail-spacer-h,
+      calc(env(safe-area-inset-bottom, 0px) + 96px)
+    );
   }
 }
 
@@ -646,14 +663,14 @@ button:disabled,
 }
 
 input:where(
-    [type="text"],
-    [type="email"],
-    [type="tel"],
-    [type="url"],
-    [type="search"],
-    [type="password"],
-    [type="number"]
-  ),
+  [type="text"],
+  [type="email"],
+  [type="tel"],
+  [type="url"],
+  [type="search"],
+  [type="password"],
+  [type="number"]
+),
 input:not([type]),
 textarea,
 [role="textbox"],
@@ -859,4 +876,3 @@ html.is-server-down
     --mobile-offset-bottom: 60px !important;
   }
 }
-

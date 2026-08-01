@@ -1,13 +1,14 @@
 /**
- * actual-over-plan.ts — colour the ACTUAL line by where it crosses the plan.
+ * actual-over-plan.ts — colour the ACTUAL line by which plan band it sits in.
  *
- * Chart.js solves this with per-segment styling (`segment.borderColor`), which
- * paints a whole point-to-point segment from its endpoints — so the colour flips
- * a full step early. Recharts has no segment API at all, but SVG gives us
- * something better: one line stroked with a horizontal gradient whose stops are
- * HARD (two stops at the same offset), placed at the INTERPOLATED crossing. The
- * colour then changes exactly where actual meets needs + wants, at any point
- * density, and the filled area underneath stays a single calm grey.
+ * Three zones (260801): below NEEDS, between needs and needs+wants, and past the
+ * whole plan. Chart.js solves this with per-segment styling
+ * (`segment.borderColor`), which paints a whole point-to-point segment from its
+ * endpoints — so the colour flips a full step early. Recharts has no segment API
+ * at all, but SVG gives us something better: one line stroked with a horizontal
+ * gradient whose stops are HARD (two at the same offset), placed at the real
+ * crossings — solved on the SAME monotone cubic recharts draws, so the colour
+ * changes exactly where the curves meet.
  *
  * Offsets are in x-fraction space (0 = first point, 1 = last), which is what a
  * category axis with evenly spaced points gives us.
@@ -26,7 +27,19 @@ export interface GradientStop {
 
 const planOf = (r: ActualRow) => Number(r.needs) + Number(r.wants);
 
-/** Is this point spending past its plan? (Exactly on the plan is still inside.) */
+export type SpendZone = "under" | "between" | "over";
+
+/**
+ * Which band is this point in? A value exactly ON a line still belongs to the
+ * lower band — spending your needs budget to the cent is not "into wants".
+ */
+export function spendZone(r: ActualRow): SpendZone {
+  const real = Number(r.real);
+  if (real <= Number(r.needs)) return "under";
+  return real <= planOf(r) ? "between" : "over";
+}
+
+/** Is this point spending past the WHOLE plan? (Kept for the tooltip colour.) */
 export function isOverPlan(r: ActualRow): boolean {
   return Number(r.real) > planOf(r);
 }
@@ -87,47 +100,78 @@ function hermite(ys: number[], m: number[], i: number, t: number): number {
   );
 }
 
+/** How many samples per segment when hunting for zone changes. A segment can
+ *  cross BOTH the needs line and the total line, so a single sign test is not
+ *  enough; sampling then bisecting finds every transition. */
+const SAMPLES_PER_SEGMENT = 24;
+const BISECT_STEPS = 30;
+
 /**
- * Gradient stops for the actual line: `okColor` while inside the plan,
- * `overColor` past it, with a hard cut at every crossing. Crossings are found on
- * the drawn monotone curves of BOTH series (actual and needs+wants) by bisecting
- * their difference inside the segment where its sign flips.
+ * Gradient stops for the actual line, one colour per zone with a hard cut at each
+ * crossing. Both plan lines are evaluated on their own monotone curves, the same
+ * ones recharts paints, so a cut lands on the visual intersection.
  */
-export function overPlanGradientStops(
+export function planZoneGradientStops(
   rows: ActualRow[],
-  okColor: string,
-  overColor: string,
+  colors: { under: string; between: string; over: string },
 ): GradientStop[] {
   if (rows.length === 0) return [];
-  const colorAt = (i: number) => (isOverPlan(rows[i]!) ? overColor : okColor);
-  const stops: GradientStop[] = [{ offset: 0, color: colorAt(0) }];
   const span = Math.max(1, rows.length - 1);
-
   const reals = rows.map((r) => Number(r.real));
+  const needs = rows.map((r) => Number(r.needs));
   const plans = rows.map(planOf);
   const realM = monotoneTangents(reals);
-  const planM = monotoneTangents(plans);
-  const diffAt = (i: number, t: number) =>
-    hermite(reals, realM, i, t) - hermite(plans, planM, i, t);
+  const needsM = monotoneTangents(needs);
+  const plansM = monotoneTangents(plans);
 
-  for (let i = 1; i < rows.length; i++) {
-    if (isOverPlan(rows[i - 1]!) === isOverPlan(rows[i]!)) continue;
-    // Bisect the segment [i-1, i] for the zero of (actual − plan). 40 halvings
-    // is far below one device pixel on any chart width.
-    let lo = 0;
-    let hi = 1;
-    const loSign = Math.sign(diffAt(i - 1, 0));
-    for (let k = 0; k < 40; k++) {
-      const mid = (lo + hi) / 2;
-      if (Math.sign(diffAt(i - 1, mid)) === loSign) lo = mid;
-      else hi = mid;
-    }
-    const offset = Math.min(1, Math.max(0, (i - 1 + (lo + hi) / 2) / span));
-    // Two stops at the same offset = a hard edge instead of a blend.
-    stops.push({ offset, color: colorAt(i - 1) });
-    stops.push({ offset, color: colorAt(i) });
+  /** Zone at global position x∈[0, rows.length-1], on the DRAWN curves. */
+  const zoneAt = (x: number): SpendZone => {
+    const i = Math.min(rows.length - 2, Math.max(0, Math.floor(x)));
+    const t = rows.length < 2 ? 0 : x - i;
+    const real = hermite(reals, realM, i, t);
+    const need = hermite(needs, needsM, i, t);
+    const plan = hermite(plans, plansM, i, t);
+    if (real <= need) return "under";
+    return real <= plan ? "between" : "over";
+  };
+
+  const colorOf = (z: SpendZone) => colors[z];
+  if (rows.length === 1) {
+    const only = colorOf(spendZone(rows[0]!));
+    return [
+      { offset: 0, color: only },
+      { offset: 1, color: only },
+    ];
   }
 
-  stops.push({ offset: 1, color: colorAt(rows.length - 1) });
+  const stops: GradientStop[] = [{ offset: 0, color: colorOf(zoneAt(0)) }];
+  let prevX = 0;
+  let prevZone = zoneAt(0);
+  const step = 1 / SAMPLES_PER_SEGMENT;
+
+  for (let x = step; x <= span + 1e-9; x += step) {
+    const cur = Math.min(span, x);
+    const zone = zoneAt(cur);
+    if (zone === prevZone) {
+      prevX = cur;
+      continue;
+    }
+    // Bisect [prevX, cur] for the exact position where the zone flips.
+    let lo = prevX;
+    let hi = cur;
+    for (let k = 0; k < BISECT_STEPS; k++) {
+      const mid = (lo + hi) / 2;
+      if (zoneAt(mid) === prevZone) lo = mid;
+      else hi = mid;
+    }
+    const offset = Math.min(1, Math.max(0, (lo + hi) / 2 / span));
+    // Two stops at the same offset = a hard edge instead of a blend.
+    stops.push({ offset, color: colorOf(prevZone) });
+    stops.push({ offset, color: colorOf(zone) });
+    prevZone = zone;
+    prevX = cur;
+  }
+
+  stops.push({ offset: 1, color: colorOf(zoneAt(span)) });
   return stops;
 }

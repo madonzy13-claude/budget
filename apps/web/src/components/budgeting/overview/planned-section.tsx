@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { isOverPlan, overPlanGradientStops } from "@/lib/actual-over-plan";
+import { planZoneGradientStops, spendZone } from "@/lib/actual-over-plan";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -44,6 +44,14 @@ import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 
 const NEUTRAL = "var(--muted-foreground)";
+
+/** Actual-line colour per plan band (260801): green inside needs, yellow in the
+ *  wants band, red past the whole plan. Shared by the stroke gradient + tooltip. */
+const ZONE_COLOR = {
+  under: "var(--trading-up)",
+  between: "var(--primary)",
+  over: "var(--trading-down)",
+} as const;
 
 /** Drop leading points where every value key is 0 — so the "All" range starts at
  * the first recorded data, not the far-back range start (UAT round 15 item 1). */
@@ -186,7 +194,7 @@ export function PlannedSection({
     [data?.timeline, range.preset],
   );
   const actualStops = useMemo(
-    () => overPlanGradientStops(timelineRows, NEUTRAL, "var(--trading-down)"),
+    () => planZoneGradientStops(timelineRows, ZONE_COLOR),
     [timelineRows],
   );
 
@@ -253,29 +261,30 @@ export function PlannedSection({
                 // Planned is split into NEEDS (essential base) + WANTS stacked ABOVE
                 // it — the stack total = the planned limit, so "into wants" reads as
                 // spending beyond needs. `real` is the actual-spend line on top.
-                // 260731 (round 3): the planned bands are BACKGROUND — soft fills,
-                // dimmed strokes. ACTUAL is ONE grey area whose STROKE carries a
-                // hard-stop gradient: grey inside the plan, red past it, cutting
-                // at the exact crossing (lib/actual-over-plan) rather than at the
-                // nearest data point the way Chart.js segment styling would.
+                // 260801: the planned bands are pure BACKGROUND — needs grey,
+                // wants a warm grey above it. All the meaning sits in the ACTUAL
+                // line, which is stroked (no fill) in three zones: green below
+                // needs, yellow between needs and needs+wants, red past the plan.
+                // The cuts are solved on these same monotone curves, so they land
+                // on the visual intersections (lib/actual-over-plan).
                 series={[
                   {
                     key: "needs",
                     label: t("planned.needs"),
-                    color: "var(--primary)",
+                    color: "var(--chart-plan-needs)",
                     stack: "planned",
-                    fillOpacity: 0.12,
-                    strokeOpacity: 0.45,
+                    fillOpacity: 0.16,
+                    strokeOpacity: 0.5,
                   },
                   ...(wantsSplitExists
                     ? [
                         {
                           key: "wants",
                           label: t("planned.wants"),
-                          color: "var(--chart-bar-5)",
+                          color: "var(--chart-plan-wants)",
                           stack: "planned",
-                          fillOpacity: 0.12,
-                          strokeOpacity: 0.45,
+                          fillOpacity: 0.16,
+                          strokeOpacity: 0.5,
                         },
                       ]
                     : []),
@@ -283,20 +292,19 @@ export function PlannedSection({
                     key: "real",
                     label: t("planned.real"),
                     color: CHART_THEME.neutral,
-                    fillOpacity: 0.22,
-                    // The gradient cut is solved on this same monotone curve
-                    // (lib/actual-over-plan), so the colour changes exactly at the
-                    // visual intersection — no need to flatten the line.
+                    // Line only — a filled actual area buried the plan bands.
+                    fillOpacity: 0,
                     strokeGradientStops: actualStops,
                   },
                 ]}
-                // The hovered point's own row turns red once it is past the plan.
+                // The hovered point's row takes its own zone's colour.
                 tooltipColorForRow={(row, key) =>
-                  key === "real" &&
-                  isOverPlan(
-                    row as { real: number; needs: number; wants: number },
-                  )
-                    ? "var(--trading-down)"
+                  key === "real"
+                    ? ZONE_COLOR[
+                        spendZone(
+                          row as { real: number; needs: number; wants: number },
+                        )
+                      ]
                     : undefined
                 }
                 formatY={fmtY}
