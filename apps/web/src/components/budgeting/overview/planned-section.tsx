@@ -32,7 +32,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { planZoneGradientStops, spendZone } from "@/lib/actual-over-plan";
+import {
+  planZoneGradientStops,
+  planZoneStopsByMonth,
+  spendZone,
+} from "@/lib/actual-over-plan";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -193,15 +197,18 @@ export function PlannedSection({
       ),
     [data?.timeline, range.preset],
   );
-  // 260801 (round 2): a MONTHLY bucket is a row of independent month totals, and
-  // a monotone spline through them invents shoulders and peaks that never
-  // happened — which is what dragged the colour boundary away from where the eye
-  // reads the crossing. Monthly draws STRAIGHT segments (and the cut is solved on
-  // those same straight lines); a daily bucket keeps the curve, where the
-  // cumulative line really is continuous.
+  // 260801 (round 3): a MONTHLY point is a MONTH-END value, so the segment leading
+  // into it is that month's progression and takes that month's verdict — colour
+  // changes AT the points. Interpolating a crossing inside the segment (what the
+  // daily bucket does, correctly) read as June's overspend bleeding into July, a
+  // month that stayed under budget. Monthly also draws STRAIGHT segments: a
+  // monotone spline through month totals invents motion that never happened.
   const monthly = data?.bucket === "monthly";
   const actualStops = useMemo(
-    () => planZoneGradientStops(timelineRows, ZONE_COLOR, { linear: monthly }),
+    () =>
+      monthly
+        ? planZoneStopsByMonth(timelineRows, ZONE_COLOR)
+        : planZoneGradientStops(timelineRows, ZONE_COLOR),
     [timelineRows, monthly],
   );
 

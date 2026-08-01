@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   planZoneGradientStops,
+  planZoneStopsByMonth,
   spendZone,
   isOverPlan,
 } from "../../src/lib/actual-over-plan";
@@ -175,5 +176,51 @@ describe("straight-segment mode (monthly buckets)", () => {
       { offset: 0, color: UNDER },
       { offset: 1, color: UNDER },
     ]);
+  });
+});
+
+describe("planZoneStopsByMonth (monthly buckets)", () => {
+  // A monthly point is a MONTH-END value, so the segment leading INTO it is that
+  // month's progression and carries that month's verdict. Interpolating a crossing
+  // inside the segment spread June's overspend across the climb into July, which
+  // stayed under budget (user report, 260801).
+  it("gives each segment the colour of the month it leads into", () => {
+    const stops = planZoneStopsByMonth(
+      [row(100, 500, 0), row(900, 500, 0), row(200, 500, 0)],
+      COLORS,
+    );
+    // segment 1 (→ point 2, over) red, segment 2 (→ point 3, under) green,
+    // switching AT the middle point (offset 0.5).
+    expect(stops[0]).toEqual({ offset: 0, color: OVER });
+    expect(stops[1]!.offset).toBeCloseTo(0.5, 9);
+    expect(stops[1]!.color).toBe(OVER);
+    expect(stops[2]!.offset).toBeCloseTo(0.5, 9);
+    expect(stops[2]!.color).toBe(UNDER);
+    expect(stops[stops.length - 1]).toEqual({ offset: 1, color: UNDER });
+  });
+
+  it("never lets an over month bleed into the next, under month", () => {
+    // June over, July under: the climb between them is JULY's segment → green.
+    const stops = planZoneStopsByMonth(
+      [row(14097, 9503, 0), row(57484, 59268, 0)],
+      COLORS,
+    );
+    expect(stops.every((s) => s.color === UNDER)).toBe(true);
+  });
+
+  it("keeps the middle zone", () => {
+    const stops = planZoneStopsByMonth(
+      [row(100, 500, 200), row(600, 500, 200)],
+      COLORS,
+    );
+    expect(stops.every((s) => s.color === BETWEEN)).toBe(true);
+  });
+
+  it("handles a single point and an empty series", () => {
+    expect(planZoneStopsByMonth([row(900, 500, 0)], COLORS)).toEqual([
+      { offset: 0, color: OVER },
+      { offset: 1, color: OVER },
+    ]);
+    expect(planZoneStopsByMonth([], COLORS)).toEqual([]);
   });
 });

@@ -180,3 +180,38 @@ export function planZoneGradientStops(
   stops.push({ offset: 1, color: colorOf(zoneAt(span)) });
   return stops;
 }
+
+/**
+ * Zone stops for a MONTHLY bucket, where each point is a MONTH-END value: the
+ * segment leading INTO a point is that month's progression, so it carries that
+ * month's verdict and the colour changes AT the points.
+ *
+ * Solving a crossing inside the segment instead (as the daily bucket does) reads
+ * as June's overspend bleeding across the climb into July, a month that stayed
+ * under budget — the interpolation between two month totals is not data, so its
+ * crossing is not a real event (user report, 260801).
+ */
+export function planZoneStopsByMonth(
+  rows: ActualRow[],
+  colors: { under: string; between: string; over: string },
+): GradientStop[] {
+  if (rows.length === 0) return [];
+  const colorAt = (i: number) => colors[spendZone(rows[i]!)];
+  if (rows.length === 1) {
+    return [
+      { offset: 0, color: colorAt(0) },
+      { offset: 1, color: colorAt(0) },
+    ];
+  }
+  const span = rows.length - 1;
+  // Segment i (from point i-1 to point i) belongs to the month at point i.
+  const stops: GradientStop[] = [{ offset: 0, color: colorAt(1) }];
+  for (let i = 2; i < rows.length; i++) {
+    if (colorAt(i) === colorAt(i - 1)) continue;
+    const offset = (i - 1) / span;
+    stops.push({ offset, color: colorAt(i - 1) });
+    stops.push({ offset, color: colorAt(i) });
+  }
+  stops.push({ offset: 1, color: colorAt(rows.length - 1) });
+  return stops;
+}

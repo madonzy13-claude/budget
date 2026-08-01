@@ -116,6 +116,10 @@ export function OverviewAreaChart({
         <YAxis
           tickFormatter={yFmt}
           width={48}
+          // 260801: a series sitting at 0 is drawn ON the baseline, so half its
+          // 2px stroke painted BELOW the axis. 2px of bottom padding lifts the
+          // zero line just clear of it without shifting the readable scale.
+          padding={{ bottom: 2 }}
           {...chartAxis}
           tick={leftAlignedYTick(48)}
         />
