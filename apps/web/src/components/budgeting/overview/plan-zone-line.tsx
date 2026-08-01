@@ -97,13 +97,19 @@ export function PlanZoneLine({
   // The reset line is only the VERTICAL fall back to zero — the flat hold into
   // the boundary before it is still that month's spending.
   const drops = rows.slice(1).map((r) => !!r.drop);
+  // A segment with no width carries no reading, and drawing it would paint a
+  // full-height vertical over the grey reset at the same x (user screenshot:
+  // a month one day old). Skip those along with the drops.
+  const skipSegment = drops.map(
+    (isDrop, i) => isDrop || pointXs[i] === pointXs[i + 1],
+  );
 
   const top = plot.y;
   const bottom = plot.y + plot.height;
   // Each sample carries its fractional index into `rows`, so the data segment it
   // sits in is floor(x) — the zone-coloured copies skip the drops entirely.
   const sampleSkip = actualSamples.map(
-    (s) => !!drops[Math.min(drops.length - 1, Math.floor(s.x))],
+    (s) => !!skipSegment[Math.min(skipSegment.length - 1, Math.floor(s.x))],
   );
   const line = polylineRuns(actual, sampleSkip);
   const dropPts = rows.map((r, i) => ({

@@ -43,7 +43,7 @@ import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
 import { insertMonthResets } from "@/lib/month-reset";
-import { appendRunningMonthTail } from "@/lib/month-tail";
+import { appendTodayTail } from "@/lib/today-tail";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 
@@ -190,7 +190,7 @@ export function PlannedSection({
   const timelineRows = useMemo(
     () =>
       insertMonthResets(
-        appendRunningMonthTail(
+        appendTodayTail(
           withDayStartBaseline(
             trimLeadingEmpty(
               (data?.timeline ?? []).map((p) => ({
