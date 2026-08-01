@@ -24,3 +24,19 @@ export function thinTimeTicks(values: number[], max = 6): number[] {
   out.push(last);
   return out;
 }
+
+/**
+ * One tick per calendar month — the first point that falls in it. Past 1M the
+ * axis names months rather than days, and without this several days of the same
+ * month would each print the same label (260801 user request).
+ */
+export function monthFirstTicks(values: number[]): number[] {
+  const seen = new Set<string>();
+  return values.filter((v) => {
+    const d = new Date(v);
+    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

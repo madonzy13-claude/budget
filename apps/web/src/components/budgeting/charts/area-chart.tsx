@@ -24,7 +24,7 @@ import {
 } from "./chart-theme";
 import { ChartTooltipContent } from "./chart-tooltip";
 import { useDismissTooltip } from "./use-dismiss-tooltip";
-import { thinTimeTicks } from "@/lib/chart-ticks";
+import { monthFirstTicks, thinTimeTicks } from "@/lib/chart-ticks";
 import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +69,7 @@ export function OverviewAreaChart({
   tooltipColorForRow,
   overlay,
   xNumeric = false,
+  xTickPerMonth = false,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -116,6 +117,8 @@ export function OverviewAreaChart({
    * running month the same width as the thirty days before it.
    */
   xNumeric?: boolean;
+  /** One tick per calendar month — for an axis that names months, not days. */
+  xTickPerMonth?: boolean;
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
@@ -152,7 +155,12 @@ export function OverviewAreaChart({
                 // tick; the rest are thinned by TIME because recharts drew a
                 // daily range's every point and the labels overlapped.
                 ticks: thinTimeTicks(
-                  data.filter((d) => !d.reset).map((d) => Number(d[xKey])),
+                  (() => {
+                    const vals = data
+                      .filter((d) => !d.reset)
+                      .map((d) => Number(d[xKey]));
+                    return xTickPerMonth ? monthFirstTicks(vals) : vals;
+                  })(),
                 ),
                 interval: "preserveStartEnd" as const,
                 // recharts drops ticks that would land within this many pixels

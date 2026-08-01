@@ -39,7 +39,7 @@ import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
-import { formatChartDate } from "@/lib/chart-date-format";
+import { formatChartDate, formatChartTimestamp } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
 import { insertMonthResets } from "@/lib/month-reset";
 import { appendTodayTail } from "@/lib/today-tail";
@@ -216,6 +216,9 @@ export function PlannedSection({
       ),
     [data?.timeline, range.preset, todayIso],
   );
+  // More than one month in view → the axis names months, not days.
+  const spansMonths =
+    new Set(timelineRows.map((r) => r.label.slice(0, 7))).size > 1;
   // The overlay draws the spend line only where there IS spend: the running
   // month's tail carries the plan alone (real === null).
   const spentRows = useMemo(
@@ -416,7 +419,17 @@ export function PlannedSection({
                 }}
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
-                xTickFormat={(v) => formatTs(Number(v), locale)}
+                // Past 1M the axis names MONTHS: which day a monthly point sits
+                // on (a month end, or today) is noise (260801 user request). The
+                // tooltip still names the full day.
+                xTickPerMonth={spansMonths}
+                xTickFormat={(v) =>
+                  formatChartTimestamp(
+                    Number(v),
+                    locale,
+                    spansMonths ? "month" : "day",
+                  )
+                }
                 // The tooltip names the DAY a point stands for: a monthly point
                 // carries its month's value as of the last day (clamped to today
                 // while the month is still running).

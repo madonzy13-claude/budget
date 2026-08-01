@@ -6,7 +6,7 @@
  * (user screenshot: "1 Jul 2026" and "1 Aug 2026" overlapping).
  */
 import { describe, it, expect } from "vitest";
-import { thinTimeTicks } from "../../src/lib/chart-ticks";
+import { monthFirstTicks, thinTimeTicks } from "../../src/lib/chart-ticks";
 
 const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 
@@ -49,5 +49,34 @@ describe("thinTimeTicks", () => {
   it("passes through the trivial cases", () => {
     expect(thinTimeTicks([], 5)).toEqual([]);
     expect(thinTimeTicks([7], 5)).toEqual([7]);
+  });
+});
+
+describe("monthFirstTicks", () => {
+  // Past 1M the axis names months, so it needs ONE tick per month — otherwise
+  // several days of the same month print the same label (260801 user request).
+  it("keeps the first point of each month", () => {
+    const v = [
+      day("2026-06-01"),
+      day("2026-06-09"),
+      day("2026-06-25"),
+      day("2026-07-01"),
+      day("2026-07-14"),
+      day("2026-08-01"),
+    ];
+    expect(monthFirstTicks(v)).toEqual([
+      day("2026-06-01"),
+      day("2026-07-01"),
+      day("2026-08-01"),
+    ]);
+  });
+
+  it("leaves one-point-per-month data untouched", () => {
+    const v = [day("2026-03-31"), day("2026-04-30"), day("2026-05-31")];
+    expect(monthFirstTicks(v)).toEqual(v);
+  });
+
+  it("is empty for no points", () => {
+    expect(monthFirstTicks([])).toEqual([]);
   });
 });

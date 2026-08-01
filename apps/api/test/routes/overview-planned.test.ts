@@ -124,6 +124,23 @@ async function createFixture(): Promise<Fixture> {
        VALUES ($1, $2, $3, $4, 'USD', 5000, 5000, 1, '2026-02-15'::date, '2026-02-15'::date, 'SPENDING', NULL, now(), now())`,
       [crypto.randomUUID(), budgetId, budgetId, categoryId],
     );
+    // An INVESTMENT category with spend in the same days. Investing is not
+    // spending: it is excluded from the timeline, so neither the monthly nor
+    // the DAILY line may carry it (260801 user report — the daily line did, and
+    // the excess coloured the line red on months that never overspent).
+    const investId = crypto.randomUUID();
+    await c.query(
+      `INSERT INTO budgeting.categories (id, tenant_id, name, is_investment, created_at, actor_user_id)
+       VALUES ($1, $2, 'Investing', true, '2025-12-01T00:00:00Z', $3)`,
+      [investId, budgetId, userId],
+    );
+    await c.query(
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, category_id, currency_original, amount_original_cents,
+          amount_converted_cents, fx_rate, fx_as_of, transaction_date, kind, confirmed_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'USD', 99000, 99000, 1, '2026-01-12'::date, '2026-01-12'::date, 'SPENDING', now(), now(), now())`,
+      [crypto.randomUUID(), budgetId, budgetId, investId],
+    );
     // Active MONTHLY recurring rule: 100.00 USD on Food.
     await c.query(
       `INSERT INTO budgeting.recurring_rules
@@ -368,5 +385,36 @@ describe("GET /budgets/:id/overview/planned", () => {
       `/budgets/${fix.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
     );
     expect(res.status).toBe(404);
+  });
+
+  it("keeps investment spend out of the DAILY line, like the monthly one", async () => {
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    // A single month → daily bucket.
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/overview/planned?from=2026-01-01&to=2026-01-31`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      bucket: string;
+      timeline: {
+        real_cents: string;
+        within_limit_cents: string;
+        reserve_used_cents: string;
+        overspent_cents: string;
+      }[];
+    };
+    expect(body.bucket).toBe("daily");
+    const last = body.timeline[body.timeline.length - 1]!;
+    // Food's 180.00 only — the 990.00 investment must not appear.
+    expect(last.real_cents).toBe("18000");
+    // …so the split still accounts for every cent the line draws.
+    expect(
+      BigInt(last.within_limit_cents) +
+        BigInt(last.reserve_used_cents) +
+        BigInt(last.overspent_cents),
+    ).toBe(BigInt(last.real_cents));
   });
 });

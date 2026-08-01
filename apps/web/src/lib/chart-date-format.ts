@@ -25,3 +25,23 @@ export function formatChartDate(
   // label, which is fine.
   return d ? `${Number(d)} ${monthShort} ${y}` : `${monthShort} ${y}`;
 }
+
+/**
+ * Epoch ms → the same label, for the numeric time axis. `unit: "month"` drops the
+ * day: past 3M the axis has one tick per month and the day it happens to sit on
+ * (a month end, or today for the running month) is noise (260801 user request).
+ * The tooltip keeps naming the full day.
+ */
+export function formatChartTimestamp(
+  ts: number,
+  locale: string,
+  unit: "day" | "month",
+): string {
+  if (!Number.isFinite(ts)) return "";
+  const d = new Date(ts);
+  const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  return formatChartDate(
+    unit === "month" ? ym : `${ym}-${String(d.getUTCDate()).padStart(2, "0")}`,
+    locale,
+  );
+}

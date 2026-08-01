@@ -190,9 +190,19 @@ export function createOverviewRepo(): OverviewPlannedRepo {
 
     async dailySpend(budgetId, from, to, categoryId): Promise<DailySpendRow[]> {
       return read(budgetId, async (tx) => {
+        // 260801: investing is not spending, so the All-categories line drops
+        // investment categories — the MONTHLY branch already did (inCat), the
+        // daily one did not, and the extra money coloured the line red on months
+        // that never overspent (user report). Picking one explicitly still shows
+        // it. Uncategorised rows always count.
         const catFilter = categoryId
           ? sql`AND category_id = ${categoryId}::uuid`
-          : sql``;
+          : sql`AND (category_id IS NULL OR NOT EXISTS (
+                  SELECT 1 FROM budgeting.categories c
+                   WHERE c.id = budgeting.expense_ledger.category_id
+                     AND c.tenant_id = budgeting.expense_ledger.tenant_id
+                     AND c.is_investment
+                ))`;
         const res = await tx.execute(sql`
           SELECT to_char(transaction_date, 'YYYY-MM-DD') AS day,
                  COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents
