@@ -33,7 +33,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Customized } from "recharts";
-import { spendZone } from "@/lib/actual-over-plan";
 import { PlanZoneLine } from "./plan-zone-line";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
@@ -201,10 +200,9 @@ export function PlannedSection({
                 wants: Number(p.wants_cents),
                 withinLimit: Number(p.within_limit_cents ?? 0),
                 reserveUsed: Number(p.reserve_used_cents ?? 0),
+                overspent: Number(p.overspent_cents ?? 0),
               })),
-              range.preset === "all"
-                ? ["real", "needs", "wants", "reserve"]
-                : [],
+              range.preset === "all" ? ["real", "needs", "wants"] : [],
             ),
             // Real spend starts at 0 (nothing spent yet); planned holds flat.
             ["real"],
@@ -355,15 +353,48 @@ export function PlannedSection({
                     )}
                   />
                 }
-                tooltipColorForRow={(row, key) =>
-                  key === "real"
-                    ? ZONE_COLOR[
-                        spendZone(
-                          row as { real: number; needs: number; wants: number },
-                        )
-                      ]
-                    : undefined
-                }
+                // The Actual row is replaced by the split below — the same three
+                // parts the line is coloured in (260801 user request).
+                tooltipOmitKeys={["real"]}
+                tooltipExtra={(row) => {
+                  const real = Number(row.real ?? 0);
+                  const within = Number(row.withinLimit ?? 0);
+                  const reserve = Number(row.reserveUsed ?? 0);
+                  // Split the point's RUNNING total across the month's parts in
+                  // the order they are spent, so the rows always sum to it.
+                  const fromPlan = Math.min(real, within);
+                  const fromReserve = Math.min(
+                    Math.max(real - within, 0),
+                    reserve,
+                  );
+                  const over = Math.max(real - within - reserve, 0);
+                  return [
+                    {
+                      label: t("planned.fromPlan"),
+                      value: fmtTooltip(fromPlan),
+                      color: ZONE_COLOR.under,
+                    },
+                    ...(fromReserve > 0
+                      ? [
+                          {
+                            label: t("planned.fromReserve"),
+                            value: fmtTooltip(fromReserve),
+                            color: ZONE_COLOR.between,
+                          },
+                        ]
+                      : []),
+                    ...(over > 0
+                      ? [
+                          {
+                            label: t("planned.overspent"),
+                            value: fmtTooltip(over),
+                            color: ZONE_COLOR.over,
+                          },
+                        ]
+                      : []),
+                    { label: t("planned.total"), value: fmtTooltip(real) },
+                  ];
+                }}
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
                 xTickFormat={(v) => formatTs(Number(v), locale)}

@@ -28,6 +28,26 @@ import { thinTimeTicks } from "@/lib/chart-ticks";
 import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { cn } from "@/lib/utils";
 
+/** recharts' own active-dot look, so a per-point renderer matches the default. */
+function DefaultActiveDot(props: {
+  cx?: number;
+  cy?: number;
+  fill?: string;
+  stroke?: string;
+}) {
+  if (props.cx == null || props.cy == null) return <g />;
+  return (
+    <circle
+      cx={props.cx}
+      cy={props.cy}
+      r={4}
+      fill={props.fill ?? props.stroke ?? CHART_THEME.accent}
+      stroke="#fff"
+      strokeWidth={2}
+    />
+  );
+}
+
 /** A fixed 3-dot mask — hides the amount entirely (magnitude, K/M suffix, and
  *  all) with a constant width regardless of the real number. */
 const AMOUNT_MASK = "•••";
@@ -215,7 +235,24 @@ export function OverviewAreaChart({
               strokeWidth={2}
               strokeDasharray={s.dashed ? "4 4" : undefined}
               dot={false}
-              activeDot={hideCursor || s.noActiveDot ? false : undefined}
+              // A reset row is geometry with no tooltip, so it must not offer a
+              // dot to aim at either (260801 user report).
+              activeDot={
+                hideCursor || s.noActiveDot
+                  ? false
+                  : (props: {
+                      cx?: number;
+                      cy?: number;
+                      fill?: string;
+                      stroke?: string;
+                      payload?: { reset?: boolean };
+                    }) =>
+                      props.payload?.reset ? (
+                        <g />
+                      ) : (
+                        <DefaultActiveDot {...props} />
+                      )
+              }
               isAnimationActive={false}
             />
           );

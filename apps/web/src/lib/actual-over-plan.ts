@@ -17,17 +17,52 @@ export interface ActualRow {
   real: number;
   needs: number;
   wants: number;
-  /** What this month's LIMIT covered — everything below it is green. */
+  /** The month's spend, split by where it came from: the limit, the reserve it
+   *  drew, and the overspend. The three sum to the month's TOTAL spend, which is
+   *  what the colour proportions are measured against — `real` is the running
+   *  total at this point, which in a daily bucket is only part of it. */
   withinLimit?: number;
-  /** What its RESERVE covered on top of that — the yellow stretch. */
   reserveUsed?: number;
+  overspent?: number;
   [key: string]: unknown;
 }
 
-/** Green up to here: the part of the spend the limit paid for. */
-const limitOf = (r: ActualRow) => Number(r.withinLimit ?? 0);
-/** …and yellow up to here: limit + the reserve the month actually drew. */
-const coveredOf = (r: ActualRow) => limitOf(r) + Number(r.reserveUsed ?? 0);
+/**
+ * A reserve draw or an overspend gets a FLOOR of five points added to its share
+ * of the line, taken out of green (260801 user decision): a 3% sliver of yellow
+ * is invisible, and those are precisely the jumps worth seeing. Zero parts stay
+ * zero — a month that never touched its reserve shows no yellow at all.
+ */
+export const ZONE_BOOST = 0.05;
+
+/**
+ * Where the colour changes, in VALUE space: green below `limit`, yellow up to
+ * `covered`, red above. Boosted as above, so these are display thresholds — the
+ * true amounts stay in the tooltip.
+ */
+export function zoneThresholds(r: ActualRow): {
+  limit: number;
+  covered: number;
+} {
+  const within = Number(r.withinLimit ?? 0);
+  const used = Number(r.reserveUsed ?? 0);
+  const over = Number(r.overspent ?? 0);
+  const total = within + used + over;
+  if (!(total > 0)) return { limit: 0, covered: 0 };
+
+  let yellow = used > 0 ? used / total + ZONE_BOOST : 0;
+  let red = over > 0 ? over / total + ZONE_BOOST : 0;
+  const nonGreen = yellow + red;
+  if (nonGreen > 1) {
+    yellow /= nonGreen;
+    red /= nonGreen;
+  }
+  const green = 1 - yellow - red;
+  return { limit: total * green, covered: total * (green + yellow) };
+}
+
+const limitOf = (r: ActualRow) => zoneThresholds(r).limit;
+const coveredOf = (r: ActualRow) => zoneThresholds(r).covered;
 
 export type SpendZone = "under" | "between" | "over";
 

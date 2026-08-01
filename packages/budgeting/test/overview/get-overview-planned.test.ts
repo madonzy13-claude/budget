@@ -890,11 +890,12 @@ describe("getOverviewPlanned", () => {
     expect(point.within_limit_cents).toBe("12000");
     expect(point.reserve_used_cents).toBe("5000");
     // The three parts account for every cent spent.
-    const over =
-      BigInt(point.real_cents) -
-      BigInt(point.within_limit_cents) -
-      BigInt(point.reserve_used_cents);
-    expect(over).toBe(2500n);
+    expect(point.overspent_cents).toBe("2500");
+    expect(
+      BigInt(point.within_limit_cents) +
+        BigInt(point.reserve_used_cents) +
+        BigInt(point.overspent_cents),
+    ).toBe(BigInt(point.real_cents));
   });
 
   test("a category filter scopes the split too", async () => {

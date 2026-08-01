@@ -207,6 +207,7 @@ describe("GET /budgets/:id/overview/planned", () => {
         real_cents: string;
         within_limit_cents: string;
         reserve_used_cents: string;
+        overspent_cents: string;
       }[];
       plannedAvgVsReal: {
         category_id: string;
@@ -236,8 +237,10 @@ describe("GET /budgets/:id/overview/planned", () => {
         BigInt(p.real_cents),
       );
       expect(
-        BigInt(p.within_limit_cents) + BigInt(p.reserve_used_cents),
-      ).toBeLessThanOrEqual(BigInt(p.real_cents));
+        BigInt(p.within_limit_cents) +
+          BigInt(p.reserve_used_cents) +
+          BigInt(p.overspent_cents),
+      ).toBe(BigInt(p.real_cents));
     }
     // real: confirmed only — the Feb pending 5000 is excluded
     expect(body.timeline.map((p) => p.real_cents)).toEqual([

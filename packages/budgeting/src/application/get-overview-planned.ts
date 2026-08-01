@@ -144,6 +144,7 @@ export interface OverviewPlannedDTO {
      */
     within_limit_cents: string;
     reserve_used_cents: string;
+    overspent_cents: string;
   }[];
   plannedAvgVsReal: {
     category_id: string;
@@ -266,6 +267,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         );
       const withinByMonth = new Map<string, bigint>();
       const reserveUsedByMonth = new Map<string, bigint>();
+      const overspentByMonth = new Map<string, bigint>();
       for (const s of spend) {
         if (!inCat(s.category_id)) continue;
         const limit =
@@ -279,14 +281,20 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         // colour more of the line than the month actually overspent.
         const used = drawn < overage ? drawn : overage;
         withinByMonth.set(s.month, (withinByMonth.get(s.month) ?? 0n) + within);
+        const drawn2 = used > 0n ? used : 0n;
         reserveUsedByMonth.set(
           s.month,
-          (reserveUsedByMonth.get(s.month) ?? 0n) + (used > 0n ? used : 0n),
+          (reserveUsedByMonth.get(s.month) ?? 0n) + drawn2,
+        );
+        overspentByMonth.set(
+          s.month,
+          (overspentByMonth.get(s.month) ?? 0n) + (overage - drawn2),
         );
       }
       const splitOf = (month: string) => ({
         within_limit_cents: (withinByMonth.get(month) ?? 0n).toString(),
         reserve_used_cents: (reserveUsedByMonth.get(month) ?? 0n).toString(),
+        overspent_cents: (overspentByMonth.get(month) ?? 0n).toString(),
       });
 
       // ---- timeline ----

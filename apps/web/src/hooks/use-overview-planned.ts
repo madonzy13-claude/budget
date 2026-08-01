@@ -22,6 +22,7 @@ export interface OverviewPlannedDTO {
      *  three sum to real_cents and set the line's colour proportions (260801). */
     within_limit_cents: string;
     reserve_used_cents: string;
+    overspent_cents: string;
   }[];
   plannedAvgVsReal: {
     category_id: string;

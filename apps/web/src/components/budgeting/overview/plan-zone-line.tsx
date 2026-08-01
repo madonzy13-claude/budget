@@ -20,7 +20,7 @@
  * come from its hooks instead — same numbers the chart itself draws with.
  */
 import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
-import { sampleSeries } from "@/lib/actual-over-plan";
+import { sampleSeries, zoneThresholds } from "@/lib/actual-over-plan";
 import {
   polylinePath,
   polylineRuns,
@@ -32,9 +32,10 @@ import {
 
 export interface PlanZoneRow {
   label: string;
-  /** What the month's limit covered, and what its reserve covered on top. */
+  /** The month's spend split by origin: limit, reserve drawn, overspend. */
   withinLimit?: number;
   reserveUsed?: number;
+  overspent?: number;
   /** Epoch ms — the chart's x-axis is numeric so spacing follows real time. */
   ts: number;
   real: number;
@@ -90,16 +91,18 @@ export function PlanZoneLine({
     opts,
   );
   const actual = toPx(actualSamples);
-  // Green below what the limit covered, yellow up to limit + reserve drawn.
+  // Green below what the limit covered, yellow up to limit + reserve drawn —
+  // as DISPLAY shares, so a sliver of reserve or overspend is still visible.
+  const cuts = rows.map((r) => zoneThresholds(r));
   const plan = toPx(
     sampleSeries(
-      rows.map((r) => r.withinLimit ?? 0),
+      cuts.map((c) => c.limit),
       opts,
     ),
   );
   const covered = toPx(
     sampleSeries(
-      rows.map((r) => (r.withinLimit ?? 0) + (r.reserveUsed ?? 0)),
+      cuts.map((c) => c.covered),
       opts,
     ),
   );
