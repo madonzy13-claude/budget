@@ -46,6 +46,7 @@ export function OverviewAreaChart({
   maskAmounts = false,
   tooltipOmitKeys,
   tooltipColorForRow,
+  overlay,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -84,6 +85,9 @@ export function OverviewAreaChart({
     row: Record<string, unknown>,
     dataKey?: string | number,
   ) => string | undefined;
+  /** Extra recharts children (e.g. a <Customized> overlay) drawn LAST, on top of
+   *  the series — used by the planned chart to stroke the actual line per zone. */
+  overlay?: React.ReactNode;
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
@@ -189,6 +193,7 @@ export function OverviewAreaChart({
             />
           );
         })}
+        {overlay}
       </AreaChart>
     </ResponsiveContainer>
   );

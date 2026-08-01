@@ -20,11 +20,6 @@ export interface ActualRow {
   [key: string]: unknown;
 }
 
-export interface GradientStop {
-  offset: number;
-  color: string;
-}
-
 const planOf = (r: ActualRow) => Number(r.needs) + Number(r.wants);
 
 export type SpendZone = "under" | "between" | "over";
@@ -100,118 +95,31 @@ function hermite(ys: number[], m: number[], i: number, t: number): number {
   );
 }
 
-/** How many samples per segment when hunting for zone changes. A segment can
- *  cross BOTH the needs line and the total line, so a single sign test is not
- *  enough; sampling then bisecting finds every transition. */
-const SAMPLES_PER_SEGMENT = 24;
-const BISECT_STEPS = 30;
-
 /**
- * Gradient stops for the actual line, one colour per zone with a hard cut at each
- * crossing. Both plan lines are evaluated on their own monotone curves, the same
- * ones recharts paints, so a cut lands on the visual intersection.
+ * Sample a series along the drawn shape: index-space positions with their values.
+ * `linear` traces straight segments, otherwise the monotone cubic recharts draws.
+ * Used by the zone renderer to build pixel paths that match the chart exactly.
  */
-export function planZoneGradientStops(
-  rows: ActualRow[],
-  colors: { under: string; between: string; over: string },
-  opts: { linear?: boolean } = {},
-): GradientStop[] {
-  if (rows.length === 0) return [];
-  const span = Math.max(1, rows.length - 1);
-  const reals = rows.map((r) => Number(r.real));
-  const needs = rows.map((r) => Number(r.needs));
-  const plans = rows.map(planOf);
-  const realM = monotoneTangents(reals);
-  const needsM = monotoneTangents(needs);
-  const plansM = monotoneTangents(plans);
-  // `linear` mirrors a chart drawn with straight segments: the value between two
-  // points is the plain lerp, so the cut lands where the STRAIGHT lines meet.
-  const valueAt = (ys: number[], m: number[], i: number, t: number) =>
-    opts.linear ? ys[i]! + (ys[i + 1]! - ys[i]!) * t : hermite(ys, m, i, t);
-
-  /** Zone at global position x∈[0, rows.length-1], on the DRAWN curves. */
-  const zoneAt = (x: number): SpendZone => {
-    const i = Math.min(rows.length - 2, Math.max(0, Math.floor(x)));
-    const t = rows.length < 2 ? 0 : x - i;
-    const real = valueAt(reals, realM, i, t);
-    const need = valueAt(needs, needsM, i, t);
-    const plan = valueAt(plans, plansM, i, t);
-    if (real <= need) return "under";
-    return real <= plan ? "between" : "over";
-  };
-
-  const colorOf = (z: SpendZone) => colors[z];
-  if (rows.length === 1) {
-    const only = colorOf(spendZone(rows[0]!));
-    return [
-      { offset: 0, color: only },
-      { offset: 1, color: only },
-    ];
-  }
-
-  const stops: GradientStop[] = [{ offset: 0, color: colorOf(zoneAt(0)) }];
-  let prevX = 0;
-  let prevZone = zoneAt(0);
-  const step = 1 / SAMPLES_PER_SEGMENT;
-
-  for (let x = step; x <= span + 1e-9; x += step) {
-    const cur = Math.min(span, x);
-    const zone = zoneAt(cur);
-    if (zone === prevZone) {
-      prevX = cur;
-      continue;
+export function sampleSeries(
+  values: number[],
+  opts: { linear?: boolean; perSegment?: number } = {},
+): Array<{ x: number; v: number }> {
+  if (values.length === 0) return [];
+  if (values.length === 1) return [{ x: 0, v: values[0]! }];
+  const m = monotoneTangents(values);
+  const per = Math.max(1, opts.perSegment ?? (opts.linear ? 1 : 12));
+  const out: Array<{ x: number; v: number }> = [];
+  for (let i = 0; i < values.length - 1; i++) {
+    for (let k = 0; k < per; k++) {
+      const t = k / per;
+      out.push({
+        x: i + t,
+        v: opts.linear
+          ? values[i]! + (values[i + 1]! - values[i]!) * t
+          : hermite(values, m, i, t),
+      });
     }
-    // Bisect [prevX, cur] for the exact position where the zone flips.
-    let lo = prevX;
-    let hi = cur;
-    for (let k = 0; k < BISECT_STEPS; k++) {
-      const mid = (lo + hi) / 2;
-      if (zoneAt(mid) === prevZone) lo = mid;
-      else hi = mid;
-    }
-    const offset = Math.min(1, Math.max(0, (lo + hi) / 2 / span));
-    // Two stops at the same offset = a hard edge instead of a blend.
-    stops.push({ offset, color: colorOf(prevZone) });
-    stops.push({ offset, color: colorOf(zone) });
-    prevZone = zone;
-    prevX = cur;
   }
-
-  stops.push({ offset: 1, color: colorOf(zoneAt(span)) });
-  return stops;
-}
-
-/**
- * Zone stops for a MONTHLY bucket, where each point is a MONTH-END value: the
- * segment leading INTO a point is that month's progression, so it carries that
- * month's verdict and the colour changes AT the points.
- *
- * Solving a crossing inside the segment instead (as the daily bucket does) reads
- * as June's overspend bleeding across the climb into July, a month that stayed
- * under budget — the interpolation between two month totals is not data, so its
- * crossing is not a real event (user report, 260801).
- */
-export function planZoneStopsByMonth(
-  rows: ActualRow[],
-  colors: { under: string; between: string; over: string },
-): GradientStop[] {
-  if (rows.length === 0) return [];
-  const colorAt = (i: number) => colors[spendZone(rows[i]!)];
-  if (rows.length === 1) {
-    return [
-      { offset: 0, color: colorAt(0) },
-      { offset: 1, color: colorAt(0) },
-    ];
-  }
-  const span = rows.length - 1;
-  // Segment i (from point i-1 to point i) belongs to the month at point i.
-  const stops: GradientStop[] = [{ offset: 0, color: colorAt(1) }];
-  for (let i = 2; i < rows.length; i++) {
-    if (colorAt(i) === colorAt(i - 1)) continue;
-    const offset = (i - 1) / span;
-    stops.push({ offset, color: colorAt(i - 1) });
-    stops.push({ offset, color: colorAt(i) });
-  }
-  stops.push({ offset: 1, color: colorAt(rows.length - 1) });
-  return stops;
+  out.push({ x: values.length - 1, v: values[values.length - 1]! });
+  return out;
 }

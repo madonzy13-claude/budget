@@ -9,7 +9,7 @@
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -32,11 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  planZoneGradientStops,
-  planZoneStopsByMonth,
-  spendZone,
-} from "@/lib/actual-over-plan";
+import { Customized } from "recharts";
+import { spendZone } from "@/lib/actual-over-plan";
+import { PlanZoneLine } from "./plan-zone-line";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -204,13 +202,8 @@ export function PlannedSection({
   // month that stayed under budget. Monthly also draws STRAIGHT segments: a
   // monotone spline through month totals invents motion that never happened.
   const monthly = data?.bucket === "monthly";
-  const actualStops = useMemo(
-    () =>
-      monthly
-        ? planZoneStopsByMonth(timelineRows, ZONE_COLOR)
-        : planZoneGradientStops(timelineRows, ZONE_COLOR),
-    [timelineRows, monthly],
-  );
+  // clipPath ids are document-global; several charts can share a page.
+  const zoneIdPrefix = `planzone-${useId().replace(/:/g, "")}`;
 
   // Chart AXIS: bare + compact, no currency (r24 items 5/7). TOOLTIP: full $ (r25 #2).
   const ccy = data?.currency ?? "USD";
@@ -315,12 +308,27 @@ export function PlannedSection({
                     curve: monthly
                       ? ("linear" as const)
                       : ("monotone" as const),
-                    // Line only — a filled actual area buried the plan bands.
+                    // The visible actual line is the clipped <PlanZoneLine>
+                    // overlay below; this series stays for the tooltip + hover dot
+                    // but paints nothing (no fill, no stroke).
                     fillOpacity: 0,
-                    strokeGradientStops: actualStops,
+                    strokeOpacity: 0,
                   },
                 ]}
                 // The hovered point's row takes its own zone's colour.
+                overlay={
+                  <Customized
+                    component={(props: object) => (
+                      <PlanZoneLine
+                        {...props}
+                        rows={timelineRows}
+                        colors={ZONE_COLOR}
+                        linear={monthly}
+                        idPrefix={zoneIdPrefix}
+                      />
+                    )}
+                  />
+                }
                 tooltipColorForRow={(row, key) =>
                   key === "real"
                     ? ZONE_COLOR[
