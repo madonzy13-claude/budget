@@ -86,6 +86,20 @@ describe("monthSegmentZones (monthly buckets)", () => {
     ).toEqual(["over", "under"]);
   });
 
+  it("keeps the drop into a reset on the month it came FROM", () => {
+    // With per-month resets each month draws as its own shape: rise from the
+    // zero row, then back down to the next one. Both legs belong to the month
+    // that was spent, so the whole shape carries one colour — the drop must not
+    // take the zero row's (always "under") verdict.
+    const zones = monthSegmentZones([
+      { ...row(0, 0, 0), reset: true }, // 1 Jun
+      row(900, 500, 0), // June: over
+      { ...row(0, 0, 0), reset: true }, // 1 Jul
+      row(200, 500, 0), // July: under
+    ]);
+    expect(zones).toEqual(["over", "over", "under"]);
+  });
+
   it("never paints an under-budget month with its neighbour's overspend", () => {
     // June over, July under → the climb between them is JULY's segment.
     expect(

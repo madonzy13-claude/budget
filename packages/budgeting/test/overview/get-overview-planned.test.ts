@@ -474,10 +474,11 @@ describe("getOverviewPlanned", () => {
     expect(last.real_cents).toBe("5000");
   });
 
-  test("multi-month daily bucket: the plan ACCUMULATES like the spend does", async () => {
-    // 260801 bug: a 3M range (61 days → daily bucket) summed spend across the
-    // whole range but drew the plan as the CURRENT month's limit, so a 45K
-    // cumulative actual was compared against a 23K one-month plan.
+  test("multi-month daily bucket restarts every month at zero", async () => {
+    // 260801 (user decision): each month is its own cycle. The plan is that
+    // month's own limit and the spend line restarts at 0 on the 1st, so the
+    // chart reads as a row of monthly burn-ups instead of one ever-climbing
+    // total that could never be compared against a single month's limit.
     const repo: GetOverviewPlannedDeps["repo"] = {
       async monthlyPlannedByCategory() {
         return [
@@ -493,6 +494,78 @@ describe("getOverviewPlanned", () => {
             planned_cents: 30000n,
             needs_cents: 18000n,
           },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [
+          { day: "2026-06-15", spent_cents: 15000n },
+          { day: "2026-06-20", spent_cents: 5000n },
+          { day: "2026-07-15", spent_cents: 25000n },
+        ];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-06-01",
+        to: "2026-07-31",
+      })
+    )._unsafeUnwrap();
+    expect(dto.bucket).toBe("daily");
+
+    // June accumulates within itself…
+    expect(dto.timeline.find((p) => p.label === "2026-06-15")!.real_cents).toBe(
+      "15000",
+    );
+    expect(dto.timeline.find((p) => p.label === "2026-06-20")!.real_cents).toBe(
+      "20000",
+    );
+    // …and July starts from zero again, not from June's 20000.
+    expect(dto.timeline.find((p) => p.label === "2026-07-15")!.real_cents).toBe(
+      "25000",
+    );
+
+    // The plan is each month's OWN limit, so it drops back at the boundary.
+    expect(
+      dto.timeline.find((p) => p.label === "2026-06-15")!.planned_cents,
+    ).toBe("20000");
+    expect(
+      dto.timeline.find((p) => p.label === "2026-07-15")!.planned_cents,
+    ).toBe("30000");
+  });
+
+  test("a new month opens with a zero point so the line drops, not slides", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "N", month: "2026-06", planned_cents: 20000n },
+          { category_id: "N", month: "2026-07", planned_cents: 30000n },
         ];
       },
       async monthlySpendByCategory() {
@@ -535,81 +608,16 @@ describe("getOverviewPlanned", () => {
         to: "2026-07-31",
       })
     )._unsafeUnwrap();
-    expect(dto.bucket).toBe("daily");
 
-    const june = dto.timeline.find((p) => p.label === "2026-06-15")!;
-    const july = dto.timeline.find((p) => p.label === "2026-07-15")!;
-    // June: only June's plan is in force yet.
-    expect(june.planned_cents).toBe("20000");
-    expect(june.needs_cents).toBe("12000");
-    expect(june.wants_cents).toBe("8000");
-    expect(june.real_cents).toBe("15000");
-    // July: June + July, matching the cumulative spend line beside it.
-    expect(july.planned_cents).toBe("50000");
-    expect(july.needs_cents).toBe("30000");
-    expect(july.wants_cents).toBe("20000");
-    expect(july.real_cents).toBe("40000");
-  });
-
-  test("multi-month daily bucket pro-rates the RUNNING month by elapsed days", async () => {
-    // 260801: on the 1st of a month the cumulative plan jumped by that whole
-    // month's limit, so one day into August the chart claimed a 1000 budget
-    // against 912 spent and called it under (user report). A month still running
-    // contributes only what has elapsed.
-    const repo: GetOverviewPlannedDeps["repo"] = {
-      async monthlyPlannedByCategory() {
-        return [
-          { category_id: "N", month: "2026-07", planned_cents: 50000n },
-          { category_id: "N", month: "2026-08", planned_cents: 31000n },
-        ];
-      },
-      async monthlySpendByCategory() {
-        return [];
-      },
-      async categoryWindows() {
-        return [
-          {
-            category_id: "N",
-            name: "Groceries",
-            created_month: "2026-01",
-            archived_month: null,
-            is_investment: false,
-          },
-        ];
-      },
-      async dailySpend() {
-        return [{ day: "2026-07-20", spent_cents: 91234n }];
-      },
-      async activeRecurringRules() {
-        return [];
-      },
-    };
-    const dto = (
-      await getOverviewPlanned({
-        repo,
-        metaReader: {
-          async getBudgetMeta() {
-            return { default_currency: "USD" };
-          },
-        },
-        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
-        now: () => new Date("2026-08-01T12:00:00Z"),
-      })({
-        tenantId: "b1",
-        budgetId: "b1",
-        from: "2026-07-01",
-        to: "2026-08-01",
-      })
-    )._unsafeUnwrap();
-
-    const july = dto.timeline.find((p) => p.label === "2026-07-20")!;
-    // July is complete → its whole limit counts.
-    expect(july.planned_cents).toBe("50000");
-
-    const aug1 = dto.timeline[dto.timeline.length - 1]!;
-    expect(aug1.label).toBe("2026-08-01");
-    // 1 of 31 days of a 31000 limit = 1000, on top of July's 50000.
-    expect(aug1.planned_cents).toBe("51000");
+    const julyFirst = dto.timeline.find((p) => p.label === "2026-07-01")!;
+    expect(julyFirst).toBeDefined();
+    expect(julyFirst.real_cents).toBe("0");
+    expect(julyFirst.planned_cents).toBe("30000");
+    // …and it sits BEFORE July's spend day.
+    const labels = dto.timeline.map((p) => p.label);
+    expect(labels.indexOf("2026-07-01")).toBeLessThan(
+      labels.indexOf("2026-07-15"),
+    );
   });
 
   test("single-month daily bucket keeps the plain monthly limit (no accumulation)", async () => {

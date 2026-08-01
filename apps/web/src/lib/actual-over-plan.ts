@@ -131,7 +131,13 @@ export function sampleSeries(
  * crossing. A month that stayed within its limit then carries no red at all,
  * however dramatic the climb into it looked (user decision, 260801).
  */
-export function monthSegmentZones(rows: ActualRow[]): SpendZone[] {
+export function monthSegmentZones(
+  rows: Array<ActualRow & { reset?: boolean }>,
+): SpendZone[] {
   if (rows.length < 2) return [];
-  return rows.slice(1).map((r) => spendZone(r));
+  // A segment takes the verdict of the point it leads INTO — except where that
+  // point is a month RESET (all zeros), which carries no verdict of its own: the
+  // drop back to zero belongs to the month it came from, so a month's rise and
+  // fall stay one colour.
+  return rows.slice(1).map((r, i) => spendZone(r.reset ? rows[i]! : r));
 }

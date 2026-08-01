@@ -42,6 +42,7 @@ import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
+import { insertMonthResets } from "@/lib/month-reset";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 
@@ -182,25 +183,30 @@ export function PlannedSection({
 
   // Timeline rows for the chart + the crossing gradient that colours the actual
   // line (grey inside the plan, red past it — cut at the exact crossing).
+  // 260801 (user decision): each month stands on its own — at every boundary the
+  // grey plan bands and the spend line drop to zero and the next month starts
+  // again from there, instead of one line sliding across the boundary.
   const timelineRows = useMemo(
     () =>
-      withDayStartBaseline(
-        trimLeadingEmpty(
-          (data?.timeline ?? []).map((p) => ({
-            label: p.label,
-            ts: labelToTimestamp(p.label, todayIso),
-            real: Number(p.real_cents),
-            needs: Number(p.needs_cents),
-            wants: Number(p.wants_cents),
-          })),
-          range.preset === "all" ? ["real", "needs", "wants"] : [],
+      insertMonthResets(
+        withDayStartBaseline(
+          trimLeadingEmpty(
+            (data?.timeline ?? []).map((p) => ({
+              label: p.label,
+              ts: labelToTimestamp(p.label, todayIso),
+              real: Number(p.real_cents),
+              needs: Number(p.needs_cents),
+              wants: Number(p.wants_cents),
+            })),
+            range.preset === "all" ? ["real", "needs", "wants"] : [],
+          ),
+          // Real spend starts at 0 (nothing spent yet); planned holds flat.
+          ["real"],
+          // The daily series is anchored to the window start server-side
+          // (get-overview-planned), so it already begins at `from` — don't prepend
+          // a day BEFORE it (that put 1M at "30 Jun" instead of the 1st).
+          false,
         ),
-        // Real spend starts at 0 (nothing spent yet); planned holds flat.
-        ["real"],
-        // The daily series is anchored to the window start server-side
-        // (get-overview-planned), so it already begins at `from` — don't prepend
-        // a day BEFORE it (that put 1M at "30 Jun" instead of the 1st).
-        false,
       ),
     [data?.timeline, range.preset, todayIso],
   );

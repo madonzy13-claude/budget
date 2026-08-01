@@ -78,6 +78,10 @@ export function ChartTooltipContent({
   omitKeys?: string[];
 }) {
   if (!active || !payload || payload.length === 0) return null;
+  // A row flagged `reset` is drawn geometry — the drop to zero at a month
+  // boundary — not a reading anyone can hover for a number (260801).
+  if ((payload[0]?.payload as { reset?: boolean } | undefined)?.reset)
+    return null;
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.
   if (
     suppressedLabel != null &&

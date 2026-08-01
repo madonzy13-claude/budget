@@ -262,52 +262,15 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
               (needsByMonth.get(p.month) ?? 0n) + (p.needs_cents ?? 0n),
             );
           }
-        // 260801: the daily bucket also serves MULTI-MONTH ranges (3M = 61 days),
-        // where `real` is cumulative across the whole range. The plan therefore has
-        // to accumulate the same way — drawing one month's limit beside three
-        // months of spend compared 45K against 23K (user report). Within a single
-        // month this is identical to the plain monthly limit.
-        //
-        // The month still RUNNING contributes only what has elapsed: granting its
-        // whole limit on the 1st made the plan leap a full month overnight, so one
-        // day into August a 912 spend read as "inside a 1000 budget" (user report,
-        // round 2). Completed months always count in full. A single-month range
-        // keeps the flat full-limit target line it has always had — there the
-        // chart is a target, not a pace.
-        const rangeMonthList = monthsInRange(input.from, input.to);
-        const singleMonthRange = rangeMonthList.length === 1;
-        const today = input.now ? input.now() : new Date();
-        const runningMonth = `${today.getUTCFullYear()}-${String(
-          today.getUTCMonth() + 1,
-        ).padStart(2, "0")}`;
-        /** Share of `month` that has elapsed, as a fraction of its days. */
-        const elapsedShare = (month: string): [bigint, bigint] => {
-          if (singleMonthRange || month !== runningMonth) return [1n, 1n];
-          const [y, m] = month.split("-").map(Number) as [number, number];
-          const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-          const elapsed = Math.min(daysInMonth, today.getUTCDate());
-          return [BigInt(elapsed), BigInt(daysInMonth)];
-        };
-        const prorate = (amount: bigint, month: string) => {
-          const [num, den] = elapsedShare(month);
-          return den === 1n ? amount : (amount * num) / den;
-        };
-        const cumPlannedByMonth = new Map<string, bigint>();
-        const cumNeedsByMonth = new Map<string, bigint>();
-        {
-          let runningPlanned = 0n;
-          let runningNeeds = 0n;
-          for (const month of rangeMonthList) {
-            runningPlanned += prorate(plannedByMonth.get(month) ?? 0n, month);
-            runningNeeds += prorate(needsByMonth.get(month) ?? 0n, month);
-            cumPlannedByMonth.set(month, runningPlanned);
-            cumNeedsByMonth.set(month, runningNeeds);
-          }
-        }
-        // needs/wants split for a given day's month (planned = needs + wants).
+        // 260801 (user decision): every month is its OWN cycle. The plan is that
+        // month's plain limit and the spend line restarts at 0 on the 1st, so a
+        // multi-month range reads as a row of monthly burn-ups. The earlier
+        // cumulative-across-months line could never be compared against a single
+        // month's limit, which is what produced 45K-of-spend beside a 23K plan and
+        // then the whole-month leap on the 1st.
         const splitAt = (month: string) => {
-          const planned = cumPlannedByMonth.get(month) ?? 0n;
-          const needs = cumNeedsByMonth.get(month) ?? 0n;
+          const planned = plannedByMonth.get(month) ?? 0n;
+          const needs = needsByMonth.get(month) ?? 0n;
           return {
             planned_cents: planned.toString(),
             needs_cents: needs.toString(),
@@ -330,16 +293,34 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           }));
         } else {
           let cumulative = 0n;
-          const points = [...days]
-            .sort((a, b) => a.day.localeCompare(b.day))
-            .map((d) => {
-              cumulative += d.spent_cents;
-              return {
-                label: d.day,
-                ...splitAt(d.day.slice(0, 7)),
-                real_cents: cumulative.toString(),
-              };
+          let currentMonth: string | null = null;
+          const points: OverviewPlannedDTO["timeline"] = [];
+          for (const d of [...days].sort((a, b) =>
+            a.day.localeCompare(b.day),
+          )) {
+            const month = d.day.slice(0, 7);
+            if (month !== currentMonth) {
+              // New month: the running total goes back to zero, and the month
+              // opens with an explicit 0 point so the line DROPS at the boundary
+              // instead of sliding across it.
+              cumulative = 0n;
+              currentMonth = month;
+              const firstOfMonth = `${month}-01`;
+              if (firstOfMonth >= input.from && firstOfMonth < d.day) {
+                points.push({
+                  label: firstOfMonth,
+                  ...splitAt(month),
+                  real_cents: "0",
+                });
+              }
+            }
+            cumulative += d.spent_cents;
+            points.push({
+              label: d.day,
+              ...splitAt(month),
+              real_cents: cumulative.toString(),
             });
+          }
           // Anchor the series to the requested window so the chart spans it
           // (e.g. 1M = from the 1st to today), not just the days that happened to
           // have spend. Prepend `from` at real=0 and append `to` at the final

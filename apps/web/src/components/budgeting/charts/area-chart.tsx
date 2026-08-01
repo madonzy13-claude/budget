@@ -127,7 +127,9 @@ export function OverviewAreaChart({
                 domain: ["dataMin", "dataMax"] as [string, string],
                 // Ticks ON the data points (recharts thins them to fit); a plain
                 // numeric axis would invent round-number dates nothing sits on.
-                ticks: data.map((d) => Number(d[xKey])),
+                // Rows flagged `reset` are geometry (a drop back to zero), not
+                // readings — they get no tick of their own.
+                ticks: data.filter((d) => !d.reset).map((d) => Number(d[xKey])),
                 interval: "preserveStartEnd" as const,
               }
             : {})}
