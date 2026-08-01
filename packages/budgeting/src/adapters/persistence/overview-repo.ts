@@ -104,7 +104,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                        FROM budgeting.budget_mode_history bmh
                       WHERE bmh.tenant_id = ${budgetId}::uuid
                         AND bmh.effective_from <= m.month_end
-                        AND (bmh.effective_to IS NULL OR bmh.effective_to > m.month_end)
+                        AND (bmh.effective_to IS NULL OR bmh.effective_to >= m.month_start)
                       ORDER BY bmh.effective_from DESC
                       LIMIT 1
                    ), 'NORMAL') AS mode
@@ -144,8 +144,15 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid
                  AND cl.category_id = cm.category_id
+                 -- Overlap, not a point-in-time probe: SCD-2 rows written by the
+                 -- app close a period on the NEXT period's first day, while
+                 -- reconstructed rows (the House backfill) close it on this
+                 -- month's LAST day. A strict > month_end dropped every
+                 -- inclusive row and the category vanished from the plan (260801).
+                 -- ORDER BY effective_from DESC then yields the month's LATEST
+                 -- limit either way.
                  AND cl.effective_from <= cm.month_end
-                 AND (cl.effective_to IS NULL OR cl.effective_to > cm.month_end)
+                 AND (cl.effective_to IS NULL OR cl.effective_to >= cm.month_start)
                ORDER BY cl.effective_from DESC
                LIMIT 1
             ) cl ON true

@@ -296,6 +296,39 @@ describe("GET /budgets/:id/overview/planned", () => {
     expect(jan.planned_cents).toBe("55000");
   });
 
+  it("honours an INCLUSIVE effective_to (last day of the month)", async () => {
+    // 260801: reconstructed limits (e.g. the House backfill) close a period on the
+    // month's LAST DAY, while the app's own SCD-2 split closes it on the NEXT
+    // period's first day. A month-end lookup with a strict `>` dropped every
+    // inclusive row — the category vanished from the planned line entirely.
+    const f = await createFixture();
+    await withTenant(f.budgetId, f.userId, async (c) => {
+      await c.query(
+        `UPDATE budgeting.category_limits
+            SET effective_from = '2026-01-01', effective_to = '2026-01-31'
+          WHERE tenant_id = $1 AND category_id = $2`,
+        [f.budgetId, f.categoryId],
+      );
+    });
+    const app = await buildApp({
+      userId: f.userId,
+      allowedTenantIds: [f.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${f.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
+    );
+    const body = (await res.json()) as {
+      timeline: { label: string; planned_cents: string }[];
+    };
+    const jan = body.timeline.find((p) => p.label === "2026-01")!;
+    expect(jan.planned_cents).toBe("20000");
+    // …and the period really ends there: February has no limit in force, so its
+    // point is present (every month in range is) but planned drops to zero.
+    expect(
+      body.timeline.find((p) => p.label === "2026-02")!.planned_cents,
+    ).toBe("0");
+  });
+
   it("rejects an inverted range with 400 (T-11-03)", async () => {
     const app = await buildApp({
       userId: fix.userId,
