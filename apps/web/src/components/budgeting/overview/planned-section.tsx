@@ -43,6 +43,7 @@ import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
 import { insertMonthResets } from "@/lib/month-reset";
+import { appendRunningMonthTail } from "@/lib/month-tail";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 
@@ -189,34 +190,39 @@ export function PlannedSection({
   const timelineRows = useMemo(
     () =>
       insertMonthResets(
-        withDayStartBaseline(
-          trimLeadingEmpty(
-            (data?.timeline ?? []).map((p) => ({
-              label: p.label,
-              ts: labelToTimestamp(p.label, todayIso),
-              real: Number(p.real_cents),
-              needs: Number(p.needs_cents),
-              wants: Number(p.wants_cents),
-            })),
-            range.preset === "all" ? ["real", "needs", "wants"] : [],
+        appendRunningMonthTail(
+          withDayStartBaseline(
+            trimLeadingEmpty(
+              (data?.timeline ?? []).map((p) => ({
+                label: p.label,
+                ts: labelToTimestamp(p.label, todayIso),
+                real: Number(p.real_cents),
+                needs: Number(p.needs_cents),
+                wants: Number(p.wants_cents),
+              })),
+              range.preset === "all" ? ["real", "needs", "wants"] : [],
+            ),
+            // Real spend starts at 0 (nothing spent yet); planned holds flat.
+            ["real"],
+            // The daily series is anchored to the window start server-side
+            // (get-overview-planned), so it already begins at `from` — don't
+            // prepend a day BEFORE it (that put 1M at "30 Jun", not the 1st).
+            false,
           ),
-          // Real spend starts at 0 (nothing spent yet); planned holds flat.
-          ["real"],
-          // The daily series is anchored to the window start server-side
-          // (get-overview-planned), so it already begins at `from` — don't prepend
-          // a day BEFORE it (that put 1M at "30 Jun" instead of the 1st).
-          false,
+          todayIso,
         ),
       ),
     [data?.timeline, range.preset, todayIso],
   );
-  // 260801 (round 3): a MONTHLY point is a MONTH-END value, so the segment leading
-  // into it is that month's progression and takes that month's verdict — colour
-  // changes AT the points. Interpolating a crossing inside the segment (what the
-  // daily bucket does, correctly) read as June's overspend bleeding into July, a
-  // month that stayed under budget. Monthly also draws STRAIGHT segments: a
-  // monotone spline through month totals invents motion that never happened.
-  const monthly = data?.bucket === "monthly";
+  // The overlay draws the spend line only where there IS spend: the running
+  // month's tail carries the plan alone (real === null).
+  const spentRows = useMemo(
+    () =>
+      timelineRows.filter(
+        (r): r is typeof r & { real: number } => typeof r.real === "number",
+      ),
+    [timelineRows],
+  );
   // clipPath ids are document-global; several charts can share a page.
   const zoneIdPrefix = `planzone-${useId().replace(/:/g, "")}`;
 
@@ -335,10 +341,9 @@ export function PlannedSection({
                     component={(props: object) => (
                       <PlanZoneLine
                         {...props}
-                        rows={timelineRows}
+                        rows={spentRows}
                         colors={ZONE_COLOR}
                         linear
-                        perMonth={monthly}
                         idPrefix={zoneIdPrefix}
                       />
                     )}

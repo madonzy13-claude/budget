@@ -18,7 +18,7 @@ const row = (label: string, real: number, needs = 100, wants = 50) => ({
 });
 
 describe("insertMonthResets", () => {
-  it("drops the spend to zero at every month boundary", () => {
+  it("holds the spend to the boundary, then drops it vertically", () => {
     const out = insertMonthResets([
       row("2026-06-10", 300),
       row("2026-06-20", 500),
@@ -31,10 +31,16 @@ describe("insertMonthResets", () => {
       "2026-07-01",
       "2026-07-05",
     ]);
-    expect(out[2]!.reset).toBe(true);
-    expect(out[2]!.real).toBe(0);
+    // The closing point carries JUNE's running total, so the line stays flat
+    // until the boundary and the fall to zero is a vertical at ONE x.
+    expect(out[2]!.real).toBe(500);
     expect(out[3]!.real).toBe(0);
+    expect(out[2]!.ts).toBe(out[3]!.ts);
     expect(out[2]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z"));
+    // Only the vertical is the reset line; the flat hold before it is spending.
+    expect(out[2]!.drop).toBeFalsy();
+    expect(out[3]!.drop).toBe(true);
+    expect([out[2]!.reset, out[3]!.reset]).toEqual([true, true]);
   });
 
   it("holds the plan bands and steps them square at the boundary", () => {

@@ -8,7 +8,6 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  monthSegmentZones,
   sampleSeries,
   spendZone,
   isOverPlan,
@@ -68,53 +67,5 @@ describe("sampleSeries", () => {
   it("handles a single point and an empty series", () => {
     expect(sampleSeries([7])).toEqual([{ x: 0, v: 7 }]);
     expect(sampleSeries([])).toEqual([]);
-  });
-});
-
-describe("monthSegmentZones (monthly buckets)", () => {
-  // A monthly point is a MONTH-END value, so the segment leading INTO it is that
-  // month's progression and takes that month's verdict — the colour steps at the
-  // point, instantly. A month that stayed inside its limit must not carry any red
-  // (user decision, 260801).
-  it("gives each segment the zone of the month it leads into", () => {
-    expect(
-      monthSegmentZones([
-        row(100, 500, 0), // May: under
-        row(900, 500, 0), // Jun: over
-        row(200, 500, 0), // Jul: under
-      ]),
-    ).toEqual(["over", "under"]);
-  });
-
-  it("keeps the drop into a reset on the month it came FROM", () => {
-    // With per-month resets each month draws as its own shape: rise from the
-    // zero row, then back down to the next one. Both legs belong to the month
-    // that was spent, so the whole shape carries one colour — the drop must not
-    // take the zero row's (always "under") verdict.
-    const zones = monthSegmentZones([
-      { ...row(0, 0, 0), reset: true }, // 1 Jun
-      row(900, 500, 0), // June: over
-      { ...row(0, 0, 0), reset: true }, // 1 Jul
-      row(200, 500, 0), // July: under
-    ]);
-    expect(zones).toEqual(["over", "over", "under"]);
-  });
-
-  it("never paints an under-budget month with its neighbour's overspend", () => {
-    // June over, July under → the climb between them is JULY's segment.
-    expect(
-      monthSegmentZones([row(14097, 9503, 0), row(57484, 59268, 0)]),
-    ).toEqual(["under"]);
-  });
-
-  it("keeps the middle zone", () => {
-    expect(monthSegmentZones([row(100, 500, 200), row(600, 500, 200)])).toEqual(
-      ["between"],
-    );
-  });
-
-  it("has no segments for a single point or an empty series", () => {
-    expect(monthSegmentZones([row(900, 500, 0)])).toEqual([]);
-    expect(monthSegmentZones([])).toEqual([]);
   });
 });

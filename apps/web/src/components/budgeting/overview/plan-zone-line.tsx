@@ -14,7 +14,7 @@
  * come from its hooks instead — same numbers the chart itself draws with.
  */
 import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
-import { monthSegmentZones, sampleSeries } from "@/lib/actual-over-plan";
+import { sampleSeries } from "@/lib/actual-over-plan";
 import {
   polylinePath,
   polylineRuns,
@@ -40,14 +40,6 @@ export interface PlanZoneLineProps {
   /** Straight segments (monthly buckets) vs the monotone curve (daily). */
   linear?: boolean;
   /**
-   * MONTHLY buckets colour by month, not by geometry: each segment carries the
-   * verdict of the month it leads into and the colour steps at the point. A month
-   * that stayed inside its limit then shows no red at all, whatever the climb into
-   * it looked like. Daily buckets stay geometric — there the line is continuous,
-   * so "above the limit right here" is the honest reading.
-   */
-  perMonth?: boolean;
-  /**
    * The month-boundary DROP carries no verdict — it is the reset itself, so it
    * is drawn in this neutral grey rather than the month's colour (260801).
    */
@@ -61,7 +53,6 @@ export function PlanZoneLine({
   rows,
   colors,
   linear = false,
-  perMonth = false,
   resetColor = "var(--muted-foreground)",
   idPrefix,
   strokeWidth = 2,
@@ -103,38 +94,16 @@ export function PlanZoneLine({
     ),
   );
 
-  // A segment that LEADS INTO a reset row is the drop back to zero.
-  const resets = rows.slice(1).map((r) => !!r.reset);
-
-  if (perMonth) {
-    const zonesPerSegment = monthSegmentZones(rows);
-    const pointPts = rows.map((r, i) => ({
-      x: pointXs[i]!,
-      y: yScale(r.real) as number,
-    }));
-    return (
-      <g data-testid="plan-zone-line" data-mode="months" pointerEvents="none">
-        {zonesPerSegment.map((zone, i) => (
-          <path
-            key={i}
-            d={polylinePath([pointPts[i]!, pointPts[i + 1]!])}
-            fill="none"
-            stroke={resets[i] ? resetColor : colors[zone]}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ))}
-      </g>
-    );
-  }
+  // The reset line is only the VERTICAL fall back to zero — the flat hold into
+  // the boundary before it is still that month's spending.
+  const drops = rows.slice(1).map((r) => !!r.drop);
 
   const top = plot.y;
   const bottom = plot.y + plot.height;
   // Each sample carries its fractional index into `rows`, so the data segment it
   // sits in is floor(x) — the zone-coloured copies skip the drops entirely.
   const sampleSkip = actualSamples.map(
-    (s) => !!resets[Math.min(resets.length - 1, Math.floor(s.x))],
+    (s) => !!drops[Math.min(drops.length - 1, Math.floor(s.x))],
   );
   const line = polylineRuns(actual, sampleSkip);
   const dropPts = rows.map((r, i) => ({
@@ -164,6 +133,17 @@ export function PlanZoneLine({
           </clipPath>
         ))}
       </defs>
+      {drops.map((isDrop, i) =>
+        isDrop ? (
+          <path
+            key={`reset-${i}`}
+            d={polylinePath([dropPts[i]!, dropPts[i + 1]!])}
+            fill="none"
+            stroke={resetColor}
+            strokeWidth={Math.max(1, strokeWidth - 1)}
+          />
+        ) : null,
+      )}
       {zones.map((z) => (
         <path
           key={z.id}
@@ -175,18 +155,6 @@ export function PlanZoneLine({
           clipPath={`url(#${z.id})`}
         />
       ))}
-      {resets.map((isReset, i) =>
-        isReset ? (
-          <path
-            key={`reset-${i}`}
-            d={polylinePath([dropPts[i]!, dropPts[i + 1]!])}
-            fill="none"
-            stroke={resetColor}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-          />
-        ) : null,
-      )}
     </g>
   );
 }
