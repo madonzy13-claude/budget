@@ -123,3 +123,15 @@ export function sampleSeries(
   out.push({ x: values.length - 1, v: values[values.length - 1]! });
   return out;
 }
+
+/**
+ * Zone per SEGMENT for a monthly bucket. A monthly point is a MONTH-END value, so
+ * the segment leading into it is that month's progression and carries that
+ * month's verdict — the colour steps at the point instead of sliding to a
+ * crossing. A month that stayed within its limit then carries no red at all,
+ * however dramatic the climb into it looked (user decision, 260801).
+ */
+export function monthSegmentZones(rows: ActualRow[]): SpendZone[] {
+  if (rows.length < 2) return [];
+  return rows.slice(1).map((r) => spendZone(r));
+}

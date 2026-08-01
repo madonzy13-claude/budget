@@ -14,7 +14,7 @@
  * come from its hooks instead — same numbers the chart itself draws with.
  */
 import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
-import { sampleSeries } from "@/lib/actual-over-plan";
+import { monthSegmentZones, sampleSeries } from "@/lib/actual-over-plan";
 import {
   polylinePath,
   regionAbove,
@@ -28,6 +28,7 @@ export interface PlanZoneRow {
   real: number;
   needs: number;
   wants: number;
+  [key: string]: unknown;
 }
 
 export interface PlanZoneLineProps {
@@ -35,6 +36,14 @@ export interface PlanZoneLineProps {
   colors: { under: string; between: string; over: string };
   /** Straight segments (monthly buckets) vs the monotone curve (daily). */
   linear?: boolean;
+  /**
+   * MONTHLY buckets colour by month, not by geometry: each segment carries the
+   * verdict of the month it leads into and the colour steps at the point. A month
+   * that stayed inside its limit then shows no red at all, whatever the climb into
+   * it looked like. Daily buckets stay geometric — there the line is continuous,
+   * so "above the limit right here" is the honest reading.
+   */
+  perMonth?: boolean;
   /** Unique per chart instance — clipPath ids are document-global. */
   idPrefix: string;
   strokeWidth?: number;
@@ -44,6 +53,7 @@ export function PlanZoneLine({
   rows,
   colors,
   linear = false,
+  perMonth = false,
   idPrefix,
   strokeWidth = 2,
 }: PlanZoneLineProps) {
@@ -85,6 +95,29 @@ export function PlanZoneLine({
     ),
   );
 
+  if (perMonth) {
+    const zonesPerSegment = monthSegmentZones(rows);
+    const pointPts = rows.map((r, i) => ({
+      x: pointXs[i]!,
+      y: yScale(r.real) as number,
+    }));
+    return (
+      <g data-testid="plan-zone-line" data-mode="months" pointerEvents="none">
+        {zonesPerSegment.map((zone, i) => (
+          <path
+            key={i}
+            d={polylinePath([pointPts[i]!, pointPts[i + 1]!])}
+            fill="none"
+            stroke={colors[zone]}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+      </g>
+    );
+  }
+
   const top = plot.y;
   const bottom = plot.y + plot.height;
   const line = polylinePath(actual);
@@ -103,7 +136,7 @@ export function PlanZoneLine({
   ];
 
   return (
-    <g data-testid="plan-zone-line" pointerEvents="none">
+    <g data-testid="plan-zone-line" data-mode="zones" pointerEvents="none">
       <defs>
         {zones.map((z) => (
           <clipPath key={z.id} id={z.id}>

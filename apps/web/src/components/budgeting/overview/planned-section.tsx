@@ -280,9 +280,7 @@ export function PlannedSection({
                     label: t("planned.needs"),
                     color: "var(--chart-plan-needs)",
                     stack: "planned",
-                    curve: monthly
-                      ? ("linear" as const)
-                      : ("monotone" as const),
+                    curve: "linear" as const,
                     fillOpacity: 0.16,
                     strokeOpacity: 0.5,
                   },
@@ -293,9 +291,7 @@ export function PlannedSection({
                           label: t("planned.wants"),
                           color: "var(--chart-plan-wants)",
                           stack: "planned",
-                          curve: monthly
-                            ? ("linear" as const)
-                            : ("monotone" as const),
+                          curve: "linear" as const,
                           fillOpacity: 0.16,
                           strokeOpacity: 0.5,
                         },
@@ -305,9 +301,7 @@ export function PlannedSection({
                     key: "real",
                     label: t("planned.real"),
                     color: CHART_THEME.neutral,
-                    curve: monthly
-                      ? ("linear" as const)
-                      : ("monotone" as const),
+                    curve: "linear" as const,
                     // The visible actual line is the clipped <PlanZoneLine>
                     // overlay below; this series stays for the tooltip + hover dot
                     // but paints nothing (no fill, no stroke).
@@ -323,7 +317,8 @@ export function PlannedSection({
                         {...props}
                         rows={timelineRows}
                         colors={ZONE_COLOR}
-                        linear={monthly}
+                        linear
+                        perMonth={monthly}
                         idPrefix={zoneIdPrefix}
                       />
                     )}
