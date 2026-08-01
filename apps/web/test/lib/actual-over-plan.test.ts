@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   planZoneGradientStops,
+  planZoneStopsByPoint,
   spendZone,
   isOverPlan,
 } from "../../src/lib/actual-over-plan";
@@ -129,5 +130,65 @@ describe("planZoneGradientStops", () => {
       { offset: 1, color: OVER },
     ]);
     expect(planZoneGradientStops([], COLORS)).toEqual([]);
+  });
+});
+
+describe("planZoneStopsByPoint (monthly buckets)", () => {
+  // Monthly points are independent totals — the curve between them is decorative,
+  // so an interpolated "crossing" is fiction (user report, 260801: a month that
+  // overspent bled red across the climb into a month that stayed under budget).
+  // Each point owns the half-segment on either side of it; the colour changes at
+  // the midpoint between two points that disagree.
+  it("is one colour when every point is in the same zone", () => {
+    expect(
+      planZoneStopsByPoint([row(100, 500, 200), row(200, 500, 200)], COLORS),
+    ).toEqual([
+      { offset: 0, color: UNDER },
+      { offset: 1, color: UNDER },
+    ]);
+  });
+
+  it("cuts at the MIDPOINT between two disagreeing points", () => {
+    const stops = planZoneStopsByPoint(
+      [row(900, 500, 200), row(100, 500, 200)],
+      COLORS,
+    );
+    expect(stops[0]!.color).toBe(OVER);
+    expect(stops[1]!.offset).toBeCloseTo(0.5, 9);
+    expect(stops[2]!.offset).toBeCloseTo(0.5, 9);
+    expect(stops[stops.length - 1]!.color).toBe(UNDER);
+  });
+
+  it("places midpoints proportionally in a longer series", () => {
+    const stops = planZoneStopsByPoint(
+      [row(100, 500, 200), row(100, 500, 200), row(900, 500, 200)],
+      COLORS,
+    );
+    // 3 points → the cut sits between points 2 and 3, i.e. at 0.75.
+    const cut = stops.find((s) => s.color === OVER)!;
+    expect(cut.offset).toBeCloseTo(0.75, 9);
+  });
+
+  it("keeps a middle zone when one month lands between needs and the plan", () => {
+    const stops = planZoneStopsByPoint(
+      [row(100, 500, 200), row(600, 500, 200), row(900, 500, 200)],
+      COLORS,
+    );
+    expect(stops.map((s) => s.color)).toEqual([
+      UNDER,
+      UNDER,
+      BETWEEN,
+      BETWEEN,
+      OVER,
+      OVER,
+    ]);
+  });
+
+  it("handles a single point and an empty series", () => {
+    expect(planZoneStopsByPoint([row(900, 500, 200)], COLORS)).toEqual([
+      { offset: 0, color: OVER },
+      { offset: 1, color: OVER },
+    ]);
+    expect(planZoneStopsByPoint([], COLORS)).toEqual([]);
   });
 });

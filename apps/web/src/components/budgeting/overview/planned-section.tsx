@@ -32,7 +32,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { planZoneGradientStops, spendZone } from "@/lib/actual-over-plan";
+import {
+  planZoneGradientStops,
+  planZoneStopsByPoint,
+  spendZone,
+} from "@/lib/actual-over-plan";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -193,9 +197,17 @@ export function PlannedSection({
       ),
     [data?.timeline, range.preset],
   );
+  // 260801: a DAILY bucket really is a continuous cumulative line, so the colour
+  // cuts sit at the true curve crossings. A MONTHLY bucket is a row of independent
+  // month totals — the curve between two of them is decoration, and interpolating a
+  // crossing there paints an overspend that never happened. There each point owns
+  // its half-segment instead.
   const actualStops = useMemo(
-    () => planZoneGradientStops(timelineRows, ZONE_COLOR),
-    [timelineRows],
+    () =>
+      data?.bucket === "monthly"
+        ? planZoneStopsByPoint(timelineRows, ZONE_COLOR)
+        : planZoneGradientStops(timelineRows, ZONE_COLOR),
+    [timelineRows, data?.bucket],
   );
 
   // Chart AXIS: bare + compact, no currency (r24 items 5/7). TOOLTIP: full $ (r25 #2).

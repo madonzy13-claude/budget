@@ -175,3 +175,35 @@ export function planZoneGradientStops(
   stops.push({ offset: 1, color: colorOf(zoneAt(span)) });
   return stops;
 }
+
+/**
+ * Zone stops for a MONTHLY bucket, where each point is an independent month total
+ * and the curve between two points is decoration, not data. Interpolating a
+ * crossing there invents a moment that never happened — a month that overspent
+ * bled red across the climb into a month that stayed under budget (user report,
+ * 260801). Each point owns the half-segment on either side of it; the colour
+ * changes at the MIDPOINT between two points that disagree.
+ */
+export function planZoneStopsByPoint(
+  rows: ActualRow[],
+  colors: { under: string; between: string; over: string },
+): GradientStop[] {
+  if (rows.length === 0) return [];
+  const colorAt = (i: number) => colors[spendZone(rows[i]!)];
+  if (rows.length === 1) {
+    return [
+      { offset: 0, color: colorAt(0) },
+      { offset: 1, color: colorAt(0) },
+    ];
+  }
+  const span = rows.length - 1;
+  const stops: GradientStop[] = [{ offset: 0, color: colorAt(0) }];
+  for (let i = 1; i < rows.length; i++) {
+    if (colorAt(i) === colorAt(i - 1)) continue;
+    const offset = (i - 0.5) / span;
+    stops.push({ offset, color: colorAt(i - 1) });
+    stops.push({ offset, color: colorAt(i) });
+  }
+  stops.push({ offset: 1, color: colorAt(rows.length - 1) });
+  return stops;
+}
