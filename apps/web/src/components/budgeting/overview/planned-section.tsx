@@ -353,14 +353,16 @@ export function PlannedSection({
                     )}
                   />
                 }
-                // Needs + Wants read as parts, so name their total (260801).
+                // Needs + Wants read as parts, so the row that closes them is
+                // their total — not a section of its own (260801).
                 summary={(row) =>
                   wantsSplitExists
                     ? {
-                        label: t("planned.planned"),
+                        label: t("planned.total"),
                         value: fmtTooltip(
                           Number(row.needs ?? 0) + Number(row.wants ?? 0),
                         ),
+                        plain: true,
                       }
                     : null
                 }
@@ -379,7 +381,7 @@ export function PlannedSection({
                     reserve,
                   );
                   const over = Math.max(real - within - reserve, 0);
-                  return [
+                  const parts = [
                     {
                       label: t("planned.fromPlan"),
                       value: fmtTooltip(fromPlan),
@@ -403,8 +405,14 @@ export function PlannedSection({
                           },
                         ]
                       : []),
-                    { label: t("planned.total"), value: fmtTooltip(real) },
                   ];
+                  // One part IS the total — repeating it says nothing.
+                  return parts.length > 1
+                    ? [
+                        ...parts,
+                        { label: t("planned.total"), value: fmtTooltip(real) },
+                      ]
+                    : parts;
                 }}
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}

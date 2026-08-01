@@ -61,10 +61,14 @@ export function ChartTooltipContent({
   ) => string | string[] | undefined;
   /** A grid-aligned summary row (e.g. Total) below a hairline — its value +
    *  suffix cells line up with the series columns above. Only rendered in grid
-   *  mode (i.e. alongside rowSuffix). */
-  summary?: (
-    row: Record<string, unknown>,
-  ) => { label: string; value: string; suffix?: string[] } | null;
+   *  mode (i.e. alongside rowSuffix). `plain` drops the hairline, so the row
+   *  closes the series list instead of opening a section of its own. */
+  summary?: (row: Record<string, unknown>) => {
+    label: string;
+    value: string;
+    suffix?: string[];
+    plain?: boolean;
+  } | null;
   /** The x-label the user tapped to DISMISS — this tooltip hides for it (r28 item 3). */
   suppressedLabel?: string | null;
   /** Tapping the tooltip calls this with its x-label to dismiss it. */
@@ -234,9 +238,11 @@ export function ChartTooltipContent({
                   style={{
                     gridColumn: "1 / -1",
                     height: 0,
-                    borderTop: `1px solid ${CHART_THEME.tooltipBorder}`,
-                    marginTop: 3,
-                    marginBottom: 2,
+                    borderTop: summaryRow.plain
+                      ? undefined
+                      : `1px solid ${CHART_THEME.tooltipBorder}`,
+                    marginTop: summaryRow.plain ? 0 : 3,
+                    marginBottom: summaryRow.plain ? 0 : 2,
                   }}
                 />
                 <span aria-hidden />
