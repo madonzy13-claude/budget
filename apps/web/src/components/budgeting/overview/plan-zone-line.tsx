@@ -5,30 +5,21 @@
  *
  * Zones follow WHERE THE MONTH'S MONEY CAME FROM (260801): the stretch the limit
  * covered is green, the stretch the reserve covered is yellow, the rest is red —
- * so a month that spent 175 against a 100 limit with a 50 reserve reads
- * 57% / 28% / 15%. The thresholds are that month's own totals, held flat across
- * it, so the cuts land where the line crosses them.
+ * so a month that spent 175 against a 100 limit with a 50 reserve reads roughly
+ * 57% / 28% / 15% (see zoneThresholds for the visibility floors).
  *
- * A stroke gradient can only split a line along a straight boundary — vertical, in
- * x — so wherever a limit line is sloped the colour changed at the wrong angle
- * (user report). Here the line is drawn once per colour and each copy is clipped
- * to its zone REGION, built from the very same needs / needs+wants geometry the
- * chart paints. The boundary is then the limit line, at whatever slope it has.
+ * The line is CUT at its crossings and each piece stroked in one colour. Clipping
+ * three copies to three regions instead painted two colours wherever the line ran
+ * within a stroke-width of a boundary — a month whose spend ended level with its
+ * reserve came out green and red at once (user report).
  *
  * Rendered through recharts' <Customized>. Recharts 3 dropped the xAxisMap /
  * yAxisMap props it used to hand such components, so the scales and plot rect
  * come from its hooks instead — same numbers the chart itself draws with.
  */
 import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
-import { sampleSeries, zoneThresholds } from "@/lib/actual-over-plan";
-import {
-  polylinePath,
-  polylineRuns,
-  regionAbove,
-  regionBelow,
-  regionBetween,
-  type Pt,
-} from "@/lib/plan-zone-paths";
+import { zoneSegments } from "@/lib/actual-over-plan";
+import { polylinePath, type Pt } from "@/lib/plan-zone-paths";
 
 export interface PlanZoneRow {
   label: string;
@@ -47,24 +38,18 @@ export interface PlanZoneRow {
 export interface PlanZoneLineProps {
   rows: PlanZoneRow[];
   colors: { under: string; between: string; over: string };
-  /** Straight segments (monthly buckets) vs the monotone curve (daily). */
-  linear?: boolean;
   /**
    * The month-boundary DROP carries no verdict — it is the reset itself, so it
    * is drawn in this neutral grey rather than the month's colour (260801).
    */
   resetColor?: string;
-  /** Unique per chart instance — clipPath ids are document-global. */
-  idPrefix: string;
   strokeWidth?: number;
 }
 
 export function PlanZoneLine({
   rows,
   colors,
-  linear = false,
   resetColor = "var(--muted-foreground)",
-  idPrefix,
   strokeWidth = 2,
 }: PlanZoneLineProps) {
   const xScale = useXAxisScale();
@@ -72,8 +57,8 @@ export function PlanZoneLine({
   const plot = usePlotArea();
   if (!xScale || !yScale || !plot || rows.length === 0) return null;
 
-  // Pixel x of each data point, from the chart's own (time) scale; sub-positions
-  // interpolate between neighbours, so uneven spacing is handled for free.
+  // Pixel x of each data point, from the chart's own (time) scale; a fractional
+  // index (a crossing inside a segment) interpolates between its neighbours.
   const pointXs = rows.map((r) => xScale(r.ts) as number);
   if (pointXs.some((x) => !Number.isFinite(x))) return null;
   const toPx = (samples: Array<{ x: number; v: number }>): Pt[] =>
@@ -85,88 +70,22 @@ export function PlanZoneLine({
       return { x: x0 + (x1 - x0) * t, y: yScale(v) as number };
     });
 
-  const opts = { linear };
-  const actualSamples = sampleSeries(
-    rows.map((r) => r.real),
-    opts,
-  );
-  const actual = toPx(actualSamples);
-  // Green below what the limit covered, yellow up to limit + reserve drawn —
-  // as DISPLAY shares, so a sliver of reserve or overspend is still visible.
-  const cuts = rows.map((r) => zoneThresholds(r));
-  // A cut sits at the line's CENTRE, but the stroke is drawn 2 wide: a peak that
-  // ends exactly on a cut had the top half of its cap land in the zone above and
-  // painted red on a month that never overspent (user report). Lifting every cut
-  // by half a stroke keeps a point that ends ON it wholly in the lower zone.
-  const feather = strokeWidth / 2 + 0.5;
-  const lift = (pts: Pt[]): Pt[] =>
-    pts.map((p) => ({ ...p, y: p.y - feather }));
-  const plan = lift(
-    toPx(
-      sampleSeries(
-        cuts.map((c) => c.limit),
-        opts,
-      ),
-    ),
-  );
-  const covered = lift(
-    toPx(
-      sampleSeries(
-        cuts.map((c) => c.covered),
-        opts,
-      ),
-    ),
-  );
-
-  // The reset line is only the VERTICAL fall back to zero — the flat hold into
-  // the boundary before it is still that month's spending.
+  // The month reset: the vertical fall back to zero, drawn thin and in grey
+  // UNDER the line, since it is the reset and not spending.
   const drops = rows.slice(1).map((r) => !!r.drop);
-  // A segment with no width carries no reading, and drawing it would paint a
-  // full-height vertical over the grey reset at the same x (user screenshot:
-  // a month one day old). Skip those along with the drops.
-  const skipSegment = drops.map(
-    (isDrop, i) => isDrop || pointXs[i] === pointXs[i + 1],
-  );
-
-  const top = plot.y;
-  const bottom = plot.y + plot.height;
-  // Each sample carries its fractional index into `rows`, so the data segment it
-  // sits in is floor(x) — the zone-coloured copies skip the drops entirely.
-  const sampleSkip = actualSamples.map(
-    (s) => !!skipSegment[Math.min(skipSegment.length - 1, Math.floor(s.x))],
-  );
-  const line = polylineRuns(actual, sampleSkip);
   const dropPts = rows.map((r, i) => ({
     x: pointXs[i]!,
     y: yScale(r.real) as number,
   }));
-  const zones = [
-    {
-      id: `${idPrefix}-under`,
-      d: regionBelow(plan, bottom),
-      color: colors.under,
-    },
-    {
-      id: `${idPrefix}-between`,
-      d: regionBetween(covered, plan),
-      color: colors.between,
-    },
-    {
-      id: `${idPrefix}-over`,
-      d: regionAbove(covered, top),
-      color: colors.over,
-    },
-  ];
+
+  const segments = zoneSegments(rows)
+    .map((seg) => ({ zone: seg.zone, pts: toPx(seg.points) }))
+    // A piece with no width carries no reading, and drawing it would paint a
+    // vertical over the grey reset at the same x (a month one day old).
+    .filter((seg) => seg.pts[0]!.x !== seg.pts[seg.pts.length - 1]!.x);
 
   return (
     <g data-testid="plan-zone-line" data-mode="zones" pointerEvents="none">
-      <defs>
-        {zones.map((z) => (
-          <clipPath key={z.id} id={z.id}>
-            <path d={z.d} />
-          </clipPath>
-        ))}
-      </defs>
       {drops.map((isDrop, i) =>
         isDrop ? (
           <path
@@ -178,16 +97,15 @@ export function PlanZoneLine({
           />
         ) : null,
       )}
-      {/* Top zone first: where strokes meet a cut, the LOWER colour wins. */}
-      {[...zones].reverse().map((z) => (
+      {segments.map((seg, i) => (
         <path
-          key={z.id}
-          d={line}
+          key={i}
+          d={polylinePath(seg.pts)}
           fill="none"
-          stroke={z.color}
+          stroke={colors[seg.zone]}
           strokeWidth={strokeWidth}
+          strokeLinecap="round"
           strokeLinejoin="round"
-          clipPath={`url(#${z.id})`}
         />
       ))}
     </g>

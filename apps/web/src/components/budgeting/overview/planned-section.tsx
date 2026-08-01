@@ -9,7 +9,7 @@
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -228,8 +228,6 @@ export function PlannedSection({
       ),
     [timelineRows],
   );
-  // clipPath ids are document-global; several charts can share a page.
-  const zoneIdPrefix = `planzone-${useId().replace(/:/g, "")}`;
 
   // Chart AXIS: bare + compact, no currency (r24 items 5/7). TOOLTIP: full $ (r25 #2).
   const ccy = data?.currency ?? "USD";
@@ -350,8 +348,6 @@ export function PlannedSection({
                         {...props}
                         rows={spentRows}
                         colors={ZONE_COLOR}
-                        linear
-                        idPrefix={zoneIdPrefix}
                       />
                     )}
                   />
