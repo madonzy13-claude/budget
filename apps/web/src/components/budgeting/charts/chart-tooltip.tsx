@@ -274,39 +274,44 @@ export function ChartTooltipContent({
       {/* Extra summary rows (flex) — for callers still using `extra` (not the grid
           `summary`), separated by a hairline from the series rows above. */}
       {extra && payload[0]?.payload
-        ? extra(payload[0].payload).map((row, i) => (
-            <div
-              key={`extra-${i}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                color: CHART_THEME.text,
-                padding: "1px 0",
-                marginTop: i === 0 ? 4 : 0,
-                borderTop:
-                  i === 0
-                    ? `1px solid ${CHART_THEME.tooltipBorder}`
-                    : undefined,
-                paddingTop: i === 0 ? 5 : 1,
-              }}
-            >
-              {row.color && (
-                <span
-                  aria-hidden
-                  style={{
-                    width: 18,
-                    flexShrink: 0,
-                    borderTop: `3px solid ${row.color}`,
-                  }}
-                />
-              )}
-              <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
-              <span style={{ marginLeft: "auto", fontWeight: 600 }}>
-                {row.value}
-              </span>
-            </div>
-          ))
+        ? ((rows) =>
+            rows.map((row, i) => (
+              <div
+                key={`extra-${i}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: CHART_THEME.text,
+                  padding: "1px 0",
+                  marginTop: i === 0 ? 4 : 0,
+                  borderTop:
+                    i === 0
+                      ? `1px solid ${CHART_THEME.tooltipBorder}`
+                      : undefined,
+                  paddingTop: i === 0 ? 5 : 1,
+                }}
+              >
+                {/* A colourless row (e.g. Total) still holds the marker column,
+                  so its label lines up with the parts above it. */}
+                {(row.color || rows.some((r) => r.color)) && (
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 18,
+                      flexShrink: 0,
+                      borderTop: row.color
+                        ? `3px solid ${row.color}`
+                        : undefined,
+                    }}
+                  />
+                )}
+                <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
+                <span style={{ marginLeft: "auto", fontWeight: 600 }}>
+                  {row.value}
+                </span>
+              </div>
+            )))(extra(payload[0].payload))
         : null}
     </div>
   );
