@@ -44,21 +44,25 @@ export function zoneThresholds(r: ActualRow): {
   limit: number;
   covered: number;
 } {
+  const real = Number(r.real);
+  if (!(real > 0)) return { limit: 0, covered: 0 };
   const within = Number(r.withinLimit ?? 0);
   const used = Number(r.reserveUsed ?? 0);
-  const over = Number(r.overspent ?? 0);
-  const total = within + used + over;
-  if (!(total > 0)) return { limit: 0, covered: 0 };
+  // Allocate what has been spent SO FAR in the order money is drawn — the same
+  // split the tooltip reports. Using the month's final parts instead turned the
+  // line yellow days before any reserve had actually been drawn (user report).
+  const drawn = Math.min(Math.max(real - within, 0), used);
+  const over = Math.max(real - within - used, 0);
 
-  let yellow = used > 0 ? used / total + ZONE_BOOST : 0;
-  let red = over > 0 ? over / total + ZONE_BOOST : 0;
+  let yellow = drawn > 0 ? drawn / real + ZONE_BOOST : 0;
+  let red = over > 0 ? over / real + ZONE_BOOST : 0;
   const nonGreen = yellow + red;
   if (nonGreen > 1) {
     yellow /= nonGreen;
     red /= nonGreen;
   }
   const green = 1 - yellow - red;
-  return { limit: total * green, covered: total * (green + yellow) };
+  return { limit: real * green, covered: real * (green + yellow) };
 }
 
 const limitOf = (r: ActualRow) => zoneThresholds(r).limit;

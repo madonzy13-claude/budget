@@ -16,8 +16,9 @@ import {
 
 describe("spendZone", () => {
   // 260801 (user decision): the line is coloured by WHERE THE MONEY CAME FROM.
-  // Limit 100, reserve 50, overspend 25 → 175 spent. With the 5-point floors
-  // green ends at 82.5 and yellow at 141.25 (see zoneThresholds).
+  // Limit 100, reserve 50, overspend 25 → 175 spent. A point's zone flips at the
+  // TRUE amounts it has reached (100, then 150) — the floors only stretch how
+  // much of the LINE each colour covers, never when the colour starts.
   const split = (real: number) => ({
     real,
     needs: 0,
@@ -27,18 +28,18 @@ describe("spendZone", () => {
     overspent: 25,
   });
 
-  it("is 'under' through the green stretch", () => {
+  it("is 'under' until the limit is actually used up", () => {
     expect(spendZone(split(40))).toBe("under");
-    expect(spendZone(split(82))).toBe("under");
+    expect(spendZone(split(100))).toBe("under");
   });
 
-  it("is 'between' across the reserve stretch", () => {
-    expect(spendZone(split(83))).toBe("between");
-    expect(spendZone(split(141))).toBe("between");
+  it("is 'between' while the reserve is being drawn", () => {
+    expect(spendZone(split(101))).toBe("between");
+    expect(spendZone(split(150))).toBe("between");
   });
 
   it("is 'over' past the limit and the reserve together", () => {
-    expect(spendZone(split(142))).toBe("over");
+    expect(spendZone(split(151))).toBe("over");
     expect(spendZone(split(175))).toBe("over");
   });
 
@@ -106,6 +107,36 @@ describe("zoneThresholds", () => {
     expect(t.limit).toBeGreaterThanOrEqual(0);
     expect(t.limit).toBeLessThanOrEqual(t.covered);
     expect(t.covered).toBeLessThanOrEqual(100);
+  });
+
+  it("shows no reserve stretch before the reserve was actually drawn", () => {
+    // Mid-month the line has only spent part of its limit: the month may end up
+    // drawing reserve, but at THIS point none has been (user report — the line
+    // went yellow while the tooltip still read 0 reserve used).
+    const t = zoneThresholds({
+      real: 60,
+      needs: 0,
+      wants: 0,
+      withinLimit: 100,
+      reserveUsed: 50,
+      overspent: 25,
+    });
+    expect(t.limit).toBeCloseTo(60, 6);
+    expect(t.covered).toBeCloseTo(60, 6);
+  });
+
+  it("opens the reserve stretch as soon as the limit is passed", () => {
+    const t = zoneThresholds({
+      real: 110,
+      needs: 0,
+      wants: 0,
+      withinLimit: 100,
+      reserveUsed: 50,
+      overspent: 25,
+    });
+    // 10 of 110 drawn from reserve, floored up — and nothing overspent yet.
+    expect(t.limit).toBeLessThan(100);
+    expect(t.covered).toBeCloseTo(110, 6);
   });
 
   it("is all zero for a point with no spend", () => {
