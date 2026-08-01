@@ -39,7 +39,9 @@ import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate } from "@/lib/chart-date-format";
-import type { OverviewRange } from "@/lib/overview-range";
+import { monthEndLabel } from "@/lib/chart-month-end-label";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
+import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 
 const NEUTRAL = "var(--muted-foreground)";
 
@@ -156,6 +158,9 @@ export function PlannedSection({
   // 260731: no needs/wants split → both series carry the same figure, and the
   // pink WANTS band would just double the green one (see lib/wants-split).
   const wantsSplitExists = hasWantsSplit(data?.timeline ?? []);
+  // Today in the USER's zone — a monthly point clamps to it for the running month.
+  const userTz = useUserTimezone();
+  const todayIso = todayInTz(userTz).toString();
 
   // Timeline rows for the chart + the crossing gradient that colours the actual
   // line (grey inside the plan, red past it — cut at the exact crossing).
@@ -279,10 +284,10 @@ export function PlannedSection({
                     label: t("planned.real"),
                     color: CHART_THEME.neutral,
                     fillOpacity: 0.22,
+                    // The gradient cut is solved on this same monotone curve
+                    // (lib/actual-over-plan), so the colour changes exactly at the
+                    // visual intersection — no need to flatten the line.
                     strokeGradientStops: actualStops,
-                    // Straight segments: the gradient cut is computed on the same
-                    // straight lines, so the colour changes ON the intersection.
-                    curve: "linear" as const,
                   },
                 ]}
                 // The hovered point's own row turns red once it is past the plan.
@@ -297,6 +302,12 @@ export function PlannedSection({
                 formatY={fmtY}
                 formatTooltip={fmtTooltip}
                 xTickFormat={(v) => formatChartDate(v, locale)}
+                // 260801: the tooltip names the DAY a point stands for, even in a
+                // monthly bucket where the axis only fits "Jul 2026" — a monthly
+                // point carries the month's value as of its last day.
+                labelFormat={(v) =>
+                  formatChartDate(monthEndLabel(String(v), todayIso), locale)
+                }
                 // 260731 (user decision): the CHARTS always show real numbers — masking
                 // them made the shapes unreadable. The privacy blur stays on the hero
                 // cards + totals, which is where a shoulder-surfer actually reads a figure.
@@ -347,9 +358,11 @@ export function PlannedSection({
                       label: t("planned.difference"),
                       // Amount AND percent on one line — the bar shows the
                       // percent, the tooltip should tie it back to real money.
-                      value: `${sign}${fmtTooltip(
-                        Math.abs(diff),
-                      )} · ${pctSign}${Math.abs(Math.round(Number(row.pct)))}%`,
+                      // Percent first — it is what the bar length encodes; the
+                      // money is the supporting detail (260801).
+                      value: `${pctSign}${Math.abs(
+                        Math.round(Number(row.pct)),
+                      )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
                       color: varianceColor(Number(row.pct)),
                     },
                   ];

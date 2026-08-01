@@ -262,6 +262,40 @@ describe("GET /budgets/:id/overview/planned", () => {
     expect(body.timeline.at(-1)!.real_cents).toBe("18000");
   });
 
+  it("a mid-month limit change shows the LATEST limit for that month", async () => {
+    // 260801 user report: 6M+ month ticks must carry the month's latest value.
+    // The query resolved the limit at the month START, so a limit raised on the
+    // 20th still drew the old figure for the whole month.
+    const f = await createFixture();
+    await withTenant(f.budgetId, f.userId, async (c) => {
+      await c.query(
+        `UPDATE budgeting.category_limits
+            SET effective_to = '2026-01-20'
+          WHERE tenant_id = $1 AND category_id = $2`,
+        [f.budgetId, f.categoryId],
+      );
+      await c.query(
+        `INSERT INTO budgeting.category_limits
+           (id, tenant_id, category_id, normal_amount, normal_currency,
+            cushion_amount, cushion_currency, effective_from, actor_user_id, created_at)
+         VALUES ($1, $2, $3, 55000, 'USD', 15000, 'USD', '2026-01-20', $4, now())`,
+        [crypto.randomUUID(), f.budgetId, f.categoryId, f.userId],
+      );
+    });
+    const app = await buildApp({
+      userId: f.userId,
+      allowedTenantIds: [f.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${f.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
+    );
+    const body = (await res.json()) as {
+      timeline: { label: string; planned_cents: string }[];
+    };
+    const jan = body.timeline.find((p) => p.label === "2026-01")!;
+    expect(jan.planned_cents).toBe("55000");
+  });
+
   it("rejects an inverted range with 400 (T-11-03)", async () => {
     const app = await buildApp({
       userId: fix.userId,

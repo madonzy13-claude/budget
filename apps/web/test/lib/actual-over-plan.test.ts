@@ -4,8 +4,11 @@
  * Chart.js has per-segment styling (`segment.borderColor`), which colours a whole
  * point-to-point segment by its endpoints — the colour then flips a full step
  * early or late. Recharts has no segment API, but an SVG stroke gradient with a
- * HARD STOP at the interpolated crossing does better: the colour changes exactly
- * where actual meets needs+wants, whatever the point density (260731 round 3).
+ * HARD STOP at the crossing does better.
+ *
+ * 260801: the crossing is solved on the SAME monotone cubic recharts draws
+ * (`type="monotone"` = d3's curveMonotoneX), not on straight segments — with a
+ * curved line the straight-line estimate landed visibly beside the intersection.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -61,7 +64,8 @@ describe("overPlanGradientStops", () => {
   });
 
   it("cuts at the EXACT crossing, not at the next point", () => {
-    // 0 → 1000 across two points, plan flat at 500 → crossing at the midpoint.
+    // 0 → 1000 across two points, plan flat at 500 → crossing at the midpoint
+    // (a 2-point monotone curve IS the straight line, so this stays exact).
     const stops = overPlanGradientStops(
       [row(0, 500), row(1000, 500)],
       OK,
@@ -75,16 +79,18 @@ describe("overPlanGradientStops", () => {
     expect(stops[stops.length - 1]).toEqual({ offset: 1, color: OVER });
   });
 
-  it("places the cut proportionally inside a longer series", () => {
-    // 3 points → the middle point sits at offset 0.5; the crossing happens
-    // halfway through the SECOND segment → offset 0.75.
+  it("places the cut inside the segment that holds the crossing", () => {
+    // 3 points → the middle point sits at offset 0.5, so a crossing in the
+    // SECOND segment must land in (0.5, 1). The exact spot follows the drawn
+    // monotone curve, which bows away from the straight chord.
     const stops = overPlanGradientStops(
       [row(0, 500), row(400, 500), row(600, 500)],
       OK,
       OVER,
     );
     const cut = stops.find((s) => s.color === OVER)!;
-    expect(cut.offset).toBeCloseTo(0.75, 6);
+    expect(cut.offset).toBeGreaterThan(0.5);
+    expect(cut.offset).toBeLessThan(1);
   });
 
   it("handles a plan that moves between points", () => {
@@ -110,6 +116,20 @@ describe("overPlanGradientStops", () => {
       (s, i) => i > 0 && s.color !== stops[i - 1]!.color,
     );
     expect(flips.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("follows the CURVE, not the straight chord, on a bowed series", () => {
+    // A monotone spline through these points bows ABOVE the chord between the
+    // 2nd and 3rd point, so it reaches the plan EARLIER than a straight line
+    // would. The cut must move with the drawn curve.
+    const rows = [row(0, 500), row(300, 500), row(700, 500), row(900, 500)];
+    const stops = overPlanGradientStops(rows, OK, OVER);
+    const cut = stops.find((s) => s.color === OVER)!.offset;
+    const chordCut = (1 + (500 - 300) / (700 - 300)) / 3; // linear estimate
+    expect(cut).not.toBeCloseTo(chordCut, 4);
+    // …and it still lands inside the segment that actually contains the crossing.
+    expect(cut).toBeGreaterThan(1 / 3);
+    expect(cut).toBeLessThan(2 / 3);
   });
 
   it("never emits an offset outside 0..1", () => {

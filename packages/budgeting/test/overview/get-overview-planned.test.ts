@@ -474,6 +474,138 @@ describe("getOverviewPlanned", () => {
     expect(last.real_cents).toBe("5000");
   });
 
+  test("multi-month daily bucket: the plan ACCUMULATES like the spend does", async () => {
+    // 260801 bug: a 3M range (61 days → daily bucket) summed spend across the
+    // whole range but drew the plan as the CURRENT month's limit, so a 45K
+    // cumulative actual was compared against a 23K one-month plan.
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          {
+            category_id: "N",
+            month: "2026-06",
+            planned_cents: 20000n,
+            needs_cents: 12000n,
+          },
+          {
+            category_id: "N",
+            month: "2026-07",
+            planned_cents: 30000n,
+            needs_cents: 18000n,
+          },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [
+          { day: "2026-06-15", spent_cents: 15000n },
+          { day: "2026-07-15", spent_cents: 25000n },
+        ];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-06-01",
+        to: "2026-07-31",
+      })
+    )._unsafeUnwrap();
+    expect(dto.bucket).toBe("daily");
+
+    const june = dto.timeline.find((p) => p.label === "2026-06-15")!;
+    const july = dto.timeline.find((p) => p.label === "2026-07-15")!;
+    // June: only June's plan is in force yet.
+    expect(june.planned_cents).toBe("20000");
+    expect(june.needs_cents).toBe("12000");
+    expect(june.wants_cents).toBe("8000");
+    expect(june.real_cents).toBe("15000");
+    // July: June + July, matching the cumulative spend line beside it.
+    expect(july.planned_cents).toBe("50000");
+    expect(july.needs_cents).toBe("30000");
+    expect(july.wants_cents).toBe("20000");
+    expect(july.real_cents).toBe("40000");
+  });
+
+  test("single-month daily bucket keeps the plain monthly limit (no accumulation)", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          {
+            category_id: "N",
+            month: "2026-07",
+            planned_cents: 30000n,
+            needs_cents: 18000n,
+          },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [{ day: "2026-07-10", spent_cents: 5000n }];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-07-01",
+        to: "2026-07-31",
+      })
+    )._unsafeUnwrap();
+    for (const point of dto.timeline) {
+      expect(point.planned_cents).toBe("30000");
+      expect(point.needs_cents).toBe("18000");
+    }
+  });
+
   test("timeline splits planned into needs (cushion) + wants (planned − needs)", async () => {
     const repo: GetOverviewPlannedDeps["repo"] = {
       async monthlyPlannedByCategory() {

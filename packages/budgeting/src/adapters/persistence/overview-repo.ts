@@ -83,7 +83,13 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           WITH months AS (
+            -- 260801: month_end is what the LIMIT + MODE lookups resolve at, so a
+            -- month tick carries the LATEST value in force during that month. The
+            -- old month_start lookup ignored a limit raised mid-month and drew the
+            -- superseded figure for the whole month (user report, 6M+).
             SELECT date_trunc('month', gs)::date AS month_start,
+                   (date_trunc('month', gs) + interval '1 month'
+                      - interval '1 day')::date AS month_end,
                    to_char(date_trunc('month', gs), 'YYYY-MM') AS month
               FROM generate_series(
                      date_trunc('month', ${from}::date),
@@ -97,8 +103,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                      SELECT bmh.mode
                        FROM budgeting.budget_mode_history bmh
                       WHERE bmh.tenant_id = ${budgetId}::uuid
-                        AND bmh.effective_from <= m.month_start
-                        AND (bmh.effective_to IS NULL OR bmh.effective_to > m.month_start)
+                        AND bmh.effective_from <= m.month_end
+                        AND (bmh.effective_to IS NULL OR bmh.effective_to > m.month_end)
                       ORDER BY bmh.effective_from DESC
                       LIMIT 1
                    ), 'NORMAL') AS mode
@@ -110,7 +116,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           -- a planned row when a limit was actually effective then. Archived gate
           -- stays (drop the category for months at/after it's archived).
           cat_month AS (
-            SELECT c.id AS category_id, c.cushion_mode, m.month, m.month_start
+            SELECT c.id AS category_id, c.cushion_mode, m.month, m.month_start, m.month_end
               FROM budgeting.categories c
               CROSS JOIN months m
              WHERE c.tenant_id = ${budgetId}::uuid
@@ -138,8 +144,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid
                  AND cl.category_id = cm.category_id
-                 AND cl.effective_from <= cm.month_start
-                 AND (cl.effective_to IS NULL OR cl.effective_to > cm.month_start)
+                 AND cl.effective_from <= cm.month_end
+                 AND (cl.effective_to IS NULL OR cl.effective_to > cm.month_end)
                ORDER BY cl.effective_from DESC
                LIMIT 1
             ) cl ON true

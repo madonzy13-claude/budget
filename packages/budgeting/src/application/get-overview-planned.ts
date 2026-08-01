@@ -262,10 +262,27 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
               (needsByMonth.get(p.month) ?? 0n) + (p.needs_cents ?? 0n),
             );
           }
+        // 260801: the daily bucket also serves MULTI-MONTH ranges (3M = 61 days),
+        // where `real` is cumulative across the whole range. The plan therefore has
+        // to accumulate the same way — drawing one month's limit beside three
+        // months of spend compared 45K against 23K (user report). Within a single
+        // month this is identical to the plain monthly limit.
+        const cumPlannedByMonth = new Map<string, bigint>();
+        const cumNeedsByMonth = new Map<string, bigint>();
+        {
+          let runningPlanned = 0n;
+          let runningNeeds = 0n;
+          for (const month of monthsInRange(input.from, input.to)) {
+            runningPlanned += plannedByMonth.get(month) ?? 0n;
+            runningNeeds += needsByMonth.get(month) ?? 0n;
+            cumPlannedByMonth.set(month, runningPlanned);
+            cumNeedsByMonth.set(month, runningNeeds);
+          }
+        }
         // needs/wants split for a given day's month (planned = needs + wants).
         const splitAt = (month: string) => {
-          const planned = plannedByMonth.get(month) ?? 0n;
-          const needs = needsByMonth.get(month) ?? 0n;
+          const planned = cumPlannedByMonth.get(month) ?? 0n;
+          const needs = cumNeedsByMonth.get(month) ?? 0n;
           return {
             planned_cents: planned.toString(),
             needs_cents: needs.toString(),
