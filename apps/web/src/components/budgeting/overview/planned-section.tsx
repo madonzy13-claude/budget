@@ -32,11 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  planZoneGradientStops,
-  planZoneStopsByPoint,
-  spendZone,
-} from "@/lib/actual-over-plan";
+import { planZoneGradientStops, spendZone } from "@/lib/actual-over-plan";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -197,17 +193,16 @@ export function PlannedSection({
       ),
     [data?.timeline, range.preset],
   );
-  // 260801: a DAILY bucket really is a continuous cumulative line, so the colour
-  // cuts sit at the true curve crossings. A MONTHLY bucket is a row of independent
-  // month totals — the curve between two of them is decoration, and interpolating a
-  // crossing there paints an overspend that never happened. There each point owns
-  // its half-segment instead.
+  // 260801 (round 2): a MONTHLY bucket is a row of independent month totals, and
+  // a monotone spline through them invents shoulders and peaks that never
+  // happened — which is what dragged the colour boundary away from where the eye
+  // reads the crossing. Monthly draws STRAIGHT segments (and the cut is solved on
+  // those same straight lines); a daily bucket keeps the curve, where the
+  // cumulative line really is continuous.
+  const monthly = data?.bucket === "monthly";
   const actualStops = useMemo(
-    () =>
-      data?.bucket === "monthly"
-        ? planZoneStopsByPoint(timelineRows, ZONE_COLOR)
-        : planZoneGradientStops(timelineRows, ZONE_COLOR),
-    [timelineRows, data?.bucket],
+    () => planZoneGradientStops(timelineRows, ZONE_COLOR, { linear: monthly }),
+    [timelineRows, monthly],
   );
 
   // Chart AXIS: bare + compact, no currency (r24 items 5/7). TOOLTIP: full $ (r25 #2).
@@ -285,6 +280,9 @@ export function PlannedSection({
                     label: t("planned.needs"),
                     color: "var(--chart-plan-needs)",
                     stack: "planned",
+                    curve: monthly
+                      ? ("linear" as const)
+                      : ("monotone" as const),
                     fillOpacity: 0.16,
                     strokeOpacity: 0.5,
                   },
@@ -295,6 +293,9 @@ export function PlannedSection({
                           label: t("planned.wants"),
                           color: "var(--chart-plan-wants)",
                           stack: "planned",
+                          curve: monthly
+                            ? ("linear" as const)
+                            : ("monotone" as const),
                           fillOpacity: 0.16,
                           strokeOpacity: 0.5,
                         },
@@ -304,6 +305,9 @@ export function PlannedSection({
                     key: "real",
                     label: t("planned.real"),
                     color: CHART_THEME.neutral,
+                    curve: monthly
+                      ? ("linear" as const)
+                      : ("monotone" as const),
                     // Line only — a filled actual area buried the plan bands.
                     fillOpacity: 0,
                     strokeGradientStops: actualStops,

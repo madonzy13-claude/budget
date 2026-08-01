@@ -114,6 +114,7 @@ const BISECT_STEPS = 30;
 export function planZoneGradientStops(
   rows: ActualRow[],
   colors: { under: string; between: string; over: string },
+  opts: { linear?: boolean } = {},
 ): GradientStop[] {
   if (rows.length === 0) return [];
   const span = Math.max(1, rows.length - 1);
@@ -123,14 +124,18 @@ export function planZoneGradientStops(
   const realM = monotoneTangents(reals);
   const needsM = monotoneTangents(needs);
   const plansM = monotoneTangents(plans);
+  // `linear` mirrors a chart drawn with straight segments: the value between two
+  // points is the plain lerp, so the cut lands where the STRAIGHT lines meet.
+  const valueAt = (ys: number[], m: number[], i: number, t: number) =>
+    opts.linear ? ys[i]! + (ys[i + 1]! - ys[i]!) * t : hermite(ys, m, i, t);
 
   /** Zone at global position x∈[0, rows.length-1], on the DRAWN curves. */
   const zoneAt = (x: number): SpendZone => {
     const i = Math.min(rows.length - 2, Math.max(0, Math.floor(x)));
     const t = rows.length < 2 ? 0 : x - i;
-    const real = hermite(reals, realM, i, t);
-    const need = hermite(needs, needsM, i, t);
-    const plan = hermite(plans, plansM, i, t);
+    const real = valueAt(reals, realM, i, t);
+    const need = valueAt(needs, needsM, i, t);
+    const plan = valueAt(plans, plansM, i, t);
     if (real <= need) return "under";
     return real <= plan ? "between" : "over";
   };
@@ -173,37 +178,5 @@ export function planZoneGradientStops(
   }
 
   stops.push({ offset: 1, color: colorOf(zoneAt(span)) });
-  return stops;
-}
-
-/**
- * Zone stops for a MONTHLY bucket, where each point is an independent month total
- * and the curve between two points is decoration, not data. Interpolating a
- * crossing there invents a moment that never happened — a month that overspent
- * bled red across the climb into a month that stayed under budget (user report,
- * 260801). Each point owns the half-segment on either side of it; the colour
- * changes at the MIDPOINT between two points that disagree.
- */
-export function planZoneStopsByPoint(
-  rows: ActualRow[],
-  colors: { under: string; between: string; over: string },
-): GradientStop[] {
-  if (rows.length === 0) return [];
-  const colorAt = (i: number) => colors[spendZone(rows[i]!)];
-  if (rows.length === 1) {
-    return [
-      { offset: 0, color: colorAt(0) },
-      { offset: 1, color: colorAt(0) },
-    ];
-  }
-  const span = rows.length - 1;
-  const stops: GradientStop[] = [{ offset: 0, color: colorAt(0) }];
-  for (let i = 1; i < rows.length; i++) {
-    if (colorAt(i) === colorAt(i - 1)) continue;
-    const offset = (i - 0.5) / span;
-    stops.push({ offset, color: colorAt(i - 1) });
-    stops.push({ offset, color: colorAt(i) });
-  }
-  stops.push({ offset: 1, color: colorAt(rows.length - 1) });
   return stops;
 }
