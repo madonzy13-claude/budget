@@ -93,6 +93,30 @@ export interface GetOverviewPlannedDeps {
   incomeRepo?: {
     listActive(tenantId: string): Promise<IncomeForNormalize[]>;
   };
+  /**
+   * 260801: the timeline colours by RESERVE — inside the plan, covered by
+   * reserve, or past both — so it needs each month's reserve availability. Same
+   * seam the Overspent section uses; the engine states availability as
+   * used + end-of-month free reserve (get-spendings-summary's display rule).
+   * Optional: without it every month reports zero reserve and the chart simply
+   * has no middle band.
+   */
+  reservePositions?: (input: { tenantId: string; budgetId: string }) => Promise<
+    Result<
+      {
+        positions: Map<
+          string,
+          {
+            byMonth: Map<
+              string,
+              { usedCents: bigint; endReserveCents: bigint }
+            >;
+          }
+        >;
+      },
+      Error
+    >
+  >;
 }
 
 export interface GetOverviewPlannedInput {
@@ -115,6 +139,8 @@ export interface OverviewPlannedDTO {
      *  chart stacks wants ABOVE needs; needs + wants === planned. */
     needs_cents: string;
     wants_cents: string;
+    /** Reserve AVAILABLE to that month — the plan-to-red gap (260801). */
+    reserve_cents: string;
   }[];
   plannedAvgVsReal: {
     category_id: string;
@@ -181,7 +207,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       const ccy = meta.default_currency;
       const bucket = chooseBucket(input.from, input.to);
 
-      const [planned, spend, windows, rules] = await Promise.all([
+      const [planned, spend, windows, rules, posResult] = await Promise.all([
         deps.repo.monthlyPlannedByCategory(
           input.budgetId,
           input.from,
@@ -190,7 +216,26 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         deps.repo.monthlySpendByCategory(input.budgetId, input.from, input.to),
         deps.repo.categoryWindows(input.budgetId),
         deps.repo.activeRecurringRules(input.budgetId),
+        deps.reservePositions?.({
+          tenantId: input.tenantId,
+          budgetId: input.budgetId,
+        }),
       ]);
+      let reservePositions:
+        | Map<
+            string,
+            {
+              byMonth: Map<
+                string,
+                { usedCents: bigint; endReserveCents: bigint }
+              >;
+            }
+          >
+        | undefined;
+      if (posResult) {
+        if (posResult.isErr()) return err(posResult.error);
+        reservePositions = posResult.value.positions;
+      }
 
       // Investment categories are excluded from the "All categories" planned-vs-
       // actual TIMELINE — investing isn't spending, so it shouldn't inflate the
@@ -203,6 +248,20 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         input.categoryId
           ? catId === input.categoryId
           : !investmentIds.has(catId);
+
+      // Reserve AVAILABLE per month = used + free-at-month-end, summed over the
+      // categories this view covers (reserve-engine's own display rule).
+      const reserveByMonth = new Map<string, bigint>();
+      for (const [catId, pos] of reservePositions ?? []) {
+        if (!inCat(catId)) continue;
+        for (const [month, cell] of pos.byMonth) {
+          const avail = cell.usedCents + cell.endReserveCents;
+          if (avail <= 0n) continue;
+          reserveByMonth.set(month, (reserveByMonth.get(month) ?? 0n) + avail);
+        }
+      }
+      const reserveAt = (month: string) =>
+        (reserveByMonth.get(month) ?? 0n).toString();
 
       // ---- timeline ----
       let timeline: OverviewPlannedDTO["timeline"];
@@ -238,6 +297,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             real_cents: (spendByMonth.get(label) ?? 0n).toString(),
             needs_cents: needs.toString(),
             wants_cents: wants.toString(),
+            reserve_cents: reserveAt(label),
           };
         });
       } else {
@@ -275,6 +335,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             planned_cents: planned.toString(),
             needs_cents: needs.toString(),
             wants_cents: (planned > needs ? planned - needs : 0n).toString(),
+            reserve_cents: reserveAt(month),
           };
         };
         const anyPlanned = [...plannedByMonth.values()].some((v) => v > 0n);

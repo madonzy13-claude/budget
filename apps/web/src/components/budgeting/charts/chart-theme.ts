@@ -90,4 +90,7 @@ export interface ChartSeries {
    *  on the straight segments the crossing maths assumes (see
    *  lib/actual-over-plan); the default monotone spline bows off them. */
   curve?: "monotone" | "linear";
+  /** Background bands take no hover dot: two dots at one x, only one of which
+   *  the tooltip explains, read as a stray point (260801 user report). */
+  noActiveDot?: boolean;
 }

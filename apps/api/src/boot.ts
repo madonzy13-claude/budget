@@ -488,6 +488,9 @@ export async function boot(): Promise<BootedDeps> {
       fxProvider: baseBudgeting.fxProvider,
       // r33: smart Investments limit (income − Σ other planned) as its planned.
       incomeRepo: new DrizzleIncomeRepo(),
+      // 260801: the timeline colours by reserve (inside plan / covered by
+      // reserve / past both), so it needs the same engine seam Overspent uses.
+      reservePositions: baseBudgeting.reservePositions,
     }),
     // Phase 11 (11-05): Overspent + Reserves section. After-reserves overspent
     // reuses the overview-repo monthly aggregation + the reserve engine seam

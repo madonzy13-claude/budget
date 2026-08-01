@@ -13,34 +13,32 @@ import {
   isOverPlan,
 } from "../../src/lib/actual-over-plan";
 
-const row = (real: number, needs: number, wants = 0) => ({
+const row = (real: number, needs: number, wants = 0, reserve = 0) => ({
   real,
   needs,
   wants,
+  reserve,
 });
 
 describe("spendZone", () => {
-  it("is 'under' up to and including the needs line", () => {
-    expect(spendZone(row(300, 500, 200))).toBe("under");
-    expect(spendZone(row(500, 500, 200))).toBe("under");
+  // 260801 (user decision): green while the spend is inside the PLAN, yellow
+  // while it is covered by that month's reserve, red once both are gone.
+  it("is 'under' up to and including the plan", () => {
+    expect(spendZone(row(300, 500, 200, 400))).toBe("under");
+    expect(spendZone(row(700, 500, 200, 400))).toBe("under");
   });
 
-  it("is 'between' past needs but within needs + wants", () => {
-    expect(spendZone(row(501, 500, 200))).toBe("between");
-    expect(spendZone(row(700, 500, 200))).toBe("between");
+  it("is 'between' while the reserve is covering it", () => {
+    expect(spendZone(row(701, 500, 200, 400))).toBe("between");
+    expect(spendZone(row(1100, 500, 200, 400))).toBe("between");
   });
 
-  it("is 'over' past the whole plan", () => {
-    expect(spendZone(row(701, 500, 200))).toBe("over");
+  it("is 'over' once the reserve is spent too", () => {
+    expect(spendZone(row(1101, 500, 200, 400))).toBe("over");
   });
 
-  it("has no middle zone when there are no wants", () => {
-    expect(spendZone(row(600, 500, 0))).toBe("over");
-  });
-
-  it("isOverPlan still answers the past-the-whole-plan question", () => {
-    expect(isOverPlan(row(700, 500, 200))).toBe(false);
-    expect(isOverPlan(row(701, 500, 200))).toBe(true);
+  it("has no middle zone when there is no reserve", () => {
+    expect(spendZone(row(701, 500, 200, 0))).toBe("over");
   });
 });
 

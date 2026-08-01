@@ -199,8 +199,11 @@ export function PlannedSection({
                 real: Number(p.real_cents),
                 needs: Number(p.needs_cents),
                 wants: Number(p.wants_cents),
+                reserve: Number(p.reserve_cents ?? 0),
               })),
-              range.preset === "all" ? ["real", "needs", "wants"] : [],
+              range.preset === "all"
+                ? ["real", "needs", "wants", "reserve"]
+                : [],
             ),
             // Real spend starts at 0 (nothing spent yet); planned holds flat.
             ["real"],
@@ -214,6 +217,9 @@ export function PlannedSection({
       ),
     [data?.timeline, range.preset, todayIso],
   );
+  // The reserve band only exists where a reserve does — with reserves off it is
+  // simply absent and the line goes green straight to red.
+  const hasReserve = timelineRows.some((r) => Number(r.reserve) > 0);
   // The overlay draws the spend line only where there IS spend: the running
   // month's tail carries the plan alone (real === null).
   const spentRows = useMemo(
@@ -309,6 +315,7 @@ export function PlannedSection({
                     curve: "linear" as const,
                     fillOpacity: 0.16,
                     strokeOpacity: 0.5,
+                    noActiveDot: true,
                   },
                   ...(wantsSplitExists
                     ? [
@@ -320,6 +327,21 @@ export function PlannedSection({
                           curve: "linear" as const,
                           fillOpacity: 0.16,
                           strokeOpacity: 0.5,
+                          noActiveDot: true,
+                        },
+                      ]
+                    : []),
+                  ...(hasReserve
+                    ? [
+                        {
+                          key: "reserve",
+                          label: t("planned.reserve"),
+                          color: "var(--chart-plan-reserve)",
+                          stack: "planned",
+                          curve: "linear" as const,
+                          fillOpacity: 0.16,
+                          strokeOpacity: 0.5,
+                          noActiveDot: true,
                         },
                       ]
                     : []),

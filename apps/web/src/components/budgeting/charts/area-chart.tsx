@@ -215,7 +215,7 @@ export function OverviewAreaChart({
               strokeWidth={2}
               strokeDasharray={s.dashed ? "4 4" : undefined}
               dot={false}
-              activeDot={hideCursor ? false : undefined}
+              activeDot={hideCursor || s.noActiveDot ? false : undefined}
               isAnimationActive={false}
             />
           );

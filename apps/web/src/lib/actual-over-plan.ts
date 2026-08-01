@@ -17,6 +17,8 @@ export interface ActualRow {
   real: number;
   needs: number;
   wants: number;
+  /** Reserve available that month — spending inside it is covered, not over. */
+  reserve?: number;
   [key: string]: unknown;
 }
 
@@ -25,13 +27,16 @@ const planOf = (r: ActualRow) => Number(r.needs) + Number(r.wants);
 export type SpendZone = "under" | "between" | "over";
 
 /**
- * Which band is this point in? A value exactly ON a line still belongs to the
- * lower band — spending your needs budget to the cent is not "into wants".
+ * Which band is this point in (260801 user decision)? Inside the plan is green,
+ * covered by that month's reserve is yellow, past both is red. A value exactly ON
+ * a line still belongs to the lower band — spending the plan to the cent has not
+ * touched the reserve.
  */
 export function spendZone(r: ActualRow): SpendZone {
   const real = Number(r.real);
-  if (real <= Number(r.needs)) return "under";
-  return real <= planOf(r) ? "between" : "over";
+  const plan = planOf(r);
+  if (real <= plan) return "under";
+  return real <= plan + Number(r.reserve ?? 0) ? "between" : "over";
 }
 
 /** Is this point spending past the WHOLE plan? (Kept for the tooltip colour.) */

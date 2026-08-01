@@ -18,6 +18,8 @@ export interface OverviewPlannedDTO {
     real_cents: string;
     needs_cents: string;
     wants_cents: string;
+    /** Reserve available that month — the plan-to-red gap (260801). */
+    reserve_cents: string;
   }[];
   plannedAvgVsReal: {
     category_id: string;

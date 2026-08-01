@@ -1456,6 +1456,7 @@
           "planned": "Zaplanowane",
           "needs": "Potrzeby",
           "wants": "Zachcianki",
+          "reserve": "Rezerwa",
           "recurringPerMonth": "Płatności cykliczne wg miesięcy",
           "recurringPerCategory": "Płatności cykliczne wg kategorii",
           "timelineTitle": "Plan a rzeczywiste wydatki w czasie",

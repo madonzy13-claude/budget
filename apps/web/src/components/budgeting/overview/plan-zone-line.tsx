@@ -3,6 +3,10 @@
  * plan-zone-line.tsx — the ACTUAL line, stroked per plan zone with the limit line
  * itself as the boundary (260801).
  *
+ * Zones: inside the plan (green), covered by that month's reserve (yellow), past
+ * both (red) — the boundaries are the plan band's top and the reserve band's top,
+ * the same geometry the chart paints.
+ *
  * A stroke gradient can only split a line along a straight boundary — vertical, in
  * x — so wherever a limit line is sloped the colour changed at the wrong angle
  * (user report). Here the line is drawn once per colour and each copy is clipped
@@ -26,6 +30,8 @@ import {
 
 export interface PlanZoneRow {
   label: string;
+  /** Reserve available that month — the plan-to-red gap (260801). */
+  reserve?: number;
   /** Epoch ms — the chart's x-axis is numeric so spacing follows real time. */
   ts: number;
   real: number;
@@ -81,15 +87,16 @@ export function PlanZoneLine({
     opts,
   );
   const actual = toPx(actualSamples);
-  const needs = toPx(
+  // Green below the PLAN, yellow through the reserve above it, red past both.
+  const plan = toPx(
     sampleSeries(
-      rows.map((r) => r.needs),
+      rows.map((r) => r.needs + r.wants),
       opts,
     ),
   );
-  const total = toPx(
+  const covered = toPx(
     sampleSeries(
-      rows.map((r) => r.needs + r.wants),
+      rows.map((r) => r.needs + r.wants + (r.reserve ?? 0)),
       opts,
     ),
   );
@@ -119,15 +126,19 @@ export function PlanZoneLine({
   const zones = [
     {
       id: `${idPrefix}-under`,
-      d: regionBelow(needs, bottom),
+      d: regionBelow(plan, bottom),
       color: colors.under,
     },
     {
       id: `${idPrefix}-between`,
-      d: regionBetween(total, needs),
+      d: regionBetween(covered, plan),
       color: colors.between,
     },
-    { id: `${idPrefix}-over`, d: regionAbove(total, top), color: colors.over },
+    {
+      id: `${idPrefix}-over`,
+      d: regionAbove(covered, top),
+      color: colors.over,
+    },
   ];
 
   return (

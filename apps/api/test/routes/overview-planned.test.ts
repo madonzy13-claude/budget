@@ -201,7 +201,12 @@ describe("GET /budgets/:id/overview/planned", () => {
     const body = (await res.json()) as {
       currency: string;
       bucket: string;
-      timeline: { label: string; planned_cents: string; real_cents: string }[];
+      timeline: {
+        label: string;
+        planned_cents: string;
+        real_cents: string;
+        reserve_cents: string;
+      }[];
       plannedAvgVsReal: {
         category_id: string;
         planned_avg_cents: string;
@@ -223,6 +228,10 @@ describe("GET /budgets/:id/overview/planned", () => {
       "20000",
       "15000",
     ]);
+    // Every point carries its month's reserve availability — the chart colours
+    // by it (green inside the plan, yellow while reserve covers, red past both).
+    for (const p of body.timeline)
+      expect(typeof p.reserve_cents).toBe("string");
     // real: confirmed only — the Feb pending 5000 is excluded
     expect(body.timeline.map((p) => p.real_cents)).toEqual([
       "18000",

@@ -8,6 +8,7 @@
  * stores amount_converted_cents) — no FX on that path; recurring amounts are FX'd.
  */
 import { describe, test, expect } from "bun:test";
+import { ok } from "@budget/shared-kernel";
 import {
   getOverviewPlanned,
   type GetOverviewPlannedDeps,
@@ -808,5 +809,118 @@ describe("getOverviewPlanned", () => {
       "2026-01-15",
     ]);
     expect(dto.timeline.every((t) => t.planned_cents === "0")).toBe(true);
+  });
+
+  test("carries each month's RESERVE, so the chart can colour by it", async () => {
+    // 260801 (user decision): green while inside the plan, yellow while covered
+    // by reserve, red past both. The boundary is plan + reserve AVAILABLE for
+    // that month, which the engine states as used + end-of-month free reserve
+    // (the same rule the spendings grid displays).
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "A", month: "2026-06", planned_cents: 20000n },
+          { category_id: "B", month: "2026-06", planned_cents: 10000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: "A", month: "2026-06", spent_cents: 25000n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+          {
+            category_id: "B",
+            name: "Fun",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const positions = new Map([
+      [
+        "A",
+        {
+          byMonth: new Map([
+            ["2026-06", { usedCents: 3000n, endReserveCents: 1000n }],
+          ]),
+        },
+      ],
+      [
+        "B",
+        {
+          byMonth: new Map([
+            ["2026-06", { usedCents: 0n, endReserveCents: 500n }],
+          ]),
+        },
+      ],
+    ]);
+    const svc = getOverviewPlanned({
+      repo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      reservePositions: async () => ok({ positions }) as never,
+    } as GetOverviewPlannedDeps);
+
+    const all = (
+      await svc({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-06-01",
+        to: "2026-06-30",
+      })
+    )._unsafeUnwrap();
+    // A: 3000 used + 1000 free, B: 0 + 500 → 4500 across the budget.
+    expect(all.timeline[0]!.reserve_cents).toBe("4500");
+
+    // A category filter scopes the reserve the same way it scopes the plan.
+    const justA = (
+      await svc({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-06-01",
+        to: "2026-06-30",
+        categoryId: "A",
+      })
+    )._unsafeUnwrap();
+    expect(justA.timeline[0]!.reserve_cents).toBe("4000");
+  });
+
+  test("reports zero reserve when no reserve seam is wired", async () => {
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+      })
+    )._unsafeUnwrap();
+    expect(dto.timeline.every((p) => p.reserve_cents === "0")).toBe(true);
   });
 });
