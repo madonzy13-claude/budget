@@ -136,6 +136,9 @@ export interface CategoryDto {
   colorKey: string | null;
   // mig 0059: persisted cushion mode (null = inferred from amounts on reopen).
   cushionMode?: string | null;
+  // r33: THE smart Investments category. Investing is not spending, so charts
+  // that measure spending leave it out (260802).
+  isInvestment?: boolean;
 }
 
 // ---------------------------------------------------------------------------
