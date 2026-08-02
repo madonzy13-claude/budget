@@ -10,6 +10,7 @@
  * only; string cents → Number here (recharts needs Numbers).
  */
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -184,6 +185,26 @@ export function PlannedSection({
     if (store) store.overview.plannedIncludeRunningMonth = v;
     setIncludeRunningMonthState(v);
   };
+
+  // Short on screen, spelled out for the accessible name: two full sentences
+  // side by side wrapped onto four lines and outweighed the chart's own title.
+  const scopeTab = (ongoing: boolean, label: string, full: string) => (
+    <button
+      type="button"
+      onClick={() => setIncludeRunningMonth(ongoing)}
+      aria-pressed={includeRunningMonth === ongoing}
+      aria-label={full}
+      title={full}
+      className={cn(
+        "whitespace-nowrap border-b-2 px-2 py-1 transition-colors min-h-[44px] sm:min-h-0",
+        includeRunningMonth === ongoing
+          ? "border-[var(--primary)] text-[var(--body-on-dark)]"
+          : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+      )}
+    >
+      {label}
+    </button>
+  );
 
   const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
@@ -466,31 +487,31 @@ export function PlannedSection({
               {/* A month still in progress drags the average down against months
                   that ran their full course, so it is left out by default — and
                   only offered when the range has other months to average. */}
-              {/* Which months feed the averages. Same pill chrome as the
-                  category picker above, so it reads as part of the chart — and
-                  it NAMES the two options rather than leaving a switch whose
-                  meaning depends on which way it points (260802 user request). */}
+              {/* Which months feed the averages — the same underlined segments
+                  the Wealth section switches its view with, at caption size
+                  since this belongs to one chart. Both choices stay readable,
+                  so the state is the lit segment rather than a popup to open. */}
               {canDropRunningMonth && (
-                <Select
-                  value={includeRunningMonth ? "all" : "completed"}
-                  onValueChange={(v) => setIncludeRunningMonth(v === "all")}
+                <div
+                  role="group"
+                  aria-label={t("planned.avgScope")}
+                  data-testid="overview-planned-avg-scope"
+                  // text-caption sits HERE, not on the buttons: inside cn() it
+                  // reads as a text-COLOUR class and tailwind-merge drops it for
+                  // the colour beside it, leaving 16px segments.
+                  className="flex items-center justify-center gap-1 text-caption"
                 >
-                  <SelectTrigger
-                    data-testid="overview-planned-avg-scope"
-                    aria-label={t("planned.avgScope")}
-                    className="mx-auto h-9 w-fit min-w-[10rem] max-w-full gap-2 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="completed">
-                      {t("planned.avgScopeCompleted")}
-                    </SelectItem>
-                    <SelectItem value="all">
-                      {t("planned.avgScopeAll")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  {scopeTab(
+                    false,
+                    t("planned.avgScopeCompletedShort"),
+                    t("planned.avgScopeCompleted"),
+                  )}
+                  {scopeTab(
+                    true,
+                    t("planned.avgScopeAllShort"),
+                    t("planned.avgScopeAll"),
+                  )}
+                </div>
               )}
               <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal
@@ -567,9 +588,9 @@ export function PlannedSection({
                 items: m.items,
               }))}
               xKey="month"
-              series={[
-                { key: "planned", label: t("planned.recurringPerMonth") },
-              ]}
+              // The tooltip repeats the series name under the month it already
+              // names, so it drops the ", by month" the chart title needs.
+              series={[{ key: "planned", label: t("planned.recurringSeries") }]}
               formatY={fmtY}
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}
