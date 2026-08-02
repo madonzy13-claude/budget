@@ -68,11 +68,11 @@ const withPointer = (coarse: boolean) => {
   };
 };
 
-const withViewport = (height: number) => {
+const withViewport = (height: number, scale = 1) => {
   const original = window.visualViewport;
   Object.defineProperty(window, "visualViewport", {
     configurable: true,
-    value: { height, addEventListener() {}, removeEventListener() {} },
+    value: { height, scale, addEventListener() {}, removeEventListener() {} },
   });
   return () =>
     Object.defineProperty(window, "visualViewport", {
@@ -139,6 +139,24 @@ describe("useViewportFillHeight (fitVisible)", () => {
       useViewportFillHeight(ref, { fitVisible: true });
     });
     expect(sizeOf(el)).toBe("max(160px, 786px)");
+    pointer();
+    restore();
+  });
+
+  it("fills the LAYOUT viewport when the page is pinch-zoomed", () => {
+    // Real numbers from the user's console at the zoom level that showed the
+    // band: layout viewport 1759x516, visual viewport 1102.67x323.47 — a page
+    // scale of 1.595. The box lives in LAYOUT pixels, so sizing it to the
+    // visible 323 left 193px of bare canvas under it, more the further they
+    // zoomed. Scale is 1 unless the page is pinched, so nothing else moves.
+    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 1759 });
+    const restore = withViewport(323.4664306640625, 1.595);
+    const pointer = withPointer(false);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+    expect(sizeOf(el)).toBe("max(160px, 402px)");
     pointer();
     restore();
   });

@@ -101,7 +101,17 @@ export function useViewportFillHeight(
         // carries is multiplied by the zoom on the way back out. Getting this
         // wrong sized the box zoom× too tall and left a black band of bare
         // document under the shell (user report, 260802).
-        const vvh = window.visualViewport?.height ?? window.innerHeight;
+        //
+        // visualViewport is the VISIBLE window onto the layout viewport, and
+        // pinch/page-scale zoom shrinks it while the layout viewport — the frame
+        // this box is laid out in — stays put. Multiplying by the page scale
+        // reads it back in layout pixels. Without it a page scaled 1.595× sized
+        // the box 209px inside a 516px-tall layout viewport and left 193px of
+        // bare canvas beneath it, more the further the user zoomed (their own
+        // console numbers, 260802). Unpinched the scale is 1, so the iOS
+        // bar-collapse tracking below is untouched.
+        const vv = window.visualViewport;
+        const vvh = vv ? vv.height * (vv.scale || 1) : window.innerHeight;
         el.style.setProperty(
           "--grid-max-h",
           vvh > 0

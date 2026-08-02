@@ -119,9 +119,7 @@ describe("ColumnHeader — Investments (r33)", () => {
         onEdit={() => {}}
       />,
     );
-    const used = screen.getByTestId(
-      "column-header-investments-reserves-used",
-    );
+    const used = screen.getByTestId("column-header-investments-reserves-used");
     expect(used.textContent).toBe("—");
   });
 });

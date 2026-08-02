@@ -46,7 +46,9 @@ const dto: ProjectionDTO = {
       available_cents: "-2000",
       income_cents: "0",
       bill_cents: "0",
-      drew_reserve: [{ category_id: "r", name: "Transport", amount_cents: "2000" }],
+      drew_reserve: [
+        { category_id: "r", name: "Transport", amount_cents: "2000" },
+      ],
       shortfall: [],
     },
     {
@@ -59,9 +61,16 @@ const dto: ProjectionDTO = {
       shortfall: [{ category_id: "c", name: "Food", amount_cents: "9000" }],
     },
   ],
-  income_points: [{ date: "2026-07-16", name: "Salary", amount_cents: "100000" }],
+  income_points: [
+    { date: "2026-07-16", name: "Salary", amount_cents: "100000" },
+  ],
   bill_points: [
-    { date: "2026-07-17", name: "Rent", category_id: "c", amount_cents: "50000" },
+    {
+      date: "2026-07-17",
+      name: "Rent",
+      category_id: "c",
+      amount_cents: "50000",
+    },
   ],
   summary: {
     first_yellow_date: "2026-07-16",

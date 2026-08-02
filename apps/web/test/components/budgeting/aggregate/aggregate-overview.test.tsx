@@ -148,9 +148,9 @@ describe("AggregateOverview", () => {
       budgets: [makeBudget({ ...base, possessions_cents: "0" })],
     };
     const { unmount } = render(<AggregateOverview />);
-    const runwayNoPoss = screen
-      .getByTestId("aggregate-hero-runway")
-      .textContent;
+    const runwayNoPoss = screen.getByTestId(
+      "aggregate-hero-runway",
+    ).textContent;
     unmount();
 
     // possessions == net worth → the liquid pot is 0 → runway collapses to the
@@ -160,9 +160,9 @@ describe("AggregateOverview", () => {
       budgets: [makeBudget({ ...base, possessions_cents: "1000000" })],
     };
     render(<AggregateOverview />);
-    const runwayWithPoss = screen
-      .getByTestId("aggregate-hero-runway")
-      .textContent;
+    const runwayWithPoss = screen.getByTestId(
+      "aggregate-hero-runway",
+    ).textContent;
     expect(runwayWithPoss).not.toBe(runwayNoPoss);
   });
 

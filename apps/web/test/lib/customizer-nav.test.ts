@@ -13,15 +13,21 @@ const TWO: GridSection[] = [
 
 describe("customizer-nav", () => {
   it("steps within a section on ←/→, wrapping", () => {
-    expect(nextCustomizerFocus({ section: 0, index: 0 }, "ArrowRight", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 0, index: 0 }, "ArrowRight", TWO),
+    ).toEqual({
       section: 0,
       index: 1,
     });
-    expect(nextCustomizerFocus({ section: 0, index: 7 }, "ArrowRight", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 0, index: 7 }, "ArrowRight", TWO),
+    ).toEqual({
       section: 0,
       index: 0,
     });
-    expect(nextCustomizerFocus({ section: 1, index: 0 }, "ArrowLeft", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 1, index: 0 }, "ArrowLeft", TWO),
+    ).toEqual({
       section: 1,
       index: 11,
     });
@@ -29,12 +35,16 @@ describe("customizer-nav", () => {
 
   it("↓ steps to the next ROW within a multi-row section before crossing", () => {
     // icon row 0 col 2 → icon row 1 col 2 (index 2 → 8), SAME section
-    expect(nextCustomizerFocus({ section: 1, index: 2 }, "ArrowDown", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 1, index: 2 }, "ArrowDown", TWO),
+    ).toEqual({
       section: 1,
       index: 8,
     });
     // icon row 1 (last) → cross DOWN wraps to the color row, same column
-    expect(nextCustomizerFocus({ section: 1, index: 8 }, "ArrowDown", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 1, index: 8 }, "ArrowDown", TWO),
+    ).toEqual({
       section: 0,
       index: 2,
     });
@@ -42,12 +52,16 @@ describe("customizer-nav", () => {
 
   it("↑ steps up a row within a section, then crosses to the previous section's last row", () => {
     // icon row 1 col 3 (index 9) → icon row 0 col 3 (index 3), SAME section
-    expect(nextCustomizerFocus({ section: 1, index: 9 }, "ArrowUp", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 1, index: 9 }, "ArrowUp", TWO),
+    ).toEqual({
       section: 1,
       index: 3,
     });
     // icon row 0 col 3 → cross UP to the color row (its only/last row), col 3
-    expect(nextCustomizerFocus({ section: 1, index: 3 }, "ArrowUp", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 1, index: 3 }, "ArrowUp", TWO),
+    ).toEqual({
       section: 0,
       index: 3,
     });
@@ -55,7 +69,9 @@ describe("customizer-nav", () => {
 
   it("single-row color section crosses immediately on ↓ (no 2nd row)", () => {
     // color row col 4 → icon section row 0 col 4
-    expect(nextCustomizerFocus({ section: 0, index: 4 }, "ArrowDown", TWO)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 0, index: 4 }, "ArrowDown", TWO),
+    ).toEqual({
       section: 1,
       index: 4,
     });
@@ -67,7 +83,9 @@ describe("customizer-nav", () => {
       { count: 8, cols: 8 },
       { count: 10, cols: 6 },
     ];
-    expect(nextCustomizerFocus({ section: 1, index: 5 }, "ArrowDown", short)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 1, index: 5 }, "ArrowDown", short),
+    ).toEqual({
       section: 1,
       index: 9,
     });
@@ -79,7 +97,9 @@ describe("customizer-nav", () => {
       { count: 12, cols: 6 },
     ];
     // from icon row 0 col 4, ↑ would cross to the empty color section → skip → stay
-    expect(nextCustomizerFocus({ section: 1, index: 4 }, "ArrowUp", iconOnly)).toEqual({
+    expect(
+      nextCustomizerFocus({ section: 1, index: 4 }, "ArrowUp", iconOnly),
+    ).toEqual({
       section: 1,
       index: 4,
     });
@@ -87,6 +107,8 @@ describe("customizer-nav", () => {
 
   it("no-ops on a single empty section", () => {
     const pos: GridPos = { section: 0, index: 0 };
-    expect(nextCustomizerFocus(pos, "ArrowRight", [{ count: 0, cols: 8 }])).toEqual(pos);
+    expect(
+      nextCustomizerFocus(pos, "ArrowRight", [{ count: 0, cols: 8 }]),
+    ).toEqual(pos);
   });
 });

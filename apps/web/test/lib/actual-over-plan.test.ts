@@ -200,18 +200,23 @@ describe("zoneSegments", () => {
     ]);
   });
 
-  it("stops at the last real day — a HOLD adds no stub of line", () => {
-    // The hold carries the month's last reading to the boundary so the bands
-    // stay square, but drawing the spend line into it left a short horizontal
-    // stub past the last day of every month (user report, 260802).
+  it("carries the line flat to the boundary over a HOLD", () => {
+    // A month's total does not stop where its last spend lands — it stands until
+    // the month ends. Ending the line at the last reading made a month whose
+    // spending was recorded mid-month look like it ENDED mid-month (user report,
+    // 260802: "looks like month ends in 15 Jun").
     const segs = zoneSegments([
       row(120),
       row(120, { hold: true }),
       row(0, { drop: true }),
       row(30),
     ]);
-    expect(segs).toHaveLength(1);
+    expect(segs).toHaveLength(2);
     expect(segs[0]!.points).toEqual([
+      { x: 0, v: 120 },
+      { x: 1, v: 120 },
+    ]);
+    expect(segs[1]!.points).toEqual([
       { x: 2, v: 0 },
       { x: 3, v: 30 },
     ]);

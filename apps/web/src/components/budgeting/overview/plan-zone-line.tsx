@@ -83,23 +83,18 @@ export function PlanZoneLine({
   // The month reset: the vertical fall back to zero, drawn thin and in grey
   // UNDER the line, since it is the reset and not spending.
   //
-  // It falls at the month's LAST READING, not at the boundary a `hold` sits on:
-  // the hold merely repeats that reading so the plan bands stay square, and
-  // starting the fall there left a short horizontal stub of line past the last
-  // day of every month (user report, 260802). Dropping at the reading and then
-  // running along the baseline to the boundary keeps the fall at 90° with no
-  // gap between it and the line it leaves.
-  const zeroY = yScale(0) as number;
+  // It falls AT THE BOUNDARY, straight down from the total the month closed on:
+  // the `hold` sits a millisecond before it carrying that total, so the fall is
+  // 90° with no run along the baseline. Dropping at the last reading instead and
+  // walking the baseline to the boundary made a month whose spend was recorded
+  // mid-month look like it ended mid-month, and drew a grey rail between the two
+  // (user report, 260802).
   const resets: Pt[][] = [];
   for (let i = 1; i < rows.length; i++) {
     if (!rows[i]!.drop) continue;
-    // Step back over the hold to the last point that is an actual reading.
-    let from = i - 1;
-    while (from > 0 && rows[from]!.hold) from--;
     resets.push([
-      { x: pointXs[from]!, y: yScale(rows[from]!.real) as number },
-      { x: pointXs[from]!, y: zeroY },
-      { x: pointXs[i]!, y: zeroY },
+      { x: pointXs[i - 1]!, y: yScale(rows[i - 1]!.real) as number },
+      { x: pointXs[i]!, y: yScale(rows[i]!.real) as number },
     ]);
   }
 

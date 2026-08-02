@@ -33,9 +33,9 @@ describe("SafeAreaTopSync", () => {
     setStandalone(false);
     render(<SafeAreaTopSync />);
     expect(window.localStorage.getItem("sat")).toBeNull();
-    expect(
-      document.documentElement.style.getPropertyValue("--safe-top"),
-    ).toBe("");
+    expect(document.documentElement.style.getPropertyValue("--safe-top")).toBe(
+      "",
+    );
   });
 
   it("standalone → persists the measured inset + sets --safe-top", () => {
@@ -45,9 +45,9 @@ describe("SafeAreaTopSync", () => {
     } as DOMRect);
     render(<SafeAreaTopSync />);
     expect(window.localStorage.getItem("sat")).toBe("59");
-    expect(
-      document.documentElement.style.getPropertyValue("--safe-top"),
-    ).toBe("59px");
+    expect(document.documentElement.style.getPropertyValue("--safe-top")).toBe(
+      "59px",
+    );
   });
 
   it("standalone but inset probes 0 (unresolved) → does not persist", () => {

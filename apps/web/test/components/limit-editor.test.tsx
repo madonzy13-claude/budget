@@ -9,11 +9,11 @@ import { LimitEditor } from "../../src/components/budgeting/limit-editor";
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => {
     const map: Record<string, string> = {
-      "normalAmount": "Normal limit",
-      "cushionAmount": "Cushion limit",
-      "effectiveFrom": "Effective from",
-      "save": "Save limits",
-      "currency": "Currency",
+      normalAmount: "Normal limit",
+      cushionAmount: "Cushion limit",
+      effectiveFrom: "Effective from",
+      save: "Save limits",
+      currency: "Currency",
     };
     return map[key] ?? key;
   },
@@ -25,7 +25,13 @@ vi.mock("sonner", () => ({
 
 // Mock CurrencyPicker
 vi.mock("../../src/components/common/currency-picker", () => ({
-  CurrencyPicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+  CurrencyPicker: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+  }) => (
     <select
       data-testid="currency-picker"
       value={value}
@@ -66,7 +72,7 @@ describe("LimitEditor", () => {
           effectiveFrom: "2026-01-01",
           effectiveTo: null,
         }}
-      />
+      />,
     );
     const inputs = screen.getAllByRole("spinbutton");
     expect(inputs[0]).toHaveValue(50000);
@@ -99,7 +105,7 @@ describe("LimitEditor", () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/categories/cat-1/limits",
-        expect.objectContaining({ method: "POST" })
+        expect.objectContaining({ method: "POST" }),
       );
     });
 

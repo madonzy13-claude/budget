@@ -158,8 +158,6 @@ describe("ProfileMenu theme + profile entry", () => {
     fireEvent.click(toggle);
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
     // Switching theme dismisses the menu (applies in place, no nav).
-    expect(
-      screen.queryByTestId("profile-menu-theme"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("profile-menu-theme")).not.toBeInTheDocument();
   });
 });

@@ -7,21 +7,26 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ShareOverrideEditor } from "../../src/components/budgeting/share-override-editor";
 
 vi.mock("next-intl", () => ({
-  useTranslations: (ns: string) => (key: string, params?: Record<string, unknown>) => {
-    const map: Record<string, string> = {
-      "budgeting_categories.shares.title": "Contribution shares",
-      "budgeting_categories.shares.sumCounter": "Currently {sum}% — must equal 100%",
-      "budgeting_categories.shares.sharesNeedUpdate": "Shares need to be updated",
-      "budgeting_categories.shares.save": "Save shares",
-      "budgeting_categories.shares.overrideBadge": "override",
-    };
-    const fullKey = `${ns}.${key}`;
-    const template = map[fullKey] ?? key;
-    if (params) {
-      return template.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`));
-    }
-    return template;
-  },
+  useTranslations:
+    (ns: string) => (key: string, params?: Record<string, unknown>) => {
+      const map: Record<string, string> = {
+        "budgeting_categories.shares.title": "Contribution shares",
+        "budgeting_categories.shares.sumCounter":
+          "Currently {sum}% — must equal 100%",
+        "budgeting_categories.shares.sharesNeedUpdate":
+          "Shares need to be updated",
+        "budgeting_categories.shares.save": "Save shares",
+        "budgeting_categories.shares.overrideBadge": "override",
+      };
+      const fullKey = `${ns}.${key}`;
+      const template = map[fullKey] ?? key;
+      if (params) {
+        return template.replace(/\{(\w+)\}/g, (_, k) =>
+          String(params[k] ?? `{${k}}`),
+        );
+      }
+      return template;
+    },
 }));
 
 vi.mock("sonner", () => ({
@@ -42,24 +47,14 @@ describe("ShareOverrideEditor", () => {
   });
 
   it("renders sum counter with initial 0%", () => {
-    render(
-      <ShareOverrideEditor
-        categoryId="cat-1"
-        members={MEMBERS}
-      />
-    );
+    render(<ShareOverrideEditor categoryId="cat-1" members={MEMBERS} />);
     const counter = screen.getByTestId("sum-counter");
     expect(counter.textContent).toContain("Currently");
     expect(counter.textContent).toContain("must equal 100%");
   });
 
   it("save button disabled when sum is 0", () => {
-    render(
-      <ShareOverrideEditor
-        categoryId="cat-1"
-        members={MEMBERS}
-      />
-    );
+    render(<ShareOverrideEditor categoryId="cat-1" members={MEMBERS} />);
     const saveBtn = screen.getByRole("button", { name: /save shares/i });
     expect(saveBtn).toBeDisabled();
   });
@@ -73,7 +68,7 @@ describe("ShareOverrideEditor", () => {
           { userId: "user-1", percentage: "60" },
           { userId: "user-2", percentage: "30" },
         ]}
-      />
+      />,
     );
     const saveBtn = screen.getByRole("button", { name: /save shares/i });
     expect(saveBtn).toBeDisabled();
@@ -88,7 +83,7 @@ describe("ShareOverrideEditor", () => {
           { userId: "user-1", percentage: "60" },
           { userId: "user-2", percentage: "40" },
         ]}
-      />
+      />,
     );
     const saveBtn = screen.getByRole("button", { name: /save shares/i });
     expect(saveBtn).not.toBeDisabled();
@@ -103,7 +98,7 @@ describe("ShareOverrideEditor", () => {
           { userId: "user-1", percentage: "50" },
           { userId: "user-2", percentage: "50" },
         ]}
-      />
+      />,
     );
 
     const inputs = screen.getAllByRole("spinbutton");
@@ -129,7 +124,7 @@ describe("ShareOverrideEditor", () => {
           { userId: "user-1", percentage: "50" },
           { userId: "user-2", percentage: "50" },
         ]}
-      />
+      />,
     );
 
     const saveBtn = screen.getByRole("button", { name: /save shares/i });
@@ -138,7 +133,7 @@ describe("ShareOverrideEditor", () => {
     await vi.waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/categories/cat-99/share-overrides",
-        expect.objectContaining({ method: "PUT" })
+        expect.objectContaining({ method: "PUT" }),
       );
     });
   });

@@ -28,7 +28,11 @@ vi.mock("../../src/hooks/use-investments", () => ({
   useInvestments: () => ({ data: holdingsRef.current }),
 }));
 vi.mock("../../src/hooks/use-create-holding", () => ({
-  useCreateHolding: () => ({ mutate: createMutate, mutateAsync: createMutate, isPending: false }),
+  useCreateHolding: () => ({
+    mutate: createMutate,
+    mutateAsync: createMutate,
+    isPending: false,
+  }),
 }));
 vi.mock("../../src/hooks/use-update-holding", () => ({
   useUpdateHolding: () => ({ mutate: updateMutate, mutateAsync: updateMutate }),
@@ -37,8 +41,18 @@ vi.mock("../../src/hooks/use-archive-holding", () => ({
   useArchiveHolding: () => ({ mutate: archiveMutate }),
 }));
 vi.mock("../../src/components/common/currency-picker", () => ({
-  CurrencyPicker: ({ value, onSelect }: { value?: string; onSelect: (v: string) => void }) => (
-    <select data-testid="currency-stub" value={value} onChange={(e) => onSelect(e.target.value)}>
+  CurrencyPicker: ({
+    value,
+    onSelect,
+  }: {
+    value?: string;
+    onSelect: (v: string) => void;
+  }) => (
+    <select
+      data-testid="currency-stub"
+      value={value}
+      onChange={(e) => onSelect(e.target.value)}
+    >
       <option value="USD">USD</option>
       <option value="EUR">EUR</option>
     </select>
@@ -145,12 +159,16 @@ describe("PossessionRow — inline (no sub sheet)", () => {
   it("clicking the value cell opens an inline numeric editor", () => {
     render(persisted());
     fireEvent.click(screen.getByTestId("possession-amount-p1"));
-    expect(screen.getByTestId("possession-amount-p1-editor")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("possession-amount-p1-editor"),
+    ).toBeInTheDocument();
   });
 
   it("changing the currency updates the holding", () => {
     render(persisted());
-    fireEvent.change(screen.getByTestId("currency-stub"), { target: { value: "EUR" } });
+    fireEvent.change(screen.getByTestId("currency-stub"), {
+      target: { value: "EUR" },
+    });
     expect(updateMutate).toHaveBeenCalledWith({ currency: "EUR" });
   });
 

@@ -169,12 +169,16 @@ describe("Overview charts", () => {
       expect(renderTip({ reset: true, hold: true }).textContent).toBe("");
     });
 
-    it("still answers on the point a month OPENS with", () => {
-      // A month's first point is a reading of its own (zero spent so far) —
-      // silence there reads as a broken chart (260801 user report).
-      expect(
-        renderTip({ reset: true, drop: true, real: 0 }).textContent,
-      ).not.toBe("");
+    it("stays silent on the point a month OPENS with", () => {
+      // It is always zero — nothing spent yet — so there is nothing to read and
+      // no reason for the pointer to stop there (user request, 260802).
+      expect(renderTip({ reset: true, drop: true, real: 0 }).textContent).toBe(
+        "",
+      );
+    });
+
+    it("still answers on an ordinary day", () => {
+      expect(renderTip({}).textContent).not.toBe("");
     });
   });
 
