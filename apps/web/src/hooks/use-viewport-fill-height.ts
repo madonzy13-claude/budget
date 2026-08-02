@@ -55,9 +55,26 @@ export function useViewportFillHeight(
       return v;
     }
 
+    /**
+     * Page zoom scales every px length the element carries, while a rect and
+     * visualViewport keep reporting SCREEN pixels. Dividing by the ratio between
+     * the two puts our numbers back in the element's own space — without it a
+     * zoomed Overview sized its box zoom× too tall and left a black band of
+     * empty document below the shell (user report, 260802). Unzoomed = 1.
+     */
+    function zoomFactor(node: HTMLElement): number {
+      const w = node.getBoundingClientRect().width;
+      const local = node.offsetWidth;
+      return w > 0 && local > 0 ? w / local : 1;
+    }
+
     function update() {
       if (!el || isKeyboardEditing()) return;
-      const top = Math.max(0, Math.round(el.getBoundingClientRect().top));
+      const zoom = zoomFactor(el);
+      const top = Math.max(
+        0,
+        Math.round(el.getBoundingClientRect().top / zoom),
+      );
       if (fitVisible) {
         // Track the CURRENTLY-VISIBLE viewport so the box always fills exactly from
         // its top to the visible bottom — no under-bar spill (would give the
@@ -65,11 +82,16 @@ export function useViewportFillHeight(
         // ANY scroll (incl. this inner box), which grows visualViewport.height and
         // fires vv resize → we recompute. A static unit can't do this: svh gaps when
         // the bar collapses, lvh spills when it's shown. Fallback to 100svh (no vv).
-        const vvh = window.visualViewport?.height;
+        // Both readings are SCREEN pixels, so the subtraction happens there and
+        // the result is converted into the element's own space — a px length it
+        // carries is multiplied by the zoom on the way back out. Getting this
+        // wrong sized the box zoom× too tall and left a black band of bare
+        // document under the shell (user report, 260802).
+        const vvh = window.visualViewport?.height ?? window.innerHeight;
         el.style.setProperty(
           "--grid-max-h",
-          vvh && vvh > 0
-            ? `max(160px, ${Math.round(vvh) - top}px)`
+          vvh > 0
+            ? `max(160px, ${Math.round(vvh / zoom - top)}px)`
             : `max(160px, calc(100svh - ${top}px))`,
         );
         return;
