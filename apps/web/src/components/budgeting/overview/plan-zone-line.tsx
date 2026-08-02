@@ -19,7 +19,7 @@
  */
 import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
 import { zoneSegments } from "@/lib/actual-over-plan";
-import { polylinePath, type Pt } from "@/lib/plan-zone-paths";
+import { holdXsAtBoundary, polylinePath, type Pt } from "@/lib/plan-zone-paths";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 
 /**
@@ -39,6 +39,10 @@ export interface PlanZoneRow {
   overspent?: number;
   /** Epoch ms — the chart's x-axis is numeric so spacing follows real time. */
   ts: number;
+  /** Repeats the month's last reading at the boundary — geometry, not a day. */
+  hold?: boolean;
+  /** The vertical fall back to zero at a month boundary. */
+  drop?: boolean;
   real: number;
   needs: number;
   wants: number;
@@ -69,8 +73,12 @@ export function PlanZoneLine({
 
   // Pixel x of each data point, from the chart's own (time) scale; a fractional
   // index (a crossing inside a segment) interpolates between its neighbours.
-  const pointXs = rows.map((r) => xScale(r.ts) as number);
-  if (pointXs.some((x) => !Number.isFinite(x))) return null;
+  // Each month's LAST READING is drawn at the month's end rather than where it
+  // was logged, so the line rises straight into the boundary the reset falls at
+  // — no flat stub off the last spending day, no gap before the fall (260802).
+  const rawXs = rows.map((r) => xScale(r.ts) as number);
+  if (rawXs.some((x) => !Number.isFinite(x))) return null;
+  const pointXs = holdXsAtBoundary(rows, rawXs);
   const toPx = (samples: Array<{ x: number; v: number }>): Pt[] =>
     samples.map(({ x, v }) => {
       const i = Math.min(rows.length - 2, Math.max(0, Math.floor(x)));
