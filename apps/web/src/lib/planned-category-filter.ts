@@ -53,3 +53,15 @@ export function savePlannedCategories(budgetId: string, ids: string[]): void {
     // A full or blocked store costs the memory of the choice, nothing more.
   }
 }
+
+/**
+ * The categories this chart can show. Investing is not spending — the timeline
+ * leaves investment categories out of its default view, so the picker must not
+ * offer them: ticking one turned "everything except House" into a chart where a
+ * month's investing counted as overspend (user report, 260802).
+ */
+export function pickableCategories<
+  T extends { id: string; isInvestment?: unknown },
+>(categories: T[]): T[] {
+  return categories.filter((c) => !c.isInvestment);
+}

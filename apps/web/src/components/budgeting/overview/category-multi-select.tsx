@@ -37,15 +37,20 @@ export function CategoryMultiSelect({
   onCommit: (ids: string[]) => void;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const all = categories.map((c) => c.id);
+  // "Everything" is stored as an empty set but SHOWN as every box ticked — with
+  // them unticked, clicking a row to drop that category selected it instead
+  // (user report, 260802). Unticking is now what it looks like.
+  const shown = (ids: string[]) => (ids.length ? ids : all);
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<string[]>(selected);
+  const [draft, setDraft] = useState<string[]>(() => shown(selected));
 
   // Follow the committed value while the panel is shut (another pane, a reset).
   useEffect(() => {
-    if (!open) setDraft(selected);
-  }, [selected, open]);
+    if (!open)
+      setDraft(selected.length ? selected : categories.map((c) => c.id));
+  }, [selected, open, categories]);
 
-  const all = categories.map((c) => c.id);
   const picked = new Set(draft);
   const isAll = draft.length === 0 || draft.length === categories.length;
   const label = isAll
@@ -76,9 +81,12 @@ export function CategoryMultiSelect({
           type="button"
           data-testid="overview-planned-category"
           aria-label={t("planned.category")}
-          className="mx-auto flex h-9 w-fit min-w-[10rem] max-w-full items-center justify-between gap-2 rounded-full border border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm text-[var(--body-on-dark)]"
+          className="mx-auto flex h-9 w-fit min-w-[10rem] max-w-full items-center gap-2 rounded-full border border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm text-[var(--body-on-dark)]"
         >
-          <span className="truncate">{label}</span>
+          {/* The label is CENTRED in the pill: it sits under a centred chart
+              title, and left-aligned text beside a right-hand chevron read as
+              off-centre (260802 user request). */}
+          <span className="flex-1 truncate text-center">{label}</span>
           <ChevronDown
             className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]"
             aria-hidden="true"

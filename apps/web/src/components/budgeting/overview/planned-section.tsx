@@ -15,6 +15,7 @@ import { CategoryMultiSelect } from "./category-multi-select";
 import {
   effectiveCategoryIds,
   loadPlannedCategories,
+  pickableCategories,
   prunePlannedCategories,
   savePlannedCategories,
 } from "@/lib/planned-category-filter";
@@ -186,7 +187,10 @@ export function PlannedSection({
     setIncludeRunningMonthState(v);
   };
 
-  const categories = useCategories(budgetId).data ?? [];
+  // Investing is not spending: the timeline leaves investment categories out,
+  // so the picker offers exactly what the chart can show (260802 user report —
+  // unticking one category silently ticked Investments IN).
+  const categories = pickableCategories(useCategories(budgetId).data ?? []);
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
     from: range.from,
     to: range.to,

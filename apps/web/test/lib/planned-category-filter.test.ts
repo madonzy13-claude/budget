@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   effectiveCategoryIds,
+  pickableCategories,
   loadPlannedCategories,
   prunePlannedCategories,
   savePlannedCategories,
@@ -62,5 +63,29 @@ describe("remembering the choice", () => {
   it("shrugs off a corrupted entry instead of taking the chart down", () => {
     localStorage.setItem("budget:b4:planned-categories", "{not json");
     expect(loadPlannedCategories("b4")).toEqual([]);
+  });
+});
+
+describe("pickableCategories", () => {
+  // Investing is not spending: the timeline leaves investment categories out of
+  // its default view, so the picker must not offer them either. Ticking one
+  // turned a plain "everything except House" into a chart where a month's
+  // investing counted as overspend (user report, 260802).
+  it("offers only what the chart counts", () => {
+    expect(
+      pickableCategories([
+        { id: "a", name: "Food" },
+        { id: "b", name: "Investments", isInvestment: true },
+        { id: "c", name: "Rent" },
+      ]),
+    ).toEqual([
+      { id: "a", name: "Food" },
+      { id: "c", name: "Rent" },
+    ]);
+  });
+
+  it("passes a budget with no investment category through untouched", () => {
+    const cats = [{ id: "a", name: "Food" }];
+    expect(pickableCategories(cats)).toEqual(cats);
   });
 });

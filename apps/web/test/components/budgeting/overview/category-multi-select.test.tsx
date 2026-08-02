@@ -52,6 +52,23 @@ describe("Category multi-select", () => {
     ).toContain("Fun");
   });
 
+  it("shows every box ticked while the chart is unfiltered", () => {
+    // Stored as an empty set, shown as all-ticked: with them unticked, clicking
+    // a row to DROP that category selected it instead (user report).
+    render(
+      <CategoryMultiSelect
+        categories={CATEGORIES}
+        selected={[]}
+        onCommit={vi.fn()}
+      />,
+    );
+    open();
+    for (const name of ["Food", "Fun", "Rent"])
+      expect(
+        screen.getByRole("option", { name }).getAttribute("aria-selected"),
+      ).toBe("true");
+  });
+
   it("commits the ticks only once the picker closes", () => {
     const onCommit = vi.fn();
     render(
@@ -62,11 +79,26 @@ describe("Category multi-select", () => {
       />,
     );
     open();
-    fireEvent.click(screen.getByRole("option", { name: "Food" }));
-    fireEvent.click(screen.getByRole("option", { name: "Rent" }));
+    // Untick the one to hide — the other two stay.
+    fireEvent.click(screen.getByRole("option", { name: "Fun" }));
     expect(onCommit).not.toHaveBeenCalled();
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(onCommit).toHaveBeenCalledWith(["a", "c"]);
+  });
+
+  it("goes back to unfiltered when every box is ticked again", () => {
+    const onCommit = vi.fn();
+    render(
+      <CategoryMultiSelect
+        categories={CATEGORIES}
+        selected={["a"]}
+        onCommit={onCommit}
+      />,
+    );
+    open();
+    fireEvent.click(screen.getByTestId("category-select-all"));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onCommit).toHaveBeenCalledWith([]);
   });
 
   it("ticks and clears every category at once", () => {
