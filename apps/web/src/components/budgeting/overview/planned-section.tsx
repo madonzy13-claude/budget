@@ -10,8 +10,6 @@
  * only; string cents → Number here (recharts needs Numbers).
  */
 import { useMemo, useState } from "react";
-import { CalendarOff, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -468,27 +466,31 @@ export function PlannedSection({
               {/* A month still in progress drags the average down against months
                   that ran their full course, so it is left out by default — and
                   only offered when the range has other months to average. */}
+              {/* Which months feed the averages. Same pill chrome as the
+                  category picker above, so it reads as part of the chart — and
+                  it NAMES the two options rather than leaving a switch whose
+                  meaning depends on which way it points (260802 user request). */}
               {canDropRunningMonth && (
-                <button
-                  type="button"
-                  onClick={() => setIncludeRunningMonth(!includeRunningMonth)}
-                  aria-pressed={includeRunningMonth}
-                  className={cn(
-                    "mx-auto flex items-center gap-1.5 rounded-full border px-3 py-1 text-caption transition-colors",
-                    includeRunningMonth
-                      ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-[var(--primary)]"
-                      : "border-[var(--hairline-dark)] text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
-                  )}
+                <Select
+                  value={includeRunningMonth ? "all" : "completed"}
+                  onValueChange={(v) => setIncludeRunningMonth(v === "all")}
                 >
-                  {includeRunningMonth ? (
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <CalendarOff className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  {includeRunningMonth
-                    ? t("planned.runningMonthCounted")
-                    : t("planned.runningMonthSkipped")}
-                </button>
+                  <SelectTrigger
+                    data-testid="overview-planned-avg-scope"
+                    aria-label={t("planned.avgScope")}
+                    className="mx-auto h-9 w-fit min-w-[10rem] max-w-full gap-2 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completed">
+                      {t("planned.avgScopeCompleted")}
+                    </SelectItem>
+                    <SelectItem value="all">
+                      {t("planned.avgScopeAll")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               )}
               <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal
