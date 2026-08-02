@@ -432,10 +432,15 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             }
             const last = points[points.length - 1]!;
             if (last.label < input.to) {
+              // The running total belongs to its own month: an anchor in a later
+              // month starts that month's cycle at zero. Carrying the previous
+              // month's total across the boundary read as a month that had spent
+              // everything and overspent all of it (user report).
+              const sameMonth = last.label.slice(0, 7) === input.to.slice(0, 7);
               points.push({
                 label: input.to,
                 ...splitAt(input.to.slice(0, 7)),
-                real_cents: last.real_cents,
+                real_cents: sameMonth ? last.real_cents : "0",
               });
             }
           }

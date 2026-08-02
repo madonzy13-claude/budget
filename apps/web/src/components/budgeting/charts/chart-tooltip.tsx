@@ -82,10 +82,13 @@ export function ChartTooltipContent({
   omitKeys?: string[];
 }) {
   if (!active || !payload || payload.length === 0) return null;
-  // A row flagged `reset` is drawn geometry — the drop to zero at a month
-  // boundary — not a reading anyone can hover for a number (260801).
-  if ((payload[0]?.payload as { reset?: boolean } | undefined)?.reset)
-    return null;
+  // Only geometry with NOTHING to read stays silent — the tail that carries a
+  // plan past the last reading. Everything else answers, including the points a
+  // month opens and closes with: somewhere the pointer can land and get nothing
+  // back reads as a broken chart (260801 user report).
+  const geometry = payload[0]?.payload as
+    { reset?: boolean; real?: number | null } | undefined;
+  if (geometry?.reset && geometry.real == null) return null;
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.
   if (
     suppressedLabel != null &&

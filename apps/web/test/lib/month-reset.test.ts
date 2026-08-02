@@ -27,7 +27,7 @@ describe("insertMonthResets", () => {
     expect(out.map((r) => r.label)).toEqual([
       "2026-06-10",
       "2026-06-20",
-      "2026-07-01",
+      "2026-06-20",
       "2026-07-01",
       "2026-07-05",
     ]);
@@ -35,10 +35,14 @@ describe("insertMonthResets", () => {
     // until the boundary and the fall to zero is a vertical at ONE x.
     expect(out[2]!.real).toBe(500);
     expect(out[3]!.real).toBe(0);
-    expect(out[2]!.ts).toBe(out[3]!.ts);
-    expect(out[2]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z"));
+    expect(out[3]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z"));
     // Only the vertical is the reset line; the flat hold before it is spending.
     expect(out[2]!.drop).toBeFalsy();
+    // The hold still describes the month it came FROM, and sits a moment before
+    // the boundary, so hovering the end of a month reads that month's date and
+    // numbers (user report: the last point of a month could not be tapped).
+    expect(out[2]!.label).toBe("2026-06-20");
+    expect(out[2]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z") - 1);
     expect(out[3]!.drop).toBe(true);
     expect([out[2]!.reset, out[3]!.reset]).toEqual([true, true]);
   });
@@ -53,7 +57,9 @@ describe("insertMonthResets", () => {
     // — both at the same x, so the band steps vertically instead of sliding.
     expect([close!.needs, close!.wants]).toEqual([100, 50]);
     expect([open!.needs, open!.wants]).toEqual([400, 90]);
-    expect(close!.ts).toBe(open!.ts);
+    // A single millisecond apart: square on screen, but the closing point keeps
+    // its own month's date for the tooltip.
+    expect(open!.ts - close!.ts).toBe(1);
   });
 
   it("puts a monthly bucket's reset at the start of its month", () => {
@@ -61,7 +67,7 @@ describe("insertMonthResets", () => {
     expect(out.map((r) => r.label)).toEqual([
       "2026-06-01",
       "2026-06",
-      "2026-07-01",
+      "2026-06",
       "2026-07-01",
       "2026-07",
     ]);

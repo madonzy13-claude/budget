@@ -243,8 +243,8 @@ export function OverviewAreaChart({
               strokeWidth={2}
               strokeDasharray={s.dashed ? "4 4" : undefined}
               dot={false}
-              // A reset row is geometry with no tooltip, so it must not offer a
-              // dot to aim at either (260801 user report).
+              // A dot only where the tooltip has something to say — a point you
+              // can hit but not read is a dead target (260801 user report).
               activeDot={
                 hideCursor || s.noActiveDot
                   ? false
@@ -253,9 +253,9 @@ export function OverviewAreaChart({
                       cy?: number;
                       fill?: string;
                       stroke?: string;
-                      payload?: { reset?: boolean };
+                      payload?: { reset?: boolean; real?: number | null };
                     }) =>
-                      props.payload?.reset ? (
+                      props.payload?.reset && props.payload.real == null ? (
                         <g />
                       ) : (
                         <DefaultActiveDot {...props} />

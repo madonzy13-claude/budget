@@ -1059,4 +1059,65 @@ describe("getOverviewPlanned", () => {
         BigInt(p.real_cents),
       );
   });
+
+  test("the range-end anchor belongs to ITS month, not the last one", async () => {
+    // Each month restarts at zero, so an anchor in a month with no spend is a
+    // zero — it used to carry the previous month's running total across the
+    // boundary, which then read as a whole month overspent (user report).
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "A", month: "2026-07", planned_cents: 30000n },
+          { category_id: "A", month: "2026-08", planned_cents: 30000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: "A", month: "2026-07", spent_cents: 25000n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "Food",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [
+          { day: "2026-07-10", spent_cents: 10000n },
+          { day: "2026-07-31", spent_cents: 15000n },
+        ];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-07-01",
+        to: "2026-08-02",
+      })
+    )._unsafeUnwrap();
+
+    const anchor = dto.timeline[dto.timeline.length - 1]!;
+    expect(anchor.label).toBe("2026-08-02");
+    expect(anchor.real_cents).toBe("0");
+    // …and July still ends at its own total.
+    expect(dto.timeline.find((p) => p.label === "2026-07-31")!.real_cents).toBe(
+      "25000",
+    );
+  });
 });

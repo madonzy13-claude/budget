@@ -28,12 +28,17 @@ export interface ActualRow {
 }
 
 /**
- * A reserve draw or an overspend gets a FLOOR of five points added to its share
- * of the line, taken out of green (260801 user decision): a 3% sliver of yellow
- * is invisible, and those are precisely the jumps worth seeing. Zero parts stay
- * zero — a month that never touched its reserve shows no yellow at all.
+ * A reserve draw or an overspend that exists gets AT LEAST this share of the
+ * line (260801): a 3% sliver is invisible, and those are precisely the jumps
+ * worth seeing. Zero parts stay zero — a month that never touched its reserve
+ * shows no yellow at all.
+ *
+ * It is a floor, not a bonus. Adding five points to every part moved the cut
+ * below the real crossing even where the part was already plain to see, so a
+ * point the tooltip reported as wholly within the limit was drawn yellow (user
+ * report). Now only a part too small to see moves anything.
  */
-export const ZONE_BOOST = 0.05;
+export const ZONE_MIN_SHARE = 0.05;
 
 /**
  * Where the colour changes, in VALUE space: green below `limit`, yellow up to
@@ -54,8 +59,8 @@ export function zoneThresholds(r: ActualRow): {
   const total = within + used + over;
   if (!(total > 0)) return { limit: 0, covered: 0 };
 
-  let yellow = used > 0 ? used / total + ZONE_BOOST : 0;
-  let red = over > 0 ? over / total + ZONE_BOOST : 0;
+  let yellow = used > 0 ? Math.max(used / total, ZONE_MIN_SHARE) : 0;
+  let red = over > 0 ? Math.max(over / total, ZONE_MIN_SHARE) : 0;
   const nonGreen = yellow + red;
   if (nonGreen > 1) {
     yellow /= nonGreen;

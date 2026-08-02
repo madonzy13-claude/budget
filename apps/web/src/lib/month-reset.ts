@@ -48,10 +48,12 @@ export function insertMonthResets<T extends ResettableRow>(
       const label = `${monthOf(r.label)}-01`;
       const ts = Date.parse(`${label}T00:00:00Z`);
       // Close the previous month at ITS limits AND its running total, then open
-      // the new one at its own limits and zero — both at the same x, so the
-      // bands step vertically and the spend falls straight down.
+      // the new one at its own limits and zero — a millisecond apart, so the
+      // bands step vertically and the spend falls straight down while the
+      // closing point keeps the date and numbers of the month it ENDS. Hovering
+      // the end of a month has to read that month (user report).
       if (prev)
-        out.push({ ...prev, label, ts, reset: true } as T & {
+        out.push({ ...prev, ts: ts - 1, reset: true } as T & {
           reset?: boolean;
           drop?: boolean;
         });
