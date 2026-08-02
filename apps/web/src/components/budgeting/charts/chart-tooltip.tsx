@@ -83,10 +83,10 @@ export function ChartTooltipContent({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   // Geometry answers nothing. These points exist to shape the line, not to be
-  // read: the tail that carries a plan past the last reading, the `hold` that
-  // repeats a month's closing total up to the boundary (it put a second,
-  // identical tick at every month end), and the point a month OPENS with, which
-  // is always zero because nothing has been spent yet (260802 user requests).
+  // read: the tail that carries a plan past the last reading, and the point a
+  // month OPENS with, which is always zero because nothing has been spent yet
+  // (260802 user request). A month's CLOSING total is a real reading — it is the
+  // last day's, moved onto the boundary — so it answers like any other day.
   const geometry = payload[0]?.payload as { reset?: boolean } | undefined;
   if (geometry?.reset) return null;
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.

@@ -22,27 +22,3 @@ export function polylinePath(points: Pt[]): string {
   const [first, ...rest] = points;
   return `M${first!.x},${first!.y}${pts(rest)}`;
 }
-
-/**
- * Draw a month's LAST READING at the month's end (260802 user decision).
- *
- * A `hold` row repeats that reading at the boundary so the line reaches the month
- * end — but drawn as its own point it showed as a flat stub hanging off the last
- * spending day ("this small ending"). Ending the line at the reading instead put
- * the fall mid-month wherever the spend was logged mid-month. Moving the reading
- * itself onto the boundary gives neither: the line rises straight into the month
- * end, and the reset falls from exactly where it arrives — no tail, no gap.
- *
- * Takes the x of every row and returns them with each pre-hold reading slid onto
- * its hold's x. The hold itself is then skipped when the line is built.
- */
-export function holdXsAtBoundary(
-  rows: ReadonlyArray<{ hold?: unknown }>,
-  xs: readonly number[],
-): number[] {
-  const out = [...xs];
-  for (const [i, r] of rows.entries()) {
-    if (r.hold && i > 0) out[i - 1] = xs[i]!;
-  }
-  return out;
-}

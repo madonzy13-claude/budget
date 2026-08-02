@@ -10,9 +10,15 @@
  * opening point at the new one, both at the same x, so a changed limit steps
  * square instead of sliding diagonally across the boundary.
  *
- * The closing point also carries the old month's RUNNING TOTAL, so the spend
- * holds flat to the boundary and falls at a single x — a 90-degree drop rather
- * than a slide from the month's last spend day.
+ * The month's LAST READING is MOVED onto the boundary rather than copied there.
+ * It keeps its own date and figures — it is still that day's reading, drawn at the
+ * moment the month ends — so the line rises straight into the boundary and the
+ * fall is a 90-degree drop from where it arrives. Three attempts got here
+ * (260802): a copy gave the month end two stops with identical numbers ("extra
+ * tick"); cutting the line at the reading put the fall mid-month wherever the
+ * spend was logged mid-month; drawing the line to the boundary while the reading
+ * stayed put left the stop, and the hover dot, adrift from the line ("no tooltip
+ * is shown in the end").
  *
  * Rows carrying `reset` are geometry, not data: no axis tick, no tooltip.
  */
@@ -26,9 +32,6 @@ export interface ResettableRow {
   wants: number;
   /** Geometry, not a reading: no axis tick, no tooltip. */
   reset?: boolean;
-  /** Merely REPEATS the reading before it, to hold the line flat. It answers no
-   *  pointer: stopping on it put a second identical tick at every month end. */
-  hold?: boolean;
   /** The vertical fall back to zero — the reset line itself. */
   drop?: boolean;
   /** Rows ride straight into recharts, which takes arbitrary keys. */
@@ -39,9 +42,8 @@ const monthOf = (label: string) => label.slice(0, 7);
 
 export function insertMonthResets<T extends ResettableRow>(
   rows: T[],
-): Array<T & { reset?: boolean; hold?: boolean; drop?: boolean }> {
-  const out: Array<T & { reset?: boolean; hold?: boolean; drop?: boolean }> =
-    [];
+): Array<T & { reset?: boolean; drop?: boolean }> {
+  const out: Array<T & { reset?: boolean; drop?: boolean }> = [];
   for (const [i, r] of rows.entries()) {
     const prev = rows[i - 1];
     // A MONTHLY point carries its month-END value, so the very first month needs
@@ -53,18 +55,13 @@ export function insertMonthResets<T extends ResettableRow>(
       const ts = Date.parse(`${label}T00:00:00Z`);
       // Close the previous month at ITS limits AND its running total, then open
       // the new one at its own limits and zero — a millisecond apart, so the
-      // bands step vertically and the spend falls straight down while the
-      // closing point keeps the date and numbers of the month it ENDS.
-      // It is a HOLD, not a reading: it repeats the last day of the month, so
-      // answering the pointer there gave every month end a second, identical
-      // tick (user report, 260802). The month's OPENING point below is its own
-      // reading (nothing spent yet) and still answers.
-      if (prev)
-        out.push({ ...prev, ts: ts - 1, reset: true, hold: true } as T & {
-          reset?: boolean;
-          hold?: boolean;
-          drop?: boolean;
-        });
+      // bands step vertically and the spend falls straight down.
+      //
+      // The close is the previous month's last reading MOVED here, not a copy of
+      // it: it keeps its date and numbers, so the pointer finds one stop at the
+      // month end rather than two identical ones, and the hover dot lands on the
+      // line instead of back where the reading was logged.
+      if (prev) out[out.length - 1] = { ...prev, ts: ts - 1 };
       out.push({ ...r, label, ts, real: 0, reset: true, drop: !!prev });
     }
     out.push(r);

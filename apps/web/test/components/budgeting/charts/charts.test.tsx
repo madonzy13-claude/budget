@@ -162,11 +162,11 @@ describe("Overview charts", () => {
         />,
       ).container;
 
-    it("stays silent on a hold — it only repeats the reading before it", () => {
-      // The month's closing point and today's tail carry the previous reading
-      // forward so the line holds flat; answering the pointer there stopped it
-      // twice on the same date with the same numbers (user report, 260802).
-      expect(renderTip({ reset: true, hold: true }).textContent).toBe("");
+    it("answers on a month's CLOSING total", () => {
+      // It is the last day's reading, moved onto the boundary — not geometry.
+      // Silencing it left the end of every month unanswerable (user report,
+      // 260802: "no tooltip is shown in the end").
+      expect(renderTip({}).textContent).not.toBe("");
     });
 
     it("stays silent on the point a month OPENS with", () => {
@@ -175,10 +175,6 @@ describe("Overview charts", () => {
       expect(renderTip({ reset: true, drop: true, real: 0 }).textContent).toBe(
         "",
       );
-    });
-
-    it("still answers on an ordinary day", () => {
-      expect(renderTip({}).textContent).not.toBe("");
     });
   });
 

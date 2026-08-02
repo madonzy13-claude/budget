@@ -19,7 +19,7 @@
  */
 import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
 import { zoneSegments } from "@/lib/actual-over-plan";
-import { holdXsAtBoundary, polylinePath, type Pt } from "@/lib/plan-zone-paths";
+import { polylinePath, type Pt } from "@/lib/plan-zone-paths";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 
 /**
@@ -39,8 +39,6 @@ export interface PlanZoneRow {
   overspent?: number;
   /** Epoch ms — the chart's x-axis is numeric so spacing follows real time. */
   ts: number;
-  /** Repeats the month's last reading at the boundary — geometry, not a day. */
-  hold?: boolean;
   /** The vertical fall back to zero at a month boundary. */
   drop?: boolean;
   real: number;
@@ -73,12 +71,10 @@ export function PlanZoneLine({
 
   // Pixel x of each data point, from the chart's own (time) scale; a fractional
   // index (a crossing inside a segment) interpolates between its neighbours.
-  // Each month's LAST READING is drawn at the month's end rather than where it
-  // was logged, so the line rises straight into the boundary the reset falls at
-  // — no flat stub off the last spending day, no gap before the fall (260802).
-  const rawXs = rows.map((r) => xScale(r.ts) as number);
-  if (rawXs.some((x) => !Number.isFinite(x))) return null;
-  const pointXs = holdXsAtBoundary(rows, rawXs);
+  // A month's last reading already sits ON the boundary (insertMonthResets moves
+  // it there), so the line rises straight into the fall with no stub and no gap.
+  const pointXs = rows.map((r) => xScale(r.ts) as number);
+  if (pointXs.some((x) => !Number.isFinite(x))) return null;
   const toPx = (samples: Array<{ x: number; v: number }>): Pt[] =>
     samples.map(({ x, v }) => {
       const i = Math.min(rows.length - 2, Math.max(0, Math.floor(x)));
@@ -92,11 +88,9 @@ export function PlanZoneLine({
   // UNDER the line, since it is the reset and not spending.
   //
   // It falls AT THE BOUNDARY, straight down from the total the month closed on:
-  // the `hold` sits a millisecond before it carrying that total, so the fall is
-  // 90° with no run along the baseline. Dropping at the last reading instead and
-  // walking the baseline to the boundary made a month whose spend was recorded
-  // mid-month look like it ended mid-month, and drew a grey rail between the two
-  // (user report, 260802).
+  // the month's last reading was moved to a millisecond before it, so the fall is
+  // 90° and starts exactly where the line arrives — no stub, no gap, no rail
+  // along the baseline (user reports, 260802).
   const resets: Pt[][] = [];
   for (let i = 1; i < rows.length; i++) {
     if (!rows[i]!.drop) continue;

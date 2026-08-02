@@ -18,39 +18,34 @@ const row = (label: string, real: number, needs = 100, wants = 50) => ({
 });
 
 describe("insertMonthResets", () => {
-  it("holds the spend to the boundary, then drops it vertically", () => {
+  it("MOVES a month's last reading to the boundary, then drops vertically", () => {
     const out = insertMonthResets([
       row("2026-06-10", 300),
       row("2026-06-20", 500),
       row("2026-07-05", 200),
     ]);
+    // Four rows, not five: the reading is relocated, not copied. A copy gave the
+    // month end two stops with the same numbers, and once the line was drawn to
+    // the boundary the surviving stop sat where no line was left (user reports,
+    // 260802: "extra tick", then "no tooltip is shown in the end").
     expect(out.map((r) => r.label)).toEqual([
       "2026-06-10",
-      "2026-06-20",
       "2026-06-20",
       "2026-07-01",
       "2026-07-05",
     ]);
-    // The closing point carries JUNE's running total, so the line stays flat
-    // until the boundary and the fall to zero is a vertical at ONE x.
-    expect(out[2]!.real).toBe(500);
-    expect(out[3]!.real).toBe(0);
-    expect(out[3]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z"));
-    // Only the vertical is the reset line; the flat hold before it is spending.
-    expect(out[2]!.drop).toBeFalsy();
-    // The hold still describes the month it came FROM, and sits a moment before
-    // the boundary, so hovering the end of a month reads that month's date and
-    // numbers (user report: the last point of a month could not be tapped).
-    expect(out[2]!.label).toBe("2026-06-20");
-    expect(out[2]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z") - 1);
-    expect(out[3]!.drop).toBe(true);
-    expect([out[2]!.reset, out[3]!.reset]).toEqual([true, true]);
-    // The hold REPEATS the reading before it, so it must not answer the pointer
-    // as well: hovering the end of a month stopped twice on the same date with
-    // the same numbers — one tick too many (user report, 260802). The month's
-    // OPENING point is a reading of its own and still answers.
-    expect(out[2]!.hold).toBe(true);
-    expect(out[3]!.hold).toBeFalsy();
+    // It keeps its own date and figures — it is still June's reading, drawn at
+    // the moment June ends, so the line rises into the boundary with no stub.
+    expect(out[1]!.real).toBe(500);
+    expect(out[1]!.label).toBe("2026-06-20");
+    expect(out[1]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z") - 1);
+    // And it is a READING, so the pointer stops on it and gets an answer.
+    expect(out[1]!.reset).toBeFalsy();
+    expect(out[1]!.drop).toBeFalsy();
+    // Only the month's opening point is geometry: always zero, always silent.
+    expect(out[2]!.real).toBe(0);
+    expect(out[2]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z"));
+    expect([out[2]!.reset, out[2]!.drop]).toEqual([true, true]);
   });
 
   it("holds the plan bands and steps them square at the boundary", () => {
@@ -58,7 +53,7 @@ describe("insertMonthResets", () => {
       row("2026-06-20", 500, 100, 50),
       row("2026-07-05", 200, 400, 90),
     ]);
-    const [, close, open] = out;
+    const [close, open] = out;
     // The closing point keeps JUNE's limits and the opening point carries JULY's
     // — both at the same x, so the band steps vertically instead of sliding.
     expect([close!.needs, close!.wants]).toEqual([100, 50]);
@@ -73,13 +68,12 @@ describe("insertMonthResets", () => {
     expect(out.map((r) => r.label)).toEqual([
       "2026-06-01",
       "2026-06",
-      "2026-06",
       "2026-07-01",
       "2026-07",
     ]);
     // Each reset sits BEFORE its month's point, so the month draws as a rise
     // from zero rather than a slide out of the previous month.
-    expect(out[3]!.ts).toBeLessThan(out[4]!.ts);
+    expect(out[2]!.ts).toBeLessThan(out[3]!.ts);
   });
 
   it("opens a monthly bucket's FIRST month at zero spend, full plan", () => {
