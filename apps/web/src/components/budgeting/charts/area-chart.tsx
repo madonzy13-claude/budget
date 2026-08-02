@@ -232,6 +232,7 @@ export function OverviewAreaChart({
           return (
             <Area
               key={s.key}
+              zIndex={s.zIndex}
               type={s.curve ?? "monotone"}
               dataKey={s.key}
               name={s.label}

@@ -393,4 +393,54 @@ describe("Overview charts", () => {
     }).not.toThrow();
     expect(container).toBeTruthy();
   });
+
+  describe("Tooltip rows that say nothing", () => {
+    const series = [
+      { key: "needs", label: "Needs", hideWhenZero: true },
+      { key: "wants", label: "Wants", hideWhenZero: true },
+    ];
+    const payload = (needs: number, wants: number) => [
+      { dataKey: "needs", name: "Needs", value: needs, payload: {} },
+      { dataKey: "wants", name: "Wants", value: wants, payload: {} },
+    ];
+
+    it("drops a band whose value is zero", () => {
+      const { queryByText, getByText } = render(
+        <ChartTooltipContent
+          active
+          payload={payload(600, 0)}
+          series={series}
+        />,
+      );
+      expect(getByText("Needs")).toBeTruthy();
+      expect(queryByText("Wants")).toBeNull();
+    });
+
+    it("keeps both when both carry a figure", () => {
+      const { getByText } = render(
+        <ChartTooltipContent
+          active
+          payload={payload(600, 400)}
+          series={series}
+        />,
+      );
+      expect(getByText("Needs")).toBeTruthy();
+      expect(getByText("Wants")).toBeTruthy();
+    });
+
+    it("leaves series that did not ask for it alone", () => {
+      const { getByText } = render(
+        <ChartTooltipContent
+          active
+          payload={payload(0, 0)}
+          series={[
+            { key: "needs", label: "Needs" },
+            { key: "wants", label: "Wants" },
+          ]}
+        />,
+      );
+      expect(getByText("Needs")).toBeTruthy();
+      expect(getByText("Wants")).toBeTruthy();
+    });
+  });
 });

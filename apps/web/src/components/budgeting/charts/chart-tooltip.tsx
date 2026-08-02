@@ -137,6 +137,13 @@ export function ChartTooltipContent({
               // line — those points are not a "0", they are simply absent.
               .filter((p) => p.value !== null && p.value !== undefined)
               .filter((p) => !omitKeys?.includes(String(p.dataKey)))
+              // A band that is 0 has nothing to say: a plan with no wants only
+              // needs its needs row (260802 user request).
+              .filter(
+                (p) =>
+                  !series?.find((x) => x.key === p.dataKey)?.hideWhenZero ||
+                  Number(p.value) !== 0,
+              )
               .map((p) => {
                 const s = series?.find((x) => x.key === p.dataKey);
                 // Per-point color wins (up/down or category colorKey) so the marker matches

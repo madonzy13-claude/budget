@@ -10,7 +10,12 @@
  * member who made it: it never rides the budget record, so one member narrowing
  * their own chart cannot change what the others see.
  */
-const key = (budgetId: string) => `budget:${budgetId}:planned-categories`;
+/** Each chart remembers its own choice; the timeline keeps the original key. */
+export type CategoryFilterScope = "timeline" | "pie";
+const key = (budgetId: string, scope: CategoryFilterScope) =>
+  scope === "timeline"
+    ? `budget:${budgetId}:planned-categories`
+    : `budget:${budgetId}:planned-${scope}-categories`;
 
 /** What to ask the API for — `undefined` means "everything, as before". */
 export function effectiveCategoryIds(
@@ -31,10 +36,13 @@ export function prunePlannedCategories(
   return allIds.filter((id) => picked.has(id));
 }
 
-export function loadPlannedCategories(budgetId: string): string[] {
+export function loadPlannedCategories(
+  budgetId: string,
+  scope: CategoryFilterScope = "timeline",
+): string[] {
   if (typeof localStorage === "undefined") return [];
   try {
-    const raw = localStorage.getItem(key(budgetId));
+    const raw = localStorage.getItem(key(budgetId, scope));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -45,10 +53,14 @@ export function loadPlannedCategories(budgetId: string): string[] {
   }
 }
 
-export function savePlannedCategories(budgetId: string, ids: string[]): void {
+export function savePlannedCategories(
+  budgetId: string,
+  ids: string[],
+  scope: CategoryFilterScope = "timeline",
+): void {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(key(budgetId), JSON.stringify(ids));
+    localStorage.setItem(key(budgetId, scope), JSON.stringify(ids));
   } catch {
     // A full or blocked store costs the memory of the choice, nothing more.
   }

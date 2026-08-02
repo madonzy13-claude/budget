@@ -93,4 +93,10 @@ export interface ChartSeries {
   /** Background bands take no hover dot: two dots at one x, only one of which
    *  the tooltip explains, read as a stray point (260801 user report). */
   noActiveDot?: boolean;
+  /** Paint layer. recharts gives an Area 100 and the grid −100, so a band meant
+   *  to sit UNDER everything — the plan bands — asks for less than that. */
+  zIndex?: number;
+  /** Leave this row out of the tooltip when its value is 0 — a plan with no
+   *  wants has nothing to say about wants (260802 user request). */
+  hideWhenZero?: boolean;
 }

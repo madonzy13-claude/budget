@@ -11,7 +11,10 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
-import { CategoryMultiSelect } from "./category-multi-select";
+import {
+  CategoryMultiSelect,
+  type PickableCategory,
+} from "./category-multi-select";
 import {
   effectiveCategoryIds,
   loadPlannedCategories,
@@ -95,15 +98,26 @@ function PlannedByCategoryPie({
   allLabel,
   formatValue,
   maskValue = false,
+  picked,
+  onPick,
+  pickable,
 }: {
-  rows: { name: string; planned_avg_cents: string }[];
+  rows: { category_id: string; name: string; planned_avg_cents: string }[];
   categories: { name: string; colorKey?: unknown }[];
   title: string;
   allLabel: string;
   formatValue: (n: number) => string;
   maskValue?: boolean;
+  /** Categories to show; empty = all of them. */
+  picked: string[];
+  onPick: (ids: string[]) => void;
+  pickable: PickableCategory[];
 }) {
+  // The pie has its own picker (260802 request): a slice the member drops here
+  // stays on the timeline, and the other way round.
+  const shown = picked.length ? new Set(picked) : null;
   const data = rows
+    .filter((c) => !shown || shown.has(c.category_id))
     .map((c) => ({ name: c.name, planned: Number(c.planned_avg_cents) }))
     .filter((r) => r.planned > 0)
     .sort((a, b) => b.planned - a.planned);
@@ -120,6 +134,11 @@ function PlannedByCategoryPie({
   return (
     <div className="flex flex-col gap-2">
       <ChartLabel>{title}</ChartLabel>
+      <CategoryMultiSelect
+        categories={pickable}
+        selected={picked}
+        onCommit={onPick}
+      />
       <OverviewPieChart
         data={data}
         nameKey="name"
@@ -168,6 +187,16 @@ export function PlannedSection({
   const setCategoryIds = (ids: string[]) => {
     savePlannedCategories(budgetId, ids);
     setCategoryIdsState(ids);
+  };
+  // …and the pie remembers its own, so dropping a slice there leaves the
+  // timeline alone (260802 request).
+  const [pieCategoryIds, setPieCategoryIdsState] = useState<string[]>([]);
+  useEffect(() => {
+    setPieCategoryIdsState(loadPlannedCategories(budgetId, "pie"));
+  }, [budgetId]);
+  const setPieCategoryIds = (ids: string[]) => {
+    savePlannedCategories(budgetId, ids, "pie");
+    setPieCategoryIdsState(ids);
   };
 
   // Counting the month still in progress is opt-IN: half a month of spend drags
@@ -328,6 +357,9 @@ export function PlannedSection({
                     fillOpacity: 0.16,
                     strokeOpacity: 0.5,
                     noActiveDot: true,
+                    // Background: under the grid (−100) and everything else.
+                    zIndex: -200,
+                    hideWhenZero: true,
                   },
                   ...(wantsSplitExists
                     ? [
@@ -340,6 +372,8 @@ export function PlannedSection({
                           fillOpacity: 0.16,
                           strokeOpacity: 0.5,
                           noActiveDot: true,
+                          zIndex: -200,
+                          hideWhenZero: true,
                         },
                       ]
                     : []),
@@ -370,7 +404,7 @@ export function PlannedSection({
                 // Needs + Wants read as parts, so the row that closes them is
                 // their total — not a section of its own (260801).
                 summary={(row) =>
-                  wantsSplitExists
+                  wantsSplitExists && Number(row.wants ?? 0) > 0
                     ? {
                         label: t("planned.total"),
                         value: fmtTooltip(
@@ -537,6 +571,18 @@ export function PlannedSection({
           <PlannedByCategoryPie
             rows={data.plannedAvgVsReal}
             categories={categories}
+            picked={prunePlannedCategories(
+              pieCategoryIds,
+              categories.map((c) => c.id as string),
+            )}
+            onPick={setPieCategoryIds}
+            pickable={categories.map((c) => ({
+              id: c.id,
+              name: c.name,
+              color:
+                hexForColorKey((c.colorKey as string | null) ?? null) ??
+                undefined,
+            }))}
             title={t("planned.avgPie")}
             allLabel={t("planned.allCategories")}
             formatValue={fmtTooltip}

@@ -56,6 +56,13 @@ describe("remembering the choice", () => {
     expect(loadPlannedCategories("b2")).toEqual(["b"]);
   });
 
+  it("keeps each chart's choice apart", () => {
+    savePlannedCategories("b1", ["a"], "timeline");
+    savePlannedCategories("b1", ["c"], "pie");
+    expect(loadPlannedCategories("b1", "timeline")).toEqual(["a"]);
+    expect(loadPlannedCategories("b1", "pie")).toEqual(["c"]);
+  });
+
   it("reads an untouched budget as 'everything'", () => {
     expect(loadPlannedCategories("b3")).toEqual([]);
   });

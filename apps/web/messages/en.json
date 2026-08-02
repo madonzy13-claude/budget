@@ -1448,7 +1448,7 @@
           "recurringPerMonth": "Recurring bills, by month",
           "recurringSeries": "Recurring bills",
           "recurringPerCategory": "Recurring bills, by category",
-          "timelineTitle": "Planned vs actual spending, over time",
+          "timelineTitle": "How each month tracked against plan",
           "avgByCategory": "How far off plan, by category",
           "avgPie": "Planned spendings, by category",
           "difference": "Difference"
