@@ -9,8 +9,15 @@
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
-import { useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
+import { SegmentedToggle } from "@/components/ui/segmented-toggle";
+import { CategoryMultiSelect } from "./category-multi-select";
+import {
+  effectiveCategoryIds,
+  loadPlannedCategories,
+  prunePlannedCategories,
+  savePlannedCategories,
+} from "@/lib/planned-category-filter";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -26,13 +33,6 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Customized } from "recharts";
 import { PlanZoneLine } from "./plan-zone-line";
 import { hasWantsSplit } from "@/lib/wants-split";
@@ -66,9 +66,6 @@ function trimLeadingEmpty<T extends Record<string, unknown>>(
   const first = rows.findIndex((r) => keys.some((k) => Number(r[k]) !== 0));
   return first > 0 ? rows.slice(first) : rows;
 }
-
-/** Radix Select forbids an empty-string item value, so "all" needs a sentinel. */
-const ALL_CATEGORIES = "__all__";
 
 /** Epoch ms → the same "13 Feb 2026" the rest of the charts use. */
 function formatTs(ts: number, locale: string): string {
@@ -161,12 +158,15 @@ export function PlannedSection({
   // Persist the selected category across pill navigation (the carousel unmounts
   // this pane, so a plain useState would reset to "All categories" on return).
   const store = useBdpUiStore();
-  const [categoryId, setCategoryIdState] = useState<string | undefined>(
-    () => store?.overview.plannedCategoryId,
-  );
-  const setCategoryId = (v: string | undefined) => {
-    if (store) store.overview.plannedCategoryId = v;
-    setCategoryIdState(v);
+  // The picked categories are remembered per budget on this device, so they are
+  // this member's own view — the chart reopens the way they left it (260802).
+  const [categoryIds, setCategoryIdsState] = useState<string[]>([]);
+  useEffect(() => {
+    setCategoryIdsState(loadPlannedCategories(budgetId));
+  }, [budgetId]);
+  const setCategoryIds = (ids: string[]) => {
+    savePlannedCategories(budgetId, ids);
+    setCategoryIdsState(ids);
   };
 
   // Counting the month still in progress is opt-IN: half a month of spend drags
@@ -186,31 +186,14 @@ export function PlannedSection({
     setIncludeRunningMonthState(v);
   };
 
-  // Short on screen, spelled out for the accessible name: two full sentences
-  // side by side wrapped onto four lines and outweighed the chart's own title.
-  const scopeTab = (ongoing: boolean, label: string, full: string) => (
-    <button
-      type="button"
-      onClick={() => setIncludeRunningMonth(ongoing)}
-      aria-pressed={includeRunningMonth === ongoing}
-      aria-label={full}
-      title={full}
-      className={cn(
-        "whitespace-nowrap border-b-2 px-2 py-1 transition-colors min-h-[44px] sm:min-h-0",
-        includeRunningMonth === ongoing
-          ? "border-[var(--primary)] text-[var(--body-on-dark)]"
-          : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
-      )}
-    >
-      {label}
-    </button>
-  );
-
   const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
     from: range.from,
     to: range.to,
-    categoryId,
+    categoryIds: effectiveCategoryIds(
+      categoryIds,
+      categories.map((c) => c.id as string),
+    ),
     excludeCurrentMonth: canDropRunningMonth && !includeRunningMonth,
     enabled: open,
   });
@@ -295,30 +278,20 @@ export function PlannedSection({
             {/* 260731: the category filter belongs to THIS chart, so it sits
                 under its label instead of floating above the whole section —
                 and it uses the app's Select chrome, not a raw <select>. */}
-            <Select
-              value={categoryId ?? ALL_CATEGORIES}
-              onValueChange={(v) =>
-                setCategoryId(v === ALL_CATEGORIES ? undefined : v)
-              }
-            >
-              <SelectTrigger
-                data-testid="overview-planned-category"
-                aria-label={t("planned.category")}
-                className="mx-auto h-9 w-fit min-w-[10rem] max-w-full gap-2 rounded-full border-[var(--hairline-dark)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_CATEGORIES}>
-                  {t("planned.allCategories")}
-                </SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CategoryMultiSelect
+              categories={categories.map((c) => ({
+                id: c.id,
+                name: c.name,
+                color:
+                  hexForColorKey((c.colorKey as string | null) ?? null) ??
+                  undefined,
+              }))}
+              selected={prunePlannedCategories(
+                categoryIds,
+                categories.map((c) => c.id),
+              )}
+              onCommit={setCategoryIds}
+            />
             {data.timeline.length === 0 ? (
               <p className="text-num-sm text-[var(--muted-foreground)]">
                 {t("empty.planned")}
@@ -487,31 +460,20 @@ export function PlannedSection({
               {/* A month still in progress drags the average down against months
                   that ran their full course, so it is left out by default — and
                   only offered when the range has other months to average. */}
-              {/* Which months feed the averages — the same underlined segments
-                  the Wealth section switches its view with, at caption size
-                  since this belongs to one chart. Both choices stay readable,
-                  so the state is the lit segment rather than a popup to open. */}
+              {/* Which months feed the averages — the same pill track the app
+                  switches "Incl./Excl. contributions" with (260802 request). */}
               {canDropRunningMonth && (
-                <div
-                  role="group"
-                  aria-label={t("planned.avgScope")}
-                  data-testid="overview-planned-avg-scope"
-                  // text-caption sits HERE, not on the buttons: inside cn() it
-                  // reads as a text-COLOUR class and tailwind-merge drops it for
-                  // the colour beside it, leaving 16px segments.
-                  className="flex items-center justify-center gap-1 text-caption"
-                >
-                  {scopeTab(
-                    false,
-                    t("planned.avgScopeCompletedShort"),
-                    t("planned.avgScopeCompleted"),
-                  )}
-                  {scopeTab(
-                    true,
-                    t("planned.avgScopeAllShort"),
-                    t("planned.avgScopeAll"),
-                  )}
-                </div>
+                <SegmentedToggle
+                  className="mx-auto text-caption"
+                  testId="overview-planned-avg-scope"
+                  label={t("planned.avgScope")}
+                  value={includeRunningMonth ? "incl" : "excl"}
+                  onChange={(v) => setIncludeRunningMonth(v === "incl")}
+                  options={[
+                    { value: "excl", label: t("planned.avgScopeCompleted") },
+                    { value: "incl", label: t("planned.avgScopeAll") },
+                  ]}
+                />
               )}
               <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal

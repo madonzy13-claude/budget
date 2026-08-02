@@ -1232,4 +1232,113 @@ describe("getOverviewPlanned", () => {
     )._unsafeUnwrap();
     expect(dto.plannedAvgVsReal[0]!.real_avg_cents).toBe("600");
   });
+
+  test("scopes the timeline to a SET of categories", async () => {
+    // The chart's picker is a multi-select now: the user unticks the categories
+    // that drown out the rest (260802 request), so the filter is a set.
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "A", month: "2026-06", planned_cents: 10000n },
+          { category_id: "B", month: "2026-06", planned_cents: 20000n },
+          { category_id: "C", month: "2026-06", planned_cents: 40000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [
+          { category_id: "A", month: "2026-06", spent_cents: 1000n },
+          { category_id: "B", month: "2026-06", spent_cents: 2000n },
+          { category_id: "C", month: "2026-06", spent_cents: 4000n },
+        ];
+      },
+      async categoryWindows() {
+        return ["A", "B", "C"].map((id) => ({
+          category_id: id,
+          name: id,
+          created_month: "2026-01",
+          archived_month: null,
+          is_investment: false,
+        }));
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const svc = getOverviewPlanned({
+      repo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+    });
+    const range = {
+      tenantId: "b1",
+      budgetId: "b1",
+      from: "2026-05-01",
+      to: "2026-07-31",
+    };
+
+    const two = (await svc({ ...range, categoryIds: ["A", "C"] }))
+      ._unsafeUnwrap()
+      .timeline.find((p) => p.label === "2026-06")!;
+    expect(two.planned_cents).toBe("50000");
+    expect(two.real_cents).toBe("5000");
+
+    // An empty set means "no filter" — the same as not passing one at all.
+    const none = (await svc({ ...range, categoryIds: [] }))
+      ._unsafeUnwrap()
+      .timeline.find((p) => p.label === "2026-06")!;
+    expect(none.planned_cents).toBe("70000");
+  });
+
+  test("passes the whole set down to the DAILY query", async () => {
+    let asked: string[] | undefined;
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [{ category_id: "A", month: "2026-08", planned_cents: 10000n }];
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: "A", month: "2026-08", spent_cents: 1000n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "A",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend(_b, _f, _t, categoryIds) {
+        asked = categoryIds;
+        return [{ day: "2026-08-02", spent_cents: 1000n }];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    await getOverviewPlanned({
+      repo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+    })({
+      tenantId: "b1",
+      budgetId: "b1",
+      from: "2026-08-01",
+      to: "2026-08-31",
+      categoryIds: ["A", "B"],
+    });
+    expect(asked).toEqual(["A", "B"]);
+  });
 });

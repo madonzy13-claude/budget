@@ -188,15 +188,25 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       });
     },
 
-    async dailySpend(budgetId, from, to, categoryId): Promise<DailySpendRow[]> {
+    async dailySpend(
+      budgetId,
+      from,
+      to,
+      categoryIds,
+    ): Promise<DailySpendRow[]> {
       return read(budgetId, async (tx) => {
         // 260801: investing is not spending, so the All-categories line drops
         // investment categories — the MONTHLY branch already did (inCat), the
         // daily one did not, and the extra money coloured the line red on months
         // that never overspent (user report). Picking one explicitly still shows
         // it. Uncategorised rows always count.
-        const catFilter = categoryId
-          ? sql`AND category_id = ${categoryId}::uuid`
+        // sql`= ANY(${array})` sends the ids as separate parameters and Postgres
+        // sees a malformed array literal — build the IN list explicitly.
+        const catFilter = categoryIds?.length
+          ? sql`AND category_id IN (${sql.join(
+              categoryIds.map((id) => sql`${id}::uuid`),
+              sql`, `,
+            )})`
           : sql`AND (category_id IS NULL OR NOT EXISTS (
                   SELECT 1 FROM budgeting.categories c
                    WHERE c.id = budgeting.expense_ledger.category_id

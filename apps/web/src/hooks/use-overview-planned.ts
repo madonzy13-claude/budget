@@ -48,12 +48,15 @@ export function useOverviewPlanned(
     from: string;
     to: string;
     categoryId?: string;
+    /** The chart's multi-select — empty/absent means every category (260802). */
+    categoryIds?: string[];
     /** Leave the running month out of the per-category averages (260802). */
     excludeCurrentMonth?: boolean;
     enabled: boolean;
   },
 ) {
-  const { from, to, categoryId, excludeCurrentMonth, enabled } = opts;
+  const { from, to, categoryId, categoryIds, excludeCurrentMonth, enabled } =
+    opts;
   return useQuery({
     queryKey: [
       "budget",
@@ -63,6 +66,7 @@ export function useOverviewPlanned(
       from,
       to,
       categoryId ?? null,
+      categoryIds?.join(",") ?? null,
       excludeCurrentMonth ?? false,
     ],
     enabled,
@@ -72,6 +76,7 @@ export function useOverviewPlanned(
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to });
       if (categoryId) qs.set("categoryId", categoryId);
+      if (categoryIds?.length) qs.set("categoryIds", categoryIds.join(","));
       if (excludeCurrentMonth) qs.set("excludeCurrentMonth", "true");
       const res = await clientApiFetch(
         `/budgets/${budgetId}/overview/planned?${qs.toString()}`,

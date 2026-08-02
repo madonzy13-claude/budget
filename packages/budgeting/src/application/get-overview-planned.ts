@@ -72,7 +72,8 @@ export interface OverviewPlannedRepo {
     budgetId: string,
     from: string,
     to: string,
-    categoryId?: string,
+    /** Empty or absent → every category the timeline counts (260802). */
+    categoryIds?: string[],
   ): Promise<DailySpendRow[]>;
   activeRecurringRules(budgetId: string): Promise<ActiveRecurringRule[]>;
 }
@@ -123,6 +124,12 @@ export interface GetOverviewPlannedInput {
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD
   categoryId?: string;
+  /**
+   * The chart's picker is a MULTI-select (260802): the timeline counts exactly
+   * these categories. Empty or absent → the default view (every category except
+   * investments). Takes precedence over the single `categoryId`.
+   */
+  categoryIds?: string[];
   /**
    * Leave the RUNNING month out of the per-category averages (260802 user
    * request): a month still in progress drags an average down against months
@@ -254,10 +261,15 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       const investmentIds = new Set(
         windows.filter((w) => w.is_investment).map((w) => w.category_id),
       );
+      const picked = new Set(
+        input.categoryIds?.length
+          ? input.categoryIds
+          : input.categoryId
+            ? [input.categoryId]
+            : [],
+      );
       const inCat = (catId: string) =>
-        input.categoryId
-          ? catId === input.categoryId
-          : !investmentIds.has(catId);
+        picked.size ? picked.has(catId) : !investmentIds.has(catId);
 
       // Each month's spend, split by WHERE IT CAME FROM (260801 user decision):
       // what the limit covered, what the reserve covered, and the rest. Per
@@ -347,7 +359,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           input.budgetId,
           input.from,
           input.to,
-          input.categoryId,
+          picked.size ? [...picked] : undefined,
         );
         const plannedByMonth = new Map<string, bigint>();
         const needsByMonth = new Map<string, bigint>();
@@ -383,7 +395,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         // category is being inspected — a selected category with a 0 budget should
         // still draw a 0-line (parity with the monthly view), NOT "No activity".
         // Only the All-categories view with nothing planned keeps the empty message.
-        if (days.length === 0 && (anyPlanned || input.categoryId)) {
+        if (days.length === 0 && (anyPlanned || picked.size)) {
           // No confirmed spend in range — render the planned target line with
           // real = 0 instead of an empty "no activity" chart (UAT). Two endpoints
           // draw the flat planned line.
